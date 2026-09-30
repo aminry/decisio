@@ -80,6 +80,17 @@ curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d '{
 
 `docs/handoffs/tasks.md` is the full specification of task registration, the head, and the tie-break rule.
 
+## Run with Docker
+
+```
+uv build --wheel                   # the image installs this wheel
+docker compose up --build          # needs the NVIDIA Container Toolkit and a 96 GB card
+curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
+```
+The first start downloads the checkpoint (about 36 GB) into the `decisio-data` volume; it is never part of the image.
+The container runs as a non-root user, compose publishes the port on 127.0.0.1 only, and `Dockerfile` and `compose.yaml` explain the rest.
+Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes.
+
 ## Without a GPU
 
 The unit tests and the CPU stand-in engine run on any machine:
@@ -121,6 +132,7 @@ src/decisio/vllm_plugin/  the vLLM entry point and the two model classes
 src/decisio/bench/      benchmark scoring (JevBench v1.5 open-set reading, Decision Index reports)
 benchmarks/             scripts that run the public harnesses against a server
 patches/                optional vLLM patch series, off by default
+Dockerfile  compose.yaml  docker/   the server image (vLLM 0.30.0 release image plus the wheel)
 tests/unit/  tests/gpu/ CPU tests run on every pull request; GPU tests run nightly (pytest -m gpu)
 runs/                   evaluation records: a manifest, per-item results and hashes per run
 docs/                   design notes and the task-registration specification
