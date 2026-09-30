@@ -1,0 +1,231 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# The server image (Dockerfile).
+#   Pull requests: build for linux/amd64 without pushing, with and without the optional patch series, and check that the
+#   container fails clearly when no GPU is visible. No secrets, a read-only token.
+#   Release tags: build, push to ghcr.io/aminry/decisio (version tag and digest), attest provenance and an SBOM, and
+#   write the digest into the release notes. Gated off while the repository is private, like the other release jobs.
+# The tag is made by release-please with the release app's token (docs/LAUNCH_CHECKLIST.md, 2.6), because a tag made with
+# the default token would not start this workflow.
+name: docker
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - compose.yaml
+      - docker/**
+      - patches/**
+      - src/**
+      - pyproject.toml
+      - uv.lock
+      - .github/workflows/docker.yml
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions: {}
+
+concurrency:
+  group: docker-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/aminry/decisio
+
+jobs:
+  build:
+    name: build, no push
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free disk space (the base image is about 20 GB unpacked)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Build the wheel the image installs
+        run: uv build --wheel
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build the image (linux/amd64, not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: decisio:ci
+          build-args: APPLY_PATCHES=0
+
+      - name: The container fails clearly when no GPU is visible
+        run: |
+          set +e
+          out=$(docker run --rm --platform linux/amd64 decisio:ci 2>&1)
+          code=$?
+          set -e
+          echo "$out"
+          test "$code" -eq 1
+          echo "$out" | grep -q "no NVIDIA GPU is visible"
+          ! echo "$out" | grep -q "Traceback"
+
+      - name: The image runs as a non-root user and declares a health check
+        run: |
+          test "$(docker image inspect decisio:ci --format '{{.Config.User}}')" = "decisio"
+          test -n "$(docker image inspect decisio:ci --format '{{if .Config.Healthcheck}}yes{{end}}')"
+
+      - name: Build the image with the optional patch series
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          tags: decisio:ci-patched
+          build-args: APPLY_PATCHES=1
+
+  image:
+    name: build and push
+    if: github.event_name == 'push' && github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Free disk space (the base image is about 20 GB unpacked)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+
+      - name: The tag matches the package version
+        id: version
+        run: |
+          version=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          test "v${version}" = "${GITHUB_REF_NAME}"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+
+      - name: Build the wheel the image installs
+        run: uv build --wheel
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
+          build-args: APPLY_PATCHES=0
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          # the image is attested below (GitHub attestations), so the manifest stays a plain image manifest
+          provenance: false
+          sbom: false
+
+  attest:
+    name: attest provenance and SBOM
+    needs: image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      packages: write
+    steps:
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate the SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ${{ env.IMAGE }}@${{ needs.image.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ needs.image.outputs.digest }}
+          push-to-registry: true
+
+      - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ needs.image.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+  release-notes:
+    name: digest in the release notes
+    needs: [image, attest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+      DIGEST: ${{ needs.image.outputs.digest }}
+      VERSION: ${{ needs.image.outputs.version }}
+    steps:
+      - name: Append the image to the release notes
+        run: |
+          for _ in $(seq 1 30); do gh release view "$TAG" > /dev/null 2>&1 && break; sleep 10; done
+          body=$(gh release view "$TAG" --json body --jq .body)
+          case "$body" in *"${IMAGE}@"*) echo "already recorded"; exit 0 ;; esac
+          # the backticks below are Markdown, not command substitution
+          # shellcheck disable=SC2016
+          {
+            printf '%s\n\n### Container image\n\n' "$body"
+            printf '`%s:%s`\n\n`%s@%s`\n\n' "$IMAGE" "$VERSION" "$IMAGE" "$DIGEST"
+            printf 'Verify: `gh attestation verify oci://%s@%s --repo %s`\n' "$IMAGE" "$DIGEST" "$GH_REPO"
+          } | gh release edit "$TAG" --notes-file -
