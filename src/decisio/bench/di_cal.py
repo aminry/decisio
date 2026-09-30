@@ -5,6 +5,7 @@
 
     python -m decisio.bench.di_cal <run dir with results.jsonl> --rows <rows.jsonl.gz> [--out di_cal.json]
 """
+
 import argparse
 import ast
 import gzip
@@ -42,8 +43,11 @@ def main():
     for line in open(Path(a.run) / "results.jsonl"):
         r = json.loads(line)
         n += 1
-        key = r["group_id"] if r["group_id"] in gold else next((k for k in (r["run_id"].split(":", 2)[-1],)
-                                                                if k in gold), None)
+        key = (
+            r["group_id"]
+            if r["group_id"] in gold
+            else next((k for k in (r["run_id"].split(":", 2)[-1],) if k in gold), None)
+        )
         if key is None or r.get("status") != "ok":
             missing += 1
             continue
@@ -61,12 +65,19 @@ def main():
     out = {"rows": n, "not_joined_or_failed": missing, "benchmarks": {}}
     for fam, d in sorted(per.items()):
         ok, conf = np.array(d["ok"]), np.array(d["conf"])
-        out["benchmarks"][fam] = {"n": len(ok), "accuracy": float(ok.mean()), "ece": ece_equal_mass(conf, ok),
-                                  "brier": float(np.mean(d["brier"])), "nll": float(np.mean(d["nll"])),
-                                  "mean_confidence": float(conf.mean())}
+        out["benchmarks"][fam] = {
+            "n": len(ok),
+            "accuracy": float(ok.mean()),
+            "ece": ece_equal_mass(conf, ok),
+            "brier": float(np.mean(d["brier"])),
+            "nll": float(np.mean(d["nll"])),
+            "mean_confidence": float(conf.mean()),
+        }
         b = out["benchmarks"][fam]
-        print(f"{fam:14s} n {b['n']:5d} accuracy {b['accuracy']:.4f} ECE {b['ece']:.4f} Brier {b['brier']:.4f} "
-              f"NLL {b['nll']:.4f}")
+        print(
+            f"{fam:14s} n {b['n']:5d} accuracy {b['accuracy']:.4f} ECE {b['ece']:.4f} Brier {b['brier']:.4f} "
+            f"NLL {b['nll']:.4f}"
+        )
     json.dump(out, open(a.out or Path(a.run) / "di_cal.json", "w"), indent=1)
     if missing:
         raise SystemExit(f"{missing} of {n} rows not joined or failed")

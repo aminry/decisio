@@ -23,6 +23,7 @@ Intelligence is the sealed set, which only the evaluator runs.
     python -m decisio.bench.jevbench_v15 --run easy=<tasks.jsonl>:<results.jsonl> --run standard=... --run hard=... \
         --out v15.json
 """
+
 from __future__ import annotations
 
 import argparse
@@ -30,10 +31,12 @@ import json
 from pathlib import Path
 
 TIER_WEIGHTS = {"easy": 0.10, "standard": 0.20, "judge": 0.30, "hard": 0.40}
-TYPE_WEIGHTS = {"A": {"choice": 1 / 3, "noul": 1 / 3, "score": 1 / 3},
-                "B": {"choice": 0.50, "noul": 0.25, "score": 0.25}}
+TYPE_WEIGHTS = {
+    "A": {"choice": 1 / 3, "noul": 1 / 3, "score": 1 / 3},
+    "B": {"choice": 0.50, "noul": 0.25, "score": 0.25},
+}
 NOUL_NO, NOUL_YES = 0.20, 0.80
-PUBLIC_FILE_TIER = {"easy": "easy", "original": "standard", "hard": "hard"}     # the published v1.2 files' tiers
+PUBLIC_FILE_TIER = {"easy": "easy", "original": "standard", "hard": "hard"}  # the published v1.2 files' tiers
 
 
 def item_score(task: dict, rec: dict | None) -> dict:
@@ -43,15 +46,24 @@ def item_score(task: dict, rec: dict | None) -> dict:
     probs = rec.get("probs") if rec and rec.get("valid") else None
     if qtype == "choice":
         k = len(task["labels"])
-        return {"type": "choice", "correct": bool(probs is not None and rec.get("predicted") == str(task["expected"])),
-                "chance": 1.0 / k, "valid": probs is not None}
+        return {
+            "type": "choice",
+            "correct": bool(probs is not None and rec.get("predicted") == str(task["expected"])),
+            "chance": 1.0 / k,
+            "valid": probs is not None,
+        }
     if qtype == "noul":
         if probs is None:
             return {"type": "noul", "correct": False, "abstained": False, "valid": False}
         p = float(probs["yes"])
         said = "yes" if p >= NOUL_YES else ("no" if p <= NOUL_NO else None)
-        return {"type": "noul", "correct": said == str(task["expected"]), "abstained": said is None, "valid": True,
-                "p_yes": p}
+        return {
+            "type": "noul",
+            "correct": said == str(task["expected"]),
+            "abstained": said is None,
+            "valid": True,
+            "p_yes": p,
+        }
     k, gold = len(task["labels"]), int(task["expected"])
     chance = sum(abs(lv - gold) for lv in range(k)) / k / (k - 1)
     if probs is None:
@@ -82,15 +94,21 @@ def score_runs(runs: list[tuple[str, list[dict], list[dict]]]) -> dict:
         for t in tasks:
             s = item_score(t, by.get(t["id"]))
             cells.setdefault((s["type"], tier), []).append(s)
-    out = {"per_type": {}, "n_items": sum(len(v) for v in cells.values()),
-           "invalid": sum(not x["valid"] for v in cells.values() for x in v)}
+    out = {
+        "per_type": {},
+        "n_items": sum(len(v) for v in cells.values()),
+        "invalid": sum(not x["valid"] for v in cells.values() for x in v),
+    }
     for qtype in ("choice", "noul", "score"):
         tiers = {tier: cell_cc(qtype, cells[(qtype, tier)]) for tier in TIER_WEIGHTS if (qtype, tier) in cells}
         if not tiers:
             continue
         w = sum(TIER_WEIGHTS[t] for t in tiers)
-        rec = {"cc": sum(TIER_WEIGHTS[t] * v for t, v in tiers.items()) / w, "tiers": tiers,
-               "n": {t: len(cells[(qtype, t)]) for t in tiers}}
+        rec = {
+            "cc": sum(TIER_WEIGHTS[t] * v for t, v in tiers.items()) / w,
+            "tiers": tiers,
+            "n": {t: len(cells[(qtype, t)]) for t in tiers},
+        }
         if qtype == "noul":
             its = [x for t in tiers for x in cells[(qtype, t)]]
             rec["abstention_rate"] = sum(x["abstained"] for x in its) / len(its)
@@ -117,16 +135,22 @@ def main():
         tasks, results = paths.split(":", 1)
         runs.append((tier, load_jsonl(tasks), load_jsonl(results)))
     rep = score_runs(runs)
-    rep["note"] = ("private reading of JevBench v1.5 open-set Intelligence on the published v1.2 items; not a board "
-                   "number (the board's open set has 904 items and half of Intelligence is sealed)")
+    rep["note"] = (
+        "private reading of JevBench v1.5 open-set Intelligence on the published v1.2 items; not a board "
+        "number (the board's open set has 904 items and half of Intelligence is sealed)"
+    )
     Path(a.out).write_text(json.dumps(rep, indent=1))
     for qtype, r in rep["per_type"].items():
-        print(f"{qtype:6s} CC {r['cc']:6.2f}  "
-              + "  ".join(f"{t} {v:.1f} (n={r['n'][t]})" for t, v in r["tiers"].items())
-              + (f"  abstained {r['abstention_rate']:.3f}" if qtype == "noul" else ""))
-    print(f"I_open A (equal types) {rep['I_open_A']:.2f}   B (50/25/25) {rep['I_open_B']:.2f}   "
-          f"items {rep['n_items']}, "
-          f"invalid {rep['invalid']}, tiers without items {rep['tiers_missing']}")
+        print(
+            f"{qtype:6s} CC {r['cc']:6.2f}  "
+            + "  ".join(f"{t} {v:.1f} (n={r['n'][t]})" for t, v in r["tiers"].items())
+            + (f"  abstained {r['abstention_rate']:.3f}" if qtype == "noul" else "")
+        )
+    print(
+        f"I_open A (equal types) {rep['I_open_A']:.2f}   B (50/25/25) {rep['I_open_B']:.2f}   "
+        f"items {rep['n_items']}, "
+        f"invalid {rep['invalid']}, tiers without items {rep['tiers_missing']}"
+    )
     print("JEVBENCH_V15_DONE")
 
 

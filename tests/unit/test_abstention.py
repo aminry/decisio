@@ -2,19 +2,20 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Per-task abstention (`decisio.serve.abstention`, the `/v1/systemone` path and `POST /v1/abstention/tasks`).
 
-  A1  the threshold rule: candidates between consecutive probabilities (log-odds midpoints), the best threshold gets
-      the most examples right and ties go to the largest (fewest abstentions);
-  A2  the acceptance rule: too few examples or too few of either kind, or no leave-one-out gain over the plain
-      behaviour, or more false abstentions: no threshold; separable examples with a gain: a threshold between the two
-      groups;
-  A3  the decision: with a threshold, abstain when the option's probability exceeds it, otherwise the best other option;
-      without, the argmax;
-  A4  served (CPU stand-in): a declared option's task changes only `choice`, never the probabilities; an appended option
-      is answered through imajev's fields only when the threshold was accepted, and a declined task leaves the request
-      as it was; requests outside every task are unchanged; the endpoint scores and stores a task.
+A1  the threshold rule: candidates between consecutive probabilities (log-odds midpoints), the best threshold gets
+    the most examples right and ties go to the largest (fewest abstentions);
+A2  the acceptance rule: too few examples or too few of either kind, or no leave-one-out gain over the plain
+    behaviour, or more false abstentions: no threshold; separable examples with a gain: a threshold between the two
+    groups;
+A3  the decision: with a threshold, abstain when the option's probability exceeds it, otherwise the best other option;
+    without, the argmax;
+A4  served (CPU stand-in): a declared option's task changes only `choice`, never the probabilities; an appended option
+    is answered through imajev's fields only when the threshold was accepted, and a declined task leaves the request
+    as it was; requests outside every task are unchanged; the endpoint scores and stores a task.
 
-    uv run pytest -q tests/unit/test_abstention.py
+  uv run pytest -q tests/unit/test_abstention.py
 """
+
 import pytest
 
 from decisio.serve.abstention import best_threshold, candidates, decide, fit
@@ -46,7 +47,7 @@ def test_a2_acceptance_rule():
 
 
 def test_a3_decide():
-    p = [0.5, 0.3, 0.2]                        # the abstain option at index 2
+    p = [0.5, 0.3, 0.2]  # the abstain option at index 2
     assert decide(p, 2, {"applied": True, "threshold": 0.1}) == (True, 0)
     assert decide(p, 2, {"applied": True, "threshold": 0.25}) == (False, 0)
     assert decide(p, 2, None) == (False, 0)
@@ -58,9 +59,18 @@ CRIT = {f"option_{i}": n for i, n in enumerate(["card_arrival", "card_linking", 
 
 
 def req(utt, crit=CRIT, **extra):
-    return {"state": {}, "model": "m", "questions": {"q1": {
-        "type": "choice", "instructions": f"Classify the intent of this user request:\n{utt}",
-        "criteria": crit}}, **extra}
+    return {
+        "state": {},
+        "model": "m",
+        "questions": {
+            "q1": {
+                "type": "choice",
+                "instructions": f"Classify the intent of this user request:\n{utt}",
+                "criteria": crit,
+            }
+        },
+        **extra,
+    }
 
 
 @pytest.fixture(scope="module")
@@ -70,6 +80,7 @@ def served():
     from decisio.serve.hf_letters import HFLettersEngine
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     so = SystemOne(eng, "decisio-test")
     return TestClient(make_app(eng, so)), so
@@ -77,14 +88,21 @@ def served():
 
 def test_a4_declared_option(served):
     from decisio.serve.systemone import SystemOneRequest, option_set
+
     client, so = served
     before = client.post("/v1/systemone", json=req("where is my card?")).json()["answers"]["q1"]
     fp = option_set(SystemOneRequest.model_validate(req("x")).questions["q1"])
     for t, want in ((0.0, "option_3"), (1.0, None)):
-        so.tasks = {"t": {"id": "t", "option": {"key": "option_3"}, "match": {"option_set": fp},
-                          "config": {"applied": True, "threshold": t}}}
+        so.tasks = {
+            "t": {
+                "id": "t",
+                "option": {"key": "option_3"},
+                "match": {"option_set": fp},
+                "config": {"applied": True, "threshold": t},
+            }
+        }
         a = client.post("/v1/systemone", json=req("where is my card?")).json()["answers"]["q1"]
-        assert a["probabilities"] == before["probabilities"]                     # probabilities untouched
+        assert a["probabilities"] == before["probabilities"]  # probabilities untouched
         if want:
             assert a["choice"] == want
         else:
@@ -100,11 +118,11 @@ def test_a4_declared_option(served):
 def test_a4_appended_option(served):
     client, so = served
     plain = {"a": "pay by card", "b": "pay in cash"}
-    body = req("I paid with my visa", crit=plain, images=[])            # imajev's extension, text route
+    body = req("I paid with my visa", crit=plain, images=[])  # imajev's extension, text route
     base = client.post("/v1/systemone", json=body).json()["answers"]["q1"]
     assert base["abstained"] is False and base["unknown_probability"] == 0.0
     task = {"id": "img", "option": {"append": "can't tell"}, "match": {"imajev_extension": True}}
-    so.tasks = {"img": {**task, "config": {"applied": False, "threshold": None}}}   # declined: exactly as before
+    so.tasks = {"img": {**task, "config": {"applied": False, "threshold": None}}}  # declined: exactly as before
     assert client.post("/v1/systemone", json=body).json()["answers"]["q1"] == base
     so.tasks = {"img": {**task, "config": {"applied": True, "threshold": 0.0}}}
     a = client.post("/v1/systemone", json=body).json()["answers"]["q1"]
@@ -114,19 +132,50 @@ def test_a4_appended_option(served):
 
 def test_a4_register_endpoint(served):
     client, so = served
-    utts = ["where is my card", "link my card", "rate for euros", "tell me a joke", "what's the weather",
-            "card not here yet", "connect card to app", "exchange rate today", "sing a song", "who won the game",
-            "has my card shipped", "add card to account"]
-    gold = ["option_0", "option_1", "option_2", None, None, "option_0", "option_1", "option_2", None, None,
-            "option_0", "option_1"]
-    r = client.post("/v1/abstention/tasks", json={"id": "clinc", "option": {"key": "option_3"}, "match": "option_set",
-                                                  "examples": [{"request": req(u), "answer": g}
-                                                               for u, g in zip(utts, gold)]})
+    utts = [
+        "where is my card",
+        "link my card",
+        "rate for euros",
+        "tell me a joke",
+        "what's the weather",
+        "card not here yet",
+        "connect card to app",
+        "exchange rate today",
+        "sing a song",
+        "who won the game",
+        "has my card shipped",
+        "add card to account",
+    ]
+    gold = [
+        "option_0",
+        "option_1",
+        "option_2",
+        None,
+        None,
+        "option_0",
+        "option_1",
+        "option_2",
+        None,
+        None,
+        "option_0",
+        "option_1",
+    ]
+    r = client.post(
+        "/v1/abstention/tasks",
+        json={
+            "id": "clinc",
+            "option": {"key": "option_3"},
+            "match": "option_set",
+            "examples": [{"request": req(u), "answer": g} for u, g in zip(utts, gold)],
+        },
+    )
     assert r.status_code == 200, r.text
     cfg = r.json()["config"]
     assert cfg["n"] == 12 and cfg["n_unanswerable"] == 4 and isinstance(cfg["applied"], bool)
     assert "clinc" in {t["id"] for t in client.get("/v1/abstention/tasks").json()["tasks"]}
-    bad = client.post("/v1/abstention/tasks", json={"id": "x", "option": {"key": "nope"}, "examples":
-                                                   [{"request": req("a"), "answer": "option_0"}]})
+    bad = client.post(
+        "/v1/abstention/tasks",
+        json={"id": "x", "option": {"key": "nope"}, "examples": [{"request": req("a"), "answer": "option_0"}]},
+    )
     assert bad.status_code == 422
     so.tasks = {}

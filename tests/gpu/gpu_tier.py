@@ -9,6 +9,7 @@ DECISIO_MODEL is the official checkpoint (decisio's model classes load it); DECI
 `python -m decisio.serve.make_text_only` (the gates' engine); DECISIO_ADAPTER=name=/path adds the LoRA gate G4. vLLM
 does not reliably release a card between engines in one process, so each test runs its engine in a child process.
 """
+
 import os
 import subprocess
 import sys

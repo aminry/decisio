@@ -25,6 +25,7 @@ served arithmetic exactly. The two modes differ only in the dtype of z (`label_l
     eng = HiddenEngine(os.environ["DECISIO_MODEL"], pad_to="block", pad_where="front", gpu_memory_utilization=0.47)
     [(lp, h), ...] = eng.readout(state, questions)
 """
+
 from __future__ import annotations
 
 import json
@@ -67,16 +68,31 @@ class HiddenEngine(HiddenReadout, LettersEngine):
     """The served model in vLLM's pooling mode, returning h at the last prompt position; every prompt setting as the
     served default (the same rows: `_prepare_separate`, front padding to the block)."""
 
-    def __init__(self, model, pad_to="block", pad_where="front", gpu_memory_utilization=0.47, engine_kw=None,
-                 max_model_len=32768, max_num_seqs=256):
+    def __init__(
+        self,
+        model,
+        pad_to="block",
+        pad_where="front",
+        gpu_memory_utilization=0.47,
+        engine_kw=None,
+        max_model_len=32768,
+        max_num_seqs=256,
+    ):
         from vllm import LLM
         from vllm.config import PoolerConfig
+
         self.mode, self.pad_token, self.pad_where = "hidden", 198, pad_where
         self.adapters = {}
-        kw = dict(model=model, max_model_len=max_model_len, max_num_seqs=max_num_seqs,
-                  gpu_memory_utilization=gpu_memory_utilization, limit_mm_per_prompt={"image": 0, "video": 0},
-                  runner="pooling", convert="embed",
-                  pooler_config=PoolerConfig(task="embed", seq_pooling_type="LAST", use_activation=False))
+        kw = dict(
+            model=model,
+            max_model_len=max_model_len,
+            max_num_seqs=max_num_seqs,
+            gpu_memory_utilization=gpu_memory_utilization,
+            limit_mm_per_prompt={"image": 0, "video": 0},
+            runner="pooling",
+            convert="embed",
+            pooler_config=PoolerConfig(task="embed", seq_pooling_type="LAST", use_activation=False),
+        )
         kw.update({k: v for k, v in (engine_kw or {}).items() if k != "limit_mm_per_prompt"})
         self.llm = LLM(**kw)
         self.tok = self.llm.get_tokenizer()
@@ -86,14 +102,16 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._W = self._load_lm_head(model)
         import threading
+
         self._lock = threading.Lock()
-        for _ in range(2):                                  # warm-up, as the generate engine does
+        for _ in range(2):  # warm-up, as the generate engine does
             self.readout("Warm-up. " * 40, [{"kind": "noul", "instructions": "Is this a warm-up request?"}])
 
     @staticmethod
     def _load_lm_head(model):
         """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards."""
         from safetensors import safe_open
+
         root = Path(model)
         index = root / "model.safetensors.index.json"
         shard = json.loads(index.read_text())["weight_map"]["lm_head.weight"] if index.exists() else "model.safetensors"
@@ -105,15 +123,23 @@ class HiddenEngine(HiddenReadout, LettersEngine):
 
     def hidden_rows(self, token_lists):
         from vllm.inputs import TokensPrompt
-        outs = self.llm.encode([TokensPrompt(prompt_token_ids=ids) for ids in token_lists], pooling_task="embed",
-                               use_tqdm=False)
+
+        outs = self.llm.encode(
+            [TokensPrompt(prompt_token_ids=ids) for ids in token_lists], pooling_task="embed", use_tqdm=False
+        )
         return [o.outputs.data.float().cpu().numpy() for o in outs]
 
     def facts(self):
         import vllm
-        return {"vllm": vllm.__version__, "mode": "hidden (pooling runner, last token)", "block_size": self.block_size,
-                "pad_unit": self.pad_unit, "pad_where": self.pad_where if self.pad_unit else None,
-                "lm_head": list(self._W.shape)}
+
+        return {
+            "vllm": vllm.__version__,
+            "mode": "hidden (pooling runner, last token)",
+            "block_size": self.block_size,
+            "pad_unit": self.pad_unit,
+            "pad_where": self.pad_where if self.pad_unit else None,
+            "lm_head": list(self._W.shape),
+        }
 
 
 class HFHiddenEngine(HiddenReadout):
@@ -125,6 +151,7 @@ class HFHiddenEngine(HiddenReadout):
 
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
         self.mode, self.pad_token, self.pad_where = "hidden", 198, pad_where
         self.adapters = {}
         self.tok = AutoTokenizer.from_pretrained(model)
@@ -143,9 +170,12 @@ class HFHiddenEngine(HiddenReadout):
 
     def hidden_rows(self, token_lists):
         import torch
+
         with torch.no_grad():
-            return [self.model.model(input_ids=torch.tensor([ids])).last_hidden_state[0, -1].float().numpy()
-                    for ids in token_lists]
+            return [
+                self.model.model(input_ids=torch.tensor([ids])).last_hidden_state[0, -1].float().numpy()
+                for ids in token_lists
+            ]
 
     def facts(self):
         return {"engine": "hf hidden (CPU stand-in, not for measurement)", "pad_unit": self.pad_unit}
@@ -161,6 +191,7 @@ class SingleEngineHidden(HiddenReadout):
     def __init__(self, engine, model, start=None):
         from decisio.readout.letters import MAX_LABELS, label_token_ids, letter_labels
         from decisio.vllm_plugin.hidden import check_reserved, reserved_chunks
+
         self.engine, self.llm, self.tok, self._lock = engine, engine.llm, engine.tok, engine._lock
         self.mode = "hidden (serving engine, reserved logit columns)"
         self._W = HiddenEngine._load_lm_head(model)
@@ -179,6 +210,7 @@ class SingleEngineHidden(HiddenReadout):
         model's logits (on a card, 2026-09-30: this reproduces the engine's label probabilities within 3.1e-8 on 250
         intent items; in float64 they differ by up to 0.019; runs/2026-09-30_plugin-verification)."""
         import torch
+
         z = torch.from_numpy(h.astype(np.float64) @ self.label_rows(lab).T)
         return z.float().to(torch.bfloat16).double().numpy()
 
@@ -192,28 +224,34 @@ class SingleEngineHidden(HiddenReadout):
         from vllm.inputs import TokensPrompt
 
         from decisio.vllm_plugin.hidden import recover_hidden_chunks
+
         rows = []
         for ids in token_lists:
             lps = []
             for chunk in self.chunks:
-                sp = SamplingParams(max_tokens=1, temperature=0.0, logprobs=len(chunk), allowed_token_ids=chunk,
-                                    detokenize=False)
+                sp = SamplingParams(
+                    max_tokens=1, temperature=0.0, logprobs=len(chunk), allowed_token_ids=chunk, detokenize=False
+                )
                 o = self.llm.generate([TokensPrompt(prompt_token_ids=ids)], [sp], use_tqdm=False)[0]
                 d = o.outputs[0].logprobs[0]
-                lps.append([d[t].logprob for t in chunk])                  # KeyError = a reserved column went missing
+                lps.append([d[t].logprob for t in chunk])  # KeyError = a reserved column went missing
             rows.append(recover_hidden_chunks(lps).astype(np.float32))
         return rows
 
     def facts(self):
-        return {"mode": self.mode, "reserved_ids": [self.reserved[0], self.reserved[-1]],
-                "lm_head": list(self._W.shape),
-                "requests_per_question": len(self.chunks)}
+        return {
+            "mode": self.mode,
+            "reserved_ids": [self.reserved[0], self.reserved[-1]],
+            "lm_head": list(self._W.shape),
+            "requests_per_question": len(self.chunks),
+        }
 
 
 def reserved_logprobs(h, start=0):
     """What vLLM returns for each chunk of reserved ids of a hidden-readout question: the float32 log-softmax of the
     chunk's columns of [0, h] (the masked logits of its allowed set). For the CPU stand-in and the tests."""
     from decisio.vllm_plugin.hidden import reserved_chunks
+
     full = np.concatenate([np.zeros(1, dtype=np.float32), np.asarray(h, dtype=np.float32)])
     out = []
     for chunk in reserved_chunks(len(full) - 1, start):
@@ -229,8 +267,10 @@ class HFReservedHiddenEngine(HFHiddenEngine):
 
     def hidden_rows(self, token_lists):
         from decisio.vllm_plugin.hidden import recover_hidden_chunks
-        return [recover_hidden_chunks(reserved_logprobs(h)).astype(np.float32)
-                for h in super().hidden_rows(token_lists)]
+
+        return [
+            recover_hidden_chunks(reserved_logprobs(h)).astype(np.float32) for h in super().hidden_rows(token_lists)
+        ]
 
     def facts(self):
         return {**super().facts(), "route": "reserved logit columns (emulated)"}

@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Weight-name rules shared by decisio's model classes (no vLLM or torch import: usable anywhere)."""
+
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator

@@ -25,6 +25,7 @@ And one that removes position from the answer instead of correcting it:
 
 Everything here is CPU arithmetic on saved scores; the server applies the same functions online.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -33,6 +34,7 @@ FLOOR = 1e-300
 
 
 # ---- item permutation ---------------------------------------------------------------------------
+
 
 def cyclic_order(K, j, k):
     """order[position] = original option index, for shift j of k: offset j*K//k (j = 0 is identity)."""
@@ -48,6 +50,7 @@ def unpermute(p_pos, order):
 
 
 # ---- applying a bias --------------------------------------------------------------------------
+
 
 def slot_bias(bias_by_k, K):
     """The bias for a K-option item: the fitted vector for K if there is one, else the first K
@@ -76,6 +79,7 @@ def log_probs(p):
 
 # ---- fitting ------------------------------------------------------------------------------------
 
+
 def _nll_grad(b, L, y, lam):
     """Mean NLL of softmax(L - b) at y, plus lam*|b|^2, and its gradient. L: [n, K] log-scores."""
     Z = L - b
@@ -93,9 +97,10 @@ def _nll_grad(b, L, y, lam):
 
 def _fit(L, y, lam):
     from scipy.optimize import minimize
+
     K = L.shape[1]
     res = minimize(_nll_grad, np.zeros(K), args=(L, y, lam), jac=True, method="L-BFGS-B")
-    b = res.x - res.x.mean()                          # softmax is shift-invariant; centre for readability
+    b = res.x - res.x.mean()  # softmax is shift-invariant; centre for readability
     return b
 
 
@@ -113,7 +118,7 @@ def fit_bias(logps, y, K, groups=None, lambdas=LAMBDAS, folds=5, seed=0):
     """
     L = np.full((len(logps), K), -1e9)
     for i, lp in enumerate(logps):
-        L[i, :len(lp)] = lp
+        L[i, : len(lp)] = lp
     y = np.asarray(y)
     groups = np.arange(len(y)) if groups is None else np.asarray(groups)
     uniq = np.random.default_rng(seed).permutation(np.unique(groups))
@@ -127,7 +132,7 @@ def fit_bias(logps, y, K, groups=None, lambdas=LAMBDAS, folds=5, seed=0):
             b = _fit(L[tr], y[tr], lam)
             tot += _nll_grad(b, L[te], y[te], 0.0)[0] * len(te)
         cv[lam] = tot / len(y)
-    lam = min(cv, key=lambda k: (round(cv[k], 6), -k))      # ties go to the stronger penalty
+    lam = min(cv, key=lambda k: (round(cv[k], 6), -k))  # ties go to the stronger penalty
     return _fit(L, y, lam), lam, cv
 
 

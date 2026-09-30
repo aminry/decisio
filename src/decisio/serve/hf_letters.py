@@ -11,6 +11,7 @@ is no prefix cache, so `cached_tokens_mean` is always 0. Not for measurement.
     from decisio.serve.hf_letters import HFLettersEngine
     eng = HFLettersEngine("Qwen/Qwen3-0.6B", pad_to="block", pad_where="front", block_size=64)
 """
+
 from __future__ import annotations
 
 import threading
@@ -25,6 +26,7 @@ class HFLettersEngine(LettersEngine):
     def __init__(self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64, warm_up=True):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
+
         if pad_where not in PAD_PLACES:
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
         self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
@@ -35,19 +37,29 @@ class HFLettersEngine(LettersEngine):
         self.block_size = self.match_unit = block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._lock = threading.Lock()
-        self.scored_rows = []           # every (token ids, label ids) scored, for the smoke test's prompt checks
+        self.scored_rows = []  # every (token ids, label ids) scored, for the smoke test's prompt checks
         if warm_up:
             self._warm_up()
 
     def facts(self):
         import torch
         import transformers
-        return {"engine": "hf_letters (CPU stand-in, not for measurement)", "transformers": transformers.__version__,
-                "torch": torch.__version__, "model": self.model_name, "mode": self.mode, "block_size": self.block_size,
-                "pad_unit": self.pad_unit, "pad_where": self.pad_where if self.pad_unit else None, "adapters": []}
+
+        return {
+            "engine": "hf_letters (CPU stand-in, not for measurement)",
+            "transformers": transformers.__version__,
+            "torch": torch.__version__,
+            "model": self.model_name,
+            "mode": self.mode,
+            "block_size": self.block_size,
+            "pad_unit": self.pad_unit,
+            "pad_where": self.pad_where if self.pad_unit else None,
+            "adapters": [],
+        }
 
     def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
         import torch
+
         if mm:
             raise ValueError("the text stand-in takes no images (HFImageLettersEngine does)")
         if adapter:
@@ -62,9 +74,14 @@ class HFLettersEngine(LettersEngine):
                 e = np.exp(z - z.max())
                 probs.append(e / e.sum())
         ms = (time.perf_counter() - t0) * 1000
-        return probs, {"warm_ms": 0.0, "cached_tokens_mean": 0.0, "engine_timing": [],
-                       "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])) if rows else 0.0,
-                       "prompt_tokens": sum(len(r[0]) for r in rows), "forward_ms": ms}
+        return probs, {
+            "warm_ms": 0.0,
+            "cached_tokens_mean": 0.0,
+            "engine_timing": [],
+            "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])) if rows else 0.0,
+            "prompt_tokens": sum(len(r[0]) for r in rows),
+            "forward_ms": ms,
+        }
 
 
 class HFImageLettersEngine:
@@ -79,6 +96,7 @@ class HFImageLettersEngine:
             def __init__(self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64):
                 import torch
                 from transformers import AutoModelForImageTextToText, AutoTokenizer
+
                 self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
                 self.adapters = {}
                 self.tok = AutoTokenizer.from_pretrained(model)
@@ -96,11 +114,12 @@ class HFImageLettersEngine:
 
             def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
                 import torch
+
                 if not mm:
                     return HFLettersEngine.score_prompts(self, rows, adapter, warm, skip_cache)
                 images = mm["image"]
                 enc = self.processor.image_processor(images=images, return_tensors="pt")
-                counts = [int(g.prod()) // (self.merge ** 2) for g in enc["image_grid_thw"]]
+                counts = [int(g.prod()) // (self.merge**2) for g in enc["image_grid_thw"]]
                 t0 = time.perf_counter()
                 probs, lens = [], []
                 with torch.no_grad():
@@ -115,17 +134,26 @@ class HFImageLettersEngine:
                         self.scored_rows.append((list(ids), list(lab)))
                         # 1 on image tokens, 0 elsewhere: what the processor returns beside input_ids (M-RoPE needs it)
                         types = torch.tensor([[int(t == self.image_pad_id) for t in exp]])
-                        out = self.model(input_ids=torch.tensor([exp]),
-                                         attention_mask=torch.ones(1, len(exp), dtype=torch.long),
-                                         mm_token_type_ids=types, pixel_values=enc["pixel_values"],
-                                         image_grid_thw=enc["image_grid_thw"])
+                        out = self.model(
+                            input_ids=torch.tensor([exp]),
+                            attention_mask=torch.ones(1, len(exp), dtype=torch.long),
+                            mm_token_type_ids=types,
+                            pixel_values=enc["pixel_values"],
+                            image_grid_thw=enc["image_grid_thw"],
+                        )
                         z = out.logits[0, -1].double()[list(lab)].numpy()
                         e = np.exp(z - z.max())
                         probs.append(e / e.sum())
                         lens.append(len(exp))
-                return probs, {"warm_ms": 0.0, "cached_tokens_mean": 0.0, "engine_timing": [],
-                               "prompt_tokens_mean": float(np.mean(lens)), "prompt_tokens": sum(lens),
-                               "engine_prompt_tokens": lens, "cached_tokens": [0] * len(lens),
-                               "forward_ms": (time.perf_counter() - t0) * 1000}
+                return probs, {
+                    "warm_ms": 0.0,
+                    "cached_tokens_mean": 0.0,
+                    "engine_timing": [],
+                    "prompt_tokens_mean": float(np.mean(lens)),
+                    "prompt_tokens": sum(lens),
+                    "engine_prompt_tokens": lens,
+                    "cached_tokens": [0] * len(lens),
+                    "forward_ms": (time.perf_counter() - t0) * 1000,
+                }
 
         return _Engine(*args, **kwargs)

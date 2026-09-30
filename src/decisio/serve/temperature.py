@@ -8,11 +8,12 @@ the most probable. A registered task's own correction (per-task calibration or a
 
     p = apply_temperature(p, T)
 """
+
 from __future__ import annotations
 
 import numpy as np
 
-SERVED_TEMPERATURE = 1.307    # the fit on all 1,400 suite items
+SERVED_TEMPERATURE = 1.307  # the fit on all 1,400 suite items
 
 
 def apply_temperature(p, T: float):

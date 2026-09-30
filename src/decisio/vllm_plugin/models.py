@@ -17,6 +17,7 @@ module is imported only inside vLLM, when it builds a model of one of these arch
 
 A class is selected per engine with `hf_overrides={"architectures": ["<name>"]}` (`decisio.vllm_plugin.engine_kwargs`).
 """
+
 from __future__ import annotations
 
 from vllm.model_executor.models.qwen3_5 import Qwen3_5MoeForCausalLM

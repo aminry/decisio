@@ -9,6 +9,7 @@ request), and `vllm.model_executor.models.qwen3_5` with a minimal `Qwen3_5MoeFor
 `vllm.inputs.TokensPrompt` as plain records. Only what decisio's plugin and the server's head path touch is modelled;
 anything that loads a real model needs a card.
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -72,11 +73,17 @@ def _qwen3_5_module(vocab=64, hidden=8, zero_head=False):
 
 @contextlib.contextmanager
 def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=False, config_map=None):
-    names = ["vllm", "vllm.inputs", "vllm.model_executor", "vllm.model_executor.models",
-             "vllm.model_executor.models.config", "vllm.model_executor.models.qwen3_5"]
+    names = [
+        "vllm",
+        "vllm.inputs",
+        "vllm.model_executor",
+        "vllm.model_executor.models",
+        "vllm.model_executor.models.config",
+        "vllm.model_executor.models.qwen3_5",
+    ]
     saved = {n: sys.modules.get(n) for n in names}
     ours = [n for n in list(sys.modules) if n.startswith("decisio.vllm_plugin")]
-    saved_ours = {n: sys.modules.pop(n) for n in ours}           # a fresh plugin state per stub
+    saved_ours = {n: sys.modules.pop(n) for n in ours}  # a fresh plugin state per stub
     registry = RecordingRegistry()
     vllm = types.ModuleType("vllm")
     vllm.__version__ = version
@@ -87,9 +94,12 @@ def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=
     me = types.ModuleType("vllm.model_executor")
     models = types.ModuleType("vllm.model_executor.models")
     models.ModelRegistry = registry
-    config = types.ModuleType("vllm.model_executor.models.config")         # the per-architecture config hooks
-    config.MODELS_CONFIG_MAP = dict(config_map if config_map is not None else
-                                    {"Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig", "Qwen3ForCausalLM": "other"})
+    config = types.ModuleType("vllm.model_executor.models.config")  # the per-architecture config hooks
+    config.MODELS_CONFIG_MAP = dict(
+        config_map
+        if config_map is not None
+        else {"Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig", "Qwen3ForCausalLM": "other"}
+    )
     registry.config_map = config.MODELS_CONFIG_MAP
     sys.modules["vllm.model_executor.models.config"] = config
     sys.modules.update({"vllm": vllm, "vllm.model_executor": me, "vllm.model_executor.models": models})

@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # uvx pre-commit install --hook-type pre-commit --hook-type commit-msg
-# Verbatim files: patches apply byte for byte, and the records under runs/ and tests/data/ are hashed (files.json).
-exclude: ^(patches/|runs/|tests/data/)
+# Verbatim files: patches apply byte for byte, the records under runs/ and tests/data/ are hashed (files.json), and the
+# code of conduct is Contributor Covenant 3.0 as published.
+exclude: ^(patches/|runs/|tests/data/|CODE_OF_CONDUCT\.md$)
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0

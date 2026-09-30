@@ -20,7 +20,7 @@ No trained weights: every measured answer comes from the official checkpoint.
 | --- | --- |
 | Question types | yes/no (`noul`), choice among up to 255 options with descriptions, score on an ordered scale |
 | Many questions per request | the state is prefilled once and shared through vLLM's prefix cache |
-| Probabilities | a calibrated distribution per question (one global temperature; per-task calibration from about 10 labelled examples) |
+| Probabilities | a distribution per question, with one fitted global temperature; per-task calibration from labelled examples |
 | Task registration | `POST /v1/tasks`: from labelled examples of one recurring question the server fits per-task calibration and, for option lists of 10 or more, a linear head on the model's hidden state |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |

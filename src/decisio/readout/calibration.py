@@ -20,6 +20,7 @@ serving side must refuse a prior whose fingerprint differs from the live model's
     prior = fit_task_prior(logps, labels)            # logps: per example, the K label log-scores in slot order
     p = apply_task_prior(logp, prior)                # at serving
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -27,12 +28,12 @@ import numpy as np
 from decisio.names import record_format
 from decisio.readout import debias
 
-MIN_EXAMPLES = 10          # below this the fit is noise (5 per task gave +0.5 points, 95% CI [-2.5, +2.9])
-RECOMMENDED = 20           # where the measured effect was full
-MIN_GAIN = 0.005           # nats per item of cross-validated log loss the bias must save to be switched on
-T_ACCEPT = 1.645           # and the saving must clear a one-sided 95% test on the per-item differences
-LAMBDA = 0.1               # L2 penalty on the bias, fixed: with ~20 examples a cross-validated choice often picked no
-                           # penalty and overfit (in development, 12 of 16 tasks passed with it, 16 of 16 at 0.1)
+MIN_EXAMPLES = 10  # below this the fit is noise (5 per task gave +0.5 points, 95% CI [-2.5, +2.9])
+RECOMMENDED = 20  # where the measured effect was full
+MIN_GAIN = 0.005  # nats per item of cross-validated log loss the bias must save to be switched on
+T_ACCEPT = 1.645  # and the saving must clear a one-sided 95% test on the per-item differences
+LAMBDA = 0.1  # L2 penalty on the bias, fixed: with ~20 examples a cross-validated choice often picked no
+# penalty and overfit (in development, 12 of 16 tasks passed with it, 16 of 16 at 0.1)
 FORMAT = record_format("task-prior")
 
 
@@ -50,7 +51,7 @@ def _cv(logps, y, K, folds):
     parts = np.array_split(idx, folds)
     L = np.full((n, K), -1e9)
     for i, lp in enumerate(logps):
-        L[i, :len(lp)] = lp
+        L[i, : len(lp)] = lp
     ll0, ll1, ok0, ok1 = (np.zeros(n) for _ in range(4))
     for f in range(folds):
         te, tr = parts[f], np.concatenate([parts[g] for g in range(folds) if g != f])
@@ -73,26 +74,42 @@ def fit_task_prior(logps, labels, fingerprint="", task_id="", K=None):
     y = np.asarray(labels)
     n = len(y)
     K = K or max(len(lp) for lp in logps)
-    rec = {"format": FORMAT, "task_id": task_id, "fingerprint": fingerprint, "K": int(K), "n_examples": int(n),
-           "bias": [0.0] * int(K), "applied": False}
+    rec = {
+        "format": FORMAT,
+        "task_id": task_id,
+        "fingerprint": fingerprint,
+        "K": int(K),
+        "n_examples": int(n),
+        "bias": [0.0] * int(K),
+        "applied": False,
+    }
     if n < MIN_EXAMPLES:
         return {**rec, "reason": f"{n} labelled examples, at least {MIN_EXAMPLES} needed"}
     if len(set(y.tolist())) < 2:
         return {**rec, "reason": "all labelled examples have the same answer; the prior cannot be told from the task"}
     folds = min(5, n)
     ll0, ll1, ok0, ok1 = _cv(logps, y, K, folds)
-    d = ll1 - ll0                                      # per-item change in log loss; negative is better
+    d = ll1 - ll0  # per-item change in log loss; negative is better
     se = d.std(ddof=1) / np.sqrt(n) if n > 1 else np.inf
     t = d.mean() / se if se > 0 else (-np.inf if d.mean() < 0 else np.inf)
-    rec.update(cv_logloss_plain=round(float(ll0.mean()), 5), cv_logloss_fitted=round(float(ll1.mean()), 5),
-               cv_acc_plain=round(float(ok0.mean()), 4), cv_acc_fitted=round(float(ok1.mean()), 4),
-               cv_t=round(float(t), 3))
+    rec.update(
+        cv_logloss_plain=round(float(ll0.mean()), 5),
+        cv_logloss_fitted=round(float(ll1.mean()), 5),
+        cv_acc_plain=round(float(ok0.mean()), 4),
+        cv_acc_fitted=round(float(ok1.mean()), 4),
+        cv_t=round(float(t), 3),
+    )
     # switched on only when the gain is both material and unlikely to be noise on these few examples
     if d.mean() > -MIN_GAIN or t > -T_ACCEPT or ok1.mean() < ok0.mean():
         return {**rec, "reason": "cross-validation on the labelled examples does not show a clear gain"}
     b = _fit(logps, y, K, np.arange(n))
-    return {**rec, "bias": [round(float(x), 6) for x in b], "lambda": LAMBDA, "applied": True,
-            "reason": "cross-validated gain"}
+    return {
+        **rec,
+        "bias": [round(float(x), 6) for x in b],
+        "lambda": LAMBDA,
+        "applied": True,
+        "reason": "cross-validated gain",
+    }
 
 
 def apply_task_prior(logp, prior):
@@ -103,4 +120,4 @@ def apply_task_prior(logp, prior):
     if len(logp) > prior["K"]:
         # more options than the prior was fitted for: its slots do not cover the question, so it is not applied
         return debias.apply_bias(logp, np.zeros(len(logp)))
-    return debias.apply_bias(logp, np.asarray(prior["bias"][:len(logp)]))
+    return debias.apply_bias(logp, np.asarray(prior["bias"][: len(logp)]))

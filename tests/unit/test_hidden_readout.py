@@ -18,6 +18,7 @@ examples per intent).
 
     uv run pytest -q tests/unit/test_hidden_readout.py
 """
+
 import sys
 import types
 from pathlib import Path
@@ -48,12 +49,14 @@ def stored(task="banking77"):
 
 def test_h1_model_class_writes_only_the_reserved_columns(monkeypatch):
     import torch
+
     monkeypatch.setenv("DECISIO_HIDDEN_READOUT_START", "20")
     with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
         import decisio.vllm_plugin as p
+
         assert p.register()
         cls = registry.resolve(p.HIDDEN_READOUT)
-        assert issubclass(cls, registry.resolve(p.TEXT_ONLY))             # it loads the official checkpoint too
+        assert issubclass(cls, registry.resolve(p.TEXT_ONLY))  # it loads the official checkpoint too
         m = cls(vllm_config=None)
         h = torch.randn(5, 8)
         base = sys.modules["vllm.model_executor.models.qwen3_5"].Qwen3_5MoeForCausalLM.compute_logits(m, h)
@@ -74,6 +77,7 @@ def test_h1_model_class_writes_only_the_reserved_columns(monkeypatch):
 def masked_logprobs(logits, allowed):
     """vLLM's processed log-probabilities of a one-token request: float32 log-softmax over the allowed ids."""
     import torch
+
     return torch.log_softmax(logits[allowed].float(), -1)
 
 
@@ -81,6 +85,7 @@ def test_h2_recovery_on_the_stored_hidden_states():
     import torch
 
     from decisio.serve.hidden_engine import reserved_logprobs
+
     ex_h, _, _, ev_h, _ = stored()
     H = np.concatenate([ex_h, ev_h])
     assert H.shape[1] == D and len(H) == 770 + 150
@@ -101,8 +106,10 @@ def test_h2_recovery_on_the_stored_hidden_states():
     # a request without the reserved ids: the class changes nothing it can see
     with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
         import decisio.vllm_plugin as p
+
         p.register()
         import os
+
         os.environ["DECISIO_HIDDEN_READOUT_START"] = "20"
         try:
             m = registry.resolve(p.HIDDEN_READOUT)(vllm_config=None)
@@ -120,6 +127,7 @@ class EmulatedEngine:
 
     def __init__(self, model, H, K):
         import threading
+
         self.model, self.H, self.K = model, H, K
         self.tok, self._lock = None, threading.Lock()
         self.llm = types.SimpleNamespace(generate=self.generate)
@@ -129,11 +137,12 @@ class EmulatedEngine:
 
     def generate(self, prompts, sps, use_tqdm=False):
         import torch
+
         outs = []
         assert len(sps) == len(prompts)
         for pr, sp in zip(prompts, sps):
             h = torch.from_numpy(self.H[pr.prompt_token_ids[0]])[None]
-            if len(sp.allowed_token_ids) > MAX_ALLOWED:                     # vLLM 0.30.0 kills the engine here
+            if len(sp.allowed_token_ids) > MAX_ALLOWED:  # vLLM 0.30.0 kills the engine here
                 raise ValueError(f"Too many allowed token IDs: {len(sp.allowed_token_ids)}. The max size is 1024.")
             lp = masked_logprobs(self.model.compute_logits(h)[0], sp.allowed_token_ids)
             assert sp.logprobs == len(sp.allowed_token_ids) and sp.max_tokens == 1 and sp.detokenize is False
@@ -147,18 +156,23 @@ def test_h3_exact_arithmetic_on_the_stored_readouts(monkeypatch):
 
     from decisio.readout import intent_head
     from decisio.serve import hidden_engine
+
     ex_h, ex_lp, y, ev_h, ev_lp = stored()
     K = ex_lp.shape[1]
     H = np.concatenate([ex_h, ev_h]).astype(np.float32)
     # stand-in label rows (no checkpoint here): the minimum-norm W with H @ W^T = stored log-scores
-    W = np.linalg.lstsq(H.astype(np.float64), np.concatenate([ex_lp, ev_lp]), rcond=None)[0].T          # K x d
+    W = np.linalg.lstsq(H.astype(np.float64), np.concatenate([ex_lp, ev_lp]), rcond=None)[0].T  # K x d
     assert np.abs(H.astype(np.float64) @ W.T - np.concatenate([ex_lp, ev_lp])).max() < 1e-6
-    monkeypatch.setattr(hidden_engine.HiddenEngine, "_load_lm_head", staticmethod(lambda model: torch.from_numpy(
-        np.concatenate([W, np.zeros((START + D + 1 - K, D))]))))            # label token ids are 0..K-1 here
+    monkeypatch.setattr(
+        hidden_engine.HiddenEngine,
+        "_load_lm_head",
+        staticmethod(lambda model: torch.from_numpy(np.concatenate([W, np.zeros((START + D + 1 - K, D))]))),
+    )  # label token ids are 0..K-1 here
     monkeypatch.setattr("decisio.readout.letters.label_token_ids", lambda tok, labels: list(range(K)))
     monkeypatch.setattr("decisio.readout.letters.letter_labels", lambda tok, k: [])
     with stub_vllm("0.30.0", vocab=START + D + 1, hidden=D, zero_head=True) as registry:
         import decisio.vllm_plugin as p
+
         p.register()
         engine = EmulatedEngine(registry.resolve(p.HIDDEN_READOUT)(vllm_config=None), H, K)
         single = hidden_engine.SingleEngineHidden(engine, "unused")
@@ -167,12 +181,13 @@ def test_h3_exact_arithmetic_on_the_stored_readouts(monkeypatch):
     lp = np.array([a for a, _ in out])
     h = np.array([b for _, b in out])
     n = len(ex_h)
-    assert h.dtype == np.float32 and np.abs(h - H).max() < 1e-4                 # h, within float32 rounding
+    assert h.dtype == np.float32 and np.abs(h - H).max() < 1e-4  # h, within float32 rounding
 
-    def bf16_lp(hh):                                                           # the engine's own label arithmetic
+    def bf16_lp(hh):  # the engine's own label arithmetic
         z = torch.from_numpy(hh.astype(np.float64) @ W.T).float().to(torch.bfloat16).double().numpy()
         return z - np.logaddexp.reduce(z, 1)[:, None]
-    assert np.abs(lp - bf16_lp(H)).max() < 1e-4                               # the same forward's lp (bf16 logits)
+
+    assert np.abs(lp - bf16_lp(H)).max() < 1e-4  # the same forward's lp (bf16 logits)
     options = [f"option_{k}" for k in range(K)]
     # fit on the single-engine readout; serve; the reference functions on the same readout, bit for bit
     rec = intent_head.fit_intent_head(list(lp[:n]), list(h[:n]), y, options)
@@ -204,6 +219,7 @@ def test_h4_served_on_the_cpu_stand_in():
     from decisio.serve.systemone import SystemOne
     from decisio.serve.tasks import TaskStore
     from decisio.serve.vllm_engine import make_app
+
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     hid = HFReservedHiddenEngine(MODEL, pad_to="block", pad_where="front")
     so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), hidden_engine=hid, debug_readout=True)
@@ -217,10 +233,23 @@ def test_h4_served_on_the_cpu_stand_in():
     a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
     d = a["decisio_debug"]["q1"]
     assert d["path"] == "head"
-    want = intent_head.apply_intent_head(np.array(d["hidden_lp"]), np.array(d["h"], dtype=np.float32), task["head"],
-                                         list(CRIT10))
+    want = intent_head.apply_intent_head(
+        np.array(d["hidden_lp"]), np.array(d["h"], dtype=np.float32), task["head"], list(CRIT10)
+    )
     assert list(a["answers"]["q1"]["probabilities"].values()) == want.tolist()
-    direct = HFHiddenEngine.hidden_rows(hid, [hid._prepare_separate(body["state"], [
-        {"kind": "choice", "instructions": "Classify the intent of the user's message.",
-         "options": list(CRIT10.values())}])[0][0][0]])[0]
+    direct = HFHiddenEngine.hidden_rows(
+        hid,
+        [
+            hid._prepare_separate(
+                body["state"],
+                [
+                    {
+                        "kind": "choice",
+                        "instructions": "Classify the intent of the user's message.",
+                        "options": list(CRIT10.values()),
+                    }
+                ],
+            )[0][0][0]
+        ],
+    )[0]
     assert np.abs(np.array(d["h"]) - direct).max() < 1e-4

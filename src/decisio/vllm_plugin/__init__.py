@@ -13,6 +13,7 @@ are imported only when vLLM builds a model of that architecture.
 The plugin is written against one vLLM version. On any other version it registers nothing (one log line), so stock
 vLLM behaves exactly as without it. It never patches vLLM's own code.
 """
+
 from __future__ import annotations
 
 import logging
@@ -25,7 +26,7 @@ MODELS: dict[str, str] = {
     TEXT_ONLY: "decisio.vllm_plugin.models:DecisioQwen3_5MoeTextOnly",
     HIDDEN_READOUT: "decisio.vllm_plugin.models:DecisioQwen3_5MoeHiddenReadout",
 }
-BASE_ARCH = "Qwen3_5MoeForCausalLM"        # vLLM's class every decisio class subclasses; its config hook is reused
+BASE_ARCH = "Qwen3_5MoeForCausalLM"  # vLLM's class every decisio class subclasses; its config hook is reused
 ENTRY_POINT_GROUP, ENTRY_POINT_NAME = "vllm.general_plugins", "decisio"
 
 logger = logging.getLogger(__name__)
@@ -50,11 +51,15 @@ def register() -> bool:
         return True
     version = vllm_version()
     if version != SUPPORTED_VLLM:
-        logger.warning("decisio's vLLM plugin supports vllm==%s; found %s: nothing registered, stock vLLM unchanged",
-                       SUPPORTED_VLLM, version)
+        logger.warning(
+            "decisio's vLLM plugin supports vllm==%s; found %s: nothing registered, stock vLLM unchanged",
+            SUPPORTED_VLLM,
+            version,
+        )
         return False
     from vllm.model_executor.models import ModelRegistry
     from vllm.model_executor.models.config import MODELS_CONFIG_MAP
+
     # vLLM keys its per-architecture config hook by architecture name (for the stock text class: the recurrent-state
     # cache dtype from the checkpoint's config, and the M-RoPE fields removed). A registered class under a new name
     # gets no hook unless it is entered here, and then runs with another block size and other positions than the
@@ -82,5 +87,8 @@ def installed_entry_point() -> bool:
     """Whether vLLM's other processes (engine core, workers) will find the plugin: they discover it through the
     installed package's entry point, which a bare PYTHONPATH does not provide."""
     from importlib.metadata import entry_points
-    return any(ep.name == ENTRY_POINT_NAME and ep.value == "decisio.vllm_plugin:register"
-               for ep in entry_points(group=ENTRY_POINT_GROUP))
+
+    return any(
+        ep.name == ENTRY_POINT_NAME and ep.value == "decisio.vllm_plugin:register"
+        for ep in entry_points(group=ENTRY_POINT_GROUP)
+    )

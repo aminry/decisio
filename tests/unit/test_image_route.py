@@ -20,6 +20,7 @@ dependencies and the dev extra); I6 also needs imajev's harness (`imajev_bench`)
 
     uv run pytest -q tests/unit/test_image_route.py
 """
+
 import base64
 import io
 import json
@@ -31,9 +32,14 @@ from PIL import Image  # noqa: E402
 
 MODEL = os.environ.get("DECISIO_IMAGE_TEST_MODEL", "Qwen/Qwen3.5-0.8B-Base")
 STATE = {"listing": {"title": "Blue ceramic mug, 350 ml", "colour": "blue"}}
-QUESTIONS = {"matches": {"type": "noul", "instructions": "Does the photo show the listed item?"},
-             "colour": {"type": "choice", "instructions": "Which colour is the mug in the photo?",
-                        "criteria": {"blue": None, "red": None, "white": None}}}
+QUESTIONS = {
+    "matches": {"type": "noul", "instructions": "Does the photo show the listed item?"},
+    "colour": {
+        "type": "choice",
+        "instructions": "Which colour is the mug in the photo?",
+        "criteria": {"blue": None, "red": None, "white": None},
+    },
+}
 
 
 def png(img):
@@ -59,6 +65,7 @@ def served():
     from decisio.serve.hf_letters import HFImageLettersEngine, HFLettersEngine
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     text = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     image = HFImageLettersEngine(MODEL, pad_to="block", pad_where="front")
     so = SystemOne(text, "decisio-test", image_engine=image)
@@ -77,47 +84,53 @@ def test_i1_token_count_matches_processor(served):
     for w, h in [(1536, 1024), (1264, 848), (33, 17), (4000, 5000), (10, 10), (8192, 300), (1000, 999)]:
         img = Image.new("RGB", (w, h))
         g = image.processor.image_processor(images=[img], return_tensors="pt")["image_grid_thw"][0].tolist()
-        assert image.image_tokens(img) == g[0] * g[1] * g[2] // image.merge ** 2, (w, h)
+        assert image.image_tokens(img) == g[0] * g[1] * g[2] // image.merge**2, (w, h)
 
 
 def test_i2_prompt_is_the_text_prompt_with_images_first(served, picture):
     from decisio.serve.vllm_engine import USER_HEAD
+
     _, text, image = served
-    qs = [{"kind": "noul", "instructions": "Does the photo show the listed item?"},
-          {"kind": "choice", "instructions": "Which colour?", "options": ["blue", "red", "white"]}]
+    qs = [
+        {"kind": "noul", "instructions": "Does the photo show the listed item?"},
+        {"kind": "choice", "instructions": "Which colour?", "options": ["blue", "red", "white"]},
+    ]
     rows, p_exp, p_sent, counts = image._prepare_images(STATE, [picture, picture], qs)
     trows, tp = text._prepare_separate(STATE, qs)[:2]
     assert p_exp % image.pad_unit == 0 and p_exp == p_sent + sum(c - 1 for c in counts)
     for (ids, lab), (tids, tlab) in zip(rows, trows):
-        assert ids[p_sent:] == tids[tp:] and lab == tlab                # the question is read exactly as for text
+        assert ids[p_sent:] == tids[tp:] and lab == tlab  # the question is read exactly as for text
         assert ids[:p_sent].count(image.image_pad_id) == 2 and image.image_pad_id not in ids[p_sent:]
     # the images open the user turn, as the model's chat template renders them
     head = image.tok.encode(USER_HEAD + "<|vision_start|><|image_pad|><|vision_end|>", add_special_tokens=False)
     ids = rows[0][0]
-    k = next(i for i, t in enumerate(ids) if t != image.pad_token)          # the front padding, then the template
-    assert ids[k:k + len(head)] == head
+    k = next(i for i, t in enumerate(ids) if t != image.pad_token)  # the front padding, then the template
+    assert ids[k : k + len(head)] == head
 
 
 def test_i3_encodings_agree_and_route(served, picture):
     client, _, _ = served
     req = {"state": STATE, "questions": QUESTIONS}
     r_json = client.post("/v1/systemone", json={**req, "images": [data_url(picture)]})
-    r_form = client.post("/v1/systemone", data={"request": json.dumps(req)},
-                         files={"image": ("p.png", png(picture), "image/png")})
-    r_state = client.post("/v1/systemone", json={"state": {**STATE, "photo": data_url(picture)},
-                                                 "questions": QUESTIONS})
+    r_form = client.post(
+        "/v1/systemone", data={"request": json.dumps(req)}, files={"image": ("p.png", png(picture), "image/png")}
+    )
+    r_state = client.post(
+        "/v1/systemone", json={"state": {**STATE, "photo": data_url(picture)}, "questions": QUESTIONS}
+    )
     for r in (r_json, r_form, r_state):
         assert r.status_code == 200, r.text
         assert r.headers["x-decisio-route"] == "image"
         assert all(a["unknown_probability"] == 0.0 and a["abstained"] is False for a in r.json()["answers"].values())
     # the state-embedded image leaves "[image 1]" in the state, so only the two image-list encodings are identical
     assert probs(r_json.json()) == probs(r_form.json())
-    assert (r_json.json()["usage"]["input_tokens"]
-            > client.post("/v1/systemone", json=req).json()["usage"]["input_tokens"])
+    assert (
+        r_json.json()["usage"]["input_tokens"] > client.post("/v1/systemone", json=req).json()["usage"]["input_tokens"]
+    )
     r_text = client.post("/v1/systemone", json=req)
     assert r_text.headers["x-decisio-route"] == "text"
     assert all("unknown_probability" not in a for a in r_text.json()["answers"].values())
-    r_empty = client.post("/v1/systemone", json={**req, "images": []})     # the extension used, no image: text route
+    r_empty = client.post("/v1/systemone", json={**req, "images": []})  # the extension used, no image: text route
     assert r_empty.headers["x-decisio-route"] == "text"
     assert all(a["abstained"] is False for a in r_empty.json()["answers"].values())
 
@@ -137,10 +150,18 @@ def test_i5_refusals(served, picture):
     assert client.post("/v1/systemone", json={**req, "images": [data_url(picture)] * 3}).status_code == 422
     assert client.post("/v1/systemone", json={**req, "images": ["data:text/plain;base64,aGk="]}).status_code == 422
     assert client.post("/v1/systemone", json={**req, "images": "not a list"}).status_code == 422
-    assert client.post("/v1/systemone", data={"request": "{not json"},
-                       files={"image": ("p.png", png(picture), "image/png")}).status_code == 422
-    assert client.post("/v1/systemone", json={"state": {"photo": "data:image/png;base64,QUJD="}, "questions": QUESTIONS}
-                       ).status_code == 422
+    assert (
+        client.post(
+            "/v1/systemone", data={"request": "{not json"}, files={"image": ("p.png", png(picture), "image/png")}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/v1/systemone", json={"state": {"photo": "data:image/png;base64,QUJD="}, "questions": QUESTIONS}
+        ).status_code
+        == 422
+    )
     assert client.post("/v1/systemone", json=req, headers={"x-decisio-route": "gpu"}).status_code == 422
 
 
@@ -152,28 +173,52 @@ def test_i6_abstain_option_decodes_in_imajevs_harness(served):
 
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     _, text, image = served
     so = SystemOne(text, "decisio-test", image_engine=image, abstain_option="can't tell")
     client = TestClient(make_app(text, so))
-    fields = {"boolean": {"id": "decision", "question": "Is the mug blue?", "type": "boolean"},
-              "choice": {"id": "decision", "question": "Which colour?", "type": "choice",
-                         "options": [{"value": v, "description": None} for v in ("red", "blue", "white")]},
-              "ordinal": {"id": "decision", "question": "How full is the mug?", "type": "ordinal",
-                          "levels": [{"value": i, "description": d} for i, d in enumerate(("empty", "half", "full"))]}}
+    fields = {
+        "boolean": {"id": "decision", "question": "Is the mug blue?", "type": "boolean"},
+        "choice": {
+            "id": "decision",
+            "question": "Which colour?",
+            "type": "choice",
+            "options": [{"value": v, "description": None} for v in ("red", "blue", "white")],
+        },
+        "ordinal": {
+            "id": "decision",
+            "question": "How full is the mug?",
+            "type": "ordinal",
+            "levels": [{"value": i, "description": d} for i, d in enumerate(("empty", "half", "full"))],
+        },
+    }
     for kind, field in fields.items():
         payload = {"request": {"state": STATE, "fields": [field]}, "images": []}
-        wire = {"state": STATE, "questions": {"decision": {"instructions": field["question"],
-                **({"type": "noul", "criteria": {"true": None, "false": None}} if kind == "boolean" else
-                   {"type": "choice", "criteria": {o["value"]: None for o in field["options"]}} if kind == "choice" else
-                   {"type": "score", "criteria": [lv["description"] for lv in field["levels"]]})}}, "images": []}
+        wire = {
+            "state": STATE,
+            "questions": {
+                "decision": {
+                    "instructions": field["question"],
+                    **(
+                        {"type": "noul", "criteria": {"true": None, "false": None}}
+                        if kind == "boolean"
+                        else {"type": "choice", "criteria": {o["value"]: None for o in field["options"]}}
+                        if kind == "choice"
+                        else {"type": "score", "criteria": [lv["description"] for lv in field["levels"]]}
+                    ),
+                }
+            },
+            "images": [],
+        }
         r = client.post("/v1/systemone", json=wire)
         assert r.status_code == 200, r.text
         a = r.json()["answers"]["decision"]
         assert 0.0 < a["unknown_probability"] < 1.0 and isinstance(a["abstained"], bool)
         decoded = runner.decode_jev(r.json(), payload)
         probs = decoded[0] if isinstance(decoded, tuple) else decoded.get("probabilities", decoded)
-        assert (abs(sum(probs.values()) - 1) < 1e-6
-                and abs(probs["__unknown__"] - a["unknown_probability"]) < 1e-12), kind
+        assert abs(sum(probs.values()) - 1) < 1e-6 and abs(probs["__unknown__"] - a["unknown_probability"]) < 1e-12, (
+            kind
+        )
     # requests without imajev's extension keep TypeSafe's format exactly
     plain = client.post("/v1/systemone", json={"state": STATE, "questions": QUESTIONS}).json()
     assert all("unknown_probability" not in a for a in plain["answers"].values())

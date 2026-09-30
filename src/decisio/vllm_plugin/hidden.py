@@ -15,12 +15,13 @@ allowed ids per request, so h is read in chunks (`reserved_chunks`), one request
 A request that does not allow the reserved ids never sees them: its masked log-probabilities are what vLLM's own class
 gives, bit for bit.
 """
+
 from __future__ import annotations
 
 import os
 
 ENV_START = "DECISIO_HIDDEN_READOUT_START"
-DEFAULT_START = 100_000          # Qwen3.6's tokenizer: no letter label and no " yes" / " no" in [100000, 102048]
+DEFAULT_START = 100_000  # Qwen3.6's tokenizer: no letter label and no " yes" / " no" in [100000, 102048]
 
 
 def readout_start() -> int:
@@ -34,8 +35,8 @@ def reserved_ids(hidden_size: int, start: int | None = None) -> list[int]:
     return list(range(start, start + hidden_size + 1))
 
 
-MAX_ALLOWED = 1024               # vLLM 0.30.0's sampler: at most 1,024 allowed token ids per request
-                                 # (vllm/v1/worker/gpu/sample/logit_bias.py, MAX_NUM_ALLOWED_TOKEN_IDS)
+MAX_ALLOWED = 1024  # vLLM 0.30.0's sampler: at most 1,024 allowed token ids per request
+# (vllm/v1/worker/gpu/sample/logit_bias.py, MAX_NUM_ALLOWED_TOKEN_IDS)
 
 
 def reserved_chunks(hidden_size: int, start: int | None = None) -> list[list[int]]:
@@ -44,13 +45,14 @@ def reserved_chunks(hidden_size: int, start: int | None = None) -> list[list[int
     ids = reserved_ids(hidden_size, start)
     ref, dims = ids[0], ids[1:]
     step = MAX_ALLOWED - 1
-    return [[ref, *dims[i:i + step]] for i in range(0, len(dims), step)]
+    return [[ref, *dims[i : i + step]] for i in range(0, len(dims), step)]
 
 
 def recover_hidden_chunks(chunk_logprobs):
     """h from the log-probabilities of each chunk's ids (in `reserved_chunks` order): each chunk's values minus its own
     reference column, concatenated, in float64."""
     import numpy as np
+
     return np.concatenate([recover_hidden(lp) for lp in chunk_logprobs])
 
 
@@ -73,12 +75,13 @@ def write_hidden_columns(logits, hidden_states, start: int | None = None):
     if start + d + 1 > logits.shape[-1]:
         raise ValueError(f"reserved ids {start}..{start + d} are outside the vocabulary (size {logits.shape[-1]})")
     logits[..., start] = 0
-    logits[..., start + 1:start + 1 + d] = hidden_states.to(logits.dtype)
+    logits[..., start + 1 : start + 1 + d] = hidden_states.to(logits.dtype)
     return logits
 
 
 def recover_hidden(logprobs):
     """h from the log-probabilities of the reserved ids, in `reserved_ids` order: lp[1:] - lp[0], in float64."""
     import numpy as np
+
     lp = np.asarray(logprobs, dtype=np.float64)
     return lp[..., 1:] - lp[..., :1]

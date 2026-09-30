@@ -2,13 +2,14 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The intent head (`decisio.readout.intent_head`): the folded serving form equals the fitted head; the guards hold.
 
-  N1  the stored head (A, c) served with apply_intent_head equals the fitted classifier, to float32 storage
-  N2  a different option list (here: rotated) serves the plain readout
-  N3  fewer than 5 examples per option: the head is off
-  N4  a hidden state that carries nothing about the labels does not make an informative readout worse on new items
+N1  the stored head (A, c) served with apply_intent_head equals the fitted classifier, to float32 storage
+N2  a different option list (here: rotated) serves the plain readout
+N3  fewer than 5 examples per option: the head is off
+N4  a hidden state that carries nothing about the labels does not make an informative readout worse on new items
 
-    uv run pytest -q tests/unit/test_intent_head.py
+  uv run pytest -q tests/unit/test_intent_head.py
 """
+
 import numpy as np
 import pytest
 
@@ -43,7 +44,7 @@ def test_n1_folded_form_equals_the_fitted_head(fitted):
     fn, _ = fit_linear(H, logp, y, len(opts), offset=True, seed=0)
     Ht, lpt, _, _ = data(seed=1)
     got = np.array([apply_intent_head(lpt[i], Ht[i], rec, opts) for i in range(len(Ht))])
-    assert np.abs(got - softmax(fn(Ht, lpt))).max() < 1e-4           # float32 storage of A and c
+    assert np.abs(got - softmax(fn(Ht, lpt))).max() < 1e-4  # float32 storage of A and c
 
 
 def test_n2_another_option_list_serves_the_plain_readout(fitted):
@@ -69,6 +70,7 @@ def test_n4_uninformative_hidden_state_does_no_harm(fitted):
         s = rng.normal(size=(len(yy), K))
         s[np.arange(len(yy)), yy] += 2.0
         return s - np.log(np.exp(s).sum(1, keepdims=True))
+
     lp_tr, lp_te = informative(y), informative(y)
     rec = fit_intent_head(lp_tr, rng.normal(size=H.shape), y, opts)
     Hte = rng.normal(size=H.shape)

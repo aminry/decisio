@@ -6,6 +6,7 @@ the suite's order. Checks the counts per benchmark and, by default, the uncompre
 
     python -m decisio.bench.di_rows <suite dir> <out rows.jsonl.gz> [--no-hash-check]
 """
+
 import argparse
 import collections
 import gzip
@@ -14,7 +15,7 @@ import json
 from pathlib import Path
 
 FAMILIES = {"BANKING77": 3080, "CLINC150+OOS": 5500, "GPQA-Diamond": 198, "MMLU-Pro": 12032}
-RUNS_SHA256 = "9b8537423f834be743373e3b033ea367b7c4e196b61be1b8480cddab0338ce80"   # uncompressed, runs/ 2026-09-27, -30
+RUNS_SHA256 = "9b8537423f834be743373e3b033ea367b7c4e196b61be1b8480cddab0338ce80"  # uncompressed, runs/ 2026-09-27, -30
 
 
 def rows(suite: Path) -> list[str]:

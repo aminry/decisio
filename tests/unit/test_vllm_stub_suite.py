@@ -15,6 +15,7 @@ patch series in test_patches.py, the head modes in test_head_modes.py.
 
     uv run pytest -q tests/unit/test_vllm_stub_suite.py
 """
+
 import json
 import os
 import shutil
@@ -38,20 +39,22 @@ def wheel_env(tmp_path_factory):
     if uv is None:
         pytest.skip("uv is not installed")
     tmp = tmp_path_factory.mktemp("wheel")
-    src = tmp / "src"                                                     # build from a clean copy of what ships
+    src = tmp / "src"  # build from a clean copy of what ships
     src.mkdir()
     for f in ("pyproject.toml", "LICENSE", "NOTICE"):
         shutil.copy(ROOT / f, src)
     shutil.copytree(ROOT / "src", src / "src", ignore=shutil.ignore_patterns("__pycache__", "*.egg-info", "*.pyc"))
-    b = subprocess.run([uv, "build", "--wheel", "--out-dir", str(tmp / "dist"), str(src)],
-                       capture_output=True, text=True)
+    b = subprocess.run(
+        [uv, "build", "--wheel", "--out-dir", str(tmp / "dist"), str(src)], capture_output=True, text=True
+    )
     if b.returncode != 0:
         pytest.skip(f"the wheel could not be built here (offline?): {b.stderr[-300:]}")
     wheel = next((tmp / "dist").glob("*.whl"))
     venv = tmp / "venv"
     subprocess.run([uv, "venv", "-q", "--python", "3.12", str(venv)], check=True)
-    subprocess.run([uv, "pip", "install", "-q", "--python", str(venv / "bin" / "python"), "--no-deps", str(wheel)],
-                   check=True)
+    subprocess.run(
+        [uv, "pip", "install", "-q", "--python", str(venv / "bin" / "python"), "--no-deps", str(wheel)], check=True
+    )
     return venv / "bin" / "python"
 
 
@@ -64,6 +67,7 @@ def run(py, code):
 
 def test_v1_wheel_carries_every_package(wheel_env):
     import zipfile
+
     wheel = next(wheel_env.parents[2].glob("dist/*.whl"))
     names = set(zipfile.ZipFile(wheel).namelist())
     for pkg in ("decisio", "decisio/vllm_plugin", "decisio/readout", "decisio/serve", "decisio/bench"):
@@ -73,7 +77,10 @@ def test_v1_wheel_carries_every_package(wheel_env):
 
 
 def test_v1_wheel_exposes_the_entry_point(wheel_env):
-    out = json.loads(run(wheel_env, """
+    out = json.loads(
+        run(
+            wheel_env,
+            """
 import json, sys
 from importlib.metadata import entry_points
 eps = entry_points(group="vllm.general_plugins")
@@ -83,17 +90,20 @@ print(json.dumps({"eps": {e.name: e.value for e in eps}, "registered": fn(), "ag
                   "installed": p.installed_entry_point(), "vllm": p.vllm_version(),
                   "heavy": sorted(m for m in ("torch", "numpy", "vllm", "decisio.serve", "decisio.vllm_plugin.models")
                                   if m in sys.modules)}))
-"""))
+""",
+        )
+    )
     assert out["eps"] == {"decisio": "decisio.vllm_plugin:register"} and out["installed"] is True
-    assert out["registered"] is False and out["again"] is False and out["vllm"] is None      # no vLLM: nothing, twice
+    assert out["registered"] is False and out["again"] is False and out["vllm"] is None  # no vLLM: nothing, twice
     assert out["heavy"] == []
 
 
 def test_v1_serve_extra_pins_vllm():
     proj = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
     assert [d.split(";")[0].strip() for d in proj["optional-dependencies"]["serve"]] == ["vllm==0.30.0"]
-    assert not any(d.startswith("vllm") for d in proj["dependencies"])      # vLLM stays optional (Linux, GPU)
+    assert not any(d.startswith("vllm") for d in proj["dependencies"])  # vLLM stays optional (Linux, GPU)
     import decisio.vllm_plugin as p
+
     assert p.SUPPORTED_VLLM == "0.30.0"
 
 
@@ -120,16 +130,17 @@ print(sorted(m for m in ("torch", "numpy", "decisio.vllm_plugin.models", "decisi
 
 def test_v3_launcher_deep_gemm_guard():
     from decisio.serve.vllm_engine import deep_gemm_guard
+
     env = {}
     deep_gemm_guard("vllm", env)
-    assert env == {"VLLM_USE_DEEP_GEMM": "0"}                               # unset: switched off before vLLM loads
-    deep_gemm_guard("vllm", env)                                            # already off: fine
+    assert env == {"VLLM_USE_DEEP_GEMM": "0"}  # unset: switched off before vLLM loads
+    deep_gemm_guard("vllm", env)  # already off: fine
     for bad in ("1", "true", ""):
         with pytest.raises(SystemExit, match="VLLM_USE_DEEP_GEMM"):
             deep_gemm_guard("vllm", {"VLLM_USE_DEEP_GEMM": bad})
-        deep_gemm_guard("vllm", {"VLLM_USE_DEEP_GEMM": bad}, allow=True)    # the operator's explicit override
+        deep_gemm_guard("vllm", {"VLLM_USE_DEEP_GEMM": bad}, allow=True)  # the operator's explicit override
     env = {"VLLM_USE_DEEP_GEMM": "1"}
-    deep_gemm_guard("hf", env)                                              # the CPU stand-in: untouched
+    deep_gemm_guard("hf", env)  # the CPU stand-in: untouched
     assert env == {"VLLM_USE_DEEP_GEMM": "1"} and deep_gemm_guard("hf", {}) is None
 
 
@@ -139,23 +150,28 @@ def args(model_class, engine='{"compilation_config": {"max_cudagraph_capture_siz
 
 def test_v4_engine_arguments(monkeypatch):
     from decisio.serve import vllm_engine
+
     base = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
-    assert vllm_engine.engine_kwargs(args("view")) == base                   # the fallback: no plugin involved
+    assert vllm_engine.engine_kwargs(args("view")) == base  # the fallback: no plugin involved
     monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
     with stub_vllm("0.30.0"):
         import decisio.vllm_plugin as p
+
         monkeypatch.setattr(p, "installed_entry_point", lambda: False)
         with pytest.raises(SystemExit, match="entry point"):
             vllm_engine.engine_kwargs(args("text-only"))
         monkeypatch.setattr(p, "installed_entry_point", lambda: True)
-        assert vllm_engine.engine_kwargs(args("text-only")) == {**base,
-                                                                 "hf_overrides": {"architectures": [p.TEXT_ONLY]}}
+        assert vllm_engine.engine_kwargs(args("text-only")) == {
+            **base,
+            "hf_overrides": {"architectures": [p.TEXT_ONLY]},
+        }
         kw = vllm_engine.engine_kwargs(args("hidden-readout"))
         assert kw == {**base, "max_logprobs": 1024, "hf_overrides": {"architectures": [p.HIDDEN_READOUT]}}
         assert os.environ["DECISIO_HIDDEN_READOUT_START"] == "100000"
         monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START")
     with stub_vllm("0.31.0"):
         import decisio.vllm_plugin as p
+
         monkeypatch.setattr(p, "installed_entry_point", lambda: True)
         with pytest.raises(SystemExit, match="vllm==0.30.0"):
             vllm_engine.engine_kwargs(args("text-only"))
@@ -164,6 +180,7 @@ def test_v4_engine_arguments(monkeypatch):
 def test_v4_the_view_stays_available():
     import decisio.serve.make_text_only as m
     from decisio.vllm_plugin.weights import is_vision_weight
+
     assert callable(m.main)
     assert is_vision_weight("model.visual.blocks.0.attn.qkv.weight") and is_vision_weight("visual.merger.mlp.0.bias")
     assert not is_vision_weight("model.language_model.layers.0.mlp.gate.weight")

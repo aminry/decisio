@@ -2,18 +2,19 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """decisio's names on the wire and in its records, and the earlier `rlcd` spellings it still reads (`decisio.names`).
 
-  W1  response headers: x-decisio-route, x-decisio-server-ms and x-decisio-tasks are written and no x-rlcd-* header
-      is; the request headers x-decisio-debug / x-decisio-route are read, and the earlier x-rlcd-debug / x-rlcd-route
-      still work, the new spelling winning when both are sent; the debug readout is the body's decisio_debug field
-  W2  record formats: new records are written as decisio-<kind>/1; the task records committed in runs/ (rlcd-task/1
-      with rlcd-task-prior/1 and rlcd-intent-head/1 inside) load and are looked up; an abstention task in either
-      spelling loads; a record of another kind, or without a format, is refused
-  W3  the served name: the default is decisio-qwen3.6-35b-a3b-letters; a task fitted under the earlier default name
-      applies on a server with the new default (through the store, POST /v1/tasks/import and --tasks-file), and one
-      fitted under any other name does not
+W1  response headers: x-decisio-route, x-decisio-server-ms and x-decisio-tasks are written and no x-rlcd-* header
+    is; the request headers x-decisio-debug / x-decisio-route are read, and the earlier x-rlcd-debug / x-rlcd-route
+    still work, the new spelling winning when both are sent; the debug readout is the body's decisio_debug field
+W2  record formats: new records are written as decisio-<kind>/1; the task records committed in runs/ (rlcd-task/1
+    with rlcd-task-prior/1 and rlcd-intent-head/1 inside) load and are looked up; an abstention task in either
+    spelling loads; a record of another kind, or without a format, is refused
+W3  the served name: the default is decisio-qwen3.6-35b-a3b-letters; a task fitted under the earlier default name
+    applies on a server with the new default (through the store, POST /v1/tasks/import and --tasks-file), and one
+    fitted under any other name does not
 
-    uv run pytest -q tests/unit/test_names.py
+  uv run pytest -q tests/unit/test_names.py
 """
+
 import gzip
 import json
 import sys
@@ -28,8 +29,17 @@ from decisio.serve.tasks import TaskStore
 
 ROOT = Path(__file__).resolve().parents[2]
 RUN = ROOT / "runs" / "2026-09-30_plugin-verification"
-LEGACY_FP = json.dumps({"desnake_labels": True, "hide_index_keys": True, "model": "moe-fp8", "pad_to": "block",
-                        "pad_where": "front", "served_name": names.LEGACY_SERVED_NAME}, sort_keys=True)
+LEGACY_FP = json.dumps(
+    {
+        "desnake_labels": True,
+        "hide_index_keys": True,
+        "model": "moe-fp8",
+        "pad_to": "block",
+        "pad_where": "front",
+        "served_name": names.LEGACY_SERVED_NAME,
+    },
+    sort_keys=True,
+)
 NEW_FP = LEGACY_FP.replace(names.LEGACY_SERVED_NAME, names.SERVED_NAME)
 
 
@@ -53,10 +63,13 @@ def test_w1_served_headers():
 
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     eng = OrderFreeEngine(TIED)
     client = TestClient(make_app(eng, SystemOne(eng, "decisio-test", debug_readout=True)))
-    body = {"state": "a photo", "questions": {"q": {"type": "choice", "instructions": "Which drink?",
-                                                    "criteria": {k: None for k in TIED}}}}
+    body = {
+        "state": "a photo",
+        "questions": {"q": {"type": "choice", "instructions": "Which drink?", "criteria": {k: None for k in TIED}}},
+    }
     r = client.post("/v1/systemone", json=body)
     assert r.status_code == 200, r.text
     assert r.headers["x-decisio-route"] == "text" and float(r.headers["x-decisio-server-ms"]) >= 0
@@ -66,13 +79,14 @@ def test_w1_served_headers():
         r = client.post("/v1/systemone", json=body, headers={h: "readout"})
         assert r.status_code == 200 and r.json()[names.DEBUG_KEY]["q"]["path"], (h, r.text)
     for h in ("x-decisio-route", "x-rlcd-route"):
-        assert client.post("/v1/systemone", json=body, headers={h: "gpu"}).status_code == 422       # read, refused
+        assert client.post("/v1/systemone", json=body, headers={h: "gpu"}).status_code == 422  # read, refused
         assert client.post("/v1/systemone", json=body, headers={h: "text"}).status_code == 200
 
 
 def test_w2_new_records_are_decisio():
     from decisio.readout import calibration, intent_head
     from decisio.serve import abstention, tasks
+
     assert tasks.FORMAT == "decisio-task/1" and calibration.FORMAT == "decisio-task-prior/1"
     assert intent_head.FORMAT == "decisio-intent-head/1" and abstention.FORMAT == "decisio-abstention/1"
     rng = np.random.default_rng(0)
@@ -82,8 +96,11 @@ def test_w2_new_records_are_decisio():
 
 def test_w2_committed_task_records_load():
     record = load_json(RUN / "intent_heads" / "banking77_d0_task.json.gz")
-    assert (record["format"], record["calibration"]["format"], record["head"]["format"]) == \
-        ("rlcd-task/1", "rlcd-task-prior/1", "rlcd-intent-head/1")
+    assert (record["format"], record["calibration"]["format"], record["head"]["format"]) == (
+        "rlcd-task/1",
+        "rlcd-task-prior/1",
+        "rlcd-intent-head/1",
+    )
     store = TaskStore(NEW_FP)
     store.load([record])
     task = store.lookup(record["key"])
@@ -93,9 +110,12 @@ def test_w2_committed_task_records_load():
     store.load(both)
     assert sorted(t["id"] for t in store.by_key.values()) == ["r12_banking77_d0", "r12_v3_clinc_d0"]
     # the same record in the new spelling loads the same way
-    renamed = {**record, "format": "decisio-task/1",
-               "calibration": {**record["calibration"], "format": "decisio-task-prior/1"},
-               "head": {**record["head"], "format": "decisio-intent-head/1"}}
+    renamed = {
+        **record,
+        "format": "decisio-task/1",
+        "calibration": {**record["calibration"], "format": "decisio-task-prior/1"},
+        "head": {**record["head"], "format": "decisio-intent-head/1"},
+    }
     TaskStore(NEW_FP).load([renamed])
 
 
@@ -106,16 +126,31 @@ def test_w2_other_records_are_refused(bad):
     with pytest.raises(ValueError, match="format"):
         store.load([{**{k: v for k, v in record.items() if k != "format"}, **bad}])
     with pytest.raises(ValueError, match="calibration"):
-        store.load([{**record, "calibration": {**record["calibration"], **bad} if bad else
-                     {k: v for k, v in record["calibration"].items() if k != "format"}}])
-    assert store.by_key == {}                                            # nothing stored from a refused batch
+        store.load(
+            [
+                {
+                    **record,
+                    "calibration": {**record["calibration"], **bad}
+                    if bad
+                    else {k: v for k, v in record["calibration"].items() if k != "format"},
+                }
+            ]
+        )
+    assert store.by_key == {}  # nothing stored from a refused batch
 
 
 def test_w2_abstention_tasks_in_either_spelling():
     from decisio.serve.systemone import SystemOne
+
     def task(fmt):
-        return {"id": "oos", "option": {"key": "out of scope"}, "match": {"option_set": "x"},
-                "config": {"format": fmt, "applied": True, "threshold": 0.4}, "model": names.LEGACY_SERVED_NAME}
+        return {
+            "id": "oos",
+            "option": {"key": "out of scope"},
+            "match": {"option_set": "x"},
+            "config": {"format": fmt, "applied": True, "threshold": 0.4},
+            "model": names.LEGACY_SERVED_NAME,
+        }
+
     for fmt in ("rlcd-abstention/1", "decisio-abstention/1"):
         assert "oos" in SystemOne(types.SimpleNamespace(), "m", abstention_tasks=[task(fmt)]).tasks
     with pytest.raises(ValueError, match="abstention"):
@@ -124,6 +159,7 @@ def test_w2_abstention_tasks_in_either_spelling():
 
 def test_w3_served_name_and_fingerprints():
     from decisio.serve import vllm_engine
+
     assert names.SERVED_NAME == "decisio-qwen3.6-35b-a3b-letters"
     assert 'default=SERVED_NAME, help="the name GET /v1/models lists"' in Path(vllm_engine.__file__).read_text()
     assert names.same_fingerprint(LEGACY_FP, NEW_FP) and names.same_fingerprint(NEW_FP, LEGACY_FP)
@@ -137,6 +173,7 @@ def test_w3_import_endpoint_takes_legacy_tasks():
 
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     so = SystemOne(types.SimpleNamespace(), names.SERVED_NAME, task_store=TaskStore(NEW_FP))
     client = TestClient(make_app(types.SimpleNamespace(adapters={}), so))
     tasks = load_json(RUN / "latency_tasks.json.gz")
@@ -161,20 +198,35 @@ def start_with_tasks(monkeypatch, tasks_file, *argv):
 
         def facts(self):
             return {}
+
     served = {}
     monkeypatch.setattr(hf, "HFLettersEngine", Engine)
     monkeypatch.setattr(vllm_engine, "make_app", lambda engine, so: served.update(so=so) or object())
     monkeypatch.setattr(uvicorn, "run", lambda app, **kw: None)
-    monkeypatch.setattr(sys, "argv", ["decisio", "--backend", "hf", "--model", "/models/moe-fp8",
-                                      "--model-class", "view", "--tasks-file", str(tasks_file), *argv])
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "decisio",
+            "--backend",
+            "hf",
+            "--model",
+            "/models/moe-fp8",
+            "--model-class",
+            "view",
+            "--tasks-file",
+            str(tasks_file),
+            *argv,
+        ],
+    )
     vllm_engine.main()
     return served["so"]
 
 
 def test_w3_tasks_file_at_start_up(monkeypatch, capsys, tmp_path):
-    tasks_file = tmp_path / "tasks.json"                                    # GET /v1/tasks?full=1 as saved to a file
+    tasks_file = tmp_path / "tasks.json"  # GET /v1/tasks?full=1 as saved to a file
     tasks_file.write_text(json.dumps(load_json(RUN / "latency_tasks.json.gz")))
-    store = start_with_tasks(monkeypatch, tasks_file).task_store                          # the default served name
+    store = start_with_tasks(monkeypatch, tasks_file).task_store  # the default served name
     assert "WARNING" not in capsys.readouterr().out
     assert len(store.by_key) == 2 and all(store.lookup(k) is not None for k in store.by_key)
     store = start_with_tasks(monkeypatch, tasks_file, "--served-name", "my-deployment").task_store

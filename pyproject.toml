@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "decisio"
 version = "0.1.0"
-description = "A prefill-only decision server on vLLM: typed questions about a state, a calibrated distribution per question"
+description = "A prefill-only decision server on vLLM: typed questions about a state, a probability distribution per question"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
 readme = "README.md"

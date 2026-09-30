@@ -22,7 +22,7 @@ from __future__ import annotations
 import string
 from functools import lru_cache
 
-MAX_LABELS = 255                      # the wire format's cap, an 8-bit option index
+MAX_LABELS = 255  # the wire format's cap, an 8-bit option index
 
 LETTERS_INSTRUCTION = "Answer with the letter only."
 CODES_INSTRUCTION = "Answer with the code only."
@@ -38,7 +38,7 @@ def fmt_state(state):
     """How a state is rendered into the prompt, the same for serving and evaluation."""
     if isinstance(state, str):
         return state
-    if isinstance(state, dict):              # "_" keys are item metadata, never shown
+    if isinstance(state, dict):  # "_" keys are item metadata, never shown
         return "\n".join(f"{k}: {v}" for k, v in state.items() if not k.startswith("_"))
     return str(state)
 
@@ -64,8 +64,7 @@ def _labels_for(tok_key, k, tok):
         out.append(code)
         if len(out) == k:
             return tuple(out)
-    raise AssertionError(f"only {len(out)} single-token letter labels exist in this tokenizer, "
-                         f"{k} were asked for")
+    raise AssertionError(f"only {len(out)} single-token letter labels exist in this tokenizer, {k} were asked for")
 
 
 def letter_labels(tok, k):
@@ -140,8 +139,9 @@ def chat_wrap(tok, prompt, mode):
         raise ValueError(f"unknown prompt mode {mode!r}")
     assert prompt.endswith("\nAnswer:"), prompt[-40:]
     kw = {"enable_thinking": False} if mode == "chat" else {}
-    out = tok.apply_chat_template([{"role": "user", "content": prompt[:-len("\nAnswer:")]}],
-                                  add_generation_prompt=True, tokenize=False, **kw)
+    out = tok.apply_chat_template(
+        [{"role": "user", "content": prompt[: -len("\nAnswer:")]}], add_generation_prompt=True, tokenize=False, **kw
+    )
     if mode == "chat" and out.count("<think>") != out.count("</think>"):
         raise AssertionError(f"thinking left open in chat mode: {out[-60:]!r}")
     return out + "Answer:"
@@ -164,7 +164,7 @@ def letters_prompt(tok, kind, body, instructions, options, pool=None):
     else:
         if len(options) > len(pool):
             raise AssertionError(f"{len(options)} options but only {len(pool)} codes in the pool")
-        labs, say = list(pool[:len(options)]), CODES_INSTRUCTION
+        labs, say = list(pool[: len(options)]), CODES_INSTRUCTION
     if kind == "score":
         legend = "; ".join(f"{lab} = {o}" for lab, o in zip(labs, options))
         q = f"{body}\n\n{instructions}\nRate on this scale: {legend}.\n{say}"
