@@ -109,13 +109,26 @@ class HiddenEngine(HiddenReadout, LettersEngine):
 
     @staticmethod
     def _load_lm_head(model):
-        """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards."""
+        """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards. `model` is a local
+        directory or a Hugging Face repo id, as vLLM accepts; for a repo id only the index and the shard holding
+        `lm_head.weight` are fetched (from the local cache when vLLM has already downloaded them)."""
         from safetensors import safe_open
 
-        root = Path(model)
-        index = root / "model.safetensors.index.json"
-        shard = json.loads(index.read_text())["weight_map"]["lm_head.weight"] if index.exists() else "model.safetensors"
-        with safe_open(str(root / shard), framework="pt") as f:
+        def fetch(name):
+            local = Path(model) / name
+            if Path(model).is_dir():
+                return local if local.exists() else None
+            from huggingface_hub import hf_hub_download
+            from huggingface_hub.errors import EntryNotFoundError
+
+            try:
+                return Path(hf_hub_download(model, name))
+            except EntryNotFoundError:
+                return None
+
+        index = fetch("model.safetensors.index.json")
+        shard = json.loads(index.read_text())["weight_map"]["lm_head.weight"] if index else "model.safetensors"
+        with safe_open(str(fetch(shard)), framework="pt") as f:
             return f.get_tensor("lm_head.weight")
 
     def label_rows(self, lab):
