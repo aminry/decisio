@@ -37,6 +37,7 @@ Section 4 is the rehearsal: it is run straight after each step.
 | # | Item | How | Notes |
 | --- | --- | --- | --- |
 | 1 | Flip the visibility | API | the owner's decision, the last thing before section 2 |
+| 2.0 | The maintainer's commit signing (SSH key, git config, GitHub signing key) | local, then CLICK or API | before 2.4 |
 | 2.1 | Squash-only merges, branch cleanup, web sign-off | API | |
 | 2.2 | Actions: allowed actions, SHA pinning, fork approval, read-only token | API | |
 | 2.3 | DCO GitHub App | CLICK | before the ruleset, or the required check never reports |
@@ -95,6 +96,50 @@ From this moment `main` is readable by everyone and unprotected; only the owner 
 Do section 2 immediately, in order, without a break.
 
 ## 2. Apply, in this order
+
+### 2.0 The maintainer's commit signing [local, then CLICK or API]
+
+What the `required_signatures` rule in 2.4 needs, as far as GitHub's documentation says: commits that land on `main` must be verified.
+Every change reaches `main` as a squash merge made on github.com, and GitHub signs that commit itself, so a pull request whose branch commits are unsigned should still merge; the first pull request after 2.4 is the test (verification below).
+Signing locally is still worth doing now: the maintainer's commits on branches show "Verified", and it covers any path that puts the maintainer's own commit on `main`.
+Nothing is configured on the maintainer's machine yet (2026-09-30: `gpg.format`, `user.signingkey` and `commit.gpgsign` are unset), and the `gh` session's token cannot read or add signing keys or read the account's emails, so steps 3 and 4 are the maintainer's.
+
+1. [local] Generate a dedicated signing key, or select an existing one.
+   The machine has `~/.ssh/id_ed25519.pub`; a separate key keeps signing apart from logging in, and GitHub lists the two kinds separately.
+   ```
+   ssh-keygen -t ed25519 -C "roudaky@gmail.com" -f ~/.ssh/decisio_signing     # set a passphrase
+   ssh-add --apple-use-keychain ~/.ssh/decisio_signing                        # macOS: unlock once per login
+   ```
+2. [local] Configure git.
+   `--global` signs every repository on the machine, including work that automated agents do in the maintainer's checkout under the maintainer's identity; use `--local` inside the clone to limit it to decisio, and decide that on purpose, because a signature says the holder of the key made the commit.
+   ```
+   git config --global gpg.format ssh
+   git config --global user.signingkey ~/.ssh/decisio_signing.pub
+   git config --global commit.gpgsign true
+   mkdir -p ~/.config/git
+   echo "roudaky@gmail.com namespaces=\"git\" $(cat ~/.ssh/decisio_signing.pub)" >> ~/.config/git/allowed_signers
+   git config --global gpg.ssh.allowedSignersFile ~/.config/git/allowed_signers
+   ```
+   The allowed-signers file is only for checking signatures on this machine (`git log --show-signature`); GitHub does not read it.
+3. [CLICK] Confirm that `roudaky@gmail.com` is a verified email on the GitHub account (<https://github.com/settings/emails>); a signature by a key whose email is not verified on the account shows as unverified.
+4. [CLICK or API] Add the public key to GitHub as a signing key.
+   Settings page: <https://github.com/settings/ssh/new>, Key type "Signing Key", paste `~/.ssh/decisio_signing.pub`.
+   Or from `gh`, after granting it the scope in a browser once:
+   ```
+   gh auth refresh -h github.com -s admin:ssh_signing_key
+   gh ssh-key add ~/.ssh/decisio_signing.pub --type signing --title "decisio signing"
+   ```
+5. Verify, before the flip.
+   Locally: `git commit --allow-empty -m "test: signing probe"` in a scratch clone, then `git log -1 --show-signature`; expect `Good "git" signature for roudaky@gmail.com with ED25519 key SHA256:...`.
+   On GitHub: push that commit to a throwaway branch (not `main`) and read the verdict, then delete the branch:
+   ```
+   git push origin HEAD:refs/heads/signing-probe
+   gh api repos/aminry/decisio/commits/signing-probe --jq .commit.verification
+   #   verified true, reason "valid"
+   git push origin --delete signing-probe
+   ```
+   After 2.4, the first pull request is the real test of the rule: a docs-only pull request with one signed commit, squash-merged; then one with an unsigned branch commit, to confirm that the squash merge is accepted.
+   If an unsigned branch commit blocks the merge, keep `commit.gpgsign` on for everyone who pushes to this repository and say so in `CONTRIBUTING.md`.
 
 ### 2.1 Merge settings [API]
 
