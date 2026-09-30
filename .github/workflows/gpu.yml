@@ -20,6 +20,9 @@ permissions: {}
 jobs:
   gpu-tests:
     name: serving gates and model classes
+    # Skipped until a runner labelled "gpu" is registered and the repository variable GPU_RUNNER_READY is set to
+    # "true"; without a runner a queued job waits 24 hours and then fails, every night.
+    if: vars.GPU_RUNNER_READY == 'true'
     runs-on: [self-hosted, gpu]
     timeout-minutes: 180
     permissions:
