@@ -23,7 +23,7 @@ HERE = Path(__file__).parent
 def env_path(name):
     value = os.environ.get(name)
     if not value:
-        pytest.skip(f"{name} is not set (see tests/gpu/conftest.py)")
+        pytest.skip(f"{name} is not set (see tests/gpu/gpu_tier.py)")
     return value
 
 
