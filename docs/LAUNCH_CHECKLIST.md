@@ -59,6 +59,22 @@ Section 4 is the rehearsal: it is run straight after each step.
 - **The first version number** (3.4): `0.1.0`.
 - **Required code owner review stays off**: with one code owner who opens the pull requests, turning it on would make every pull request unmergeable.
 
+## History of `main` (rebuilt once, 2026-09-30, while private)
+
+`main` was rebuilt as four commits before the flip: the extraction commit (the tree PR #1 merged, squashed from its 24 commits), then one commit each for #2, #4 and #5, composed the way a squash merge composes its message (the pull request title and every commit's message, sign-offs included).
+The final tree is identical to the tree of the branch that held all three pull requests; no file differs.
+It was done with one force-push, with a lease on the old tip; no rewrite is planned after it, and the rulesets in 2.4 forbid one.
+
+| | Commit |
+| --- | --- |
+| Old `main` | `195b908d976765fcdad407b77821b07075c91dcd` (36 commits; #2 as a merge commit, without #4 and #5) |
+| Old branch with all three pull requests | `826cadae8789161c68290cfb329d82db99484519` (`community-files`, deleted) |
+| Old extraction branch | `75e637d72a00c7a12e4b627e52bde2e5969f3c97` (`extract-v0.1`, deleted) |
+| New `main` before this record | `9185ada87b77f8aa4f39d2162c78b80a53172727` |
+
+The commits that were replaced stay reachable by hash and through the pull request refs (`refs/pull/N/head`), which GitHub does not let an owner delete.
+The rebuild changes what `main` shows, not what the repository serves.
+
 ## 0. Before the repository goes public
 
 These are gates, not settings.
