@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+blank_issues_enabled: false
+contact_links:
+  - name: Security issue
+    url: https://github.com/aminry/decisio/security/advisories/new
+    about: Report vulnerabilities privately, never in a public issue.

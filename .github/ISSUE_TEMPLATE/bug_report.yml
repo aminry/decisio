@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+name: Bug report
+description: Something behaves wrongly.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Decisio commit or release
+      placeholder: v0.1.0 or a commit hash
+    validations:
+      required: true
+  - type: input
+    id: stack
+    attributes:
+      label: vLLM version, card, driver
+      placeholder: vLLM 0.30.0, RTX PRO 6000, driver 580.x
+  - type: textarea
+    id: request
+    attributes:
+      label: Request that reproduces it
+      description: The exact JSON sent to /v1/systemone or /v1/tasks, with any private text replaced.
+      render: json
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server log excerpt
+      render: text

@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# GPU tests on a trusted runner. Never triggered by a pull request: fork code must not reach a self-hosted card.
+# Runs nightly on main and on demand for a ref a maintainer has already reviewed.
+# The runner is registered with the label "gpu" and must be ephemeral (one job, then re-registered).
+name: gpu
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch or commit to test (already reviewed)
+        required: false
+        default: main
+
+permissions: {}
+
+jobs:
+  gpu-tests:
+    name: serving gates and model classes
+    # Skipped until a runner labelled "gpu" is registered and the repository variable GPU_RUNNER_READY is set to
+    # "true"; without a runner a queued job waits 24 hours and then fails, every night.
+    if: vars.GPU_RUNNER_READY == 'true'
+    runs-on: [self-hosted, gpu]
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    env:
+      DECISIO_MODEL: ${{ vars.DECISIO_MODEL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || 'main' }}
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install with the serve extra (locked)
+        run: uv sync --extra serve --extra dev --frozen
+
+      - name: Slow CPU tier (about 20 GB of RAM)
+        run: uv run pytest -q -m slow
+
+      - name: GPU tests
+        run: uv run pytest -m gpu -q
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: gpu-test-output
+          path: |
+            tests/gpu/output/
+          if-no-files-found: ignore
+          retention-days: 14
