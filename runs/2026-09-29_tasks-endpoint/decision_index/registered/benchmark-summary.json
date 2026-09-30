@@ -1,0 +1,106 @@
+{
+ "engine": "registered",
+ "counts": {
+  "ok": 8580
+ },
+ "successful_request_latency_ms": {
+  "median": 45.990818998689065,
+  "p95": 51.2438919977285,
+  "mean": 44.12581146050179
+ },
+ "benchmarks": [
+  {
+   "catalog_id": 4,
+   "dataset": "BANKING77",
+   "requests": 3080,
+   "answered": 3080,
+   "unsupported": 0,
+   "errors": 0,
+   "abstained": 0,
+   "pending": 0,
+   "scored_requests": 3080,
+   "metric": "macro-F1",
+   "score": 0.8410179200935765,
+   "reference_same_cases": null,
+   "median_ms": 37.500416499824496,
+   "detail": {
+    "field_accuracy": 0.8428571428571429,
+    "case_exact_accuracy": 0.8428571428571429,
+    "macro_f1": 0.8410179200935765,
+    "custom_metrics": {}
+   }
+  },
+  {
+   "catalog_id": 5,
+   "dataset": "CLINC150+OOS",
+   "requests": 5500,
+   "answered": 5500,
+   "unsupported": 0,
+   "errors": 0,
+   "abstained": 0,
+   "pending": 0,
+   "scored_requests": 5500,
+   "metric": "macro-F1",
+   "score": 0.9164352401052321,
+   "reference_same_cases": null,
+   "median_ms": 47.33080200094264,
+   "detail": {
+    "field_accuracy": 0.9012727272727272,
+    "case_exact_accuracy": 0.9012727272727272,
+    "macro_f1": 0.9164352401052321,
+    "custom_metrics": {}
+   }
+  },
+  {
+   "catalog_id": 21,
+   "dataset": "Humicroedit",
+   "requests": 2628,
+   "answered": 0,
+   "unsupported": 0,
+   "errors": 0,
+   "abstained": 0,
+   "pending": 2628,
+   "scored_requests": 0,
+   "metric": null,
+   "score": null,
+   "reference_same_cases": null,
+   "median_ms": null
+  },
+  {
+   "catalog_id": 25,
+   "dataset": "GPQA Diamond",
+   "requests": 196,
+   "answered": 0,
+   "unsupported": 0,
+   "errors": 0,
+   "abstained": 0,
+   "pending": 196,
+   "scored_requests": 0,
+   "metric": null,
+   "score": null,
+   "reference_same_cases": null,
+   "median_ms": null
+  },
+  {
+   "catalog_id": 57,
+   "dataset": "MMLU-Pro",
+   "requests": 12032,
+   "answered": 0,
+   "unsupported": 0,
+   "errors": 0,
+   "abstained": 0,
+   "pending": 12032,
+   "metric": "accuracy",
+   "score": null,
+   "median_ms": null,
+   "scored_requests": 0,
+   "detail": {
+    "field_accuracy": null,
+    "scored_fields": 0,
+    "chance_on_rows": 0.11087694718844986
+   }
+  }
+ ],
+ "note": "Native benchmark metrics on complete supported case groups. Unsupported cases excluded from accuracy but retained in coverage.",
+ "edition": "0.2.1"
+}

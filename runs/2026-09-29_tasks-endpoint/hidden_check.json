@@ -1,0 +1,18 @@
+{
+ "banking77": {
+  "n": 150,
+  "argmax_agreement": 0.9733333333333334,
+  "max_abs_dp_median": 0.015614754061831049,
+  "max_abs_dp_max": 0.17835100263965487,
+  "acc_served_plain": 0.74,
+  "acc_hidden_plain": 0.7266666666666667
+ },
+ "v3_clinc": {
+  "n": 100,
+  "argmax_agreement": 1.0,
+  "max_abs_dp_median": 0.01663504907428663,
+  "max_abs_dp_max": 0.1493920905265015,
+  "acc_served_plain": 0.82,
+  "acc_hidden_plain": 0.82
+ }
+}

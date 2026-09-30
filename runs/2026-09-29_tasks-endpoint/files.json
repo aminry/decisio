@@ -1,0 +1,157 @@
+[
+ {
+  "path": "cal_draws.json",
+  "bytes": 3150,
+  "sha256": "904c802a599931f1069a7825598e7da89ead96c3034e56808b4ae7bfdddbe94d"
+ },
+ {
+  "path": "conformance_A.log",
+  "bytes": 683,
+  "sha256": "f51deb18c8591cfd8df8c915611c3e92df6c6714cbfca274a6507fd7fba1a908"
+ },
+ {
+  "path": "conformance_B.log",
+  "bytes": 683,
+  "sha256": "f51deb18c8591cfd8df8c915611c3e92df6c6714cbfca274a6507fd7fba1a908"
+ },
+ {
+  "path": "decision_index/plain/benchmark-summary.json",
+  "bytes": 2306,
+  "sha256": "329eaa3cfcf9fd5871f9c138dcd9d3ed39c0cb15f07298a935311f41230314c6"
+ },
+ {
+  "path": "decision_index/plain/di_report.json",
+  "bytes": 1315,
+  "sha256": "178c23696e688060babc06ad193cf4bd428857d87acae63e0e4fbfa0dd8ec467"
+ },
+ {
+  "path": "decision_index/plain/environment.json",
+  "bytes": 903,
+  "sha256": "bcb7835da86d2fdf068a645a4395dc3e51bb6da209ea4dc1d90b337ddd318b52"
+ },
+ {
+  "path": "decision_index/plain/items.jsonl.gz",
+  "bytes": 11274833,
+  "sha256": "38c117b02d4ed5370747f3e08175c906cbc2b22ae3638accec928d720d9f047c"
+ },
+ {
+  "path": "decision_index/plain/status.json",
+  "bytes": 166,
+  "sha256": "74f616989a9ad9f1e6ab2438c21579042daaf2c03b03daf29f116aafb10e1143"
+ },
+ {
+  "path": "decision_index/registered/benchmark-summary.json",
+  "bytes": 2313,
+  "sha256": "dbb241da641c77fd9892548de00b6072250e47df043a72822013fd7fd924a3a4"
+ },
+ {
+  "path": "decision_index/registered/di_report.json",
+  "bytes": 1319,
+  "sha256": "509d037b8c1ff45047bb20315b9b388c5ddaa1512488de0baf055e6fd80b6558"
+ },
+ {
+  "path": "decision_index/registered/environment.json",
+  "bytes": 903,
+  "sha256": "0462caf95e93852c07f7b42d95a202eee1c3db98e56c83fc47c76a6bdc038d62"
+ },
+ {
+  "path": "decision_index/registered/items.jsonl.gz",
+  "bytes": 13649780,
+  "sha256": "90fd0d3f24f356c94bf7a4b8583242228903a5c4aaa8e93195f0c2d3f418a2ae"
+ },
+ {
+  "path": "decision_index/registered/status.json",
+  "bytes": 166,
+  "sha256": "c851a71bd608d2218b2478645c1eb2eafb14549c6f6777f88094a60b217bf649"
+ },
+ {
+  "path": "di_registered_tasks.json.gz",
+  "bytes": 1873586,
+  "sha256": "271b34bf68e351d7c47df18f581da840f0688897a1afed158a2db833e35dab74"
+ },
+ {
+  "path": "evaluation.json",
+  "bytes": 31962,
+  "sha256": "713b3b467a591f7fba77d08a5e2b3f00e4a5390bb290a82f3039e2ac8a8aaf8a"
+ },
+ {
+  "path": "gates.log",
+  "bytes": 3760,
+  "sha256": "21c0fcc6da54062abb90a7531e5987f2d9e77a3393601b093a1d77e9ff661486"
+ },
+ {
+  "path": "health_A.json",
+  "bytes": 505,
+  "sha256": "dcd977d2493dd9dc5416fc90f7d26c4675856d132e5954d9dabccf79d5c9a8e8"
+ },
+ {
+  "path": "health_B.json",
+  "bytes": 659,
+  "sha256": "ab3e22e6ec598accc8e6c24dc764f6f494f464bddb5a8c5de3e36f529526576e"
+ },
+ {
+  "path": "hidden_check.json",
+  "bytes": 428,
+  "sha256": "5af75ca955843239256d3599278fb27fd7df09fc03480dfac12661fd34d89bbb"
+ },
+ {
+  "path": "intent_heads/banking77_d0.json.gz",
+  "bytes": 225793,
+  "sha256": "f8eb0eb8564a1aef961c16b80dba9d8448be3d116b41f016ec83d1d68e6f19f4"
+ },
+ {
+  "path": "intent_heads/banking77_d0_task.json.gz",
+  "bytes": 633485,
+  "sha256": "7adeb041cd32f71b0552747c0b5434af7d201ac4aa479668f1a172bd3dec4edb"
+ },
+ {
+  "path": "intent_heads/banking77_d1.json.gz",
+  "bytes": 225559,
+  "sha256": "6e389628001ed379d5eb6f000b673f508069d71d744518864e56e88d6e73a564"
+ },
+ {
+  "path": "intent_heads/banking77_d2.json.gz",
+  "bytes": 225764,
+  "sha256": "8f0da84703c9130e7f6c4acb376dd692fe1354b616828e8fc142a3efd7122fef"
+ },
+ {
+  "path": "intent_heads/v3_clinc_d0.json.gz",
+  "bytes": 289738,
+  "sha256": "f8049cdf12916d15c0c64bb04140002dc58820a492fd57a9643dde85b3819ac9"
+ },
+ {
+  "path": "intent_heads/v3_clinc_d0_task.json.gz",
+  "bytes": 1231462,
+  "sha256": "57d32fa1c6b04bf79340a0154daf965f0dd0c2a0e05f2569b5ad976ca7c5d0b5"
+ },
+ {
+  "path": "intent_heads/v3_clinc_d1.json.gz",
+  "bytes": 289703,
+  "sha256": "f09099a4e63d3bf67503cb5dde7a1ef1efd381aa386682f465eb2825b3f5a250"
+ },
+ {
+  "path": "intent_heads/v3_clinc_d2.json.gz",
+  "bytes": 289843,
+  "sha256": "09023b3b884b64e0e1dfde9e3bb0cc6ef2c90b9ecf611a687f52a3a2691835f8"
+ },
+ {
+  "path": "latency.json.gz",
+  "bytes": 17695,
+  "sha256": "b4b7fdf1c73e49d13f043b674435e8266d5e34d2cb24ef41f9e540a6f671c0f7"
+ },
+ {
+  "path": "latency_tasks.json.gz",
+  "bytes": 1867283,
+  "sha256": "798b7fffa89d944b7145fca3ba4b1d579b52c8447889db2fd2111b6a998363bf"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 5555,
+  "sha256": "bf0154c6a1560963ee5e49788fcc05308401a4f5aaa5a9feb2a16699be59d73e"
+ },
+ {
+  "path": "memory_split_B.txt",
+  "bytes": 1230,
+  "sha256": "ec1a17f57eaf75d7e4e22e5d63719d8cc5e40439efdc9e89b62cc6c2117b529b"
+ }
+]

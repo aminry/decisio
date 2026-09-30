@@ -51,8 +51,8 @@
  },
  {
   "path": "gates.log",
-  "bytes": 3773,
-  "sha256": "cbdec564371901f902f1fec2515edf8b45b9fd34a5a74cb097c860524e968eb8"
+  "bytes": 3772,
+  "sha256": "d3ad165a0a44080c46b83c0e48283ccd303df2b7ad2dfa4008a2044a62ff4a20"
  },
  {
   "path": "gates_separate.json",
@@ -136,8 +136,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 5411,
-  "sha256": "fcb6a3a6c7ae646306d97e37f536eace3d8a9c492ff6b35b59dfeb75b729c4df"
+  "bytes": 6389,
+  "sha256": "69d4cdb94cb086e8b0e8adbdcabf6b5a8d19668df93bb8b0e1d3416d6f90ebf4"
  },
  {
   "path": "memory_H.txt",
