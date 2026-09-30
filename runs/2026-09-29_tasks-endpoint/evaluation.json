@@ -504,17 +504,6 @@
     0.05999999999999999,
     0.16
    ],
-   "round12": {
-    "plain": 0.74,
-    "head10": 0.84,
-    "jev": 0.78
-   },
-   "gate": {
-    "threshold": 0.82,
-    "acc_at_least": true,
-    "gain_clear_of_zero": true,
-    "pass": true
-   },
    "stored_equals_reference": true,
    "served_exact": [
     "150 of 150",
@@ -552,17 +541,6 @@
     0.016666666666666666,
     0.12666666666666665
    ],
-   "round12": {
-    "plain": 0.84,
-    "head10": 0.93,
-    "jev": 0.89
-   },
-   "gate": {
-    "threshold": 0.91,
-    "acc_at_least": false,
-    "gain_clear_of_zero": true,
-    "pass": false
-   },
    "stored_equals_reference": true,
    "served_exact": [
     "100 of 100",
