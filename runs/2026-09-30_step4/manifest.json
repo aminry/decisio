@@ -1,0 +1,122 @@
+{
+ "id": "2026-09-30_step4",
+ "title": "The served default with the rendering rules, the tie-break and the global temperature on the same two harnesses, one card, internal",
+ "date": "2026-09-30",
+ "submitted": false,
+ "jev_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (96 GB)",
+ "software": {
+  "vllm": "0.30.0",
+  "patch_series": "patches/vllm-0.30.0/suffix-staging, VLLM_R9_SUFFIX_STAGING=1",
+  "VLLM_USE_DEEP_GEMM": "0"
+ },
+ "model": {
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "load": "the text-only view, Qwen3_5MoeForCausalLM",
+  "adapter": null,
+  "tasks": "enabled, none registered",
+  "temperature": {
+   "default": 1.307,
+   "temperature_1": 1.0
+  }
+ },
+ "serving": {
+  "readout": "letters",
+  "pad": "front, to the 1,056-token block",
+  "cuda_graphs": "captured up to 4,096 tokens",
+  "rendering": "index keys hidden, snake_case labels de-snaked (the defaults)",
+  "tie_break": "the tied key that sorts first",
+  "requests": "one at a time"
+ },
+ "code": {
+  "state": "the private repository's served code of 2026-09-30 (before the plugin)",
+  "public_equivalent": "python -m decisio.serve.vllm_engine --model-class view [--temperature 1]"
+ },
+ "arms": {
+  "default": "the served default, T 1.307",
+  "temperature_1": "--temperature 1"
+ },
+ "harnesses": {
+  "jevbench": "github.com/fstandhartinger/jevbench @ bb05a33 (v1.4.2.2 harness, the frozen v1.5 method), typesafe adapter; scored per item by the harness and under v1.5's open-set rules by decisio.bench.jevbench_v15 (v15.json)",
+  "decision_index": "github.com/apolinario/decision-index @ 87d4650, edition 0.2.1, the rows of 2026-09-27; calibration per benchmark by decisio.bench.di_cal"
+ },
+ "fitted_on": "no parameter on either harness's items; T was fitted before the run on the served readouts of a private 1,400-item suite, and the rendering rules were selected on the Decision Index's BANKING77 and CLINC150+OOS rows (EVAL_CARD.md, 'What was fitted on what')",
+ "gates": {
+  "C1 serving gates": "pass, G4 included (gates.log)",
+  "C2-C4 on the 1,400 suite items": "pass; C4 max |dp| 0.0 with the temperature applied to /v1/answer"
+ },
+ "results": {
+  "answers_unchanged_by_the_temperature": "every Decision Index score and accuracy identical in both arms on all four benchmarks (20,810 requests); JevBench choice competence identical per tier",
+  "jevbench_v15_private_reading": {
+   "default": {
+    "choice": 79.5,
+    "yes_no": -10.9,
+    "yes_no_abstentions": 0.54,
+    "score": 60.6,
+    "I_open_A": 43.1,
+    "I_open_B": 52.2
+   },
+   "temperature_1": {
+    "choice": 79.5,
+    "yes_no": -6.1,
+    "yes_no_abstentions": 0.5,
+    "score": 61.2,
+    "I_open_A": 44.8,
+    "I_open_B": 53.5
+   }
+  },
+  "decision_index_native": {
+   "BANKING77 macro-F1": 0.7311,
+   "CLINC150+OOS macro-F1": 0.8137,
+   "GPQA Diamond": 0.4541,
+   "MMLU-Pro": 0.6093
+  },
+  "decision_index_ece": {
+   "default": {
+    "BANKING77": 0.042,
+    "CLINC150+OOS": 0.17,
+    "GPQA Diamond": 0.144,
+    "MMLU-Pro": 0.009
+   },
+   "temperature_1": {
+    "BANKING77": 0.066,
+    "CLINC150+OOS": 0.031,
+    "GPQA Diamond": 0.164,
+    "MMLU-Pro": 0.072
+   }
+  },
+  "jevbench_ece_per_file": {
+   "default": {
+    "easy": 0.023,
+    "original": 0.148,
+    "hard": 0.059
+   },
+   "temperature_1": {
+    "easy": 0.008,
+    "original": 0.104,
+    "hard": 0.08
+   }
+  },
+  "note": "the v1.5 reading covers 231 of the board's 904 open items, with no judge tier and no sealed half; not a board number"
+ },
+ "files": {
+  "jevbench/<arm>/<file>/": "the harness's results.jsonl, summary.json, manifest.json",
+  "jevbench/<arm>/v15.json": "the v1.5 open-set reading",
+  "decision_index/<arm>/items.jsonl.gz": "per request: ids, the payload's sha256, our response, timings",
+  "decision_index/<arm>/": "benchmark-summary.json, di_report.json, di_cal.json, environment.json, status.json",
+  "conformance_default.json": "C2-C4 on the 1,400 suite items (task and index, not text)",
+  "report.json": "the run's tables (Jev's board row removed)",
+  "gates.log": "the C1 result lines",
+  "health_*.json": "/health per server start",
+  "files.json": "sizes and sha256"
+ },
+ "excluded": [
+  "item text of any benchmark (Decision Index payloads, JevBench raw requests and responses)",
+  "Jev's published board figures, and any Jev output",
+  "vLLM start-up logs, box logs and addresses",
+  "the private suite's items"
+ ],
+ "cost": {
+  "gpu_hours": 1.1
+ }
+}

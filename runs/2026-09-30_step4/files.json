@@ -1,0 +1,192 @@
+[
+ {
+  "path": "conformance_default.json",
+  "bytes": 1205410,
+  "sha256": "7baa7dc1e3b470c25ab5beb8c9909ac829eef3158ce6049e39325a77be83c77e"
+ },
+ {
+  "path": "decision_index/default/benchmark-summary.json",
+  "bytes": 2534,
+  "sha256": "9bbf771ff6f826fe4cfd5499d4a4d12f71c0b15b176a4498c1d9d06c56d87894"
+ },
+ {
+  "path": "decision_index/default/di_cal.json",
+  "bytes": 893,
+  "sha256": "0ede38cdae590d2668d01f74547d412c98b0d386d63f8402709d7ae232cbb498"
+ },
+ {
+  "path": "decision_index/default/di_report.json",
+  "bytes": 1397,
+  "sha256": "043d838319112931d457ef9b10821aa4760309aa551f61e0d67dba1e3b3c2363"
+ },
+ {
+  "path": "decision_index/default/environment.json",
+  "bytes": 835,
+  "sha256": "451803dbbd89475309d6c9084267fdaa4164d72b7b53551ac419274f02cc1a6f"
+ },
+ {
+  "path": "decision_index/default/items.jsonl.gz",
+  "bytes": 13577988,
+  "sha256": "ee47e39dd437f987fa9267c741eba4f5cc6203f9a56c671ffade29e241a645e8"
+ },
+ {
+  "path": "decision_index/default/status.json",
+  "bytes": 169,
+  "sha256": "4cca54ea7acb874a5dba924fe8d1c46daac2b774d8d6fcabde4ea2ce946b601c"
+ },
+ {
+  "path": "decision_index/temperature_1/benchmark-summary.json",
+  "bytes": 2530,
+  "sha256": "a39375de5865dc930bdd74dd9935f70a5d56232ad2855e4860a449487647866a"
+ },
+ {
+  "path": "decision_index/temperature_1/di_cal.json",
+  "bytes": 896,
+  "sha256": "609da9b6acf67fe57519fc9e7e1197a0065cc840ba064be1bd8af1b5085949cc"
+ },
+ {
+  "path": "decision_index/temperature_1/di_report.json",
+  "bytes": 1393,
+  "sha256": "a00f01c942b900db69281f899cc39b1700b4632b4a5ad3644afe264bf6411a33"
+ },
+ {
+  "path": "decision_index/temperature_1/environment.json",
+  "bytes": 835,
+  "sha256": "14eb5980cbaaba80c891536c876dae181e5d761e9975e906631473c0e5105d35"
+ },
+ {
+  "path": "decision_index/temperature_1/items.jsonl.gz",
+  "bytes": 13684083,
+  "sha256": "af584e8cf87645731c737264c4fd91f07576ce55e92dc185de5b86422ec53f5a"
+ },
+ {
+  "path": "decision_index/temperature_1/status.json",
+  "bytes": 169,
+  "sha256": "0823bd2a809f62b8dc1c980c9c208a3c6f260817bc801e8640b3e0eb42bde468"
+ },
+ {
+  "path": "gates.log",
+  "bytes": 3755,
+  "sha256": "05a5ec969bf089d638bf4b09de5d9ac489363072bac1cff5c5168b36afef2f52"
+ },
+ {
+  "path": "health_default.json",
+  "bytes": 525,
+  "sha256": "34c478d48d2421d980b750c8ef918b4e406386b50cb658887941900cd9a8ba4f"
+ },
+ {
+  "path": "health_default_di.json",
+  "bytes": 525,
+  "sha256": "34c478d48d2421d980b750c8ef918b4e406386b50cb658887941900cd9a8ba4f"
+ },
+ {
+  "path": "health_temperature_1.json",
+  "bytes": 523,
+  "sha256": "76a2755029067a746e0dd3bc8454c0d4a681c72b96afdc0a6966dba4700d15e2"
+ },
+ {
+  "path": "jevbench/default/easy/manifest.json",
+  "bytes": 654,
+  "sha256": "8099eed867f5d6dfafb7b91e1b33e8887d79ce467ad0068fe998335fcb5f7987"
+ },
+ {
+  "path": "jevbench/default/easy/results.jsonl",
+  "bytes": 48283,
+  "sha256": "72204f26a730d229e2d8b03addc88ec9f91a0df2c0b159bd2063d8be9e7717dc"
+ },
+ {
+  "path": "jevbench/default/easy/summary.json",
+  "bytes": 14723,
+  "sha256": "36ebdb31af652c17d2a902a074b903819c1594810d0448c441d2c72943aff562"
+ },
+ {
+  "path": "jevbench/default/hard/manifest.json",
+  "bytes": 656,
+  "sha256": "ddc0c15fdb795c28d31242c8cf8d4737516fbeb2819c42837c5e3d6b65b044b2"
+ },
+ {
+  "path": "jevbench/default/hard/results.jsonl",
+  "bytes": 110908,
+  "sha256": "38715be51357d89be5adfe121aec91fcce4b6da441b643d2be249516b7956748"
+ },
+ {
+  "path": "jevbench/default/hard/summary.json",
+  "bytes": 30247,
+  "sha256": "3820aab9ec71b4e902c46f4b61b79ea668d7fd872ac6399e8546f0d2da36a8c5"
+ },
+ {
+  "path": "jevbench/default/original/manifest.json",
+  "bytes": 658,
+  "sha256": "0b43d890f2726c5dd0dcacd65c6f2582d0af86b4809ca961a5a0c01fea3b4afd"
+ },
+ {
+  "path": "jevbench/default/original/results.jsonl",
+  "bytes": 69719,
+  "sha256": "caa7c3e18759ca82333d478e016b7bf72d5d86e1cd6469315f0991fa177bb37a"
+ },
+ {
+  "path": "jevbench/default/original/summary.json",
+  "bytes": 20015,
+  "sha256": "d7bba23208e65c4675258605a1bd84f9cbfa21ec64b7c953d12b6c65f61f6a42"
+ },
+ {
+  "path": "jevbench/default/v15.json",
+  "bytes": 971,
+  "sha256": "03d327658db508b5d2a743780e0d8231c198236bba4db840da6ee852fef1e583"
+ },
+ {
+  "path": "jevbench/temperature_1/easy/manifest.json",
+  "bytes": 650,
+  "sha256": "77a6d2f944642a1473677d4d005491270e2a50ea846bd427778482af6de92e7a"
+ },
+ {
+  "path": "jevbench/temperature_1/easy/results.jsonl",
+  "bytes": 48499,
+  "sha256": "f8a5310e543c137f5faec37008de4128ba7cae8f25f710917f31ac89bc7b7666"
+ },
+ {
+  "path": "jevbench/temperature_1/easy/summary.json",
+  "bytes": 14676,
+  "sha256": "3d4eb0ebb352a9e002ba51c250bea30848767821e9528482c083bd88785e398f"
+ },
+ {
+  "path": "jevbench/temperature_1/hard/manifest.json",
+  "bytes": 652,
+  "sha256": "48febe83f40a26a7d67a5bc1191f9e9a294a078959a873df08ac774f52859ab6"
+ },
+ {
+  "path": "jevbench/temperature_1/hard/results.jsonl",
+  "bytes": 111068,
+  "sha256": "b0879dbac7baca2fc5f9c09d2ed95729ad36fc5b743f91f7ca6f5723edc2776a"
+ },
+ {
+  "path": "jevbench/temperature_1/hard/summary.json",
+  "bytes": 30212,
+  "sha256": "4fbc2eabe7a796e5a5f61ab47a8a40ad5bfc5b5362b9c8e711f323ba5537e182"
+ },
+ {
+  "path": "jevbench/temperature_1/original/manifest.json",
+  "bytes": 654,
+  "sha256": "95844955f4cf84e70c76d9305192d872b6f4593aa82d7335514a3350849ee766"
+ },
+ {
+  "path": "jevbench/temperature_1/original/results.jsonl",
+  "bytes": 69910,
+  "sha256": "46b0c6ac86430cd4dfabe556c5655ecd72142cd33b1e9346702d78803c6ca7c6"
+ },
+ {
+  "path": "jevbench/temperature_1/original/summary.json",
+  "bytes": 19936,
+  "sha256": "37010e15ebf43e7a31a0d5c38da5c7a377989ead310f82598a5f92a53eb9129c"
+ },
+ {
+  "path": "jevbench/temperature_1/v15.json",
+  "bytes": 970,
+  "sha256": "c45cf22c3008804f00e933a2df6d3b8546875ea96d958c6535caecf1ee9513f9"
+ },
+ {
+  "path": "report.json",
+  "bytes": 5900,
+  "sha256": "bd16e767aba06ea60f6555590fbae6d959abadb663c92289fa482471353f2aa4"
+ }
+]

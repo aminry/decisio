@@ -1,0 +1,54 @@
+  ok   C1 choice prompt identical to eval
+  ok   C1 choice labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C1 score  prompt identical to eval
+  ok   C1 score  labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C2 split 67 just past the state's blank line (state alone encodes to 66)
+  ok   C2 split depends on the state alone, not the question mix
+  ok   C2 pad to 16: prefix 80 = multiple, 13 pads at the split, rest unchanged
+  ok   C2 pad to 544: prefix 544 = multiple, 477 pads at the split, rest unchanged
+  ok   C2 pad to 1056: prefix 1056 = multiple, 989 pads at the split, rest unchanged
+  ok   C2 pad front: prefix 1056 = 1056 multiple, 989 pads at position 0, prompt otherwise unchanged, prefix shared
+  ok   C2 pad user: prefix 1056 = 1056 multiple, 989 pads at position 3, prompt otherwise unchanged, prefix shared
+  ok   C3 pack: piecewise encoding = whole-string encoding
+  ok   C3 pack: first turn = separate prompt
+  ok   C3 pack: every read position is the final ':' of 'Answer:'
+CPU GATES PASS
+ENGINE {'vllm': '0.30.0', 'gpu': 'NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 'mode': 'separate', 'block_size': 1056, 'match_unit': 1056, 'pad_unit': 1056, 'pad_where': 'front', 'quantization': 'fp8', 'kv_cache_dtype': 'auto', 'mamba_ssm_cache_dtype': 'float32', 'adapters': ['armE'], 'VLLM_USE_DEEP_GEMM': '0', 'checkpoint_marker': False}
+  ok   G1 prefix served from cache (1056 of 1089 tokens per question, shared prefix 1056, expected >= 1055)
+  ok   G1 cold batch really cold (0 cached tokens per question)
+  ok   G1 cached vs cold, same batch (cache effect alone) max|diff| 2.41e-02 (tol 6.5e-02)
+  (G1 cached batch vs cold one-at-a-time, cache + batch shape: max|diff| 1.47e-02; informational)
+  ok   G2 isolation with 16 extra questions max|diff| 1.38e-02 (tol 6.5e-02)
+  ok   G1/G2 no top answer changed
+  (G1 per question: 0.0e+00, 9.2e-03, 1.5e-02, 6.0e-03)
+  (G2 per question: 0.0e+00, 9.2e-03, 1.4e-02, 6.0e-03)
+  ok   G4 adapter armE: answers move by 1.02e-01 (applied, > 6.5e-02)
+  ok   G4 base after adapter max|diff| 0.00e+00 (bit-exact)
+GPU GATES separate PASS
+  ok   C1 choice prompt identical to eval
+  ok   C1 choice labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C1 score  prompt identical to eval
+  ok   C1 score  labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C2 split 67 just past the state's blank line (state alone encodes to 66)
+  ok   C2 split depends on the state alone, not the question mix
+  ok   C2 pad to 16: prefix 80 = multiple, 13 pads at the split, rest unchanged
+  ok   C2 pad to 544: prefix 544 = multiple, 477 pads at the split, rest unchanged
+  ok   C2 pad to 1056: prefix 1056 = multiple, 989 pads at the split, rest unchanged
+  ok   C2 pad front: prefix 1056 = 1056 multiple, 989 pads at position 0, prompt otherwise unchanged, prefix shared
+  ok   C2 pad user: prefix 1056 = 1056 multiple, 989 pads at position 3, prompt otherwise unchanged, prefix shared
+  ok   C3 pack: piecewise encoding = whole-string encoding
+  ok   C3 pack: first turn = separate prompt
+  ok   C3 pack: every read position is the final ':' of 'Answer:'
+CPU GATES PASS
+ENGINE {'vllm': '0.30.0', 'gpu': 'NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 'mode': 'packed', 'block_size': 1056, 'match_unit': 1056, 'pad_unit': None, 'pad_where': None, 'quantization': 'fp8', 'kv_cache_dtype': 'auto', 'mamba_ssm_cache_dtype': 'float32', 'adapters': [], 'VLLM_USE_DEEP_GEMM': '0', 'checkpoint_marker': False}
+  ok   G3 packed first question vs separate max|diff| 5.99e-04
+  (packed later questions vs separate: max|diff| 5.71e-02; contamination, measured by eval_vllm.py)
+GPU GATES packed PASS

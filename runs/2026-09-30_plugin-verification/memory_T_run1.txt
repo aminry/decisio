@@ -1,0 +1,6 @@
+(EngineCore pid=7705) INFO 09-30 15:53:29 [model_runner.py:435] Model loading took 33.38 GiB memory and 16.282365 seconds
+(EngineCore pid=7705) INFO 09-30 15:53:29 [model_runner.py:586] VLLM_R9_SUFFIX_STAGING=1: staging only the uncached prompt suffix of new requests with a prefix-cache hit.
+(EngineCore pid=7705) INFO 09-30 15:55:51 [model_runner.py:1122] Graph capturing finished in 107 secs, took 2.61 GiB
+(EngineCore pid=7705) INFO 09-30 15:55:52 [gpu_worker.py:640] Available KV cache memory: 46.88 GiB
+(EngineCore pid=7705) INFO 09-30 15:55:52 [kv_cache_utils.py:2395] GPU KV cache size: 2,209,150 tokens, Maximum concurrency for 32,768 tokens per request: 67.42x
+(EngineCore pid=7705) INFO 09-30 15:57:34 [model_runner.py:1122] Graph capturing finished in 101 secs, took 0.62 GiB
