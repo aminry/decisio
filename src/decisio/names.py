@@ -1,16 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The names decisio puts on the wire and in its records, and the earlier `rlcd` spellings it still reads.
+"""The names decisio writes on the wire and in its records, and the earlier spellings it still reads.
 
-The package was extracted from a private repository named `rlcd`, whose server wrote `x-rlcd-*` headers, `rlcd-*/1`
-record formats and the served name `rlcd-qwen3.6-35b-a3b-letters`; the records in runs/ and task files exported before
-the rename carry those spellings. decisio writes only its own names and reads both:
-
-  headers        x-decisio-debug and x-decisio-route are read, with x-rlcd-debug and x-rlcd-route as fallbacks;
-                 responses carry x-decisio-server-ms, x-decisio-route and x-decisio-tasks
-  record formats decisio-<kind>/1 is written; decisio-<kind>/1 and rlcd-<kind>/1 are both accepted on load
-  served name    decisio-qwen3.6-35b-a3b-letters is the default; a task fitted under the old default name is treated as
-                 fitted under the new one (`same_fingerprint`)
+  headers        responses carry x-decisio-server-ms, x-decisio-route and x-decisio-tasks; requests may send
+                 x-decisio-debug and x-decisio-route, or the earlier x-rlcd-debug and x-rlcd-route
+  record formats decisio-<kind>/1 is written; decisio-<kind>/1 and rlcd-<kind>/1 are accepted on load (the records
+                 in runs/ use the earlier spelling)
+  served name    the default is decisio-qwen3.6-35b-a3b-letters; a task fitted under the earlier default,
+                 rlcd-qwen3.6-35b-a3b-letters, is treated as fitted under the current one (`same_fingerprint`)
 
 Standard library only.
 """
