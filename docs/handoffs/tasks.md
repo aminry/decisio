@@ -4,6 +4,7 @@
 # Handoff: per-task corrections on `/v1/systemone`
 
 How a deployment teaches the server about its own tasks, from labelled examples, and what the server does with them.
+This is the reference; `docs/tasks.md` is the guide for a first-time user, and `examples/tasks/` a runnable walk-through.
 Code: `decisio.serve.tasks`, `decisio.serve.abstention`, `decisio.serve.temperature`, `decisio.serve.hidden_engine`, the routes in `decisio.serve.systemone.add_routes`.
 
 ## What a task is
