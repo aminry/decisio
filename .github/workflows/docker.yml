@@ -51,11 +51,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Free disk space (the base image is about 20 GB unpacked)
+      # The base image is about 9 GB compressed and does not fit on the runner's root volume next to the tools it ships
+      # with: Docker's storage moves to the larger /mnt volume before anything is pulled.
+      - name: Move Docker's storage to /mnt and free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          docker image prune --all --force > /dev/null
-          df -h /
+          sudo systemctl stop docker.socket docker.service
+          sudo mkdir -p /mnt/docker
+          [ -f /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
+          sudo jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
+          sudo mv /tmp/daemon.json /etc/docker/daemon.json
+          sudo systemctl start docker.service
+          docker info --format 'docker root: {{.DockerRootDir}}'
+          df -h / /mnt
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -125,11 +133,19 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Free disk space (the base image is about 20 GB unpacked)
+      # The base image is about 9 GB compressed and does not fit on the runner's root volume next to the tools it ships
+      # with: Docker's storage moves to the larger /mnt volume before anything is pulled.
+      - name: Move Docker's storage to /mnt and free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          docker image prune --all --force > /dev/null
-          df -h /
+          sudo systemctl stop docker.socket docker.service
+          sudo mkdir -p /mnt/docker
+          [ -f /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
+          sudo jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
+          sudo mv /tmp/daemon.json /etc/docker/daemon.json
+          sudo systemctl start docker.service
+          docker info --format 'docker root: {{.DockerRootDir}}'
+          df -h / /mnt
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
