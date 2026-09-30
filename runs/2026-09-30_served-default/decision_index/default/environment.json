@@ -1,0 +1,19 @@
+{
+ "engine": "http",
+ "engine_options": {
+  "base_url": "http://127.0.0.1:23456",
+  "model": "rlcd-qwen3.6-35b-a3b-letters"
+ },
+ "model_source": {
+  "kind": "http",
+  "base_url": "http://127.0.0.1:23456",
+  "model": "rlcd-qwen3.6-35b-a3b-letters",
+  "request_options": {},
+  "policy": "Unmodified state and questions sent as one /v1/systemone request; explicit capacity rejections (HTTP 422 with a known marker) are unsupported, other failures are errors."
+ },
+ "loaded_seconds": 0.04249444417655468,
+ "frozen_corpus_sha256": null,
+ "rows_path": "<ext>/di_run/di_rows_4.jsonl.gz",
+ "runner_sha256": "f4c9f36c4c557f537f1d8184db7bf00c5a84d9f4f0aa67f8c06198cead25818d",
+ "latency": "HTTP request wall time against the configured /v1/systemone endpoint, including server-side prompt construction and inference; excludes server startup."
+}

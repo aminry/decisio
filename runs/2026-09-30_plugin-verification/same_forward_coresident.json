@@ -1,0 +1,290 @@
+{
+ "items": 40,
+ "max_abs_dp": 3.063464890192966e-08,
+ "median_abs_dp": 5.399082736445848e-09,
+ "same_option": 40,
+ "tolerance": 0.0001,
+ "rows": [
+  {
+   "task": "banking77",
+   "i": 0,
+   "max_abs_dp": 1.0639544467672124e-08,
+   "same_option": true,
+   "h_abs_max": 25.625
+  },
+  {
+   "task": "banking77",
+   "i": 1,
+   "max_abs_dp": 3.063464890192966e-08,
+   "same_option": true,
+   "h_abs_max": 28.0
+  },
+  {
+   "task": "banking77",
+   "i": 2,
+   "max_abs_dp": 1.5141689013731252e-09,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 3,
+   "max_abs_dp": 4.986820262287139e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 4,
+   "max_abs_dp": 4.243996376551706e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 5,
+   "max_abs_dp": 7.2289214059217954e-09,
+   "same_option": true,
+   "h_abs_max": 28.375
+  },
+  {
+   "task": "banking77",
+   "i": 6,
+   "max_abs_dp": 1.4021268035513401e-08,
+   "same_option": true,
+   "h_abs_max": 23.0
+  },
+  {
+   "task": "banking77",
+   "i": 7,
+   "max_abs_dp": 1.5500234429310922e-09,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 8,
+   "max_abs_dp": 1.0950284038899194e-09,
+   "same_option": true,
+   "h_abs_max": 28.625
+  },
+  {
+   "task": "banking77",
+   "i": 9,
+   "max_abs_dp": 2.1021781482222224e-08,
+   "same_option": true,
+   "h_abs_max": 24.625
+  },
+  {
+   "task": "banking77",
+   "i": 10,
+   "max_abs_dp": 6.397801663449165e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 11,
+   "max_abs_dp": 1.8985403249516253e-09,
+   "same_option": true,
+   "h_abs_max": 27.5
+  },
+  {
+   "task": "banking77",
+   "i": 12,
+   "max_abs_dp": 1.1049413745078951e-08,
+   "same_option": true,
+   "h_abs_max": 23.75
+  },
+  {
+   "task": "banking77",
+   "i": 13,
+   "max_abs_dp": 1.047450015612128e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 14,
+   "max_abs_dp": 8.097637893555998e-09,
+   "same_option": true,
+   "h_abs_max": 21.25
+  },
+  {
+   "task": "banking77",
+   "i": 15,
+   "max_abs_dp": 3.8548308989305724e-10,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "banking77",
+   "i": 16,
+   "max_abs_dp": 2.3655993830473676e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 17,
+   "max_abs_dp": 7.723055051381267e-10,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 18,
+   "max_abs_dp": 2.0312507120756607e-08,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 19,
+   "max_abs_dp": 7.74435848782673e-10,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 20,
+   "max_abs_dp": 5.424703020118216e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "banking77",
+   "i": 21,
+   "max_abs_dp": 1.5091290439528393e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 22,
+   "max_abs_dp": 1.3956983901941555e-08,
+   "same_option": true,
+   "h_abs_max": 21.0
+  },
+  {
+   "task": "banking77",
+   "i": 23,
+   "max_abs_dp": 1.1991306836378612e-08,
+   "same_option": true,
+   "h_abs_max": 26.5
+  },
+  {
+   "task": "banking77",
+   "i": 24,
+   "max_abs_dp": 1.3980252511203162e-09,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "banking77",
+   "i": 25,
+   "max_abs_dp": 1.2617713929241603e-08,
+   "same_option": true,
+   "h_abs_max": 22.875
+  },
+  {
+   "task": "banking77",
+   "i": 26,
+   "max_abs_dp": 1.3187039238360398e-08,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "banking77",
+   "i": 27,
+   "max_abs_dp": 7.27520488297273e-10,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "banking77",
+   "i": 28,
+   "max_abs_dp": 1.231321433703414e-08,
+   "same_option": true,
+   "h_abs_max": 22.75
+  },
+  {
+   "task": "banking77",
+   "i": 29,
+   "max_abs_dp": 1.1010920952791992e-08,
+   "same_option": true,
+   "h_abs_max": 27.625
+  },
+  {
+   "task": "banking77",
+   "i": 30,
+   "max_abs_dp": 1.3877787807814457e-17,
+   "same_option": true,
+   "h_abs_max": 22.5
+  },
+  {
+   "task": "banking77",
+   "i": 31,
+   "max_abs_dp": 1.3354878980464946e-08,
+   "same_option": true,
+   "h_abs_max": 24.125
+  },
+  {
+   "task": "banking77",
+   "i": 32,
+   "max_abs_dp": 2.248871089349791e-09,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "banking77",
+   "i": 33,
+   "max_abs_dp": 1.1916112430121473e-08,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 34,
+   "max_abs_dp": 4.794743824199088e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 35,
+   "max_abs_dp": 3.5517733198986434e-10,
+   "same_option": true,
+   "h_abs_max": 28.625
+  },
+  {
+   "task": "banking77",
+   "i": 36,
+   "max_abs_dp": 5.190229135365598e-09,
+   "same_option": true,
+   "h_abs_max": 27.25
+  },
+  {
+   "task": "banking77",
+   "i": 37,
+   "max_abs_dp": 2.179138614000209e-08,
+   "same_option": true,
+   "h_abs_max": 31.125
+  },
+  {
+   "task": "banking77",
+   "i": 38,
+   "max_abs_dp": 7.615063135624212e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 39,
+   "max_abs_dp": 5.373462452773481e-09,
+   "same_option": true,
+   "h_abs_max": 29.875
+  }
+ ],
+ "pass": true
+}

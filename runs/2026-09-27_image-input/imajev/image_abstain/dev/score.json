@@ -1,0 +1,3158 @@
+{
+  "capability": {
+    "overall_score": 72.00713135495745,
+    "overall_requires_complete_tracks": [
+      "text",
+      "visual",
+      "joint"
+    ],
+    "tracks": {
+      "joint": {
+        "families": {
+          "multi_clause_rule": {
+            "correct": 6,
+            "total": 6,
+            "accuracy": 1.0,
+            "class_balanced_accuracy": 1.0,
+            "macro_f1": 1.0,
+            "classes_present": [
+              "bool:false",
+              "bool:true"
+            ]
+          },
+          "multi_step_rule": {
+            "correct": 7,
+            "total": 23,
+            "accuracy": 0.30434782608695654,
+            "class_balanced_accuracy": 0.34920634920634924,
+            "macro_f1": 0.3181818181818182,
+            "classes_present": [
+              "bool:false",
+              "bool:true",
+              "unknown:__unknown__"
+            ]
+          },
+          "rule_exception": {
+            "correct": 6,
+            "total": 20,
+            "accuracy": 0.3,
+            "class_balanced_accuracy": 0.26666666666666666,
+            "macro_f1": 0.23026315789473684,
+            "classes_present": [
+              "bool:false",
+              "bool:true",
+              "unknown:__unknown__"
+            ]
+          },
+          "threshold_rule": {
+            "correct": 28,
+            "total": 30,
+            "accuracy": 0.9333333333333333,
+            "class_balanced_accuracy": 0.9166666666666666,
+            "macro_f1": 0.9125,
+            "classes_present": [
+              "bool:false",
+              "bool:true",
+              "str:0",
+              "str:07:30",
+              "str:07:45",
+              "str:08:45",
+              "str:1",
+              "unknown:__unknown__"
+            ]
+          }
+        },
+        "family_macro_accuracy": 0.6344202898550725,
+        "score": 63.44202898550725,
+        "raw": {
+          "correct": 47,
+          "total": 79,
+          "accuracy": 0.5949367088607594,
+          "class_balanced_accuracy": 0.8070173361121638,
+          "macro_f1": 0.7880050096961861,
+          "classes_present": [
+            "bool:false",
+            "bool:true",
+            "str:0",
+            "str:07:30",
+            "str:07:45",
+            "str:08:45",
+            "str:1",
+            "unknown:__unknown__"
+          ]
+        }
+      },
+      "text": {
+        "families": {
+          "date_arithmetic": {
+            "correct": 5,
+            "total": 5,
+            "accuracy": 1.0,
+            "class_balanced_accuracy": 1.0,
+            "macro_f1": 1.0,
+            "classes_present": [
+              "str:11",
+              "str:17",
+              "str:3",
+              "str:7"
+            ]
+          },
+          "missing_conflicting_evidence": {
+            "correct": 3,
+            "total": 7,
+            "accuracy": 0.42857142857142855,
+            "class_balanced_accuracy": 0.3333333333333333,
+            "macro_f1": 0.2222222222222222,
+            "classes_present": [
+              "int:1",
+              "int:3",
+              "unknown:__unknown__"
+            ]
+          },
+          "numerical_reconciliation": {
+            "correct": 3,
+            "total": 7,
+            "accuracy": 0.42857142857142855,
+            "class_balanced_accuracy": 0.375,
+            "macro_f1": 0.3,
+            "classes_present": [
+              "bool:false",
+              "bool:true"
+            ]
+          },
+          "policy_precedence": {
+            "correct": 5,
+            "total": 6,
+            "accuracy": 0.8333333333333334,
+            "class_balanced_accuracy": 0.75,
+            "macro_f1": 0.75,
+            "classes_present": [
+              "str:cold_room",
+              "str:returns_bay",
+              "str:shelf_b",
+              "unknown:__unknown__"
+            ]
+          }
+        },
+        "family_macro_accuracy": 0.6726190476190477,
+        "score": 67.26190476190477,
+        "raw": {
+          "correct": 16,
+          "total": 25,
+          "accuracy": 0.64,
+          "class_balanced_accuracy": 0.7291666666666666,
+          "macro_f1": 0.6888888888888888,
+          "classes_present": [
+            "bool:false",
+            "bool:true",
+            "int:1",
+            "int:3",
+            "str:11",
+            "str:17",
+            "str:3",
+            "str:7",
+            "str:cold_room",
+            "str:returns_bay",
+            "str:shelf_b",
+            "unknown:__unknown__"
+          ]
+        }
+      },
+      "visual": {
+        "families": {
+          "answerability": {
+            "correct": 2,
+            "total": 2,
+            "accuracy": 1.0,
+            "class_balanced_accuracy": 1.0,
+            "macro_f1": 1.0,
+            "classes_present": [
+              "bool:false",
+              "bool:true"
+            ]
+          },
+          "attribute_state": {
+            "correct": 6,
+            "total": 6,
+            "accuracy": 1.0,
+            "class_balanced_accuracy": 1.0,
+            "macro_f1": 1.0,
+            "classes_present": [
+              "bool:false",
+              "bool:true"
+            ]
+          },
+          "comparison": {
+            "correct": 16,
+            "total": 18,
+            "accuracy": 0.8888888888888888,
+            "class_balanced_accuracy": 0.8846153846153846,
+            "macro_f1": 0.8717948717948718,
+            "classes_present": [
+              "str:BE-2142",
+              "str:BJ-9256",
+              "str:Brownie",
+              "str:ES-7906",
+              "str:Iced Tea",
+              "str:KP-4897",
+              "str:Latte",
+              "str:Lemonade",
+              "str:Minestrone",
+              "str:PS-9898",
+              "str:RX-8148",
+              "str:WN-3827",
+              "str:XL-6921"
+            ]
+          },
+          "counting": {
+            "correct": 11,
+            "total": 12,
+            "accuracy": 0.9166666666666666,
+            "class_balanced_accuracy": 0.9,
+            "macro_f1": 0.9333333333333333,
+            "classes_present": [
+              "str:1",
+              "str:2",
+              "str:3",
+              "str:5",
+              "str:6"
+            ]
+          },
+          "spatial_counting": {
+            "correct": 1,
+            "total": 2,
+            "accuracy": 0.5,
+            "class_balanced_accuracy": 0.5,
+            "macro_f1": 0.5,
+            "classes_present": [
+              "str:3",
+              "str:5"
+            ]
+          },
+          "spatial_relation": {
+            "correct": 2,
+            "total": 3,
+            "accuracy": 0.6666666666666666,
+            "class_balanced_accuracy": 0.5,
+            "macro_f1": 0.4,
+            "classes_present": [
+              "str:red",
+              "str:yellow"
+            ]
+          },
+          "text_reading": {
+            "correct": 26,
+            "total": 26,
+            "accuracy": 1.0,
+            "class_balanced_accuracy": 1.0,
+            "macro_f1": 1.0,
+            "classes_present": [
+              "str:0.8",
+              "str:1 HOUR",
+              "str:10.30",
+              "str:2 HOUR",
+              "str:2.10",
+              "str:2.30",
+              "str:2.6",
+              "str:22.0",
+              "str:3 HOUR",
+              "str:3.00",
+              "str:3.30",
+              "str:4.8",
+              "str:5.00",
+              "str:6.00",
+              "str:6.50",
+              "str:6.70",
+              "str:7.0",
+              "str:DL-2487",
+              "str:PV-4498",
+              "unknown:__unknown__"
+            ]
+          }
+        },
+        "family_macro_accuracy": 0.8531746031746031,
+        "score": 85.31746031746032,
+        "raw": {
+          "correct": 64,
+          "total": 69,
+          "accuracy": 0.927536231884058,
+          "class_balanced_accuracy": 0.9246031746031746,
+          "macro_f1": 0.9119047619047619,
+          "classes_present": [
+            "bool:false",
+            "bool:true",
+            "str:0.8",
+            "str:1",
+            "str:1 HOUR",
+            "str:10.30",
+            "str:2",
+            "str:2 HOUR",
+            "str:2.10",
+            "str:2.30",
+            "str:2.6",
+            "str:22.0",
+            "str:3",
+            "str:3 HOUR",
+            "str:3.00",
+            "str:3.30",
+            "str:4.8",
+            "str:5",
+            "str:5.00",
+            "str:6",
+            "str:6.00",
+            "str:6.50",
+            "str:6.70",
+            "str:7.0",
+            "str:BE-2142",
+            "str:BJ-9256",
+            "str:Brownie",
+            "str:DL-2487",
+            "str:ES-7906",
+            "str:Iced Tea",
+            "str:KP-4897",
+            "str:Latte",
+            "str:Lemonade",
+            "str:Minestrone",
+            "str:PS-9898",
+            "str:PV-4498",
+            "str:RX-8148",
+            "str:WN-3827",
+            "str:XL-6921",
+            "str:red",
+            "str:yellow",
+            "unknown:__unknown__"
+          ]
+        }
+      }
+    },
+    "all_records": {
+      "correct": 127,
+      "total": 173,
+      "accuracy": 0.7341040462427746,
+      "class_balanced_accuracy": 0.8957236685306861,
+      "macro_f1": 0.8773350482540182,
+      "classes_present": [
+        "bool:false",
+        "bool:true",
+        "int:1",
+        "int:3",
+        "str:0",
+        "str:0.8",
+        "str:07:30",
+        "str:07:45",
+        "str:08:45",
+        "str:1",
+        "str:1 HOUR",
+        "str:10.30",
+        "str:11",
+        "str:17",
+        "str:2",
+        "str:2 HOUR",
+        "str:2.10",
+        "str:2.30",
+        "str:2.6",
+        "str:22.0",
+        "str:3",
+        "str:3 HOUR",
+        "str:3.00",
+        "str:3.30",
+        "str:4.8",
+        "str:5",
+        "str:5.00",
+        "str:6",
+        "str:6.00",
+        "str:6.50",
+        "str:6.70",
+        "str:7",
+        "str:7.0",
+        "str:BE-2142",
+        "str:BJ-9256",
+        "str:Brownie",
+        "str:DL-2487",
+        "str:ES-7906",
+        "str:Iced Tea",
+        "str:KP-4897",
+        "str:Latte",
+        "str:Lemonade",
+        "str:Minestrone",
+        "str:PS-9898",
+        "str:PV-4498",
+        "str:RX-8148",
+        "str:WN-3827",
+        "str:XL-6921",
+        "str:cold_room",
+        "str:red",
+        "str:returns_bay",
+        "str:shelf_b",
+        "str:yellow",
+        "unknown:__unknown__"
+      ]
+    }
+  },
+  "groups": {
+    "correct": 32,
+    "total": 56,
+    "accuracy": 0.5714285714285714
+  },
+  "accuracy_ci": {
+    "estimand": "raw request-level accuracy, resampling whole groups",
+    "method": "percentile group bootstrap",
+    "level": 0.95,
+    "samples": 1000,
+    "low": 0.6380297671215726,
+    "high": 0.8230168269230768
+  },
+  "probability_quality": {
+    "eligible_for_complete_reliability": false,
+    "total": 173,
+    "valid": 172,
+    "missing": 1,
+    "invalid": 0,
+    "coverage": 0.9942196531791907,
+    "brier": 0.33447329348084376,
+    "nll": 0.5949528525781335,
+    "nll_floor": 1e-15,
+    "ece": 0.09343990558447648,
+    "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+    "distribution_argmax_ece": 0.09343990558447648,
+    "ece_bins": [
+      {
+        "lower": 0.0,
+        "upper": 0.1,
+        "count": 0,
+        "accuracy": null,
+        "mean_confidence": null
+      },
+      {
+        "lower": 0.1,
+        "upper": 0.2,
+        "count": 0,
+        "accuracy": null,
+        "mean_confidence": null
+      },
+      {
+        "lower": 0.2,
+        "upper": 0.3,
+        "count": 0,
+        "accuracy": null,
+        "mean_confidence": null
+      },
+      {
+        "lower": 0.3,
+        "upper": 0.4,
+        "count": 4,
+        "accuracy": 0.75,
+        "mean_confidence": 0.3754075035226262
+      },
+      {
+        "lower": 0.4,
+        "upper": 0.5,
+        "count": 14,
+        "accuracy": 0.42857142857142855,
+        "mean_confidence": 0.4573273275037376
+      },
+      {
+        "lower": 0.5,
+        "upper": 0.6,
+        "count": 17,
+        "accuracy": 0.23529411764705882,
+        "mean_confidence": 0.5508116686740868
+      },
+      {
+        "lower": 0.6,
+        "upper": 0.7,
+        "count": 15,
+        "accuracy": 0.4666666666666667,
+        "mean_confidence": 0.6436458506084494
+      },
+      {
+        "lower": 0.7,
+        "upper": 0.8,
+        "count": 15,
+        "accuracy": 0.7333333333333333,
+        "mean_confidence": 0.7567645475147552
+      },
+      {
+        "lower": 0.8,
+        "upper": 0.9,
+        "count": 21,
+        "accuracy": 0.7142857142857143,
+        "mean_confidence": 0.8499577121905788
+      },
+      {
+        "lower": 0.9,
+        "upper": 1.0,
+        "count": 86,
+        "accuracy": 0.9418604651162791,
+        "mean_confidence": 0.9761819173750981
+      }
+    ],
+    "by_option_count": {
+      "3": {
+        "count": 83,
+        "brier": 0.4956102975985126
+      },
+      "4": {
+        "count": 13,
+        "brier": 0.3461623681793168
+      },
+      "5": {
+        "count": 76,
+        "brier": 0.15649527620654555
+      }
+    },
+    "tracks": {
+      "joint": {
+        "families": {
+          "multi_clause_rule": {
+            "eligible_for_complete_reliability": true,
+            "total": 6,
+            "valid": 6,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.008864208531604727,
+            "nll": 0.04178689346816324,
+            "nll_floor": 1e-15,
+            "ece": 0.03889446674000261,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.03889446674000261,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8278200179594029
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 5,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9877626363201163
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 6,
+                "brier": 0.008864208531604727
+              }
+            }
+          },
+          "multi_step_rule": {
+            "eligible_for_complete_reliability": true,
+            "total": 23,
+            "valid": 23,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.9707716671349367,
+            "nll": 1.5504370771894889,
+            "nll_floor": 1e-15,
+            "ece": 0.48222306336001286,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.48222306336001286,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 3,
+                "accuracy": 0.6666666666666666,
+                "mean_confidence": 0.46404003560964924
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 4,
+                "accuracy": 0.25,
+                "mean_confidence": 0.5470813543696467
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 2,
+                "accuracy": 0.0,
+                "mean_confidence": 0.6521471270086203
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 3,
+                "accuracy": 0.6666666666666666,
+                "mean_confidence": 0.7734787231555812
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 6,
+                "accuracy": 0.16666666666666666,
+                "mean_confidence": 0.8414154564859736
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 5,
+                "accuracy": 0.2,
+                "mean_confidence": 0.9243403968461659
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 23,
+                "brier": 0.9707716671349367
+              }
+            }
+          },
+          "rule_exception": {
+            "eligible_for_complete_reliability": true,
+            "total": 20,
+            "valid": 20,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.735219698863327,
+            "nll": 1.1724103180063066,
+            "nll_floor": 1e-15,
+            "ece": 0.4360307496700184,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.4360307496700184,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 2,
+                "accuracy": 1.0,
+                "mean_confidence": 0.3706790442423619
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 3,
+                "accuracy": 0.0,
+                "mean_confidence": 0.47064876638363423
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 5,
+                "accuracy": 0.2,
+                "mean_confidence": 0.5466533438777357
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 4,
+                "accuracy": 0.0,
+                "mean_confidence": 0.6176184655501675
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 5,
+                "accuracy": 0.4,
+                "mean_confidence": 0.7341991418754237
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8247095082322771
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 20,
+                "brier": 0.735219698863327
+              }
+            }
+          },
+          "threshold_rule": {
+            "eligible_for_complete_reliability": true,
+            "total": 30,
+            "valid": 30,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.12412098901081814,
+            "nll": 0.32204296932919335,
+            "nll_floor": 1e-15,
+            "ece": 0.08604882954538651,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.08604882954538651,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 1,
+                "accuracy": 0.0,
+                "mean_confidence": 0.5210891454929156
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.6481315984425303
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 3,
+                "accuracy": 1.0,
+                "mean_confidence": 0.7438584591781519
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 4,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8661392141336689
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 21,
+                "accuracy": 0.9523809523809523,
+                "mean_confidence": 0.9716495034943019
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 19,
+                "brier": 0.03270679681823638
+              },
+              "4": {
+                "count": 4,
+                "brier": 0.010902115717193305
+              },
+              "5": {
+                "count": 7,
+                "brier": 0.43694172398704
+              }
+            }
+          }
+        },
+        "family_macro_brier": 0.4597441408851716,
+        "family_macro_nll": 0.771669314498288,
+        "family_macro_ece": 0.2607992773288551,
+        "complete_family_coverage": true
+      },
+      "text": {
+        "families": {
+          "date_arithmetic": {
+            "eligible_for_complete_reliability": true,
+            "total": 5,
+            "valid": 5,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.45210795693951356,
+            "nll": 0.8339214297107093,
+            "nll_floor": 1e-15,
+            "ece": 0.5641352688819651,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.5641352688819651,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.39018977191930615
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 4,
+                "accuracy": 1.0,
+                "mean_confidence": 0.4472834709177172
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              }
+            ],
+            "by_option_count": {
+              "5": {
+                "count": 5,
+                "brier": 0.45210795693951356
+              }
+            }
+          },
+          "missing_conflicting_evidence": {
+            "eligible_for_complete_reliability": true,
+            "total": 7,
+            "valid": 7,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.6322179976301535,
+            "nll": 1.1392268892058734,
+            "nll_floor": 1e-15,
+            "ece": 0.2718624594191105,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.2718624594191105,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 2,
+                "accuracy": 0.0,
+                "mean_confidence": 0.46242442101618225
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 1,
+                "accuracy": 0.0,
+                "mean_confidence": 0.5635695971426128
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 2,
+                "accuracy": 0.5,
+                "mean_confidence": 0.6737523697166796
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 2,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9664429813372812
+              }
+            ],
+            "by_option_count": {
+              "4": {
+                "count": 7,
+                "brier": 0.6322179976301535
+              }
+            }
+          },
+          "numerical_reconciliation": {
+            "eligible_for_complete_reliability": true,
+            "total": 7,
+            "valid": 7,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.4898034021368459,
+            "nll": 0.687542479291295,
+            "nll_floor": 1e-15,
+            "ece": 0.27804093773798455,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.27804093773798455,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 3,
+                "accuracy": 0.0,
+                "mean_confidence": 0.5567829720805394
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 3,
+                "accuracy": 0.6666666666666666,
+                "mean_confidence": 0.6457921251945021
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.7866859764922197
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 7,
+                "brier": 0.4898034021368459
+              }
+            }
+          },
+          "policy_precedence": {
+            "eligible_for_complete_reliability": true,
+            "total": 6,
+            "valid": 6,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.29189903697892655,
+            "nll": 1.1445935871205315,
+            "nll_floor": 1e-15,
+            "ece": 0.2184380323188468,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.2184380323188468,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 1,
+                "accuracy": 0.0,
+                "mean_confidence": 0.4549723370130916
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.5848514014695633
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.7742617917395824
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8815412153614784
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 2,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9518448672646933
+              }
+            ],
+            "by_option_count": {
+              "4": {
+                "count": 2,
+                "brier": 0.015488170025634887
+              },
+              "5": {
+                "count": 4,
+                "brier": 0.43010447045557243
+              }
+            }
+          }
+        },
+        "family_macro_brier": 0.4665070984213599,
+        "family_macro_nll": 0.9513210963321023,
+        "family_macro_ece": 0.3331191745894767,
+        "complete_family_coverage": true
+      },
+      "visual": {
+        "families": {
+          "answerability": {
+            "eligible_for_complete_reliability": true,
+            "total": 2,
+            "valid": 2,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 2.686472345174243e-05,
+            "nll": 0.004089470754605011,
+            "nll_floor": 1e-15,
+            "ece": 0.004081087941978145,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.004081087941978145,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 2,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9959189120580219
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 2,
+                "brier": 2.686472345174243e-05
+              }
+            }
+          },
+          "attribute_state": {
+            "eligible_for_complete_reliability": true,
+            "total": 6,
+            "valid": 6,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 3.674069425337549e-05,
+            "nll": 0.00399790936042586,
+            "nll_floor": 1e-15,
+            "ece": 0.003988011659745383,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.003988011659745383,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 6,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9960119883402546
+              }
+            ],
+            "by_option_count": {
+              "3": {
+                "count": 6,
+                "brier": 3.674069425337549e-05
+              }
+            }
+          },
+          "comparison": {
+            "eligible_for_complete_reliability": false,
+            "total": 18,
+            "valid": 17,
+            "missing": 1,
+            "invalid": 0,
+            "coverage": 0.9444444444444444,
+            "brier": 0.07408904067498115,
+            "nll": 0.1559273560051473,
+            "nll_floor": 1e-15,
+            "ece": 0.07227531932401679,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.07227531932401679,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 2,
+                "accuracy": 0.5,
+                "mean_confidence": 0.5511735851227503
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.7797310652645054
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 4,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8561571432133424
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 10,
+                "accuracy": 1.0,
+                "mean_confidence": 0.966930710361934
+              }
+            ],
+            "by_option_count": {
+              "5": {
+                "count": 17,
+                "brier": 0.07408904067498115
+              }
+            }
+          },
+          "counting": {
+            "eligible_for_complete_reliability": true,
+            "total": 12,
+            "valid": 12,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.1024986989900001,
+            "nll": 0.21327325956990983,
+            "nll_floor": 1e-15,
+            "ece": 0.14115917721089463,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.14115917721089463,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 1,
+                "accuracy": 0.0,
+                "mean_confidence": 0.4295611163561515
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 2,
+                "accuracy": 1.0,
+                "mean_confidence": 0.6618757688985786
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.7877821228467013
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8370913661959622
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 7,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9695751375693707
+              }
+            ],
+            "by_option_count": {
+              "5": {
+                "count": 12,
+                "brier": 0.1024986989900001
+              }
+            }
+          },
+          "spatial_counting": {
+            "eligible_for_complete_reliability": true,
+            "total": 2,
+            "valid": 2,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.42818576326065555,
+            "nll": 0.795994813746412,
+            "nll_floor": 1e-15,
+            "ece": 0.3734633810170987,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.3734633810170987,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 1,
+                "accuracy": 0.0,
+                "mean_confidence": 0.3700821536864748
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.6231553916522774
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              }
+            ],
+            "by_option_count": {
+              "5": {
+                "count": 2,
+                "brier": 0.42818576326065555
+              }
+            }
+          },
+          "spatial_relation": {
+            "eligible_for_complete_reliability": true,
+            "total": 3,
+            "valid": 3,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.4957142139073137,
+            "nll": 0.7565435586103152,
+            "nll_floor": 1e-15,
+            "ece": 0.21747416875590178,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.21747416875590178,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 2,
+                "accuracy": 0.5,
+                "mean_confidence": 0.8233178022398586
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9942130982120119
+              }
+            ],
+            "by_option_count": {
+              "5": {
+                "count": 3,
+                "brier": 0.4957142139073137
+              }
+            }
+          },
+          "text_reading": {
+            "eligible_for_complete_reliability": true,
+            "total": 26,
+            "valid": 26,
+            "missing": 0,
+            "invalid": 0,
+            "coverage": 1.0,
+            "brier": 0.000810731141168919,
+            "nll": 0.014739844176574281,
+            "nll_floor": 1e-15,
+            "ece": 0.014419437910090389,
+            "ece_definition": "Fixed 10-bin ECE using the probability-vector argmax as the predicted class and its maximum probability as confidence; independent of the submitted answer/abstention policy.",
+            "distribution_argmax_ece": 0.014419437910090389,
+            "ece_bins": [
+              {
+                "lower": 0.0,
+                "upper": 0.1,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.1,
+                "upper": 0.2,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.2,
+                "upper": 0.3,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.3,
+                "upper": 0.4,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.4,
+                "upper": 0.5,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.5,
+                "upper": 0.6,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.6,
+                "upper": 0.7,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.7,
+                "upper": 0.8,
+                "count": 0,
+                "accuracy": null,
+                "mean_confidence": null
+              },
+              {
+                "lower": 0.8,
+                "upper": 0.9,
+                "count": 1,
+                "accuracy": 1.0,
+                "mean_confidence": 0.8936360754694298
+              },
+              {
+                "lower": 0.9,
+                "upper": 1.0,
+                "count": 25,
+                "accuracy": 1.0,
+                "mean_confidence": 0.9892583415547288
+              }
+            ],
+            "by_option_count": {
+              "5": {
+                "count": 26,
+                "brier": 0.000810731141168919
+              }
+            }
+          }
+        },
+        "family_macro_brier": 0.15733743619883206,
+        "family_macro_nll": 0.2777951731747699,
+        "family_macro_ece": 0.11812294054567511,
+        "complete_family_coverage": false
+      }
+    }
+  },
+  "selective": {
+    "convention": "Only status=answered is accepted. Confidence is the probability assigned to the selected answer. Equal-confidence answers enter as one threshold group. The denominator is all answerable items; abstentions, errors, and missing outputs reduce coverage. Full AURC is reported only at complete confidence-ranked coverage; partial_AURC is the observed area through achieved ranked coverage.",
+    "answerable_total": 154,
+    "answered": 152,
+    "confidence_ranked_answered": 152,
+    "achieved_coverage": 0.987012987012987,
+    "achieved_error": 0.19736842105263158,
+    "partial_aurc": 0.055107333408815,
+    "aurc": null,
+    "curve": [
+      {
+        "answered": 0,
+        "coverage": 0.0,
+        "risk": null
+      },
+      {
+        "answered": 1,
+        "coverage": 0.006493506493506494,
+        "risk": 0.0,
+        "threshold": 0.9979650670731777
+      },
+      {
+        "answered": 2,
+        "coverage": 0.012987012987012988,
+        "risk": 0.0,
+        "threshold": 0.9976947432172036
+      },
+      {
+        "answered": 3,
+        "coverage": 0.01948051948051948,
+        "risk": 0.0,
+        "threshold": 0.9974334285480304
+      },
+      {
+        "answered": 4,
+        "coverage": 0.025974025974025976,
+        "risk": 0.0,
+        "threshold": 0.996770924329018
+      },
+      {
+        "answered": 5,
+        "coverage": 0.032467532467532464,
+        "risk": 0.0,
+        "threshold": 0.9964861899573481
+      },
+      {
+        "answered": 7,
+        "coverage": 0.045454545454545456,
+        "risk": 0.0,
+        "threshold": 0.9961726132277863
+      },
+      {
+        "answered": 8,
+        "coverage": 0.05194805194805195,
+        "risk": 0.0,
+        "threshold": 0.9960734530975393
+      },
+      {
+        "answered": 9,
+        "coverage": 0.05844155844155844,
+        "risk": 0.0,
+        "threshold": 0.9960361003870914
+      },
+      {
+        "answered": 10,
+        "coverage": 0.06493506493506493,
+        "risk": 0.0,
+        "threshold": 0.9959928775168697
+      },
+      {
+        "answered": 11,
+        "coverage": 0.07142857142857142,
+        "risk": 0.0,
+        "threshold": 0.9959259952254776
+      },
+      {
+        "answered": 12,
+        "coverage": 0.07792207792207792,
+        "risk": 0.0,
+        "threshold": 0.9956652108882575
+      },
+      {
+        "answered": 13,
+        "coverage": 0.08441558441558442,
+        "risk": 0.0,
+        "threshold": 0.9954752724850933
+      },
+      {
+        "answered": 14,
+        "coverage": 0.09090909090909091,
+        "risk": 0.0,
+        "threshold": 0.9954623924118726
+      },
+      {
+        "answered": 15,
+        "coverage": 0.09740259740259741,
+        "risk": 0.0,
+        "threshold": 0.9950691540558105
+      },
+      {
+        "answered": 16,
+        "coverage": 0.1038961038961039,
+        "risk": 0.0,
+        "threshold": 0.9949142654378191
+      },
+      {
+        "answered": 17,
+        "coverage": 0.11038961038961038,
+        "risk": 0.0,
+        "threshold": 0.9948492314454684
+      },
+      {
+        "answered": 18,
+        "coverage": 0.11688311688311688,
+        "risk": 0.0,
+        "threshold": 0.9947488217238011
+      },
+      {
+        "answered": 19,
+        "coverage": 0.12337662337662338,
+        "risk": 0.0,
+        "threshold": 0.9943730293539752
+      },
+      {
+        "answered": 20,
+        "coverage": 0.12987012987012986,
+        "risk": 0.0,
+        "threshold": 0.9943265190525498
+      },
+      {
+        "answered": 21,
+        "coverage": 0.13636363636363635,
+        "risk": 0.0,
+        "threshold": 0.9942130982120119
+      },
+      {
+        "answered": 22,
+        "coverage": 0.14285714285714285,
+        "risk": 0.0,
+        "threshold": 0.9942000809875855
+      },
+      {
+        "answered": 23,
+        "coverage": 0.14935064935064934,
+        "risk": 0.0,
+        "threshold": 0.9940352698413203
+      },
+      {
+        "answered": 24,
+        "coverage": 0.15584415584415584,
+        "risk": 0.0,
+        "threshold": 0.993969134118446
+      },
+      {
+        "answered": 25,
+        "coverage": 0.16233766233766234,
+        "risk": 0.0,
+        "threshold": 0.9939030416835539
+      },
+      {
+        "answered": 26,
+        "coverage": 0.16883116883116883,
+        "risk": 0.0,
+        "threshold": 0.9937648586735903
+      },
+      {
+        "answered": 27,
+        "coverage": 0.17532467532467533,
+        "risk": 0.0,
+        "threshold": 0.9931370534635722
+      },
+      {
+        "answered": 28,
+        "coverage": 0.18181818181818182,
+        "risk": 0.0,
+        "threshold": 0.9930968463549668
+      },
+      {
+        "answered": 29,
+        "coverage": 0.18831168831168832,
+        "risk": 0.0,
+        "threshold": 0.9926338786281657
+      },
+      {
+        "answered": 30,
+        "coverage": 0.19480519480519481,
+        "risk": 0.0,
+        "threshold": 0.9920924698394956
+      },
+      {
+        "answered": 31,
+        "coverage": 0.2012987012987013,
+        "risk": 0.0,
+        "threshold": 0.9918298179621987
+      },
+      {
+        "answered": 32,
+        "coverage": 0.2077922077922078,
+        "risk": 0.0,
+        "threshold": 0.9917626911592644
+      },
+      {
+        "answered": 33,
+        "coverage": 0.21428571428571427,
+        "risk": 0.0,
+        "threshold": 0.9916454775885589
+      },
+      {
+        "answered": 34,
+        "coverage": 0.22077922077922077,
+        "risk": 0.0,
+        "threshold": 0.9911990180574283
+      },
+      {
+        "answered": 35,
+        "coverage": 0.22727272727272727,
+        "risk": 0.0,
+        "threshold": 0.9910734031031845
+      },
+      {
+        "answered": 36,
+        "coverage": 0.23376623376623376,
+        "risk": 0.0,
+        "threshold": 0.9909839196954605
+      },
+      {
+        "answered": 37,
+        "coverage": 0.24025974025974026,
+        "risk": 0.0,
+        "threshold": 0.9905792630002568
+      },
+      {
+        "answered": 38,
+        "coverage": 0.24675324675324675,
+        "risk": 0.0,
+        "threshold": 0.9899834958297787
+      },
+      {
+        "answered": 39,
+        "coverage": 0.2532467532467532,
+        "risk": 0.0,
+        "threshold": 0.9898802201389143
+      },
+      {
+        "answered": 40,
+        "coverage": 0.2597402597402597,
+        "risk": 0.0,
+        "threshold": 0.9897050355716503
+      },
+      {
+        "answered": 41,
+        "coverage": 0.2662337662337662,
+        "risk": 0.0,
+        "threshold": 0.9871438597715871
+      },
+      {
+        "answered": 42,
+        "coverage": 0.2727272727272727,
+        "risk": 0.0,
+        "threshold": 0.9866169756496477
+      },
+      {
+        "answered": 43,
+        "coverage": 0.2792207792207792,
+        "risk": 0.0,
+        "threshold": 0.9863916693361414
+      },
+      {
+        "answered": 44,
+        "coverage": 0.2857142857142857,
+        "risk": 0.0,
+        "threshold": 0.9861622557798813
+      },
+      {
+        "answered": 45,
+        "coverage": 0.2922077922077922,
+        "risk": 0.0,
+        "threshold": 0.9854978483865731
+      },
+      {
+        "answered": 46,
+        "coverage": 0.2987012987012987,
+        "risk": 0.0,
+        "threshold": 0.9852719970334841
+      },
+      {
+        "answered": 47,
+        "coverage": 0.3051948051948052,
+        "risk": 0.0,
+        "threshold": 0.9835118384973025
+      },
+      {
+        "answered": 48,
+        "coverage": 0.3116883116883117,
+        "risk": 0.0,
+        "threshold": 0.981644934752479
+      },
+      {
+        "answered": 49,
+        "coverage": 0.3181818181818182,
+        "risk": 0.0,
+        "threshold": 0.9805141133595608
+      },
+      {
+        "answered": 50,
+        "coverage": 0.3246753246753247,
+        "risk": 0.0,
+        "threshold": 0.980320204728888
+      },
+      {
+        "answered": 51,
+        "coverage": 0.33116883116883117,
+        "risk": 0.0,
+        "threshold": 0.9801556756081026
+      },
+      {
+        "answered": 52,
+        "coverage": 0.33766233766233766,
+        "risk": 0.0,
+        "threshold": 0.9794094624925684
+      },
+      {
+        "answered": 53,
+        "coverage": 0.34415584415584416,
+        "risk": 0.0,
+        "threshold": 0.9788233335339013
+      },
+      {
+        "answered": 54,
+        "coverage": 0.35064935064935066,
+        "risk": 0.0,
+        "threshold": 0.9787573514882847
+      },
+      {
+        "answered": 55,
+        "coverage": 0.35714285714285715,
+        "risk": 0.0,
+        "threshold": 0.9779577871688642
+      },
+      {
+        "answered": 56,
+        "coverage": 0.36363636363636365,
+        "risk": 0.0,
+        "threshold": 0.9777909225987848
+      },
+      {
+        "answered": 57,
+        "coverage": 0.37012987012987014,
+        "risk": 0.0,
+        "threshold": 0.9772944318546493
+      },
+      {
+        "answered": 58,
+        "coverage": 0.37662337662337664,
+        "risk": 0.0,
+        "threshold": 0.9759346487344792
+      },
+      {
+        "answered": 59,
+        "coverage": 0.38311688311688313,
+        "risk": 0.0,
+        "threshold": 0.9746621972856244
+      },
+      {
+        "answered": 60,
+        "coverage": 0.38961038961038963,
+        "risk": 0.0,
+        "threshold": 0.974291692481081
+      },
+      {
+        "answered": 61,
+        "coverage": 0.3961038961038961,
+        "risk": 0.0,
+        "threshold": 0.9733459527010214
+      },
+      {
+        "answered": 62,
+        "coverage": 0.4025974025974026,
+        "risk": 0.0,
+        "threshold": 0.9709150336543673
+      },
+      {
+        "answered": 63,
+        "coverage": 0.4090909090909091,
+        "risk": 0.0,
+        "threshold": 0.9704744217712467
+      },
+      {
+        "answered": 64,
+        "coverage": 0.4155844155844156,
+        "risk": 0.0,
+        "threshold": 0.9691653637152504
+      },
+      {
+        "answered": 65,
+        "coverage": 0.42207792207792205,
+        "risk": 0.0,
+        "threshold": 0.9677896516980186
+      },
+      {
+        "answered": 66,
+        "coverage": 0.42857142857142855,
+        "risk": 0.0,
+        "threshold": 0.9639474960157924
+      },
+      {
+        "answered": 67,
+        "coverage": 0.43506493506493504,
+        "risk": 0.0,
+        "threshold": 0.9635307185041638
+      },
+      {
+        "answered": 68,
+        "coverage": 0.44155844155844154,
+        "risk": 0.0,
+        "threshold": 0.9615081550998318
+      },
+      {
+        "answered": 69,
+        "coverage": 0.44805194805194803,
+        "risk": 0.0,
+        "threshold": 0.9613865489481384
+      },
+      {
+        "answered": 70,
+        "coverage": 0.45454545454545453,
+        "risk": 0.0,
+        "threshold": 0.957137567522888
+      },
+      {
+        "answered": 71,
+        "coverage": 0.461038961038961,
+        "risk": 0.0,
+        "threshold": 0.9549281755056983
+      },
+      {
+        "answered": 72,
+        "coverage": 0.4675324675324675,
+        "risk": 0.0,
+        "threshold": 0.9516693362958036
+      },
+      {
+        "answered": 73,
+        "coverage": 0.474025974025974,
+        "risk": 0.0,
+        "threshold": 0.9479232740617407
+      },
+      {
+        "answered": 74,
+        "coverage": 0.4805194805194805,
+        "risk": 0.0,
+        "threshold": 0.9447877680128196
+      },
+      {
+        "answered": 75,
+        "coverage": 0.487012987012987,
+        "risk": 0.013333333333333334,
+        "threshold": 0.941287021578697
+      },
+      {
+        "answered": 76,
+        "coverage": 0.4935064935064935,
+        "risk": 0.013157894736842105,
+        "threshold": 0.9408346202515993
+      },
+      {
+        "answered": 77,
+        "coverage": 0.5,
+        "risk": 0.012987012987012988,
+        "threshold": 0.9335733173832729
+      },
+      {
+        "answered": 78,
+        "coverage": 0.5064935064935064,
+        "risk": 0.01282051282051282,
+        "threshold": 0.9303437818283652
+      },
+      {
+        "answered": 79,
+        "coverage": 0.512987012987013,
+        "risk": 0.02531645569620253,
+        "threshold": 0.924006471938361
+      },
+      {
+        "answered": 80,
+        "coverage": 0.5194805194805194,
+        "risk": 0.025,
+        "threshold": 0.9236653354835787
+      },
+      {
+        "answered": 81,
+        "coverage": 0.525974025974026,
+        "risk": 0.024691358024691357,
+        "threshold": 0.9212210825198611
+      },
+      {
+        "answered": 82,
+        "coverage": 0.5324675324675324,
+        "risk": 0.036585365853658534,
+        "threshold": 0.9069166591501083
+      },
+      {
+        "answered": 83,
+        "coverage": 0.538961038961039,
+        "risk": 0.03614457831325301,
+        "threshold": 0.9046123056678128
+      },
+      {
+        "answered": 84,
+        "coverage": 0.5454545454545454,
+        "risk": 0.047619047619047616,
+        "threshold": 0.9015685575019217
+      },
+      {
+        "answered": 85,
+        "coverage": 0.551948051948052,
+        "risk": 0.058823529411764705,
+        "threshold": 0.8978523965988862
+      },
+      {
+        "answered": 86,
+        "coverage": 0.5584415584415584,
+        "risk": 0.05813953488372093,
+        "threshold": 0.8912174553290056
+      },
+      {
+        "answered": 87,
+        "coverage": 0.564935064935065,
+        "risk": 0.05747126436781609,
+        "threshold": 0.8815412153614784
+      },
+      {
+        "answered": 88,
+        "coverage": 0.5714285714285714,
+        "risk": 0.056818181818181816,
+        "threshold": 0.8789287855727304
+      },
+      {
+        "answered": 89,
+        "coverage": 0.577922077922078,
+        "risk": 0.056179775280898875,
+        "threshold": 0.8718110835929229
+      },
+      {
+        "answered": 90,
+        "coverage": 0.5844155844155844,
+        "risk": 0.05555555555555555,
+        "threshold": 0.868961536149227
+      },
+      {
+        "answered": 91,
+        "coverage": 0.5909090909090909,
+        "risk": 0.054945054945054944,
+        "threshold": 0.8587642165052817
+      },
+      {
+        "answered": 92,
+        "coverage": 0.5974025974025974,
+        "risk": 0.05434782608695652,
+        "threshold": 0.8550527708637407
+      },
+      {
+        "answered": 93,
+        "coverage": 0.6038961038961039,
+        "risk": 0.053763440860215055,
+        "threshold": 0.8372687989694819
+      },
+      {
+        "answered": 94,
+        "coverage": 0.6103896103896104,
+        "risk": 0.05319148936170213,
+        "threshold": 0.8370913661959622
+      },
+      {
+        "answered": 95,
+        "coverage": 0.6168831168831169,
+        "risk": 0.06315789473684211,
+        "threshold": 0.8305845605259715
+      },
+      {
+        "answered": 96,
+        "coverage": 0.6233766233766234,
+        "risk": 0.0625,
+        "threshold": 0.8278200179594029
+      },
+      {
+        "answered": 97,
+        "coverage": 0.6298701298701299,
+        "risk": 0.061855670103092786,
+        "threshold": 0.8271807824056548
+      },
+      {
+        "answered": 98,
+        "coverage": 0.6363636363636364,
+        "risk": 0.061224489795918366,
+        "threshold": 0.8247095082322771
+      },
+      {
+        "answered": 99,
+        "coverage": 0.6428571428571429,
+        "risk": 0.06060606060606061,
+        "threshold": 0.8241496738019708
+      },
+      {
+        "answered": 100,
+        "coverage": 0.6493506493506493,
+        "risk": 0.07,
+        "threshold": 0.8224859306777464
+      },
+      {
+        "answered": 101,
+        "coverage": 0.6558441558441559,
+        "risk": 0.07920792079207921,
+        "threshold": 0.8128825081309372
+      },
+      {
+        "answered": 102,
+        "coverage": 0.6623376623376623,
+        "risk": 0.08823529411764706,
+        "threshold": 0.8092671649786076
+      },
+      {
+        "answered": 103,
+        "coverage": 0.6688311688311688,
+        "risk": 0.0970873786407767,
+        "threshold": 0.802151115826744
+      },
+      {
+        "answered": 104,
+        "coverage": 0.6753246753246753,
+        "risk": 0.09615384615384616,
+        "threshold": 0.7877821228467013
+      },
+      {
+        "answered": 105,
+        "coverage": 0.6818181818181818,
+        "risk": 0.09523809523809523,
+        "threshold": 0.7866859764922197
+      },
+      {
+        "answered": 106,
+        "coverage": 0.6883116883116883,
+        "risk": 0.09433962264150944,
+        "threshold": 0.7815622047992503
+      },
+      {
+        "answered": 107,
+        "coverage": 0.6948051948051948,
+        "risk": 0.09345794392523364,
+        "threshold": 0.7797310652645054
+      },
+      {
+        "answered": 109,
+        "coverage": 0.7077922077922078,
+        "risk": 0.09174311926605505,
+        "threshold": 0.7794007676823124
+      },
+      {
+        "answered": 110,
+        "coverage": 0.7142857142857143,
+        "risk": 0.09090909090909091,
+        "threshold": 0.7793433878601619
+      },
+      {
+        "answered": 111,
+        "coverage": 0.7207792207792207,
+        "risk": 0.09009009009009009,
+        "threshold": 0.7742617917395824
+      },
+      {
+        "answered": 112,
+        "coverage": 0.7272727272727273,
+        "risk": 0.09821428571428571,
+        "threshold": 0.7594731969851812
+      },
+      {
+        "answered": 113,
+        "coverage": 0.7337662337662337,
+        "risk": 0.10619469026548672,
+        "threshold": 0.7516300672848816
+      },
+      {
+        "answered": 114,
+        "coverage": 0.7402597402597403,
+        "risk": 0.10526315789473684,
+        "threshold": 0.7235137768666371
+      },
+      {
+        "answered": 115,
+        "coverage": 0.7467532467532467,
+        "risk": 0.11304347826086956,
+        "threshold": 0.7132171359075432
+      },
+      {
+        "answered": 116,
+        "coverage": 0.7532467532467533,
+        "risk": 0.11206896551724138,
+        "threshold": 0.7083073978080725
+      },
+      {
+        "answered": 117,
+        "coverage": 0.7597402597402597,
+        "risk": 0.1111111111111111,
+        "threshold": 0.6973156504739952
+      },
+      {
+        "answered": 118,
+        "coverage": 0.7662337662337663,
+        "risk": 0.11016949152542373,
+        "threshold": 0.6764172172894458
+      },
+      {
+        "answered": 119,
+        "coverage": 0.7727272727272727,
+        "risk": 0.11764705882352941,
+        "threshold": 0.6718037101641453
+      },
+      {
+        "answered": 120,
+        "coverage": 0.7792207792207793,
+        "risk": 0.11666666666666667,
+        "threshold": 0.6481315984425303
+      },
+      {
+        "answered": 121,
+        "coverage": 0.7857142857142857,
+        "risk": 0.11570247933884298,
+        "threshold": 0.6460576012890219
+      },
+      {
+        "answered": 122,
+        "coverage": 0.7922077922077922,
+        "risk": 0.12295081967213115,
+        "threshold": 0.6415277018103414
+      },
+      {
+        "answered": 123,
+        "coverage": 0.7987012987012987,
+        "risk": 0.12195121951219512,
+        "threshold": 0.6264358873231618
+      },
+      {
+        "answered": 124,
+        "coverage": 0.8051948051948052,
+        "risk": 0.12096774193548387,
+        "threshold": 0.6231553916522774
+      },
+      {
+        "answered": 125,
+        "coverage": 0.8116883116883117,
+        "risk": 0.12,
+        "threshold": 0.6195150641303392
+      },
+      {
+        "answered": 127,
+        "coverage": 0.8246753246753247,
+        "risk": 0.13385826771653545,
+        "threshold": 0.6123024722793976
+      },
+      {
+        "answered": 128,
+        "coverage": 0.8311688311688312,
+        "risk": 0.140625,
+        "threshold": 0.5854651415635161
+      },
+      {
+        "answered": 129,
+        "coverage": 0.8376623376623377,
+        "risk": 0.13953488372093023,
+        "threshold": 0.5848514014695633
+      },
+      {
+        "answered": 130,
+        "coverage": 0.8441558441558441,
+        "risk": 0.14615384615384616,
+        "threshold": 0.5682693057783229
+      },
+      {
+        "answered": 132,
+        "coverage": 0.8571428571428571,
+        "risk": 0.15151515151515152,
+        "threshold": 0.5651715499256755
+      },
+      {
+        "answered": 133,
+        "coverage": 0.8636363636363636,
+        "risk": 0.15789473684210525,
+        "threshold": 0.5567907849157788
+      },
+      {
+        "answered": 134,
+        "coverage": 0.8701298701298701,
+        "risk": 0.16417910447761194,
+        "threshold": 0.5513213246570619
+      },
+      {
+        "answered": 135,
+        "coverage": 0.8766233766233766,
+        "risk": 0.16296296296296298,
+        "threshold": 0.5510258455884387
+      },
+      {
+        "answered": 136,
+        "coverage": 0.8831168831168831,
+        "risk": 0.16911764705882354,
+        "threshold": 0.5448947139157789
+      },
+      {
+        "answered": 137,
+        "coverage": 0.8896103896103896,
+        "risk": 0.17518248175182483,
+        "threshold": 0.5373784974311464
+      },
+      {
+        "answered": 138,
+        "coverage": 0.8961038961038961,
+        "risk": 0.18115942028985507,
+        "threshold": 0.5280929897623231
+      },
+      {
+        "answered": 139,
+        "coverage": 0.9025974025974026,
+        "risk": 0.18705035971223022,
+        "threshold": 0.5115255232802951
+      },
+      {
+        "answered": 140,
+        "coverage": 0.9090909090909091,
+        "risk": 0.18571428571428572,
+        "threshold": 0.487855549747801
+      },
+      {
+        "answered": 141,
+        "coverage": 0.9155844155844156,
+        "risk": 0.18439716312056736,
+        "threshold": 0.4804159366711475
+      },
+      {
+        "answered": 142,
+        "coverage": 0.922077922077922,
+        "risk": 0.19014084507042253,
+        "threshold": 0.4802877876316509
+      },
+      {
+        "answered": 143,
+        "coverage": 0.9285714285714286,
+        "risk": 0.1888111888111888,
+        "threshold": 0.477352905924427
+      },
+      {
+        "answered": 144,
+        "coverage": 0.935064935064935,
+        "risk": 0.1875,
+        "threshold": 0.4683105326026081
+      },
+      {
+        "answered": 145,
+        "coverage": 0.9415584415584416,
+        "risk": 0.19310344827586207,
+        "threshold": 0.4535223403041225
+      },
+      {
+        "answered": 146,
+        "coverage": 0.948051948051948,
+        "risk": 0.19863013698630136,
+        "threshold": 0.4295611163561515
+      },
+      {
+        "answered": 147,
+        "coverage": 0.9545454545454546,
+        "risk": 0.19727891156462585,
+        "threshold": 0.4217898780057731
+      },
+      {
+        "answered": 148,
+        "coverage": 0.961038961038961,
+        "risk": 0.19594594594594594,
+        "threshold": 0.40957516306952113
+      },
+      {
+        "answered": 149,
+        "coverage": 0.9675324675324676,
+        "risk": 0.19463087248322147,
+        "threshold": 0.3944366402419353
+      },
+      {
+        "answered": 150,
+        "coverage": 0.974025974025974,
+        "risk": 0.19333333333333333,
+        "threshold": 0.39018977191930615
+      },
+      {
+        "answered": 151,
+        "coverage": 0.9805194805194806,
+        "risk": 0.1986754966887417,
+        "threshold": 0.3700821536864748
+      },
+      {
+        "answered": 152,
+        "coverage": 0.987012987012987,
+        "risk": 0.19736842105263158,
+        "threshold": 0.34692144824278853
+      }
+    ],
+    "unknown_gold_total": 19,
+    "substantive_answers_on_unknown_gold": 14
+  },
+  "efficiency": {
+    "requested": 173,
+    "latency_ms": {
+      "observed": 173,
+      "missing": 0,
+      "p50": 141.89646899467334,
+      "p95": 196.9471433898434
+    },
+    "cost_usd": {
+      "observed": 0,
+      "missing": 173,
+      "total_observed": null,
+      "per_1000_requests": null
+    }
+  },
+  "submission": {
+    "missing_predictions": 0,
+    "error_predictions": 1,
+    "malformed_predictions": 0,
+    "extra_prediction_ids": []
+  },
+  "cluster_accuracy_ci": {
+    "method": "percentile bootstrap over evidence clusters",
+    "estimate": 0.7341040462427746,
+    "records": 173,
+    "clusters": 56,
+    "samples": 1000,
+    "low": 0.6380297671215726,
+    "high": 0.8230168269230768
+  },
+  "contrast_sets": {
+    "sets": 30,
+    "all_correct": 16,
+    "change_pairs": 34,
+    "change_pairs_correct": 21,
+    "change_detected": 28,
+    "same_pairs": 37,
+    "same_pairs_correct": 21,
+    "same_unchanged": 32,
+    "constant_sets": 3,
+    "per_set": [
+      {
+        "set_id": "scene-03-0000-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "1010"
+      },
+      {
+        "set_id": "scene-03-0006-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0011-q0",
+        "all_correct": true,
+        "constant": true,
+        "pattern": "11"
+      },
+      {
+        "set_id": "scene-03-0012-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "1101"
+      },
+      {
+        "set_id": "scene-03-0014-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0022-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0026-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0036-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "0000"
+      },
+      {
+        "set_id": "scene-03-0040-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0046-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "1111"
+      },
+      {
+        "set_id": "scene-03-0048-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "101"
+      },
+      {
+        "set_id": "scene-03-0049-q0",
+        "all_correct": false,
+        "constant": true,
+        "pattern": "0100"
+      },
+      {
+        "set_id": "scene-03-0052-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0054-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "1101"
+      },
+      {
+        "set_id": "scene-03-0056-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "1001"
+      },
+      {
+        "set_id": "scene-03-0063-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0064-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "1111"
+      },
+      {
+        "set_id": "scene-03-0070-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0071-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "11"
+      },
+      {
+        "set_id": "scene-03-0072-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "0000"
+      },
+      {
+        "set_id": "scene-03-0074-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "1110"
+      },
+      {
+        "set_id": "scene-03-0077-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "0100"
+      },
+      {
+        "set_id": "scene-03-0079-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "0000"
+      },
+      {
+        "set_id": "scene-03-0081-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "110"
+      },
+      {
+        "set_id": "scene-03-0086-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0087-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0089-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      },
+      {
+        "set_id": "scene-03-0090-q0",
+        "all_correct": false,
+        "constant": false,
+        "pattern": "010"
+      },
+      {
+        "set_id": "scene-03-0092-q0",
+        "all_correct": false,
+        "constant": true,
+        "pattern": "0000"
+      },
+      {
+        "set_id": "scene-03-0093-q0",
+        "all_correct": true,
+        "constant": false,
+        "pattern": "111"
+      }
+    ],
+    "note": "Headline: all_correct and change_pairs_correct. same_unchanged alone rewards image-blind systems."
+  },
+  "dataset_status": "DRAFT_DIAGNOSTIC_ONLY",
+  "split": "dev",
+  "run_attribution": {
+    "manifest": {
+      "adapter": "imajev-http",
+      "concurrency": 1,
+      "cost_basis": "not_measured",
+      "decision_rule": "server abstention flag; substantive argmax; ordinal indices restored",
+      "endpoint": "http://127.0.0.1:23456/v1/systemone",
+      "format_version": "0.0.1",
+      "gold_withheld": false,
+      "inputs_sha256": "28276376d023dcafeb1742280a8b27ce1a9fd88a706ab61ff94c33b48c8b7d69",
+      "python_version": "3.12.3",
+      "record_count": 173,
+      "records_sha256": "df450f5c70a0fef61ccd819113d08b41e33ae7f1552cf6d3b5636049495aa8ee",
+      "retries": 0,
+      "reviewed": false,
+      "scoring_sha256": "d77abef4b62de6cfc127c4a312a52561bb605bb3fd76014ff1cdfad74142e94a",
+      "seed": 0,
+      "source_sha256": {
+        "__init__.py": "c34afd8257fe644b3627db8fec1019b90aca66102505960ad5cfa1bbe14a0f5d",
+        "__main__.py": "6d8b7d7846a845059d7a3107143f11131f63c5511d669b44085b15ec5e3d2279",
+        "annotations.py": "bd30875a0e0efc905594d9993e46c02febe7731398370e64237718333512af7f",
+        "api_models.py": "2b4afde1fff214d676772022f894d959edb070bd13125d1b16a95acdac21d3fb",
+        "assemble.py": "a05afa52db6e485755522671227102b95be73fda6b1e86fe51b2dcf826af9ed1",
+        "audit.py": "e3378e40a22615a8929a15a1ca41ef4c8c8b0e21a211c8b48f85a1e8a4a1daeb",
+        "cli.py": "676f756962912fe9b8c8aa71e0913f91b63e898dba2b7f351f1b87365d5d2923",
+        "harness.py": "17788dbcf40251452acb134e6edf849d9d585c18ef75d655b25c46550a88d6bb",
+        "lint.py": "b76050c3c3f23d3f6956517b0221c27c085b0d7c4b2acb25ffae3d8a5d9ca1ef",
+        "release.py": "af50d8d6d7cd31b26c1dfcf1987ccfa397a211684a0f039e93013b87bfae1fc5",
+        "review.py": "b6f61b5108347b9e4481253b18f6ba69b6a7252b9b432081afe2639b2f5b015f",
+        "runner.py": "6a4110b37d80fe275cfbf421b96b9f628c9ab46a5a89d0f56a8bdc83aa625ac5",
+        "schema.py": "807679887c8f0eace867a7d9cfbbd7466dd3048c453afd3feddc157550bfb84e",
+        "scoring.py": "c4d1d5ffc169786d0876f398a578259429641a43712c61e5238d44435a2d241e",
+        "stats.py": "ef626f5341be01b1d356ceb69438a40fc2e3af69da136a6b25da9758e361de62",
+        "triage.py": "bf2c2abe6d3639aa9cac08c17ba9dd323dcf60bf4c7d198218e4a8600cbe08c8"
+      },
+      "started_at": "2026-09-28T02:25:56.573622+00:00",
+      "timeout_seconds": 600.0,
+      "warning": "Draft data and synthetic controls are not ranked model results."
+    },
+    "completion": {
+      "completed_count": 173,
+      "finished_at": "2026-09-28T02:26:19.783926+00:00",
+      "manifest_sha256": "faf35cb769f0387bae32f3b0c1fa04234cc6aeaddd1c299fe3ca11a69f95d6ab",
+      "predictions_sha256": "7f45388994298c2c6b424c5b42c609a44061f207af5b056bba6c59c759e820ac",
+      "raw_sha256": "99d22bb928fff6f23220728b85f0c3f8a8c98cc3ea90da76e140a636060408ca",
+      "status": "complete"
+    },
+    "completion_sha256": "90bd062432ba3708e5fc4c28b2238bb536c8b41962a2f3ded64008824bb92dfd",
+    "scorer_source_sha256": "c4d1d5ffc169786d0876f398a578259429641a43712c61e5238d44435a2d241e"
+  },
+  "dataset_audit": {
+    "records": 173,
+    "declared_groups": 56,
+    "exact_content_connected_clusters": 56,
+    "warning": "Clusters detect exact reuse only; neither group IDs nor unique pixels prove statistical independence or fresh templates.",
+    "annotation_status": {
+      "reviewed": 129,
+      "draft": 44
+    },
+    "track_records": {
+      "joint": 79,
+      "visual": 69,
+      "text": 25
+    },
+    "track_groups": {
+      "joint": 29,
+      "visual": 31,
+      "text": 25
+    },
+    "mixed_track_groups": 29,
+    "split_records": {
+      "dev": 173
+    },
+    "family_records": {
+      "multi_step_rule": 23,
+      "text_reading": 26,
+      "comparison": 18,
+      "counting": 12,
+      "spatial_counting": 2,
+      "spatial_relation": 3,
+      "multi_clause_rule": 6,
+      "threshold_rule": 30,
+      "attribute_state": 6,
+      "rule_exception": 20,
+      "answerability": 2,
+      "numerical_reconciliation": 7,
+      "missing_conflicting_evidence": 7,
+      "policy_precedence": 6,
+      "date_arithmetic": 5
+    },
+    "type_records": {
+      "boolean": 83,
+      "choice": 83,
+      "ordinal": 7
+    },
+    "unknown_records": 19,
+    "unique_image_hashes": 102,
+    "image_hashes_shared_across_groups": 0,
+    "identical_inputs_shared_across_groups": 0,
+    "templates_crossing_splits": [],
+    "linked_group_clusters": []
+  }
+}

@@ -1,0 +1,1760 @@
+{
+ "items": 250,
+ "max_abs_dp": 3.063464890192966e-08,
+ "median_abs_dp": 4.790244756414097e-09,
+ "same_option": 250,
+ "tolerance": 0.0001,
+ "rows": [
+  {
+   "task": "banking77",
+   "i": 0,
+   "max_abs_dp": 1.0639544467672124e-08,
+   "same_option": true,
+   "h_abs_max": 25.625
+  },
+  {
+   "task": "banking77",
+   "i": 1,
+   "max_abs_dp": 3.063464890192966e-08,
+   "same_option": true,
+   "h_abs_max": 28.0
+  },
+  {
+   "task": "banking77",
+   "i": 2,
+   "max_abs_dp": 1.5141689013731252e-09,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 3,
+   "max_abs_dp": 4.986820262287139e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 4,
+   "max_abs_dp": 4.243996376551706e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 5,
+   "max_abs_dp": 7.2289214059217954e-09,
+   "same_option": true,
+   "h_abs_max": 28.375
+  },
+  {
+   "task": "banking77",
+   "i": 6,
+   "max_abs_dp": 1.4021268035513401e-08,
+   "same_option": true,
+   "h_abs_max": 23.0
+  },
+  {
+   "task": "banking77",
+   "i": 7,
+   "max_abs_dp": 1.5500234429310922e-09,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 8,
+   "max_abs_dp": 1.0950284038899194e-09,
+   "same_option": true,
+   "h_abs_max": 28.625
+  },
+  {
+   "task": "banking77",
+   "i": 9,
+   "max_abs_dp": 2.1021781482222224e-08,
+   "same_option": true,
+   "h_abs_max": 24.625
+  },
+  {
+   "task": "banking77",
+   "i": 10,
+   "max_abs_dp": 6.397801663449165e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 11,
+   "max_abs_dp": 1.8985403249516253e-09,
+   "same_option": true,
+   "h_abs_max": 27.5
+  },
+  {
+   "task": "banking77",
+   "i": 12,
+   "max_abs_dp": 1.1049413745078951e-08,
+   "same_option": true,
+   "h_abs_max": 23.75
+  },
+  {
+   "task": "banking77",
+   "i": 13,
+   "max_abs_dp": 1.047450015612128e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 14,
+   "max_abs_dp": 8.097637893555998e-09,
+   "same_option": true,
+   "h_abs_max": 21.25
+  },
+  {
+   "task": "banking77",
+   "i": 15,
+   "max_abs_dp": 3.8548308989305724e-10,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "banking77",
+   "i": 16,
+   "max_abs_dp": 2.3655993830473676e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 17,
+   "max_abs_dp": 7.723055051381267e-10,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 18,
+   "max_abs_dp": 2.0312507120756607e-08,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 19,
+   "max_abs_dp": 7.74435848782673e-10,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 20,
+   "max_abs_dp": 5.424703020118216e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "banking77",
+   "i": 21,
+   "max_abs_dp": 1.5091290439528393e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 22,
+   "max_abs_dp": 1.3956983901941555e-08,
+   "same_option": true,
+   "h_abs_max": 21.0
+  },
+  {
+   "task": "banking77",
+   "i": 23,
+   "max_abs_dp": 1.1991306836378612e-08,
+   "same_option": true,
+   "h_abs_max": 26.5
+  },
+  {
+   "task": "banking77",
+   "i": 24,
+   "max_abs_dp": 1.3980252511203162e-09,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "banking77",
+   "i": 25,
+   "max_abs_dp": 1.2617713929241603e-08,
+   "same_option": true,
+   "h_abs_max": 22.875
+  },
+  {
+   "task": "banking77",
+   "i": 26,
+   "max_abs_dp": 1.3187039238360398e-08,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "banking77",
+   "i": 27,
+   "max_abs_dp": 7.27520488297273e-10,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "banking77",
+   "i": 28,
+   "max_abs_dp": 1.231321433703414e-08,
+   "same_option": true,
+   "h_abs_max": 22.75
+  },
+  {
+   "task": "banking77",
+   "i": 29,
+   "max_abs_dp": 1.1010920952791992e-08,
+   "same_option": true,
+   "h_abs_max": 27.625
+  },
+  {
+   "task": "banking77",
+   "i": 30,
+   "max_abs_dp": 1.3877787807814457e-17,
+   "same_option": true,
+   "h_abs_max": 22.5
+  },
+  {
+   "task": "banking77",
+   "i": 31,
+   "max_abs_dp": 1.3354878980464946e-08,
+   "same_option": true,
+   "h_abs_max": 24.125
+  },
+  {
+   "task": "banking77",
+   "i": 32,
+   "max_abs_dp": 2.248871089349791e-09,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "banking77",
+   "i": 33,
+   "max_abs_dp": 1.1916112430121473e-08,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 34,
+   "max_abs_dp": 4.794743824199088e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 35,
+   "max_abs_dp": 3.5517733198986434e-10,
+   "same_option": true,
+   "h_abs_max": 28.625
+  },
+  {
+   "task": "banking77",
+   "i": 36,
+   "max_abs_dp": 5.190229135365598e-09,
+   "same_option": true,
+   "h_abs_max": 27.25
+  },
+  {
+   "task": "banking77",
+   "i": 37,
+   "max_abs_dp": 2.179138614000209e-08,
+   "same_option": true,
+   "h_abs_max": 31.125
+  },
+  {
+   "task": "banking77",
+   "i": 38,
+   "max_abs_dp": 7.615063135624212e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 39,
+   "max_abs_dp": 5.373462452773481e-09,
+   "same_option": true,
+   "h_abs_max": 29.875
+  },
+  {
+   "task": "banking77",
+   "i": 40,
+   "max_abs_dp": 7.449867389652809e-10,
+   "same_option": true,
+   "h_abs_max": 26.5
+  },
+  {
+   "task": "banking77",
+   "i": 41,
+   "max_abs_dp": 4.3841841268488224e-10,
+   "same_option": true,
+   "h_abs_max": 23.0
+  },
+  {
+   "task": "banking77",
+   "i": 42,
+   "max_abs_dp": 1.5480238979570515e-08,
+   "same_option": true,
+   "h_abs_max": 26.125
+  },
+  {
+   "task": "banking77",
+   "i": 43,
+   "max_abs_dp": 2.145662980623797e-09,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "banking77",
+   "i": 44,
+   "max_abs_dp": 5.3149777912153695e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "banking77",
+   "i": 45,
+   "max_abs_dp": 2.7493492149588405e-08,
+   "same_option": true,
+   "h_abs_max": 22.625
+  },
+  {
+   "task": "banking77",
+   "i": 46,
+   "max_abs_dp": 5.958518678461644e-09,
+   "same_option": true,
+   "h_abs_max": 29.75
+  },
+  {
+   "task": "banking77",
+   "i": 47,
+   "max_abs_dp": 8.882550889266483e-09,
+   "same_option": true,
+   "h_abs_max": 20.25
+  },
+  {
+   "task": "banking77",
+   "i": 48,
+   "max_abs_dp": 2.523995457082151e-10,
+   "same_option": true,
+   "h_abs_max": 25.5
+  },
+  {
+   "task": "banking77",
+   "i": 49,
+   "max_abs_dp": 9.853853399910406e-09,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "banking77",
+   "i": 50,
+   "max_abs_dp": 3.265440140509668e-10,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 51,
+   "max_abs_dp": 1.561607365641038e-08,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 52,
+   "max_abs_dp": 1.4244359025639142e-09,
+   "same_option": true,
+   "h_abs_max": 29.375
+  },
+  {
+   "task": "banking77",
+   "i": 53,
+   "max_abs_dp": 1.7735599655566148e-09,
+   "same_option": true,
+   "h_abs_max": 27.125
+  },
+  {
+   "task": "banking77",
+   "i": 54,
+   "max_abs_dp": 9.195767480818517e-10,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 55,
+   "max_abs_dp": 7.082354813725544e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 56,
+   "max_abs_dp": 5.6527079683732495e-09,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 57,
+   "max_abs_dp": 1.0462538835298574e-08,
+   "same_option": true,
+   "h_abs_max": 24.5
+  },
+  {
+   "task": "banking77",
+   "i": 58,
+   "max_abs_dp": 1.1587131865109512e-08,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 59,
+   "max_abs_dp": 5.413854697877696e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "banking77",
+   "i": 60,
+   "max_abs_dp": 4.6490389316034e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 61,
+   "max_abs_dp": 1.4667798087231176e-08,
+   "same_option": true,
+   "h_abs_max": 22.125
+  },
+  {
+   "task": "banking77",
+   "i": 62,
+   "max_abs_dp": 1.166678864628068e-09,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 63,
+   "max_abs_dp": 8.748836655136927e-09,
+   "same_option": true,
+   "h_abs_max": 20.0
+  },
+  {
+   "task": "banking77",
+   "i": 64,
+   "max_abs_dp": 1.0729244159790596e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 65,
+   "max_abs_dp": 2.216979599900526e-08,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 66,
+   "max_abs_dp": 1.318034015262981e-09,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "banking77",
+   "i": 67,
+   "max_abs_dp": 2.961833087816723e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 68,
+   "max_abs_dp": 6.472828939507735e-10,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 69,
+   "max_abs_dp": 1.7505139560114458e-09,
+   "same_option": true,
+   "h_abs_max": 29.5
+  },
+  {
+   "task": "banking77",
+   "i": 70,
+   "max_abs_dp": 3.9026795684016236e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "banking77",
+   "i": 71,
+   "max_abs_dp": 5.133042879634786e-10,
+   "same_option": true,
+   "h_abs_max": 26.5
+  },
+  {
+   "task": "banking77",
+   "i": 72,
+   "max_abs_dp": 5.216175047451088e-09,
+   "same_option": true,
+   "h_abs_max": 26.0
+  },
+  {
+   "task": "banking77",
+   "i": 73,
+   "max_abs_dp": 1.2629092216442928e-08,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 74,
+   "max_abs_dp": 1.019830231374641e-08,
+   "same_option": true,
+   "h_abs_max": 26.5
+  },
+  {
+   "task": "banking77",
+   "i": 75,
+   "max_abs_dp": 3.3408666089661254e-10,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 76,
+   "max_abs_dp": 4.6520667318361575e-09,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 77,
+   "max_abs_dp": 1.3877787807814457e-17,
+   "same_option": true,
+   "h_abs_max": 26.5
+  },
+  {
+   "task": "banking77",
+   "i": 78,
+   "max_abs_dp": 1.2973100010915672e-08,
+   "same_option": true,
+   "h_abs_max": 29.875
+  },
+  {
+   "task": "banking77",
+   "i": 79,
+   "max_abs_dp": 4.128414464454888e-09,
+   "same_option": true,
+   "h_abs_max": 24.625
+  },
+  {
+   "task": "banking77",
+   "i": 80,
+   "max_abs_dp": 3.412719440376577e-09,
+   "same_option": true,
+   "h_abs_max": 26.0
+  },
+  {
+   "task": "banking77",
+   "i": 81,
+   "max_abs_dp": 6.2398345379577336e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "banking77",
+   "i": 82,
+   "max_abs_dp": 1.516915149046838e-09,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 83,
+   "max_abs_dp": 6.622794757049633e-09,
+   "same_option": true,
+   "h_abs_max": 24.625
+  },
+  {
+   "task": "banking77",
+   "i": 84,
+   "max_abs_dp": 9.920888666137273e-09,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 85,
+   "max_abs_dp": 2.900321649512705e-09,
+   "same_option": true,
+   "h_abs_max": 24.625
+  },
+  {
+   "task": "banking77",
+   "i": 86,
+   "max_abs_dp": 3.143564408780719e-09,
+   "same_option": true,
+   "h_abs_max": 24.5
+  },
+  {
+   "task": "banking77",
+   "i": 87,
+   "max_abs_dp": 7.017840031320333e-09,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 88,
+   "max_abs_dp": 9.701415226714971e-09,
+   "same_option": true,
+   "h_abs_max": 25.5
+  },
+  {
+   "task": "banking77",
+   "i": 89,
+   "max_abs_dp": 4.728458513625355e-09,
+   "same_option": true,
+   "h_abs_max": 27.5
+  },
+  {
+   "task": "banking77",
+   "i": 90,
+   "max_abs_dp": 4.6798854791418876e-09,
+   "same_option": true,
+   "h_abs_max": 24.25
+  },
+  {
+   "task": "banking77",
+   "i": 91,
+   "max_abs_dp": 1.4141079196505757e-08,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 92,
+   "max_abs_dp": 5.551115123125783e-17,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 93,
+   "max_abs_dp": 2.6243285766724966e-08,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 94,
+   "max_abs_dp": 1.627886969668424e-08,
+   "same_option": true,
+   "h_abs_max": 26.0
+  },
+  {
+   "task": "banking77",
+   "i": 95,
+   "max_abs_dp": 5.93966986706107e-10,
+   "same_option": true,
+   "h_abs_max": 28.75
+  },
+  {
+   "task": "banking77",
+   "i": 96,
+   "max_abs_dp": 2.9962824443785507e-09,
+   "same_option": true,
+   "h_abs_max": 25.125
+  },
+  {
+   "task": "banking77",
+   "i": 97,
+   "max_abs_dp": 1.3162249290488148e-08,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 98,
+   "max_abs_dp": 8.83417192176772e-09,
+   "same_option": true,
+   "h_abs_max": 24.75
+  },
+  {
+   "task": "banking77",
+   "i": 99,
+   "max_abs_dp": 3.774475398898858e-09,
+   "same_option": true,
+   "h_abs_max": 23.5
+  },
+  {
+   "task": "banking77",
+   "i": 100,
+   "max_abs_dp": 6.709884536881816e-09,
+   "same_option": true,
+   "h_abs_max": 29.375
+  },
+  {
+   "task": "banking77",
+   "i": 101,
+   "max_abs_dp": 8.809110108032314e-10,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 102,
+   "max_abs_dp": 4.282164622892992e-09,
+   "same_option": true,
+   "h_abs_max": 27.75
+  },
+  {
+   "task": "banking77",
+   "i": 103,
+   "max_abs_dp": 1.1102230246251565e-16,
+   "same_option": true,
+   "h_abs_max": 26.625
+  },
+  {
+   "task": "banking77",
+   "i": 104,
+   "max_abs_dp": 1.289128320758337e-08,
+   "same_option": true,
+   "h_abs_max": 23.125
+  },
+  {
+   "task": "banking77",
+   "i": 105,
+   "max_abs_dp": 7.452050088119222e-10,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 106,
+   "max_abs_dp": 5.551115123125783e-17,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 107,
+   "max_abs_dp": 5.916982792619763e-09,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "banking77",
+   "i": 108,
+   "max_abs_dp": 6.727763901537287e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "banking77",
+   "i": 109,
+   "max_abs_dp": 3.531318751304191e-09,
+   "same_option": true,
+   "h_abs_max": 23.25
+  },
+  {
+   "task": "banking77",
+   "i": 110,
+   "max_abs_dp": 4.823315080670909e-09,
+   "same_option": true,
+   "h_abs_max": 29.5
+  },
+  {
+   "task": "banking77",
+   "i": 111,
+   "max_abs_dp": 6.222845239101105e-09,
+   "same_option": true,
+   "h_abs_max": 24.75
+  },
+  {
+   "task": "banking77",
+   "i": 112,
+   "max_abs_dp": 9.157696493483636e-10,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "banking77",
+   "i": 113,
+   "max_abs_dp": 2.28828833659378e-09,
+   "same_option": true,
+   "h_abs_max": 28.375
+  },
+  {
+   "task": "banking77",
+   "i": 114,
+   "max_abs_dp": 2.938926957352095e-08,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 115,
+   "max_abs_dp": 4.774607462870728e-10,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 116,
+   "max_abs_dp": 6.511572947509592e-09,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 117,
+   "max_abs_dp": 3.79680109574565e-09,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "banking77",
+   "i": 118,
+   "max_abs_dp": 4.8606700539521874e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 119,
+   "max_abs_dp": 1.7477312930225253e-09,
+   "same_option": true,
+   "h_abs_max": 22.875
+  },
+  {
+   "task": "banking77",
+   "i": 120,
+   "max_abs_dp": 2.3586431696642762e-09,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 121,
+   "max_abs_dp": 4.86924944809175e-11,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 122,
+   "max_abs_dp": 2.4303358908683848e-09,
+   "same_option": true,
+   "h_abs_max": 28.875
+  },
+  {
+   "task": "banking77",
+   "i": 123,
+   "max_abs_dp": 2.8817045416573706e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 124,
+   "max_abs_dp": 7.617334818466048e-10,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 125,
+   "max_abs_dp": 9.597925232363025e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "banking77",
+   "i": 126,
+   "max_abs_dp": 2.7755575615628914e-17,
+   "same_option": true,
+   "h_abs_max": 26.0
+  },
+  {
+   "task": "banking77",
+   "i": 127,
+   "max_abs_dp": 2.1063060740011963e-08,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 128,
+   "max_abs_dp": 1.5070826475671595e-08,
+   "same_option": true,
+   "h_abs_max": 23.75
+  },
+  {
+   "task": "banking77",
+   "i": 129,
+   "max_abs_dp": 1.4603446230054828e-09,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "banking77",
+   "i": 130,
+   "max_abs_dp": 1.514282144121637e-09,
+   "same_option": true,
+   "h_abs_max": 27.125
+  },
+  {
+   "task": "banking77",
+   "i": 131,
+   "max_abs_dp": 1.0124505678277274e-09,
+   "same_option": true,
+   "h_abs_max": 27.5
+  },
+  {
+   "task": "banking77",
+   "i": 132,
+   "max_abs_dp": 3.325392045061548e-10,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "banking77",
+   "i": 133,
+   "max_abs_dp": 4.161500255506212e-09,
+   "same_option": true,
+   "h_abs_max": 25.5
+  },
+  {
+   "task": "banking77",
+   "i": 134,
+   "max_abs_dp": 2.3268130477926974e-09,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "banking77",
+   "i": 135,
+   "max_abs_dp": 5.939740033156227e-09,
+   "same_option": true,
+   "h_abs_max": 26.0
+  },
+  {
+   "task": "banking77",
+   "i": 136,
+   "max_abs_dp": 6.4083479633936236e-09,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 137,
+   "max_abs_dp": 3.758181862933974e-09,
+   "same_option": true,
+   "h_abs_max": 27.25
+  },
+  {
+   "task": "banking77",
+   "i": 138,
+   "max_abs_dp": 1.5329775227002074e-09,
+   "same_option": true,
+   "h_abs_max": 28.375
+  },
+  {
+   "task": "banking77",
+   "i": 139,
+   "max_abs_dp": 1.6762361498834366e-09,
+   "same_option": true,
+   "h_abs_max": 24.125
+  },
+  {
+   "task": "banking77",
+   "i": 140,
+   "max_abs_dp": 1.2307706076519764e-08,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "banking77",
+   "i": 141,
+   "max_abs_dp": 6.919299300189863e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "banking77",
+   "i": 142,
+   "max_abs_dp": 1.3114849206630197e-09,
+   "same_option": true,
+   "h_abs_max": 25.375
+  },
+  {
+   "task": "banking77",
+   "i": 143,
+   "max_abs_dp": 2.23988043113188e-08,
+   "same_option": true,
+   "h_abs_max": 25.5
+  },
+  {
+   "task": "banking77",
+   "i": 144,
+   "max_abs_dp": 8.456825864588957e-10,
+   "same_option": true,
+   "h_abs_max": 28.875
+  },
+  {
+   "task": "banking77",
+   "i": 145,
+   "max_abs_dp": 3.1994383808964244e-09,
+   "same_option": true,
+   "h_abs_max": 27.625
+  },
+  {
+   "task": "banking77",
+   "i": 146,
+   "max_abs_dp": 1.1074519357112678e-08,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "banking77",
+   "i": 147,
+   "max_abs_dp": 3.921451996458103e-09,
+   "same_option": true,
+   "h_abs_max": 25.625
+  },
+  {
+   "task": "banking77",
+   "i": 148,
+   "max_abs_dp": 1.2444220098828396e-09,
+   "same_option": true,
+   "h_abs_max": 23.375
+  },
+  {
+   "task": "banking77",
+   "i": 149,
+   "max_abs_dp": 9.568374759183484e-09,
+   "same_option": true,
+   "h_abs_max": 26.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 0,
+   "max_abs_dp": 1.4114044905033651e-08,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 1,
+   "max_abs_dp": 3.4593552467043764e-09,
+   "same_option": true,
+   "h_abs_max": 28.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 2,
+   "max_abs_dp": 1.2023624096357821e-08,
+   "same_option": true,
+   "h_abs_max": 25.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 3,
+   "max_abs_dp": 3.3703999313683397e-10,
+   "same_option": true,
+   "h_abs_max": 23.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 4,
+   "max_abs_dp": 7.55264668861333e-09,
+   "same_option": true,
+   "h_abs_max": 25.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 5,
+   "max_abs_dp": 3.873770304529955e-09,
+   "same_option": true,
+   "h_abs_max": 28.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 6,
+   "max_abs_dp": 2.7245188258251396e-09,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 7,
+   "max_abs_dp": 3.1063314143153775e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 8,
+   "max_abs_dp": 1.207704469763371e-08,
+   "same_option": true,
+   "h_abs_max": 27.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 9,
+   "max_abs_dp": 3.0486799872803116e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 10,
+   "max_abs_dp": 6.998746582276283e-09,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 11,
+   "max_abs_dp": 1.7656667239407398e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 12,
+   "max_abs_dp": 9.055918015477005e-09,
+   "same_option": true,
+   "h_abs_max": 25.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 13,
+   "max_abs_dp": 7.820183722806462e-09,
+   "same_option": true,
+   "h_abs_max": 27.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 14,
+   "max_abs_dp": 2.8115874073364466e-09,
+   "same_option": true,
+   "h_abs_max": 27.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 15,
+   "max_abs_dp": 1.841727725881981e-08,
+   "same_option": true,
+   "h_abs_max": 23.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 16,
+   "max_abs_dp": 4.785745688629106e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 17,
+   "max_abs_dp": 4.767772440739115e-09,
+   "same_option": true,
+   "h_abs_max": 27.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 18,
+   "max_abs_dp": 1.4386001556676575e-08,
+   "same_option": true,
+   "h_abs_max": 27.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 19,
+   "max_abs_dp": 1.7499625082351145e-09,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 20,
+   "max_abs_dp": 6.938893903907228e-18,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 21,
+   "max_abs_dp": 6.471975066979496e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 22,
+   "max_abs_dp": 5.155577544740941e-10,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 23,
+   "max_abs_dp": 9.76169822752837e-09,
+   "same_option": true,
+   "h_abs_max": 28.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 24,
+   "max_abs_dp": 2.1812684991573406e-09,
+   "same_option": true,
+   "h_abs_max": 30.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 25,
+   "max_abs_dp": 1.504978624361497e-09,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 26,
+   "max_abs_dp": 1.775013691585059e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 27,
+   "max_abs_dp": 1.0953598991378377e-09,
+   "same_option": true,
+   "h_abs_max": 27.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 28,
+   "max_abs_dp": 7.572121707433155e-09,
+   "same_option": true,
+   "h_abs_max": 22.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 29,
+   "max_abs_dp": 6.874850910776331e-09,
+   "same_option": true,
+   "h_abs_max": 28.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 30,
+   "max_abs_dp": 4.575325132649688e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 31,
+   "max_abs_dp": 3.4518023994678515e-09,
+   "same_option": true,
+   "h_abs_max": 31.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 32,
+   "max_abs_dp": 1.4157723438046332e-08,
+   "same_option": true,
+   "h_abs_max": 28.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 33,
+   "max_abs_dp": 1.902944291032327e-08,
+   "same_option": true,
+   "h_abs_max": 22.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 34,
+   "max_abs_dp": 6.110422168248419e-10,
+   "same_option": true,
+   "h_abs_max": 28.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 35,
+   "max_abs_dp": 1.2160720652687473e-08,
+   "same_option": true,
+   "h_abs_max": 30.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 36,
+   "max_abs_dp": 5.467604036191176e-09,
+   "same_option": true,
+   "h_abs_max": 28.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 37,
+   "max_abs_dp": 3.656472236102104e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 38,
+   "max_abs_dp": 1.4835342954100383e-09,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 39,
+   "max_abs_dp": 1.012835670888279e-08,
+   "same_option": true,
+   "h_abs_max": 28.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 40,
+   "max_abs_dp": 1.1553426104704556e-08,
+   "same_option": true,
+   "h_abs_max": 28.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 41,
+   "max_abs_dp": 9.70787665532935e-10,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 42,
+   "max_abs_dp": 1.6230801258565464e-08,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 43,
+   "max_abs_dp": 4.5507459779658976e-10,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 44,
+   "max_abs_dp": 4.1613877899138174e-09,
+   "same_option": true,
+   "h_abs_max": 30.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 45,
+   "max_abs_dp": 1.550743679301636e-09,
+   "same_option": true,
+   "h_abs_max": 24.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 46,
+   "max_abs_dp": 1.2481958022725337e-08,
+   "same_option": true,
+   "h_abs_max": 25.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 47,
+   "max_abs_dp": 2.4999799230762676e-08,
+   "same_option": true,
+   "h_abs_max": 26.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 48,
+   "max_abs_dp": 5.38652711323806e-09,
+   "same_option": true,
+   "h_abs_max": 27.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 49,
+   "max_abs_dp": 2.3636440582563978e-09,
+   "same_option": true,
+   "h_abs_max": 26.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 50,
+   "max_abs_dp": 7.595261641846207e-09,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 51,
+   "max_abs_dp": 9.973611936331395e-10,
+   "same_option": true,
+   "h_abs_max": 26.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 52,
+   "max_abs_dp": 2.423031150722288e-09,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 53,
+   "max_abs_dp": 1.1570467361998737e-08,
+   "same_option": true,
+   "h_abs_max": 25.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 54,
+   "max_abs_dp": 8.910946314166779e-09,
+   "same_option": true,
+   "h_abs_max": 24.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 55,
+   "max_abs_dp": 5.238013467412372e-09,
+   "same_option": true,
+   "h_abs_max": 25.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 56,
+   "max_abs_dp": 2.1496301683132657e-09,
+   "same_option": true,
+   "h_abs_max": 28.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 57,
+   "max_abs_dp": 8.285843844380025e-09,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 58,
+   "max_abs_dp": 1.312356290306127e-08,
+   "same_option": true,
+   "h_abs_max": 32.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 59,
+   "max_abs_dp": 8.264211204256355e-09,
+   "same_option": true,
+   "h_abs_max": 27.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 60,
+   "max_abs_dp": 3.5121938690707566e-09,
+   "same_option": true,
+   "h_abs_max": 22.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 61,
+   "max_abs_dp": 6.636639460211313e-09,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 62,
+   "max_abs_dp": 6.536981178584256e-09,
+   "same_option": true,
+   "h_abs_max": 26.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 63,
+   "max_abs_dp": 2.98335437604047e-09,
+   "same_option": true,
+   "h_abs_max": 27.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 64,
+   "max_abs_dp": 4.075629361777189e-09,
+   "same_option": true,
+   "h_abs_max": 23.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 65,
+   "max_abs_dp": 2.759579231792486e-09,
+   "same_option": true,
+   "h_abs_max": 28.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 66,
+   "max_abs_dp": 9.28576882053278e-10,
+   "same_option": true,
+   "h_abs_max": 29.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 67,
+   "max_abs_dp": 9.95593751884627e-09,
+   "same_option": true,
+   "h_abs_max": 27.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 68,
+   "max_abs_dp": 1.3877787807814457e-17,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 69,
+   "max_abs_dp": 1.3423322953176609e-08,
+   "same_option": true,
+   "h_abs_max": 28.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 70,
+   "max_abs_dp": 1.4315209795334738e-08,
+   "same_option": true,
+   "h_abs_max": 27.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 71,
+   "max_abs_dp": 4.8235744287694615e-09,
+   "same_option": true,
+   "h_abs_max": 23.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 72,
+   "max_abs_dp": 2.5301248526843345e-09,
+   "same_option": true,
+   "h_abs_max": 25.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 73,
+   "max_abs_dp": 1.5221533700149337e-08,
+   "same_option": true,
+   "h_abs_max": 30.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 74,
+   "max_abs_dp": 3.793769853821516e-09,
+   "same_option": true,
+   "h_abs_max": 28.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 75,
+   "max_abs_dp": 6.991928924726665e-09,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 76,
+   "max_abs_dp": 5.973795791369696e-09,
+   "same_option": true,
+   "h_abs_max": 27.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 77,
+   "max_abs_dp": 1.220951229008449e-08,
+   "same_option": true,
+   "h_abs_max": 23.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 78,
+   "max_abs_dp": 8.114196203834467e-09,
+   "same_option": true,
+   "h_abs_max": 25.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 79,
+   "max_abs_dp": 1.1112964548587456e-08,
+   "same_option": true,
+   "h_abs_max": 27.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 80,
+   "max_abs_dp": 1.968517016059934e-09,
+   "same_option": true,
+   "h_abs_max": 25.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 81,
+   "max_abs_dp": 7.52266471337748e-09,
+   "same_option": true,
+   "h_abs_max": 28.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 82,
+   "max_abs_dp": 7.109673960670193e-09,
+   "same_option": true,
+   "h_abs_max": 29.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 83,
+   "max_abs_dp": 3.5123205455178663e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 84,
+   "max_abs_dp": 6.626944215604169e-09,
+   "same_option": true,
+   "h_abs_max": 23.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 85,
+   "max_abs_dp": 2.6319130208563024e-09,
+   "same_option": true,
+   "h_abs_max": 26.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 86,
+   "max_abs_dp": 3.61700336348747e-09,
+   "same_option": true,
+   "h_abs_max": 29.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 87,
+   "max_abs_dp": 4.537850484265249e-09,
+   "same_option": true,
+   "h_abs_max": 25.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 88,
+   "max_abs_dp": 9.128196643004571e-09,
+   "same_option": true,
+   "h_abs_max": 29.375
+  },
+  {
+   "task": "v3_clinc",
+   "i": 89,
+   "max_abs_dp": 5.507891066847126e-09,
+   "same_option": true,
+   "h_abs_max": 23.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 90,
+   "max_abs_dp": 1.2141661565046036e-09,
+   "same_option": true,
+   "h_abs_max": 27.875
+  },
+  {
+   "task": "v3_clinc",
+   "i": 91,
+   "max_abs_dp": 9.407724932408712e-09,
+   "same_option": true,
+   "h_abs_max": 27.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 92,
+   "max_abs_dp": 9.410872525705827e-09,
+   "same_option": true,
+   "h_abs_max": 26.0
+  },
+  {
+   "task": "v3_clinc",
+   "i": 93,
+   "max_abs_dp": 3.709864637713167e-10,
+   "same_option": true,
+   "h_abs_max": 27.75
+  },
+  {
+   "task": "v3_clinc",
+   "i": 94,
+   "max_abs_dp": 7.039280713883045e-09,
+   "same_option": true,
+   "h_abs_max": 24.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 95,
+   "max_abs_dp": 1.230121682294083e-08,
+   "same_option": true,
+   "h_abs_max": 23.625
+  },
+  {
+   "task": "v3_clinc",
+   "i": 96,
+   "max_abs_dp": 3.982571494809406e-09,
+   "same_option": true,
+   "h_abs_max": 26.25
+  },
+  {
+   "task": "v3_clinc",
+   "i": 97,
+   "max_abs_dp": 1.4614168764026658e-09,
+   "same_option": true,
+   "h_abs_max": 27.125
+  },
+  {
+   "task": "v3_clinc",
+   "i": 98,
+   "max_abs_dp": 8.0830530047038e-09,
+   "same_option": true,
+   "h_abs_max": 28.5
+  },
+  {
+   "task": "v3_clinc",
+   "i": 99,
+   "max_abs_dp": 6.752142400756611e-09,
+   "same_option": true,
+   "h_abs_max": 22.5
+  }
+ ],
+ "pass": true
+}

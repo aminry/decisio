@@ -1,0 +1,730 @@
+{
+ "arms": {
+  "image": {
+   "predictions": 254,
+   "missing": 0,
+   "errors": 2,
+   "abstained": 0,
+   "latency_ms_p50": 165.89495999505743,
+   "latency_ms_p95": 175.2907470217906,
+   "subsets": {
+    "all": {
+     "n": 254,
+     "correct": 182,
+     "accuracy": 0.7165354330708661,
+     "low": 0.6396678170836929,
+     "high": 0.7914937943262412
+    },
+    "answerable": {
+     "n": 230,
+     "correct": 182,
+     "accuracy": 0.7913043478260869,
+     "low": 0.7175831056466302,
+     "high": 0.8612274909963986
+    },
+    "unknown": {
+     "n": 24,
+     "correct": 0,
+     "accuracy": 0.0
+    },
+    "reviewed": {
+     "n": 193,
+     "correct": 147,
+     "accuracy": 0.7616580310880829,
+     "low": 0.6791300611153552,
+     "high": 0.8387096774193549
+    },
+    "with_image": {
+     "n": 216,
+     "correct": 156,
+     "accuracy": 0.7222222222222222
+    },
+    "text_only": {
+     "n": 38,
+     "correct": 26,
+     "accuracy": 0.6842105263157895
+    },
+    "track_joint": {
+     "n": 113,
+     "correct": 61,
+     "accuracy": 0.5398230088495575
+    },
+    "track_text": {
+     "n": 38,
+     "correct": 26,
+     "accuracy": 0.6842105263157895
+    },
+    "track_visual": {
+     "n": 103,
+     "correct": 95,
+     "accuracy": 0.9223300970873787
+    },
+    "split_dev": {
+     "n": 173,
+     "correct": 118,
+     "accuracy": 0.6820809248554913
+    },
+    "split_calibration": {
+     "n": 81,
+     "correct": 64,
+     "accuracy": 0.7901234567901234
+    }
+   },
+   "unknown_items": [
+    {
+     "id": "scene-03-0000-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.9149009526726545,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0002-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6791786926816161,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0007-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6513548714339144,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0012-cover-q0",
+     "status": "answered",
+     "value": "07:45",
+     "confidence": 0.609043095979083,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0036-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7549149868676283,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0041-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6791786926816161,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0046-cover-q0",
+     "status": "answered",
+     "value": "5.00",
+     "confidence": 0.6429364522187536,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0048-cover-q0",
+     "status": "answered",
+     "value": "08:15",
+     "confidence": 0.9161432350239617,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0049-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.7057850278370112,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0054-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7772998611746912,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0056-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7310585727705126,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0064-cover-q0",
+     "status": "error",
+     "value": null,
+     "confidence": null,
+     "unknown_probability": null
+    },
+    {
+     "id": "scene-03-0072-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.939913349615602,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0077-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7981867753392728,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0079-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6224593312018545,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0085-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.5312093733737563,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0089-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7310585727705126,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0090-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.939913349615602,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0092-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6513548714339144,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-s03-0008",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0011",
+     "status": "answered",
+     "value": 2,
+     "confidence": null,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0039",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0049",
+     "status": "answered",
+     "value": "shelf_a",
+     "confidence": 0.4859145612511288,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0051",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.0
+    }
+   ],
+   "false_abstentions": 0
+  },
+  "image_two_orders": {
+   "predictions": 254,
+   "missing": 0,
+   "errors": 0,
+   "abstained": 0,
+   "latency_ms_p50": 192.32430798001587,
+   "latency_ms_p95": 208.45183200435713,
+   "subsets": {
+    "all": {
+     "n": 254,
+     "correct": 188,
+     "accuracy": 0.7401574803149606,
+     "low": 0.6638995432197775,
+     "high": 0.8157894736842105
+    },
+    "answerable": {
+     "n": 230,
+     "correct": 188,
+     "accuracy": 0.8173913043478261,
+     "low": 0.7489703178355661,
+     "high": 0.881158326143227
+    },
+    "unknown": {
+     "n": 24,
+     "correct": 0,
+     "accuracy": 0.0
+    },
+    "reviewed": {
+     "n": 193,
+     "correct": 152,
+     "accuracy": 0.7875647668393783,
+     "low": 0.7093023255813954,
+     "high": 0.8608287873884704
+    },
+    "with_image": {
+     "n": 216,
+     "correct": 162,
+     "accuracy": 0.75
+    },
+    "text_only": {
+     "n": 38,
+     "correct": 26,
+     "accuracy": 0.6842105263157895
+    },
+    "track_joint": {
+     "n": 113,
+     "correct": 64,
+     "accuracy": 0.5663716814159292
+    },
+    "track_text": {
+     "n": 38,
+     "correct": 26,
+     "accuracy": 0.6842105263157895
+    },
+    "track_visual": {
+     "n": 103,
+     "correct": 98,
+     "accuracy": 0.9514563106796117
+    },
+    "split_dev": {
+     "n": 173,
+     "correct": 123,
+     "accuracy": 0.7109826589595376
+    },
+    "split_calibration": {
+     "n": 81,
+     "correct": 65,
+     "accuracy": 0.8024691358024691
+    }
+   },
+   "unknown_items": [
+    {
+     "id": "scene-03-0000-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.8751922418157809,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0002-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7051186327260643,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0007-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6652667820577652,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0012-cover-q0",
+     "status": "answered",
+     "value": "07:45",
+     "confidence": 0.5503431129457789,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0036-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.611852806746936,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0041-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.620677596783707,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0046-cover-q0",
+     "status": "answered",
+     "value": "5.00",
+     "confidence": 0.42569614471123124,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0048-cover-q0",
+     "status": "answered",
+     "value": "08:15",
+     "confidence": 0.8958289066303848,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0049-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.6924818602593137,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0054-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6697381810302446,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0056-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7184218003037619,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0064-cover-q0",
+     "status": "answered",
+     "value": "6.00",
+     "confidence": 0.4983255443873218,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0072-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.9222819436435897,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0077-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7247708233865937,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0079-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6767589519861836,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0085-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.5466929371297772,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0089-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6767589519861836,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0090-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.9320275881922161,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "scene-03-0092-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.7247708233865937,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-s03-0008",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0011",
+     "status": "answered",
+     "value": 2,
+     "confidence": null,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0039",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0049",
+     "status": "answered",
+     "value": "shelf_a",
+     "confidence": 0.4351602524249721,
+     "unknown_probability": 0.0
+    },
+    {
+     "id": "text-h03-0051",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.0
+    }
+   ],
+   "false_abstentions": 0
+  },
+  "image_abstain": {
+   "predictions": 254,
+   "missing": 0,
+   "errors": 2,
+   "abstained": 7,
+   "latency_ms_p50": 174.63403299916536,
+   "latency_ms_p95": 197.00942700728774,
+   "subsets": {
+    "all": {
+     "n": 254,
+     "correct": 192,
+     "accuracy": 0.7559055118110236,
+     "low": 0.6828284174366264,
+     "high": 0.8284697601668405
+    },
+    "answerable": {
+     "n": 230,
+     "correct": 187,
+     "accuracy": 0.8130434782608695,
+     "low": 0.7423511628366496,
+     "high": 0.8779371350051529
+    },
+    "unknown": {
+     "n": 24,
+     "correct": 5,
+     "accuracy": 0.20833333333333334
+    },
+    "reviewed": {
+     "n": 193,
+     "correct": 150,
+     "accuracy": 0.7772020725388601,
+     "low": 0.6977961672473867,
+     "high": 0.8487849339430894
+    },
+    "with_image": {
+     "n": 216,
+     "correct": 168,
+     "accuracy": 0.7777777777777778
+    },
+    "text_only": {
+     "n": 38,
+     "correct": 24,
+     "accuracy": 0.631578947368421
+    },
+    "track_joint": {
+     "n": 113,
+     "correct": 72,
+     "accuracy": 0.6371681415929203
+    },
+    "track_text": {
+     "n": 38,
+     "correct": 24,
+     "accuracy": 0.631578947368421
+    },
+    "track_visual": {
+     "n": 103,
+     "correct": 96,
+     "accuracy": 0.9320388349514563
+    },
+    "split_dev": {
+     "n": 173,
+     "correct": 127,
+     "accuracy": 0.7341040462427746
+    },
+    "split_calibration": {
+     "n": 81,
+     "correct": 65,
+     "accuracy": 0.8024691358024691
+    }
+   },
+   "unknown_items": [
+    {
+     "id": "scene-03-0000-cover-q0",
+     "status": "abstained",
+     "value": null,
+     "confidence": null,
+     "unknown_probability": 0.5682187497285579
+    },
+    {
+     "id": "scene-03-0002-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.4810242483736708,
+     "unknown_probability": 0.2272197795324624
+    },
+    {
+     "id": "scene-03-0007-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.4955813486518267,
+     "unknown_probability": 0.06706964618423979
+    },
+    {
+     "id": "scene-03-0012-cover-q0",
+     "status": "answered",
+     "value": "07:45",
+     "confidence": 0.5210891454929156,
+     "unknown_probability": 0.10260853045378683
+    },
+    {
+     "id": "scene-03-0036-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.4359540244785387,
+     "unknown_probability": 0.2996265092107445
+    },
+    {
+     "id": "scene-03-0041-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.5224289024254316,
+     "unknown_probability": 0.07070305926650762
+    },
+    {
+     "id": "scene-03-0046-cover-q0",
+     "status": "abstained",
+     "value": null,
+     "confidence": null,
+     "unknown_probability": 0.9693826842402715
+    },
+    {
+     "id": "scene-03-0048-cover-q0",
+     "status": "answered",
+     "value": "08:15",
+     "confidence": 0.9162744160945474,
+     "unknown_probability": 0.006995840142012794
+    },
+    {
+     "id": "scene-03-0049-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.718440340694309,
+     "unknown_probability": 0.07572306157331077
+    },
+    {
+     "id": "scene-03-0054-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6569639135841668,
+     "unknown_probability": 0.032708307280834376
+    },
+    {
+     "id": "scene-03-0056-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.4321405141306854,
+     "unknown_probability": 0.23130813512748186
+    },
+    {
+     "id": "scene-03-0064-cover-q0",
+     "status": "abstained",
+     "value": null,
+     "confidence": null,
+     "unknown_probability": 0.8936360754694298
+    },
+    {
+     "id": "scene-03-0072-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.5175566203932069,
+     "unknown_probability": 0.4030735012460195
+    },
+    {
+     "id": "scene-03-0077-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6473303404330739,
+     "unknown_probability": 0.04689245817188745
+    },
+    {
+     "id": "scene-03-0079-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.4995179973885663,
+     "unknown_probability": 0.05965891713076398
+    },
+    {
+     "id": "scene-03-0085-cover-q0",
+     "status": "answered",
+     "value": true,
+     "confidence": 0.6942613496301825,
+     "unknown_probability": 0.016327461978252515
+    },
+    {
+     "id": "scene-03-0089-cover-q0",
+     "status": "abstained",
+     "value": null,
+     "confidence": null,
+     "unknown_probability": 0.7287182128076565
+    },
+    {
+     "id": "scene-03-0090-cover-q0",
+     "status": "abstained",
+     "value": null,
+     "confidence": null,
+     "unknown_probability": 0.8957549928546951
+    },
+    {
+     "id": "scene-03-0092-cover-q0",
+     "status": "answered",
+     "value": false,
+     "confidence": 0.6043412158315336,
+     "unknown_probability": 0.07217826095051857
+    },
+    {
+     "id": "text-s03-0008",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.08815068422594698
+    },
+    {
+     "id": "text-h03-0011",
+     "status": "answered",
+     "value": 2,
+     "confidence": null,
+     "unknown_probability": 0.13214497213221668
+    },
+    {
+     "id": "text-h03-0039",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.14249270914938203
+    },
+    {
+     "id": "text-h03-0049",
+     "status": "answered",
+     "value": "shelf_a",
+     "confidence": 0.4549723370130916,
+     "unknown_probability": 0.0028798459356275466
+    },
+    {
+     "id": "text-h03-0051",
+     "status": "answered",
+     "value": 3,
+     "confidence": null,
+     "unknown_probability": 0.15301731171745322
+    }
+   ],
+   "false_abstentions": 2
+  }
+ }
+}

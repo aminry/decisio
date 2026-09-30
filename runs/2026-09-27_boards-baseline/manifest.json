@@ -1,0 +1,106 @@
+{
+ "id": "2026-09-27_boards-baseline",
+ "title": "The served default on JevBench's published items and four Decision Index benchmarks, one card, internal",
+ "date": "2026-09-27",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (96 GB)",
+ "software": {
+  "vllm": "0.30.0",
+  "patch_series": "patches/vllm-0.30.0/suffix-staging, VLLM_SUFFIX_STAGING=1",
+  "VLLM_USE_DEEP_GEMM": "0",
+  "patch_series_flag_note": "the flag was named VLLM_R9_SUFFIX_STAGING when this run was made; its logs keep that name"
+ },
+ "model": {
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "load": "the text-only view (decisio.serve.make_text_only), Qwen3_5MoeForCausalLM",
+  "adapter": null,
+  "head": null,
+  "per_task_calibration": null,
+  "temperature": 1.0
+ },
+ "serving": {
+  "readout": "letters",
+  "pad": "front, to the 1,056-token block",
+  "cuda_graphs": "captured up to 4,096 tokens",
+  "recurrent_state": "float32",
+  "requests": "one at a time, every question distinct (the Decision Index board rule)"
+ },
+ "code": {
+  "state": "the served code of 2026-09-27: no rendering rules, the first maximum in wire order on ties, no global temperature",
+  "public_equivalent": "python -m decisio.serve.vllm_engine --model-class view --no-hide-index-keys --no-desnake-labels --temperature 1 [--orders 2]; the tie-break then was the first maximum in wire order (now the key that sorts first), which changes a choice only on exact ties"
+ },
+ "arms": {
+  "default": "--orders 1",
+  "two_orders": "--orders 2 (two-order averaging after Reflex; the branch disagreement per item in disagreement_two_orders.json.gz)"
+ },
+ "harnesses": {
+  "jevbench": "github.com/fstandhartinger/jevbench @ d06ee95, typesafe adapter, the harness's own summarize; the 231 published items (easy 48, original 72, hard 111)",
+  "decision_index": "github.com/apolinario/decision-index @ 87d4650, edition 0.2.1, http engine, the kit's own score; rows rebuilt with `suite rebuild --only 4 5 21 25 57` (BANKING77 3,080, CLINC150+OOS 5,500, GPQA Diamond 198, MMLU-Pro 12,032 at TIGER-Lab/MMLU-Pro@b189ec7)"
+ },
+ "gates": {
+  "C1 serving gates": "pass (gates.log)",
+  "C2 SDK conformance": "pass",
+  "C3 prompt identity": "pass, 0 of 200 differ",
+  "C4 paired probabilities": "pass, max |dp| 0.0 on 200 items"
+ },
+ "results": {
+  "jevbench_accuracy": {
+   "default": {
+    "easy": 1.0,
+    "original": 0.972,
+    "hard": 0.694
+   },
+   "two_orders": {
+    "easy": 1.0,
+    "original": 0.972,
+    "hard": 0.694
+   }
+  },
+  "jevbench_hard_ece": {
+   "default": 0.08,
+   "two_orders": 0.133
+  },
+  "decision_index_native": {
+   "default": {
+    "MMLU-Pro": 0.609,
+    "GPQA Diamond": 0.454,
+    "BANKING77 macro-F1": 0.42,
+    "CLINC150+OOS macro-F1": 0.561
+   },
+   "two_orders": {
+    "MMLU-Pro": 0.62,
+    "GPQA Diamond": 0.495,
+    "BANKING77 macro-F1": 0.561,
+    "CLINC150+OOS macro-F1": 0.765
+   }
+  },
+  "decision_index_median_request_ms": {
+   "default": 71,
+   "two_orders": 116
+  },
+  "note": "private readings: JevBench's official score needs its sealed set, and a Decision Index value needs all 38 benchmarks; neither is claimed"
+ },
+ "files": {
+  "jevbench/<arm>/<file>/": "the harness's results.jsonl (per item), summary.json and manifest.json",
+  "decision_index/<arm>/items.jsonl.gz": "per request: ids, the payload's sha256, our response, timings (the payload itself removed)",
+  "decision_index/<arm>/": "the kit's benchmark-summary.json and our di_report.json (decisio.bench.di_report), environment.json, status.json",
+  "gates.log": "the C1 serving gates' result lines (tests/gpu/serving_gates.py); G4 used a private LoRA adapter, named `adapter` here",
+  "health_<arm>.json": "the server's /health at the start of each arm",
+  "files.json": "every file's size and sha256",
+  "conformance.json.gz": "C2-C4 (decisio.serve.systemone_conformance); C3 and C4 rows carry the private suite's task and index, not its text",
+  "disagreement_two_orders.json.gz": "per item: board, set, id, the two orders' disagreement, correct with two orders and with one"
+ },
+ "excluded": [
+  "item text of any benchmark (Decision Index payloads, JevBench raw requests and responses)",
+  "TypeSafe's published board figures for its Jev model (the model behind the System One API), and any output of that model",
+  "vLLM start-up logs, machine logs and addresses",
+  "the same-item comparison with our own item sets (it includes the TypeSafe model's answers)",
+  "the contamination screen (it names private training files)",
+  "the server's branch log (request text)"
+ ],
+ "cost": {
+  "gpu_hours": 2.3,
+  "gpu_usd": 2.5
+ }
+}

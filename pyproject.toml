@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "decisio"
+version = "0.1.0"
+description = "A prefill-only decision server on vLLM: typed questions about a state, a calibrated distribution per question"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.12,<3.13"
+# The server front, the readout, the tasks and the CPU stand-in; vLLM is the serve extra (Linux, a CUDA card).
+# Lower bounds only: uv.lock pins every version, resolved together with the serve extra, so the CPU tests run the
+# versions vLLM 0.30.0 runs with (it pins torch 2.13.0, torchvision 0.28.0 and fastapi below 0.137).
+dependencies = [
+    "fastapi>=0.133",
+    "numpy>=2.2",
+    "pillow>=11",
+    "psutil>=7",
+    "pydantic>=2.12",
+    "python-multipart>=0.0.20",
+    "safetensors>=0.6.2",
+    "scipy>=1.15",
+    "torch>=2.13",
+    "torchvision>=0.28",
+    "transformers>=5.10.4",
+    "uvicorn>=0.34",
+]
+
+[project.optional-dependencies]
+# the GPU serving stack; the decisio plugin registers its model classes on exactly this vLLM version
+serve = ["vllm==0.30.0; sys_platform == 'linux'"]
+# the benchmark stage (benchmarks/): the conformance client and the HTTP drivers; the JevBench harness and the
+# Decision Index kit are fetched at pinned commits by benchmarks/fetch_harnesses.sh
+bench = ["httpx>=0.28", "typesafe-sdk==0.7.0"]
+dev = ["httpx>=0.28", "pytest==9.1.1", "ruff==0.14.0"]
+
+[project.urls]
+Repository = "https://github.com/aminry/decisio"
+
+# vLLM loads this in every process it starts (docs/design/vllm-plugin.md); it registers decisio's model classes on
+# vllm==0.30.0 and nothing on any other version
+[project.entry-points."vllm.general_plugins"]
+decisio = "decisio.vllm_plugin:register"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"decisio.bench" = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers -m 'not gpu'"
+markers = [
+    "gpu: needs a CUDA card, vLLM 0.30.0 and a local checkpoint (tests/gpu; run with -m gpu)",
+    "slow: loads a small Hugging Face model on the CPU",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
