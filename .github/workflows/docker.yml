@@ -51,19 +51,19 @@ jobs:
         with:
           persist-credentials: false
 
-      # The base image is about 9 GB compressed and does not fit on the runner's root volume next to the tools it ships
-      # with: Docker's storage moves to the larger /mnt volume before anything is pulled.
-      - name: Move Docker's storage to /mnt and free disk space
+      # The base image is about 9 GB compressed and about 25 GB unpacked, and Docker keeps both: it does not fit on the
+      # runner's 72 GB root volume next to the toolchains the runner image ships with (/mnt is the same volume). This job
+      # needs none of them.
+      - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo systemctl stop docker.socket docker.service
-          sudo mkdir -p /mnt/docker
-          [ -f /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
-          jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
-          sudo mv /tmp/daemon.json /etc/docker/daemon.json
-          sudo systemctl start docker.service
-          docker info --format 'docker root: {{.DockerRootDir}}'
-          df -h / /mnt
+          df -h /
+          sudo swapoff -a || true
+          sudo rm -rf /mnt/swapfile /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /opt/microsoft \
+            /opt/az /usr/local/.ghcup /usr/share/swift /usr/lib/jvm /usr/local/share/boost /usr/local/share/powershell \
+            /usr/local/julia* /usr/share/miniconda /usr/lib/google-cloud-sdk /usr/local/lib/node_modules \
+            /usr/local/share/chromium /usr/lib/firefox
+          docker image prune --all --force > /dev/null
+          df -h /
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
@@ -133,19 +133,19 @@ jobs:
         with:
           persist-credentials: false
 
-      # The base image is about 9 GB compressed and does not fit on the runner's root volume next to the tools it ships
-      # with: Docker's storage moves to the larger /mnt volume before anything is pulled.
-      - name: Move Docker's storage to /mnt and free disk space
+      # The base image is about 9 GB compressed and about 25 GB unpacked, and Docker keeps both: it does not fit on the
+      # runner's 72 GB root volume next to the toolchains the runner image ships with (/mnt is the same volume). This job
+      # needs none of them.
+      - name: Free disk space
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo systemctl stop docker.socket docker.service
-          sudo mkdir -p /mnt/docker
-          [ -f /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
-          jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
-          sudo mv /tmp/daemon.json /etc/docker/daemon.json
-          sudo systemctl start docker.service
-          docker info --format 'docker root: {{.DockerRootDir}}'
-          df -h / /mnt
+          df -h /
+          sudo swapoff -a || true
+          sudo rm -rf /mnt/swapfile /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache /opt/microsoft \
+            /opt/az /usr/local/.ghcup /usr/share/swift /usr/lib/jvm /usr/local/share/boost /usr/local/share/powershell \
+            /usr/local/julia* /usr/share/miniconda /usr/lib/google-cloud-sdk /usr/local/lib/node_modules \
+            /usr/local/share/chromium /usr/lib/firefox
+          docker image prune --all --force > /dev/null
+          df -h /
 
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
