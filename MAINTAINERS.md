@@ -3,8 +3,8 @@
 
 # Maintainers
 
-| Name | GitHub | Role |
-| --- | --- | --- |
-| Amin Roudaki | [@aminry](https://github.com/aminry) | maintainer, release manager, security contact |
+| Name | GitHub | Email | Role |
+| --- | --- | --- | --- |
+| Amin Roudaki | [@aminry](https://github.com/aminry) | roudaky@gmail.com | maintainer, release manager, security contact, conduct contact |
 
 Emeritus: none yet.
