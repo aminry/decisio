@@ -11,6 +11,8 @@ version = "0.1.0"
 description = "A prefill-only decision server on vLLM: typed questions about a state, a calibrated distribution per question"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
+readme = "README.md"
+authors = [{ name = "Amin Roudaki" }]
 requires-python = ">=3.12,<3.13"
 # The server front, the readout, the tasks and the CPU stand-in; vLLM is the serve extra (Linux, a CUDA card).
 # Lower bounds only: uv.lock pins every version, resolved together with the serve extra, so the CPU tests run the
