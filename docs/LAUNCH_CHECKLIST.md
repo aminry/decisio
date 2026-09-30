@@ -42,7 +42,7 @@ Section 4 is the rehearsal: it is run straight after each step.
 | 2.3 | DCO GitHub App | CLICK | before the ruleset, or the required check never reports |
 | 2.4 | Rulesets on `main` and on release tags | API | needs 2.3 |
 | 2.5 | Secret scanning with push protection, private vulnerability reporting, CodeQL default setup, Dependabot alerts | API | |
-| 2.6 | `RELEASE_PLEASE_TOKEN` (GitHub App recommended) | CLICK to create, API to store | |
+| 2.6 | The release token, from a GitHub App | CLICK to create, API to store | the workflow edit is a pull request |
 | 2.7 | `DECISIO_MODEL`, `DECISIO_VIEW`, `GPU_RUNNER_READY` variables | API | when a GPU runner exists |
 | 2.8 | The `benchmark` label | API | |
 | 3.1 | PyPI trusted publisher | CLICK | no API exists |
@@ -50,13 +50,13 @@ Section 4 is the rehearsal: it is run straight after each step.
 | 3.3 | The publish workflow | pull request | added after 3.2 |
 | 3.4 | First release | CLICK (approval) | |
 
-## Choices that are the owner's
+## Decisions taken (2026-09-30)
 
-- **Bypass on `main`** (2.4): the ruleset below lets repository admins merge a pull request past a failing required check, never push directly, and every bypass is logged.
-  Delete the `bypass_actors` entry for no bypass at all; the price is that a broken required check (for instance the DCO app being down) blocks every merge until the ruleset is edited.
-- **The release token** (2.6): a GitHub App (recommended) or a fine-grained personal access token.
-  The DCO app skips bots but not people, so release pull requests opened with a personal token carry no `Signed-off-by` and fail the required DCO check.
-- **The first version number** (3.4): release-please proposes the next version from the commits; if the first public release must be `0.1.0`, see 3.4.
+- **Bypass on `main`** (2.4): repository admins can merge a pull request past a failing required check, never push directly; every bypass is logged.
+  The price of no bypass would be that a broken required check (for instance the DCO app being down) blocks every merge until the ruleset is edited.
+- **The release token** (2.6): a GitHub App.
+  The DCO app skips bots but not people, so release pull requests opened with a personal token would carry no `Signed-off-by` and fail the required DCO check.
+- **The first version number** (3.4): `0.1.0`.
 - **Required code owner review stays off**: with one code owner who opens the pull requests, turning it on would make every pull request unmergeable.
 
 ## 0. Before the repository goes public
@@ -255,11 +255,10 @@ gh api -X PUT repos/aminry/decisio/automated-security-fixes
 Settings page: Settings, Advanced Security (Code security).
 The CodeQL call returns a run id; the first scan takes a few minutes.
 
-### 2.6 RELEASE_PLEASE_TOKEN [CLICK, then API]
+### 2.6 The release token, from a GitHub App [CLICK, then API]
 
-release-please needs a token that is not the default one: pull requests and tags created with the default token do not start other workflows, so the release pull request would never get its checks and the publish workflow would never run.
+release-please needs a token that is not the default one, which is why the workflow mints one from the app (the secret name `RELEASE_PLEASE_TOKEN` of the current workflow goes away with this edit): pull requests and tags created with the default token do not start other workflows, so the release pull request would never get its checks and the publish workflow would never run.
 
-**Recommended: a GitHub App.**
 Its tokens last an hour, it is not tied to a person, and its commits are a bot's, which the DCO app skips.
 
 1. [CLICK] <https://github.com/settings/apps/new>: name `decisio-release` (any free name), homepage `https://github.com/aminry/decisio`, Webhook: untick Active, repository permissions Contents: read and write, Pull requests: read and write (Metadata: read is added automatically), "Where can this GitHub App be installed": only on this account.
@@ -289,13 +288,7 @@ gh secret set RELEASE_PLEASE_APP_PRIVATE_KEY --repo aminry/decisio < decisio-rel
 
 The action pin is checked against its tag (v3.2.0 was the latest release on 2026-09-30).
 
-**Alternative: a fine-grained personal access token named `RELEASE_PLEASE_TOKEN`, no workflow change.**
-
-1. [CLICK] <https://github.com/settings/personal-access-tokens/new>: resource owner `aminry`, only select repositories `decisio`, expiration as short as tolerable (a year at most; put the renewal in a calendar), repository permissions Contents: read and write, Pull requests: read and write.
-2. [API] `gh secret set RELEASE_PLEASE_TOKEN --repo aminry/decisio` and paste the token.
-3. Expect the DCO check on each release pull request to fail (no `Signed-off-by`); the admin bypass in 2.4 is how they get merged.
-
-Either way, the first release pull request shows whether the DCO check is skipped and whether `uv.lock` and `src/decisio/__init__.py` carry the new version; see the review notes on pull request #2 for the `uv.lock` extra-file.
+The first release pull request shows whether the DCO check is skipped and whether `uv.lock` and `src/decisio/__init__.py` carry the new version; see the review notes on pull request #2 for the `uv.lock` extra-file.
 
 ### 2.7 Repository variables [API]
 
@@ -376,7 +369,7 @@ Every action is pinned by commit hash, each checked against its release tag and 
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # Publishes a release to PyPI when release-please tags it. Trusted publishing (OIDC): no PyPI token is stored.
 # build (no credentials) -> provenance (GitHub artifact attestation) -> publish (the uploader only; it waits for the
-# required reviewer of the "pypi" environment). The tag is made with RELEASE_PLEASE_TOKEN or the app token, because a tag
+# required reviewer of the "pypi" environment). The tag is made with the release app's token, because a tag
 # made with the default token would not start this workflow.
 name: publish
 
@@ -467,8 +460,9 @@ Lint it with `actionlint` before opening the pull request.
 
 ### 3.4 First release [CLICK]
 
-1. release-please keeps a release pull request open on `main`; review its `CHANGELOG.md` and version bump, and merge it (squash).
-   If the first public release must be `0.1.0` and release-please proposes another number, add `"release-as": "0.1.0"` to the package entry in `release-please-config.json` through a pull request before merging the release pull request, and remove it in the next.
+1. The first public release is `0.1.0`.
+   `pyproject.toml` and `.release-please-manifest.json` already say `0.1.0` and no tag exists, so release-please would propose the next version: before the flip, through a pull request, add `"release-as": "0.1.0"` to the package entry in `release-please-config.json`, and remove it in the pull request after the release.
+   Then review the release pull request that release-please keeps open on `main` (its `CHANGELOG.md` and version bump) and merge it (squash).
 2. Merging creates the tag `v<version>` and the GitHub Release; the tag starts `publish.yml`.
 3. [CLICK] The `publish` job waits for approval: Actions, the run, "Review deployments", tick `pypi`, Approve and deploy.
 4. Check the release (section 4).
