@@ -38,7 +38,7 @@ packed: questions are packed into one prompt as consecutive chat turns, each tur
     python -m decisio.serve.vllm_engine --model /models/Qwen3.6-35B-A3B-FP8 --port 8000
     (the served default: the official checkpoint under decisio's hidden-readout class, front padding to the block,
     detokenize=False, DeepGEMM off, CUDA graphs captured up to 4,096 tokens; on vLLM 0.30.0, optionally with the
-    suffix-staging patch series of patches/ and VLLM_R9_SUFFIX_STAGING=1)
+    suffix-staging patch series of patches/ and VLLM_SUFFIX_STAGING=1)
 """
 from __future__ import annotations
 

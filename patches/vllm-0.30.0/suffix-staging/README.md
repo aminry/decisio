@@ -15,7 +15,7 @@
 1. `[Perf][MRv2] Stage only the uncached prompt suffix of prefix-cache hits` (the main change, plus `tests/v1/worker/test_gpu_suffix_staging.py`).
 2. `[Perf][MRv2] Batch per-request slot resets in MambaHybridModelState` (small, independent, same env var).
 
-Both are inert unless `VLLM_R9_SUFFIX_STAGING=1`.
+Both are inert unless `VLLM_SUFFIX_STAGING=1`.
 
 ## Problem
 
@@ -30,12 +30,12 @@ This matches the profile: `copy_to_uva` 42.5%, `clear_staged_writes` 8.3% and `s
 
 ## What the patch does
 
-With `VLLM_R9_SUFFIX_STAGING=1`, a new request with `num_computed_tokens > 0` for which the predicate below holds stages only `prefill_token_ids[S:]`, written at column offset `S` of its row, where `S = min(num_computed_tokens, prefill_len)`.
+With `VLLM_SUFFIX_STAGING=1`, a new request with `num_computed_tokens > 0` for which the predicate below holds stages only `prefill_token_ids[S:]`, written at column offset `S` of its row, where `S = min(num_computed_tokens, prefill_len)`.
 Every column `>= S` therefore holds exactly the value it holds with full staging, so no reader needs any offset translation.
 Columns `[0, S)` keep stale values from an earlier occupant of the slot.
 `prompt_len`, `prefill_len`, `total_len`, `num_computed_tokens`, block tables and all sampling state are staged exactly as before.
 For M-RoPE models the positions are still computed from the full prefill (they can depend on earlier images), but only columns `[S:]` are staged.
-The runner logs `VLLM_R9_SUFFIX_STAGING=1: staging only the uncached prompt suffix ...` at load time, or a warning that lists why it is disabled.
+The runner logs `VLLM_SUFFIX_STAGING=1: staging only the uncached prompt suffix ...` at load time, or a warning that lists why it is disabled.
 
 Commit 2 replaces the two single-element `fill_` calls per new request in `MambaHybridModelState.add_request` (`num_accepted_tokens_gpu[slot] = 1` and, in `mamba_cache_mode=align`, `_mamba_state_idx_gpu[slot] = (num_computed_tokens - 1) // block_size`) with one `index_fill_` and one `index_copy_` in `apply_staged_writes()`.
 The runner calls `model_state.apply_staged_writes()` right after the `add_request` loop and nothing reads those buffers in between, so the GPU state seen by `preprocess_state` and `prepare_attn` is identical.
@@ -46,7 +46,7 @@ Suffix-only staging is used for a request only if all of these hold, otherwise t
 
 Runner-wide (checked once in `GPUModelRunner._init_suffix_staging`, at the end of `load_model`):
 
-- `VLLM_R9_SUFFIX_STAGING=1` (read once in `GPUModelRunner.__init__`).
+- `VLLM_SUFFIX_STAGING=1` (read once in `GPUModelRunner.__init__`).
 - The model state is exactly `DefaultModelState` or `MambaHybridModelState`, not a subclass or a model-provided state.
 - No EVS multimodal pruner (`model_state.mm_pruner is None`).
 - No watermarking (`watermark_config is None`).
@@ -124,7 +124,7 @@ Into a git checkout of `v0.30.0`, use `git am patches/vllm-0.30.0/suffix-staging
    python -m pytest -q tests/v1/worker/test_gpu_suffix_staging.py
    ```
 
-3. Start the server with `VLLM_R9_SUFFIX_STAGING=1` and check for the `staging only the uncached prompt suffix` log line (no `ignored` warning, no `rewound` warning during the run).
+3. Start the server with `VLLM_SUFFIX_STAGING=1` and check for the `staging only the uncached prompt suffix` log line (no `ignored` warning, no `rewound` warning during the run).
 4. Output equivalence: send the same requests one at a time (so batch composition is identical) with the flag at 0 and at 1 after warming the prefix, and compare the returned top-K logprobs, which should match exactly.
    Under concurrent load, batch composition differs between runs, so compare label argmax agreement and the logprob differences against the run-to-run noise of the flag-0 baseline.
 5. Performance: repeat the py-spy profile and the throughput benchmark with the flag at 0 and at 1 on the same installation.

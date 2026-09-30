@@ -1,10 +1,10 @@
-From 4ccadbb5afcb962c34aff61fdd847372777a00d8 Mon Sep 17 00:00:00 2001
+From 002a18b7e5de07bbc4d76f4acc1942024627f8c6 Mon Sep 17 00:00:00 2001
 From: Amin <roudaky@gmail.com>
 Date: Fri, 25 Sep 2026 16:25:50 -0700
 Subject: [PATCH 2/2] [Perf][MRv2] Batch per-request slot resets in
  MambaHybridModelState
 
-Behind VLLM_R9_SUFFIX_STAGING=1 (default off, read once at init).
+Behind VLLM_SUFFIX_STAGING=1 (default off, read once at init).
 
 MambaHybridModelState.add_request resets two per-slot GPU values for every
 new request (num_accepted_tokens_gpu[slot] = 1 and, in mamba align mode,
@@ -22,7 +22,7 @@ value per slot, matching the sequential fill_ semantics.
  1 file changed, 33 insertions(+)
 
 diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
-index c553ef80a..2ea789e81 100644
+index c553ef8..651cf03 100644
 --- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 +++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 @@ -7,10 +7,12 @@ import numpy as np
@@ -42,12 +42,12 @@ index c553ef80a..2ea789e81 100644
              self._mamba_group_ids: list[int] = []
              self._mamba_spec: MambaSpec | None = None
              self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
-+        # With VLLM_R9_SUFFIX_STAGING=1, the per-slot resets done by add_request
++        # With VLLM_SUFFIX_STAGING=1, the per-slot resets done by add_request
 +        # are collected here (slot -> running state block index) and applied as
 +        # two batched GPU writes in apply_staged_writes() instead of two tiny
 +        # fill_ launches per new request. Nothing reads these buffers between
 +        # add_request() and apply_staged_writes() (both run in add_requests()).
-+        self._batch_add_resets = envs.VLLM_R9_SUFFIX_STAGING
++        self._batch_add_resets = envs.VLLM_SUFFIX_STAGING
 +        self._pending_add_resets: dict[int, int] = {}
  
      def add_request(

@@ -1,10 +1,10 @@
-From 65d946bb88cee5eb421d69b609518376805d5da2 Mon Sep 17 00:00:00 2001
+From 0e643ab3a1ba500932083df1235d0cff863ddd7d Mon Sep 17 00:00:00 2001
 From: Amin <roudaky@gmail.com>
 Date: Fri, 25 Sep 2026 16:25:31 -0700
 Subject: [PATCH 1/2] [Perf][MRv2] Stage only the uncached prompt suffix of
  prefix-cache hits
 
-Behind VLLM_R9_SUFFIX_STAGING=1 (default off, read once at runner init).
+Behind VLLM_SUFFIX_STAGING=1 (default off, read once at runner init).
 
 When a new request is added to the V2 model runner, its whole prefill
 (token ids, and M-RoPE positions for M-RoPE models) is staged into the
@@ -52,14 +52,14 @@ gathered input ids and lookahead tokens equal those of full staging.
  create mode 100644 vllm/v1/worker/gpu/suffix_staging.py
 
 diff --git a/vllm/envs.py b/vllm/envs.py
-index 6158f86f8..cb60386d1 100755
+index 6158f86..662560c 100755
 --- a/vllm/envs.py
 +++ b/vllm/envs.py
 @@ -208,6 +208,7 @@ if TYPE_CHECKING:
      ] = "relax"
      VLLM_USE_FUSED_MOE_GROUPED_TOPK: bool = True
      VLLM_MOE_SKIP_PADDING: bool = True
-+    VLLM_R9_SUFFIX_STAGING: bool = False
++    VLLM_SUFFIX_STAGING: bool = False
      VLLM_KIMI_K3_SHARD_SP_SHARED_EXPERT: bool = False
      VLLM_KIMI_K3_AUX_ATTN_RES_STREAM: bool = False
      VLLM_KIMI_K3_GEMM_AR: bool = True
@@ -71,7 +71,7 @@ index 6158f86f8..cb60386d1 100755
 +    # enabled feature reads its prompt before num_computed_tokens, stage only
 +    # the uncached suffix of its prefill token ids (and M-RoPE positions) into
 +    # the runner's persistent buffers. Read once at runner init. "1" enables.
-+    "VLLM_R9_SUFFIX_STAGING": lambda: os.getenv("VLLM_R9_SUFFIX_STAGING", "0") == "1",
++    "VLLM_SUFFIX_STAGING": lambda: os.getenv("VLLM_SUFFIX_STAGING", "0") == "1",
      # Kimi-K3 only. Under sequence-parallel MoE the dense and shared-expert MLPs
      # are replicated on every rank, so each rank streams the whole weight to
      # serve its own token shard. Shard them across TP instead: the MLP then
@@ -80,12 +80,12 @@ index 6158f86f8..cb60386d1 100755
          "VLLM_ENABLE_V1_MULTIPROCESSING",
          "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE",
 +        # Host-side input staging only; does not affect compiled graphs.
-+        "VLLM_R9_SUFFIX_STAGING",
++        "VLLM_SUFFIX_STAGING",
          "VLLM_CPU_KVCACHE_SPACE",
          "VLLM_CPU_MOE_PREPACK",
          "VLLM_ZENTORCH_WEIGHT_PREPACK",
 diff --git a/vllm/v1/worker/gpu/mm/rope.py b/vllm/v1/worker/gpu/mm/rope.py
-index 637ad4140..68843509b 100644
+index 637ad41..6884350 100644
 --- a/vllm/v1/worker/gpu/mm/rope.py
 +++ b/vllm/v1/worker/gpu/mm/rope.py
 @@ -61,7 +61,15 @@ class RopeState:
@@ -118,7 +118,7 @@ index 637ad4140..68843509b 100644
      def apply_staged_writes(self) -> None:
          self.prefill_positions.apply_write()
 diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
-index b66d552cb..12567bf0a 100644
+index b66d552..ba70ce1 100644
 --- a/vllm/v1/worker/gpu/model_runner.py
 +++ b/vllm/v1/worker/gpu/model_runner.py
 @@ -167,6 +167,7 @@ from vllm.v1.worker.gpu.spec_decode.speculator import DraftModelSpeculator
@@ -136,7 +136,7 @@ index b66d552cb..12567bf0a 100644
 +        # Suffix-only prompt staging (see suffix_staging.py). The env var is
 +        # read once here; runner-wide eligibility is decided in load_model()
 +        # once the model state is known.
-+        self._suffix_staging_requested = envs.VLLM_R9_SUFFIX_STAGING
++        self._suffix_staging_requested = envs.VLLM_SUFFIX_STAGING
 +        self.suffix_staging = False
 +
          # Multi-module MTP feeds its modules the next num_speculative_steps prefill
@@ -186,12 +186,12 @@ index b66d552cb..12567bf0a 100644
 +            reasons.append("custom logits processors")
 +        if reasons:
 +            logger.warning(
-+                "VLLM_R9_SUFFIX_STAGING=1 ignored: not supported with %s.",
++                "VLLM_SUFFIX_STAGING=1 ignored: not supported with %s.",
 +                ", ".join(reasons),
 +            )
 +            return False
 +        logger.info(
-+            "VLLM_R9_SUFFIX_STAGING=1: staging only the uncached prompt suffix "
++            "VLLM_SUFFIX_STAGING=1: staging only the uncached prompt suffix "
 +            "of new requests with a prefix-cache hit."
 +        )
 +        return True
@@ -250,7 +250,7 @@ index b66d552cb..12567bf0a 100644
 +            and np.any(num_computed_tokens_np < self.req_states.prompt_stage_start)
 +        ):
 +            logger.warning_once(
-+                "VLLM_R9_SUFFIX_STAGING: a running request was rewound "
++                "VLLM_SUFFIX_STAGING: a running request was rewound "
 +                "below its first staged prompt column."
 +            )
 +
@@ -258,7 +258,7 @@ index b66d552cb..12567bf0a 100644
          np.minimum(
              self.req_states.num_computed_tokens_np,
 diff --git a/vllm/v1/worker/gpu/model_states/default.py b/vllm/v1/worker/gpu/model_states/default.py
-index 27a9591e4..0b8955241 100644
+index 27a9591..0b89552 100644
 --- a/vllm/v1/worker/gpu/model_states/default.py
 +++ b/vllm/v1/worker/gpu/model_states/default.py
 @@ -61,7 +61,12 @@ class DefaultModelState(ModelState):
@@ -284,7 +284,7 @@ index 27a9591e4..0b8955241 100644
          if self.prompt_embeds_state is not None:
              self.prompt_embeds_state.add_request(req_index, new_req_data)
 diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
-index 0ac3f2f63..c553ef80a 100644
+index 0ac3f2f..c553ef8 100644
 --- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 +++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 @@ -112,8 +112,10 @@ class MambaHybridModelState(DefaultModelState):
@@ -301,7 +301,7 @@ index 0ac3f2f63..c553ef80a 100644
          self.num_accepted_tokens_gpu[req_index].fill_(1)
          if self._align_mode:
 diff --git a/vllm/v1/worker/gpu/states.py b/vllm/v1/worker/gpu/states.py
-index 025c8300f..e973e9764 100644
+index 025c830..e973e97 100644
 --- a/vllm/v1/worker/gpu/states.py
 +++ b/vllm/v1/worker/gpu/states.py
 @@ -60,6 +60,10 @@ class RequestState:
@@ -346,14 +346,14 @@ index 025c8300f..e973e9764 100644
          self.num_computed_tokens.stage_write_elem(req_idx, num_computed_tokens)
 diff --git a/vllm/v1/worker/gpu/suffix_staging.py b/vllm/v1/worker/gpu/suffix_staging.py
 new file mode 100644
-index 000000000..2a09d208f
+index 0000000..c8ba4b6
 --- /dev/null
 +++ b/vllm/v1/worker/gpu/suffix_staging.py
 @@ -0,0 +1,82 @@
 +# SPDX-License-Identifier: Apache-2.0
 +# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
 +"""Suffix-only prompt staging for Model Runner V2 (opt-in via
-+``VLLM_R9_SUFFIX_STAGING=1``).
++``VLLM_SUFFIX_STAGING=1``).
 +
 +When a new request is added to the runner, its prefill token ids (and, for
 +M-RoPE models, its prefill positions) are staged into persistent per-request

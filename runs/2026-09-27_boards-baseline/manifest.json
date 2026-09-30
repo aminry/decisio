@@ -7,8 +7,9 @@
  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (96 GB)",
  "software": {
   "vllm": "0.30.0",
-  "patch_series": "patches/vllm-0.30.0/suffix-staging, VLLM_R9_SUFFIX_STAGING=1",
-  "VLLM_USE_DEEP_GEMM": "0"
+  "patch_series": "patches/vllm-0.30.0/suffix-staging, VLLM_SUFFIX_STAGING=1",
+  "VLLM_USE_DEEP_GEMM": "0",
+  "patch_series_flag_note": "the flag was named VLLM_R9_SUFFIX_STAGING when this run was made; its logs keep that name"
  },
  "model": {
   "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8",

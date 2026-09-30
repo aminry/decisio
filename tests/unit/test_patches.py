@@ -93,9 +93,9 @@ def test_s2_pkg_is_the_series_restricted_to_vllm():
 def test_s3_inert_by_default_and_what_apply_applies():
     first = files("pkg")[0].read_text()
     envs = hunks(files("pkg")[0], False)["vllm/envs.py"]
-    assert "VLLM_R9_SUFFIX_STAGING" in envs and re.search(r'VLLM_R9_SUFFIX_STAGING", "0"\)', envs), \
+    assert "VLLM_SUFFIX_STAGING" in envs and re.search(r'VLLM_SUFFIX_STAGING", "0"\)', envs), \
         "the flag must default to off"
-    assert "VLLM_R9_SUFFIX_STAGING" in first
+    assert "VLLM_SUFFIX_STAGING" in first
     apply = (ROOT / "patches" / "apply.sh").read_text()
     assert '"$SERIES"/pkg/0*.patch' in apply and "vllm-0.30.0/suffix-staging" in apply
     assert apply.index("--dry-run") < apply.index("patch -p1 --forward < ")          # every file dry-run first

@@ -7,8 +7,9 @@
  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (96 GB)",
  "software": {
   "vllm": "0.30.0 (a second environment with stock vLLM 0.30.0 for the bench)",
-  "patch_series": "applied; VLLM_R9_SUFFIX_STAGING=1 except in the bench's off and stock cells",
-  "VLLM_USE_DEEP_GEMM": "0"
+  "patch_series": "applied; VLLM_SUFFIX_STAGING=1 except in the bench's off and stock cells",
+  "VLLM_USE_DEEP_GEMM": "0",
+  "patch_series_flag_note": "the flag was named VLLM_R9_SUFFIX_STAGING when this run was made; its logs keep that name"
  },
  "code": {
   "state": "the private repository at 9f23401 with the three fixes below applied on the box; the fixed code is what this repository ships",

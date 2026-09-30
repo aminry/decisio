@@ -20,7 +20,7 @@ Checked against vLLM v0.30.0's source (tag `v0.30.0`, commit `ced6857`) and veri
 | --- | --- | --- | --- |
 | A text-only class that loads the official multimodal checkpoint without its vision tower | `decisio.vllm_plugin.models.DecisioQwen3_5MoeTextOnly` | Needed for the served latency (the multimodal class builds M-RoPE positions for every token) | Plugin |
 | A text-only class that also returns the hidden state at the answer position | `decisio.vllm_plugin.models.DecisioQwen3_5MoeHiddenReadout` (docs/design/hidden-state-readout.md) | For the intent head only | Plugin |
-| Staging only the uncached prompt suffix of prefix-cache hits in Model Runner V2 | `patches/vllm-0.30.0/suffix-staging` | No: 3 to 8% less time per question at 8,000-token states | Patch series, flag `VLLM_R9_SUFFIX_STAGING=1` |
+| Staging only the uncached prompt suffix of prefix-cache hits in Model Runner V2 | `patches/vllm-0.30.0/suffix-staging` | No: 3 to 8% less time per question at 8,000-token states | Patch series, flag `VLLM_SUFFIX_STAGING=1` |
 | Engine settings: prefix caching, processed log-probabilities, CUDA graphs to 4,096 tokens, no multimodal inputs on the text engine, warm-ups, front padding to the block | `decisio.serve.vllm_engine` | Configuration of stock vLLM | Constructor arguments |
 | `VLLM_USE_DEEP_GEMM=0` (vLLM's DeepGEMM FP8 path gave wrong results on a Blackwell card) | `vllm_engine.deep_gemm_guard` | Yes, on that card class | The launcher sets it before vLLM is imported and refuses to start otherwise (`--allow-deep-gemm` overrides) |
 
