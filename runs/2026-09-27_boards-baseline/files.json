@@ -1,8 +1,8 @@
 [
  {
-  "path": "conformance.json",
-  "bytes": 218915,
-  "sha256": "768549239f0bc8aa91ab15a0bc1776013e782c315865b026d97d813f2429964c"
+  "path": "conformance.json.gz",
+  "bytes": 34018,
+  "sha256": "ab7ad1c2cb3c2bb137415e7cf1ed01e7a7161742633acd04e47383eaa3d1e7fd"
  },
  {
   "path": "decision_index/default/benchmark-summary.json",
@@ -55,14 +55,14 @@
   "sha256": "e227790764c33ed14319d9d2507bd72b5604d9b37816c7678655fd14dfd1c89e"
  },
  {
-  "path": "disagreement_two_orders.json",
-  "bytes": 4003964,
-  "sha256": "388a9f437827b215eec77a74575106c9500c68bbd8a31f7796e74382ed189ead"
+  "path": "disagreement_two_orders.json.gz",
+  "bytes": 300549,
+  "sha256": "85a87a6610aec90a7a17e2a28f903aea1d309a59ca40e72457f987b72f2b407b"
  },
  {
   "path": "gates.log",
-  "bytes": 3767,
-  "sha256": "719243e0235eae72d938d50e0d65e8481f7cb2dc58023a73395170f66be0b6fe"
+  "bytes": 3773,
+  "sha256": "0b3e94bf6876cb391851d802cdb13e6d7a225be91bd6f4d322c5b9fef0da060b"
  },
  {
   "path": "health_default.json",
@@ -163,5 +163,10 @@
   "path": "jevbench/two_orders/original/summary.json",
   "bytes": 19933,
   "sha256": "b6362efbc2364c0fe03b5cdac1a202d12c120411bb5793a2e1812cfffbfa0d15"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 4514,
+  "sha256": "2100ea053780d5b6b5ba96abe1b920f4db2111bdf8756cdd333e223dc939d0fb"
  }
 ]

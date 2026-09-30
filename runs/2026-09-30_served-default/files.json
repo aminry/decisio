@@ -1,8 +1,8 @@
 [
  {
-  "path": "conformance_default.json",
-  "bytes": 1205410,
-  "sha256": "7baa7dc1e3b470c25ab5beb8c9909ac829eef3158ce6049e39325a77be83c77e"
+  "path": "conformance_default.log",
+  "bytes": 705,
+  "sha256": "072cf715b73897d8ec5391d6dd390731191846db35ffc6334665d4a9b71563f5"
  },
  {
   "path": "decision_index/default/benchmark-summary.json",
@@ -66,8 +66,8 @@
  },
  {
   "path": "gates.log",
-  "bytes": 3755,
-  "sha256": "05a5ec969bf089d638bf4b09de5d9ac489363072bac1cff5c5168b36afef2f52"
+  "bytes": 3761,
+  "sha256": "01e9fd6b29cdadec52b2bf0a5f10433661ab9e9147cffff719dcc6ffabae3f3b"
  },
  {
   "path": "health_default.json",
@@ -183,6 +183,11 @@
   "path": "jevbench/temperature_1/v15.json",
   "bytes": 970,
   "sha256": "c45cf22c3008804f00e933a2df6d3b8546875ea96d958c6535caecf1ee9513f9"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 4534,
+  "sha256": "392232aa1c1d8c721ac1d8604738ad7b3222265a809eb33a4ec153c063897dd7"
  },
  {
   "path": "report.json",

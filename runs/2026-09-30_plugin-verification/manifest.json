@@ -3,7 +3,7 @@
  "title": "decisio's vLLM plugin, both model classes and the patch series verified on a card",
  "date": "2026-09-30",
  "submitted": false,
- "jev_calls": 0,
+ "typesafe_api_calls": 0,
  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (96 GB)",
  "software": {
   "vllm": "0.30.0 (a second environment with stock vLLM 0.30.0 for the bench)",
@@ -12,7 +12,7 @@
   "patch_series_flag_note": "the flag was named VLLM_R9_SUFFIX_STAGING when this run was made; its logs keep that name"
  },
  "code": {
-  "state": "the private repository at 9f23401 with the three fixes below applied on the box; the fixed code is what this repository ships",
+  "state": "decisio's code with the three fixes below, applied during the run on the card; the fixed code is what this repository ships",
   "fixes": {
    "1": "register() also enters each class in vLLM's per-architecture config map (MODELS_CONFIG_MAP) with the stock text class's hook; without it the text-only class ran 544-token blocks and 50 of 1,400 suite answers matched",
    "2": "the hidden state is read in chunks of at most 1,024 allowed ids (vLLM 0.30.0's sampler limit; an oversized request killed the engine)",
@@ -33,25 +33,6 @@
   "hidden readout, part 1 (exact arithmetic)": "pass: 6 of 6 stored fits equal the reference fit of their registration readout; 750 of 750 served head answers equal apply_intent_head on their own readout"
  },
  "results": {
-  "round12_intent_head_accuracy": {
-   "BANKING77": {
-    "draws": [
-     0.847,
-     0.853,
-     0.84
-    ],
-    "mean": 0.847
-   },
-   "CLINC150": {
-    "draws": [
-     0.87,
-     0.9,
-     0.91
-    ],
-    "mean": 0.893
-   },
-   "protocol": "10 labelled training examples per intent registered through POST /v1/tasks; 150 and 100 test items"
-  },
   "latency_server_ms": {
    "head question, no task": 46.5,
    "head question, head registered": 126.8,
@@ -80,6 +61,25 @@
     "off": 2.94,
     "on": 2.78
    }
+  },
+  "intent_head_accuracy": {
+   "BANKING77": {
+    "draws": [
+     0.847,
+     0.853,
+     0.84
+    ],
+    "mean": 0.847
+   },
+   "CLINC150": {
+    "draws": [
+     0.87,
+     0.9,
+     0.91
+    ],
+    "mean": 0.893
+   },
+   "protocol": "10 labelled training examples per intent registered through POST /v1/tasks, three draws; 150 BANKING77 and 100 CLINC150 test items (the task ids r12_* in the records name this protocol)"
   }
  },
  "batch_forward_finding": {
@@ -89,27 +89,32 @@
  },
  "files": {
   "suite_<server>.json.gz": "the 1,400 suite answers per server (probabilities in option order, the choice as an index; the private suite's text is not included)",
-  "suite_compare_*.txt, textonly_verdict*.txt": "the identity checks' verdicts",
-  "same_forward*.json": "gate part 2 per item (run 2 is the failed run before fix 3, kept on record)",
+  "same_forward*.json": "gate part 2 per item, alone and beside the image engine",
   "diag_*.json": "the diagnoses behind fix 3",
-  "r12/<task>_d<draw>.json": "round 12 per item: gold, path, served probabilities, the recovered readout",
-  "r12/<task>_d0_task.json, latency_tasks.json": "the stored task records (calibration and head) as GET /v1/tasks?full=1 returns them",
   "bench_*.json": "the suffix-staging bench (decisio.bench.latency) per cell",
   "latency.json.gz": "per request: condition, group, server and wall milliseconds",
-  "conformance_*.json, conformance_*.log": "C2-C4 per server",
   "health_*.json, memory_*.txt": "each server's /health and its engine's memory lines",
   "gates.log": "C1 result lines",
   "report.json": "the run's summary",
-  "files.json": "sizes and sha256"
+  "files.json": "sizes and sha256",
+  "intent_heads/<task>_d<draw>.json.gz": "the intent-head protocol per item: gold, path, served probabilities, the recovered readout",
+  "intent_heads/<task>_d0_task.json.gz, latency_tasks.json.gz": "the stored task records (calibration and head) as GET /v1/tasks?full=1 returns them; the heads are parameters fitted on the models' readouts of BANKING77 and CLINC150 training examples (THIRD-PARTY.md)",
+  "conformance_*.log": "C2-C4 per server (all pass)",
+  "conformance_H.json.gz": "C2-C4 for the hidden-readout class, with the C4 rows (task, index, label, both routes' probabilities) of the 1,400 suite items",
+  "suite_compare_*.txt, textonly_verdict.txt": "the identity checks' verdicts"
  },
  "excluded": [
   "item text of any benchmark (Decision Index payloads, JevBench raw requests and responses)",
-  "Jev's published board figures, and any Jev output",
-  "vLLM start-up logs, box logs and addresses",
-  "the registration examples' hidden states (r12 *_examples.npz, 31 MB; their fits and every served answer are in r12/)",
-  "the private suite's items and round 12's item texts"
+  "TypeSafe's published board figures for its Jev model (the model behind the System One API), and any output of that model",
+  "vLLM start-up logs, machine logs and addresses",
+  "this run's registration readouts of the intent examples (31 MB; every fit and served answer derived from them is in intent_heads/); tests/data/intent_readouts holds the two-engine route's readouts of the same draw-0 examples, a different measurement",
+  "the private suite's items and the intent items' text"
  ],
  "cost": {
   "gpu_hours": 3.4
+ },
+ "superseded_attempts": {
+  "text-only class before fix 1": "50 of 1,400 suite answers equal to the view's (544-token blocks); files not included",
+  "hidden-readout class before fixes 2 and 3": "the engine stopped on a 2,049-id request (fix 2), then gate part 2 failed at max |dp| 0.324 with the chunks batched (fix 3); the suite identity held in both (1,400 of 1,400); files not included"
  }
 }

@@ -3,7 +3,7 @@
  "title": "The served default on JevBench's published items and four Decision Index benchmarks, one card, internal",
  "date": "2026-09-27",
  "submitted": false,
- "jev_calls": 0,
+ "typesafe_api_calls": 0,
  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (96 GB)",
  "software": {
   "vllm": "0.30.0",
@@ -27,7 +27,7 @@
   "requests": "one at a time, every question distinct (the Decision Index board rule)"
  },
  "code": {
-  "state": "the private repository's served code of 2026-09-27, before the rendering rules, the tie-break rule and the global temperature",
+  "state": "the served code of 2026-09-27: no rendering rules, the first maximum in wire order on ties, no global temperature",
   "public_equivalent": "python -m decisio.serve.vllm_engine --model-class view --no-hide-index-keys --no-desnake-labels --temperature 1 [--orders 2]; the tie-break then was the first maximum in wire order (now the key that sorts first), which changes a choice only on exact ties"
  },
  "arms": {
@@ -85,17 +85,17 @@
   "jevbench/<arm>/<file>/": "the harness's results.jsonl (per item), summary.json and manifest.json",
   "decision_index/<arm>/items.jsonl.gz": "per request: ids, the payload's sha256, our response, timings (the payload itself removed)",
   "decision_index/<arm>/": "the kit's benchmark-summary.json and our di_report.json (decisio.bench.di_report), environment.json, status.json",
-  "disagreement_two_orders.json": "per item: board, set, id, the two orders' disagreement, correct with two orders and with one",
-  "conformance.json": "C2-C4 (decisio.serve.systemone_conformance); C3 and C4 rows carry the private suite's task and index, not its text",
-  "gates.log": "the C1 serving gates' result lines (tests/gpu/serving_gates.py); G4 used a private LoRA adapter",
+  "gates.log": "the C1 serving gates' result lines (tests/gpu/serving_gates.py); G4 used a private LoRA adapter, named `adapter` here",
   "health_<arm>.json": "the server's /health at the start of each arm",
-  "files.json": "every file's size and sha256"
+  "files.json": "every file's size and sha256",
+  "conformance.json.gz": "C2-C4 (decisio.serve.systemone_conformance); C3 and C4 rows carry the private suite's task and index, not its text",
+  "disagreement_two_orders.json.gz": "per item: board, set, id, the two orders' disagreement, correct with two orders and with one"
  },
  "excluded": [
   "item text of any benchmark (Decision Index payloads, JevBench raw requests and responses)",
-  "Jev's published board figures, and any Jev output",
-  "vLLM start-up logs, box logs and addresses",
-  "the same-item comparison with our own item sets (it includes Jev's answers)",
+  "TypeSafe's published board figures for its Jev model (the model behind the System One API), and any output of that model",
+  "vLLM start-up logs, machine logs and addresses",
+  "the same-item comparison with our own item sets (it includes the TypeSafe model's answers)",
   "the contamination screen (it names private training files)",
   "the server's branch log (request text)"
  ],

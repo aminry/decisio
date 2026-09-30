@@ -1,9 +1,9 @@
 {
- "id": "2026-09-30_step4",
- "title": "The served default with the rendering rules, the tie-break and the global temperature on the same two harnesses, one card, internal",
+ "id": "2026-09-30_served-default",
+ "title": "The served default (rendering rules, tie-break, global temperature) on JevBench's published items and four Decision Index benchmarks, with the temperature on and off, one card, internal",
  "date": "2026-09-30",
  "submitted": false,
- "jev_calls": 0,
+ "typesafe_api_calls": 0,
  "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (96 GB)",
  "software": {
   "vllm": "0.30.0",
@@ -30,7 +30,7 @@
   "requests": "one at a time"
  },
  "code": {
-  "state": "the private repository's served code of 2026-09-30 (before the plugin)",
+  "state": "the served default of 2026-09-30 on the text-only view; decisio's text-only and hidden-readout classes answer the 1,400-item suite bit-identically to it (runs/2026-09-30_plugin-verification)",
   "public_equivalent": "python -m decisio.serve.vllm_engine --model-class view [--temperature 1]"
  },
  "arms": {
@@ -48,24 +48,6 @@
  },
  "results": {
   "answers_unchanged_by_the_temperature": "every Decision Index score and accuracy identical in both arms on all four benchmarks (20,810 requests); JevBench choice competence identical per tier",
-  "jevbench_v15_private_reading": {
-   "default": {
-    "choice": 79.5,
-    "yes_no": -10.9,
-    "yes_no_abstentions": 0.54,
-    "score": 60.6,
-    "I_open_A": 43.1,
-    "I_open_B": 52.2
-   },
-   "temperature_1": {
-    "choice": 79.5,
-    "yes_no": -6.1,
-    "yes_no_abstentions": 0.5,
-    "score": 61.2,
-    "I_open_A": 44.8,
-    "I_open_B": 53.5
-   }
-  },
   "decision_index_native": {
    "BANKING77 macro-F1": 0.7311,
    "CLINC150+OOS macro-F1": 0.8137,
@@ -98,23 +80,41 @@
     "hard": 0.08
    }
   },
-  "note": "the v1.5 reading covers 231 of the board's 904 open items, with no judge tier and no sealed half; not a board number"
+  "note": "the v1.5 reading covers 231 of the board's 904 open items, with no judge tier and no sealed half; not a board number",
+  "jevbench_v15_open_set_reading": {
+   "default": {
+    "choice": 79.5,
+    "yes_no": -10.9,
+    "yes_no_abstentions": 0.54,
+    "score": 60.6,
+    "I_open_A": 43.1,
+    "I_open_B": 52.2
+   },
+   "temperature_1": {
+    "choice": 79.5,
+    "yes_no": -6.1,
+    "yes_no_abstentions": 0.5,
+    "score": 61.2,
+    "I_open_A": 44.8,
+    "I_open_B": 53.5
+   }
+  }
  },
  "files": {
   "jevbench/<arm>/<file>/": "the harness's results.jsonl, summary.json, manifest.json",
   "jevbench/<arm>/v15.json": "the v1.5 open-set reading",
   "decision_index/<arm>/items.jsonl.gz": "per request: ids, the payload's sha256, our response, timings",
   "decision_index/<arm>/": "benchmark-summary.json, di_report.json, di_cal.json, environment.json, status.json",
-  "conformance_default.json": "C2-C4 on the 1,400 suite items (task and index, not text)",
-  "report.json": "the run's tables (Jev's board row removed)",
+  "report.json": "the run's tables (the TypeSafe model's board row removed)",
   "gates.log": "the C1 result lines",
   "health_*.json": "/health per server start",
-  "files.json": "sizes and sha256"
+  "files.json": "sizes and sha256",
+  "conformance_default.log": "C2-C4 on the 1,400 suite items: all pass; the per-item rows repeat those of runs/2026-09-30_plugin-verification/conformance_H.json.gz and are not duplicated here"
  },
  "excluded": [
   "item text of any benchmark (Decision Index payloads, JevBench raw requests and responses)",
-  "Jev's published board figures, and any Jev output",
-  "vLLM start-up logs, box logs and addresses",
+  "TypeSafe's published board figures for its Jev model (the model behind the System One API), and any output of that model",
+  "vLLM start-up logs, machine logs and addresses",
   "the private suite's items"
  ],
  "cost": {
