@@ -44,7 +44,8 @@ Everything else should use the default.
 
 Both modes give the same declared choice on every evaluation item of the stored intent readouts (BANKING77, 150 items; CLINC150, 100 items; `tests/data/intent_readouts`), each mode fitting its own head from its own reading of the same hidden states, with probabilities within 1e-2 (`tests/unit/test_head_modes.py`, M3).
 Tasks carry no mode, so a task registered in one mode loads in the other.
-On a card, the second-engine mode was measured with the text-only view as its model directory (`--model-class view --head-engine`); its default pairing with the registered text-only class (`--head-engine` alone) has not been run on a card yet.
+The 82 ms was measured with the text-only view as the model directory (`--model-class view --head-engine`).
+The second-engine mode's default pairing, with the registered text-only class (`--head-engine` alone), is unmeasured for latency; it is to be timed in the next session on a card.
 
 ## The global temperature
 
