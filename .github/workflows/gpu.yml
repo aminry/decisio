@@ -29,6 +29,7 @@ jobs:
       contents: read
     env:
       DECISIO_MODEL: ${{ vars.DECISIO_MODEL }}
+      DECISIO_VIEW: ${{ vars.DECISIO_VIEW }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,6 +42,13 @@ jobs:
 
       - name: Install with the serve extra (locked)
         run: uv sync --extra serve --extra dev --frozen
+
+      # A GPU test skips when its checkpoint variable is unset, which would turn this job green without running the
+      # serving gates; fail instead.
+      - name: Both checkpoint variables are set
+        run: |
+          test -n "$DECISIO_MODEL" || { echo "repository variable DECISIO_MODEL is not set"; exit 1; }
+          test -n "$DECISIO_VIEW" || { echo "repository variable DECISIO_VIEW is not set"; exit 1; }
 
       - name: Slow CPU tier (about 20 GB of RAM)
         run: uv run pytest -q -m slow
