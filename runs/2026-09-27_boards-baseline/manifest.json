@@ -32,7 +32,7 @@
  },
  "arms": {
   "default": "--orders 1",
-  "two_orders": "--orders 2 (two-order averaging after Reflex; the branch disagreement per item in disagreement_two_orders.json)"
+  "two_orders": "--orders 2 (two-order averaging after Reflex; the branch disagreement per item in disagreement_two_orders.json.gz)"
  },
  "harnesses": {
   "jevbench": "github.com/fstandhartinger/jevbench @ d06ee95, typesafe adapter, the harness's own summarize; the 231 published items (easy 48, original 72, hard 111)",
