@@ -21,7 +21,7 @@ No trained weights: every measured answer comes from the official checkpoint.
 | Question types | yes/no (`noul`), choice among up to 255 options with descriptions, score on an ordered scale |
 | Many questions per request | the state is prefilled once and shared through vLLM's prefix cache |
 | Probabilities | a distribution per question, with one fitted global temperature; per-task calibration from labelled examples |
-| Task registration | `POST /v1/tasks`: from labelled examples of one recurring question the server fits per-task calibration and, for option lists of 10 or more, a linear head on the model's hidden state |
+| Task registration | `POST /v1/tasks`: from labelled examples of one recurring question the server fits per-task calibration and, for option lists of 10 or more, a linear head on the model's hidden state; guide in `docs/tasks.md` |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
 | Rendering rules | enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in |
@@ -69,16 +69,16 @@ Response, abridged:
   "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.00, "2": 0.99, "3": 0.00}}}}
 ```
 
-Register a recurring question from labelled examples, so the server fits a per-task correction:
+## Teach it your question in ten examples
+
+The model is frozen, but the server can learn one recurring question from your own labelled examples: it fits a per-task calibration and, for 10 or more options, a small head on the model's hidden state, each kept only if cross-validation on your examples shows a gain.
+With 10 labelled examples per intent, accuracy on held-out test items rose from 0.740 to 0.847 on BANKING77 (77 intents) and from 0.820 to 0.893 on CLINC150 (150 intents), against the same model unregistered.
 
 ```
-curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d '{
-  "id": "ticket-routing",
-  "examples": [{"request": {"state": "...", "questions": {"category": {...}}}, "answer": "access"}, ...]
-}'
+curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @examples/tasks/examples.json
 ```
 
-`docs/handoffs/tasks.md` is the full specification of task registration, the head, and the tie-break rule.
+`docs/tasks.md` walks through it and states what each number was measured on; `examples/tasks/` runs it on a laptop against the CPU stand-in.
 
 ## Without a GPU
 
@@ -123,7 +123,8 @@ benchmarks/             scripts that run the public harnesses against a server
 patches/                optional vLLM patch series, off by default
 tests/unit/  tests/gpu/ CPU tests run on every pull request; GPU tests run nightly (pytest -m gpu)
 runs/                   evaluation records: a manifest, per-item results and hashes per run
-docs/                   design notes and the task-registration specification
+docs/                   the task-registration guide and specification, design notes
+examples/tasks/         a runnable task-registration walk-through (CPU stand-in)
 EVAL_CARD.md            what was measured, on what, and what was fitted on what
 ```
 

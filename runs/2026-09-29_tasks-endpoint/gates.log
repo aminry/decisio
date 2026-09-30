@@ -17,16 +17,16 @@
   ok   C3 pack: first turn = separate prompt
   ok   C3 pack: every read position is the final ':' of 'Answer:'
 CPU GATES PASS
-ENGINE {'vllm': '0.30.0', 'gpu': 'NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 'mode': 'separate', 'block_size': 1056, 'match_unit': 1056, 'pad_unit': 1056, 'pad_where': 'front', 'quantization': 'fp8', 'kv_cache_dtype': 'auto', 'mamba_ssm_cache_dtype': 'float32', 'adapters': ['adapter'], 'VLLM_USE_DEEP_GEMM': '0', 'checkpoint_marker': False}
+ENGINE {'vllm': '0.30.0', 'gpu': 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition', 'mode': 'separate', 'block_size': 1056, 'match_unit': 1056, 'pad_unit': 1056, 'pad_where': 'front', 'quantization': 'fp8', 'kv_cache_dtype': 'auto', 'mamba_ssm_cache_dtype': 'float32', 'adapters': ['adapter'], 'VLLM_USE_DEEP_GEMM': '0', 'checkpoint_marker': False}
   ok   G1 prefix served from cache (1056 of 1089 tokens per question, shared prefix 1056, expected >= 1055)
   ok   G1 cold batch really cold (0 cached tokens per question)
-  ok   G1 cached vs cold, same batch (cache effect alone) max|diff| 2.41e-02 (tol 6.5e-02)
-  (G1 cached batch vs cold one-at-a-time, cache + batch shape: max|diff| 1.47e-02; informational)
-  ok   G2 isolation with 16 extra questions max|diff| 1.38e-02 (tol 6.5e-02)
+  ok   G1 cached vs cold, same batch (cache effect alone) max|diff| 3.08e-02 (tol 6.5e-02)
+  (G1 cached batch vs cold one-at-a-time, cache + batch shape: max|diff| 3.08e-02; informational)
+  ok   G2 isolation with 16 extra questions max|diff| 2.16e-02 (tol 6.5e-02)
   ok   G1/G2 no top answer changed
-  (G1 per question: 0.0e+00, 9.2e-03, 1.5e-02, 6.0e-03)
-  (G2 per question: 0.0e+00, 9.2e-03, 1.4e-02, 6.0e-03)
-  ok   G4 adapter adapter: answers move by 1.02e-01 (applied, > 6.5e-02)
+  (G1 per question: 1.1e-04, 3.1e-02, 1.0e-02, 5.3e-03)
+  (G2 per question: 1.2e-04, 2.2e-02, 5.0e-03, 0.0e+00)
+  ok   G4 adapter adapter: answers move by 8.87e-02 (applied, > 6.5e-02)
   ok   G4 base after adapter max|diff| 0.00e+00 (bit-exact)
 GPU GATES separate PASS
   ok   C1 choice prompt identical to eval
@@ -48,7 +48,7 @@ GPU GATES separate PASS
   ok   C3 pack: first turn = separate prompt
   ok   C3 pack: every read position is the final ':' of 'Answer:'
 CPU GATES PASS
-ENGINE {'vllm': '0.30.0', 'gpu': 'NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition', 'mode': 'packed', 'block_size': 1056, 'match_unit': 1056, 'pad_unit': None, 'pad_where': None, 'quantization': 'fp8', 'kv_cache_dtype': 'auto', 'mamba_ssm_cache_dtype': 'float32', 'adapters': [], 'VLLM_USE_DEEP_GEMM': '0', 'checkpoint_marker': False}
-  ok   G3 packed first question vs separate max|diff| 5.99e-04
-  (packed later questions vs separate: max|diff| 5.71e-02; cross-question contamination, reported)
+ENGINE {'vllm': '0.30.0', 'gpu': 'NVIDIA RTX PRO 6000 Blackwell Workstation Edition', 'mode': 'packed', 'block_size': 1056, 'match_unit': 1056, 'pad_unit': None, 'pad_where': None, 'quantization': 'fp8', 'kv_cache_dtype': 'auto', 'mamba_ssm_cache_dtype': 'float32', 'adapters': [], 'VLLM_USE_DEEP_GEMM': '0', 'checkpoint_marker': False}
+  ok   G3 packed first question vs separate max|diff| 4.91e-04
+  (packed later questions vs separate: max|diff| 5.43e-02; cross-question contamination, reported)
 GPU GATES packed PASS

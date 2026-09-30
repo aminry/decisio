@@ -1,0 +1,121 @@
+text,label
+Good morning. I cancelled within the trial period and still got charged. I want my $49 back. This is urgent for us.,refund
+"Hello, it would be great if we could schedule reports to be emailed weekly.",feature_request
+Good morning. I'd love a keyboard shortcut to create a new task. Thanks.,feature_request
+"Hi team, our company is closing, please terminate the account for Acme Ltd. Please help.",account_closure
+"Hi team, login works in one browser but not in Firefox. This is urgent for us.",login
+"Hey, I need a full export of our records before the audit.",data_export
+Numbers in the dashboard are wrong: totals don't match the rows. Thank you in advance.,bug
+"Hi team, please close my account and delete everything you store about me. Please help.",account_closure
+"Hi team, numbers in the dashboard are wrong: totals don't match the rows. Please help.",bug
+I get 'invalid credentials' even though I'm sure the email is right. This is urgent for us.,login
+Is there a way to export contacts with their history? This is urgent for us.,data_export
+"Hi team, we are moving to another tool. How do we cancel and remove the workspace?",account_closure
+The payment page says transaction failed but my bank shows nothing.,payment_failed
+How do I change my password? I can't find the option. This is urgent for us.,password_reset
+"Requesting a full refund, the product did not do what the sales page said. This is urgent for us.",refund
+I was charged GBP 80 this month but my plan is supposed to cost less.,billing
+"Hi team, API calls return 401 even with a fresh token. Please help.",integration
+Good morning. Where do I generate a new API key?,integration
+"Hi team, saving a form deletes the text I typed in the notes field. This is urgent for us.",bug
+Our finance team needs the invoices for the last three months in one PDF. Thanks.,billing
+The dashboard lags badly with more than a hundred projects. Thanks.,performance
+Please refund the GBP 80 for the add-on we never used. Please help.,refund
+"Good morning. The service was down for two days, so I'd like a refund for this month. This is urgent for us.",refund
+"Hello, reports that used to take seconds now take 20 seconds. Thank you in advance.",performance
+"Hi team, clicking export shows 'something went wrong' every time. This is urgent for us.",bug
+"Hello, the password reset link says it has expired. Please help.",password_reset
+"Hey, can you change the delivery address for my device order? Please help.",device_delivery
+"Hey, I updated my card but the renewal still failed on Friday. Please help.",payment_failed
+"Hello, the two-factor code never arrives on my phone. Thanks.",login
+"Hello, single sign-on sends me back to the login page in a loop. This is urgent for us.",login
+"Hi team, reset link opens a blank page in Edge.",password_reset
+"Hey, saving a form deletes the text I typed in the notes field. Thanks.",bug
+"Hi team, the two-factor code never arrives on my phone. This is urgent for us.",login
+"Hi team, our webhook stopped receiving events on Monday. This is urgent for us.",integration
+Good morning. Search times out when we filter by customer. This is urgent for us.,performance
+"Hey, tracking says delivered but there's no package here. Thank you in advance.",device_delivery
+"Hi team, please let us set different permissions per project. Thank you in advance.",feature_request
+Good morning. Since the last update the calendar shows events on the wrong day. Thanks.,bug
+"Hello, please let us set different permissions per project. Please help.",feature_request
+"Hi team, please send me a copy of all the data you hold for my account. Thanks.",data_export
+"Hello, the annual plan price changed without notice. What am I paying for now? This is urgent for us.",billing
+My card keeps getting declined when I try to renew. Please help.,payment_failed
+"Hi team, why does my invoice show two seats when we only have one user? Thank you in advance.",billing
+"The service was down for two days, so I'd like a refund for this month. This is urgent for us.",refund
+Good morning. My account got locked after a few attempts and I need access today. This is urgent for us.,login
+"Hello, I need a full export of our records before the audit. Thanks.",data_export
+Please close my account and delete everything you store about me. Thank you in advance.,account_closure
+"Hi team, I want to delete my profile permanently. Please help.",account_closure
+I forgot my password and the reset email never shows up.,password_reset
+"Hello, we paid twice for the same order. Please return one of the payments. This is urgent for us.",refund
+Can you send me a corrected invoice for last month? The VAT number is missing. This is urgent for us.,billing
+"Hi team, could you add a dark mode? This is urgent for us.",feature_request
+Good morning. Why does my invoice show two seats when we only have one user? Please help.,billing
+"Hi team, we need custom fields on contacts, is that planned? Thanks.",feature_request
+"Everything is very slow today, pages take 45 seconds to load. This is urgent for us.",performance
+Cancel our subscription at the end of this term and shut the account down. Thanks.,account_closure
+Good morning. I updated my card but the renewal still failed on Monday. Please help.,payment_failed
+Good morning. API calls return 401 even with a fresh token. Thank you in advance.,integration
+"Hello, the app freezes for a few seconds every time I switch tabs. Thank you in advance.",performance
+"Hello, cancel our subscription at the end of this term and shut the account down. Thanks.",account_closure
+Good morning. The payment page says transaction failed but my bank shows nothing. This is urgent for us.,payment_failed
+"Hey, our bank transfer bounced and now the account says overdue. Thank you in advance.",payment_failed
+"Hello, I can't sign in, it says my session expired right after I log in.",login
+I reset my password twice and the new one still doesn't work. Thanks.,password_reset
+How do I remove my account? I no longer use the service. This is urgent for us.,account_closure
+I bought the wrong plan by mistake. Can I get the money back?,refund
+Can I get our project files exported to CSV? Thanks.,data_export
+Good morning. I was charged $15.99 this month but my plan is supposed to cost less. Please help.,billing
+Good morning. Reset link opens a blank page in Edge. Thank you in advance.,password_reset
+"Hi team, search times out when we filter by customer. Thank you in advance.",performance
+I received the wrong model of the terminal. Thanks.,device_delivery
+"Hey, clicking export shows 'something went wrong' every time. Thank you in advance.",bug
+Can you send me a corrected invoice for September? The VAT number is missing. This is urgent for us.,billing
+Good morning. Can you change the delivery address for my device order?,device_delivery
+Good morning. The report page crashes with an error when I pick a date range. Thanks.,bug
+"Hey, we paid twice for the same order. Please return one of the payments. Please help.",refund
+"Hey, how do I change my password? I can't find the option. Please help.",password_reset
+Good morning. My card keeps getting declined when I try to renew.,payment_failed
+The connection to our accounting tool keeps disconnecting. This is urgent for us.,integration
+"Good morning. Uploads are crawling, a small file takes minutes.",performance
+"I can't sign in, it says my session expired right after I log in. Thank you in advance.",login
+"Hey, we need custom fields on contacts, is that planned? This is urgent for us.",feature_request
+"Hi team, the export only gives me the first 1,000 rows, I need everything. Thank you in advance.",data_export
+Good morning. The workflow automation fails at the authorisation step. Please help.,integration
+"Hey, why was my payment rejected? The card works everywhere else.",payment_failed
+The annual plan price changed without notice. What am I paying for now? This is urgent for us.,billing
+"Hey, I forgot my password and the reset email never shows up.",password_reset
+"Hello, the export only gives me the first 1,000 rows, I need everything. This is urgent for us.",data_export
+The mobile app closes as soon as I open a project.,bug
+The dashboard lags badly with more than a hundred projects. Thank you in advance.,performance
+"Hello, the scanner arrived damaged, the box was crushed. Please help.",device_delivery
+Good morning. Tracking says delivered but there's no package here.,device_delivery
+"Hi team, everything is very slow today, pages take 30 seconds to load. Thanks.",performance
+Please explain the extra line item on our September invoice. Thank you in advance.,billing
+Is there a way to export contacts with their history? Thanks.,data_export
+It would be great if we could schedule reports to be emailed weekly. This is urgent for us.,feature_request
+"Hey, we are moving to another tool. How do we cancel and remove the workspace? Please help.",account_closure
+"Hello, how can I download all my data as a spreadsheet? Please help.",data_export
+"Hello, I bought the wrong plan by mistake. Can I get the money back? This is urgent for us.",refund
+"Hey, I want to delete my profile permanently. Thanks.",account_closure
+"Hi team, the report page crashes with an error when I pick a date range. Please help.",bug
+Where do I generate a new API key? This is urgent for us.,integration
+"Hey, our webhook stopped receiving events on Monday. Thank you in advance.",integration
+"Hello, my account got locked after a few attempts and I need access today.",login
+"Hey, how can I download all my data as a spreadsheet?",data_export
+"Uploads are crawling, a small file takes minutes. This is urgent for us.",performance
+"Hey, the password reset link says it has expired. This is urgent for us.",password_reset
+Good morning. The card reader I ordered on Friday still hasn't arrived. Thanks.,device_delivery
+"Hi team, the scanner arrived damaged, the box was crushed. Please help.",device_delivery
+"Hello, checkout errors out at the payment step with code 402.",payment_failed
+"Hi team, single sign-on sends me back to the login page in a loop. Thank you in advance.",login
+Good morning. The card reader I ordered on Friday still hasn't arrived.,device_delivery
+Good morning. Our bank transfer bounced and now the account says overdue.,payment_failed
+Could you add a dark mode? This is urgent for us.,feature_request
+"Hi team, when will the hardware ship? The order shows processing for a week. Please help.",device_delivery
+I cancelled within the trial period and still got charged. I want my $49 back.,refund
+"Hey, how do I connect the calendar sync with our team calendar? This is urgent for us.",integration
+"Hello, any chance of a Spanish version of the interface? Thanks.",feature_request
+"Hello, the connection to our accounting tool keeps disconnecting. Thank you in advance.",integration
+"Hi team, I need to reset the password for a colleague who left.",password_reset

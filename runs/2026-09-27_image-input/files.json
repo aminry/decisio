@@ -21,8 +21,8 @@
  },
  {
   "path": "gates.log",
-  "bytes": 3773,
-  "sha256": "bbcfab6a5e506b103898f9cc33cebbc9638c5a6ac73383fea2e0cbc9eacd841e"
+  "bytes": 3772,
+  "sha256": "5db1aa55a72be3c7fc4cd72097cf161ca7a31d6001e677ea5c32b9b30ae81452"
  },
  {
   "path": "imajev/image/calibration/completion.json",
@@ -143,6 +143,11 @@
   "path": "imajev/image_two_orders/dev/score.json",
   "bytes": 89177,
   "sha256": "69347a1c1eab32a53c7a0df3ba01f11d41e5264e8b68e01b57a8a85f8b8bfbfa"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 3800,
+  "sha256": "0fd70ed3a96e8d392f910764c7804fdeb8d4550e7b46dc07e036def5aee419ba"
  },
  {
   "path": "p1.json",

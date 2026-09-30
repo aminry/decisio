@@ -61,8 +61,8 @@
  },
  {
   "path": "gates.log",
-  "bytes": 3773,
-  "sha256": "0b3e94bf6876cb391851d802cdb13e6d7a225be91bd6f4d322c5b9fef0da060b"
+  "bytes": 3772,
+  "sha256": "91bbd926b4c05a1101f2f268021082d5f9b7b8ae734295c83474dfc92ff7b428"
  },
  {
   "path": "health_default.json",
@@ -166,7 +166,7 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 4514,
-  "sha256": "2100ea053780d5b6b5ba96abe1b920f4db2111bdf8756cdd333e223dc939d0fb"
+  "bytes": 4632,
+  "sha256": "5cc2c3e2b893940afb76fc9217c10387e4c84b728df42721c1755e25641a819e"
  }
 ]

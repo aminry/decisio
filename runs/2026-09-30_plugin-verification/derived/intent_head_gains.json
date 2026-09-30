@@ -1,0 +1,39 @@
+{
+ "method": "For each task and draw, every test item's row (`intent_heads/<task>_d<draw>.json.gz`) carries the gold label, the probabilities served with the head, and `hidden_lp`, the label log-probabilities of the same forward pass. In the single-engine mode `hidden_lp` is the engine's own plain readout, so its argmax is the answer without a task. The gain is the mean over draws of (head accuracy - plain accuracy); the interval resamples test items with replacement, the same resample for every draw, 10,000 times with numpy's default_rng(0), and takes the 2.5th and 97.5th percentiles.",
+ "resamples": 10000,
+ "seed": 0,
+ "tasks": {
+  "banking77": {
+   "test_items": 150,
+   "draws": 3,
+   "plain_accuracy": 0.74,
+   "head_accuracy_by_draw": [
+    0.8467,
+    0.8533,
+    0.84
+   ],
+   "head_accuracy": 0.8467,
+   "gain_points": 10.7,
+   "interval_95_points": [
+    5.8,
+    15.8
+   ]
+  },
+  "v3_clinc": {
+   "test_items": 100,
+   "draws": 3,
+   "plain_accuracy": 0.82,
+   "head_accuracy_by_draw": [
+    0.87,
+    0.9,
+    0.91
+   ],
+   "head_accuracy": 0.8933,
+   "gain_points": 7.3,
+   "interval_95_points": [
+    2.3,
+    13.0
+   ]
+  }
+ }
+}

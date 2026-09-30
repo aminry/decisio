@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-# Licence annotations for the files that cannot carry an SPDX header (JSON, binary data, patches, run records,
+# Licence annotations for the files that cannot carry an SPDX header (JSON, CSV, binary data, patches, run records,
 # the lock file). LICENSE is the licence text itself.
 version = 1
 
 [[annotations]]
-path = ["**/*.json", "**/*.jsonl", "**/*.gz", "**/*.npz", "**/*.patch", "runs/**/*.txt", "runs/**/*.log", "uv.lock", "NOTICE"]
+path = ["**/*.json", "**/*.jsonl", "**/*.csv", "**/*.gz", "**/*.npz", "**/*.patch", "runs/**/*.txt", "runs/**/*.log", "uv.lock", "NOTICE"]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Copyright contributors to the decisio project"
 SPDX-License-Identifier = "Apache-2.0"

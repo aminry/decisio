@@ -1,0 +1,116 @@
+{
+ "id": "2026-09-29_tasks-endpoint",
+ "title": "Task registration through POST /v1/tasks in the second-engine mode: per-task calibration and intent heads, one card, internal",
+ "date": "2026-09-29 to 2026-09-30",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (96 GB), one card of a two-card machine",
+ "software": {
+  "vllm": "0.30.0",
+  "patch_series": "patches/vllm-0.30.0/suffix-staging, VLLM_SUFFIX_STAGING=1",
+  "VLLM_USE_DEEP_GEMM": "0",
+  "patch_series_flag_note": "the flag was named VLLM_R9_SUFFIX_STAGING when this run was made; its logs keep that name"
+ },
+ "servers": {
+  "A": "the served default on the text-only view, no hidden-state engine",
+  "B": "A plus the hidden-state engine (the second-engine mode, today's --head-engine), each engine at 0.47 of the card"
+ },
+ "code": {
+  "state": "the served code of 2026-09-29: rendering rules on, no global temperature (T = 1), the first maximum in wire order on ties",
+  "public_equivalent": "python -m decisio.serve.vllm_engine --model-class view --head-engine --gpu-memory-utilization 0.47 --temperature 1"
+ },
+ "protocols": {
+  "intent_heads": "per task and draw, 10 labelled training examples per intent (BANKING77 770, CLINC150 1,500) registered with POST /v1/tasks; then 150 BANKING77 and 100 CLINC150 test items served, none of them among the examples; three draws",
+  "calibration_held_out_six": "20 of each task's 60 probe items registered as examples, the fit applied to its 150 evaluated items, 100 draws (BoolQ, BANKING77, ToxicChat, MMLU, SciFact, SciFact clarified)",
+  "calibration_never_worse": "100 draws of 20 labelled items per task, every other item scored with and without, with the served fitting code on the served readouts (MedQA, CUAD clause, CUAD governing law, ContractNLI, FiQA relevance, CLINC150); MedQA, CUAD and FiQA vary their options per item, so they were measured offline, not through the endpoint",
+  "decision_index": "BANKING77 and CLINC150+OOS through the kit's own http engine, unregistered and with heads registered from 10 training texts per intent (CLINC150+OOS adds 10 out-of-scope training texts); the same server"
+ },
+ "results": {
+  "intent_heads": {
+   "BANKING77": {
+    "draws": [
+     0.847,
+     0.847,
+     0.853
+    ],
+    "mean": 0.849,
+    "served_plain": 0.74,
+    "paired_gain": "+10.9 [+6.0, +16.0]",
+    "register_s": [
+     169,
+     155,
+     162
+    ]
+   },
+   "CLINC150": {
+    "draws": [
+     0.88,
+     0.89,
+     0.9
+    ],
+    "mean": 0.89,
+    "served_plain": 0.82,
+    "paired_gain": "+7.0 [+1.7, +12.7]",
+    "register_s": [
+     321,
+     324,
+     337
+    ]
+   }
+  },
+  "decision_index_macro_f1": {
+   "unregistered": {
+    "BANKING77": 0.729,
+    "CLINC150+OOS": 0.812
+   },
+   "heads_registered": {
+    "BANKING77": 0.841,
+    "CLINC150+OOS": 0.916
+   }
+  },
+  "calibration": {
+   "held_out_six_pooled_ece": {
+    "plain": 0.058,
+    "calibrated": 0.037,
+    "p10_p90": [
+     0.029,
+     0.047
+    ]
+   },
+   "scifact_accuracy_gain_points": 6.62,
+   "never_worse": "the never-hurts criterion holds on all six tasks of that protocol: mean accuracy change -0.14 to +0.28 points (MedQA -0.14, FiQA -0.09, CUAD clause -0.03, CUAD governing law 0.00, CLINC150 0.00, ContractNLI +0.28), at most 2% of draws losing 2 or more items",
+   "never_worse_criterion": "per task: mean accuracy change at least -0.5 points, mean log-loss change at most +0.005, at most 5% of draws losing 2 points or more (100 draws of 20), fixed before the run"
+  },
+  "latency_server_ms": {
+   "head question, no task": [
+    82.35,
+    82.75,
+    82.9
+   ],
+   "head question, head registered, first sight": 82.35,
+   "unmatched question": "63.4 to 67.0 (no change with tasks registered)",
+   "calibration-matched question": "59.8 to 60.4 (no change)"
+  },
+  "bit_exactness": "6 of 6 stored heads and 13 of 13 calibration records equal the reference fit of their own registration readout; 750 of 750 head answers and 2,516 of 2,516 calibration answers equal the reference arithmetic"
+ },
+ "files": {
+  "evaluation.json": "every protocol's numbers (the calibration protocols per task, the intent heads, latency, the Decision Index registration)",
+  "intent_heads/<task>_d<draw>.json.gz": "per test item: gold, path, served probabilities, the pooled engine's readout",
+  "intent_heads/<task>_d0_task.json.gz, latency_tasks.json.gz": "stored task records as GET /v1/tasks?full=1 returns them",
+  "di_registered_tasks.json.gz": "the tasks registered from the Decision Index's training texts (heads and calibration: derived parameters, no text)",
+  "decision_index/<arm>/": "per request: ids, the payload's sha256, our response; the kit's summary and our report",
+  "latency.json.gz": "per request: condition, group, server and wall milliseconds",
+  "memory_split_B.txt": "the two engines' memory lines",
+  "gates.log, conformance_*.log, health_*.json": "C1 and C2-C4 (all pass), each server's /health",
+  "cal_draws.json": "the calibration draws' seeds",
+  "files.json": "sizes and sha256"
+ },
+ "excluded": [
+  "the calibration tasks' per-item answers and readouts (the private suite)",
+  "the Decision Index training texts and all item text",
+  "the hidden-state readouts of the registration examples (a copy of BANKING77's and CLINC150's draw-0 readouts is tests/data/intent_readouts)",
+  "the gate-4 request-history diagnosis (the suite's private items)",
+  "TypeSafe's published board figures and any output of its model",
+  "vLLM start-up logs, machine logs and addresses"
+ ]
+}

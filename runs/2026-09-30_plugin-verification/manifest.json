@@ -101,7 +101,8 @@
   "intent_heads/<task>_d0_task.json.gz, latency_tasks.json.gz": "the stored task records (calibration and head) as GET /v1/tasks?full=1 returns them; the heads are parameters fitted on the models' readouts of BANKING77 and CLINC150 training examples (THIRD-PARTY.md)",
   "conformance_*.log": "C2-C4 per server (all pass)",
   "conformance_H.json.gz": "C2-C4 for the hidden-readout class, with the C4 rows (task, index, label, both routes' probabilities) of the 1,400 suite items",
-  "suite_compare_*.txt, textonly_verdict.txt": "the identity checks' verdicts"
+  "suite_compare_*.txt, textonly_verdict.txt": "the identity checks' verdicts",
+  "derived/intent_head_gains.json": "computed from intent_heads/ by benchmarks/intent_head_gain.py: the head's paired gain over the plain readout of the same forward pass, with a 95% bootstrap interval (10,000 item resamples, numpy default_rng(0))"
  },
  "excluded": [
   "item text of any benchmark (Decision Index payloads, JevBench raw requests and responses)",

@@ -17,6 +17,9 @@ requires-python = ">=3.12,<3.13"
 # The server front, the readout, the tasks and the CPU stand-in; vLLM is the serve extra (Linux, a CUDA card).
 # Lower bounds only: uv.lock pins every version, resolved together with the serve extra, so the CPU tests run the
 # versions vLLM 0.30.0 runs with (it pins torch 2.13.0, torchvision 0.28.0 and fastapi below 0.137).
+# huggingface_hub is imported directly (decisio.serve.hidden_engine) and arrives through transformers; declaring it
+# re-resolves uv.lock beyond that one edge (tilelang loses a never-true setuptools marker), so it is left for a
+# lock refresh.
 dependencies = [
     "fastapi>=0.133",
     "numpy>=2.2",

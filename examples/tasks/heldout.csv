@@ -1,0 +1,49 @@
+text,label
+"Stop the plan and deactivate all our users, we're done. Thanks.",account_closure
+"Hi team, our whole team is stuck on the sign-in screen since this morning. Thank you in advance.",login
+"Hey, where can I set a new password if I only remember my username? Thank you in advance.",password_reset
+Good morning. I'd like my money returned for the order I cancelled on Friday. Thank you in advance.,refund
+"Hi team, pages keep spinning and sometimes give a gateway timeout.",performance
+"Hi team, autopay did not go through and we got a warning email.",payment_failed
+"Hi team, the SEPA debit was returned unpaid, what do I need to do? Thank you in advance.",payment_failed
+"Hey, we want to move our data out, what formats can you export? This is urgent for us.",data_export
+Good morning. Our whole team is stuck on the sign-in screen since this morning. Please help.,login
+"Hello, uploading a CSV gives error 500 halfway through. Thanks.",bug
+"Hello, rate limit errors on the API since this morning, what are the limits?",integration
+The authenticator app codes are rejected since I changed phones. Please help.,login
+Good morning. Uploading a CSV gives error 500 halfway through. This is urgent for us.,bug
+"Hi team, there is a charge of GBP 80 I don't recognise on the statement.",billing
+"Hi team, our CRM sync duplicates every contact it imports. This is urgent for us.",integration
+Good morning. Buttons overlap and I can't click submit on the settings page.,bug
+Good morning. The 'forgot password' button does nothing when I click it.,password_reset
+Suggestion: allow bulk editing of many records at once. Please help.,feature_request
+The 'forgot password' button does nothing when I click it. This is urgent for us.,password_reset
+Good morning. Only one of the two printers we ordered was in the parcel. Thanks.,device_delivery
+"Hello, autopay did not go through and we got a warning email.",payment_failed
+"Hi team, the authenticator app codes are rejected since I changed phones. Please help.",login
+"Hello, there is a charge of EUR 30 I don't recognise on the statement.",billing
+"Hey, will you support recurring invoices in the future? Thank you in advance.",feature_request
+"Hey, the SEPA debit was returned unpaid, what do I need to do? Please help.",payment_failed
+"Hey, rate limit errors on the API since this morning, what are the limits?",integration
+"Hello, I'd like you to erase my account under data protection rules. Thank you in advance.",account_closure
+"Hello, we want to move our data out, what formats can you export?",data_export
+"Hey, can the unused months of my yearly subscription be paid back to my card? Please help.",refund
+Where do I find the backup download for the workspace? This is urgent for us.,data_export
+"Hi team, only one of the two printers we ordered was in the parcel. Thank you in advance.",device_delivery
+"Hello, the courier left a note but I can't find where to collect the device. Thanks.",device_delivery
+"Hi team, where do I find the backup download for the workspace? Thanks.",data_export
+I'd like you to erase my account under data protection rules. Thank you in advance.,account_closure
+"Hi team, stop the plan and deactivate all our users, we're done.",account_closure
+"Hi team, our CRM sync duplicates every contact it imports.",integration
+Can the unused months of my yearly subscription be paid back to my card?,refund
+"Hello, typing in the editor has a noticeable delay since the 3rd.",performance
+"Hey, how is the price calculated when we add users halfway through the month? Thank you in advance.",billing
+"Hello, where can I set a new password if I only remember my username? Thank you in advance.",password_reset
+"Hello, buttons overlap and I can't click submit on the settings page. This is urgent for us.",bug
+Good morning. Pages keep spinning and sometimes give a gateway timeout. Please help.,performance
+How is the price calculated when we add users halfway through the month? Please help.,billing
+"Hi team, I'd like my money returned for the order I cancelled on last week. This is urgent for us.",refund
+Suggestion: allow bulk editing of many records at once. This is urgent for us.,feature_request
+Will you support recurring invoices in the future? This is urgent for us.,feature_request
+"Hey, the courier left a note but I can't find where to collect the device. Thank you in advance.",device_delivery
+"Hi team, typing in the editor has a noticeable delay since the 3rd. Please help.",performance
