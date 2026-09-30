@@ -35,6 +35,11 @@
   "sha256": "072cf715b73897d8ec5391d6dd390731191846db35ffc6334665d4a9b71563f5"
  },
  {
+  "path": "derived/intent_head_gains.json",
+  "bytes": 1151,
+  "sha256": "805474bcc188b98e5f41e0f675719783f7cb3e80d61a9e492b45ac3145f0b0ee"
+ },
+ {
   "path": "diag_same_forward.json",
   "bytes": 98745,
   "sha256": "7d1d85be6ceab6d93428d9bd179d5254adc99db19967779b390c9ce65de49c54"
@@ -136,8 +141,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 6389,
-  "sha256": "69d4cdb94cb086e8b0e8adbdcabf6b5a8d19668df93bb8b0e1d3416d6f90ebf4"
+  "bytes": 6639,
+  "sha256": "b6938d0a707acb98a9dea737b1515efce3116cdb4becf720b4c83c502d600806"
  },
  {
   "path": "memory_H.txt",

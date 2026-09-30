@@ -130,7 +130,7 @@ In every intent measurement the test items are held out: none of them is among t
 
 | Measure | Without a task | With a task | Measured on | Record |
 | --- | ---: | ---: | --- | --- |
-| BANKING77 intent accuracy (77 options) | 0.740 | **0.847**; +10.7 points [+5.8, +15.8] | 150 test items; 10 labelled training examples per intent registered; mean of three draws; the default single-engine mode | `runs/2026-09-30_plugin-verification/intent_heads/` |
+| BANKING77 intent accuracy (77 options) | 0.740 | **0.847**; +10.7 points [+5.8, +15.8] | 150 test items; 10 labelled training examples per intent registered; mean of three draws; the default single-engine mode | `runs/2026-09-30_plugin-verification/intent_heads/`, `derived/intent_head_gains.json` |
 | CLINC150 intent accuracy (150 options) | 0.820 | **0.893**; +7.3 points [+2.3, +13.0] | 100 test items; as above | same |
 | The same two, second-engine mode | 0.740, 0.820 | 0.849 (+10.9 [+6.0, +16.0]); 0.890 (+7.0 [+1.7, +12.7]) | the same items and draws, the hidden state from a second engine | `runs/2026-09-29_tasks-endpoint/manifest.json` |
 | Decision Index BANKING77, macro-F1 | 0.729 | **0.841** | its 3,080 requests; heads registered from 10 training texts per intent; second-engine mode; the same server with and without | `runs/2026-09-29_tasks-endpoint/decision_index/*/di_report.json` |
@@ -143,7 +143,8 @@ In every intent measurement the test items are held out: none of them is among t
 | | 82 ms | 82 ms on first sight; 42 ms when the identical question is asked again | second-engine mode, on that run's card: the median of each round, a question's first sight (82.35 ms with and without a task) and two repeat rounds (41.6, 41.8 ms), where the pooling engine reuses more of an identical prompt | `runs/2026-09-29_tasks-endpoint/evaluation.json` (`latency.head.server_ms_round_medians`) |
 
 The intervals are 95% paired bootstrap intervals over test items (the gain averaged over the three draws of examples).
-The single-engine intervals were computed from the per-item rows in the record, with the plain answer taken from the same forward pass as the head's; the second-engine intervals are the ones that run recorded.
+The single-engine intervals are computed from the record's per-item rows by `benchmarks/intent_head_gain.py`, with the plain answer taken from the same forward pass as the head's, 10,000 paired resamples of the test items and numpy's `default_rng(0)`; the output is stored as `runs/2026-09-30_plugin-verification/derived/intent_head_gains.json`, and another seed moves the interval ends by a few tenths of a point.
+The second-engine intervals are the ones that run recorded.
 The Decision Index heads were fitted on the datasets' training texts and scored on the benchmark's test requests.
 These numbers use labelled examples, so they compare the registered server with the unregistered one, not with systems that see no labels.
 
