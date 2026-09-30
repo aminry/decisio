@@ -25,14 +25,14 @@ No trained weights: every measured answer comes from the official checkpoint.
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
 | Rendering rules | enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in |
-| Determinism | one request at a time is bit-reproducible on the same card; the serving gates in `tests/gpu` check it |
+| Determinism | one request at a time, on the same card: bit-identical answers when the server's request history is the same, and repeats agreed to 1.2e-7 in probability; identical requests sent inside one batch are not the same forward pass and differed by up to 0.59 in a label probability (`EVAL_CARD.md` section 4); the serving gates in `tests/gpu` check the one-at-a-time case |
 | Context | up to 32,768 tokens of state |
 
 Latency and cost on one RTX PRO 6000, from `EVAL_CARD.md`: about 28 ms server time for one question, 2.7 to 5.4 ms per question when many questions share a state, and about $0.001 to $0.012 per 1,000 decisions at $1.50 per card-hour.
 
 ## Quickstart
 
-Requirements: Linux, one NVIDIA card with 96 GB (an RTX PRO 6000 or an H100-class card with the same memory), CUDA 12.8 or later, Python 3.12, [uv](https://docs.astral.sh/uv/).
+Requirements: Linux, one NVIDIA card with 96 GB (measured on an RTX PRO 6000 Blackwell) and a driver that supports CUDA 13.0 (the runtime `uv.lock` pins), Python 3.12, [uv](https://docs.astral.sh/uv/).
 
 ```
 git clone https://github.com/aminry/decisio
@@ -107,7 +107,9 @@ All numbers are on the served default described in `EVAL_CARD.md`, measured priv
 | Latency, one question | about 28 ms server time |
 
 Where it stands: on the public harnesses this frozen model is the most accurate open one-pass system we know of on the hard tier, and it is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
-With ten labelled examples per intent, the registered head closes the intent gap.
+With 10 labelled examples per intent, registered heads reach accuracy 0.847 on BANKING77 (150 held-out items) and 0.893 on CLINC150 (100 held-out items), means of three draws.
+They use labelled examples, so those figures are not comparable with zero-shot systems.
+Calibration trails too: hard-tier ECE on JevBench is 0.059, above the 0.05 we aimed for.
 `EVAL_CARD.md` has the full tables, the calibration figures, and the three disclosures about what was fitted on what.
 
 ## Repository layout
