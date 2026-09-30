@@ -21,6 +21,7 @@ Two-order mode (after Reflex, github.com/kshetrajna12/reflex, MIT, `prompt.disti
 options; "Answer no or yes." for yes/no), the two distributions are averaged per label, and the disagreement (mean
 total-variation distance of each branch from their average) goes to a branch log, never into the response.
 """
+
 from __future__ import annotations
 
 import base64
@@ -38,10 +39,11 @@ from pydantic import BaseModel, ConfigDict, Field
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve.temperature import apply_temperature
 
-JSONContent = Any    # str | dict | list, as the SDK's schema allows
+JSONContent = Any  # str | dict | list, as the SDK's schema allows
 
 
 # ---- wire schema (TypeSafe's SystemOneRequest and its questions) -----------------------------------------------------
+
 
 class NoulCriteria(BaseModel):
     true: JSONContent | None = None
@@ -70,7 +72,7 @@ Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion, Field(discri
 
 
 class SystemOneRequest(BaseModel):
-    model_config = ConfigDict(extra="allow")       # extensions (`orders`) and fields TypeSafe may add later are ignored
+    model_config = ConfigDict(extra="allow")  # extensions (`orders`) and fields TypeSafe may add later are ignored
     state: str | dict[str, Any] | list[Any]
     # TypeSafe's API requires `model`; imajev's requests (github.com/mohit67890/imajev, Apache-2.0) omit it, so it is
     # optional here and the response names the served model when it is absent
@@ -79,6 +81,7 @@ class SystemOneRequest(BaseModel):
 
 
 # ---- mapping --------------------------------------------------------------------------------------------------------
+
 
 def render_text(x) -> str:
     if x is None:
@@ -145,7 +148,7 @@ def to_engine_question(q, hide_index_keys: bool = True, desnake_labels: bool = T
         return {"kind": "noul", "instructions": text}, ["yes", "no"]
     if q.type == "choice":
         keys = list(q.criteria)
-        bare = None                                      # options shown as bare labels, if they are
+        bare = None  # options shown as bare labels, if they are
         if hide_index_keys and index_keys(q.criteria):
             bare = [render_text(d) for d in q.criteria.values()]
         elif all(d is None or render_text(d) == "" for d in q.criteria.values()):
@@ -154,8 +157,9 @@ def to_engine_question(q, hide_index_keys: bool = True, desnake_labels: bool = T
             if desnake_labels:
                 bare = [x.replace("_", " ") if snake_label(x) else x for x in bare]
             return {"kind": "choice", "instructions": instr, "options": bare}, keys
-        shown = [f"{k}: {render_text(d)}" if d is not None and render_text(d) != "" else k
-                 for k, d in q.criteria.items()]
+        shown = [
+            f"{k}: {render_text(d)}" if d is not None and render_text(d) != "" else k for k, d in q.criteria.items()
+        ]
         return {"kind": "choice", "instructions": instr, "options": shown}, keys
     levels = [render_text(c) for c in q.criteria]
     return {"kind": "score", "instructions": instr, "options": levels}, [str(i) for i in range(len(levels))]
@@ -168,8 +172,11 @@ def with_abstain(eq: dict, keys: list[str], option: str) -> tuple[dict, list[str
     """The engine question with one more option, `option` (e.g. "can't tell"), listed last; yes/no questions become a
     three-option choice (yes, no, option). Its key is UNKNOWN_KEY. No training: the option is only offered."""
     if eq["kind"] == "noul":
-        return {"kind": "choice", "instructions": eq["instructions"], "options": ["yes", "no", option]}, \
-            ["yes", "no", UNKNOWN_KEY]
+        return {"kind": "choice", "instructions": eq["instructions"], "options": ["yes", "no", option]}, [
+            "yes",
+            "no",
+            UNKNOWN_KEY,
+        ]
     return {**eq, "options": [*eq["options"], option]}, [*keys, UNKNOWN_KEY]
 
 
@@ -194,7 +201,7 @@ def second_order(name: str, q: dict, keys: list[str]) -> tuple[dict, list[int]]:
     if q["kind"] == "noul":
         return dict(q, noul_order="no_yes"), [0, 1]
     n = len(q["options"])
-    rng = random.Random(f"0:{name}")               # Reflex's seeding: one question's order never depends on the others
+    rng = random.Random(f"0:{name}")  # Reflex's seeding: one question's order never depends on the others
     perm = list(range(n))
     if n == 2:
         perm = [1, 0]
@@ -240,10 +247,19 @@ def to_answer(q, keys, p) -> dict:
         return {"type": "noul", "noul": p[0]}
     if q.type == "choice":
         top = keys[top_index(keys, p)]
-        return {"type": "choice", "choice": top, "confidence": choice_confidence(p),
-                "probabilities": dict(zip(keys, p))}
-    return {"type": "score", "score": float(sum(i * pi for i, pi in enumerate(p))), "confidence": score_confidence(p),
-            "legend": {str(i): c for i, c in enumerate(q.criteria)}, "probabilities": dict(zip(keys, p))}
+        return {
+            "type": "choice",
+            "choice": top,
+            "confidence": choice_confidence(p),
+            "probabilities": dict(zip(keys, p)),
+        }
+    return {
+        "type": "score",
+        "score": float(sum(i * pi for i, pi in enumerate(p))),
+        "confidence": score_confidence(p),
+        "legend": {str(i): c for i, c in enumerate(q.criteria)},
+        "probabilities": dict(zip(keys, p)),
+    }
 
 
 def disagreement(branches: list[np.ndarray]) -> float:
@@ -255,8 +271,11 @@ IMAGE_DATA_URL = re.compile(r"data:image/[\w.+-]+;base64,[A-Za-z0-9+/=]+")
 
 
 def decode_data_url(value: str) -> bytes:
-    m = (re.fullmatch(r"data:image/[\w.+-]+;base64,([A-Za-z0-9+/=\s]+)", value.strip())
-         if isinstance(value, str) else None)
+    m = (
+        re.fullmatch(r"data:image/[\w.+-]+;base64,([A-Za-z0-9+/=\s]+)", value.strip())
+        if isinstance(value, str)
+        else None
+    )
     if m is None:
         raise ValueError("images must be data:image/...;base64 URLs")
     return base64.b64decode(m.group(1), validate=False)
@@ -268,8 +287,11 @@ def extract_state_images(state):
 
     def walk(node):
         if isinstance(node, str):
-            return IMAGE_DATA_URL.sub(lambda m: (found.append(m.group(0)), f"[image {len(found)}]")[1], node) \
-                if "data:image/" in node else node
+            return (
+                IMAGE_DATA_URL.sub(lambda m: (found.append(m.group(0)), f"[image {len(found)}]")[1], node)
+                if "data:image/" in node
+                else node
+            )
         if isinstance(node, list):
             return [walk(x) for x in node]
         if isinstance(node, dict):
@@ -291,22 +313,36 @@ class SystemOne:
     """Serves the wire format on a text engine and, optionally, an image engine (decisio.serve.image_engine): requests
     with images go to the image engine, every other request to the text engine."""
 
-    def __init__(self, engine, served_name: str, orders: int = 1, branch_log: str | None = None,
-                 release_date: str = "2026-09-27", description: str = "", image_engine=None,
-                 abstain_option: str | None = None, hide_index_keys: bool = True, desnake_labels: bool = True,
-                 abstention: bool = True, abstention_tasks: list[dict] | None = None,
-                 tasks_enabled: bool = True, task_store=None, hidden_engine=None, debug_readout: bool = False,
-                 temperature: float = 1.0):
+    def __init__(
+        self,
+        engine,
+        served_name: str,
+        orders: int = 1,
+        branch_log: str | None = None,
+        release_date: str = "2026-09-27",
+        description: str = "",
+        image_engine=None,
+        abstain_option: str | None = None,
+        hide_index_keys: bool = True,
+        desnake_labels: bool = True,
+        abstention: bool = True,
+        abstention_tasks: list[dict] | None = None,
+        tasks_enabled: bool = True,
+        task_store=None,
+        hidden_engine=None,
+        debug_readout: bool = False,
+        temperature: float = 1.0,
+    ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
-        self.hide_index_keys = hide_index_keys           # to_engine_question; the served default is on
-        self.desnake_labels = desnake_labels             # likewise
+        self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
+        self.desnake_labels = desnake_labels  # likewise
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
         # per-task abstention thresholds (decisio.serve.abstention; docs/handoffs/tasks.md): tasks registered
         # from labelled examples; `abstention=False` ignores them all
         self.abstention = abstention
-        for t in abstention_tasks or []:                 # records written before the rename load unchanged
+        for t in abstention_tasks or []:  # records written before the rename load unchanged
             check_format(t.get("config"), "abstention", f"abstention task {t.get('id')!r}")
         self.tasks: dict[str, dict] = {t["id"]: t for t in (abstention_tasks or [])}
         # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): registered by
@@ -322,18 +358,27 @@ class SystemOne:
         self._log_lock = threading.Lock()
 
     def models(self) -> dict:
-        return {"models": [{"name": self.name, "description": self.description or "letters readout, served default",
-                            "release_date": self.release_date}]}
+        return {
+            "models": [
+                {
+                    "name": self.name,
+                    "description": self.description or "letters readout, served default",
+                    "release_date": self.release_date,
+                }
+            ]
+        }
 
     def usage_tokens(self, state, qs: list[dict]) -> int:
         from decisio.readout.letters import fmt_state
         from decisio.serve.vllm_engine import question_text
+
         tok = self.engine.tok
         n = len(tok.encode(fmt_state(state), add_special_tokens=False))
         return n + sum(len(tok.encode(question_text(tok, q)[0], add_special_tokens=False)) for q in qs)
 
-    def answer(self, req: SystemOneRequest, adapter=None, images=None, imajev_ext=False, route=None,
-               debug=None) -> dict:
+    def answer(
+        self, req: SystemOneRequest, adapter=None, images=None, imajev_ext=False, route=None, debug=None
+    ) -> dict:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
         the letters readout has no unknown outcome); `route="image"` sends a text request to the image engine (the
@@ -359,12 +404,16 @@ class SystemOne:
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
         # per-task calibration and head: the registered task of each text-route question (None when there is none)
-        rts = [self.readout_task(q) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
-               for i, q in enumerate(wire)]
+        rts = [
+            self.readout_task(q) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
+            for i, q in enumerate(wire)
+        ]
         head = [i for i, t in enumerate(rts) if t is not None and t["head"].get("applied") and self.hidden_engine]
         if head and orders == 2:
-            raise ValueError("the intent head is not combined with two-order averaging: a question of a task with a "
-                             "head was asked with orders=2 (the head is bound to one option order)")
+            raise ValueError(
+                "the intent head is not combined with two-order averaging: a question of a task with a "
+                "head was asked with orders=2 (the head is bound to one option order)"
+            )
         gen = [i for i in range(len(names)) if i not in head]
         engine_qs, plan = [qs[i] for i in gen], {}
         if orders == 2:
@@ -382,14 +431,15 @@ class SystemOne:
         at = {i: n for n, i in enumerate(gen)}
         hidden = dict(zip(head, self.hidden_engine.readout(req.state, [qs[i] for i in head]))) if head else {}
         dbg = {}
-        if debug == "hidden" and self.hidden_engine is not None:      # verification: every question's hidden readout
+        if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
             for i, (lp, h) in enumerate(self.hidden_engine.readout(req.state, qs)):
                 dbg[names[i]] = {"hidden_lp": lp.tolist(), "h": h.tolist()}
         answers, log = {}, []
         for i, (name, q, (eq, keys)) in enumerate(zip(names, wire, mapped)):
             t = rts[i]
-            if i in hidden:                                            # the intent head (reference arithmetic)
+            if i in hidden:  # the intent head (reference arithmetic)
                 from decisio.readout.intent_head import apply_intent_head
+
                 lp, h = hidden[i]
                 p = apply_intent_head(lp, h, t["head"], t["options"])
                 if debug:
@@ -400,18 +450,29 @@ class SystemOne:
                 if orders == 2:
                     j, perm = plan[i]
                     p2 = np.zeros_like(p)
-                    for pos, orig in enumerate(perm):          # branch 2 position pos shows original option perm[pos]
+                    for pos, orig in enumerate(perm):  # branch 2 position pos shows original option perm[pos]
                         p2[orig] = probs[j][pos]
                     d = disagreement([p, p2])
-                    log.append({"name": name, "kind": eq["kind"], "k": len(keys), "p1": p.tolist(), "p2": p2.tolist(),
-                                "perm": perm, "disagreement": d, "images": len(images)})
-                if debug:                                     # the served readout before any task (order 1)
+                    log.append(
+                        {
+                            "name": name,
+                            "kind": eq["kind"],
+                            "k": len(keys),
+                            "p1": p.tolist(),
+                            "p2": p2.tolist(),
+                            "perm": perm,
+                            "disagreement": d,
+                            "images": len(images),
+                        }
+                    )
+                if debug:  # the served readout before any task (order 1)
                     dbg.setdefault(name, {}).update(path="plain", p=p.tolist())
                 if t is not None and t["calibration"].get("applied"):  # per-task calibration (reference arithmetic)
                     from decisio.readout.calibration import apply_task_prior
                     from decisio.readout.debias import log_probs
+
                     pc = apply_task_prior(log_probs(p), t["calibration"])
-                    if p2 is not None:          # the bias is per displayed slot: apply it in branch 2's order
+                    if p2 is not None:  # the bias is per displayed slot: apply it in branch 2's order
                         j, perm = plan[i]
                         shown = apply_task_prior(log_probs(np.asarray(probs[j], dtype=np.float64)), t["calibration"])
                         p2 = np.zeros_like(p)
@@ -439,18 +500,30 @@ class SystemOne:
             if imajev_ext:
                 answers[name].update(unknown_probability=0.0, abstained=False)
         if log and self.branch_log:
-            body = json.dumps({"state": req.state, "questions": {n: q.model_dump() for n, q in req.questions.items()}},
-                              sort_keys=True, ensure_ascii=False)
+            body = json.dumps(
+                {"state": req.state, "questions": {n: q.model_dump() for n, q in req.questions.items()}},
+                sort_keys=True,
+                ensure_ascii=False,
+            )
             h = hashlib.sha256(body.encode()).hexdigest()
             with self._log_lock, open(self.branch_log, "a") as f:
                 for rec in log:
                     f.write(json.dumps({"t": time.time(), "request_sha256": h, **rec}) + "\n")
-        usage = {"input_tokens": self.usage_tokens(req.state, qs) + sum(info.get("image_tokens") or []),
-                 "output_tokens": len(names)}
-        out = {"model": req.model or self.name, "answers": answers, "usage": usage,
-               "_timing": {"server_ms": (time.perf_counter() - t0) * 1000, "route": "image" if use_image else "text",
-                           "tasks": sorted({t["id"] for t in rts if t is not None}),
-                           **{k: v for k, v in info.items() if k in ("cached_tokens_mean", "image_tokens")}}}
+        usage = {
+            "input_tokens": self.usage_tokens(req.state, qs) + sum(info.get("image_tokens") or []),
+            "output_tokens": len(names),
+        }
+        out = {
+            "model": req.model or self.name,
+            "answers": answers,
+            "usage": usage,
+            "_timing": {
+                "server_ms": (time.perf_counter() - t0) * 1000,
+                "route": "image" if use_image else "text",
+                "tasks": sorted({t["id"] for t in rts if t is not None}),
+                **{k: v for k, v in info.items() if k in ("cached_tokens_mean", "image_tokens")},
+            },
+        }
         if debug and self.debug_readout:
             out[DEBUG_KEY] = dbg
         return out
@@ -461,6 +534,7 @@ class SystemOne:
         if not self.tasks_enabled or self.task_store is None or not self.task_store.by_key:
             return None
         from decisio.serve.tasks import task_key
+
         return self.task_store.lookup(task_key(q, render_text))
 
     def register_readout_task(self, task_id: str, examples: list[tuple]):
@@ -483,8 +557,9 @@ class SystemOne:
                 out.append(self.hidden_engine.readout(state, [eq])[0])
             return out
 
-        return self.task_store.register(task_id, [(q, s, g) for s, q, g in examples], score,
-                                        hidden if self.hidden_engine is not None else None)
+        return self.task_store.register(
+            task_id, [(q, s, g) for s, q, g in examples], score, hidden if self.hidden_engine is not None else None
+        )
 
     def with_readout_task(self, state, q, eq, p):
         """A text-route question's order-1 distribution as served: its registered task's head or calibration applied to
@@ -494,11 +569,13 @@ class SystemOne:
             return apply_temperature(p, self.temperature)
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
+
             lp, h = self.hidden_engine.readout(state, [eq])[0]
             return apply_intent_head(lp, h, t["head"], t["options"])
         if t["calibration"].get("applied"):
             from decisio.readout.calibration import apply_task_prior
             from decisio.readout.debias import log_probs
+
             return apply_task_prior(log_probs(p), t["calibration"])
         return apply_temperature(p, self.temperature)
 
@@ -534,6 +611,7 @@ class SystemOne:
         """The answer under the task's decision: `choice` (or imajev's `abstained`) follows the threshold; the
         probabilities are reported unchanged."""
         from decisio.serve.abstention import decide
+
         idx, cfg, appended, _ = plan
         abstain, best = decide(p, idx, cfg, keys=keys)
         if appended:
@@ -553,17 +631,20 @@ class SystemOne:
         customer's options. Appended option: scored with and without it (plain is the question without it)."""
         if len(req.questions) != 1:
             raise ValueError("an abstention example carries exactly one question")
-        (name, q), = req.questions.items()
+        ((name, q),) = req.questions.items()
         eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels)
         engine = self.image_engine if images else self.engine
-        run = (lambda qs: engine.answer(req.state, qs, None, images=images)) if images else \
-            (lambda qs: engine.answer(req.state, qs, None))
+        run = (
+            (lambda qs: engine.answer(req.state, qs, None, images=images))
+            if images
+            else (lambda qs: engine.answer(req.state, qs, None))
+        )
         if option.get("key") is not None:
             if q.type != "choice" or option["key"] not in keys:
                 raise ValueError(f"the declared abstain option {option['key']!r} is not one of the question's options")
             probs, _ = run([eq])
             p = np.asarray(probs[0], dtype=np.float64)
-            if not images:                                # the threshold composes after calibration and the head
+            if not images:  # the threshold composes after calibration and the head
                 p = self.with_readout_task(req.state, q, eq, p)
             return q, p, keys.index(option["key"]), keys, p, keys
         eq2, keys2 = with_abstain(eq, keys, option["append"])
@@ -575,6 +656,7 @@ class SystemOne:
         """Fit and store a task from labelled examples [(request, images, imajev_ext, gold)], gold None for
         unanswerable (decisio.serve.abstention.fit, its acceptance rule)."""
         from decisio.serve.abstention import decide, fit
+
         if bool(option.get("key") is not None) == bool(option.get("append")):
             raise ValueError("option: exactly one of {'key': <declared key>} or {'append': <text>}")
         if match not in ("option_set", "imajev_extension"):
@@ -601,9 +683,13 @@ class SystemOne:
         if match == "option_set" and len(fps) != 1:
             raise ValueError("the examples of an option-set task must share one option set")
         cfg = fit(p_abs, unans, ok, plain_right, plain_false)
-        task = {"id": task_id, "option": option,
-                "match": {"option_set": fps.pop()} if match == "option_set" else {"imajev_extension": True},
-                "config": cfg, "model": self.name}
+        task = {
+            "id": task_id,
+            "option": option,
+            "match": {"option_set": fps.pop()} if match == "option_set" else {"imajev_extension": True},
+            "config": cfg,
+            "model": self.name,
+        }
         self.tasks[task_id] = task
         return task
 
@@ -682,12 +768,15 @@ def add_routes(app, systemone: SystemOne):
 
     async def system_one(request: Request):
         from decisio.serve.image_engine import MAX_IMAGES, load_image
+
         payload, blobs, ext = await read(request)
         try:
             req = SystemOneRequest.model_validate(payload)
         except ValidationError as e:
-            detail = [{**{k: v for k, v in err.items() if k in ("type", "msg", "input", "ctx")},
-                       "loc": ["body", *err["loc"]]} for err in e.errors(include_url=False)]
+            detail = [
+                {**{k: v for k, v in err.items() if k in ("type", "msg", "input", "ctx")}, "loc": ["body", *err["loc"]]}
+                for err in e.errors(include_url=False)
+            ]
             return JSONResponse({"detail": json.loads(json.dumps(detail, default=str))}, status_code=422)
         if len(blobs) > MAX_IMAGES:
             raise HTTPException(422, f"at most {MAX_IMAGES} images per request; got {len(blobs)}")
@@ -730,6 +819,7 @@ def add_routes(app, systemone: SystemOne):
     # examples, each a /v1/systemone request (JSON, images as data URLs) with its answer (null: unanswerable)
     async def register(request: Request):
         from decisio.serve.image_engine import MAX_IMAGES, load_image
+
         body = await request.json()
         if not isinstance(body, dict) or not body.get("id") or not isinstance(body.get("examples"), list):
             raise HTTPException(422, "body: {'id', 'option', 'match', 'examples': [{'request', 'answer'}]}")
@@ -752,8 +842,13 @@ def add_routes(app, systemone: SystemOne):
                 raise HTTPException(422, f"example {n}: {e}")
             examples.append((req, images, ext, ex.get("answer")))
         try:
-            task = await run_in_threadpool(systemone.register_task, str(body["id"]), body.get("option") or {},
-                                           body.get("match", "option_set"), examples)
+            task = await run_in_threadpool(
+                systemone.register_task,
+                str(body["id"]),
+                body.get("option") or {},
+                body.get("match", "option_set"),
+                examples,
+            )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
         return task
@@ -769,13 +864,15 @@ def add_routes(app, systemone: SystemOne):
     # labelled examples, each a text /v1/systemone request with one question and its answer
     async def register_readout(request: Request):
         from decisio.serve.tasks import TaskStore
+
         try:
             body = await request.json()
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             raise HTTPException(422, f"request body is not valid JSON: {e}")
         if not isinstance(body, dict) or not body.get("id") or not isinstance(body.get("examples"), list):
-            raise HTTPException(422, "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, "
-                                     "'answer': <key>}]}")
+            raise HTTPException(
+                422, "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, 'answer': <key>}]}"
+            )
         debug = debug_of(request)
         examples = []
         for n, ex in enumerate(body["examples"]):
@@ -809,10 +906,14 @@ def add_routes(app, systemone: SystemOne):
     def readout_tasks(full: int = 0):
         """Every registered task; `?full=1` includes the heads' arrays, the form `--tasks-file` loads."""
         from decisio.serve.tasks import TaskStore
+
         store = systemone.task_store
-        return {"enabled": systemone.tasks_enabled, "head_engine": systemone.hidden_engine is not None,
-                "fingerprint": store.fingerprint if store else None,
-                "tasks": [TaskStore.public(t, bool(full)) for t in (store.by_key.values() if store else [])]}
+        return {
+            "enabled": systemone.tasks_enabled,
+            "head_engine": systemone.hidden_engine is not None,
+            "fingerprint": store.fingerprint if store else None,
+            "tasks": [TaskStore.public(t, bool(full)) for t in (store.by_key.values() if store else [])],
+        }
 
     @app.post("/v1/tasks/import")
     def import_readout_tasks(body: dict):
@@ -838,4 +939,5 @@ def add_routes(app, systemone: SystemOne):
         if systemone.task_store is None or not systemone.task_store.remove(task_id):
             raise HTTPException(404, f"no task {task_id!r}")
         return {"removed": task_id}
+
     return app

@@ -19,6 +19,7 @@ to the list is a new task, which is re-registered.
     store = TaskStore(fingerprint="...")
     task = store.register(task_id, examples, score_fn, hidden_fn)     # examples: [(question, state, gold key)]
 """
+
 from __future__ import annotations
 
 import base64
@@ -32,7 +33,7 @@ from decisio.readout import calibration, intent_head
 from decisio.readout.debias import log_probs
 
 FORMAT = record_format("task")
-MIN_OPTIONS_FOR_HEAD = 10   # heads on intent sets only: smaller option lists get calibration alone
+MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 
 
 def task_key(q, render_text) -> str:
@@ -40,8 +41,11 @@ def task_key(q, render_text) -> str:
     if q.type == "choice":
         spec = {"type": "choice", "options": [[k, render_text(d)] for k, d in q.criteria.items()]}
     elif q.type == "score":
-        spec = {"type": "score", "options": [render_text(c) for c in q.criteria],
-                "instructions": render_text(q.instructions)}
+        spec = {
+            "type": "score",
+            "options": [render_text(c) for c in q.criteria],
+            "instructions": render_text(q.instructions),
+        }
     else:
         crit = None if q.criteria is None else [render_text(q.criteria.true), render_text(q.criteria.false)]
         spec = {"type": "noul", "criteria": crit, "instructions": render_text(q.instructions)}
@@ -103,30 +107,61 @@ class TaskStore:
         prior = calibration.fit_task_prior(lps, labels, fingerprint=self.fingerprint, task_id=task_id, K=len(options))
         counts = np.bincount(labels, minlength=len(options))
         if hidden_fn is None:
-            head = {"format": intent_head.FORMAT, "applied": False, "K": len(options), "options": options,
-                    "options_sha256": intent_head.options_digest(options),
-                    "reason": "this server has no hidden-state engine (--head-engine)"}
+            head = {
+                "format": intent_head.FORMAT,
+                "applied": False,
+                "K": len(options),
+                "options": options,
+                "options_sha256": intent_head.options_digest(options),
+                "reason": "this server has no hidden-state engine (--head-engine)",
+            }
             readout = None
         elif len(options) < MIN_OPTIONS_FOR_HEAD:
-            head = {"format": intent_head.FORMAT, "applied": False, "K": len(options), "options": options,
-                    "options_sha256": intent_head.options_digest(options),
-                    "reason": f"the head is fitted for questions of at least {MIN_OPTIONS_FOR_HEAD} options "
-                              f"(intent sets); this one has {len(options)}: calibration only"}
+            head = {
+                "format": intent_head.FORMAT,
+                "applied": False,
+                "K": len(options),
+                "options": options,
+                "options_sha256": intent_head.options_digest(options),
+                "reason": f"the head is fitted for questions of at least {MIN_OPTIONS_FOR_HEAD} options "
+                f"(intent sets); this one has {len(options)}: calibration only",
+            }
             readout = None
         elif counts.min() < intent_head.MIN_PER_OPTION:
-            head = {"format": intent_head.FORMAT, "applied": False, "K": len(options), "options": options,
-                    "options_sha256": intent_head.options_digest(options), "min_per_option": int(counts.min()),
-                    "reason": f"every option needs at least {intent_head.MIN_PER_OPTION} labelled examples; "
-                              f"{int((counts < intent_head.MIN_PER_OPTION).sum())} of {len(options)} have fewer"}
+            head = {
+                "format": intent_head.FORMAT,
+                "applied": False,
+                "K": len(options),
+                "options": options,
+                "options_sha256": intent_head.options_digest(options),
+                "min_per_option": int(counts.min()),
+                "reason": f"every option needs at least {intent_head.MIN_PER_OPTION} labelled examples; "
+                f"{int((counts < intent_head.MIN_PER_OPTION).sum())} of {len(options)} have fewer",
+            }
             readout = None
         else:
             readout = hidden_fn(pairs)
-            head = intent_head.fit_intent_head([lp for lp, _ in readout], [h for _, h in readout], labels, options,
-                                               fingerprint=self.fingerprint, task_id=task_id)
-        task = {"format": FORMAT, "id": task_id, "key": keys.pop(), "type": q0.type, "options": options,
-                "fingerprint": self.fingerprint, "calibration": prior, "head": head,
-                "n_examples": len(examples), "per_option_min": int(counts.min())}
-        self.remove(task_id)                                   # a re-registration replaces the task, whatever its list
+            head = intent_head.fit_intent_head(
+                [lp for lp, _ in readout],
+                [h for _, h in readout],
+                labels,
+                options,
+                fingerprint=self.fingerprint,
+                task_id=task_id,
+            )
+        task = {
+            "format": FORMAT,
+            "id": task_id,
+            "key": keys.pop(),
+            "type": q0.type,
+            "options": options,
+            "fingerprint": self.fingerprint,
+            "calibration": prior,
+            "head": head,
+            "n_examples": len(examples),
+            "per_option_min": int(counts.min()),
+        }
+        self.remove(task_id)  # a re-registration replaces the task, whatever its list
         self.by_key[task["key"]] = task
         return task, {"lps": lps, "labels": labels, "readout": readout}
 
@@ -167,4 +202,5 @@ class TaskStore:
 
 def _render(x):
     from decisio.serve.systemone import render_text
+
     return render_text(x)

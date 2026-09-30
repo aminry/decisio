@@ -20,6 +20,7 @@ readout). For the same reason it is not combined with cyclic-shift averaging.
     rec = fit_intent_head(logps, H, labels, options, fingerprint=..., task_id=...)
     p = apply_intent_head(logp, h, rec, options)     # at serving
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -30,31 +31,33 @@ import numpy as np
 from decisio.names import record_format
 
 FORMAT = record_format("intent-head")
-MIN_PER_OPTION = 5         # 5 and 10 per intent passed the acceptance gate on both intent sets; 2 passed on one
+MIN_PER_OPTION = 5  # 5 and 10 per intent passed the acceptance gate on both intent sets; 2 passed on one
 
 
 def _fit_linear(Z, base, y, K, lam, w0=None):
     """Multinomial logistic regression on features Z (n x m) with offset `base` (n x K log-scores; zeros for a
     classifier on the hidden state alone), L2 penalty lam on W and b. Returns the flat parameter vector."""
     from scipy.optimize import minimize
+
     n, m = Z.shape
 
     def f(w):
-        W = w[:K * m].reshape(K, m)
-        b = w[K * m:]
+        W = w[: K * m].reshape(K, m)
+        b = w[K * m :]
         s = base + Z @ W.T + b
         s = s - s.max(1, keepdims=True)
         lse = np.log(np.exp(s).sum(1))
-        loss = (lse - s[np.arange(n), y]).mean() + lam * (w ** 2).sum()
+        loss = (lse - s[np.arange(n), y]).mean() + lam * (w**2).sum()
         P = np.exp(s - lse[:, None])
         P[np.arange(n), y] -= 1
         g = np.concatenate([(P.T @ Z / n).ravel(), P.mean(0)]) + 2 * lam * w
         return loss, g
+
     x0 = np.zeros(K * m + K) if w0 is None else w0
     return minimize(f, x0, jac=True, method="L-BFGS-B", options={"maxiter": 300}).x
 
 
-LAMS = [100.0, 10.0, 1.0, 1e-1, 1e-2, 1e-3, 1e-4]     # strongest first: each fit warm-starts the next
+LAMS = [100.0, 10.0, 1.0, 1e-1, 1e-2, 1e-3, 1e-4]  # strongest first: each fit warm-starts the next
 MAX_DIMS = 512
 
 
@@ -66,8 +69,10 @@ def _features(H):
     _, S, Vt = np.linalg.svd(X, full_matrices=False)
     r = min(int((S > 1e-6 * S[0]).sum()), MAX_DIMS, len(H) - 1)
     V = Vt[:r].T / S[:r] * np.sqrt(len(H))
+
     def f(H2):
         return ((H2 - mu) / sd) @ V
+
     f.params = (mu, sd, V)
     return f
 
@@ -89,9 +94,10 @@ def fit_linear(H, base, y, K, offset, seed=0):
     readout); returns a function (H, base) -> log-scores and the choice."""
     rng = np.random.default_rng(seed)
     folds = _folds(y, 5, rng)
+
     def ll(s, yy):
-        return float(np.mean(np.log(np.exp(s - s.max(1, keepdims=True)).sum(1)) + s.max(1)
-                             - s[np.arange(len(yy)), yy]))
+        return float(np.mean(np.log(np.exp(s - s.max(1, keepdims=True)).sum(1)) + s.max(1) - s[np.arange(len(yy)), yy]))
+
     cv = {"none": [], **{lam: [] for lam in LAMS}}
     for k in range(5):
         tr, te = folds != k, folds == k
@@ -106,7 +112,7 @@ def fit_linear(H, base, y, K, offset, seed=0):
         for lam in LAMS:
             w = _fit_linear(Ztr, off_tr, y[tr], K, lam, w)
             m = Ztr.shape[1]
-            cv[lam].append(ll(off_te + Zte @ w[:K * m].reshape(K, m).T + w[K * m:], y[te]) * te.sum())
+            cv[lam].append(ll(off_te + Zte @ w[: K * m].reshape(K, m).T + w[K * m :], y[te]) * te.sum())
     scores = {k: float(np.sum(v) / len(y)) for k, v in cv.items()}
     best = min(scores, key=lambda k: scores[k])
     if best == "none":
@@ -114,12 +120,15 @@ def fit_linear(H, base, y, K, offset, seed=0):
     feat = _features(H)
     Z = feat(H)
     w = None
-    for lam in LAMS[:LAMS.index(best) + 1]:
+    for lam in LAMS[: LAMS.index(best) + 1]:
         w = _fit_linear(Z, base if offset else np.zeros((len(y), K)), y, K, lam, w)
     m = Z.shape[1]
-    W, b = w[:K * m].reshape(K, m), w[K * m:]
-    return (lambda H2, base2: (base2 if offset else 0) + feat(H2) @ W.T + b), {"lambda": best, "cv": scores,
-                                                                              "params": (feat.params, W, b)}
+    W, b = w[: K * m].reshape(K, m), w[K * m :]
+    return (lambda H2, base2: (base2 if offset else 0) + feat(H2) @ W.T + b), {
+        "lambda": best,
+        "cv": scores,
+        "params": (feat.params, W, b),
+    }
 
 
 def options_digest(options):
@@ -136,22 +145,39 @@ def fit_intent_head(logps, H, labels, options, fingerprint="", task_id="", seed=
     K = len(options)
     logps, H = np.asarray(logps, dtype=np.float64), np.asarray(H, dtype=np.float64)
     counts = np.bincount(y, minlength=K)
-    rec = {"format": FORMAT, "task_id": task_id, "fingerprint": fingerprint, "K": K, "options": list(options),
-           "options_sha256": options_digest(options), "n_examples": int(len(y)),
-           "min_per_option": int(counts.min()), "applied": False}
+    rec = {
+        "format": FORMAT,
+        "task_id": task_id,
+        "fingerprint": fingerprint,
+        "K": K,
+        "options": list(options),
+        "options_sha256": options_digest(options),
+        "n_examples": int(len(y)),
+        "min_per_option": int(counts.min()),
+        "applied": False,
+    }
     if counts.min() < MIN_PER_OPTION:
-        return {**rec, "reason": f"every option needs at least {MIN_PER_OPTION} labelled examples; "
-                                 f"{int((counts < MIN_PER_OPTION).sum())} of {K} have fewer"}
+        return {
+            **rec,
+            "reason": f"every option needs at least {MIN_PER_OPTION} labelled examples; "
+            f"{int((counts < MIN_PER_OPTION).sum())} of {K} have fewer",
+        }
     _, meta = fit_linear(H, logps, y, K, offset=True, seed=seed)
     rec["cv_logloss"] = {str(k): round(v, 5) for k, v in meta["cv"].items()}
     if meta["lambda"] is None:
         return {**rec, "reason": "cross-validation on the labelled examples prefers the plain readout"}
     (mu, sd, V), W, b = meta["params"]
-    VW = V @ W.T                                     # d x K
+    VW = V @ W.T  # d x K
     A = VW / sd[:, None]
     c = b - (mu / sd) @ VW
-    return {**rec, "lambda": meta["lambda"], "applied": True, "reason": "cross-validated gain",
-            "A": A.astype(np.float32), "c": c.astype(np.float32)}
+    return {
+        **rec,
+        "lambda": meta["lambda"],
+        "applied": True,
+        "reason": "cross-validated gain",
+        "A": A.astype(np.float32),
+        "c": c.astype(np.float32),
+    }
 
 
 def apply_intent_head(logp, h, rec, options):

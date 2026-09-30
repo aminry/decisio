@@ -15,6 +15,7 @@ serialises with sorted keys (imajev's harness, `canonical_bytes`) gets the answe
 
     uv run pytest -q tests/unit/test_ties.py
 """
+
 import itertools
 import json
 
@@ -27,22 +28,28 @@ TIED = {"Tomato Soup": 0.4846947710, "Iced Tea": 0.4846947710, "Coffee": 0.03061
 
 def question(crit):
     from decisio.serve.systemone import SystemOneRequest
-    return SystemOneRequest.model_validate({"state": {}, "questions": {"q": {
-        "type": "choice", "instructions": "Which drink is in the photo?", "criteria": crit}}}).questions["q"]
+
+    return SystemOneRequest.model_validate(
+        {
+            "state": {},
+            "questions": {"q": {"type": "choice", "instructions": "Which drink is in the photo?", "criteria": crit}},
+        }
+    ).questions["q"]
 
 
 def test_x1_the_rule():
     from decisio.serve.systemone import to_answer
+
     choices, old = set(), set()
     for order in itertools.permutations(TIED):
         crit = {k: None for k in order}
         keys, p = list(order), [TIED[k] for k in order]
         a = to_answer(question(crit), keys, p)
         choices.add(a["choice"])
-        assert a["probabilities"] == {k: TIED[k] for k in order}          # the probabilities are untouched
+        assert a["probabilities"] == {k: TIED[k] for k in order}  # the probabilities are untouched
         old.add(keys[int(np.argmax(p))])
-    assert choices == {"Iced Tea"}                                          # the tied key that sorts first
-    assert old == {"Iced Tea", "Tomato Soup"}                               # the old rule depended on the order
+    assert choices == {"Iced Tea"}  # the tied key that sorts first
+    assert old == {"Iced Tea", "Tomato Soup"}  # the old rule depended on the order
     # no tie: the most probable option, whatever the keys
     a = to_answer(question({"b": None, "a": None}), ["b", "a"], [0.6, 0.4])
     assert a["choice"] == "b"
@@ -53,6 +60,7 @@ def test_x1_the_rule():
 
 def test_x2_abstention_follows_the_rule():
     from decisio.serve.abstention import decide
+
     keys = ["out of scope", "Tomato Soup", "Iced Tea"]
     p = [0.1, 0.45, 0.45]
     for perm in itertools.permutations(range(3)):
@@ -65,7 +73,7 @@ def test_x2_abstention_follows_the_rule():
     for perm in itertools.permutations(range(2)):
         ks, ps = [["Iced Tea", "can't tell"][i] for i in perm], [[0.5, 0.5][i] for i in perm]
         abstain, _ = decide(ps, ks.index("can't tell"), None, keys=ks)
-        assert abstain is False                     # "Iced Tea" sorts before "can't tell" (code points: capitals first)
+        assert abstain is False  # "Iced Tea" sorts before "can't tell" (code points: capitals first)
 
 
 class OrderFreeEngine:
@@ -74,6 +82,7 @@ class OrderFreeEngine:
 
     def __init__(self, weights):
         from transformers import AutoTokenizer
+
         self.weights, self.adapters = weights, {}
         self.tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B-Base")
 
@@ -94,21 +103,29 @@ def test_x3_sorted_keys_on_the_wire_cannot_change_the_answer():
 
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     eng = OrderFreeEngine(TIED)
     client = TestClient(make_app(eng, SystemOne(eng, "decisio-test")))
-    crit = {"Tomato Soup": None, "Iced Tea": None, "Coffee": None}          # the record's own order
-    body = {"state": {"photo": "[image 1]"}, "model": "m",
-            "questions": {"q": {"type": "choice", "instructions": "Which drink is in the photo?", "criteria": crit}}}
-    wires = {"as sent": json.dumps(body),
-             "sorted keys": json.dumps(body, sort_keys=True),                # imajev's canonical_bytes
-             "reversed": json.dumps({**body, "questions": {"q": {**body["questions"]["q"],
-                                                                 "criteria": dict(reversed(list(crit.items())))}}})}
+    crit = {"Tomato Soup": None, "Iced Tea": None, "Coffee": None}  # the record's own order
+    body = {
+        "state": {"photo": "[image 1]"},
+        "model": "m",
+        "questions": {"q": {"type": "choice", "instructions": "Which drink is in the photo?", "criteria": crit}},
+    }
+    wires = {
+        "as sent": json.dumps(body),
+        "sorted keys": json.dumps(body, sort_keys=True),  # imajev's canonical_bytes
+        "reversed": json.dumps(
+            {**body, "questions": {"q": {**body["questions"]["q"], "criteria": dict(reversed(list(crit.items())))}}}
+        ),
+    }
     answers = {}
     for name, raw in wires.items():
         r = client.post("/v1/systemone", content=raw, headers={"content-type": "application/json"})
         assert r.status_code == 200, r.text
         answers[name] = r.json()["answers"]["q"]
     assert {a["choice"] for a in answers.values()} == {"Iced Tea"}
-    for a in answers.values():                                              # same probabilities per key, any order
-        assert {k: round(v, 12) for k, v in a["probabilities"].items()} == \
-               {k: round(v, 12) for k, v in answers["as sent"]["probabilities"].items()}
+    for a in answers.values():  # same probabilities per key, any order
+        assert {k: round(v, 12) for k, v in a["probabilities"].items()} == {
+            k: round(v, 12) for k, v in answers["as sent"]["probabilities"].items()
+        }

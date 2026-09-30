@@ -40,6 +40,7 @@ packed: questions are packed into one prompt as consecutive chat turns, each tur
     detokenize=False, DeepGEMM off, CUDA graphs captured up to 4,096 tokens; on vLLM 0.30.0, optionally with the
     suffix-staging patch series of patches/ and VLLM_SUFFIX_STAGING=1)
 """
+
 from __future__ import annotations
 
 import json
@@ -79,6 +80,7 @@ def run_or_die(main):
     ten minutes at 88 GB until killed by PID)."""
     import os
     import traceback
+
     try:
         return main()
     except BaseException:
@@ -88,6 +90,7 @@ def run_or_die(main):
         # os._exit alone orphans vLLM's engine-core child with the GPU held (seen: 88 GB after a crash)
         try:
             import psutil
+
             kids = psutil.Process().children(recursive=True)
             for k in kids:
                 k.kill()
@@ -117,8 +120,8 @@ def pad_prompt(ids, n, k, token, where, head_len):
     return ids[:at] + [token] * k + ids[at:]
 
 
-TURN_SEP = "<|im_end|>\n"          # closes an assistant turn left at "Answer:" (packed mode)
-PAD_TOKEN = 198                    # "\n"
+TURN_SEP = "<|im_end|>\n"  # closes an assistant turn left at "Answer:" (packed mode)
+PAD_TOKEN = 198  # "\n"
 
 
 def check_adapter_names(model, adapters, arch=None):
@@ -127,8 +130,9 @@ def check_adapter_names(model, adapters, arch=None):
     `...model.language_model.layers...`; the text classes (Qwen3_5MoeForCausalLM and decisio's) need
     PEFT's original `...model.layers...`."""
     # decisio's registered classes are text classes (the trainer's original names), whatever config.json names
-    arch = "ForCausalLM" if arch else json.loads(
-        (Path(model) / "config.json").read_text()).get("architectures", [""])[0]
+    arch = (
+        "ForCausalLM" if arch else json.loads((Path(model) / "config.json").read_text()).get("architectures", [""])[0]
+    )
     for name, path in adapters.items():
         with open(Path(path) / "adapter_model.safetensors", "rb") as f:
             n = int.from_bytes(f.read(8), "little")
@@ -138,8 +142,7 @@ def check_adapter_names(model, adapters, arch=None):
         if arch.endswith("ForConditionalGeneration") and not converted:
             raise ValueError(f"adapter {name}: {arch} needs names under `.language_model.layers.`")
         if arch.endswith("ForCausalLM") and not original:
-            raise ValueError(f"adapter {name}: {arch} needs PEFT's original names "
-                             "(`base_model.model.model.layers.`)")
+            raise ValueError(f"adapter {name}: {arch} needs PEFT's original names (`base_model.model.model.layers.`)")
 
 
 def state_prefix(tok, body):
@@ -173,12 +176,12 @@ def question_text(tok, q):
     options = ["yes", "no"] if kind == "noul" else list(q["options"])
     full, cands = letters_prompt(tok, kind, "", q["instructions"], options)
     assert full.startswith("\n\n") and full.endswith("\nAnswer:")
-    text = full[2:-len("\nAnswer:")]
+    text = full[2 : -len("\nAnswer:")]
     if kind == "noul" and q.get("noul_order") == "no_yes":
         # two-order mode's second yes/no branch (systemone.py, after Reflex): the answers named the other way round;
         # the labels and their order are unchanged, so the distribution stays [P(yes), P(no)]
         assert text.endswith("\nAnswer yes or no."), "the yes/no prompt changed; update the second branch"
-        text = text[:-len("Answer yes or no.")] + "Answer no or yes."
+        text = text[: -len("Answer yes or no.")] + "Answer no or yes."
     return text, cands, options
 
 
@@ -188,17 +191,36 @@ def user_turn(tok, content):
 
 
 class LettersEngine:
-    def __init__(self, model, mode="separate", pad_to=None, pad_token=PAD_TOKEN, pad_where="between", adapters=None,
-                 max_labels=77, pack=16, max_pack_tokens=16384, max_model_len=32768, max_num_seqs=256,
-                 gpu_memory_utilization=0.90, engine_kw=None):
+    def __init__(
+        self,
+        model,
+        mode="separate",
+        pad_to=None,
+        pad_token=PAD_TOKEN,
+        pad_where="between",
+        adapters=None,
+        max_labels=77,
+        pack=16,
+        max_pack_tokens=16384,
+        max_model_len=32768,
+        max_num_seqs=256,
+        gpu_memory_utilization=0.90,
+        engine_kw=None,
+    ):
         from vllm import LLM
+
         self.mode, self.pad_token, self.pack, self.max_pack_tokens = mode, pad_token, pack, max_pack_tokens
         if pad_where not in PAD_PLACES:
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
         self.pad_where = pad_where
         self.adapters = {}
-        kw = dict(model=model, max_model_len=max_model_len, max_num_seqs=max_num_seqs,
-                  gpu_memory_utilization=gpu_memory_utilization, limit_mm_per_prompt={"image": 0, "video": 0})
+        kw = dict(
+            model=model,
+            max_model_len=max_model_len,
+            max_num_seqs=max_num_seqs,
+            gpu_memory_utilization=gpu_memory_utilization,
+            limit_mm_per_prompt={"image": 0, "video": 0},
+        )
         if mode == "separate":
             kw.update(enable_prefix_caching=True, max_logprobs=256, logprobs_mode="processed_logprobs")
             if adapters:
@@ -206,14 +228,24 @@ class LettersEngine:
         elif mode == "packed":
             from transformers import AutoTokenizer
             from vllm.config import PoolerConfig
+
             t = AutoTokenizer.from_pretrained(model)
-            self.label_ids = sorted(set(label_token_ids(
-                t, [" yes", " no"] + [" " + c for c in letter_labels(t, max_labels)])))
-            kw.update(runner="pooling", convert="classify",
-                      hf_overrides={"text_config": {"classifier_from_token": t.convert_ids_to_tokens(self.label_ids),
-                                                    "method": "no_post_processing"}},
-                      pooler_config=PoolerConfig(task="token_classify", seq_pooling_type="LAST",
-                                                 tok_pooling_type="ALL", use_activation=False))
+            self.label_ids = sorted(
+                set(label_token_ids(t, [" yes", " no"] + [" " + c for c in letter_labels(t, max_labels)]))
+            )
+            kw.update(
+                runner="pooling",
+                convert="classify",
+                hf_overrides={
+                    "text_config": {
+                        "classifier_from_token": t.convert_ids_to_tokens(self.label_ids),
+                        "method": "no_post_processing",
+                    }
+                },
+                pooler_config=PoolerConfig(
+                    task="token_classify", seq_pooling_type="LAST", tok_pooling_type="ALL", use_activation=False
+                ),
+            )
             self.column = {tid: c for c, tid in enumerate(self.label_ids)}
         else:
             raise ValueError(f"unknown mode {mode!r}")
@@ -226,11 +258,13 @@ class LettersEngine:
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         if adapters:
             from vllm.lora.request import LoRARequest
-            check_adapter_names(model, adapters,
-                                arch=((engine_kw or {}).get("hf_overrides") or {}).get("architectures"))
+
+            check_adapter_names(
+                model, adapters, arch=((engine_kw or {}).get("hf_overrides") or {}).get("architectures")
+            )
             for i, (name, path) in enumerate(adapters.items(), start=1):
                 self.adapters[name] = LoRARequest(name, i, str(path))
-        self._lock = threading.Lock()          # one request at a time through the engine
+        self._lock = threading.Lock()  # one request at a time through the engine
         self._warm_up()
 
     def _warm_up(self):
@@ -246,19 +280,29 @@ class LettersEngine:
                 for adapter in [None, *self.adapters]:
                     self.score_prompts(self._prepare_separate(state, q)[0], adapter)
             else:
-                self.score_packed([[(f"{state}\n\n{question_text(self.tok, q[0])[0]}",
-                                     label_token_ids(self.tok, [" yes", " no"]))]])
+                self.score_packed(
+                    [[(f"{state}\n\n{question_text(self.tok, q[0])[0]}", label_token_ids(self.tok, [" yes", " no"]))]]
+                )
 
     def facts(self):
         import torch
         import vllm
+
         c = self.llm.llm_engine.vllm_config
-        return {"vllm": vllm.__version__, "gpu": torch.cuda.get_device_name(0), "mode": self.mode,
-                "block_size": self.block_size, "match_unit": self.match_unit, "pad_unit": self.pad_unit,
-                "pad_where": self.pad_where if self.pad_unit else None,
-                "quantization": str(c.model_config.quantization), "kv_cache_dtype": str(c.cache_config.cache_dtype),
-                "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
-                "adapters": sorted(self.adapters), "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset")}
+        return {
+            "vllm": vllm.__version__,
+            "gpu": torch.cuda.get_device_name(0),
+            "mode": self.mode,
+            "block_size": self.block_size,
+            "match_unit": self.match_unit,
+            "pad_unit": self.pad_unit,
+            "pad_where": self.pad_where if self.pad_unit else None,
+            "quantization": str(c.model_config.quantization),
+            "kv_cache_dtype": str(c.cache_config.cache_dtype),
+            "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
+            "adapters": sorted(self.adapters),
+            "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
+        }
 
     # ---- the request API ------------------------------------------------------------------------
 
@@ -323,7 +367,7 @@ class LettersEngine:
         question cost 0.6 ms (500-token state) to 5.7 ms (8,000) of CPU per question.
         The first row of every request is checked against tokenizing its whole prompt; a mismatch falls
         back to full tokenization for that request, so the rows are always what evaluation scores."""
-        enc = lambda s: self.tok.encode(s, add_special_tokens=False)        # noqa: E731
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         body = fmt_state(state)
         tail = self._template_tail()
         texts = [question_text(self.tok, q) for q in questions]
@@ -343,8 +387,9 @@ class LettersEngine:
             rows = [(enc(user_turn(self.tok, f"{body}\n\n{text}")), self._labels(cands)) for text, cands, _ in texts]
         for ids, _ in rows:
             if ids[:n] != prefix:
-                raise ValueError("a question's text merges with the state's last token; "
-                                 "questions must not start with whitespace")
+                raise ValueError(
+                    "a question's text merges with the state's last token; questions must not start with whitespace"
+                )
         k = (-n % self.pad_unit) if self.pad_unit else 0
         head = len(enc(USER_HEAD))
         rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
@@ -365,38 +410,63 @@ class LettersEngine:
         vLLM runs one request first and the others then hit its freshly cached prefix."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
+
         lora = self.adapters[adapter] if adapter else None
         extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
         warm_ms = 0.0
         if warm:
             t = time.perf_counter()
-            self.llm.generate([TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
-                              SamplingParams(max_tokens=1, temperature=0.0), lora_request=lora, use_tqdm=False)
+            self.llm.generate(
+                [TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
+                SamplingParams(max_tokens=1, temperature=0.0),
+                lora_request=lora,
+                use_tqdm=False,
+            )
             warm_ms = (time.perf_counter() - t) * 1000
         # SamplingParams defaults leave top-k/top-p/min-p off, so "processed" is the masked logits alone.
         # detokenize=False: labels are read by token id and no text is used; the per-request detokenizer
         # was 73% of the frontend's CPU at an 8,000-token state (profiled)
-        sps = [SamplingParams(max_tokens=1, temperature=0.0, logprobs=len(lab), allowed_token_ids=lab,
-                              skip_reading_prefix_cache=skip_cache or None, detokenize=False) for _, lab in rows]
-        outs = self.llm.generate([TokensPrompt(prompt_token_ids=ids, **extra) for ids, _ in rows], sps,
-                                 lora_request=lora, use_tqdm=False)
+        sps = [
+            SamplingParams(
+                max_tokens=1,
+                temperature=0.0,
+                logprobs=len(lab),
+                allowed_token_ids=lab,
+                skip_reading_prefix_cache=skip_cache or None,
+                detokenize=False,
+            )
+            for _, lab in rows
+        ]
+        outs = self.llm.generate(
+            [TokensPrompt(prompt_token_ids=ids, **extra) for ids, _ in rows], sps, lora_request=lora, use_tqdm=False
+        )
         probs = []
         for (_, lab), o in zip(rows, outs):
             d = o.outputs[0].logprobs[0]
-            lp = np.array([d[t].logprob for t in lab], dtype=np.float64)   # KeyError = a label went missing
+            lp = np.array([d[t].logprob for t in lab], dtype=np.float64)  # KeyError = a label went missing
             p = np.exp(lp - lp.max())
             probs.append(p / p.sum())
         cached = [o.num_cached_tokens or 0 for o in outs]
         engine_len = [len(o.prompt_token_ids or []) for o in outs]
         # per-request engine-core timestamps (monotonic), present when the engine keeps stats
         # (disable_log_stats=False): queue wait and schedule-to-first-token, for latency attribution
-        timing = [{"queue_ms": (m.scheduled_ts - m.queued_ts) * 1000,
-                   "sched_to_token_ms": (m.first_token_ts - m.scheduled_ts) * 1000}
-                  for m in (getattr(o, "metrics", None) for o in outs) if m is not None and m.scheduled_ts]
-        return probs, {"warm_ms": warm_ms, "cached_tokens_mean": float(np.mean(cached)), "engine_timing": timing,
-                       "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])),
-                       "prompt_tokens": sum(len(r[0]) for r in rows) + sum(len(w) for w in warm),
-                       "engine_prompt_tokens": engine_len, "cached_tokens": cached}
+        timing = [
+            {
+                "queue_ms": (m.scheduled_ts - m.queued_ts) * 1000,
+                "sched_to_token_ms": (m.first_token_ts - m.scheduled_ts) * 1000,
+            }
+            for m in (getattr(o, "metrics", None) for o in outs)
+            if m is not None and m.scheduled_ts
+        ]
+        return probs, {
+            "warm_ms": warm_ms,
+            "cached_tokens_mean": float(np.mean(cached)),
+            "engine_timing": timing,
+            "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])),
+            "prompt_tokens": sum(len(r[0]) for r in rows) + sum(len(w) for w in warm),
+            "engine_prompt_tokens": engine_len,
+            "cached_tokens": cached,
+        }
 
     def _answer_separate(self, requests, adapter):
         rows, warm, spans, shared = [], [], [], []
@@ -405,7 +475,7 @@ class LettersEngine:
             r, P = self._prepare_separate(state, questions)
             # a warm-up pays only when several questions can reuse a registered boundary
             if len(r) > 1 and P >= unit:
-                warm.append(r[0][0][:P + 1])
+                warm.append(r[0][0][: P + 1])
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
@@ -419,7 +489,8 @@ class LettersEngine:
         """packs: list of packs, each a list of turns (user content, label ids). Returns, per pack,
         one distribution per turn, read at the turn's final "Answer:" token, in one prefill per pack."""
         from vllm.inputs import TokensPrompt
-        enc = lambda s: self.tok.encode(s, add_special_tokens=False)        # noqa: E731
+
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         prompts, reads = [], []
         for turns in packs:
             ids, pos = [], []
@@ -433,7 +504,7 @@ class LettersEngine:
         outs = self.llm.encode(prompts, pooling_task="token_classify", use_tqdm=False)
         result = []
         for turns, pos, o in zip(packs, reads, outs):
-            logits = o.outputs.data                                     # [prompt length, K classifier tokens]
+            logits = o.outputs.data  # [prompt length, K classifier tokens]
             pack_probs = []
             for (_, lab), p in zip(turns, pos):
                 z = logits[p, [self.column[t] for t in lab]].double().cpu().numpy()
@@ -449,7 +520,7 @@ class LettersEngine:
         packs, cur, cur_tok = [], [], 0
         for q in questions:
             text, cands, _ = question_text(self.tok, q)
-            n = len(self.tok.encode(text, add_special_tokens=False)) + 24     # + chat framing
+            n = len(self.tok.encode(text, add_special_tokens=False)) + 24  # + chat framing
             if cur and (len(cur) >= self.pack or state_tokens + cur_tok + n > self.max_pack_tokens):
                 packs.append(cur)
                 cur, cur_tok = [], 0
@@ -473,6 +544,7 @@ class LettersEngine:
 
 # ---- HTTP endpoint ------------------------------------------------------------------------------
 
+
 def make_app(engine, systemone=None):
     """`/health` and `/v1/answer`; with `systemone` (decisio.serve.systemone.SystemOne) also TypeSafe's wire format,
     `POST /v1/systemone` and `GET /v1/models`, on the same engine."""
@@ -489,23 +561,37 @@ def make_app(engine, systemone=None):
     @app.get("/health")
     def health():
         image = getattr(systemone, "image_engine", None) if systemone is not None else None
-        so = {"systemone": {"hide_index_keys": systemone.hide_index_keys, "desnake_labels": systemone.desnake_labels,
-                            "abstention": systemone.abstention,
-                            "abstention_tasks": {t["id"]: (t.get("config") or {}).get("threshold")
-                                                 for t in systemone.tasks.values()},
-                            "orders": systemone.orders,
-                            "abstain_option": systemone.abstain_option,
-                            "tasks": systemone.tasks_enabled, "debug_readout": systemone.debug_readout,
-                            "temperature": systemone.temperature,
-                            "readout_tasks": {t["id"]: {"calibration": bool(t["calibration"].get("applied")),
-                                                        "head": bool(t["head"].get("applied"))}
-                                              for t in (systemone.task_store.by_key.values() if systemone.task_store
-                                                        else [])}}} if systemone is not None else {}
+        so = (
+            {
+                "systemone": {
+                    "hide_index_keys": systemone.hide_index_keys,
+                    "desnake_labels": systemone.desnake_labels,
+                    "abstention": systemone.abstention,
+                    "abstention_tasks": {
+                        t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
+                    },
+                    "orders": systemone.orders,
+                    "abstain_option": systemone.abstain_option,
+                    "tasks": systemone.tasks_enabled,
+                    "debug_readout": systemone.debug_readout,
+                    "temperature": systemone.temperature,
+                    "readout_tasks": {
+                        t["id"]: {
+                            "calibration": bool(t["calibration"].get("applied")),
+                            "head": bool(t["head"].get("applied")),
+                        }
+                        for t in (systemone.task_store.by_key.values() if systemone.task_store else [])
+                    },
+                }
+            }
+            if systemone is not None
+            else {}
+        )
         hidden = getattr(systemone, "hidden_engine", None) if systemone is not None else None
         so.update({"head_engine": hidden.facts()} if hidden is not None else {})
         return {"ok": True, **engine.facts(), **({"image_engine": image.facts()} if image is not None else {}), **so}
 
-    def answer(req: Request):          # sync: FastAPI runs it in a thread; the engine lock serialises
+    def answer(req: Request):  # sync: FastAPI runs it in a thread; the engine lock serialises
         if req.adapter and req.adapter not in engine.adapters:
             raise HTTPException(404, f"unknown adapter {req.adapter!r}; loaded: {sorted(engine.adapters)}")
         try:
@@ -526,6 +612,7 @@ def make_app(engine, systemone=None):
 
     if systemone is not None:
         from decisio.serve.systemone import add_routes
+
         add_routes(app, systemone)
     return app
 
@@ -540,9 +627,11 @@ def deep_gemm_guard(backend, environ, allow=False):
     if value is None:
         environ["VLLM_USE_DEEP_GEMM"] = "0"
     elif value != "0" and not allow:
-        raise SystemExit(f"VLLM_USE_DEEP_GEMM={value}: the served default needs 0 (the FP8 MoE on Triton; DeepGEMM is "
-                         "wrong on Blackwell cards). Unset it, or pass --allow-deep-gemm on a card where it was "
-                         "verified.")
+        raise SystemExit(
+            f"VLLM_USE_DEEP_GEMM={value}: the served default needs 0 (the FP8 MoE on Triton; DeepGEMM is "
+            "wrong on Blackwell cards). Unset it, or pass --allow-deep-gemm on a card where it was "
+            "verified."
+        )
 
 
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
@@ -569,8 +658,10 @@ def resolve_head_mode(model_class, head_engine, one_engine=False):
         raise ValueError(f"--model-class must be one of {MODEL_CLASSES}")
     if model_class == "hidden-readout":
         if head_engine:
-            raise ValueError("--model-class hidden-readout reads the head's hidden state from the text engine; "
-                             "--head-engine reads it from a second engine: choose one")
+            raise ValueError(
+                "--model-class hidden-readout reads the head's hidden state from the text engine; "
+                "--head-engine reads it from a second engine: choose one"
+            )
         return model_class, "single-engine"
     return model_class, "second-engine" if head_engine else None
 
@@ -582,21 +673,26 @@ def engine_kwargs(args) -> dict:
     if args.model_class == "view":
         return kw
     import decisio.vllm_plugin as plugin
+
     if not plugin.installed_entry_point():
-        raise SystemExit("--model-class needs decisio's vLLM plugin installed (pip install -e .): vLLM's engine "
-                         "processes find it through the package's entry point, not through PYTHONPATH")
+        raise SystemExit(
+            "--model-class needs decisio's vLLM plugin installed (pip install -e .): vLLM's engine "
+            "processes find it through the package's entry point, not through PYTHONPATH"
+        )
     if not plugin.register():
         raise SystemExit(f"--model-class needs vllm=={plugin.SUPPORTED_VLLM}; found {plugin.vllm_version()}")
     arch = {"text-only": plugin.TEXT_ONLY, "hidden-readout": plugin.HIDDEN_READOUT}[args.model_class]
     if args.model_class == "hidden-readout":
         from decisio.vllm_plugin.hidden import DEFAULT_START, ENV_START
-        os.environ.setdefault(ENV_START, str(DEFAULT_START))    # inherited by vLLM's engine processes
-        kw = {**kw, "max_logprobs": 1024}                       # a head question reads up to 1,024 columns per request
+
+        os.environ.setdefault(ENV_START, str(DEFAULT_START))  # inherited by vLLM's engine processes
+        kw = {**kw, "max_logprobs": 1024}  # a head question reads up to 1,024 columns per request
     return {**kw, **plugin.engine_kwargs(arch)}
 
 
 def main():
     import argparse
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True)
     ap.add_argument("--mode", default="separate", choices=["separate", "packed"])
@@ -609,70 +705,126 @@ def main():
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
     ap.add_argument("--engine", default=json.dumps(SERVED_ENGINE), help="extra LLM(...) keyword arguments as JSON")
-    ap.add_argument("--model-class", default=None, choices=MODEL_CLASSES,
-                    help="hidden-readout (the default): --model is the official checkpoint, loaded under decisio's "
-                         "registered text-only class that also returns the hidden state at the answer position, so "
-                         "registered tasks fit and serve an intent head from this one engine; text-only (the default "
-                         "with --head-engine): the same class without the hidden state; view: --model is a directory "
-                         "vLLM loads as it is, the text-only view built by decisio.serve.make_text_only (the fallback "
-                         "that needs no plugin). The decisio classes need the package installed, so vLLM's engine "
-                         "processes find the plugin through its entry point")
-    ap.add_argument("--allow-deep-gemm", action="store_true",
-                    help="start even when VLLM_USE_DEEP_GEMM is set to something other than 0 (default: refuse)")
-    ap.add_argument("--backend", default="vllm", choices=["vllm", "hf"],
-                    help="hf: the CPU stand-in (decisio.serve.hf_letters), for the CPU smoke test only")
+    ap.add_argument(
+        "--model-class",
+        default=None,
+        choices=MODEL_CLASSES,
+        help="hidden-readout (the default): --model is the official checkpoint, loaded under decisio's "
+        "registered text-only class that also returns the hidden state at the answer position, so "
+        "registered tasks fit and serve an intent head from this one engine; text-only (the default "
+        "with --head-engine): the same class without the hidden state; view: --model is a directory "
+        "vLLM loads as it is, the text-only view built by decisio.serve.make_text_only (the fallback "
+        "that needs no plugin). The decisio classes need the package installed, so vLLM's engine "
+        "processes find the plugin through its entry point",
+    )
+    ap.add_argument(
+        "--allow-deep-gemm",
+        action="store_true",
+        help="start even when VLLM_USE_DEEP_GEMM is set to something other than 0 (default: refuse)",
+    )
+    ap.add_argument(
+        "--backend",
+        default="vllm",
+        choices=["vllm", "hf"],
+        help="hf: the CPU stand-in (decisio.serve.hf_letters), for the CPU smoke test only",
+    )
     ap.add_argument("--served-name", default=SERVED_NAME, help="the name GET /v1/models lists")
-    ap.add_argument("--orders", type=int, default=1, choices=[1, 2],
-                    help="/v1/systemone: 2 = two-order averaging (after Reflex); the per-question disagreement goes "
-                         "to --branch-log")
+    ap.add_argument(
+        "--orders",
+        type=int,
+        default=1,
+        choices=[1, 2],
+        help="/v1/systemone: 2 = two-order averaging (after Reflex); the per-question disagreement goes "
+        "to --branch-log",
+    )
     ap.add_argument("--branch-log", default=None, help="JSONL of two-order branches and their disagreement")
-    ap.add_argument("--image-model", default=None,
-                    help="the full multimodal checkpoint: a second engine under the multimodal class, serving only "
-                         "/v1/systemone requests that carry images (decisio.serve.image_engine); the text route is "
-                         "unchanged")
-    ap.add_argument("--hide-index-keys", action=argparse.BooleanOptionalAction, default=True,
-                    help="/v1/systemone: show only the descriptions of options whose keys are a pure enumeration "
-                         "(option_0, option_1, ...), never the index beside our letters (default on; "
-                         "--no-hide-index-keys renders `key: description` as before)")
-    ap.add_argument("--desnake-labels", action=argparse.BooleanOptionalAction, default=True,
-                    help="/v1/systemone: when options are shown as bare labels and every label is snake_case "
-                         "(card_arrival, ...), show them with spaces (default on; --no-desnake-labels leaves them)")
-    ap.add_argument("--abstention", action=argparse.BooleanOptionalAction, default=True,
-                    help="/v1/systemone: apply registered per-task abstention thresholds (POST /v1/abstention/tasks; "
-                         "decisio.serve.abstention); --no-abstention ignores them (default on; no task, no change)")
-    ap.add_argument("--abstention-tasks", default=None, help="a JSON list of tasks to load at start (as the endpoint "
-                    "returns them)")
-    ap.add_argument("--abstain-option", default=None,
-                    help="offer this extra option (e.g. \"can't tell\") on every question of requests that use "
-                         "imajev's extension, and report its probability as unknown_probability / abstained; "
-                         "untrained, opt-in")
-    ap.add_argument("--temperature", type=float, default=SERVED_TEMPERATURE,
-                    help="/v1/systemone: the global temperature on the text route's plain readout, softmax(log p / T) "
-                         "(decisio.serve.temperature; default: the value fitted on the suite's served readouts); a "
-                         "registered task's own correction replaces it; 1 switches it off (the output before it, bit "
-                         "for bit); never changes the most probable option")
-    ap.add_argument("--tasks", action=argparse.BooleanOptionalAction, default=True,
-                    help="/v1/systemone: apply registered per-task calibration and intent heads (POST /v1/tasks; "
-                         "decisio.serve.tasks); --no-tasks ignores them (default on; no task, no change)")
+    ap.add_argument(
+        "--image-model",
+        default=None,
+        help="the full multimodal checkpoint: a second engine under the multimodal class, serving only "
+        "/v1/systemone requests that carry images (decisio.serve.image_engine); the text route is "
+        "unchanged",
+    )
+    ap.add_argument(
+        "--hide-index-keys",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="/v1/systemone: show only the descriptions of options whose keys are a pure enumeration "
+        "(option_0, option_1, ...), never the index beside our letters (default on; "
+        "--no-hide-index-keys renders `key: description` as before)",
+    )
+    ap.add_argument(
+        "--desnake-labels",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="/v1/systemone: when options are shown as bare labels and every label is snake_case "
+        "(card_arrival, ...), show them with spaces (default on; --no-desnake-labels leaves them)",
+    )
+    ap.add_argument(
+        "--abstention",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="/v1/systemone: apply registered per-task abstention thresholds (POST /v1/abstention/tasks; "
+        "decisio.serve.abstention); --no-abstention ignores them (default on; no task, no change)",
+    )
+    ap.add_argument(
+        "--abstention-tasks", default=None, help="a JSON list of tasks to load at start (as the endpoint returns them)"
+    )
+    ap.add_argument(
+        "--abstain-option",
+        default=None,
+        help='offer this extra option (e.g. "can\'t tell") on every question of requests that use '
+        "imajev's extension, and report its probability as unknown_probability / abstained; "
+        "untrained, opt-in",
+    )
+    ap.add_argument(
+        "--temperature",
+        type=float,
+        default=SERVED_TEMPERATURE,
+        help="/v1/systemone: the global temperature on the text route's plain readout, softmax(log p / T) "
+        "(decisio.serve.temperature; default: the value fitted on the suite's served readouts); a "
+        "registered task's own correction replaces it; 1 switches it off (the output before it, bit "
+        "for bit); never changes the most probable option",
+    )
+    ap.add_argument(
+        "--tasks",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="/v1/systemone: apply registered per-task calibration and intent heads (POST /v1/tasks; "
+        "decisio.serve.tasks); --no-tasks ignores them (default on; no task, no change)",
+    )
     ap.add_argument("--tasks-file", default=None, help="a JSON list of tasks to load at start (GET /v1/tasks?full=1)")
-    ap.add_argument("--head-engine", action="store_true",
-                    help="read the intent head's hidden state from a second engine "
-                         "(decisio.serve.hidden_engine.HiddenEngine), a second copy of --model in vLLM's pooling mode, "
-                         "instead of from the text engine: faster head questions (one request, not three) for "
-                         "deployments with heavy intent traffic on a dedicated card, at a second weight copy; not "
-                         "co-resident with --image-model (docs/handoffs/tasks.md)")
+    ap.add_argument(
+        "--head-engine",
+        action="store_true",
+        help="read the intent head's hidden state from a second engine "
+        "(decisio.serve.hidden_engine.HiddenEngine), a second copy of --model in vLLM's pooling mode, "
+        "instead of from the text engine: faster head questions (one request, not three) for "
+        "deployments with heavy intent traffic on a dedicated card, at a second weight copy; not "
+        "co-resident with --image-model (docs/handoffs/tasks.md)",
+    )
     ap.add_argument("--head-gpu-memory-utilization", type=float, default=0.47, help="the hidden-state engine's share")
-    ap.add_argument("--debug-readout", action="store_true",
-                    help="honour the x-decisio-debug header (the raw readout in the response; verification only)")
-    ap.add_argument("--one-engine", action="store_true",
-                    help="load only the --image-model engine (at --gpu-memory-utilization) and serve text requests on "
-                         "it too: the fallback for a card that cannot hold both engines; changes the text route's "
-                         "class")
+    ap.add_argument(
+        "--debug-readout",
+        action="store_true",
+        help="honour the x-decisio-debug header (the raw readout in the response; verification only)",
+    )
+    ap.add_argument(
+        "--one-engine",
+        action="store_true",
+        help="load only the --image-model engine (at --gpu-memory-utilization) and serve text requests on "
+        "it too: the fallback for a card that cannot hold both engines; changes the text route's "
+        "class",
+    )
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.90, help="the text engine's share of the card")
-    ap.add_argument("--image-gpu-memory-utilization", type=float, default=0.50,
-                    help="the image engine's share of the card")
-    ap.add_argument("--host", default="127.0.0.1",
-                    help="listen address (default: this machine only; put a reverse proxy in front to expose it)")
+    ap.add_argument(
+        "--image-gpu-memory-utilization", type=float, default=0.50, help="the image engine's share of the card"
+    )
+    ap.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="listen address (default: this machine only; put a reverse proxy in front to expose it)",
+    )
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
@@ -687,65 +839,102 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     if head_mode == "second-engine" and args.image_model:
-        ap.error("--head-engine: the second weight copy leaves no room for --image-model on one card; serve images "
-                 "from another server, or use the default single-engine head")
-    if one:            # the image engine alone, at the text engine's share of the card, serves both routes
+        ap.error(
+            "--head-engine: the second weight copy leaves no room for --image-model on one card; serve images "
+            "from another server, or use the default single-engine head"
+        )
+    if one:  # the image engine alone, at the text engine's share of the card, serves both routes
         pad_to = None if args.pad_to == "none" else args.pad_to
         if args.backend == "hf":
             from decisio.serve.hf_letters import HFImageLettersEngine
+
             engine = HFImageLettersEngine(args.image_model, pad_to=pad_to, pad_where=args.pad_where)
         else:
             from decisio.serve.image_engine import ImageLettersEngine
-            engine = ImageLettersEngine(args.image_model, pad_to=pad_to, pad_where=args.pad_where,
-                                        gpu_memory_utilization=args.gpu_memory_utilization,
-                                        engine_kw=json.loads(args.engine))
+
+            engine = ImageLettersEngine(
+                args.image_model,
+                pad_to=pad_to,
+                pad_where=args.pad_where,
+                gpu_memory_utilization=args.gpu_memory_utilization,
+                engine_kw=json.loads(args.engine),
+            )
     elif args.backend == "hf":
         from decisio.serve.hf_letters import HFLettersEngine
-        engine = HFLettersEngine(args.model, pad_to=None if args.pad_to == "none" else args.pad_to,
-                                 pad_where=args.pad_where)
+
+        engine = HFLettersEngine(
+            args.model, pad_to=None if args.pad_to == "none" else args.pad_to, pad_where=args.pad_where
+        )
     else:
-        engine = LettersEngine(args.model, mode=args.mode, pad_to=None if args.pad_to == "none" else args.pad_to,
-                               pad_where=args.pad_where,
-                               adapters=adapters, pack=args.pack, gpu_memory_utilization=args.gpu_memory_utilization,
-                               engine_kw=engine_kwargs(args))
+        engine = LettersEngine(
+            args.model,
+            mode=args.mode,
+            pad_to=None if args.pad_to == "none" else args.pad_to,
+            pad_where=args.pad_where,
+            adapters=adapters,
+            pack=args.pack,
+            gpu_memory_utilization=args.gpu_memory_utilization,
+            engine_kw=engine_kwargs(args),
+        )
     print("ENGINE", json.dumps(engine.facts()), flush=True)
     image_engine = engine if one else None
     if args.image_model and not one:
         pad_to = None if args.pad_to == "none" else args.pad_to
         if args.backend == "hf":
             from decisio.serve.hf_letters import HFImageLettersEngine
+
             image_engine = HFImageLettersEngine(args.image_model, pad_to=pad_to, pad_where=args.pad_where)
         else:
             from decisio.serve.image_engine import ImageLettersEngine
-            image_engine = ImageLettersEngine(args.image_model, pad_to=pad_to, pad_where=args.pad_where,
-                                              gpu_memory_utilization=args.image_gpu_memory_utilization,
-                                              engine_kw=json.loads(args.engine))
+
+            image_engine = ImageLettersEngine(
+                args.image_model,
+                pad_to=pad_to,
+                pad_where=args.pad_where,
+                gpu_memory_utilization=args.image_gpu_memory_utilization,
+                engine_kw=json.loads(args.engine),
+            )
         print("IMAGE ENGINE", json.dumps(image_engine.facts()), flush=True)
     hidden_engine = None
     if head_mode == "single-engine":
         if args.backend == "hf":
             from decisio.serve.hidden_engine import HFReservedHiddenEngine
+
             hidden_engine = HFReservedHiddenEngine(args.model, pad_to=engine.pad_unit, pad_where=args.pad_where)
         else:
             from decisio.serve.hidden_engine import SingleEngineHidden
+
             hidden_engine = SingleEngineHidden(engine, args.model)
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
     if head_mode == "second-engine":
         if args.backend == "vllm" and args.gpu_memory_utilization + args.head_gpu_memory_utilization > 0.95:
-            ap.error("--head-engine: the text and hidden-state engines share the card; set --gpu-memory-utilization "
-                     "and --head-gpu-memory-utilization to at most 0.95 together (e.g. 0.47 and 0.47)")
-        pad_to = engine.pad_unit           # the text engine's padding unit, whatever the pooling engine's block size
+            ap.error(
+                "--head-engine: the text and hidden-state engines share the card; set --gpu-memory-utilization "
+                "and --head-gpu-memory-utilization to at most 0.95 together (e.g. 0.47 and 0.47)"
+            )
+        pad_to = engine.pad_unit  # the text engine's padding unit, whatever the pooling engine's block size
         if args.backend == "hf":
             from decisio.serve.hidden_engine import HFHiddenEngine
+
             hidden_engine = HFHiddenEngine(args.model, pad_to=pad_to, pad_where=args.pad_where)
         else:
             from decisio.serve.hidden_engine import HiddenEngine
-            hidden_engine = HiddenEngine(args.model, pad_to=pad_to, pad_where=args.pad_where,
-                                         gpu_memory_utilization=args.head_gpu_memory_utilization,
-                                         engine_kw=engine_kwargs(args))
+
+            hidden_engine = HiddenEngine(
+                args.model,
+                pad_to=pad_to,
+                pad_where=args.pad_where,
+                gpu_memory_utilization=args.head_gpu_memory_utilization,
+                engine_kw=engine_kwargs(args),
+            )
         # the head is fitted and served on the text route's exact token rows: refuse to start if they differ
-        probe = ("A state to check. " * 30, [{"kind": "choice", "instructions": "Which?", "options": ["alpha", "beta"]},
-                                             {"kind": "noul", "instructions": "Is it a check?"}])
+        probe = (
+            "A state to check. " * 30,
+            [
+                {"kind": "choice", "instructions": "Which?", "options": ["alpha", "beta"]},
+                {"kind": "noul", "instructions": "Is it a check?"},
+            ],
+        )
         if hidden_engine._prepare_separate(*probe) != engine._prepare_separate(*probe):
             raise SystemExit("--head-engine: the hidden-state engine builds different token rows than the text engine")
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
@@ -753,23 +942,44 @@ def main():
 
     from decisio.serve.systemone import SystemOne
     from decisio.serve.tasks import TaskStore
+
     # a task is valid only for the model and the rendering it was fitted under
-    store = TaskStore(fingerprint=json.dumps({"served_name": args.served_name, "model": os.path.basename(
-        os.path.normpath(args.model)), "pad_to": args.pad_to, "pad_where": args.pad_where,
-        "hide_index_keys": args.hide_index_keys, "desnake_labels": args.desnake_labels}, sort_keys=True))
+    store = TaskStore(
+        fingerprint=json.dumps(
+            {
+                "served_name": args.served_name,
+                "model": os.path.basename(os.path.normpath(args.model)),
+                "pad_to": args.pad_to,
+                "pad_where": args.pad_where,
+                "hide_index_keys": args.hide_index_keys,
+                "desnake_labels": args.desnake_labels,
+            },
+            sort_keys=True,
+        )
+    )
     if args.tasks_file:
         data = json.loads(Path(args.tasks_file).read_text())
         store.load(data["tasks"] if isinstance(data, dict) else data)
         stale = [t["id"] for t in store.by_key.values() if not same_fingerprint(t["fingerprint"], store.fingerprint)]
         if stale:
             print(f"WARNING: tasks fitted under another model or rendering are not applied: {stale}", flush=True)
-    so = SystemOne(engine, args.served_name, orders=args.orders, branch_log=args.branch_log, image_engine=image_engine,
-                   abstain_option=args.abstain_option, hide_index_keys=args.hide_index_keys,
-                   desnake_labels=args.desnake_labels, abstention=args.abstention,
-                   abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text())
-                                     if args.abstention_tasks else None),
-                   tasks_enabled=args.tasks, task_store=store, hidden_engine=hidden_engine,
-                   debug_readout=args.debug_readout, temperature=args.temperature)
+    so = SystemOne(
+        engine,
+        args.served_name,
+        orders=args.orders,
+        branch_log=args.branch_log,
+        image_engine=image_engine,
+        abstain_option=args.abstain_option,
+        hide_index_keys=args.hide_index_keys,
+        desnake_labels=args.desnake_labels,
+        abstention=args.abstention,
+        abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
+        tasks_enabled=args.tasks,
+        task_store=store,
+        hidden_engine=hidden_engine,
+        debug_readout=args.debug_readout,
+        temperature=args.temperature,
+    )
     uvicorn.run(make_app(engine, so), host=args.host, port=args.port, log_level="warning")
 
 

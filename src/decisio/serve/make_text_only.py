@@ -15,6 +15,7 @@ checkpoint directly and serves it bit-identically (runs/2026-09-30_plugin-verifi
 
     python -m decisio.serve.make_text_only $DECISIO_MODEL $DECISIO_VIEW
 """
+
 import json
 import os
 import sys
@@ -33,6 +34,7 @@ def main():
     print(f"{len(visual)} vision tensors in {len(shards_with_visual)} shard(s): {sorted(shards_with_visual)}")
     from safetensors import safe_open
     from safetensors.torch import save_file
+
     for shard in sorted(shards_with_visual):
         keep = {}
         with safe_open(str(src / shard), framework="pt") as f:

@@ -7,6 +7,7 @@ here.
 
     DECISIO_MODEL=$DECISIO_MODEL uv run pytest -m gpu tests/gpu/test_model_classes.py
 """
+
 import pytest
 from gpu_tier import HERE, env_path, run_child
 

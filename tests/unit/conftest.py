@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The CPU tier. Tests that serve through the CPU stand-in load a small Hugging Face model (the `served` fixtures, the
 tests marked in place) and are marked `slow`; `-m "not slow"` runs the rest in under a minute."""
+
 import pytest
 
 

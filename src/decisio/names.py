@@ -11,6 +11,7 @@
 
 Standard library only.
 """
+
 from __future__ import annotations
 
 import json
@@ -18,7 +19,7 @@ import json
 PREFIX, LEGACY_PREFIX = "decisio", "rlcd"
 SERVED_NAME = "decisio-qwen3.6-35b-a3b-letters"
 LEGACY_SERVED_NAME = "rlcd-qwen3.6-35b-a3b-letters"
-DEBUG_KEY = "decisio_debug"                  # the response body's debug field (with --debug-readout)
+DEBUG_KEY = "decisio_debug"  # the response body's debug field (with --debug-readout)
 
 
 def header(name: str) -> str:
@@ -45,8 +46,9 @@ def check_format(record: dict, kind: str, what: str) -> None:
     """Refuse a record that is not of this kind (in either spelling); a record without a format is refused too."""
     got = record.get("format") if isinstance(record, dict) else None
     if not is_format(got, kind):
-        raise ValueError(f"{what}: format {got!r} is not {record_format(kind)!r} (or its earlier spelling "
-                         f"{LEGACY_PREFIX}-{kind}/1)")
+        raise ValueError(
+            f"{what}: format {got!r} is not {record_format(kind)!r} (or its earlier spelling {LEGACY_PREFIX}-{kind}/1)"
+        )
 
 
 def canonical_fingerprint(fingerprint):

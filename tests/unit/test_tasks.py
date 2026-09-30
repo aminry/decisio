@@ -2,19 +2,20 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Per-task calibration and the intent head on `/v1/systemone` (`decisio.serve.tasks`, `POST /v1/tasks`).
 
-  T1  a task's identity: the question type and its option list in order (plus the instructions for yes/no and score);
-      any change to the list is another task;
-  T2  the store: calibration is `calibration.fit_task_prior` on the examples' served log-scores, unchanged; the head is
-      `intent_head.fit_intent_head` on their hidden readout, fitted only for 10 or more options with at least 5 examples
-      per option (else off, with the reason); a re-registration replaces the task; the JSON form round-trips the head's
-      arrays exactly;
-  T3  served (CPU stand-in): no task, or a task of another list, changes nothing, bit for bit; calibration is
-      `apply_task_prior` on the served readout and the head `apply_intent_head` on the hidden readout, exactly; the head
-      is refused with two orders, calibration is applied per branch in each branch's order; the abstention threshold
-      decides on the calibrated distribution; the debug header needs --debug-readout.
+T1  a task's identity: the question type and its option list in order (plus the instructions for yes/no and score);
+    any change to the list is another task;
+T2  the store: calibration is `calibration.fit_task_prior` on the examples' served log-scores, unchanged; the head is
+    `intent_head.fit_intent_head` on their hidden readout, fitted only for 10 or more options with at least 5 examples
+    per option (else off, with the reason); a re-registration replaces the task; the JSON form round-trips the head's
+    arrays exactly;
+T3  served (CPU stand-in): no task, or a task of another list, changes nothing, bit for bit; calibration is
+    `apply_task_prior` on the served readout and the head `apply_intent_head` on the hidden readout, exactly; the head
+    is refused with two orders, calibration is applied per branch in each branch's order; the abstention threshold
+    decides on the calibrated distribution; the debug header needs --debug-readout.
 
-    uv run pytest -q tests/unit/test_tasks.py
+  uv run pytest -q tests/unit/test_tasks.py
 """
+
 import numpy as np
 import pytest
 
@@ -24,25 +25,43 @@ from decisio.serve.tasks import TaskStore, answer_keys, gold_index, task_key
 
 MODEL = "Qwen/Qwen3-0.6B-Base"
 CRIT = {"option_0": "card arrival", "option_1": "exchange rate", "option_2": "top up"}
-TOPICS = ["card arrival", "exchange rate", "top up", "lost card", "pin change", "refund", "transfer fee",
-          "cash withdrawal", "account closure", "direct debit"]
+TOPICS = [
+    "card arrival",
+    "exchange rate",
+    "top up",
+    "lost card",
+    "pin change",
+    "refund",
+    "transfer fee",
+    "cash withdrawal",
+    "account closure",
+    "direct debit",
+]
 CRIT10 = {f"option_{i}": t for i, t in enumerate(TOPICS)}
 
 
 def wire(utt, crit=CRIT, **extra):
-    return {"state": {"message": utt}, "model": "m", "questions": {"q1": {
-        "type": "choice", "instructions": "Classify the intent of the user's message.", "criteria": crit}}, **extra}
+    return {
+        "state": {"message": utt},
+        "model": "m",
+        "questions": {
+            "q1": {"type": "choice", "instructions": "Classify the intent of the user's message.", "criteria": crit}
+        },
+        **extra,
+    }
 
 
 def question(body):
     from decisio.serve.systemone import SystemOneRequest
+
     return SystemOneRequest.model_validate(body).questions["q1"]
 
 
 def test_t1_task_identity():
     from decisio.serve.systemone import render_text
+
     k = task_key(question(wire("a")), render_text)
-    assert k == task_key(question(wire("another message")), render_text)            # the state is not the task
+    assert k == task_key(question(wire("another message")), render_text)  # the state is not the task
     reordered = dict(reversed(list(CRIT.items())))
     renamed = {**CRIT, "option_2": "top up my account"}
     for crit in (reordered, renamed, {**CRIT, "option_3": "other"}):
@@ -81,14 +100,16 @@ def test_t2_store_fits_with_the_reference():
     labels = [i % 10 for i in range(60)]
     ref = calibration.fit_task_prior([log_probs(p) for p in P], labels, fingerprint="fp", task_id="t", K=10)
     assert task["calibration"] == ref and fitted["labels"] == labels
-    head = intent_head.fit_intent_head([lp for lp, _ in R], [h for _, h in R], labels, answer_keys(ex[0][0]),
-                                       fingerprint="fp", task_id="t")
+    head = intent_head.fit_intent_head(
+        [lp for lp, _ in R], [h for _, h in R], labels, answer_keys(ex[0][0]), fingerprint="fp", task_id="t"
+    )
     assert task["head"]["applied"] and head["applied"]
     assert np.array_equal(task["head"]["A"], head["A"]) and np.array_equal(task["head"]["c"], head["c"])
     assert store.lookup(task["key"]) is task and TaskStore("other").lookup(task["key"]) is None
     # JSON round trip, arrays exact
     other = TaskStore("fp")
     import json
+
     other.load(json.loads(json.dumps([TaskStore.public(task, full=True)])))
     t2 = other.lookup(task["key"])
     assert np.array_equal(t2["head"]["A"], task["head"]["A"]) and np.array_equal(t2["head"]["c"], task["head"]["c"])
@@ -104,7 +125,7 @@ def test_t2_store_fits_with_the_reference():
     t3, f3 = store.register("t3", ex3, lambda pairs: P3, lambda pairs: R3)
     assert not t3["head"]["applied"] and "at least 10 options" in t3["head"]["reason"] and f3["readout"] is None
     store.remove("t3")
-    with pytest.raises(ValueError):                                             # one task per registration
+    with pytest.raises(ValueError):  # one task per registration
         store.register("mixed", ex[:3] + [(question(wire("x", {"a": "b", "c": "d"})), {}, "a")], lambda p: P, None)
     assert store.remove("t") and not store.by_key
 
@@ -117,21 +138,44 @@ def served():
     from decisio.serve.hidden_engine import HFHiddenEngine
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
+
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     hid = HFHiddenEngine(MODEL, pad_to="block", pad_where="front")
     so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), hidden_engine=hid, debug_readout=True)
     return TestClient(make_app(eng, so)), so
 
 
-UTTS = {"option_0": ["where is my card", "my card has not arrived", "card still not here", "when will my card come",
-                     "has my new card shipped"],
-        "option_1": ["what is the euro rate", "exchange rate for dollars", "how much is a pound in euros",
-                     "rate for yen today", "currency conversion rate"],
-        "option_2": ["add money to my account", "top up with my visa", "how do I top up", "put 50 on my card",
-                     "load funds into the app"]}
+UTTS = {
+    "option_0": [
+        "where is my card",
+        "my card has not arrived",
+        "card still not here",
+        "when will my card come",
+        "has my new card shipped",
+    ],
+    "option_1": [
+        "what is the euro rate",
+        "exchange rate for dollars",
+        "how much is a pound in euros",
+        "rate for yen today",
+        "currency conversion rate",
+    ],
+    "option_2": [
+        "add money to my account",
+        "top up with my visa",
+        "how do I top up",
+        "put 50 on my card",
+        "load funds into the app",
+    ],
+}
 EXAMPLES = [{"request": wire(u), "answer": k} for k, us in UTTS.items() for u in us]
-PHRASES = ["I need help with {}", "question about {}", "what should I do about {}", "tell me about {}",
-           "can you explain {}"]
+PHRASES = [
+    "I need help with {}",
+    "question about {}",
+    "what should I do about {}",
+    "tell me about {}",
+    "can you explain {}",
+]
 EXAMPLES10 = [{"request": wire(p.format(t), CRIT10), "answer": k} for k, t in CRIT10.items() for p in PHRASES]
 
 
@@ -147,11 +191,18 @@ def test_t3_no_task_no_change(served):
     base = post(client, body).json()
     assert "x-decisio-tasks" not in post(client, body).headers
     so.task_store.by_key.clear()
-    r = client.post("/v1/tasks", json={"id": "other", "examples": [
-        {"request": wire(u, {"a": "billing", "b": "shipping"}), "answer": "a" if i % 2 else "b"}
-        for i, u in enumerate(["x"] * 10 + ["y"] * 10)]})
+    r = client.post(
+        "/v1/tasks",
+        json={
+            "id": "other",
+            "examples": [
+                {"request": wire(u, {"a": "billing", "b": "shipping"}), "answer": "a" if i % 2 else "b"}
+                for i, u in enumerate(["x"] * 10 + ["y"] * 10)
+            ],
+        },
+    )
     assert r.status_code == 200, r.text
-    assert post(client, body).json() == base                                     # a task of another list: nothing
+    assert post(client, body).json() == base  # a task of another list: nothing
     so.tasks_enabled = False
     assert post(client, wire("x", {"a": "billing", "b": "shipping"})).headers.get("x-decisio-tasks") is None
     so.tasks_enabled = True
@@ -161,6 +212,7 @@ def test_t3_no_task_no_change(served):
 def test_t3_calibration_served_exactly(served):
     client, so = served
     from decisio.serve.systemone import second_order, to_engine_question
+
     so.task_store.by_key.clear()
     r = client.post("/v1/tasks", json={"id": "cal", "examples": EXAMPLES})
     assert r.status_code == 200, r.text
@@ -191,8 +243,15 @@ def test_t3_calibration_served_exactly(served):
     assert list(r2["probabilities"].values()) == ((b1 + b2) / 2).tolist()
     # abstention composes after: the threshold decides on the calibrated distribution
     from decisio.serve.systemone import option_set
-    so.tasks = {"abs": {"id": "abs", "option": {"key": "option_2"}, "match": {"option_set": option_set(q)},
-                        "config": {"applied": True, "threshold": float(want[2]) - 1e-9}}}
+
+    so.tasks = {
+        "abs": {
+            "id": "abs",
+            "option": {"key": "option_2"},
+            "match": {"option_set": option_set(q)},
+            "config": {"applied": True, "threshold": float(want[2]) - 1e-9},
+        }
+    }
     a = post(client, body).json()["answers"]["q1"]
     assert a["choice"] == "option_2" and list(a["probabilities"].values()) == want.tolist()
     so.tasks = {"abs": {**so.tasks["abs"], "config": {"applied": True, "threshold": float(want[2]) + 1e-9}}}
@@ -217,8 +276,9 @@ def test_t3_head_served_exactly(served):
     ref = intent_head.fit_intent_head(lps, H, labels, list(CRIT10), fingerprint="fp", task_id="intent")
     task = so.task_store.lookup(out["key"])
     assert task["head"]["applied"] == ref["applied"]
-    assert task["calibration"] == calibration.fit_task_prior([np.array(x) for x in dbg["lps"]], labels,
-                                                             fingerprint="fp", task_id="intent", K=10)
+    assert task["calibration"] == calibration.fit_task_prior(
+        [np.array(x) for x in dbg["lps"]], labels, fingerprint="fp", task_id="intent", K=10
+    )
     if not ref["applied"]:
         pytest.skip("cross-validation declined the head on the CPU stand-in's 50 examples")
     assert np.array_equal(task["head"]["A"], ref["A"]) and np.array_equal(task["head"]["c"], ref["c"])
@@ -226,8 +286,9 @@ def test_t3_head_served_exactly(served):
     r = post(client, body, **{"x-decisio-debug": "readout"})
     d = r.json()["decisio_debug"]["q1"]
     assert d["path"] == "head" and r.headers["x-decisio-tasks"] == "intent"
-    want = intent_head.apply_intent_head(np.array(d["hidden_lp"]), np.array(d["h"], dtype=np.float32), task["head"],
-                                         list(CRIT10))
+    want = intent_head.apply_intent_head(
+        np.array(d["hidden_lp"]), np.array(d["h"], dtype=np.float32), task["head"], list(CRIT10)
+    )
     assert list(r.json()["answers"]["q1"]["probabilities"].values()) == want.tolist()
     # refused with two orders; a changed list is another task (served plain)
     bad = client.post("/v1/systemone", json={**body, "orders": 2})
@@ -242,7 +303,7 @@ def test_t3_head_served_exactly(served):
     assert [t["id"] for t in listed] == ["intent"] and listed[0]["head"]["A"] == {"shape": list(ref["A"].shape)}
     full = client.get("/v1/tasks", params={"full": 1}).json()["tasks"]
     assert client.delete("/v1/tasks/intent").status_code == 200 and not so.task_store.by_key
-    assert client.post("/v1/tasks/import", json={"tasks": listed}).status_code == 422          # no arrays
+    assert client.post("/v1/tasks/import", json={"tasks": listed}).status_code == 422  # no arrays
     assert client.post("/v1/tasks/import", json={"tasks": [{**full[0], "fingerprint": "x"}]}).status_code == 422
     assert client.post("/v1/tasks/import", json={"tasks": full}).status_code == 200
     again = post(client, body, **{"x-decisio-debug": "readout"}).json()["answers"]["q1"]["probabilities"]
@@ -256,10 +317,16 @@ def test_t3_debug_and_bad_registrations(served):
     assert client.post("/v1/systemone", json=wire("x"), headers={"x-decisio-debug": "readout"}).status_code == 422
     assert "decisio_debug" not in post(client, wire("x")).json()
     so.debug_readout = True
-    two = {"state": {}, "questions": {"a": {"type": "noul", "instructions": "?"},
-                                       "b": {"type": "noul", "instructions": "!"}}}
+    two = {
+        "state": {},
+        "questions": {"a": {"type": "noul", "instructions": "?"}, "b": {"type": "noul", "instructions": "!"}},
+    }
     assert client.post("/v1/tasks", json={"id": "x", "examples": [{"request": two, "answer": True}]}).status_code == 422
-    assert client.post("/v1/tasks", json={"id": "x", "examples": [
-        {"request": wire("a"), "answer": "option_7"}]}).status_code == 422
+    assert (
+        client.post(
+            "/v1/tasks", json={"id": "x", "examples": [{"request": wire("a"), "answer": "option_7"}]}
+        ).status_code
+        == 422
+    )
     assert client.post("/v1/tasks", json={"examples": []}).status_code == 422
     assert not so.task_store.by_key

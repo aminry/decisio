@@ -6,6 +6,7 @@ The tolerances are the ones every run in runs/ used (6.46e-2: twice the batch no
 
     DECISIO_VIEW=$DECISIO_VIEW uv run pytest -m gpu tests/gpu/test_serving_gates.py
 """
+
 import json
 import os
 
@@ -25,8 +26,22 @@ def handoff(tmp_path_factory):
 def test_g1_g2_g4_separate(handoff):
     view = env_path("DECISIO_VIEW")
     adapter = os.environ.get("DECISIO_ADAPTER")
-    out = run_child(HERE / "serving_gates.py", "--gpu", view, "--tol-g1", TOL, "--tol-g2", TOL, "--pad-where", "front",
-                    "--engine", ENGINE, "--handoff", handoff, *(["--adapter", adapter] if adapter else []))
+    out = run_child(
+        HERE / "serving_gates.py",
+        "--gpu",
+        view,
+        "--tol-g1",
+        TOL,
+        "--tol-g2",
+        TOL,
+        "--pad-where",
+        "front",
+        "--engine",
+        ENGINE,
+        "--handoff",
+        handoff,
+        *(["--adapter", adapter] if adapter else []),
+    )
     assert "GPU GATES separate PASS" in out, out[-4000:]
 
 

@@ -15,6 +15,7 @@ keeps the plain behaviour when the examples do not justify a threshold.
     cfg = fit(p_abs, unanswerable, answer_ok, plain_ok)          # per example; stored with the task
     abstain, answer_index = decide(p, abstain_index, cfg)          # per question
 """
+
 from __future__ import annotations
 
 import math
@@ -24,8 +25,8 @@ import numpy as np
 from decisio.names import record_format
 
 FORMAT = record_format("abstention")
-MIN_EXAMPLES = 10          # fewer examples: no threshold
-MIN_EACH = 2               # at least this many unanswerable and answerable examples
+MIN_EXAMPLES = 10  # fewer examples: no threshold
+MIN_EACH = 2  # at least this many unanswerable and answerable examples
 EPS = 1e-9
 
 
@@ -84,8 +85,11 @@ def fit(p_abs, unanswerable, answer_ok, plain_right, plain_false) -> dict:
     n_u = int(sum(bool(u) for u in unanswerable))
     base = {"format": FORMAT, "n": n, "n_unanswerable": n_u, "applied": False, "threshold": None}
     if n < MIN_EXAMPLES or n_u < MIN_EACH or n - n_u < MIN_EACH:
-        return {**base, "reason": f"needs at least {MIN_EXAMPLES} examples with {MIN_EACH} unanswerable and "
-                                  f"{MIN_EACH} answerable ones"}
+        return {
+            **base,
+            "reason": f"needs at least {MIN_EXAMPLES} examples with {MIN_EACH} unanswerable and "
+            f"{MIN_EACH} answerable ones",
+        }
     loo_right = loo_false = 0
     for i in range(n):
         keep = [j for j in range(n) if j != i]
@@ -95,14 +99,27 @@ def fit(p_abs, unanswerable, answer_ok, plain_right, plain_false) -> dict:
         loo_false += f
     plain_r, plain_f = int(sum(plain_right)), int(sum(plain_false))
     t = best_threshold(p_abs, unanswerable, answer_ok)
-    evidence = {"loo_right_threshold": loo_right, "loo_false_threshold": loo_false,
-                "right_plain": plain_r, "false_plain": plain_f}
+    evidence = {
+        "loo_right_threshold": loo_right,
+        "loo_false_threshold": loo_false,
+        "right_plain": plain_r,
+        "false_plain": plain_f,
+    }
     if loo_right >= plain_r + 1 and loo_false <= plain_f:
-        return {**base, **evidence, "applied": True, "threshold": t,
-                "reason": f"leave-one-out {loo_right} of {n} right against {plain_r} for the plain behaviour"}
-    return {**base, **evidence, "fitted_threshold": t,
-            "reason": f"leave-one-out {loo_right} right, {loo_false} false abstentions against the plain behaviour's "
-                      f"{plain_r}, {plain_f}: kept plain"}
+        return {
+            **base,
+            **evidence,
+            "applied": True,
+            "threshold": t,
+            "reason": f"leave-one-out {loo_right} of {n} right against {plain_r} for the plain behaviour",
+        }
+    return {
+        **base,
+        **evidence,
+        "fitted_threshold": t,
+        "reason": f"leave-one-out {loo_right} right, {loo_false} false abstentions against the plain behaviour's "
+        f"{plain_r}, {plain_f}: kept plain",
+    }
 
 
 def decide(p, abstain_index: int, cfg: dict | None, keys=None) -> tuple[bool, int]:
@@ -119,6 +136,7 @@ def decide(p, abstain_index: int, cfg: dict | None, keys=None) -> tuple[bool, in
         top = int(p.argmax())
     else:
         from decisio.serve.systemone import top_index
+
         best_other = top_index(keys, p, others)
         top = top_index(keys, p)
     if cfg and cfg.get("applied"):

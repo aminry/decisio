@@ -14,6 +14,7 @@ Needs the tagged source tree (`bash scripts/fetch_vllm_source.sh`; VLLM_SRC over
 
     uv run pytest -q tests/unit/test_patches.py
 """
+
 import os
 import re
 import shutil
@@ -62,7 +63,7 @@ def test_s1_series_applies_in_order(tree, tmp_path, form):
             git(wt, "apply", str(p))
         changed = set(git(wt, "status", "--porcelain").stdout.split("\n"))
         assert any("vllm/v1/worker/gpu/suffix_staging.py" in c for c in changed)
-        if form == "pkg":                                       # the installed-package form touches nothing else
+        if form == "pkg":  # the installed-package form touches nothing else
             assert all(c[3:].startswith("vllm/") for c in changed if c)
     finally:
         git(tree, "worktree", "remove", "--force", str(wt))
@@ -75,7 +76,7 @@ def hunks(path, only_vllm):
     for part in re.split(r"(?m)^diff --git ", path.read_text())[1:]:
         name = part.split(" b/", 1)[1].split("\n", 1)[0]
         body = part.split("\n", 1)[1]
-        body = re.split(r"(?m)^-- \n", body)[0]                 # the mail footer after the last file
+        body = re.split(r"(?m)^-- \n", body)[0]  # the mail footer after the last file
         if not only_vllm or name.startswith("vllm/"):
             out[name] = body
     return out
@@ -93,12 +94,13 @@ def test_s2_pkg_is_the_series_restricted_to_vllm():
 def test_s3_inert_by_default_and_what_apply_applies():
     first = files("pkg")[0].read_text()
     envs = hunks(files("pkg")[0], False)["vllm/envs.py"]
-    assert "VLLM_SUFFIX_STAGING" in envs and re.search(r'VLLM_SUFFIX_STAGING", "0"\)', envs), \
+    assert "VLLM_SUFFIX_STAGING" in envs and re.search(r'VLLM_SUFFIX_STAGING", "0"\)', envs), (
         "the flag must default to off"
+    )
     assert "VLLM_SUFFIX_STAGING" in first
     apply = (ROOT / "patches" / "apply.sh").read_text()
     assert '"$SERIES"/pkg/0*.patch' in apply and "vllm-0.30.0/suffix-staging" in apply
-    assert apply.index("--dry-run") < apply.index("patch -p1 --forward < ")          # every file dry-run first
+    assert apply.index("--dry-run") < apply.index("patch -p1 --forward < ")  # every file dry-run first
 
 
 def fake_python(tmp_path, site, version):
@@ -119,9 +121,11 @@ def test_s4_apply_script(tree, tmp_path):
     assert r.returncode == 0, r.stderr
     assert r.stdout.split() == ["applied", files("pkg")[0].name, "applied", files("pkg")[1].name]
     assert (site / "vllm" / "v1" / "worker" / "gpu" / "suffix_staging.py").exists()
-    again = subprocess.run(["bash", str(apply), str(fake_python(tmp_path, site, "0.30.0"))],
-                           capture_output=True, text=True)
-    assert again.returncode != 0 and "does not apply" in again.stderr                  # already applied: refused
-    other = subprocess.run(["bash", str(apply), str(fake_python(tmp_path, site, "0.31.0"))],
-                           capture_output=True, text=True)
+    again = subprocess.run(
+        ["bash", str(apply), str(fake_python(tmp_path, site, "0.30.0"))], capture_output=True, text=True
+    )
+    assert again.returncode != 0 and "does not apply" in again.stderr  # already applied: refused
+    other = subprocess.run(
+        ["bash", str(apply), str(fake_python(tmp_path, site, "0.31.0"))], capture_output=True, text=True
+    )
     assert other.returncode != 0 and "is for vllm 0.30.0" in other.stderr

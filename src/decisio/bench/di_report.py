@@ -10,6 +10,7 @@ coverage rule the board uses).
 GPQA Diamond is track-scored (the 0.1 panel's rule: unanswered groups score zero inside the metric), so the kit's
 `score_panel` runs over the results first, exactly as its index step does.
 """
+
 import argparse
 import json
 from pathlib import Path
@@ -32,20 +33,34 @@ def main():
     spec = X.spec("0.2.1")
     by_id = {b["catalog_id"]: b for b in s["benchmarks"]}
     scored = score_panel(Suite(Path(a.suite_dir), "0.2.1"), load_results(Path(a.run) / "results.jsonl"))
-    out = {"edition": "0.2.1", "engine": s.get("engine"), "latency_ms": s.get("successful_request_latency_ms"),
-           "benchmarks": {}}
+    out = {
+        "edition": "0.2.1",
+        "engine": s.get("engine"),
+        "latency_ms": s.get("successful_request_latency_ms"),
+        "benchmarks": {},
+    }
     for n, name in IDS.items():
         b = by_id.get(n, {})
         v = X.benchmark_value(n, spec, scored.get(n), b)
-        out["benchmarks"][name] = {"catalog_id": n, "metric": b.get("metric"), "native_score": b.get("score"),
-                                   "requests": b.get("requests"), "answered": b.get("answered"),
-                                   "errors": b.get("errors"),
-                                   "unsupported": b.get("unsupported"), "median_ms": b.get("median_ms"),
-                                   "chance": X.chance_of(n, spec), "raw": v.get("raw"), "skill": v.get("skill"),
-                                   "coverage": v.get("coverage")}
+        out["benchmarks"][name] = {
+            "catalog_id": n,
+            "metric": b.get("metric"),
+            "native_score": b.get("score"),
+            "requests": b.get("requests"),
+            "answered": b.get("answered"),
+            "errors": b.get("errors"),
+            "unsupported": b.get("unsupported"),
+            "median_ms": b.get("median_ms"),
+            "chance": X.chance_of(n, spec),
+            "raw": v.get("raw"),
+            "skill": v.get("skill"),
+            "coverage": v.get("coverage"),
+        }
         r = out["benchmarks"][name]
-        print(f"{name:14s} {str(r['metric']):9s} native {r['native_score']} answered {r['answered']}/{r['requests']} "
-              f"raw {r['raw']} skill {r['skill']} median {r['median_ms']} ms")
+        print(
+            f"{name:14s} {str(r['metric']):9s} native {r['native_score']} answered {r['answered']}/{r['requests']} "
+            f"raw {r['raw']} skill {r['skill']} median {r['median_ms']} ms"
+        )
     json.dump(out, open(a.out or Path(a.run) / "di_report.json", "w"), indent=1)
 
 
