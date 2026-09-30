@@ -140,7 +140,7 @@ In every intent measurement the test items are held out: none of them is among t
 | Registration time | | about 230 s for 770 examples, 455 s for 1,500 (0.30 s per example) | the default single-engine mode | `runs/2026-09-30_plugin-verification/intent_heads/*.json.gz` (`register_s`) |
 | | | about 160 s for 770 examples, 330 s for 1,500 (0.21 s per example) | second-engine mode | `runs/2026-09-29_tasks-endpoint/intent_heads/*.json.gz` |
 | Server time per intent question | 46.5 ms | 126.8 ms | the default single-engine mode (three extra engine requests per head question) | `runs/2026-09-30_plugin-verification/manifest.json` (`latency.json.gz`) |
-| | 82 ms | 82 ms | second-engine mode, on that run's card, where a plain question also took 82 ms | `runs/2026-09-29_tasks-endpoint/evaluation.json` (`latency`) |
+| | 82 ms | 82 ms on first sight; 42 ms when the identical question is asked again | second-engine mode, on that run's card: the median of each round, a question's first sight (82.35 ms with and without a task) and two repeat rounds (41.6, 41.8 ms), where the pooling engine reuses more of an identical prompt | `runs/2026-09-29_tasks-endpoint/evaluation.json` (`latency.head.server_ms_round_medians`) |
 
 The intervals are 95% paired bootstrap intervals over test items (the gain averaged over the three draws of examples).
 The single-engine intervals were computed from the per-item rows in the record, with the plain answer taken from the same forward pass as the head's; the second-engine intervals are the ones that run recorded.
@@ -160,7 +160,7 @@ These numbers use labelled examples, so they compare the registered server with 
 - **Registration**: every example is one scored request, about 0.30 s each in the default mode (0.21 s in second-engine mode), plus the fit; 120 examples take well under a minute on the served model.
 - **Each later question**: in the default single-engine mode a question answered by a head takes about 80 ms more server time (126.8 against 46.5 ms), because the hidden state is read in three extra requests.
   Calibration and questions without a task cost nothing extra.
-- **Second-engine mode** (`--head-engine`) answers head questions without the extra requests (82 ms on its record) but holds a second copy of the model's weights, leaves no room for the image engine on the card, and its pairing with the default text-only class has not been timed yet (`docs/handoffs/tasks.md`).
+- **Second-engine mode** (`--head-engine`) answers head questions without the extra requests (82 ms on a question's first sight, as a plain question took on that run; 42 ms when the same question repeats) but holds a second copy of the model's weights, leaves no room for the image engine on the card, and its pairing with the default text-only class has not been timed yet (`docs/handoffs/tasks.md`).
 
 ## Limits
 
