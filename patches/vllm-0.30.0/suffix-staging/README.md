@@ -119,7 +119,7 @@ Into a git checkout of `v0.30.0`, use `git am patches/vllm-0.30.0/suffix-staging
 2. Unit tests on the GPU box (the last group needs CUDA and runs the real `RequestState` staging and prefill gather kernel against full staging, with stale data in the reused slot):
 
    ```bash
-   mkdir -p /tmp/suffix-staging-tests && cd /tmp/suffix-staging-tests
+   cd "$(mktemp -d)"
    git apply --include='tests/*' "$DECISIO/patches/vllm-0.30.0/suffix-staging/0001-"*.patch
    python -m pytest -q tests/v1/worker/test_gpu_suffix_staging.py
    ```

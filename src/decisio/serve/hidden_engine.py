@@ -22,7 +22,7 @@ In both, the K letter log-probabilities are computed from h and the output layer
 so a head is fitted and served on the same (lp, h), and `intent_head.apply_intent_head(lp, h, rec, options)` is the
 served arithmetic exactly. The two modes differ only in the dtype of z (`label_logits`).
 
-    eng = HiddenEngine("/models/Qwen3.6-35B-A3B-FP8", pad_to="block", pad_where="front", gpu_memory_utilization=0.47)
+    eng = HiddenEngine(os.environ["DECISIO_MODEL"], pad_to="block", pad_where="front", gpu_memory_utilization=0.47)
     [(lp, h), ...] = eng.readout(state, questions)
 """
 from __future__ import annotations

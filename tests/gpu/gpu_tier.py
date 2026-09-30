@@ -3,8 +3,7 @@
 """Helpers of the GPU tier. Every test in tests/gpu needs a CUDA card, vLLM 0.30.0 (the serve extra) and a local
 checkpoint.
 
-    DECISIO_MODEL=/models/Qwen3.6-35B-A3B-FP8 DECISIO_VIEW=/models/Qwen3.6-35B-A3B-FP8-text \
-        uv run pytest -m gpu tests/gpu
+    DECISIO_MODEL=<checkpoint dir> DECISIO_VIEW=<text-only view dir> uv run pytest -m gpu tests/gpu
 
 DECISIO_MODEL is the official checkpoint (decisio's model classes load it); DECISIO_VIEW is the text-only view built by
 `python -m decisio.serve.make_text_only` (the gates' engine); DECISIO_ADAPTER=name=/path adds the LoRA gate G4. vLLM

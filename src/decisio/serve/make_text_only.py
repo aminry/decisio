@@ -13,7 +13,7 @@ tensor is changed or copied. The original directory is not touched.
 The fallback for `--model-class view`: decisio's registered text-only class (`decisio.vllm_plugin`) loads the official
 checkpoint directly and serves it bit-identically (runs/2026-09-30_plugin-verification).
 
-    python -m decisio.serve.make_text_only /models/Qwen3.6-35B-A3B-FP8 /models/Qwen3.6-35B-A3B-FP8-text
+    python -m decisio.serve.make_text_only $DECISIO_MODEL $DECISIO_VIEW
 """
 import json
 import os

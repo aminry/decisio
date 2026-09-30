@@ -6,7 +6,7 @@ for each question, the label probabilities recomputed from the hidden state reco
 (`LettersEngine.answer`), within 1e-4 and the same option on every question. The questions are the latency grid's
 77-option intent questions (BANKING77's intent names) over fresh support-ticket states.
 
-    VLLM_USE_DEEP_GEMM=0 python tests/gpu/same_forward.py --model /models/Qwen3.6-35B-A3B-FP8 [--n 60]
+    VLLM_USE_DEEP_GEMM=0 python tests/gpu/same_forward.py --model $DECISIO_MODEL [--n 60]
 """
 import argparse
 import json

@@ -20,7 +20,7 @@ our cost, not the customer's, so they are not counted as billable.
 
 The 77-option cells use BANKING77's intent names (banking77_labels.json; PolyAI, CC-BY-4.0) as options.
 
-    python -m decisio.bench.latency --model /models/Qwen3.6-35B-A3B-FP8-text --out bench.json --price 1.05 \
+    python -m decisio.bench.latency --model $DECISIO_VIEW --out bench.json --price 1.05 \
         [--pad-to block]
     python -m decisio.bench.latency --model ... --mode packed --pack 64 --out bench_packed.json --price 1.05
     python -m decisio.bench.latency ... --url http://localhost:8000     # latency through the HTTP endpoint instead

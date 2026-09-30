@@ -19,12 +19,14 @@ GPU part (`--gpu MODEL`, on the vLLM box):
       they equal the base engine's.
 
     python tests/gpu/serving_gates.py                                              # CPU gates
-    python tests/gpu/serving_gates.py --gpu /models/Qwen3.6-35B-A3B-FP8-text [--adapter name=/path]   # G1, G2, G4
-    python tests/gpu/serving_gates.py --gpu /models/Qwen3.6-35B-A3B-FP8-text --part packed           # G3, after that
+    python tests/gpu/serving_gates.py --gpu $DECISIO_VIEW [--adapter name=/path]   # G1, G2, G4
+    python tests/gpu/serving_gates.py --gpu $DECISIO_VIEW --part packed           # G3, after that
 """
 import argparse
 import json
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -138,7 +140,8 @@ if __name__ == "__main__":
     ap.add_argument("--gpu", default=None, help="model path: run the GPU gates")
     ap.add_argument("--adapter", action="append", default=[])
     ap.add_argument("--part", default="separate", choices=["separate", "packed", "noise"])
-    ap.add_argument("--handoff", default="/tmp/decisio_serving_gates_separate.json")
+    ap.add_argument("--handoff", default=os.path.join(tempfile.gettempdir(), "decisio_serving_gates_separate.json"),
+                    help="where the separate part leaves its answers for the packed part")
     ap.add_argument("--engine", default="{}", help="extra LLM(...) keyword arguments as JSON (separate part)")
     ap.add_argument("--pad-to", default="block", help="'block', a token count, or 'none' (separate part)")
     ap.add_argument("--pad-where", default="between", choices=sv.PAD_PLACES, help="pad placement (separate part)")

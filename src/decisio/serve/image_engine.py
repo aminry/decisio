@@ -16,7 +16,7 @@ Each image stays one `<|image_pad|>` in the token ids sent to the engine, which 
 (the processor's grid, 16-pixel patches merged 2x2 on Qwen3.5/3.6); the padding and the cached-prefix length are
 computed in expanded units, and the engine-side prompt length is returned so the expansion can be checked (gate G0).
 
-    eng = ImageLettersEngine("/models/Qwen3.6-35B-A3B-FP8", pad_to="block", pad_where="front")
+    eng = ImageLettersEngine(os.environ["DECISIO_MODEL"], pad_to="block", pad_where="front")
     probs, info = eng.answer(state, questions, images=[PIL.Image, ...])
 """
 from __future__ import annotations

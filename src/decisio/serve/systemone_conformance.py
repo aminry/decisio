@@ -13,7 +13,7 @@ benchmark measurement in runs/.
       `/v1/systemone` are asked in turn; their probabilities must be bit-identical (max abs delta p = 0).
 
     python -m decisio.serve.systemone_conformance --url http://127.0.0.1:8000 --items conformance_items.json \
-        --tokenizer /models/Qwen3.6-35B-A3B-FP8 --block-size 1056 --out conformance.json
+        --tokenizer $DECISIO_MODEL --block-size 1056 --out conformance.json
 
 --items is a JSON list, one object per item: {"task", "i", "label", "answer": a `/v1/answer` body with one question,
 "systemone": the same item as a `/v1/systemone` body with one question named "q"}. The records in runs/ keep each item's

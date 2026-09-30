@@ -4,7 +4,7 @@
 LoRA adapter applied and the base restored bit-exactly (with DECISIO_ADAPTER), then G3 packed against separate.
 The tolerances are the ones every run in runs/ used (6.46e-2: twice the batch noise measured on this card class).
 
-    DECISIO_VIEW=/models/Qwen3.6-35B-A3B-FP8-text uv run pytest -m gpu tests/gpu/test_serving_gates.py
+    DECISIO_VIEW=$DECISIO_VIEW uv run pytest -m gpu tests/gpu/test_serving_gates.py
 """
 import json
 import os
