@@ -38,7 +38,7 @@ serve = ["vllm==0.30.0; sys_platform == 'linux'"]
 # the benchmark stage (benchmarks/): the conformance client and the HTTP drivers; the JevBench harness and the
 # Decision Index kit are fetched at pinned commits by benchmarks/fetch_harnesses.sh
 bench = ["httpx>=0.28", "typesafe-sdk==0.7.0"]
-dev = ["httpx>=0.28", "pytest==9.1.1", "ruff==0.14.0"]
+dev = ["httpx>=0.28", "pytest==9.1.1", "ruff==0.16.9"]
 
 [project.urls]
 Repository = "https://github.com/aminry/decisio"
