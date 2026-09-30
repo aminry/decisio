@@ -71,7 +71,7 @@ def served():
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
-    so = SystemOne(eng, "rlcd-test")
+    so = SystemOne(eng, "decisio-test")
     return TestClient(make_app(eng, so)), so
 
 

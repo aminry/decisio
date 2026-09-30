@@ -11,7 +11,7 @@
 # the four benchmarks' rows are taken from it by decisio.bench.di_rows, which checks their counts and hash.
 set -euo pipefail
 URL=${1:?server url}; OUT=${2:?out dir}; SUITE=${3:?the kit suite dir}
-NAME=${4:-rlcd-qwen3.6-35b-a3b-letters}
+NAME=${4:-decisio-qwen3.6-35b-a3b-letters}
 DECISION_INDEX=${DECISION_INDEX:?the Decision Index kit checkout (benchmarks/fetch_harnesses.sh)}
 PY=${PY:-python}
 export PYTHONPATH=$DECISION_INDEX${PYTHONPATH:+:$PYTHONPATH}

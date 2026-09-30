@@ -67,6 +67,7 @@ def options_listing(tok, options):
     return "Options:\n" + "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
 
 
+from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
 from decisio.serve.temperature import SERVED_TEMPERATURE  # noqa: E402
 
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
@@ -620,7 +621,7 @@ def main():
                     help="start even when VLLM_USE_DEEP_GEMM is set to something other than 0 (default: refuse)")
     ap.add_argument("--backend", default="vllm", choices=["vllm", "hf"],
                     help="hf: the CPU stand-in (decisio.serve.hf_letters), for the CPU smoke test only")
-    ap.add_argument("--served-name", default="rlcd-qwen3.6-35b-a3b-letters", help="the name GET /v1/models lists")
+    ap.add_argument("--served-name", default=SERVED_NAME, help="the name GET /v1/models lists")
     ap.add_argument("--orders", type=int, default=1, choices=[1, 2],
                     help="/v1/systemone: 2 = two-order averaging (after Reflex); the per-question disagreement goes "
                          "to --branch-log")
@@ -662,7 +663,7 @@ def main():
                          "co-resident with --image-model (docs/handoffs/tasks.md)")
     ap.add_argument("--head-gpu-memory-utilization", type=float, default=0.47, help="the hidden-state engine's share")
     ap.add_argument("--debug-readout", action="store_true",
-                    help="honour the x-rlcd-debug header (the raw readout in the response; verification only)")
+                    help="honour the x-decisio-debug header (the raw readout in the response; verification only)")
     ap.add_argument("--one-engine", action="store_true",
                     help="load only the --image-model engine (at --gpu-memory-utilization) and serve text requests on "
                          "it too: the fallback for a card that cannot hold both engines; changes the text route's "
@@ -759,7 +760,7 @@ def main():
     if args.tasks_file:
         data = json.loads(Path(args.tasks_file).read_text())
         store.load(data["tasks"] if isinstance(data, dict) else data)
-        stale = [t["id"] for t in store.by_key.values() if t["fingerprint"] != store.fingerprint]
+        stale = [t["id"] for t in store.by_key.values() if not same_fingerprint(t["fingerprint"], store.fingerprint)]
         if stale:
             print(f"WARNING: tasks fitted under another model or rendering are not applied: {stale}", flush=True)
     so = SystemOne(engine, args.served_name, orders=args.orders, branch_log=args.branch_log, image_engine=image_engine,

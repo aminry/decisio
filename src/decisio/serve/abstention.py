@@ -21,7 +21,9 @@ import math
 
 import numpy as np
 
-FORMAT = "rlcd-abstention/1"
+from decisio.names import record_format
+
+FORMAT = record_format("abstention")
 MIN_EXAMPLES = 10          # fewer examples: no threshold
 MIN_EACH = 2               # at least this many unanswerable and answerable examples
 EPS = 1e-9

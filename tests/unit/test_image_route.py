@@ -11,7 +11,7 @@ checks are about the route, the prompt and the wire format, not about any number
   I3  the three encodings imajev accepts (JSON `images`, multipart `request` + `image`, a data:image URI in the state)
       reach the image engine and give the same probabilities; imajev's two answer fields appear exactly when the
       request uses its extension; text requests stay on the text engine with TypeSafe's format;
-  I4  the paired text check: a text request through the text route and through the image engine (`x-rlcd-route:
+  I4  the paired text check: a text request through the text route and through the image engine (`x-decisio-route:
       image`) gives bit-identical probabilities;
   I5  refusals are 422: three images, a bad data URL, a bad multipart request field, an unknown route.
 
@@ -61,7 +61,7 @@ def served():
     from decisio.serve.vllm_engine import make_app
     text = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     image = HFImageLettersEngine(MODEL, pad_to="block", pad_where="front")
-    so = SystemOne(text, "rlcd-test", image_engine=image)
+    so = SystemOne(text, "decisio-test", image_engine=image)
     return TestClient(make_app(text, so)), text, image
 
 
@@ -108,17 +108,17 @@ def test_i3_encodings_agree_and_route(served, picture):
                                                  "questions": QUESTIONS})
     for r in (r_json, r_form, r_state):
         assert r.status_code == 200, r.text
-        assert r.headers["x-rlcd-route"] == "image"
+        assert r.headers["x-decisio-route"] == "image"
         assert all(a["unknown_probability"] == 0.0 and a["abstained"] is False for a in r.json()["answers"].values())
     # the state-embedded image leaves "[image 1]" in the state, so only the two image-list encodings are identical
     assert probs(r_json.json()) == probs(r_form.json())
     assert (r_json.json()["usage"]["input_tokens"]
             > client.post("/v1/systemone", json=req).json()["usage"]["input_tokens"])
     r_text = client.post("/v1/systemone", json=req)
-    assert r_text.headers["x-rlcd-route"] == "text"
+    assert r_text.headers["x-decisio-route"] == "text"
     assert all("unknown_probability" not in a for a in r_text.json()["answers"].values())
     r_empty = client.post("/v1/systemone", json={**req, "images": []})     # the extension used, no image: text route
-    assert r_empty.headers["x-rlcd-route"] == "text"
+    assert r_empty.headers["x-decisio-route"] == "text"
     assert all(a["abstained"] is False for a in r_empty.json()["answers"].values())
 
 
@@ -126,8 +126,8 @@ def test_i4_paired_text_check(served):
     client, _, _ = served
     req = {"state": "The shipment arrived two days late and the box was damaged.", "questions": QUESTIONS}
     a = client.post("/v1/systemone", json=req)
-    b = client.post("/v1/systemone", json=req, headers={"x-rlcd-route": "image"})
-    assert a.headers["x-rlcd-route"] == "text" and b.headers["x-rlcd-route"] == "image"
+    b = client.post("/v1/systemone", json=req, headers={"x-decisio-route": "image"})
+    assert a.headers["x-decisio-route"] == "text" and b.headers["x-decisio-route"] == "image"
     assert probs(a.json()) == probs(b.json())
 
 
@@ -141,7 +141,7 @@ def test_i5_refusals(served, picture):
                        files={"image": ("p.png", png(picture), "image/png")}).status_code == 422
     assert client.post("/v1/systemone", json={"state": {"photo": "data:image/png;base64,QUJD="}, "questions": QUESTIONS}
                        ).status_code == 422
-    assert client.post("/v1/systemone", json=req, headers={"x-rlcd-route": "gpu"}).status_code == 422
+    assert client.post("/v1/systemone", json=req, headers={"x-decisio-route": "gpu"}).status_code == 422
 
 
 def test_i6_abstain_option_decodes_in_imajevs_harness(served):
@@ -153,7 +153,8 @@ def test_i6_abstain_option_decodes_in_imajevs_harness(served):
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
     _, text, image = served
-    client = TestClient(make_app(text, SystemOne(text, "rlcd-test", image_engine=image, abstain_option="can't tell")))
+    so = SystemOne(text, "decisio-test", image_engine=image, abstain_option="can't tell")
+    client = TestClient(make_app(text, so))
     fields = {"boolean": {"id": "decision", "question": "Is the mug blue?", "type": "boolean"},
               "choice": {"id": "decision", "question": "Which colour?", "type": "choice",
                          "options": [{"value": v, "description": None} for v in ("red", "blue", "white")]},

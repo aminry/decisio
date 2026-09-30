@@ -35,6 +35,7 @@ from typing import Annotated, Any, Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
+from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any    # str | dict | list, as the SDK's schema allows
@@ -305,6 +306,8 @@ class SystemOne:
         # per-task abstention thresholds (decisio.serve.abstention; docs/handoffs/tasks.md): tasks registered
         # from labelled examples; `abstention=False` ignores them all
         self.abstention = abstention
+        for t in abstention_tasks or []:                 # records written before the rename load unchanged
+            check_format(t.get("config"), "abstention", f"abstention task {t.get('id')!r}")
         self.tasks: dict[str, dict] = {t["id"]: t for t in (abstention_tasks or [])}
         # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): registered by
         # POST /v1/tasks, applied to text-route questions whose option list matches; the head needs the hidden-state
@@ -449,7 +452,7 @@ class SystemOne:
                            "tasks": sorted({t["id"] for t in rts if t is not None}),
                            **{k: v for k, v in info.items() if k in ("cached_tokens_mean", "image_tokens")}}}
         if debug and self.debug_readout:
-            out["rlcd_debug"] = dbg
+            out[DEBUG_KEY] = dbg
         return out
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
@@ -618,7 +621,7 @@ def gold_key_of(q, gold):
 def add_routes(app, systemone: SystemOne):
     """Mount POST /v1/systemone and GET /v1/models on a FastAPI app. The body is exactly the wire object (plus imajev's
     two answer fields when a request uses its `images` extension); the server time and the route taken go in
-    `x-rlcd-server-ms` and `x-rlcd-route` headers, never in the body.
+    `x-decisio-server-ms` and `x-decisio-route` headers, never in the body.
 
     Accepted encodings (imajev's server accepts the same three): JSON with an optional `images` list of data URLs;
     multipart/form-data with the JSON request in the `request` field and up to two files in `image` (or `images`,
@@ -692,30 +695,30 @@ def add_routes(app, systemone: SystemOne):
             images = [load_image(b) for b in blobs]
         except (ValueError, OSError) as e:
             raise HTTPException(422, f"bad image: {e}")
-        route = request.headers.get("x-rlcd-route")
+        route = request_header(request.headers, "route")
         if route not in (None, "text", "image"):
-            raise HTTPException(422, "x-rlcd-route must be 'text' or 'image'")
+            raise HTTPException(422, "x-decisio-route must be 'text' or 'image'")
         debug = debug_of(request)
         try:
             out = await run_in_threadpool(systemone.answer, req, None, images, ext, route, debug)
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         timing = out.pop("_timing")
-        headers = {"x-rlcd-server-ms": f"{timing['server_ms']:.1f}", "x-rlcd-route": timing["route"]}
+        headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
         if timing.get("tasks"):
-            headers["x-rlcd-tasks"] = ",".join(timing["tasks"])
+            headers[header("tasks")] = ",".join(timing["tasks"])
         return JSONResponse(out, headers=headers)
 
     def debug_of(request):
-        """`x-rlcd-debug: readout` (the served readout before any task, the path taken) or `hidden` (also the hidden
+        """`x-decisio-debug: readout` (the served readout before any task, the path taken) or `hidden` (also the hidden
         readout of every question); only on a server started with --debug-readout (verification, never production)."""
-        debug = request.headers.get("x-rlcd-debug")
+        debug = request_header(request.headers, "debug")
         if debug is None:
             return None
         if not systemone.debug_readout:
-            raise HTTPException(422, "x-rlcd-debug needs a server started with --debug-readout")
+            raise HTTPException(422, "x-decisio-debug needs a server started with --debug-readout")
         if debug not in ("readout", "hidden"):
-            raise HTTPException(422, "x-rlcd-debug must be 'readout' or 'hidden'")
+            raise HTTPException(422, "x-decisio-debug must be 'readout' or 'hidden'")
         return debug
 
     # this module has `from __future__ import annotations`: give FastAPI the Request class itself, or it reads the
@@ -794,9 +797,9 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, str(e))
         out = TaskStore.public(task)
         if debug:
-            out["rlcd_debug"] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
+            out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
-                out["rlcd_debug"]["readout"] = [[lp.tolist(), h.tolist()] for lp, h in fitted["readout"]]
+                out[DEBUG_KEY]["readout"] = [[lp.tolist(), h.tolist()] for lp, h in fitted["readout"]]
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
     register_readout.__annotations__["request"] = Request
@@ -821,7 +824,7 @@ def add_routes(app, systemone: SystemOne):
         tasks = body.get("tasks") if isinstance(body, dict) else None
         if not isinstance(tasks, list):
             raise HTTPException(422, "body: {'tasks': [<task as GET /v1/tasks?full=1 returns it>]}")
-        stale = [t.get("id") for t in tasks if t.get("fingerprint") != store.fingerprint]
+        stale = [t.get("id") for t in tasks if not same_fingerprint(t.get("fingerprint"), store.fingerprint)]
         if stale:
             raise HTTPException(422, f"fitted under another model or rendering: {stale}")
         try:

@@ -205,16 +205,16 @@ def test_h4_served_on_the_cpu_stand_in():
     from decisio.serve.vllm_engine import make_app
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     hid = HFReservedHiddenEngine(MODEL, pad_to="block", pad_where="front")
-    so = SystemOne(eng, "rlcd-test", task_store=TaskStore("fp"), hidden_engine=hid, debug_readout=True)
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), hidden_engine=hid, debug_readout=True)
     client = TestClient(make_app(eng, so))
-    r = client.post("/v1/tasks", json={"id": "intent", "examples": EXAMPLES10}, headers={"x-rlcd-debug": "hidden"})
+    r = client.post("/v1/tasks", json={"id": "intent", "examples": EXAMPLES10}, headers={"x-decisio-debug": "hidden"})
     assert r.status_code == 200, r.text
     task = so.task_store.lookup(r.json()["key"])
     if not task["head"]["applied"]:
         pytest.skip("cross-validation declined the head on the CPU stand-in's 50 examples")
     body = wire("please top up my balance", CRIT10)
-    a = client.post("/v1/systemone", json=body, headers={"x-rlcd-debug": "readout"}).json()
-    d = a["rlcd_debug"]["q1"]
+    a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
+    d = a["decisio_debug"]["q1"]
     assert d["path"] == "head"
     want = intent_head.apply_intent_head(np.array(d["hidden_lp"]), np.array(d["h"], dtype=np.float32), task["head"],
                                          list(CRIT10))

@@ -119,7 +119,7 @@ def served():
     from decisio.serve.vllm_engine import make_app
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     hid = HFHiddenEngine(MODEL, pad_to="block", pad_where="front")
-    so = SystemOne(eng, "rlcd-test", task_store=TaskStore("fp"), hidden_engine=hid, debug_readout=True)
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), hidden_engine=hid, debug_readout=True)
     return TestClient(make_app(eng, so)), so
 
 
@@ -145,7 +145,7 @@ def test_t3_no_task_no_change(served):
     client, so = served
     body = wire("my card is late")
     base = post(client, body).json()
-    assert "x-rlcd-tasks" not in post(client, body).headers
+    assert "x-decisio-tasks" not in post(client, body).headers
     so.task_store.by_key.clear()
     r = client.post("/v1/tasks", json={"id": "other", "examples": [
         {"request": wire(u, {"a": "billing", "b": "shipping"}), "answer": "a" if i % 2 else "b"}
@@ -153,7 +153,7 @@ def test_t3_no_task_no_change(served):
     assert r.status_code == 200, r.text
     assert post(client, body).json() == base                                     # a task of another list: nothing
     so.tasks_enabled = False
-    assert post(client, wire("x", {"a": "billing", "b": "shipping"})).headers.get("x-rlcd-tasks") is None
+    assert post(client, wire("x", {"a": "billing", "b": "shipping"})).headers.get("x-decisio-tasks") is None
     so.tasks_enabled = True
     so.task_store.by_key.clear()
 
@@ -171,9 +171,9 @@ def test_t3_calibration_served_exactly(served):
     task["calibration"] = {**task["calibration"], "applied": True, "bias": [0.7, -0.2, -0.5]}
     task["head"] = {**task["head"], "applied": False}
     body = wire("I want to top up")
-    r = post(client, body, **{"x-rlcd-debug": "readout"})
-    assert r.headers["x-rlcd-tasks"] == "cal"
-    d = r.json()["rlcd_debug"]["q1"]
+    r = post(client, body, **{"x-decisio-debug": "readout"})
+    assert r.headers["x-decisio-tasks"] == "cal"
+    d = r.json()["decisio_debug"]["q1"]
     assert d["path"] == "calibration"
     want = calibration.apply_task_prior(log_probs(np.array(d["p"])), task["calibration"])
     assert list(r.json()["answers"]["q1"]["probabilities"].values()) == want.tolist()
@@ -205,10 +205,10 @@ def test_t3_calibration_served_exactly(served):
 def test_t3_head_served_exactly(served):
     client, so = served
     so.task_store.by_key.clear()
-    r = client.post("/v1/tasks", json={"id": "intent", "examples": EXAMPLES10}, headers={"x-rlcd-debug": "hidden"})
+    r = client.post("/v1/tasks", json={"id": "intent", "examples": EXAMPLES10}, headers={"x-decisio-debug": "hidden"})
     assert r.status_code == 200, r.text
     out = r.json()
-    dbg = out["rlcd_debug"]
+    dbg = out["decisio_debug"]
     labels = dbg["labels"]
     assert labels == [k for k in range(10) for _ in range(5)] and out["per_option_min"] == 5
     # the stored fit is the reference fit of the served readout, bit for bit
@@ -223,9 +223,9 @@ def test_t3_head_served_exactly(served):
         pytest.skip("cross-validation declined the head on the CPU stand-in's 50 examples")
     assert np.array_equal(task["head"]["A"], ref["A"]) and np.array_equal(task["head"]["c"], ref["c"])
     body = wire("please top up my balance", CRIT10)
-    r = post(client, body, **{"x-rlcd-debug": "readout"})
-    d = r.json()["rlcd_debug"]["q1"]
-    assert d["path"] == "head" and r.headers["x-rlcd-tasks"] == "intent"
+    r = post(client, body, **{"x-decisio-debug": "readout"})
+    d = r.json()["decisio_debug"]["q1"]
+    assert d["path"] == "head" and r.headers["x-decisio-tasks"] == "intent"
     want = intent_head.apply_intent_head(np.array(d["hidden_lp"]), np.array(d["h"], dtype=np.float32), task["head"],
                                          list(CRIT10))
     assert list(r.json()["answers"]["q1"]["probabilities"].values()) == want.tolist()
@@ -237,7 +237,7 @@ def test_t3_head_served_exactly(served):
     plain = post(client, wire("please top up my balance", reordered)).json()
     so.tasks_enabled = True
     r = post(client, wire("please top up my balance", reordered))
-    assert "x-rlcd-tasks" not in r.headers and r.json() == plain
+    assert "x-decisio-tasks" not in r.headers and r.json() == plain
     listed = client.get("/v1/tasks").json()["tasks"]
     assert [t["id"] for t in listed] == ["intent"] and listed[0]["head"]["A"] == {"shape": list(ref["A"].shape)}
     full = client.get("/v1/tasks", params={"full": 1}).json()["tasks"]
@@ -245,7 +245,7 @@ def test_t3_head_served_exactly(served):
     assert client.post("/v1/tasks/import", json={"tasks": listed}).status_code == 422          # no arrays
     assert client.post("/v1/tasks/import", json={"tasks": [{**full[0], "fingerprint": "x"}]}).status_code == 422
     assert client.post("/v1/tasks/import", json={"tasks": full}).status_code == 200
-    again = post(client, body, **{"x-rlcd-debug": "readout"}).json()["answers"]["q1"]["probabilities"]
+    again = post(client, body, **{"x-decisio-debug": "readout"}).json()["answers"]["q1"]["probabilities"]
     assert list(again.values()) == want.tolist()
     assert client.delete("/v1/tasks/intent").status_code == 200 and not so.task_store.by_key
 
@@ -253,8 +253,8 @@ def test_t3_head_served_exactly(served):
 def test_t3_debug_and_bad_registrations(served):
     client, so = served
     so.debug_readout = False
-    assert client.post("/v1/systemone", json=wire("x"), headers={"x-rlcd-debug": "readout"}).status_code == 422
-    assert "rlcd_debug" not in post(client, wire("x")).json()
+    assert client.post("/v1/systemone", json=wire("x"), headers={"x-decisio-debug": "readout"}).status_code == 422
+    assert "decisio_debug" not in post(client, wire("x")).json()
     so.debug_readout = True
     two = {"state": {}, "questions": {"a": {"type": "noul", "instructions": "?"},
                                        "b": {"type": "noul", "instructions": "!"}}}

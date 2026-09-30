@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from decisio.names import record_format
 from decisio.readout import debias
 
 MIN_EXAMPLES = 10          # below this the fit is noise (5 per task gave +0.5 points, 95% CI [-2.5, +2.9])
@@ -32,7 +33,7 @@ MIN_GAIN = 0.005           # nats per item of cross-validated log loss the bias 
 T_ACCEPT = 1.645           # and the saving must clear a one-sided 95% test on the per-item differences
 LAMBDA = 0.1               # L2 penalty on the bias, fixed: with ~20 examples a cross-validated choice often picked no
                            # penalty and overfit (in development, 12 of 16 tasks passed with it, 16 of 16 at 0.1)
-FORMAT = "rlcd-task-prior/1"
+FORMAT = record_format("task-prior")
 
 
 def _fit(logps, y, K, idx):

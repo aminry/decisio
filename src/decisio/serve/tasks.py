@@ -27,10 +27,11 @@ import json
 
 import numpy as np
 
+from decisio.names import check_format, record_format, same_fingerprint
 from decisio.readout import calibration, intent_head
 from decisio.readout.debias import log_probs
 
-FORMAT = "rlcd-task/1"
+FORMAT = record_format("task")
 MIN_OPTIONS_FOR_HEAD = 10   # heads on intent sets only: smaller option lists get calibration alone
 
 
@@ -83,7 +84,7 @@ class TaskStore:
 
     def lookup(self, key):
         t = self.by_key.get(key)
-        return t if t is not None and t["fingerprint"] == self.fingerprint else None
+        return t if t is not None and same_fingerprint(t["fingerprint"], self.fingerprint) else None
 
     def register(self, task_id, examples, score_fn, hidden_fn=None):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
@@ -146,6 +147,13 @@ class TaskStore:
         return {**task, "head": head}
 
     def load(self, tasks):
+        """Load task records as `public(task, full=True)` writes them; records written before the rename (the `rlcd-*/1`
+        formats) load unchanged. A record of another kind is refused before anything is stored."""
+        for t in tasks:
+            what = f"task {t.get('id')!r}" if isinstance(t, dict) else "task"
+            check_format(t, "task", what)
+            check_format(t.get("calibration"), "task-prior", f"{what}, calibration")
+            check_format(t.get("head"), "intent-head", f"{what}, head")
         for t in tasks:
             head = dict(t["head"])
             for k in ("A", "c"):

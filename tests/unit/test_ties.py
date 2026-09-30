@@ -95,7 +95,7 @@ def test_x3_sorted_keys_on_the_wire_cannot_change_the_answer():
     from decisio.serve.systemone import SystemOne
     from decisio.serve.vllm_engine import make_app
     eng = OrderFreeEngine(TIED)
-    client = TestClient(make_app(eng, SystemOne(eng, "rlcd-test")))
+    client = TestClient(make_app(eng, SystemOne(eng, "decisio-test")))
     crit = {"Tomato Soup": None, "Iced Tea": None, "Coffee": None}          # the record's own order
     body = {"state": {"photo": "[image 1]"}, "model": "m",
             "questions": {"q": {"type": "choice", "instructions": "Which drink is in the photo?", "criteria": crit}}}

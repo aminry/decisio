@@ -8,7 +8,7 @@
 # Needs the bench extra (uv sync --extra bench) and benchmarks/fetch_harnesses.sh.
 set -euo pipefail
 URL=${1:?server url, e.g. http://127.0.0.1:8000}; OUT=${2:?out dir}
-NAME=${3:-rlcd-qwen3.6-35b-a3b-letters}
+NAME=${3:-decisio-qwen3.6-35b-a3b-letters}
 JEVBENCH=${JEVBENCH:?the JevBench checkout (benchmarks/fetch_harnesses.sh)}
 PY=${PY:-python}
 OUT=$(mkdir -p "$OUT" && cd "$OUT" && pwd)

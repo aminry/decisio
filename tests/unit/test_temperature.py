@@ -63,7 +63,7 @@ def served():
     from decisio.serve.tasks import TaskStore
     from decisio.serve.vllm_engine import make_app
     eng = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
-    so = SystemOne(eng, "rlcd-test", task_store=TaskStore("fp"), temperature=T)
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), temperature=T)
     return TestClient(make_app(eng, so)), so
 
 
@@ -116,21 +116,21 @@ def test_g3_a_task_correction_replaces_the_temperature(served):
     body = {"state": {"message": "I want to top up"}, "questions": {"q1": ex[0]["request"]["questions"]["q1"]}}
     # the task's calibration declined: the temperature applies
     task["calibration"] = {**task["calibration"], "applied": False}
-    a = client.post("/v1/systemone", json=body, headers={"x-rlcd-debug": "readout"}).json()
-    d = a["rlcd_debug"]["q1"]
+    a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
+    d = a["decisio_debug"]["q1"]
     assert d["path"] == "temperature" and dist(a["answers"]["q1"]) == apply_temperature(d["p"], T).tolist()
     # accepted: calibration on the raw readout, the temperature not stacked on it
     task["calibration"] = {**task["calibration"], "applied": True, "bias": [0.7, -0.2, -0.5]}
-    a = client.post("/v1/systemone", json=body, headers={"x-rlcd-debug": "readout"}).json()
-    d = a["rlcd_debug"]["q1"]
+    a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
+    d = a["decisio_debug"]["q1"]
     want = calibration.apply_task_prior(log_probs(np.array(d["p"])), task["calibration"])
     assert d["path"] == "calibration" and dist(a["answers"]["q1"]) == want.tolist()
     # the task was fitted on the raw readout, not the tempered one
     so.task_store.by_key.clear()
-    r = client.post("/v1/tasks", json={"id": "cal", "examples": ex}, headers={"x-rlcd-debug": "readout"})
+    r = client.post("/v1/tasks", json={"id": "cal", "examples": ex}, headers={"x-decisio-debug": "readout"})
     raw = client.post("/v1/answer", json={"state": ex[0]["request"]["state"], "questions": [
         {"kind": "choice", "instructions": "Classify the intent.",
          "options": list(CRIT.values())}]}).json()["answers"][0]
-    assert np.allclose(np.exp(r.json()["rlcd_debug"]["lps"][0]), raw["probs"], atol=1e-12)
+    assert np.allclose(np.exp(r.json()["decisio_debug"]["lps"][0]), raw["probs"], atol=1e-12)
     so.task_store.by_key.clear()
     so.debug_readout = False

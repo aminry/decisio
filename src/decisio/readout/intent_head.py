@@ -27,7 +27,9 @@ import json
 
 import numpy as np
 
-FORMAT = "rlcd-intent-head/1"
+from decisio.names import record_format
+
+FORMAT = record_format("intent-head")
 MIN_PER_OPTION = 5         # 5 and 10 per intent passed the acceptance gate on both intent sets; 2 passed on one
 
 

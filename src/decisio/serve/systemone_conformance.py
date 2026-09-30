@@ -105,7 +105,7 @@ def gate_c2(url):
         for label, state, questions in c2_requests():
             t = time.perf_counter()
             try:
-                r = client.system_one(state=state, questions=questions, model="rlcd-served-default")
+                r = client.system_one(state=state, questions=questions, model="decisio-served-default")
                 assert isinstance(r, SystemOneResponse)
                 assert set(r.answers) == set(questions), "answer names differ from question names"
                 assert r.usage.input_tokens > 0 and r.usage.output_tokens == len(questions)
