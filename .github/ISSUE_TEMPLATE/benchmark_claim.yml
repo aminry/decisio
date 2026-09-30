@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+name: Benchmark claim
+description: A measured result to add to the evaluation record.
+labels: [benchmark]
+body:
+  - type: markdown
+    attributes:
+      value: A claim is only recorded with its record. Numbers without a per-item file are not merged.
+  - type: input
+    id: commit
+    attributes:
+      label: Decisio commit
+    validations:
+      required: true
+  - type: textarea
+    id: config
+    attributes:
+      label: Served configuration
+      description: The exact server command line, model checkpoint and revision, vLLM version, card.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: harness
+    attributes:
+      label: Harness and version
+      placeholder: JevBench harness at commit ..., Decision Index kit 0.2.1
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result
+      description: The numbers, with the metric definition.
+    validations:
+      required: true
+  - type: input
+    id: record
+    attributes:
+      label: Per-item results file
+      description: A link to the file (ids, answers and probabilities; no benchmark item text) and its sha256.
+    validations:
+      required: true
+  - type: textarea
+    id: fitted
+    attributes:
+      label: What was fitted on what
+      description: Any parameter chosen or fitted, and the data it was chosen on.
+    validations:
+      required: true
