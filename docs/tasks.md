@@ -38,8 +38,16 @@ Each is kept only if cross-validation on your own examples shows that it helps; 
 
 ## Walk-through
 
-The commands below use the example task in `examples/tasks/`, a synthetic ticket-routing question with 12 queues.
-The server is `python -m decisio.serve.vllm_engine` on a GPU, or `--backend hf` for the CPU stand-in; the steps are the same.
+The commands below use the example task in `examples/tasks/`, a synthetic ticket-routing question with 12 queues, and run from the repository root.
+Install the package and start a server in one terminal:
+
+```
+uv sync --extra dev --frozen
+uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
+```
+
+That is the CPU stand-in, which runs anywhere; on a GPU, install with `uv sync --extra serve --frozen` and start `uv run python -m decisio.serve.vllm_engine --model Qwen/Qwen3.6-35B-A3B-FP8`.
+The server is ready when `curl -s http://127.0.0.1:8000/health` answers; run the steps below in a second terminal.
 
 ### 1. Build the examples file
 
@@ -64,7 +72,7 @@ Each example is an ordinary `/v1/systemone` request with exactly one question, p
 ### 2. Register
 
 ```
-python examples/tasks/register.py --id ticket-routing --data examples/tasks/train.csv
+uv run python examples/tasks/register.py --id ticket-routing --data examples/tasks/train.csv
 ```
 
 or, with the prepared body:
@@ -100,7 +108,7 @@ Look at the reason:
 Ask the question exactly as registered:
 
 ```
-python examples/tasks/ask.py "My card keeps getting declined when I renew."
+uv run python examples/tasks/ask.py "My card keeps getting declined when I renew."
 ```
 
 The response header `x-decisio-tasks: ticket-routing` says the question matched the registered task, so the task's kept corrections answered it.
