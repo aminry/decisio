@@ -1,0 +1,256 @@
+{
+ "baseline_v15": {
+  "per_type": {
+   "choice": {
+    "cc": 79.48328267477204,
+    "tiers": {
+     "easy": 100.0,
+     "standard": 100.0,
+     "hard": 64.09574468085107
+    },
+    "n": {
+     "easy": 36,
+     "standard": 36,
+     "hard": 67
+    }
+   },
+   "noul": {
+    "cc": -6.140350877192984,
+    "tiers": {
+     "easy": 100.0,
+     "standard": -8.333333333333337,
+     "hard": -31.57894736842105
+    },
+    "n": {
+     "easy": 12,
+     "standard": 24,
+     "hard": 38
+    },
+    "abstention_rate": 0.5
+   },
+   "score": {
+    "cc": 61.165390031708675,
+    "tiers": {
+     "standard": 89.76655433937285,
+     "hard": 46.86480787787659
+    },
+    "n": {
+     "standard": 12,
+     "hard": 6
+    }
+   }
+  },
+  "n_items": 231,
+  "invalid": 0,
+  "I_open_A": 44.836107276429246,
+  "I_open_B": 53.497901126014945,
+  "tiers_missing": [
+   "judge"
+  ],
+  "note": "private reading of JevBench v1.5 open-set Intelligence on the published v1.2 items; not a board number (the board's open set has 904 items and half of Intelligence is sealed)"
+ },
+ "di": {
+  "default": {
+   "BANKING77": {
+    "catalog_id": 4,
+    "metric": "macro-F1",
+    "native_score": 0.7311312268753991,
+    "requests": 3080,
+    "answered": 3080,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 34.54365790821612,
+    "chance": 0.0127,
+    "raw": 0.7311,
+    "skill": 0.7276410412235389,
+    "coverage": 1.0,
+    "n": 3080,
+    "accuracy": 0.7399350649350649,
+    "ece": 0.04214203060086609,
+    "brier": 0.3891781873799359,
+    "nll": 1.3360030149670596,
+    "mean_confidence": 0.6977930343341988
+   },
+   "CLINC150+OOS": {
+    "catalog_id": 5,
+    "metric": "macro-F1",
+    "native_score": 0.8136797211307946,
+    "requests": 5500,
+    "answered": 5500,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 40.71954055689275,
+    "chance": 0.006,
+    "raw": 0.8137,
+    "skill": 0.8125754527162977,
+    "coverage": 1.0,
+    "n": 5500,
+    "accuracy": 0.8241818181818181,
+    "ece": 0.1704111738201892,
+    "brier": 0.31060381950035537,
+    "nll": 0.9741689622450191,
+    "mean_confidence": 0.653770644361629
+   },
+   "GPQA Diamond": {
+    "catalog_id": 25,
+    "metric": "accuracy",
+    "native_score": 0.45408163265306123,
+    "requests": 196,
+    "answered": 196,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 26.02817805018276,
+    "chance": 0.25,
+    "raw": 0.4541,
+    "skill": 0.2721,
+    "coverage": 1.0,
+    "n": 198,
+    "accuracy": 0.45454545454545453,
+    "ece": 0.14394702981460264,
+    "brier": 0.5934416549637541,
+    "nll": 1.0954278378494775,
+    "mean_confidence": 0.5505763439065647
+   },
+   "MMLU-Pro": {
+    "catalog_id": 57,
+    "metric": "accuracy",
+    "native_score": 0.6092918882978723,
+    "requests": 12032,
+    "answered": 12032,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 57.07213399000466,
+    "chance": 0.1109,
+    "raw": 0.6093,
+    "skill": 0.5606,
+    "coverage": 1.0,
+    "n": 12032,
+    "accuracy": 0.6092918882978723,
+    "ece": 0.009333686895965667,
+    "brier": 0.5043366639717364,
+    "nll": 1.1819326906783374,
+    "mean_confidence": 0.6101068529133802
+   }
+  },
+  "raw": {
+   "BANKING77": {
+    "catalog_id": 4,
+    "metric": "macro-F1",
+    "native_score": 0.7311312268753991,
+    "requests": 3080,
+    "answered": 3080,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 34.82768149115145,
+    "chance": 0.0127,
+    "raw": 0.7311,
+    "skill": 0.7276410412235389,
+    "coverage": 1.0,
+    "n": 3080,
+    "accuracy": 0.7399350649350649,
+    "ece": 0.06552954299965026,
+    "brier": 0.39509032924093584,
+    "nll": 1.4479731704865526,
+    "mean_confidence": 0.8054646079347153
+   },
+   "CLINC150+OOS": {
+    "catalog_id": 5,
+    "metric": "macro-F1",
+    "native_score": 0.8136797211307946,
+    "requests": 5500,
+    "answered": 5500,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 41.21512349229306,
+    "chance": 0.006,
+    "raw": 0.8137,
+    "skill": 0.8125754527162977,
+    "coverage": 1.0,
+    "n": 5500,
+    "accuracy": 0.8241818181818181,
+    "ece": 0.031371681171522836,
+    "brier": 0.27649104008783965,
+    "nll": 0.9034607604100949,
+    "mean_confidence": 0.7942680212884813
+   },
+   "GPQA Diamond": {
+    "catalog_id": 25,
+    "metric": "accuracy",
+    "native_score": 0.45408163265306123,
+    "requests": 196,
+    "answered": 196,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 25.84940497763455,
+    "chance": 0.25,
+    "raw": 0.4541,
+    "skill": 0.2721,
+    "coverage": 1.0,
+    "n": 198,
+    "accuracy": 0.45454545454545453,
+    "ece": 0.16427477642050656,
+    "brier": 0.6122185684079323,
+    "nll": 1.1291973174467624,
+    "mean_confidence": 0.6074171754334425
+   },
+   "MMLU-Pro": {
+    "catalog_id": 57,
+    "metric": "accuracy",
+    "native_score": 0.6092918882978723,
+    "requests": 12032,
+    "answered": 12032,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 57.183524942956865,
+    "chance": 0.1109,
+    "raw": 0.6093,
+    "skill": 0.5606,
+    "coverage": 1.0,
+    "n": 12032,
+    "accuracy": 0.6092918882978723,
+    "ece": 0.07192898368414949,
+    "brier": 0.5129330846086271,
+    "nll": 1.2201166750703663,
+    "mean_confidence": 0.6812208719820217
+   }
+  }
+ },
+ "conformance": {
+  "pass": true,
+  "items": 1400,
+  "C2": true,
+  "C3": true,
+  "C4": {
+   "items": 1400,
+   "temperature": 1.307,
+   "max_abs_delta_p": 0.0,
+   "mean_abs_delta_p": 0.0,
+   "top_answer_flips": 0
+  }
+ },
+ "suite_served": {
+  "boolq": 0.86,
+  "banking77": 0.74,
+  "toxicchat": 0.94,
+  "mmlu": 0.88,
+  "scifact": 0.74,
+  "scifact_clarified": 0.82,
+  "mmlu_pro_text": 0.6,
+  "mmlu_pro_text_x350": 0.6571428571428571
+ },
+ "checks": {
+  "di_accuracy_identical": {
+   "BANKING77": true,
+   "CLINC150+OOS": true,
+   "GPQA Diamond": true,
+   "MMLU-Pro": true
+  },
+  "di_native_score_identical": {
+   "BANKING77": true,
+   "CLINC150+OOS": true,
+   "GPQA Diamond": true,
+   "MMLU-Pro": true
+  },
+  "conformance_pass": true
+ }
+}

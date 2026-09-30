@@ -1,0 +1,4282 @@
+{
+ "items": 250,
+ "rows_max_dp": {
+  "max": 0.5929525107518648,
+  "median": 0.028722301035843834,
+  "within_1e-4": 0,
+  "zero": 0
+ },
+ "history_max_dp": {
+  "max": 5.91884108391838e-08,
+  "median": 6.6057521119766704e-09,
+  "within_1e-4": 250,
+  "zero": 6
+ },
+ "state_f64_max_dp": {
+  "max": 0.33787264421943347,
+  "median": 0.020734848651119395,
+  "within_1e-4": 0,
+  "zero": 0
+ },
+ "state_bf16_max_dp": {
+  "max": 0.3401232238959606,
+  "median": 0.019378834887157304,
+  "within_1e-4": 0,
+  "zero": 0
+ },
+ "history_same_option": 250,
+ "state_same_option": 242,
+ "h_values_off_grid": 6853,
+ "rows": [
+  {
+   "task": "banking77",
+   "i": 0,
+   "rows_max_dp": 0.05899473020247292,
+   "history_max_dp": 1.1299938762476813e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.036352831473764335,
+   "state_bf16_max_dp": 0.04203905327326962,
+   "state_same_option": true,
+   "h_off_grid": 45,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 1,
+   "rows_max_dp": 0.0007893632420777601,
+   "history_max_dp": 1.5901419070374345e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00042954272075698295,
+   "state_bf16_max_dp": 0.0005736838263289317,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 2,
+   "rows_max_dp": 0.11103794435980739,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07732981586064713,
+   "state_bf16_max_dp": 0.09987205455850268,
+   "state_same_option": false,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 3,
+   "rows_max_dp": 0.051821489995063974,
+   "history_max_dp": 6.1706875581490905e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.06800744782637747,
+   "state_bf16_max_dp": 0.07349562831024892,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 4,
+   "rows_max_dp": 0.008786237047744838,
+   "history_max_dp": 1.0096342428767002e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01643321423270805,
+   "state_bf16_max_dp": 0.01898836856169195,
+   "state_same_option": true,
+   "h_off_grid": 36,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 5,
+   "rows_max_dp": 0.1577089244835461,
+   "history_max_dp": 3.614460675205322e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.11924622784491529,
+   "state_bf16_max_dp": 0.13559218557144143,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 6,
+   "rows_max_dp": 0.07772121574038757,
+   "history_max_dp": 3.324971703522195e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02948432285433855,
+   "state_bf16_max_dp": 0.04314884151906612,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 7,
+   "rows_max_dp": 0.0034054788119086687,
+   "history_max_dp": 8.967793174718963e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017845296290585067,
+   "state_bf16_max_dp": 0.002955604610381135,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 8,
+   "rows_max_dp": 0.003392065051649351,
+   "history_max_dp": 8.738776369199286e-11,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0006917604074472283,
+   "state_bf16_max_dp": 0.0009470645575484493,
+   "state_same_option": true,
+   "h_off_grid": 39,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 9,
+   "rows_max_dp": 0.09527575740994823,
+   "history_max_dp": 1.1254404838623167e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05846314080068865,
+   "state_bf16_max_dp": 0.04741599227562525,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 10,
+   "rows_max_dp": 0.023515773232540838,
+   "history_max_dp": 1.896373402754392e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003678798247539472,
+   "state_bf16_max_dp": 0.0028835565385298967,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 11,
+   "rows_max_dp": 0.0015959637125974022,
+   "history_max_dp": 2.398781617785062e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004308399683128683,
+   "state_bf16_max_dp": 0.004513217129005986,
+   "state_same_option": true,
+   "h_off_grid": 49,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 12,
+   "rows_max_dp": 0.05757943895002032,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.044831214948690995,
+   "state_bf16_max_dp": 0.047696919828432494,
+   "state_same_option": true,
+   "h_off_grid": 57,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 13,
+   "rows_max_dp": 0.0007002151762366526,
+   "history_max_dp": 9.31862256629834e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005163805671646871,
+   "state_bf16_max_dp": 0.0006987080082265615,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 14,
+   "rows_max_dp": 0.06737441725871424,
+   "history_max_dp": 1.1147153811119637e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.055569932074246875,
+   "state_bf16_max_dp": 0.05849157069476446,
+   "state_same_option": false,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 15,
+   "rows_max_dp": 0.15432138925237926,
+   "history_max_dp": 7.043120864302921e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.026184652192994595,
+   "state_bf16_max_dp": 0.030567450979669064,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 16,
+   "rows_max_dp": 0.0012275503946146404,
+   "history_max_dp": 2.8879520996838437e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0003230900728967758,
+   "state_bf16_max_dp": 0.0005807111909490459,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 17,
+   "rows_max_dp": 0.018062215785214164,
+   "history_max_dp": 2.3206269128550616e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011859308704145533,
+   "state_bf16_max_dp": 0.015109461101817101,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 18,
+   "rows_max_dp": 0.18418146484009368,
+   "history_max_dp": 5.360870324044864e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.09920756818872423,
+   "state_bf16_max_dp": 0.09071886686633002,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 19,
+   "rows_max_dp": 0.0013268151237506576,
+   "history_max_dp": 2.9809640311739827e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00039423717312569995,
+   "state_bf16_max_dp": 0.0010605383340180907,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 20,
+   "rows_max_dp": 0.12293888083212201,
+   "history_max_dp": 1.3593498104924606e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.08040341468309031,
+   "state_bf16_max_dp": 0.08798595864020109,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 21,
+   "rows_max_dp": 0.015611791699326805,
+   "history_max_dp": 9.481319840354274e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011499215363931725,
+   "state_bf16_max_dp": 0.012361739159943652,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 22,
+   "rows_max_dp": 0.23102601238882836,
+   "history_max_dp": 2.095364542986644e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.09895123431400143,
+   "state_bf16_max_dp": 0.09438576110730457,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 23,
+   "rows_max_dp": 0.053096067083416854,
+   "history_max_dp": 4.7965226235291425e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04745817041180067,
+   "state_bf16_max_dp": 0.05638021695621809,
+   "state_same_option": true,
+   "h_off_grid": 41,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 24,
+   "rows_max_dp": 0.004951116121392984,
+   "history_max_dp": 2.0721236428100642e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007689041671640368,
+   "state_bf16_max_dp": 0.0015721017623812061,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 25,
+   "rows_max_dp": 0.025564895570221582,
+   "history_max_dp": 2.6999624203050132e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.055266516027980994,
+   "state_bf16_max_dp": 0.04573528270807109,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 26,
+   "rows_max_dp": 0.016395723541367313,
+   "history_max_dp": 5.3920388154438115e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.036002957209440356,
+   "state_bf16_max_dp": 0.0406277441922831,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 27,
+   "rows_max_dp": 0.0056518433122558775,
+   "history_max_dp": 6.54768406160855e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002088433312762466,
+   "state_bf16_max_dp": 0.0020567175354838582,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 28,
+   "rows_max_dp": 0.11652886585004629,
+   "history_max_dp": 7.799865350821555e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.060169707752713686,
+   "state_bf16_max_dp": 0.07351852592841035,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 29,
+   "rows_max_dp": 0.08269925182586302,
+   "history_max_dp": 1.4344388912790329e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.020640271067190658,
+   "state_bf16_max_dp": 0.013850813976318294,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 30,
+   "rows_max_dp": 0.033126795408859475,
+   "history_max_dp": 1.152981843333123e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04080713926115531,
+   "state_bf16_max_dp": 0.040412265261556196,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 31,
+   "rows_max_dp": 0.1096204894840771,
+   "history_max_dp": 9.543327683658731e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.08730097752399357,
+   "state_bf16_max_dp": 0.08226232261808009,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 32,
+   "rows_max_dp": 0.01369043526290692,
+   "history_max_dp": 1.2140376551283971e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011819265344039098,
+   "state_bf16_max_dp": 0.012296436398501642,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 33,
+   "rows_max_dp": 0.08549779865997595,
+   "history_max_dp": 1.1916112430121473e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05075952431840261,
+   "state_bf16_max_dp": 0.04365360241714905,
+   "state_same_option": true,
+   "h_off_grid": 68,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 34,
+   "rows_max_dp": 0.01314845293088962,
+   "history_max_dp": 8.628680658873122e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011355919728713415,
+   "state_bf16_max_dp": 0.009920463001349855,
+   "state_same_option": true,
+   "h_off_grid": 44,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 35,
+   "rows_max_dp": 0.0007666339494977192,
+   "history_max_dp": 2.5388153801486624e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001821166422870446,
+   "state_bf16_max_dp": 0.002269682827552355,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 36,
+   "rows_max_dp": 0.03726386968858075,
+   "history_max_dp": 8.163862474930283e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.037533485870024696,
+   "state_bf16_max_dp": 0.03988441445933977,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 37,
+   "rows_max_dp": 0.10773143402614105,
+   "history_max_dp": 2.6184487356140096e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05157134481123393,
+   "state_bf16_max_dp": 0.05500589456942517,
+   "state_same_option": true,
+   "h_off_grid": 52,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 38,
+   "rows_max_dp": 0.03723667686155274,
+   "history_max_dp": 8.799176429152844e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.010494653882341942,
+   "state_bf16_max_dp": 0.003401255548698856,
+   "state_same_option": true,
+   "h_off_grid": 37,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 39,
+   "rows_max_dp": 0.035115021851238146,
+   "history_max_dp": 6.520704531887134e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02866945426423502,
+   "state_bf16_max_dp": 0.031104162182662876,
+   "state_same_option": true,
+   "h_off_grid": 69,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 40,
+   "rows_max_dp": 0.0036080533723837904,
+   "history_max_dp": 4.151972099464274e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0021889893497857305,
+   "state_bf16_max_dp": 0.0030203574611906703,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 41,
+   "rows_max_dp": 0.013175099764335618,
+   "history_max_dp": 4.727653823977107e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004187129346974294,
+   "state_bf16_max_dp": 0.0032551828939639815,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 42,
+   "rows_max_dp": 0.11106518521384268,
+   "history_max_dp": 1.9028715159130627e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0780391260144292,
+   "state_bf16_max_dp": 0.06588033879801258,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 43,
+   "rows_max_dp": 0.026764821834944552,
+   "history_max_dp": 3.1439509884378936e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.013039568454055184,
+   "state_bf16_max_dp": 0.014048560894059814,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 44,
+   "rows_max_dp": 0.025315890478635694,
+   "history_max_dp": 6.618213754805424e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01209513536517659,
+   "state_bf16_max_dp": 0.01251027068124344,
+   "state_same_option": true,
+   "h_off_grid": 27,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 45,
+   "rows_max_dp": 0.06105270926161199,
+   "history_max_dp": 5.498698596451135e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05511354559987525,
+   "state_bf16_max_dp": 0.05178016718542555,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 46,
+   "rows_max_dp": 0.028102139444571957,
+   "history_max_dp": 1.4729463426732536e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.022601327781210823,
+   "state_bf16_max_dp": 0.025980584098955095,
+   "state_same_option": true,
+   "h_off_grid": 56,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 47,
+   "rows_max_dp": 0.052074982930160635,
+   "history_max_dp": 1.4519632496323709e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.054711742386671536,
+   "state_bf16_max_dp": 0.06700884384435846,
+   "state_same_option": true,
+   "h_off_grid": 54,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 48,
+   "rows_max_dp": 0.0012089989891074238,
+   "history_max_dp": 6.925237232627279e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0013283122324121432,
+   "state_bf16_max_dp": 0.001372071477695247,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 49,
+   "rows_max_dp": 0.0598652614466163,
+   "history_max_dp": 2.0469562711511458e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02910555461569475,
+   "state_bf16_max_dp": 0.03216634431593657,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 50,
+   "rows_max_dp": 0.002203440664658607,
+   "history_max_dp": 1.3061773884714967e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0024695288477981636,
+   "state_bf16_max_dp": 0.0017619596352895783,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 51,
+   "rows_max_dp": 0.1919773427110424,
+   "history_max_dp": 2.393665210487228e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.1024273684246031,
+   "state_bf16_max_dp": 0.11520021943004516,
+   "state_same_option": false,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 52,
+   "rows_max_dp": 0.009016606061753363,
+   "history_max_dp": 3.984228089809472e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0036931009100980017,
+   "state_bf16_max_dp": 0.0029019571251808485,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 53,
+   "rows_max_dp": 0.002472595004622158,
+   "history_max_dp": 1.3661523023955624e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0016109912749204813,
+   "state_bf16_max_dp": 0.0017201141695794009,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 54,
+   "rows_max_dp": 0.0034265647356392925,
+   "history_max_dp": 6.198322966000092e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005954040444131527,
+   "state_bf16_max_dp": 0.0008849546976513216,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 55,
+   "rows_max_dp": 0.012000139133512167,
+   "history_max_dp": 2.0044115256467876e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004743760778087802,
+   "state_bf16_max_dp": 0.002122322062672176,
+   "state_same_option": true,
+   "h_off_grid": 60,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 56,
+   "rows_max_dp": 0.043686791468938724,
+   "history_max_dp": 1.2902533597092258e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.016763968372698335,
+   "state_bf16_max_dp": 0.01893799818691,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 57,
+   "rows_max_dp": 0.005283486844081642,
+   "history_max_dp": 1.3477168048225963e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0037879141066149424,
+   "state_bf16_max_dp": 0.005133660646837845,
+   "state_same_option": true,
+   "h_off_grid": 42,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 58,
+   "rows_max_dp": 0.08603062162551443,
+   "history_max_dp": 2.0985490845060184e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.029328836320249352,
+   "state_bf16_max_dp": 0.04448190228548521,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 59,
+   "rows_max_dp": 0.044480098341448504,
+   "history_max_dp": 2.188255909807424e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.021552460934637252,
+   "state_bf16_max_dp": 0.02296261436118252,
+   "state_same_option": true,
+   "h_off_grid": 57,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 60,
+   "rows_max_dp": 0.05422763663523911,
+   "history_max_dp": 4.177309345654301e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02960737245662544,
+   "state_bf16_max_dp": 0.02940403314416995,
+   "state_same_option": true,
+   "h_off_grid": 31,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 61,
+   "rows_max_dp": 0.4206225678914186,
+   "history_max_dp": 1.536156946091438e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.22145557568916618,
+   "state_bf16_max_dp": 0.22522804464567792,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 62,
+   "rows_max_dp": 0.056587591523655,
+   "history_max_dp": 8.932016126728115e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03266751302061133,
+   "state_bf16_max_dp": 0.029633154951255514,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 63,
+   "rows_max_dp": 0.01788567724900325,
+   "history_max_dp": 1.5962570376615304e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.023145443839241775,
+   "state_bf16_max_dp": 0.026396485599303077,
+   "state_same_option": true,
+   "h_off_grid": 1,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 64,
+   "rows_max_dp": 0.00019848171956005078,
+   "history_max_dp": 9.058350736168563e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0006031643639231588,
+   "state_bf16_max_dp": 0.0005408439629172035,
+   "state_same_option": true,
+   "h_off_grid": 34,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 65,
+   "rows_max_dp": 0.07431447132091062,
+   "history_max_dp": 1.756719447687516e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.045333924313603724,
+   "state_bf16_max_dp": 0.043678345198093216,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 66,
+   "rows_max_dp": 0.00777210110155656,
+   "history_max_dp": 1.1795603035991142e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005135550233759112,
+   "state_bf16_max_dp": 0.005845966926613877,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 67,
+   "rows_max_dp": 0.032032042561251584,
+   "history_max_dp": 8.268847523362766e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.016374053544987444,
+   "state_bf16_max_dp": 0.014445986847664738,
+   "state_same_option": true,
+   "h_off_grid": 29,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 68,
+   "rows_max_dp": 0.00046630445468853754,
+   "history_max_dp": 1.6686385606590193e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00036309701594683386,
+   "state_bf16_max_dp": 0.0003706077710595723,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 69,
+   "rows_max_dp": 0.0006154961173203688,
+   "history_max_dp": 1.6684585935067275e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005050916056907884,
+   "state_bf16_max_dp": 0.0009690198413691009,
+   "state_same_option": true,
+   "h_off_grid": 42,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 70,
+   "rows_max_dp": 0.007795232608331815,
+   "history_max_dp": 2.962673995021703e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005671525782498299,
+   "state_bf16_max_dp": 0.009292229635872062,
+   "state_same_option": true,
+   "h_off_grid": 52,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 71,
+   "rows_max_dp": 0.0011191795127478699,
+   "history_max_dp": 1.7276831076884491e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000621296890504941,
+   "state_bf16_max_dp": 0.00040135692398834966,
+   "state_same_option": true,
+   "h_off_grid": 35,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 72,
+   "rows_max_dp": 0.05388652807455796,
+   "history_max_dp": 1.0674597317184009e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.06613925244437846,
+   "state_bf16_max_dp": 0.06026176708845554,
+   "state_same_option": true,
+   "h_off_grid": 39,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 73,
+   "rows_max_dp": 0.5929525107518648,
+   "history_max_dp": 1.3348557703629638e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.33787264421943347,
+   "state_bf16_max_dp": 0.3401232238959606,
+   "state_same_option": false,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 74,
+   "rows_max_dp": 0.0608783950501271,
+   "history_max_dp": 1.4774143852758215e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.017570532545168382,
+   "state_bf16_max_dp": 0.025644688211457045,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 75,
+   "rows_max_dp": 0.0009878461445471786,
+   "history_max_dp": 7.056030182882311e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004256384341990759,
+   "state_bf16_max_dp": 0.00039374487951204795,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 76,
+   "rows_max_dp": 0.033679546470834265,
+   "history_max_dp": 3.058947650735888e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005441863448995332,
+   "state_bf16_max_dp": 0.0035930548022428954,
+   "state_same_option": true,
+   "h_off_grid": 51,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 77,
+   "rows_max_dp": 0.03618441517821447,
+   "history_max_dp": 1.837617158439997e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.08459170229708862,
+   "state_bf16_max_dp": 0.09115718554461988,
+   "state_same_option": true,
+   "h_off_grid": 191,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 78,
+   "rows_max_dp": 0.09453386804924499,
+   "history_max_dp": 1.2973100010915672e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05842006593860068,
+   "state_bf16_max_dp": 0.06145214238398285,
+   "state_same_option": false,
+   "h_off_grid": 301,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 79,
+   "rows_max_dp": 0.0935164658801495,
+   "history_max_dp": 7.276234947894977e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.034063847609180575,
+   "state_bf16_max_dp": 0.027327221420830772,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 80,
+   "rows_max_dp": 0.003114007894673261,
+   "history_max_dp": 5.866641394902672e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001981231559909105,
+   "state_bf16_max_dp": 0.002393797014023258,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 81,
+   "rows_max_dp": 0.2992281740468848,
+   "history_max_dp": 1.695356088848854e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.14305785457630638,
+   "state_bf16_max_dp": 0.14806382155754938,
+   "state_same_option": true,
+   "h_off_grid": 36,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 82,
+   "rows_max_dp": 0.055163018884337056,
+   "history_max_dp": 9.964210234691961e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01565342093736044,
+   "state_bf16_max_dp": 0.01976930121262266,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 83,
+   "rows_max_dp": 0.018020728693939572,
+   "history_max_dp": 1.183177644747957e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02595671857550659,
+   "state_bf16_max_dp": 0.026885118746249187,
+   "state_same_option": true,
+   "h_off_grid": 35,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 84,
+   "rows_max_dp": 0.16521798006457805,
+   "history_max_dp": 3.764484259038969e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.08898751106998098,
+   "state_bf16_max_dp": 0.102294263180701,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 85,
+   "rows_max_dp": 0.02144406498192225,
+   "history_max_dp": 5.800083968665604e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009893207545918978,
+   "state_bf16_max_dp": 0.010152058230958938,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 86,
+   "rows_max_dp": 0.12993148606557126,
+   "history_max_dp": 4.101175510307087e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07047539708824413,
+   "state_bf16_max_dp": 0.06399035162215916,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 87,
+   "rows_max_dp": 0.05465919082675072,
+   "history_max_dp": 6.663961549246977e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05814932299758599,
+   "state_bf16_max_dp": 0.06296833377421393,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 88,
+   "rows_max_dp": 0.00990234579330912,
+   "history_max_dp": 1.9531674597117465e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.026155688103098318,
+   "state_bf16_max_dp": 0.009776268796725857,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 89,
+   "rows_max_dp": 0.01750521687488823,
+   "history_max_dp": 3.4041816240892864e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.032683906990533695,
+   "state_bf16_max_dp": 0.025506228308114887,
+   "state_same_option": true,
+   "h_off_grid": 1,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 90,
+   "rows_max_dp": 0.14200738716398387,
+   "history_max_dp": 8.724463079062827e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.09449067277929057,
+   "state_bf16_max_dp": 0.08888950029741904,
+   "state_same_option": true,
+   "h_off_grid": 26,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 91,
+   "rows_max_dp": 0.08744017439224205,
+   "history_max_dp": 1.9034854137345292e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.016421226036947706,
+   "state_bf16_max_dp": 0.017030368330995638,
+   "state_same_option": true,
+   "h_off_grid": 17,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 92,
+   "rows_max_dp": 0.08988638379035793,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.056674194893257604,
+   "state_bf16_max_dp": 0.06568572508172399,
+   "state_same_option": true,
+   "h_off_grid": 27,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 93,
+   "rows_max_dp": 0.17722731736039554,
+   "history_max_dp": 2.6096631633443224e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07160851406773405,
+   "state_bf16_max_dp": 0.06864804774523102,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 94,
+   "rows_max_dp": 0.0054298918957109855,
+   "history_max_dp": 1.457466047849465e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0651621234194053,
+   "state_bf16_max_dp": 0.06315742610503239,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 95,
+   "rows_max_dp": 0.0036079342409042203,
+   "history_max_dp": 2.1778788772408575e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017848358601074699,
+   "state_bf16_max_dp": 0.0023500200954138517,
+   "state_same_option": true,
+   "h_off_grid": 72,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 96,
+   "rows_max_dp": 0.007211635495187441,
+   "history_max_dp": 2.0549200119290845e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01219210704710183,
+   "state_bf16_max_dp": 0.012355908918730951,
+   "state_same_option": true,
+   "h_off_grid": 73,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 97,
+   "rows_max_dp": 0.05148313476908217,
+   "history_max_dp": 6.476662539611766e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.022016550046325745,
+   "state_bf16_max_dp": 0.017871690582015543,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 98,
+   "rows_max_dp": 0.13900590930553924,
+   "history_max_dp": 1.4248942581396307e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.12256583344721228,
+   "state_bf16_max_dp": 0.11900823330980681,
+   "state_same_option": true,
+   "h_off_grid": 51,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 99,
+   "rows_max_dp": 0.03208557106409249,
+   "history_max_dp": 5.609512188087251e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.020829426235048132,
+   "state_bf16_max_dp": 0.01843106614589518,
+   "state_same_option": true,
+   "h_off_grid": 105,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 100,
+   "rows_max_dp": 0.006946977934585763,
+   "history_max_dp": 1.0520929127899592e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01621039999862528,
+   "state_bf16_max_dp": 0.01616364150048266,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 101,
+   "rows_max_dp": 0.0015913052947619157,
+   "history_max_dp": 1.3644861907025074e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0013381841800965688,
+   "state_bf16_max_dp": 0.0010819327840292429,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 102,
+   "rows_max_dp": 0.01717080407562932,
+   "history_max_dp": 7.2450770938203846e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01017615472302913,
+   "state_bf16_max_dp": 0.011474902486637073,
+   "state_same_option": true,
+   "h_off_grid": 106,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 103,
+   "rows_max_dp": 0.007717840971559465,
+   "history_max_dp": 1.043917385867843e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.028493794764183344,
+   "state_bf16_max_dp": 0.025348866069746845,
+   "state_same_option": true,
+   "h_off_grid": 100,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 104,
+   "rows_max_dp": 0.0253238342705146,
+   "history_max_dp": 1.2891283263094522e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03651340116593643,
+   "state_bf16_max_dp": 0.04854961413032027,
+   "state_same_option": false,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 105,
+   "rows_max_dp": 0.005737231622614414,
+   "history_max_dp": 2.743080984579649e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006123935005588388,
+   "state_bf16_max_dp": 0.006212391111231175,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 106,
+   "rows_max_dp": 0.17449507762526795,
+   "history_max_dp": 1.7019768927539758e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.12538493654038152,
+   "state_bf16_max_dp": 0.13097543235051387,
+   "state_same_option": true,
+   "h_off_grid": 33,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 107,
+   "rows_max_dp": 0.034665199022077875,
+   "history_max_dp": 6.264709861980577e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.027476479208856985,
+   "state_bf16_max_dp": 0.022202892752262837,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 108,
+   "rows_max_dp": 0.02488076695145569,
+   "history_max_dp": 6.715638711796146e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03479018934916711,
+   "state_bf16_max_dp": 0.040584974402862906,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 109,
+   "rows_max_dp": 0.01950380750172276,
+   "history_max_dp": 1.8251149702663838e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.021155011849089522,
+   "state_bf16_max_dp": 0.02497661646805749,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 110,
+   "rows_max_dp": 0.02291804382407925,
+   "history_max_dp": 4.7813952797071124e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014130603977359879,
+   "state_bf16_max_dp": 0.016073562500561245,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 111,
+   "rows_max_dp": 0.08735642465008242,
+   "history_max_dp": 5.928541782496133e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04571827827972852,
+   "state_bf16_max_dp": 0.05190738806508144,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 112,
+   "rows_max_dp": 0.002574347531286494,
+   "history_max_dp": 1.3444601187559413e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0014460369552036201,
+   "state_bf16_max_dp": 0.001309317881813246,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 113,
+   "rows_max_dp": 0.004822777153466351,
+   "history_max_dp": 4.992628865885251e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0021737897879196,
+   "state_bf16_max_dp": 0.002927449978876062,
+   "state_same_option": true,
+   "h_off_grid": 49,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 114,
+   "rows_max_dp": 0.12748332373844068,
+   "history_max_dp": 5.91884108391838e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.1119041524923588,
+   "state_bf16_max_dp": 0.10133130557204262,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 115,
+   "rows_max_dp": 0.003965691047481679,
+   "history_max_dp": 5.731241037310042e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007445052232553095,
+   "state_bf16_max_dp": 0.0009515833710479482,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 116,
+   "rows_max_dp": 0.0218637254877303,
+   "history_max_dp": 8.683194163694452e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008789922986180532,
+   "state_bf16_max_dp": 0.010677566055956489,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 117,
+   "rows_max_dp": 0.01038731966668491,
+   "history_max_dp": 3.302453421838436e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0037236112921923536,
+   "state_bf16_max_dp": 0.004282449618024953,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 118,
+   "rows_max_dp": 0.02830615990052443,
+   "history_max_dp": 9.490924823829516e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011013782510109427,
+   "state_bf16_max_dp": 0.012852807575613134,
+   "state_same_option": true,
+   "h_off_grid": 54,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 119,
+   "rows_max_dp": 0.001241924944086148,
+   "history_max_dp": 2.1264872085424713e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009741939088687146,
+   "state_bf16_max_dp": 0.01236235375561856,
+   "state_same_option": true,
+   "h_off_grid": 85,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 120,
+   "rows_max_dp": 0.03205191783212824,
+   "history_max_dp": 3.665359682436531e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.012208770360951138,
+   "state_bf16_max_dp": 0.010822941977782663,
+   "state_same_option": true,
+   "h_off_grid": 47,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 121,
+   "rows_max_dp": 0.0032495432083660125,
+   "history_max_dp": 3.0802438377719454e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002265741121618814,
+   "state_bf16_max_dp": 0.00241956256098963,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 122,
+   "rows_max_dp": 0.08047016949038566,
+   "history_max_dp": 6.724920328937678e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0640310002343516,
+   "state_bf16_max_dp": 0.06845003370135716,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 123,
+   "rows_max_dp": 0.008603172562322644,
+   "history_max_dp": 1.1039784864053104e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0044110887770067685,
+   "state_bf16_max_dp": 0.00443874070070565,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 124,
+   "rows_max_dp": 0.020196079776089393,
+   "history_max_dp": 4.8061575830260495e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005918449948384308,
+   "state_bf16_max_dp": 0.0066347841693641385,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 125,
+   "rows_max_dp": 0.0663694343146399,
+   "history_max_dp": 8.963717587628928e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07661306483522265,
+   "state_bf16_max_dp": 0.07840847721673327,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 126,
+   "rows_max_dp": 0.12302630579594548,
+   "history_max_dp": 1.5365822392254813e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.043760988289327396,
+   "state_bf16_max_dp": 0.039394334743781734,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 127,
+   "rows_max_dp": 0.0943774064049081,
+   "history_max_dp": 1.1349785000724921e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.05224575059527348,
+   "state_bf16_max_dp": 0.057549403589592485,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 128,
+   "rows_max_dp": 0.16707779401125827,
+   "history_max_dp": 2.995999598409682e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.06409175368827097,
+   "state_bf16_max_dp": 0.06053943834678216,
+   "state_same_option": true,
+   "h_off_grid": 56,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 129,
+   "rows_max_dp": 0.0030232881683334694,
+   "history_max_dp": 2.4027623744815596e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0018250310571088502,
+   "state_bf16_max_dp": 0.001680867708730549,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 130,
+   "rows_max_dp": 0.007961059857759079,
+   "history_max_dp": 8.449729804738126e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008980169483254419,
+   "state_bf16_max_dp": 0.008631689964359368,
+   "state_same_option": true,
+   "h_off_grid": 39,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 131,
+   "rows_max_dp": 0.1702699936796926,
+   "history_max_dp": 7.655940881257095e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.08213936784880138,
+   "state_bf16_max_dp": 0.0749470472007383,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 132,
+   "rows_max_dp": 0.00698320260169627,
+   "history_max_dp": 4.007681519979656e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020880611799647397,
+   "state_bf16_max_dp": 0.0021875548467604755,
+   "state_same_option": true,
+   "h_off_grid": 35,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 133,
+   "rows_max_dp": 0.05498869465046011,
+   "history_max_dp": 4.046596890905363e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04323852105830582,
+   "state_bf16_max_dp": 0.04605101849941301,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 134,
+   "rows_max_dp": 0.05584382618378658,
+   "history_max_dp": 2.5684053772678794e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01467283795369112,
+   "state_bf16_max_dp": 0.015230427677507818,
+   "state_same_option": true,
+   "h_off_grid": 29,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 135,
+   "rows_max_dp": 0.061199074057759706,
+   "history_max_dp": 1.888232681324098e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.028031295428569525,
+   "state_bf16_max_dp": 0.023562437355525212,
+   "state_same_option": true,
+   "h_off_grid": 11,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 136,
+   "rows_max_dp": 0.025592921926399392,
+   "history_max_dp": 3.122938178889978e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.019923446814756995,
+   "state_bf16_max_dp": 0.025604567000466094,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 137,
+   "rows_max_dp": 0.01596087050516106,
+   "history_max_dp": 5.5377708113590884e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0012334143366151545,
+   "state_bf16_max_dp": 0.0007497231825736028,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 138,
+   "rows_max_dp": 0.0007909032203968769,
+   "history_max_dp": 1.7690207076981324e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002452174036151278,
+   "state_bf16_max_dp": 0.002394071991495439,
+   "state_same_option": true,
+   "h_off_grid": 54,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 139,
+   "rows_max_dp": 0.021393322624501332,
+   "history_max_dp": 1.5464229011913355e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009124787930598899,
+   "state_bf16_max_dp": 0.007074835353547915,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 140,
+   "rows_max_dp": 0.033189198183899093,
+   "history_max_dp": 8.583724508959278e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011904440135780847,
+   "state_bf16_max_dp": 0.010774350423024541,
+   "state_same_option": true,
+   "h_off_grid": 37,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 141,
+   "rows_max_dp": 0.21478036636658537,
+   "history_max_dp": 7.2057952382742485e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.14716327591842618,
+   "state_bf16_max_dp": 0.14544408597976494,
+   "state_same_option": true,
+   "h_off_grid": 35,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 142,
+   "rows_max_dp": 0.004134673951958767,
+   "history_max_dp": 3.126667480479739e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005920414511859529,
+   "state_bf16_max_dp": 0.0007739125745401983,
+   "state_same_option": true,
+   "h_off_grid": 48,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 143,
+   "rows_max_dp": 0.15151926222754553,
+   "history_max_dp": 1.5836931765988993e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07810861857377571,
+   "state_bf16_max_dp": 0.07854695389124255,
+   "state_same_option": true,
+   "h_off_grid": 1,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 144,
+   "rows_max_dp": 0.025101486564984232,
+   "history_max_dp": 5.076382203483831e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0103524796277135,
+   "state_bf16_max_dp": 0.010469250667811906,
+   "state_same_option": true,
+   "h_off_grid": 31,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 145,
+   "rows_max_dp": 0.027236330643816975,
+   "history_max_dp": 6.398876095659034e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07563059183751408,
+   "state_bf16_max_dp": 0.07921960152563012,
+   "state_same_option": true,
+   "h_off_grid": 1,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 146,
+   "rows_max_dp": 0.023302732047898483,
+   "history_max_dp": 2.2149038658714204e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.023605109690001513,
+   "state_bf16_max_dp": 0.02729200556737521,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 147,
+   "rows_max_dp": 0.06588332856426615,
+   "history_max_dp": 8.017031843943201e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02936981714256208,
+   "state_bf16_max_dp": 0.028402371098179655,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 148,
+   "rows_max_dp": 0.027628132021952356,
+   "history_max_dp": 1.2645986258164044e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005868491542589137,
+   "state_bf16_max_dp": 0.005182287199973518,
+   "state_same_option": true,
+   "h_off_grid": 38,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 149,
+   "rows_max_dp": 0.015311792990833073,
+   "history_max_dp": 2.087804251704739e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02487162979191715,
+   "state_bf16_max_dp": 0.031032437034388072,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "v3_clinc",
+   "i": 0,
+   "rows_max_dp": 0.01867724897409276,
+   "history_max_dp": 1.4114044877278076e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01645489116726387,
+   "state_bf16_max_dp": 0.011721952133786448,
+   "state_same_option": true,
+   "h_off_grid": 68,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 1,
+   "rows_max_dp": 0.020889654332849728,
+   "history_max_dp": 4.058576415916226e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011359375441740815,
+   "state_bf16_max_dp": 0.011472010669233312,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 2,
+   "rows_max_dp": 0.042848740899987664,
+   "history_max_dp": 1.858462028714314e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02126961558880169,
+   "state_bf16_max_dp": 0.022329075547796468,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 3,
+   "rows_max_dp": 0.016924476793954035,
+   "history_max_dp": 1.8465248219357022e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01281790279136008,
+   "state_bf16_max_dp": 0.01457526700330014,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 4,
+   "rows_max_dp": 0.054494823660895975,
+   "history_max_dp": 7.808534291386948e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.034941353257386204,
+   "state_bf16_max_dp": 0.03566058651372073,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 5,
+   "rows_max_dp": 0.010938998446031634,
+   "history_max_dp": 7.295028359166622e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004065700814888218,
+   "state_bf16_max_dp": 0.005802186319657898,
+   "state_same_option": true,
+   "h_off_grid": 36,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 6,
+   "rows_max_dp": 0.021862336950101202,
+   "history_max_dp": 1.189574383442249e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.015837149331580758,
+   "state_bf16_max_dp": 0.023538747286245276,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 7,
+   "rows_max_dp": 0.02268167785404085,
+   "history_max_dp": 3.24608370738666e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.010393553386341958,
+   "state_bf16_max_dp": 0.009529296066561277,
+   "state_same_option": true,
+   "h_off_grid": 11,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 8,
+   "rows_max_dp": 0.2710674600638688,
+   "history_max_dp": 1.68474162537402e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.14582806753661415,
+   "state_bf16_max_dp": 0.14886272892495228,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 9,
+   "rows_max_dp": 0.007103708821975124,
+   "history_max_dp": 4.090124704203557e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005742728566588751,
+   "state_bf16_max_dp": 0.004741466085338599,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 10,
+   "rows_max_dp": 0.008445112758479917,
+   "history_max_dp": 1.1036512592710324e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020437122830989623,
+   "state_bf16_max_dp": 0.0023393463314833416,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 11,
+   "rows_max_dp": 0.01415123401618823,
+   "history_max_dp": 5.156433613429101e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.052866237981237574,
+   "state_bf16_max_dp": 0.056500771104480485,
+   "state_same_option": true,
+   "h_off_grid": 65,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 12,
+   "rows_max_dp": 0.15324221312625147,
+   "history_max_dp": 1.8376183574808636e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.127506660085243,
+   "state_bf16_max_dp": 0.12343966960404376,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 13,
+   "rows_max_dp": 0.1983852155395024,
+   "history_max_dp": 1.564052465319321e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.171813681180785,
+   "state_bf16_max_dp": 0.1699550236835281,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 14,
+   "rows_max_dp": 0.002877773173180498,
+   "history_max_dp": 3.462115816255107e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0025892918951273547,
+   "state_bf16_max_dp": 0.0021305101340337584,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 15,
+   "rows_max_dp": 0.1416522507864201,
+   "history_max_dp": 1.0395095742521399e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07470933925992504,
+   "state_bf16_max_dp": 0.06758772711092131,
+   "state_same_option": true,
+   "h_off_grid": 82,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 16,
+   "rows_max_dp": 0.009810203966570716,
+   "history_max_dp": 4.611093951112366e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0029011810714867905,
+   "state_bf16_max_dp": 0.0025840724774666554,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 17,
+   "rows_max_dp": 0.020583000645099214,
+   "history_max_dp": 6.815227691220338e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0038697629531589256,
+   "state_bf16_max_dp": 0.0022602581990344463,
+   "state_same_option": true,
+   "h_off_grid": 39,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 18,
+   "rows_max_dp": 0.10241652890310732,
+   "history_max_dp": 1.4386001556676575e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.08016403036262926,
+   "state_bf16_max_dp": 0.07704578272873785,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 19,
+   "rows_max_dp": 0.013510395392830388,
+   "history_max_dp": 3.4498731649179604e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00260467447620435,
+   "state_bf16_max_dp": 0.003433634562203469,
+   "state_same_option": true,
+   "h_off_grid": 11,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 20,
+   "rows_max_dp": 0.03384436633943311,
+   "history_max_dp": 9.360366703958789e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011112530196313641,
+   "state_bf16_max_dp": 0.02658578617405294,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 21,
+   "rows_max_dp": 0.12967732802320014,
+   "history_max_dp": 2.0846324555456874e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.07049007616302544,
+   "state_bf16_max_dp": 0.08210747527841183,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 22,
+   "rows_max_dp": 0.0043225090877204424,
+   "history_max_dp": 7.124291379057013e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005448196515175871,
+   "state_bf16_max_dp": 0.005410090766611791,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 23,
+   "rows_max_dp": 0.03823425687268256,
+   "history_max_dp": 2.385197261922656e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03334039617925011,
+   "state_bf16_max_dp": 0.03308117097165597,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 24,
+   "rows_max_dp": 0.021627742798548677,
+   "history_max_dp": 1.9330866213307374e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0281321738088776,
+   "state_bf16_max_dp": 0.02127626155021567,
+   "state_same_option": true,
+   "h_off_grid": 82,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 25,
+   "rows_max_dp": 0.006116498132025527,
+   "history_max_dp": 1.0181628873340287e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007657659938594019,
+   "state_bf16_max_dp": 0.009872843113891805,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 26,
+   "rows_max_dp": 0.0017136444560860165,
+   "history_max_dp": 8.252827050220235e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0038061217616079945,
+   "state_bf16_max_dp": 0.003925394816104877,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 27,
+   "rows_max_dp": 0.007010116432528912,
+   "history_max_dp": 8.813061712700798e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005023275055481946,
+   "state_bf16_max_dp": 0.0038122453749386276,
+   "state_same_option": true,
+   "h_off_grid": 26,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 28,
+   "rows_max_dp": 0.20121130676668508,
+   "history_max_dp": 9.138340417713664e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.10659641532376984,
+   "state_bf16_max_dp": 0.0923141950259071,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 29,
+   "rows_max_dp": 0.035075652919366984,
+   "history_max_dp": 1.1191323978643197e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02409867182427894,
+   "state_bf16_max_dp": 0.017090433039920173,
+   "state_same_option": true,
+   "h_off_grid": 34,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 30,
+   "rows_max_dp": 0.05192725294881473,
+   "history_max_dp": 1.5445374104694487e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.026586369830250978,
+   "state_bf16_max_dp": 0.03506392485473109,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 31,
+   "rows_max_dp": 0.009468126056653259,
+   "history_max_dp": 6.533768304173293e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0026069441382560177,
+   "state_bf16_max_dp": 0.002458639670665397,
+   "state_same_option": true,
+   "h_off_grid": 232,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 32,
+   "rows_max_dp": 0.09042476333784033,
+   "history_max_dp": 1.5015831134057578e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04595207320030481,
+   "state_bf16_max_dp": 0.05809613268838276,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 33,
+   "rows_max_dp": 0.03618219394270103,
+   "history_max_dp": 2.854400282803482e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.021666901784183658,
+   "state_bf16_max_dp": 0.024622462461980243,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 34,
+   "rows_max_dp": 0.018224873271802,
+   "history_max_dp": 2.0368073894161398e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006843788017189434,
+   "state_bf16_max_dp": 0.010458102869556618,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 35,
+   "rows_max_dp": 0.08694667159990455,
+   "history_max_dp": 1.084032635878529e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03746475862017207,
+   "state_bf16_max_dp": 0.05107807544645937,
+   "state_same_option": true,
+   "h_off_grid": 140,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 36,
+   "rows_max_dp": 0.021108800127648264,
+   "history_max_dp": 2.9653910126048455e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01294863356744358,
+   "state_bf16_max_dp": 0.012342958382475566,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 37,
+   "rows_max_dp": 0.019099474733505595,
+   "history_max_dp": 1.3894803863045979e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01519788408900935,
+   "state_bf16_max_dp": 0.014120246656490365,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 38,
+   "rows_max_dp": 0.013490062446695705,
+   "history_max_dp": 1.0747436274272104e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0034708277022249545,
+   "state_bf16_max_dp": 0.0028926576539092252,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 39,
+   "rows_max_dp": 0.015079155112881066,
+   "history_max_dp": 1.289063578102656e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.021568082693617364,
+   "state_bf16_max_dp": 0.018786917185565775,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 40,
+   "rows_max_dp": 0.049810174846138366,
+   "history_max_dp": 1.733013943461259e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.024744150107206715,
+   "state_bf16_max_dp": 0.024458022567943,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 41,
+   "rows_max_dp": 0.003798560499358495,
+   "history_max_dp": 2.032376045235651e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008338519501125297,
+   "state_bf16_max_dp": 0.00932982088130585,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 42,
+   "rows_max_dp": 0.062134722484372365,
+   "history_max_dp": 1.2116428860231565e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0169233194175491,
+   "state_bf16_max_dp": 0.01393737039967119,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 43,
+   "rows_max_dp": 0.0047722782081804915,
+   "history_max_dp": 2.3580390973165777e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0025323955411209464,
+   "state_bf16_max_dp": 0.002499079527256143,
+   "state_same_option": true,
+   "h_off_grid": 54,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 44,
+   "rows_max_dp": 0.016709951547135282,
+   "history_max_dp": 5.0511123200758234e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.029163084330700584,
+   "state_bf16_max_dp": 0.0271716177276472,
+   "state_same_option": true,
+   "h_off_grid": 156,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 45,
+   "rows_max_dp": 0.0036059343757638305,
+   "history_max_dp": 2.8808393509258123e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0037032660379837656,
+   "state_bf16_max_dp": 0.005007624273033251,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 46,
+   "rows_max_dp": 0.24734542472299514,
+   "history_max_dp": 1.867745666461751e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.13304373760600405,
+   "state_bf16_max_dp": 0.12833065091595322,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 47,
+   "rows_max_dp": 0.02757114551091082,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03896373031751954,
+   "state_bf16_max_dp": 0.04150181019023835,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 48,
+   "rows_max_dp": 0.02878243673370484,
+   "history_max_dp": 1.634082669177417e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007574723410224138,
+   "state_bf16_max_dp": 0.01211882173048584,
+   "state_same_option": true,
+   "h_off_grid": 41,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 49,
+   "rows_max_dp": 0.0033523717422070387,
+   "history_max_dp": 2.4830207889792177e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0011826775608262396,
+   "state_bf16_max_dp": 0.0010517546248252213,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 50,
+   "rows_max_dp": 0.0363124603685225,
+   "history_max_dp": 1.450764308685848e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.015862001465545394,
+   "state_bf16_max_dp": 0.01604329899559731,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 51,
+   "rows_max_dp": 0.008655554246527197,
+   "history_max_dp": 1.0744156675457361e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0016007912168806149,
+   "state_bf16_max_dp": 0.0008918631174451574,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 52,
+   "rows_max_dp": 0.10451248264894486,
+   "history_max_dp": 5.5434939069676226e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04235080721329487,
+   "state_bf16_max_dp": 0.04016510374303506,
+   "state_same_option": true,
+   "h_off_grid": 17,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 53,
+   "rows_max_dp": 0.03509637046877723,
+   "history_max_dp": 1.1566572810650655e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007976953086860184,
+   "state_bf16_max_dp": 0.01124519203622909,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 54,
+   "rows_max_dp": 0.5735275427616477,
+   "history_max_dp": 2.0884979967661366e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.31000629516425526,
+   "state_bf16_max_dp": 0.299396646873832,
+   "state_same_option": false,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 55,
+   "rows_max_dp": 0.028662165337982826,
+   "history_max_dp": 2.3975823548738617e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.017718765762524624,
+   "state_bf16_max_dp": 0.017877357152783047,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 56,
+   "rows_max_dp": 0.08261020371842043,
+   "history_max_dp": 4.5998272968361675e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.039888450468909875,
+   "state_bf16_max_dp": 0.04174505418009722,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 57,
+   "rows_max_dp": 0.041990089159045785,
+   "history_max_dp": 1.4839955597700794e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008303568712856285,
+   "state_bf16_max_dp": 0.014909032366113656,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 58,
+   "rows_max_dp": 0.039196538019385385,
+   "history_max_dp": 1.1196564009274823e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.025142306538842196,
+   "state_bf16_max_dp": 0.025317132258696917,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 59,
+   "rows_max_dp": 0.10476533981995562,
+   "history_max_dp": 6.593290469147917e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04039812393008757,
+   "state_bf16_max_dp": 0.04357952727012926,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 60,
+   "rows_max_dp": 0.04163611801398259,
+   "history_max_dp": 8.614058022438087e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04094222602200337,
+   "state_bf16_max_dp": 0.03946699352480121,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 61,
+   "rows_max_dp": 0.008788942820506795,
+   "history_max_dp": 8.472149981564314e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0194195164021701,
+   "state_bf16_max_dp": 0.0200944283833685,
+   "state_same_option": true,
+   "h_off_grid": 46,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 62,
+   "rows_max_dp": 0.09661979046979845,
+   "history_max_dp": 6.6268895926313576e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.049132778023612586,
+   "state_bf16_max_dp": 0.04333643743765571,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 63,
+   "rows_max_dp": 0.055298415893398456,
+   "history_max_dp": 5.710084627352785e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.061366520735551267,
+   "state_bf16_max_dp": 0.05517621913648607,
+   "state_same_option": true,
+   "h_off_grid": 85,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 64,
+   "rows_max_dp": 0.07561207992723329,
+   "history_max_dp": 1.3785531216559122e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04992564986095162,
+   "state_bf16_max_dp": 0.04742765489125819,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 65,
+   "rows_max_dp": 0.0016225693450317505,
+   "history_max_dp": 1.919705283626172e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0018863719795700895,
+   "state_bf16_max_dp": 0.0022652904529872897,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 66,
+   "rows_max_dp": 0.034455113296225304,
+   "history_max_dp": 1.4464294796623367e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.015490032720136826,
+   "state_bf16_max_dp": 0.01563139840592409,
+   "state_same_option": true,
+   "h_off_grid": 60,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 67,
+   "rows_max_dp": 0.08064864909621494,
+   "history_max_dp": 1.0626394320034649e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01125291075266277,
+   "state_bf16_max_dp": 0.008907626598440355,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 68,
+   "rows_max_dp": 0.10551878939271542,
+   "history_max_dp": 9.394744843183034e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.03333064273638486,
+   "state_bf16_max_dp": 0.036815312344114726,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 69,
+   "rows_max_dp": 0.21462009505640833,
+   "history_max_dp": 4.1179564591597995e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.1679267681948162,
+   "state_bf16_max_dp": 0.15579373563558493,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 70,
+   "rows_max_dp": 0.04746774184039229,
+   "history_max_dp": 3.0570969311582985e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04359909387508945,
+   "state_bf16_max_dp": 0.041297205740035065,
+   "state_same_option": true,
+   "h_off_grid": 112,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 71,
+   "rows_max_dp": 0.0339381063580938,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014545100987321868,
+   "state_bf16_max_dp": 0.013537787315568317,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 72,
+   "rows_max_dp": 0.011677898497300943,
+   "history_max_dp": 4.701986022759286e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007002603225289811,
+   "state_bf16_max_dp": 0.006908308593802457,
+   "state_same_option": true,
+   "h_off_grid": 19,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 73,
+   "rows_max_dp": 0.01394444164574804,
+   "history_max_dp": 3.80538345279291e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007258230794199405,
+   "state_bf16_max_dp": 0.010310470655996884,
+   "state_same_option": true,
+   "h_off_grid": 137,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 74,
+   "rows_max_dp": 0.023649650882442197,
+   "history_max_dp": 7.697334991618732e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.022541323570787086,
+   "state_bf16_max_dp": 0.023241079013587407,
+   "state_same_option": true,
+   "h_off_grid": 33,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 75,
+   "rows_max_dp": 0.1749312074981294,
+   "history_max_dp": 1.0299539776603694e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.1262881398973188,
+   "state_bf16_max_dp": 0.12956587538174635,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 76,
+   "rows_max_dp": 0.017120750367998427,
+   "history_max_dp": 6.812068825690076e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008494499215981666,
+   "state_bf16_max_dp": 0.013704581615720524,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 77,
+   "rows_max_dp": 0.16615973428523012,
+   "history_max_dp": 1.908441316089693e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.09502206335705188,
+   "state_bf16_max_dp": 0.10150685834822237,
+   "state_same_option": true,
+   "h_off_grid": 37,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 78,
+   "rows_max_dp": 0.045870539965254475,
+   "history_max_dp": 5.1970449055360746e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006639099587078066,
+   "state_bf16_max_dp": 0.007007822947831796,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 79,
+   "rows_max_dp": 0.055057423208092704,
+   "history_max_dp": 6.4437701841058015e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.04282193262930262,
+   "state_bf16_max_dp": 0.03985704927122086,
+   "state_same_option": true,
+   "h_off_grid": 33,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 80,
+   "rows_max_dp": 0.0010896361428364143,
+   "history_max_dp": 2.4833169964821877e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00063514320604532,
+   "state_bf16_max_dp": 0.0006535244534597846,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 81,
+   "rows_max_dp": 0.08843442958680292,
+   "history_max_dp": 7.422635506237896e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.06152228278371685,
+   "state_bf16_max_dp": 0.060157378335433775,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 82,
+   "rows_max_dp": 0.1482555515072917,
+   "history_max_dp": 4.247716517161447e-14,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.025447182046870093,
+   "state_bf16_max_dp": 0.026349901829952393,
+   "state_same_option": true,
+   "h_off_grid": 43,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 83,
+   "rows_max_dp": 0.008835535193561284,
+   "history_max_dp": 5.106971068258304e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0010618565187777707,
+   "state_bf16_max_dp": 0.0007791057396496735,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 84,
+   "rows_max_dp": 0.23443157540031911,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.09234217912819828,
+   "state_bf16_max_dp": 0.06873075369198353,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 85,
+   "rows_max_dp": 0.14033822664327744,
+   "history_max_dp": 9.060422856421724e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.15000308437974008,
+   "state_bf16_max_dp": 0.14914535920873684,
+   "state_same_option": true,
+   "h_off_grid": 61,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 86,
+   "rows_max_dp": 0.006858267470604251,
+   "history_max_dp": 7.0114632069046e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005497890664653671,
+   "state_bf16_max_dp": 0.004193514353586947,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 87,
+   "rows_max_dp": 0.4829489131667086,
+   "history_max_dp": 9.248080287682647e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.2389317091782064,
+   "state_bf16_max_dp": 0.24066381673518622,
+   "state_same_option": false,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 88,
+   "rows_max_dp": 0.017679933062839104,
+   "history_max_dp": 1.4970007677916897e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014566703569488748,
+   "state_bf16_max_dp": 0.01216338570112352,
+   "state_same_option": true,
+   "h_off_grid": 46,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 89,
+   "rows_max_dp": 0.06971429642298277,
+   "history_max_dp": 6.704812927083026e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.052572977866018444,
+   "state_bf16_max_dp": 0.04833284455229103,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 90,
+   "rows_max_dp": 0.10402274688968821,
+   "history_max_dp": 1.5450075663281382e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.062307704579078305,
+   "state_bf16_max_dp": 0.0628928618698167,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 91,
+   "rows_max_dp": 0.14786220392861943,
+   "history_max_dp": 1.9910441961812353e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.050385802286373016,
+   "state_bf16_max_dp": 0.04774273706158216,
+   "state_same_option": true,
+   "h_off_grid": 44,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 92,
+   "rows_max_dp": 0.04108359768947478,
+   "history_max_dp": 1.1909356278927419e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.02121125194453278,
+   "state_bf16_max_dp": 0.017324948485322206,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 93,
+   "rows_max_dp": 0.007601968858828356,
+   "history_max_dp": 3.811044924084683e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001997012933209197,
+   "state_bf16_max_dp": 0.002923619777736919,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 94,
+   "rows_max_dp": 0.017880827017130917,
+   "history_max_dp": 1.055892029366845e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011630372102350073,
+   "state_bf16_max_dp": 0.013241933354462665,
+   "state_same_option": true,
+   "h_off_grid": 19,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 95,
+   "rows_max_dp": 0.022698306420150915,
+   "history_max_dp": 9.837903158782524e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009603293843620797,
+   "state_bf16_max_dp": 0.006469477844246674,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 96,
+   "rows_max_dp": 0.03614482247348978,
+   "history_max_dp": 3.745485144257543e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.021945093148672275,
+   "state_bf16_max_dp": 0.02236359865775931,
+   "state_same_option": true,
+   "h_off_grid": 26,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 97,
+   "rows_max_dp": 0.011950500748332815,
+   "history_max_dp": 5.686707771346278e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007166054997310378,
+   "state_bf16_max_dp": 0.008151597712182546,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 98,
+   "rows_max_dp": 0.014841587802849943,
+   "history_max_dp": 3.874230602995965e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0021049048405976595,
+   "state_bf16_max_dp": 0.005048309682802787,
+   "state_same_option": true,
+   "h_off_grid": 55,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 99,
+   "rows_max_dp": 0.04232478543512966,
+   "history_max_dp": 6.121284590321352e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.022504035556584815,
+   "state_bf16_max_dp": 0.02364032337956471,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  }
+ ]
+}

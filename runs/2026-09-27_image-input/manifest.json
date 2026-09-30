@@ -1,0 +1,87 @@
+{
+ "id": "2026-09-27_image-input",
+ "title": "The image route on ImajevBench v2.0-lite's 254 labelled items, beside the text engine on one card, internal",
+ "date": "2026-09-27 to 2026-09-28",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (96 GB)",
+ "software": {
+  "vllm": "0.30.0",
+  "patch_series": "patches/vllm-0.30.0/suffix-staging, VLLM_SUFFIX_STAGING=1",
+  "VLLM_USE_DEEP_GEMM": "0",
+  "patch_series_flag_note": "the flag was named VLLM_R9_SUFFIX_STAGING when this run was made; its logs keep that name"
+ },
+ "model": {
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "text_engine": "the text-only view, 0.47 of the card",
+  "image_engine": "the official checkpoint under Qwen3_5MoeForConditionalGeneration (vision tower in bf16), 0.49 of the card",
+  "adapter": null,
+  "head": null,
+  "per_task_calibration": null,
+  "temperature": "not applied on the image route"
+ },
+ "serving": {
+  "readout": "letters",
+  "pad": "front, to the 1,056-token block (images and state in the cached prefix)",
+  "requests": "one at a time",
+  "rendering": "keys as sent (no index-key hiding or de-snaking); exact ties were not resolved by key order, and the harness rejected 2 items whose answers tied exactly (counted wrong)"
+ },
+ "code": {
+  "state": "the served image route of 2026-09-27 (decisio.serve.image_engine)",
+  "public_equivalent": "python -m decisio.serve.vllm_engine --model-class view --image-model $DECISIO_MODEL --gpu-memory-utilization 0.47 --image-gpu-memory-utilization 0.49 --no-hide-index-keys --no-desnake-labels [--orders 2] [--abstain-option \"can't tell\"]"
+ },
+ "arms": {
+  "image": "one order",
+  "image_two_orders": "--orders 2",
+  "image_abstain": "--abstain-option \"can't tell\" (untrained, reported as imajev's unknown_probability / abstained)"
+ },
+ "harnesses": {
+  "imajev": "github.com/mohit67890/imajev @ d2adbb8 (Apache-2.0), its own harness and scorer against /v1/systemone",
+  "imajevbench": "github.com/mohit67890/imajev-bench @ 043ab1f, v2.0-lite, the 254 labelled dev and calibration items (CC BY 4.0; images CC0, AI-generated); 230 answerable, 24 with reference Unknown"
+ },
+ "gates": {
+  "C1 serving gates": "pass (gates.log)",
+  "paired text check": "200 of 200 suite items bit-identical through the text route and the image engine (p1.json)",
+  "text route beside the image engine": "0.99 to 1.08 times its latency alone in all six cells (cost_gates.json)"
+ },
+ "results": {
+  "accuracy": {
+   "image": {
+    "all_254": 0.717,
+    "answerable_230": 0.791,
+    "unknown_right": "0 of 24",
+    "p50_ms": 166,
+    "p95_ms": 175
+   },
+   "image_two_orders": {
+    "all_254": 0.74,
+    "answerable_230": 0.817,
+    "unknown_right": "0 of 24",
+    "p50_ms": 192,
+    "p95_ms": 208
+   },
+   "image_abstain": {
+    "all_254": 0.756,
+    "answerable_230": 0.813,
+    "unknown_right": "5 of 24",
+    "false_abstentions": "2 of 230",
+    "p50_ms": 175,
+    "p95_ms": 197
+   }
+  },
+  "image_over_text_latency": "1.24 to 1.84 times a text request of equal state tokens, 2.12 times in one of six cells (a 1536x1024 photo with one question)"
+ },
+ "files": {
+  "imajev/<arm>/<split>/": "the harness's predictions.jsonl (per item: id, our distribution, latency), score.json, manifest.json, completion.json",
+  "accuracy.json": "accuracy per arm and subset with 95% intervals",
+  "cost_*.json": "latency per cell, alone and co-resident, and the memory split",
+  "p1.json": "the paired text check per item (task and index of the private suite, no text)",
+  "gates.log": "C1 result lines",
+  "files.json": "sizes and sha256"
+ },
+ "excluded": [
+  "the harness's raw.jsonl (requests with the items' text)",
+  "imajev-4b's arms (another model's outputs)",
+  "vLLM start-up logs, machine logs and addresses"
+ ]
+}

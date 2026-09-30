@@ -1,0 +1,67 @@
+{
+ "edition": "0.2.1",
+ "engine": "two_orders",
+ "latency_ms": {
+  "median": 115.81692565232515,
+  "p95": 179.15631644427776,
+  "mean": 127.04739902165826
+ },
+ "benchmarks": {
+  "BANKING77": {
+   "catalog_id": 4,
+   "metric": "macro-F1",
+   "native_score": 0.561196336622503,
+   "requests": 3080,
+   "answered": 3080,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": 111.0414071008563,
+   "chance": 0.0127,
+   "raw": 0.5612,
+   "skill": 0.5555555555555556,
+   "coverage": 1.0
+  },
+  "CLINC150+OOS": {
+   "catalog_id": 5,
+   "metric": "macro-F1",
+   "native_score": 0.7649835698997972,
+   "requests": 5500,
+   "answered": 5500,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": 174.3782488629222,
+   "chance": 0.006,
+   "raw": 0.765,
+   "skill": 0.7635814889336017,
+   "coverage": 1.0
+  },
+  "GPQA Diamond": {
+   "catalog_id": 25,
+   "metric": "accuracy",
+   "native_score": 0.49489795918367346,
+   "requests": 196,
+   "answered": 196,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": 83.52452050894499,
+   "chance": 0.25,
+   "raw": 0.4949,
+   "skill": 0.3265,
+   "coverage": 1.0
+  },
+  "MMLU-Pro": {
+   "catalog_id": 57,
+   "metric": "accuracy",
+   "native_score": 0.6195146276595744,
+   "requests": 12032,
+   "answered": 12032,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": 113.48461732268333,
+   "chance": 0.1109,
+   "raw": 0.6195,
+   "skill": 0.572,
+   "coverage": 1.0
+  }
+ }
+}

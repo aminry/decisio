@@ -1,0 +1,21 @@
+{
+  "adapter": "typesafe",
+  "charged_usd": 0.0,
+  "cost_basis": "internal_self_hosted_rtx_pro_6000",
+  "dataset_hash": "3cbd0e951fa8059741955ef2bd3273b0bb60aecae8f4a68b89872f55f7376b3d",
+  "delay_s": 0.0,
+  "endpoint": "http://127.0.0.1:23456",
+  "finished_utc": "2026-09-30T12:52:52.424632+00:00",
+  "key_env_used": false,
+  "n_attempted": 48,
+  "n_planned": 48,
+  "price_input_per_m": null,
+  "price_output_per_m": null,
+  "request_options": {},
+  "requested_model": "rlcd-qwen3.6-35b-a3b-letters",
+  "resolved_models": [
+    "rlcd-qwen3.6-35b-a3b-letters"
+  ],
+  "run_label": "rlcd-default-easy",
+  "started_utc": "2026-09-30T12:52:49.956884+00:00"
+}

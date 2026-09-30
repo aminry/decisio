@@ -1,0 +1,23 @@
+{
+ "source": "the served model's readouts of intent examples (the two-engine head route, 10 examples per intent, draw 0) and of 150 / 100 evaluation items; no text",
+ "arrays": {
+  "examples.npz": "h (final-norm hidden state at the answer position, float32), lp (label log-probabilities, float64), y (gold option index)",
+  "eval.npz": "h, lp of the evaluation items"
+ },
+ "sets": {
+  "banking77": {
+   "examples": 770,
+   "eval_items": 150,
+   "options": 77
+  },
+  "clinc150": {
+   "examples": 1500,
+   "eval_items": 100,
+   "options": 150
+  }
+ },
+ "licences": {
+  "banking77": "CC-BY-4.0 (PolyAI)",
+  "clinc150": "CC-BY-3.0 (Larson et al., 2019)"
+ }
+}

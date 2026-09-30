@@ -1,0 +1,14 @@
+(EngineCore pid=26144) INFO 09-30 18:30:37 [model_runner.py:435] Model loading took 33.31 GiB memory and 16.157334 seconds
+(EngineCore pid=26144) INFO 09-30 18:30:37 [model_runner.py:586] VLLM_R9_SUFFIX_STAGING=1: staging only the uncached prompt suffix of new requests with a prefix-cache hit.
+(EngineCore pid=26144) INFO 09-30 18:32:26 [model_runner.py:1122] Graph capturing finished in 96 secs, took 2.61 GiB
+(EngineCore pid=26144) INFO 09-30 18:32:27 [gpu_worker.py:640] Available KV cache memory: 6.21 GiB
+(EngineCore pid=26144) INFO 09-30 18:32:27 [kv_cache_utils.py:2395] GPU KV cache size: 265,593 tokens, Maximum concurrency for 32,768 tokens per request: 8.11x
+(EngineCore pid=26144) INFO 09-30 18:34:00 [model_runner.py:1122] Graph capturing finished in 89 secs, took 0.62 GiB
+(EngineCore pid=26860) INFO 09-30 18:34:44 [model_runner.py:435] Model loading took 34.23 GiB memory and 16.785947 seconds
+(EngineCore pid=26860) INFO 09-30 18:34:44 [model_runner.py:586] VLLM_R9_SUFFIX_STAGING=1: staging only the uncached prompt suffix of new requests with a prefix-cache hit.
+(EngineCore pid=26860) INFO 09-30 18:37:07 [model_runner.py:1122] Graph capturing finished in 92 secs, took 2.51 GiB
+(EngineCore pid=26860) INFO 09-30 18:37:08 [gpu_worker.py:640] Available KV cache memory: 7.07 GiB
+(EngineCore pid=26860) INFO 09-30 18:37:08 [kv_cache_utils.py:2395] GPU KV cache size: 301,810 tokens, Maximum concurrency for 32,768 tokens per request: 9.21x
+(EngineCore pid=26860) INFO 09-30 18:38:41 [model_runner.py:1122] Graph capturing finished in 91 secs, took 0.52 GiB
+IMAGE ENGINE {"vllm": "0.30.0", "gpu": "NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition", "mode": "separate", "block_size": 1056, "match_unit": 1056, "pad_unit": 1056, "pad_where": "front", "quantization": "fp8",
+HEAD ENGINE {"mode": "hidden (serving engine, reserved logit columns)", "reserved_ids": [100000, 102048], "lm_head": [248320, 2048], "requests_per_question": 3}

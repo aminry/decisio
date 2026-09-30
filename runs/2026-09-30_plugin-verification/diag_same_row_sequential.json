@@ -1,0 +1,4282 @@
+{
+ "items": 250,
+ "rows_max_dp": {
+  "max": 1.1802552923878551e-07,
+  "median": 1.1821301548753382e-08,
+  "within_1e-4": 250,
+  "zero": 1
+ },
+ "history_max_dp": {
+  "max": 5.91884108391838e-08,
+  "median": 6.6057521119766704e-09,
+  "within_1e-4": 250,
+  "zero": 6
+ },
+ "state_f64_max_dp": {
+  "max": 0.0187241709698569,
+  "median": 0.0028351674296685225,
+  "within_1e-4": 8,
+  "zero": 0
+ },
+ "state_bf16_max_dp": {
+  "max": 2.9799141265662854e-08,
+  "median": 4.1213137763618235e-09,
+  "within_1e-4": 250,
+  "zero": 6
+ },
+ "history_same_option": 250,
+ "state_same_option": 250,
+ "h_values_off_grid": 6746,
+ "rows": [
+  {
+   "task": "banking77",
+   "i": 0,
+   "rows_max_dp": 5.6105015522334156e-08,
+   "history_max_dp": 1.1299938762476813e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002742255732353982,
+   "state_bf16_max_dp": 9.509550591424443e-09,
+   "state_same_option": true,
+   "h_off_grid": 40,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 1,
+   "rows_max_dp": 3.0937062911462476e-09,
+   "history_max_dp": 1.5901419070374345e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00031669186939564664,
+   "state_bf16_max_dp": 1.6544600134338339e-09,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 2,
+   "rows_max_dp": 7.4104762326498985e-09,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007930375754300723,
+   "state_bf16_max_dp": 1.5141689013731252e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 3,
+   "rows_max_dp": 6.019980819393922e-09,
+   "history_max_dp": 6.1706875581490905e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00804798899078421,
+   "state_bf16_max_dp": 5.726491614232998e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 4,
+   "rows_max_dp": 3.1751414053537985e-08,
+   "history_max_dp": 1.0096342428767002e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0013401847154198114,
+   "state_bf16_max_dp": 5.852346052215296e-09,
+   "state_same_option": true,
+   "h_off_grid": 36,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 5,
+   "rows_max_dp": 7.228920628765678e-09,
+   "history_max_dp": 3.614460675205322e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.012032980254029602,
+   "state_bf16_max_dp": 3.6144607307164733e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 6,
+   "rows_max_dp": 4.0143262269864977e-08,
+   "history_max_dp": 3.324971703522195e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.012179778443685063,
+   "state_bf16_max_dp": 1.9228448999708547e-08,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 7,
+   "rows_max_dp": 4.3538694871614325e-09,
+   "history_max_dp": 8.967793174718963e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0009268646567843764,
+   "state_bf16_max_dp": 2.4468027604029885e-09,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 8,
+   "rows_max_dp": 2.83590906313691e-09,
+   "history_max_dp": 8.738776369199286e-11,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0003249839167572821,
+   "state_bf16_max_dp": 1.0361694037508418e-09,
+   "state_same_option": true,
+   "h_off_grid": 56,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 9,
+   "rows_max_dp": 1.4635001821527993e-08,
+   "history_max_dp": 1.1254404838623167e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006189561228770402,
+   "state_bf16_max_dp": 1.4635001821527993e-08,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 10,
+   "rows_max_dp": 2.606069704480518e-08,
+   "history_max_dp": 1.896373402754392e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007066136620594077,
+   "state_bf16_max_dp": 1.7688333908694176e-08,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 11,
+   "rows_max_dp": 6.862226453741016e-09,
+   "history_max_dp": 2.398781617785062e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0015388276210209773,
+   "state_bf16_max_dp": 5.1931573451236e-10,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 12,
+   "rows_max_dp": 2.2098825908090092e-08,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009448555949287646,
+   "state_bf16_max_dp": 1.1049413745078951e-08,
+   "state_same_option": true,
+   "h_off_grid": 57,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 13,
+   "rows_max_dp": 9.638172482340224e-10,
+   "history_max_dp": 9.31862256629834e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 5.572489982208495e-05,
+   "state_bf16_max_dp": 3.7831692596343447e-10,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 14,
+   "rows_max_dp": 1.524758114213043e-08,
+   "history_max_dp": 1.1147153811119637e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009732512844337238,
+   "state_bf16_max_dp": 3.049515917563639e-09,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 15,
+   "rows_max_dp": 8.992784350514427e-09,
+   "history_max_dp": 7.043120864302921e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0028037729225475205,
+   "state_bf16_max_dp": 7.113537425773586e-09,
+   "state_same_option": true,
+   "h_off_grid": 31,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 16,
+   "rows_max_dp": 4.545372855879748e-09,
+   "history_max_dp": 2.8879520996838437e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00017524375698563244,
+   "state_bf16_max_dp": 5.223527166364761e-10,
+   "state_same_option": true,
+   "h_off_grid": 28,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 17,
+   "rows_max_dp": 5.885583340137224e-09,
+   "history_max_dp": 2.3206269128550616e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0008122733844583077,
+   "state_bf16_max_dp": 1.973299301738507e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 18,
+   "rows_max_dp": 4.856507307415825e-08,
+   "history_max_dp": 5.360870324044864e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005485779525166379,
+   "state_bf16_max_dp": 2.1481731171668628e-08,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 19,
+   "rows_max_dp": 5.534478431101775e-09,
+   "history_max_dp": 2.9809640311739827e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004561700683504144,
+   "state_bf16_max_dp": 2.2065281823913097e-09,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 20,
+   "rows_max_dp": 5.764261956642258e-09,
+   "history_max_dp": 1.3593498104924606e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014638552037216868,
+   "state_bf16_max_dp": 8.16879508480639e-09,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 21,
+   "rows_max_dp": 3.22683852971295e-08,
+   "history_max_dp": 9.481319840354274e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0016316963648796978,
+   "state_bf16_max_dp": 7.972190796401435e-09,
+   "state_same_option": true,
+   "h_off_grid": 17,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 22,
+   "rows_max_dp": 2.1058410681895623e-08,
+   "history_max_dp": 2.095364542986644e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003430142747147147,
+   "state_bf16_max_dp": 1.2364704565781537e-08,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 23,
+   "rows_max_dp": 3.3315970981995235e-08,
+   "history_max_dp": 4.7965226235291425e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011265132089294805,
+   "state_bf16_max_dp": 1.6787829459907755e-08,
+   "state_same_option": true,
+   "h_off_grid": 34,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 24,
+   "rows_max_dp": 1.3160633249853504e-08,
+   "history_max_dp": 2.0721236428100642e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017359713322290249,
+   "state_bf16_max_dp": 2.6176583262094155e-09,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 25,
+   "rows_max_dp": 1.9506526782731015e-08,
+   "history_max_dp": 2.6999624203050132e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011812154242944461,
+   "state_bf16_max_dp": 1.4381910273808529e-08,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 26,
+   "rows_max_dp": 5.547811399164715e-08,
+   "history_max_dp": 5.3920388154438115e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002981944254064617,
+   "state_bf16_max_dp": 7.795000422916587e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 27,
+   "rows_max_dp": 1.0747469803007448e-08,
+   "history_max_dp": 6.54768406160855e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005823752717903918,
+   "state_bf16_max_dp": 7.275204549905823e-09,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 28,
+   "rows_max_dp": 1.9686649421757352e-08,
+   "history_max_dp": 7.799865350821555e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002399970146652053,
+   "state_bf16_max_dp": 8.143011820394008e-09,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 29,
+   "rows_max_dp": 4.970133415937994e-09,
+   "history_max_dp": 1.4344388912790329e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01050493041780265,
+   "state_bf16_max_dp": 3.333467932242762e-09,
+   "state_same_option": true,
+   "h_off_grid": 19,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 30,
+   "rows_max_dp": 1.152981843333123e-08,
+   "history_max_dp": 1.152981843333123e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009673209073673639,
+   "state_bf16_max_dp": 1.152981843333123e-08,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 31,
+   "rows_max_dp": 7.148848225196902e-09,
+   "history_max_dp": 9.543327683658731e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009100780034419942,
+   "state_bf16_max_dp": 4.323015126428409e-09,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 32,
+   "rows_max_dp": 2.3114360425680047e-09,
+   "history_max_dp": 1.2140376551283971e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0026734565119809206,
+   "state_bf16_max_dp": 1.6003313119128393e-09,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 33,
+   "rows_max_dp": 1.040231853433049e-08,
+   "history_max_dp": 1.1916112430121473e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008932059062588343,
+   "state_bf16_max_dp": 0.0,
+   "state_same_option": true,
+   "h_off_grid": 73,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 34,
+   "rows_max_dp": 4.261994313026207e-09,
+   "history_max_dp": 8.628680658873122e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0025497611332343517,
+   "state_bf16_max_dp": 3.833936834674034e-09,
+   "state_same_option": true,
+   "h_off_grid": 53,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 35,
+   "rows_max_dp": 2.7868243268613924e-09,
+   "history_max_dp": 2.5388153801486624e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004937105841712475,
+   "state_bf16_max_dp": 2.183638048158798e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 36,
+   "rows_max_dp": 1.0577895892538436e-08,
+   "history_max_dp": 8.163862474930283e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0011800882929172696,
+   "state_bf16_max_dp": 3.0878845452830816e-09,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 37,
+   "rows_max_dp": 2.1791387361247416e-08,
+   "history_max_dp": 2.6184487356140096e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0031197233619108256,
+   "state_bf16_max_dp": 4.393101216138007e-09,
+   "state_same_option": true,
+   "h_off_grid": 62,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 38,
+   "rows_max_dp": 9.530376154920361e-09,
+   "history_max_dp": 8.799176429152844e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005318375601910952,
+   "state_bf16_max_dp": 4.625547611603054e-09,
+   "state_same_option": true,
+   "h_off_grid": 36,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 39,
+   "rows_max_dp": 1.8414871294503143e-08,
+   "history_max_dp": 6.520704531887134e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007684784821397672,
+   "state_bf16_max_dp": 1.1894166984660615e-08,
+   "state_same_option": true,
+   "h_off_grid": 83,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 40,
+   "rows_max_dp": 7.575945204507661e-09,
+   "history_max_dp": 4.151972099464274e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0010018743751000203,
+   "state_bf16_max_dp": 1.1601839489117083e-09,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 41,
+   "rows_max_dp": 2.412380850635998e-09,
+   "history_max_dp": 4.727653823977107e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007206368820329434,
+   "state_bf16_max_dp": 3.434696971282847e-11,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 42,
+   "rows_max_dp": 7.901281173783303e-08,
+   "history_max_dp": 1.9028715159130627e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009741351697721279,
+   "state_bf16_max_dp": 3.5484761795601116e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 43,
+   "rows_max_dp": 4.503411865641738e-09,
+   "history_max_dp": 3.1439509884378936e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001666003198356858,
+   "state_bf16_max_dp": 1.2567843814259572e-09,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 44,
+   "rows_max_dp": 3.571000717350614e-09,
+   "history_max_dp": 6.618213754805424e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0006073055658962767,
+   "state_bf16_max_dp": 1.3032359635900548e-09,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 45,
+   "rows_max_dp": 5.498698596451135e-08,
+   "history_max_dp": 5.498698596451135e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005129597452124907,
+   "state_bf16_max_dp": 2.7493493814922942e-08,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 46,
+   "rows_max_dp": 2.068798210519418e-08,
+   "history_max_dp": 1.4729463426732536e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004860647704766352,
+   "state_bf16_max_dp": 2.068798210519418e-08,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 47,
+   "rows_max_dp": 2.2217862993834103e-08,
+   "history_max_dp": 1.4519632496323709e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011053319152457552,
+   "state_bf16_max_dp": 7.354841513596e-09,
+   "state_same_option": true,
+   "h_off_grid": 49,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 48,
+   "rows_max_dp": 1.2032650730832428e-09,
+   "history_max_dp": 6.925237232627279e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000161059832612942,
+   "state_bf16_max_dp": 5.425093655558877e-10,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 49,
+   "rows_max_dp": 1.642942948354431e-08,
+   "history_max_dp": 2.0469562711511458e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004356388247847787,
+   "state_bf16_max_dp": 1.0615709311601051e-08,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 50,
+   "rows_max_dp": 9.33917054801725e-09,
+   "history_max_dp": 1.3061773884714967e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00014073828956806533,
+   "state_bf16_max_dp": 9.796333744205299e-10,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 51,
+   "rows_max_dp": 2.274856730766217e-08,
+   "history_max_dp": 2.393665210487228e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020032272009323504,
+   "state_bf16_max_dp": 9.428450575832414e-09,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 52,
+   "rows_max_dp": 2.3690140737997467e-08,
+   "history_max_dp": 3.984228089809472e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002598669869849024,
+   "state_bf16_max_dp": 2.5849945517464334e-09,
+   "state_same_option": true,
+   "h_off_grid": 36,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 53,
+   "rows_max_dp": 1.7629919746298128e-09,
+   "history_max_dp": 1.3661523023955624e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004398466904222964,
+   "state_bf16_max_dp": 4.0740766316105237e-10,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 54,
+   "rows_max_dp": 1.0865935859416531e-09,
+   "history_max_dp": 6.198322966000092e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00035092152086424466,
+   "state_bf16_max_dp": 4.667481210557378e-10,
+   "state_same_option": true,
+   "h_off_grid": 19,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 55,
+   "rows_max_dp": 1.9602576228905377e-08,
+   "history_max_dp": 2.0044115256467876e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0019399114026834585,
+   "state_bf16_max_dp": 9.086766339372332e-09,
+   "state_same_option": true,
+   "h_off_grid": 78,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 56,
+   "rows_max_dp": 8.595054701299176e-08,
+   "history_max_dp": 1.2902533597092258e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004981272414175675,
+   "state_bf16_max_dp": 1.1862919535587935e-08,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 57,
+   "rows_max_dp": 2.5713020934681197e-08,
+   "history_max_dp": 1.3477168048225963e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0009881480596886094,
+   "state_bf16_max_dp": 3.014629212927389e-09,
+   "state_same_option": true,
+   "h_off_grid": 42,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 58,
+   "rows_max_dp": 9.398358979950672e-09,
+   "history_max_dp": 2.0985490845060184e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006905446933813897,
+   "state_bf16_max_dp": 9.398358979950672e-09,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 59,
+   "rows_max_dp": 3.225598788070272e-09,
+   "history_max_dp": 2.188255909807424e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004342287668824829,
+   "state_bf16_max_dp": 3.225598788070272e-09,
+   "state_same_option": true,
+   "h_off_grid": 40,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 60,
+   "rows_max_dp": 4.155236754677105e-08,
+   "history_max_dp": 4.177309345654301e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00223044979238729,
+   "state_bf16_max_dp": 2.376912777712903e-09,
+   "state_same_option": true,
+   "h_off_grid": 28,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 61,
+   "rows_max_dp": 5.797742175239762e-08,
+   "history_max_dp": 1.536156946091438e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0031559270015021346,
+   "state_bf16_max_dp": 6.937713736832052e-10,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 62,
+   "rows_max_dp": 7.765337262100047e-09,
+   "history_max_dp": 8.932016126728115e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000774196406265637,
+   "state_bf16_max_dp": 7.765337262100047e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 63,
+   "rows_max_dp": 2.0034977898930606e-08,
+   "history_max_dp": 1.5962570376615304e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005598569921912544,
+   "state_bf16_max_dp": 7.213733721478377e-09,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 64,
+   "rows_max_dp": 2.6876748604465206e-09,
+   "history_max_dp": 9.058350736168563e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 1.0368593636726764e-05,
+   "state_bf16_max_dp": 1.670893423622033e-10,
+   "state_same_option": true,
+   "h_off_grid": 11,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 65,
+   "rows_max_dp": 5.711688011444949e-09,
+   "history_max_dp": 1.756719447687516e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.013060453140495643,
+   "state_bf16_max_dp": 4.602601522130101e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 66,
+   "rows_max_dp": 5.925789636762602e-09,
+   "history_max_dp": 1.1795603035991142e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0015392691418366633,
+   "state_bf16_max_dp": 1.5952326126722483e-09,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 67,
+   "rows_max_dp": 1.1895410545470497e-08,
+   "history_max_dp": 8.268847523362766e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000372079320947849,
+   "state_bf16_max_dp": 5.566531131873109e-09,
+   "state_same_option": true,
+   "h_off_grid": 27,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 68,
+   "rows_max_dp": 1.6078425257859408e-09,
+   "history_max_dp": 1.6686385606590193e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 1.5000913148988104e-05,
+   "state_bf16_max_dp": 4.804190378848716e-10,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 69,
+   "rows_max_dp": 7.700836635038399e-10,
+   "history_max_dp": 1.6684585935067275e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 2.654559706572043e-05,
+   "state_bf16_max_dp": 8.205536250471823e-11,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 70,
+   "rows_max_dp": 3.6480691023577094e-08,
+   "history_max_dp": 2.962673995021703e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001175384557633538,
+   "state_bf16_max_dp": 2.574729651705354e-09,
+   "state_same_option": true,
+   "h_off_grid": 55,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 71,
+   "rows_max_dp": 6.876565645033694e-10,
+   "history_max_dp": 1.7276831076884491e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00016740895239564235,
+   "state_bf16_max_dp": 1.2143788197249705e-09,
+   "state_same_option": true,
+   "h_off_grid": 29,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 72,
+   "rows_max_dp": 8.187632982714632e-08,
+   "history_max_dp": 1.0674597317184009e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00944437048215463,
+   "state_bf16_max_dp": 5.458422269732921e-09,
+   "state_same_option": true,
+   "h_off_grid": 39,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 73,
+   "rows_max_dp": 2.669711518521467e-08,
+   "history_max_dp": 1.3348557703629638e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01824691528808331,
+   "state_bf16_max_dp": 2.5977649920072565e-08,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 74,
+   "rows_max_dp": 1.0368766956148079e-08,
+   "history_max_dp": 1.4774143852758215e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009870188610674235,
+   "state_bf16_max_dp": 6.456667922538628e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 75,
+   "rows_max_dp": 3.440849716263017e-09,
+   "history_max_dp": 7.056030182882311e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00010231078845268637,
+   "state_bf16_max_dp": 3.71516357608459e-10,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 76,
+   "rows_max_dp": 1.890389811354254e-08,
+   "history_max_dp": 3.058947650735888e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00229439863687797,
+   "state_bf16_max_dp": 1.5931190811002693e-09,
+   "state_same_option": true,
+   "h_off_grid": 47,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 77,
+   "rows_max_dp": 1.837617158439997e-08,
+   "history_max_dp": 1.837617158439997e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.010159715864381802,
+   "state_bf16_max_dp": 1.837617158439997e-08,
+   "state_same_option": true,
+   "h_off_grid": 163,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 78,
+   "rows_max_dp": 1.7233522803250523e-08,
+   "history_max_dp": 1.2973100010915672e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0027418706515629915,
+   "state_bf16_max_dp": 0.0,
+   "state_same_option": true,
+   "h_off_grid": 335,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 79,
+   "rows_max_dp": 9.302105086206325e-09,
+   "history_max_dp": 7.276234947894977e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004913756509625444,
+   "state_bf16_max_dp": 9.302105086206325e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 80,
+   "rows_max_dp": 1.2612715982740497e-08,
+   "history_max_dp": 5.866641394902672e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00021998363976355288,
+   "state_bf16_max_dp": 2.453921954526095e-09,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 81,
+   "rows_max_dp": 1.4477404275403671e-08,
+   "history_max_dp": 1.695356088848854e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008412285606531733,
+   "state_bf16_max_dp": 1.0713726350530806e-08,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 82,
+   "rows_max_dp": 1.14811253837388e-08,
+   "history_max_dp": 9.964210234691961e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0021924786429852183,
+   "state_bf16_max_dp": 1.14811253837388e-08,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 83,
+   "rows_max_dp": 4.560408095599655e-08,
+   "history_max_dp": 1.183177644747957e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009257460139159512,
+   "state_bf16_max_dp": 5.208981690429937e-09,
+   "state_same_option": true,
+   "h_off_grid": 40,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 84,
+   "rows_max_dp": 2.117582931226991e-08,
+   "history_max_dp": 3.764484259038969e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.013703373257975326,
+   "state_bf16_max_dp": 6.174767253064317e-09,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 85,
+   "rows_max_dp": 6.552043928242934e-09,
+   "history_max_dp": 5.800083968665604e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017792050273254811,
+   "state_bf16_max_dp": 2.8997623191528987e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 86,
+   "rows_max_dp": 5.957088600183624e-09,
+   "history_max_dp": 4.101175510307087e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004476249774419183,
+   "state_bf16_max_dp": 5.957088600183624e-09,
+   "state_same_option": true,
+   "h_off_grid": 19,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 87,
+   "rows_max_dp": 1.257714143942934e-08,
+   "history_max_dp": 6.663961549246977e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0045674372268758034,
+   "state_bf16_max_dp": 1.2351573097646451e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 88,
+   "rows_max_dp": 1.0127779948021498e-08,
+   "history_max_dp": 1.9531674597117465e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0173960099743789,
+   "state_bf16_max_dp": 9.83025939815807e-09,
+   "state_same_option": true,
+   "h_off_grid": 9,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 89,
+   "rows_max_dp": 1.3615151450707685e-08,
+   "history_max_dp": 3.4041816240892864e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0065534596607401685,
+   "state_bf16_max_dp": 4.4862248707588925e-09,
+   "state_same_option": true,
+   "h_off_grid": 28,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 90,
+   "rows_max_dp": 2.073160487725545e-08,
+   "history_max_dp": 8.724463079062827e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0028352523261327423,
+   "state_bf16_max_dp": 4.147047705238549e-09,
+   "state_same_option": true,
+   "h_off_grid": 33,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 91,
+   "rows_max_dp": 1.1199012295293187e-07,
+   "history_max_dp": 1.9034854137345292e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009035681699510412,
+   "state_bf16_max_dp": 4.893774940839535e-09,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 92,
+   "rows_max_dp": 1.2555612105558112e-08,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0011947275007866964,
+   "state_bf16_max_dp": 0.0,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 93,
+   "rows_max_dp": 1.0890269064312008e-07,
+   "history_max_dp": 2.6096631633443224e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007330369612907894,
+   "state_bf16_max_dp": 7.567607818170785e-09,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 94,
+   "rows_max_dp": 7.200198881562869e-09,
+   "history_max_dp": 1.457466047849465e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004541034135365052,
+   "state_bf16_max_dp": 7.200198881562869e-09,
+   "state_same_option": true,
+   "h_off_grid": 31,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 95,
+   "rows_max_dp": 7.852500427674158e-09,
+   "history_max_dp": 2.1778788772408575e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005625045152869435,
+   "state_bf16_max_dp": 1.5839118905347505e-09,
+   "state_same_option": true,
+   "h_off_grid": 42,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 96,
+   "rows_max_dp": 1.5451747659156467e-09,
+   "history_max_dp": 2.0549200119290845e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0012112367383723122,
+   "state_bf16_max_dp": 9.413624324494663e-10,
+   "state_same_option": true,
+   "h_off_grid": 60,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 97,
+   "rows_max_dp": 6.685586750876382e-09,
+   "history_max_dp": 6.476662539611766e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0016492736522163431,
+   "state_bf16_max_dp": 6.685586750876382e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 98,
+   "rows_max_dp": 7.592046213922288e-09,
+   "history_max_dp": 1.4248942581396307e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006424889154503122,
+   "state_bf16_max_dp": 7.592046213922288e-09,
+   "state_same_option": true,
+   "h_off_grid": 41,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 99,
+   "rows_max_dp": 4.964504973781203e-08,
+   "history_max_dp": 5.609512188087251e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005302809961541088,
+   "state_bf16_max_dp": 9.383987586986109e-09,
+   "state_same_option": true,
+   "h_off_grid": 103,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 100,
+   "rows_max_dp": 3.811044591017776e-09,
+   "history_max_dp": 1.0520929127899592e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00222354893074006,
+   "state_bf16_max_dp": 3.811044591017776e-09,
+   "state_same_option": true,
+   "h_off_grid": 80,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 101,
+   "rows_max_dp": 2.431941759084566e-09,
+   "history_max_dp": 1.3644861907025074e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0006632652360654134,
+   "state_bf16_max_dp": 5.775667444307686e-10,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 102,
+   "rows_max_dp": 3.4065087417545215e-09,
+   "history_max_dp": 7.2450770938203846e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002960246646078968,
+   "state_bf16_max_dp": 2.96291235990509e-09,
+   "state_same_option": true,
+   "h_off_grid": 68,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 103,
+   "rows_max_dp": 3.257781933108106e-08,
+   "history_max_dp": 1.043917385867843e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007387992218465533,
+   "state_bf16_max_dp": 1.043917385867843e-08,
+   "state_same_option": true,
+   "h_off_grid": 112,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 104,
+   "rows_max_dp": 1.0404735961699885e-09,
+   "history_max_dp": 1.2891283263094522e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004609885931053659,
+   "state_bf16_max_dp": 0.0,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 105,
+   "rows_max_dp": 1.9978759757677267e-09,
+   "history_max_dp": 2.743080984579649e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0012306724282625803,
+   "state_bf16_max_dp": 1.9978759757677267e-09,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 106,
+   "rows_max_dp": 1.7019768927539758e-10,
+   "history_max_dp": 1.7019768927539758e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007743236932844649,
+   "state_bf16_max_dp": 1.7019768927539758e-10,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 107,
+   "rows_max_dp": 6.903562270454966e-09,
+   "history_max_dp": 6.264709861980577e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00507133495146006,
+   "state_bf16_max_dp": 6.5434537788178204e-09,
+   "state_same_option": true,
+   "h_off_grid": 54,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 108,
+   "rows_max_dp": 1.4292845684771294e-08,
+   "history_max_dp": 6.715638711796146e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00039407445440596545,
+   "state_bf16_max_dp": 1.0993992272112507e-08,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 109,
+   "rows_max_dp": 6.300986477025816e-08,
+   "history_max_dp": 1.8251149702663838e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0029051484525511873,
+   "state_bf16_max_dp": 2.1007344752632662e-08,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 110,
+   "rows_max_dp": 2.392625320091213e-09,
+   "history_max_dp": 4.7813952797071124e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0025619746819569578,
+   "state_bf16_max_dp": 2.392625320091213e-09,
+   "state_same_option": true,
+   "h_off_grid": 87,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 111,
+   "rows_max_dp": 1.8066190432541873e-08,
+   "history_max_dp": 5.928541782496133e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004402414846813585,
+   "state_bf16_max_dp": 9.767409658856252e-09,
+   "state_same_option": true,
+   "h_off_grid": 26,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 112,
+   "rows_max_dp": 7.090141806997963e-10,
+   "history_max_dp": 1.3444601187559413e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 2.9264613060088138e-05,
+   "state_bf16_max_dp": 4.28690468540216e-10,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 113,
+   "rows_max_dp": 2.7043405292914713e-09,
+   "history_max_dp": 4.992628865885251e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007963420016691147,
+   "state_bf16_max_dp": 2.7043405292914713e-09,
+   "state_same_option": true,
+   "h_off_grid": 63,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 114,
+   "rows_max_dp": 4.428884037288583e-08,
+   "history_max_dp": 5.91884108391838e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002674279488916506,
+   "state_bf16_max_dp": 2.9799141265662854e-08,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 115,
+   "rows_max_dp": 7.761175035980727e-10,
+   "history_max_dp": 5.731241037310042e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005799744481173041,
+   "state_bf16_max_dp": 2.1704660291277378e-10,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 116,
+   "rows_max_dp": 2.7741277053294766e-09,
+   "history_max_dp": 8.683194163694452e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017952166747760012,
+   "state_bf16_max_dp": 2.1716212161848603e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 117,
+   "rows_max_dp": 6.30244423316384e-09,
+   "history_max_dp": 3.302453421838436e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0018547323470492483,
+   "state_bf16_max_dp": 4.943476739072139e-10,
+   "state_same_option": true,
+   "h_off_grid": 40,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 118,
+   "rows_max_dp": 2.970321300033163e-08,
+   "history_max_dp": 9.490924823829516e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017121467997592843,
+   "state_bf16_max_dp": 7.285735459383602e-09,
+   "state_same_option": true,
+   "h_off_grid": 65,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 119,
+   "rows_max_dp": 1.2075988764514989e-08,
+   "history_max_dp": 2.1264872085424713e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00033479957460258447,
+   "state_bf16_max_dp": 3.8742185015649966e-09,
+   "state_same_option": true,
+   "h_off_grid": 89,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 120,
+   "rows_max_dp": 1.3067165127722546e-09,
+   "history_max_dp": 3.665359682436531e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 9.177298119866784e-05,
+   "state_bf16_max_dp": 1.3067165127722546e-09,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 121,
+   "rows_max_dp": 3.2047934306334014e-09,
+   "history_max_dp": 3.0802438377719454e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00029162377860125765,
+   "state_bf16_max_dp": 3.5671687825811205e-10,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 122,
+   "rows_max_dp": 1.0959553042866332e-08,
+   "history_max_dp": 6.724920328937678e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003143409514279938,
+   "state_bf16_max_dp": 4.294584451947081e-09,
+   "state_same_option": true,
+   "h_off_grid": 57,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 123,
+   "rows_max_dp": 8.158080322395733e-09,
+   "history_max_dp": 1.1039784864053104e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006830754597551447,
+   "state_bf16_max_dp": 8.158080322395733e-09,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 124,
+   "rows_max_dp": 7.168695193016106e-09,
+   "history_max_dp": 4.8061575830260495e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0015166064161205514,
+   "state_bf16_max_dp": 5.26830412628243e-09,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 125,
+   "rows_max_dp": 7.678589653004053e-09,
+   "history_max_dp": 8.963717587628928e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0031702840512724817,
+   "state_bf16_max_dp": 4.459156932590247e-09,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 126,
+   "rows_max_dp": 3.0731645117576534e-08,
+   "history_max_dp": 1.5365822392254813e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008450718919595368,
+   "state_bf16_max_dp": 1.5365822392254813e-08,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 127,
+   "rows_max_dp": 1.1184192655333547e-08,
+   "history_max_dp": 1.1349785000724921e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005334365796866858,
+   "state_bf16_max_dp": 9.713275739287042e-09,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 128,
+   "rows_max_dp": 1.9616193058791254e-08,
+   "history_max_dp": 2.995999598409682e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004529581755867651,
+   "state_bf16_max_dp": 1.4889169508425226e-08,
+   "state_same_option": true,
+   "h_off_grid": 58,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 129,
+   "rows_max_dp": 3.5134786434409815e-09,
+   "history_max_dp": 2.4027623744815596e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0025294539421777396,
+   "state_bf16_max_dp": 2.0992606195036068e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 130,
+   "rows_max_dp": 4.421993438086247e-09,
+   "history_max_dp": 8.449729804738126e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0010037691711473062,
+   "state_bf16_max_dp": 6.80424350543718e-10,
+   "state_same_option": true,
+   "h_off_grid": 28,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 131,
+   "rows_max_dp": 4.058262059736251e-09,
+   "history_max_dp": 7.655940881257095e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0074109397376703745,
+   "state_bf16_max_dp": 6.643490313429368e-09,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 132,
+   "rows_max_dp": 8.189257605373257e-09,
+   "history_max_dp": 4.007681519979656e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005578016547307385,
+   "state_bf16_max_dp": 4.234446016049276e-09,
+   "state_same_option": true,
+   "h_off_grid": 38,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 133,
+   "rows_max_dp": 1.3363226303297893e-08,
+   "history_max_dp": 4.046596890905363e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0036770854315620882,
+   "state_bf16_max_dp": 7.211886171587523e-09,
+   "state_same_option": true,
+   "h_off_grid": 1,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 134,
+   "rows_max_dp": 2.3920220242057422e-08,
+   "history_max_dp": 2.5684053772678794e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002033594447234055,
+   "state_bf16_max_dp": 1.8448116367864031e-09,
+   "state_same_option": true,
+   "h_off_grid": 34,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 135,
+   "rows_max_dp": 5.637195255037142e-08,
+   "history_max_dp": 1.888232681324098e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002944312635501989,
+   "state_bf16_max_dp": 4.051507351832129e-09,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 136,
+   "rows_max_dp": 1.811998784351232e-08,
+   "history_max_dp": 3.122938178889978e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00442232774663287,
+   "state_bf16_max_dp": 6.355444004402244e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 137,
+   "rows_max_dp": 2.0609723594411378e-08,
+   "history_max_dp": 5.5377708113590884e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0009072363842400621,
+   "state_bf16_max_dp": 1.779588941486221e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 138,
+   "rows_max_dp": 9.748877261017697e-10,
+   "history_max_dp": 1.7690207076981324e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 6.29860139995395e-05,
+   "state_bf16_max_dp": 4.6290461568065933e-10,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 139,
+   "rows_max_dp": 2.553555289441789e-08,
+   "history_max_dp": 1.5464229011913355e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0026786694031856184,
+   "state_bf16_max_dp": 8.390544925518384e-10,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 140,
+   "rows_max_dp": 8.279565699709224e-09,
+   "history_max_dp": 8.583724508959278e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006668599050663193,
+   "state_bf16_max_dp": 3.723981567560486e-09,
+   "state_same_option": true,
+   "h_off_grid": 43,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 141,
+   "rows_max_dp": 2.077595540050936e-09,
+   "history_max_dp": 7.2057952382742485e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009957571738097748,
+   "state_bf16_max_dp": 5.352448484430283e-10,
+   "state_same_option": true,
+   "h_off_grid": 47,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 142,
+   "rows_max_dp": 2.5258630742541754e-09,
+   "history_max_dp": 3.126667480479739e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0006921796486455412,
+   "state_bf16_max_dp": 1.8151825598167193e-09,
+   "state_same_option": true,
+   "h_off_grid": 43,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 143,
+   "rows_max_dp": 3.310241758480714e-08,
+   "history_max_dp": 1.5836931765988993e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014478348743714037,
+   "state_bf16_max_dp": 1.4080227483947994e-08,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 144,
+   "rows_max_dp": 4.939791686808803e-09,
+   "history_max_dp": 5.076382203483831e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0023159114055350954,
+   "state_bf16_max_dp": 4.939791686808803e-09,
+   "state_same_option": true,
+   "h_off_grid": 56,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 145,
+   "rows_max_dp": 9.598314587577761e-09,
+   "history_max_dp": 6.398876095659034e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01100116097084547,
+   "state_bf16_max_dp": 3.1994377147626096e-09,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 146,
+   "rows_max_dp": 2.2149038658714204e-08,
+   "history_max_dp": 2.2149038658714204e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0057670556844697796,
+   "state_bf16_max_dp": 1.1074519301601526e-08,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 147,
+   "rows_max_dp": 5.291827642750491e-09,
+   "history_max_dp": 8.017031843943201e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011358045878043121,
+   "state_bf16_max_dp": 4.095579847485098e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 148,
+   "rows_max_dp": 2.4977681922777606e-08,
+   "history_max_dp": 1.2645986258164044e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000953284635663576,
+   "state_bf16_max_dp": 1.1401564248281204e-08,
+   "state_same_option": true,
+   "h_off_grid": 43,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "banking77",
+   "i": 149,
+   "rows_max_dp": 1.1516557152368989e-08,
+   "history_max_dp": 2.087804251704739e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005373816095531447,
+   "state_bf16_max_dp": 1.1309667757863906e-08,
+   "state_same_option": true,
+   "h_off_grid": 11,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1578
+  },
+  {
+   "task": "v3_clinc",
+   "i": 0,
+   "rows_max_dp": 0.0,
+   "history_max_dp": 1.4114044877278076e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004952596373779983,
+   "state_bf16_max_dp": 0.0,
+   "state_same_option": true,
+   "h_off_grid": 66,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 1,
+   "rows_max_dp": 1.1747192552036267e-08,
+   "history_max_dp": 4.058576415916226e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0008832700490092327,
+   "state_bf16_max_dp": 3.369600265479278e-09,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 2,
+   "rows_max_dp": 3.533574544078988e-08,
+   "history_max_dp": 1.858462028714314e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008591619773213988,
+   "state_bf16_max_dp": 6.560996190785318e-09,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 3,
+   "rows_max_dp": 5.8605085229146425e-09,
+   "history_max_dp": 1.8465248219357022e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0015625441383905203,
+   "state_bf16_max_dp": 1.9381932725437423e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 4,
+   "rows_max_dp": 2.7648008438241334e-08,
+   "history_max_dp": 7.808534291386948e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01011733811362514,
+   "state_bf16_max_dp": 5.182621998223169e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 5,
+   "rows_max_dp": 3.4212580546366667e-09,
+   "history_max_dp": 7.295028359166622e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007734125561335327,
+   "state_bf16_max_dp": 3.4212580546366667e-09,
+   "state_same_option": true,
+   "h_off_grid": 44,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 6,
+   "rows_max_dp": 1.2665950510637458e-08,
+   "history_max_dp": 1.189574383442249e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0024494880505424588,
+   "state_bf16_max_dp": 1.2665950510637458e-08,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 7,
+   "rows_max_dp": 3.86413721020773e-08,
+   "history_max_dp": 3.24608370738666e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0032153270539329037,
+   "state_bf16_max_dp": 1.532305060614192e-09,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 8,
+   "rows_max_dp": 4.416498933235147e-08,
+   "history_max_dp": 1.68474162537402e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003094355726215414,
+   "state_bf16_max_dp": 2.6692121846139116e-08,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 9,
+   "rows_max_dp": 3.4235792707726365e-09,
+   "history_max_dp": 4.090124704203557e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007841623857695046,
+   "state_bf16_max_dp": 2.4982959798136584e-09,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 10,
+   "rows_max_dp": 1.7637527771618977e-08,
+   "history_max_dp": 1.1036512592710324e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0023957923423304495,
+   "state_bf16_max_dp": 4.037766010434041e-09,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 11,
+   "rows_max_dp": 2.1104325842458138e-08,
+   "history_max_dp": 5.156433613429101e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009996413347952982,
+   "state_bf16_max_dp": 6.922100337369841e-09,
+   "state_same_option": true,
+   "h_off_grid": 78,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 12,
+   "rows_max_dp": 1.595037563140167e-08,
+   "history_max_dp": 1.8376183574808636e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.012267267495361667,
+   "state_bf16_max_dp": 1.392305953862305e-08,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 13,
+   "rows_max_dp": 9.139341228259212e-09,
+   "history_max_dp": 1.564052465319321e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0171862797287059,
+   "state_bf16_max_dp": 7.820340930386749e-09,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 14,
+   "rows_max_dp": 6.105363992148227e-09,
+   "history_max_dp": 3.462115816255107e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004570345132338671,
+   "state_bf16_max_dp": 6.505284089186603e-10,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 15,
+   "rows_max_dp": 2.7816504433175737e-08,
+   "history_max_dp": 1.0395095742521399e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003224434124726505,
+   "state_bf16_max_dp": 9.399226841289021e-09,
+   "state_same_option": true,
+   "h_off_grid": 61,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 16,
+   "rows_max_dp": 9.462902683665675e-10,
+   "history_max_dp": 4.611093951112366e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0009861677235466493,
+   "state_bf16_max_dp": 5.938243273842514e-10,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 17,
+   "rows_max_dp": 1.0406089615000447e-08,
+   "history_max_dp": 6.815227691220338e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0031884652394594815,
+   "state_bf16_max_dp": 6.199639135395785e-09,
+   "state_same_option": true,
+   "h_off_grid": 53,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 18,
+   "rows_max_dp": 1.2129365400959102e-08,
+   "history_max_dp": 1.4386001556676575e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008792969946004148,
+   "state_bf16_max_dp": 0.0,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 19,
+   "rows_max_dp": 1.3136407406300066e-08,
+   "history_max_dp": 3.4498731649179604e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007333412568159003,
+   "state_bf16_max_dp": 2.0088055975586716e-09,
+   "state_same_option": true,
+   "h_off_grid": 44,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 20,
+   "rows_max_dp": 9.360366703958789e-09,
+   "history_max_dp": 9.360366703958789e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0024341709942986567,
+   "state_bf16_max_dp": 9.360366703958789e-09,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 21,
+   "rows_max_dp": 1.4374349488477378e-08,
+   "history_max_dp": 2.0846324555456874e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.013987782686515127,
+   "state_bf16_max_dp": 1.4374349488477378e-08,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 22,
+   "rows_max_dp": 7.822666514556431e-09,
+   "history_max_dp": 7.124291379057013e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005608322671249305,
+   "state_bf16_max_dp": 6.7801801950651e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 23,
+   "rows_max_dp": 2.5861782049219073e-08,
+   "history_max_dp": 2.385197261922656e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00012696170102209463,
+   "state_bf16_max_dp": 7.3765009656057146e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 24,
+   "rows_max_dp": 1.1211250594556077e-08,
+   "history_max_dp": 1.9330866213307374e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0024661780817273327,
+   "state_bf16_max_dp": 1.401406435341812e-09,
+   "state_same_option": true,
+   "h_off_grid": 20,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 25,
+   "rows_max_dp": 2.2136232402658607e-08,
+   "history_max_dp": 1.0181628873340287e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001220301590151407,
+   "state_bf16_max_dp": 1.0886679335797567e-09,
+   "state_same_option": true,
+   "h_off_grid": 23,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 26,
+   "rows_max_dp": 6.692403853314488e-09,
+   "history_max_dp": 8.252827050220235e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0007845495226309618,
+   "state_bf16_max_dp": 1.5176015999429637e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 27,
+   "rows_max_dp": 1.4407618431633296e-08,
+   "history_max_dp": 8.813061712700798e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005189956009624686,
+   "state_bf16_max_dp": 8.971775544708294e-10,
+   "state_same_option": true,
+   "h_off_grid": 57,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 28,
+   "rows_max_dp": 5.1618568086553296e-08,
+   "history_max_dp": 9.138340417713664e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0187241709698569,
+   "state_bf16_max_dp": 5.9168968058465055e-09,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 29,
+   "rows_max_dp": 4.44156584844535e-08,
+   "history_max_dp": 1.1191323978643197e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002192565060468485,
+   "state_bf16_max_dp": 7.49916551079366e-09,
+   "state_same_option": true,
+   "h_off_grid": 28,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 30,
+   "rows_max_dp": 1.655159831415176e-08,
+   "history_max_dp": 1.5445374104694487e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0016329873746467882,
+   "state_bf16_max_dp": 1.0870048958167011e-08,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 31,
+   "rows_max_dp": 3.0819659047054415e-09,
+   "history_max_dp": 6.533768304173293e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 8.475973133760355e-05,
+   "state_bf16_max_dp": 3.0819659047054415e-09,
+   "state_same_option": true,
+   "h_off_grid": 304,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 32,
+   "rows_max_dp": 3.582858454365123e-09,
+   "history_max_dp": 1.5015831134057578e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.012161344399200968,
+   "state_bf16_max_dp": 1.603156274398998e-09,
+   "state_same_option": true,
+   "h_off_grid": 47,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 33,
+   "rows_max_dp": 1.730137888511507e-08,
+   "history_max_dp": 2.854400282803482e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007364019815537609,
+   "state_bf16_max_dp": 9.514559917711551e-09,
+   "state_same_option": true,
+   "h_off_grid": 22,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 34,
+   "rows_max_dp": 6.3140995765209595e-09,
+   "history_max_dp": 2.0368073894161398e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0027821890382501158,
+   "state_bf16_max_dp": 8.147229557664559e-10,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 35,
+   "rows_max_dp": 5.202702224593736e-08,
+   "history_max_dp": 1.084032635878529e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004527110953040148,
+   "state_bf16_max_dp": 1.3557191591573314e-08,
+   "state_same_option": true,
+   "h_off_grid": 46,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 36,
+   "rows_max_dp": 2.8765628767857265e-09,
+   "history_max_dp": 2.9653910126048455e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002784736499768403,
+   "state_bf16_max_dp": 2.70761768561556e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 37,
+   "rows_max_dp": 1.499184332232062e-08,
+   "history_max_dp": 1.3894803863045979e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020815355851161454,
+   "state_bf16_max_dp": 1.0238331626943875e-08,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 38,
+   "rows_max_dp": 7.644951005580936e-09,
+   "history_max_dp": 1.0747436274272104e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0008282149933602767,
+   "state_bf16_max_dp": 6.647925933703225e-10,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 39,
+   "rows_max_dp": 4.870114977961748e-09,
+   "history_max_dp": 1.289063578102656e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00225532275481799,
+   "state_bf16_max_dp": 2.7622790721437696e-09,
+   "state_same_option": true,
+   "h_off_grid": 34,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 40,
+   "rows_max_dp": 8.131115003529032e-09,
+   "history_max_dp": 1.733013943461259e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0021753556187949566,
+   "state_bf16_max_dp": 5.776713329908034e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 41,
+   "rows_max_dp": 2.9017690472699087e-09,
+   "history_max_dp": 2.032376045235651e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002415891953875593,
+   "state_bf16_max_dp": 1.4793382074884676e-09,
+   "state_same_option": true,
+   "h_off_grid": 12,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 42,
+   "rows_max_dp": 1.2116428860231565e-08,
+   "history_max_dp": 1.2116428860231565e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0025996425388510463,
+   "state_bf16_max_dp": 1.0450069864997857e-08,
+   "state_same_option": true,
+   "h_off_grid": 26,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 43,
+   "rows_max_dp": 3.760294520205321e-09,
+   "history_max_dp": 2.3580390973165777e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00012760158811353506,
+   "state_bf16_max_dp": 2.7347589748316636e-09,
+   "state_same_option": true,
+   "h_off_grid": 32,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 44,
+   "rows_max_dp": 4.833946498639108e-08,
+   "history_max_dp": 5.0511123200758234e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0035350954381745403,
+   "state_bf16_max_dp": 1.2572348717654336e-09,
+   "state_same_option": true,
+   "h_off_grid": 246,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 45,
+   "rows_max_dp": 2.0835385639017545e-08,
+   "history_max_dp": 2.8808393509258123e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003051605892795517,
+   "state_bf16_max_dp": 1.3300956716241763e-09,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 46,
+   "rows_max_dp": 1.2463369447601735e-08,
+   "history_max_dp": 1.867745666461751e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005512595758546235,
+   "state_bf16_max_dp": 1.3115870722835155e-08,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 47,
+   "rows_max_dp": 2.6646700068688745e-08,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008064808249674482,
+   "state_bf16_max_dp": 2.4999799230762676e-08,
+   "state_same_option": true,
+   "h_off_grid": 1,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 48,
+   "rows_max_dp": 1.763140944355257e-08,
+   "history_max_dp": 1.634082669177417e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004103099633717022,
+   "state_bf16_max_dp": 1.0954299578536109e-08,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 49,
+   "rows_max_dp": 4.25775692480812e-09,
+   "history_max_dp": 2.4830207889792177e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0010393940023492032,
+   "state_bf16_max_dp": 1.1937673072281996e-10,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 50,
+   "rows_max_dp": 8.197418965849579e-09,
+   "history_max_dp": 1.450764308685848e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004398534724561087,
+   "state_bf16_max_dp": 6.912381445012272e-09,
+   "state_same_option": true,
+   "h_off_grid": 17,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 51,
+   "rows_max_dp": 5.862535346068398e-09,
+   "history_max_dp": 1.0744156675457361e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0005532091606321732,
+   "state_bf16_max_dp": 4.2561321828005205e-10,
+   "state_same_option": true,
+   "h_off_grid": 8,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 52,
+   "rows_max_dp": 6.988683853847988e-09,
+   "history_max_dp": 5.5434939069676226e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004748863985697072,
+   "state_bf16_max_dp": 3.1204627631842285e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 53,
+   "rows_max_dp": 4.51172158522084e-08,
+   "history_max_dp": 1.1566572810650655e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0013930473242202979,
+   "state_bf16_max_dp": 1.1199089849922572e-09,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 54,
+   "rows_max_dp": 6.760761961377426e-08,
+   "history_max_dp": 2.0884979967661366e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.011420475064140456,
+   "state_bf16_max_dp": 1.3521523456461182e-08,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 55,
+   "rows_max_dp": 2.5341193032879517e-08,
+   "history_max_dp": 2.3975823548738617e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0027938085983220118,
+   "state_bf16_max_dp": 2.8404311125385107e-09,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 56,
+   "rows_max_dp": 8.732657930110577e-09,
+   "history_max_dp": 4.5998272968361675e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0028554199351490395,
+   "state_bf16_max_dp": 5.885960718821082e-09,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 57,
+   "rows_max_dp": 6.779167949222398e-08,
+   "history_max_dp": 1.4839955597700794e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.004673979336077522,
+   "state_bf16_max_dp": 6.554111753320768e-09,
+   "state_same_option": true,
+   "h_off_grid": 6,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 58,
+   "rows_max_dp": 2.1325791466075827e-08,
+   "history_max_dp": 1.1196564009274823e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0031809581968132994,
+   "state_bf16_max_dp": 1.926998893786447e-09,
+   "state_same_option": true,
+   "h_off_grid": 30,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 59,
+   "rows_max_dp": 2.9485161423536965e-08,
+   "history_max_dp": 6.593290469147917e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00061534921555495,
+   "state_bf16_max_dp": 1.6709207351084387e-09,
+   "state_same_option": true,
+   "h_off_grid": 27,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 60,
+   "rows_max_dp": 2.399646981121606e-08,
+   "history_max_dp": 8.614058022438087e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.002835082533204303,
+   "state_bf16_max_dp": 5.10186415336733e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 61,
+   "rows_max_dp": 2.6098348482328504e-08,
+   "history_max_dp": 8.472149981564314e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0011345402709401764,
+   "state_bf16_max_dp": 2.8410830285596766e-09,
+   "state_same_option": true,
+   "h_off_grid": 11,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 62,
+   "rows_max_dp": 2.0568156622324807e-08,
+   "history_max_dp": 6.6268895926313576e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005289653129316396,
+   "state_bf16_max_dp": 1.5601584885116537e-09,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 63,
+   "rows_max_dp": 8.17099743422034e-09,
+   "history_max_dp": 5.710084627352785e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.008361258414906758,
+   "state_bf16_max_dp": 8.17099743422034e-09,
+   "state_same_option": true,
+   "h_off_grid": 76,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 64,
+   "rows_max_dp": 5.620480492130042e-08,
+   "history_max_dp": 1.3785531216559122e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0070276313016576775,
+   "state_bf16_max_dp": 1.0064735378456646e-08,
+   "state_same_option": true,
+   "h_off_grid": 17,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 65,
+   "rows_max_dp": 1.070993582708013e-08,
+   "history_max_dp": 1.919705283626172e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0019209420985253356,
+   "state_bf16_max_dp": 4.679284515418658e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 66,
+   "rows_max_dp": 5.593396634751002e-09,
+   "history_max_dp": 1.4464294796623367e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000455589000261325,
+   "state_bf16_max_dp": 1.475975341946878e-09,
+   "state_same_option": true,
+   "h_off_grid": 61,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 67,
+   "rows_max_dp": 3.9761192782705734e-08,
+   "history_max_dp": 1.0626394320034649e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0051011245394769755,
+   "state_bf16_max_dp": 1.5076530718305392e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 68,
+   "rows_max_dp": 9.394744843183034e-09,
+   "history_max_dp": 9.394744843183034e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0076604451971115095,
+   "state_bf16_max_dp": 9.394744843183034e-09,
+   "state_same_option": true,
+   "h_off_grid": 24,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 69,
+   "rows_max_dp": 2.7756241638421386e-08,
+   "history_max_dp": 4.1179564591597995e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0010987320945621756,
+   "state_bf16_max_dp": 2.7756241638421386e-08,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 70,
+   "rows_max_dp": 2.4339845250409553e-08,
+   "history_max_dp": 3.0570969311582985e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0036127441383614345,
+   "state_bf16_max_dp": 1.6255759516248247e-08,
+   "state_same_option": true,
+   "h_off_grid": 86,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 71,
+   "rows_max_dp": 1.7143649763684543e-08,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0031895914996004082,
+   "state_bf16_max_dp": 4.8235744287694615e-09,
+   "state_same_option": true,
+   "h_off_grid": 7,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 72,
+   "rows_max_dp": 3.8049206008139436e-09,
+   "history_max_dp": 4.701986022759286e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0004395375789648902,
+   "state_bf16_max_dp": 3.2643733272053055e-09,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 73,
+   "rows_max_dp": 1.1416150247356427e-08,
+   "history_max_dp": 3.80538345279291e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.003587584847636549,
+   "state_bf16_max_dp": 1.1416150247356427e-08,
+   "state_same_option": true,
+   "h_off_grid": 144,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 74,
+   "rows_max_dp": 8.220242597722915e-09,
+   "history_max_dp": 7.697334991618732e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006457717868603385,
+   "state_bf16_max_dp": 3.903565137797216e-09,
+   "state_same_option": true,
+   "h_off_grid": 27,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 75,
+   "rows_max_dp": 6.5583468655816546e-09,
+   "history_max_dp": 1.0299539776603694e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.01335900314693561,
+   "state_bf16_max_dp": 3.3076107408547273e-09,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 76,
+   "rows_max_dp": 4.7937337099845934e-08,
+   "history_max_dp": 6.812068825690076e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0055376037099316155,
+   "state_bf16_max_dp": 8.561926653771756e-10,
+   "state_same_option": true,
+   "h_off_grid": 17,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 77,
+   "rows_max_dp": 4.5686445848680535e-08,
+   "history_max_dp": 1.908441316089693e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.007205483512648603,
+   "state_bf16_max_dp": 6.874900870812439e-09,
+   "state_same_option": true,
+   "h_off_grid": 25,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 78,
+   "rows_max_dp": 8.46229826212408e-08,
+   "history_max_dp": 5.1970449055360746e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006728785594500075,
+   "state_bf16_max_dp": 2.9171512982983927e-09,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 79,
+   "rows_max_dp": 1.1802552923878551e-07,
+   "history_max_dp": 6.4437701841058015e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0034811699503340954,
+   "state_bf16_max_dp": 7.081427000343865e-09,
+   "state_same_option": true,
+   "h_off_grid": 15,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 80,
+   "rows_max_dp": 3.463719311369573e-09,
+   "history_max_dp": 2.4833169964821877e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.000463914212025629,
+   "state_bf16_max_dp": 5.147999804222536e-10,
+   "state_same_option": true,
+   "h_off_grid": 10,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 81,
+   "rows_max_dp": 1.6669770896982072e-08,
+   "history_max_dp": 7.422635506237896e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.010817760999668274,
+   "state_bf16_max_dp": 1.5983615403447615e-09,
+   "state_same_option": true,
+   "h_off_grid": 16,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 82,
+   "rows_max_dp": 1.5368599393106308e-08,
+   "history_max_dp": 4.247716517161447e-14,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014676764287950728,
+   "state_bf16_max_dp": 7.109698829665945e-09,
+   "state_same_option": true,
+   "h_off_grid": 13,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 83,
+   "rows_max_dp": 1.7650969685867324e-08,
+   "history_max_dp": 5.106971068258304e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020896906619377598,
+   "state_bf16_max_dp": 1.713012962381577e-09,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 84,
+   "rows_max_dp": 7.295284182307071e-09,
+   "history_max_dp": 0.0,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.00535806408317252,
+   "state_bf16_max_dp": 6.626944215604169e-09,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 85,
+   "rows_max_dp": 1.432425034142426e-08,
+   "history_max_dp": 9.060422856421724e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.010431376700829498,
+   "state_bf16_max_dp": 1.1692335877278026e-08,
+   "state_same_option": true,
+   "h_off_grid": 51,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 86,
+   "rows_max_dp": 1.3768565287897161e-08,
+   "history_max_dp": 7.0114632069046e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020040855164606963,
+   "state_bf16_max_dp": 3.2678707517774797e-09,
+   "state_same_option": true,
+   "h_off_grid": 81,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 87,
+   "rows_max_dp": 3.4185472674863604e-08,
+   "history_max_dp": 9.248080287682647e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.009582302530593667,
+   "state_bf16_max_dp": 4.710229803417398e-09,
+   "state_same_option": true,
+   "h_off_grid": 21,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 88,
+   "rows_max_dp": 5.841811034912325e-09,
+   "history_max_dp": 1.4970007677916897e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.010230454524686294,
+   "state_bf16_max_dp": 5.841811034912325e-09,
+   "state_same_option": true,
+   "h_off_grid": 18,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 89,
+   "rows_max_dp": 1.2983584429804296e-08,
+   "history_max_dp": 6.704812927083026e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.006406317316159482,
+   "state_bf16_max_dp": 4.1575075604427525e-09,
+   "state_same_option": true,
+   "h_off_grid": 5,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 90,
+   "rows_max_dp": 3.4673503346294154e-08,
+   "history_max_dp": 1.5450075663281382e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.014190315164788636,
+   "state_bf16_max_dp": 1.4235909506776778e-08,
+   "state_same_option": true,
+   "h_off_grid": 19,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 91,
+   "rows_max_dp": 1.0502717029403641e-08,
+   "history_max_dp": 1.9910441961812353e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.005162804830544321,
+   "state_bf16_max_dp": 1.0502717029403641e-08,
+   "state_same_option": true,
+   "h_off_grid": 39,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 92,
+   "rows_max_dp": 7.709372817910065e-08,
+   "history_max_dp": 1.1909356278927419e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001734079306360048,
+   "state_bf16_max_dp": 2.498483753221592e-09,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 93,
+   "rows_max_dp": 1.2073926525246748e-08,
+   "history_max_dp": 3.811044924084683e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.001232851709778271,
+   "state_bf16_max_dp": 3.4400584603133666e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 94,
+   "rows_max_dp": 2.8659920880969025e-08,
+   "history_max_dp": 1.055892029366845e-08,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0030682232515718555,
+   "state_bf16_max_dp": 3.519639579785405e-09,
+   "state_same_option": true,
+   "h_off_grid": 14,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 95,
+   "rows_max_dp": 9.512225229713067e-09,
+   "history_max_dp": 9.837903158782524e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0035717621283598566,
+   "state_bf16_max_dp": 2.4633136641583064e-09,
+   "state_same_option": true,
+   "h_off_grid": 2,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 96,
+   "rows_max_dp": 6.356560458553595e-09,
+   "history_max_dp": 3.745485144257543e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0017047273662941925,
+   "state_bf16_max_dp": 2.1850129899858572e-09,
+   "state_same_option": true,
+   "h_off_grid": 0,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 97,
+   "rows_max_dp": 1.2129857118736709e-08,
+   "history_max_dp": 5.686707771346278e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0012304247197304496,
+   "state_bf16_max_dp": 8.92746099268038e-10,
+   "state_same_option": true,
+   "h_off_grid": 3,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 98,
+   "rows_max_dp": 2.8669852936147322e-08,
+   "history_max_dp": 3.874230602995965e-09,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0018341522048368475,
+   "state_bf16_max_dp": 1.1957283718722067e-08,
+   "state_same_option": true,
+   "h_off_grid": 69,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  },
+  {
+   "task": "v3_clinc",
+   "i": 99,
+   "rows_max_dp": 1.596403720327544e-08,
+   "history_max_dp": 6.121284590321352e-10,
+   "history_same_option": true,
+   "state_f64_max_dp": 0.0020783750762422004,
+   "state_bf16_max_dp": 6.140013941724476e-09,
+   "state_same_option": true,
+   "h_off_grid": 4,
+   "cached": [
+    1056,
+    1056,
+    1056
+   ],
+   "tokens": 1839
+  }
+ ]
+}
