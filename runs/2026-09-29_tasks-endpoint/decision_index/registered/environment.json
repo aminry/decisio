@@ -13,7 +13,7 @@
  },
  "loaded_seconds": 0.047175416999380104,
  "frozen_corpus_sha256": null,
- "rows_path": "/workspace/t1_tasks/rlcd/experiments/2026-09-29_t1_tasks_endpoint/results/di_rows_intents.jsonl.gz",
+ "rows_path": "<ext>/di_rows_intents.jsonl.gz",
  "runner_sha256": "f4c9f36c4c557f537f1d8184db7bf00c5a84d9f4f0aa67f8c06198cead25818d",
  "latency": "HTTP request wall time against the configured /v1/systemone endpoint, including server-side prompt construction and inference; excludes server startup."
 }

@@ -26,8 +26,8 @@
  },
  {
   "path": "decision_index/plain/environment.json",
-  "bytes": 903,
-  "sha256": "bcb7835da86d2fdf068a645a4395dc3e51bb6da209ea4dc1d90b337ddd318b52"
+  "bytes": 835,
+  "sha256": "b04b8329bc0bcf3fd27c64af2df20d3816dd8741d653a6b6813a1335122f68e6"
  },
  {
   "path": "decision_index/plain/items.jsonl.gz",
@@ -51,8 +51,8 @@
  },
  {
   "path": "decision_index/registered/environment.json",
-  "bytes": 903,
-  "sha256": "0462caf95e93852c07f7b42d95a202eee1c3db98e56c83fc47c76a6bdc038d62"
+  "bytes": 835,
+  "sha256": "9cf221da78d308aca2cecd368b460262869851cbbaaf2f33353ba286e1473428"
  },
  {
   "path": "decision_index/registered/items.jsonl.gz",
