@@ -111,7 +111,10 @@ class HiddenEngine(HiddenReadout, LettersEngine):
     def _load_lm_head(model):
         """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards. `model` is a local
         directory or a Hugging Face repo id, as vLLM accepts; for a repo id only the index and the shard holding
-        `lm_head.weight` are fetched (from the local cache when vLLM has already downloaded them)."""
+        `lm_head.weight` are fetched (from the local cache when vLLM has already downloaded them). A file missing
+        from the repo is treated as absent (huggingface_hub's EntryNotFoundError); any other hub error (no network,
+        an unknown or gated repo) propagates as raised. A checkpoint without the files, or without a separate
+        `lm_head.weight` (tied embeddings), is refused with an error naming the model and the file."""
         from safetensors import safe_open
 
         def fetch(name):
@@ -127,8 +130,26 @@ class HiddenEngine(HiddenReadout, LettersEngine):
                 return None
 
         index = fetch("model.safetensors.index.json")
-        shard = json.loads(index.read_text())["weight_map"]["lm_head.weight"] if index else "model.safetensors"
-        with safe_open(str(fetch(shard)), framework="pt") as f:
+        if index is not None:
+            weight_map = json.loads(index.read_text()).get("weight_map", {})
+            if "lm_head.weight" not in weight_map:
+                raise ValueError(
+                    f"{model}: model.safetensors.index.json has no lm_head.weight (tied embeddings?); the intent "
+                    "head needs the output layer's own weight"
+                )
+            shard = weight_map["lm_head.weight"]
+        else:
+            shard = "model.safetensors"
+        path = fetch(shard)
+        if path is None:
+            raise FileNotFoundError(
+                f"{model}: neither model.safetensors.index.json nor model.safetensors found"
+                if index is None
+                else f"{model}: {shard}, the shard the index names for lm_head.weight, is missing"
+            )
+        with safe_open(str(path), framework="pt") as f:
+            if "lm_head.weight" not in f.keys():
+                raise ValueError(f"{model}: {shard} has no lm_head.weight (tied embeddings?)")
             return f.get_tensor("lm_head.weight")
 
     def label_rows(self, lab):

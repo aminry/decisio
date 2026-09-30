@@ -62,3 +62,24 @@ def test_repo_id_fetches_only_what_it_needs(tmp_path, monkeypatch, sharded):
         else ["model.safetensors.index.json", "model.safetensors"]
     )
     assert fetched == want  # never the other shards
+
+
+def test_clear_errors(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(FileNotFoundError, match="neither model.safetensors.index.json nor model.safetensors"):
+        HiddenEngine._load_lm_head(str(empty))
+    tied = tmp_path / "tied"
+    tied.mkdir()
+    save_file({"model.embed.weight": W}, str(tied / "model.safetensors"))
+    with pytest.raises(ValueError, match="no lm_head.weight"):
+        HiddenEngine._load_lm_head(str(tied))
+    (tied / "model.safetensors.index.json").write_text(
+        json.dumps({"weight_map": {"model.embed.weight": "model.safetensors"}})
+    )
+    with pytest.raises(ValueError, match="index.json has no lm_head.weight"):
+        HiddenEngine._load_lm_head(str(tied))
+    missing = checkpoint(tmp_path / "missing", sharded=True)
+    (missing / "model-00002-of-00002.safetensors").unlink()
+    with pytest.raises(FileNotFoundError, match="the shard the index names"):
+        HiddenEngine._load_lm_head(str(missing))
