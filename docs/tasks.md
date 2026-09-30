@@ -83,7 +83,7 @@ The response has one record per correction, `calibration` and `head`, each with:
 - **`applied`**: whether the server will use it. `true` means later questions with this option list are answered with the correction.
 - **`reason`**: why, in words. "cross-validated gain" when it was kept; otherwise, for example, that there were fewer than 10 examples, that some option had fewer than 5 examples (head), that the question has fewer than 10 options (head), or that cross-validation on your examples prefers the plain readout.
 - **The cross-validation evidence**: the server split your examples into five parts and scored each part with a correction fitted on the other four.
-  - For calibration: `cv_logloss_plain` and `cv_logloss_fitted` (lower is better), `cv_acc_plain` and `cv_acc_fitted`, and `cv_t`, the strength of the gain. Calibration is kept only if log loss falls by at least 0.005 per example, `cv_t` is at least 1.645 (a one-sided 95% test), and accuracy does not fall.
+  - For calibration: `cv_logloss_plain` and `cv_logloss_fitted` (lower is better), `cv_acc_plain` and `cv_acc_fitted`, and `cv_t`, the test statistic of the change in log loss (negative means the correction lowered it). Calibration is kept only if log loss falls by at least 0.005 per example, `cv_t` is at most -1.645 (a one-sided 95% test), and accuracy does not fall.
   - For the head: `cv_logloss`, the cross-validated log loss for each penalty strength tried and for no head (`"none"`); the head is kept with the best penalty (`lambda`) if that beats no head.
 
 Where the head is kept, calibration is not stacked on top of it: the head already includes what calibration would correct.
