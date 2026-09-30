@@ -3,90 +3,87 @@
 
 # Evaluation card
 
-What the records in `runs/` measure, on what, and what was fitted on what.
-Every number below is from those records; each run's `manifest.json` has the configuration, the harness versions and the file list, and `files.json` has every file's sha256.
+What the served default is, what it can do, how it measures, and what was fitted on what.
+Every number is on the current served default and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
-## The system measured
+## 1. The system measured
 
-- The official `Qwen/Qwen3.6-35B-A3B-FP8` checkpoint, untrained by us: no adapter, no fine-tuning, in every measured answer.
-- vLLM 0.30.0 on one NVIDIA RTX PRO 6000 Blackwell card (96 GB), `VLLM_USE_DEEP_GEMM=0`, with the suffix-staging patch series applied and switched on (`patches/`; it changes latency, not answers).
-- The letters readout: each question is one prompt, and its answer is the softmax over the option letters' logits at the last position.
-- Front padding to the 1,056-token block, CUDA graphs captured up to 4,096 tokens, float32 recurrent state, one request at a time.
-- TypeSafe's System One wire format on `/v1/systemone`, checked before every measurement by the conformance gates C2-C4 (`decisio.serve.systemone_conformance`) and by the serving gates C1 (`tests/gpu/serving_gates.py`).
+| Part | The served default |
+| --- | --- |
+| Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8`, the official weights, untrained by us: no adapter, no fine-tuning |
+| Engine | vLLM 0.30.0 with decisio's plugin: the official checkpoint under the hidden-readout class (the text model without its vision tower, plus the hidden state at the answer position); DeepGEMM off; front padding to the 1,056-token block; CUDA graphs up to 4,096 tokens; float32 recurrent state; the suffix-staging patch series optional (latency only) |
+| Readout | Letters: each question is one prompt, and its distribution is the softmax over the option letters' logits at the last position |
+| Rendering rules | Enumerated keys (`option_0`, `option_1`, ...) are hidden and only descriptions shown; bare snake_case labels are shown as words; the answer keys are the request's own |
+| Temperature | T = 1.307 on the text route's plain readout (`softmax(log p / T)`); a registered task's correction replaces it; never changes the chosen option |
+| Tie-break | Among exactly tied options, the key that sorts first in Unicode code-point order |
+| Intent head | Single engine: the hidden state is read from the serving engine (three extra requests per head question); `--head-engine` reads it from a second engine instead |
+| Image route | `--image-model`: the official checkpoint under the multimodal class as a second engine (0.49 of the card beside the text engine at 0.47), for requests that carry images; not tempered |
+| Hardware | One NVIDIA RTX PRO 6000 Blackwell (96 GB) |
+| Wire format | TypeSafe's System One (`POST /v1/systemone`), checked before every measurement by the serving gates C1 and the conformance gates C2-C4 |
 
-## The runs
+## 2. Capabilities
 
-| Run | What it measures | Served configuration |
+- Question types: yes/no (`noul`), choice, and score (ordered levels, with an expected level and a confidence).
+- Up to 255 options per question, each a key with an optional description.
+- Any number of questions per request about one state (a string, an object or an array); the state is prefilled once and shared through the prefix cache.
+- Task registration from labelled examples (`POST /v1/tasks`): per-task calibration from 10 examples (about 20 recommended), and an intent head on questions of 10 or more options with 5 examples per option; each is kept only when cross-validation on the examples shows a gain.
+- An opt-in abstention threshold per task (`POST /v1/abstention/tasks`), on a declared or appended "can't tell" option.
+- Image input: up to 2 images per request (PNG, JPEG or WebP, up to 20 MB each), as data URLs, multipart, or inside the state.
+- Two-order averaging, opt-in (`--orders 2` or a request's `orders`), with the two orders' disagreement logged per question.
+- Context up to 32,768 tokens per prompt.
+
+## 3. Numbers
+
+| Measure | Result | Record |
 | --- | --- | --- |
-| `runs/2026-09-27_boards-baseline` | JevBench's 231 published items and four Decision Index 0.2.1 benchmarks (20,810 requests), one order and two-order averaging | the code of that date: no rendering rules, no temperature, the first maximum in wire order on ties |
-| `runs/2026-09-30_step4` | The same two harnesses with the rendering rules, the tie-break and the global temperature, with the temperature on and off | the served default before the plugin (the text-only view) |
-| `runs/2026-09-30_plugin-verification` | decisio's two model classes, the single-engine intent head and the patch series against stock vLLM | the text-only view, the text-only class and the hidden-readout class side by side |
+| JevBench, 231 published items, harness accuracy | easy 1.000 (48), standard 0.972 (72), hard 0.694 (111); every answer schema-valid | `runs/2026-09-30_served-default/jevbench/default/*/summary.json` |
+| JevBench, ECE / Brier per file | easy 0.023 / 0.002, standard 0.148 / 0.105, hard 0.059 / 0.393 | same |
+| JevBench v1.5 open-set reading | choice 79.5 (easy 100, standard 100, hard 64.1); yes/no -10.9, 54% of yes/no answers between 0.20 and 0.80; score 60.6; I_open 43.1 (equal types), 52.2 (50/25/25) | `runs/2026-09-30_served-default/jevbench/default/v15.json` |
+| JevBench latency, one request at a time | p50 50 to 61 ms, p95 52 to 120 ms by file | `.../summary.json` |
+| Decision Index 0.2.1, BANKING77 (3,080) | macro-F1 0.731, accuracy 0.740, ECE 0.042 | `runs/2026-09-30_served-default/decision_index/default/di_report.json`, `di_cal.json` |
+| Decision Index 0.2.1, CLINC150+OOS (5,500) | macro-F1 0.814, accuracy 0.824, ECE 0.170 | same |
+| Decision Index 0.2.1, GPQA Diamond (196 scored) | accuracy 0.454, ECE 0.144 | same |
+| Decision Index 0.2.1, MMLU-Pro (12,032) | accuracy 0.609, ECE 0.009 | same |
+| 1,400-item suite, accuracy / ECE | BoolQ 0.860 / 0.052, BANKING77 0.740 / 0.092, ToxicChat 0.940 / 0.032, MMLU 0.880 / 0.069, SciFact 0.740 / 0.125, SciFact clarified 0.820 / 0.081, MMLU-Pro 0.600 / 0.083 (150) and 0.657 / 0.050 (350); pooled 0.762 / 0.020 | `runs/2026-09-30_plugin-verification/conformance_H.json.gz` (the C4 rows) |
+| Intent heads from 10 labelled examples per intent | BANKING77 0.847 (150 test items), CLINC150 0.893 (100 test items), means of three draws | `runs/2026-09-30_plugin-verification/intent_heads/` |
+| Image input, ImajevBench v2.0-lite (254 labelled items) | 0.717 on all items, 0.791 on the 230 answerable; with "can't tell" offered 0.756 and 0.813 (5 of 24 unanswerable right, 2 false abstentions); p50 166 ms | `runs/2026-09-27_image-input/accuracy.json` |
+| Latency, one question per request | 27.9 ms server time; 46.5 ms for an intent question, 126.8 ms with its head applied | `runs/2026-09-30_plugin-verification/manifest.json` (`latency.json.gz`) |
+| Latency, many questions per request (8,000-token state) | 5.4 ms per question at 100 questions per request (5.4 ms with 20 such requests at once); 2.7 ms at 1,000 | `runs/2026-09-30_plugin-verification/bench_patched_on.json` |
+| Cost per 1,000 decisions, at $1.50 per card-hour | $0.012 one question per request, one at a time; $0.0022 at 100 questions per request under load; $0.0012 at 1,000 | same, and the single-request latency above |
 
-None of these is a board number.
-JevBench's official score needs its sealed item set, which only its operator runs, and the v1.5 reading here covers 231 of the board's 904 open items with no judge tier.
-A Decision Index value needs all 38 of its benchmarks; four were run.
-Nothing was submitted to either board, and no Jev API output is in this repository.
+ECE is over 10 equal-mass bins of the top probability; JevBench's ECE is its harness's own (10 equal-width bins).
+The JevBench and Decision Index numbers were measured with the text-only view of the checkpoint; the hidden-readout class answers the 1,400-item suite bit-identically to it (`runs/2026-09-30_plugin-verification/suite_compare_H.txt`).
+With `--temperature 1` every choice and every accuracy is the same; calibration changes, and with it the v1.5 yes/no and score values, which depend on the probabilities (`runs/2026-09-30_served-default`, arm `temperature_1`); T = 1 is a bit-exact no-op, so that arm's JevBench responses are byte for byte those of the untempered run recorded in `runs/2026-09-27_boards-baseline`.
+None of these is a board number: JevBench's official score needs its sealed set, and a Decision Index value needs all 38 of its benchmarks.
+Nothing was submitted, and no output of Jev (TypeSafe's hosted model behind the System One API, which JevBench is named after) is in this repository.
+The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, the served name `rlcd-qwen3.6-35b-a3b-letters`); decisio reads both spellings (`decisio.names`).
 
-## Headline numbers
+## 4. What was fitted on what
 
-JevBench, the harness's accuracy per published file (`runs/2026-09-30_step4/jevbench/*/summary.json`): easy 1.000, original 0.972, hard 0.694, identical with and without the temperature and on 2026-09-27.
-Under v1.5's open-set rules (`decisio.bench.jevbench_v15`, a private reading): choice competence 79.5, yes/no -10.9 with 54% of yes/no answers between 0.20 and 0.80 (counted wrong by the method), score 60.6; I_open 43.1 with equal type weights, 52.2 with 50/25/25.
+| Component | Fitted or chosen on |
+| --- | --- |
+| Model weights | Nothing by us |
+| Temperature T = 1.307 | Minimum log loss on the served readouts of the private 1,400-item suite above (eight tasks) |
+| Rendering rules | Selected, with no parameter fitted, on the Decision Index's BANKING77 and CLINC150+OOS rows; checked to change nothing on the suite |
+| Tie-break | A rule; nothing fitted |
+| Intent heads and calibration priors | Per task, on 10 labelled training examples per intent (BANKING77, CLINC150), three draws |
+| JevBench v1.5 thresholds and weights | JevBench's published method, as written |
 
-Decision Index, the kit's own metric (`runs/2026-09-30_step4/decision_index/default/di_report.json`):
+- **The temperature's fit set is the suite in section 3,** so the suite's ECE figures are in-sample; 500 of its MMLU-Pro items and its 150 BANKING77 items are also in the Decision Index's pools (4.2% and 4.9%), in our wording rather than the board's, so T can move ECE on those two benchmarks, never a choice.
+- **The rendering rules were selected on the Decision Index's intent rows,** so the BANKING77 and CLINC150+OOS scores measure a configuration chosen on them.
+- **The intent heads' test items are also in the Decision Index's pools;** no head was registered during any Decision Index run.
 
-| Benchmark | Requests | Metric | 2026-09-27 | 2026-09-30 | ECE, T 1.307 | ECE, T 1 |
-| --- | ---: | --- | ---: | ---: | ---: | ---: |
-| BANKING77 | 3,080 | macro-F1 | 0.420 | 0.731 | 0.042 | 0.066 |
-| CLINC150+OOS | 5,500 | macro-F1 | 0.561 | 0.814 | 0.170 | 0.031 |
-| GPQA Diamond | 198 (196 scored) | accuracy | 0.454 | 0.454 | 0.144 | 0.164 |
-| MMLU-Pro | 12,032 | accuracy | 0.609 | 0.609 | 0.009 | 0.072 |
+Batch-forward finding: on this stack, identical requests sent in one batch are not the same forward pass; their label probabilities differed by up to 0.59 (median 0.029) on 250 intent items, while the same requests sent one at a time agreed to 1.2e-7 (`runs/2026-09-30_plugin-verification/diag_same_row.json`, `diag_same_row_sequential.json`).
+The engine's logits are bf16, and label probabilities recomputed from the hidden state match the engine's within 3e-8 only when rounded to bf16 (`diag_same_forward.json`).
+The single-engine head therefore sends its three requests one at a time and recomputes in bf16, and its same-forward gate passes at 3.1e-8 (`same_forward.json`).
+Every harness sends one request at a time, the serving gate G2 bounds the effect of 16 extra questions in a request at 6.46e-2 with no change of choice (`gates.log`), and every bit-identity claim compares like request histories.
 
-The rise on the two intent sets between the runs is the rendering rules: in a separate run on the same rows (2026-09-29, not in `runs/`), the kit's macro-F1 went from 0.420 to 0.729 and from 0.561 to 0.812 with the rules switched on.
-Those rules were selected on these very rows (below), so the 2026-09-30 intent scores are not held out.
-The temperature changes no answer.
-Median latency per request was 26 to 57 ms by benchmark on the card's localhost.
+## 5. Limits
 
-Plugin verification (`runs/2026-09-30_plugin-verification`): the text-only class and the hidden-readout class answer the 1,400-item suite bit-identically to the text-only view; an intent head registered from 10 labelled examples per intent scores BANKING77 0.847 and CLINC150 0.893 on 150 and 100 test items (means of three draws); a head question takes 127 ms of server time against 46 ms for the same question without a task.
-
-## What was fitted on what
-
-| Component | Fitted or chosen on | Used in |
-| --- | --- | --- |
-| Model weights | Nothing by us: the official checkpoint | every run |
-| Global temperature T = 1.307 (`decisio.serve.temperature`) | Minimum log loss on the served readouts of a private 1,400-item suite of eight tasks (BoolQ, BANKING77, ToxicChat, MMLU, SciFact twice, MMLU-Pro 150 and 350), before step 4 | step 4's default arm |
-| Rendering rules: index keys hidden, snake_case labels shown with spaces (`--hide-index-keys`, `--desnake-labels`) | Selected, with no parameter fitted, on the Decision Index's own BANKING77 and CLINC150+OOS rows: the 2026-09-27 error signature (off-by-one answers where the board's `option_N` keys sat beside our letters) led to hiding index keys, and de-snaking was added after the first reading on BANKING77 fell short of its gate; checked to change nothing on the 1,400-item suite | step 4, plugin verification |
-| Tie-break: among exactly tied options, the key that sorts first | A rule, nothing fitted | step 4, plugin verification |
-| Intent heads and per-task calibration | Per task, on 10 labelled examples per intent from the training splits of BANKING77 and CLINC150, registered through `POST /v1/tasks`; three draws | plugin verification only (evaluated on 150 and 100 test items) |
-| The JevBench v1.5 thresholds (0.20 / 0.80) and weights | JevBench's published method, implemented as written | step 4's v15.json |
-
-Nothing was fitted on any JevBench item, and no parameter was fitted on any Decision Index request.
-Three points are stated so a reader can weigh them:
-
-- **The temperature's fit set shares underlying questions with two Decision Index pools.** 500 of the suite's MMLU-Pro items and its 150 BANKING77 items are the same questions as items in the Decision Index's MMLU-Pro (12,032) and BANKING77 (3,080) pools, in our wording rather than the board's (4.2% and 4.9% of those pools; matched by question text in the 2026-09-27 run).
-  T is one scalar and never changes which option is chosen, so accuracy and macro-F1 are unaffected; it can move ECE on those two sets.
-- **The rendering rules were selected on the Decision Index's intent rows.** No number was tuned and the rules are general (an enumerated key is never shown beside our letters; a snake_case label is shown as words), but they were chosen and gated on BANKING77's and CLINC150+OOS's rows, so step 4's scores on those two benchmarks measure a configuration selected on them.
-- The intent heads' test items (150 BANKING77, 100 CLINC150) are also in the Decision Index's pools; no head was registered during any Decision Index run in `runs/`.
-
-## The batch-forward finding
-
-On this stack (vLLM 0.30.0, the FP8 checkpoint, one RTX PRO 6000 Blackwell Max-Q), identical requests sent in one batch are not the same forward pass.
-
-- Three identical prompts in one batch gave label probabilities that differed from each other by up to 0.59 (median 0.029) on 250 intent items (`runs/2026-09-30_plugin-verification/diag_same_row.json`).
-- The same requests sent one at a time agreed with each other to 1.2e-7, and with the text path's answer to 6e-8 (`diag_same_row_sequential.json`).
-- The engine computes logits in bf16: label logits recomputed from the recovered hidden state in float64 differ from the engine's by up to 0.019 in probability, and rounded to bf16 they agree within 3e-8 (`diag_same_forward.json`).
-
-What this means for the records:
-
-- The single-engine head reads the hidden state in three requests; they are sent one at a time and the label logits are recomputed in bf16, which is why its same-forward gate passes at 3.1e-8 (`same_forward.json`; the failed run before this fix is kept as `same_forward_run2.json`).
-- A question's answer depends, within this noise, on what else is in its batch.
-  Every harness in `runs/` sends one request at a time, but a request with several questions batches them, and a loaded server batches requests.
-  The serving gate G2 bounds the effect of adding 16 unrelated questions to a request at 6.46e-2 in probability with no change of the chosen option on its items (`gates.log`), and that tolerance is twice the batch noise measured on this card class.
-- Bit-identity claims in `runs/` (the suite under the three model classes, C4's paired probabilities) are made under the same request history on both sides.
-
-## Limits
-
-- One card per run and one run per configuration; no run was repeated for run-to-run variation beyond the three suite repetitions of the hidden-readout class.
-- The Decision Index rows were rebuilt with the kit (`suite rebuild --only 4 5 21 25 57`); the counts match its manifest and MMLU-Pro is pinned, but a partial rebuild cannot be checked against the whole suite's hash.
-- JevBench's published items have been public since v1.2 and may be in any model's pretraining data.
-- Latency is server-side on the card's localhost, one request at a time; it is not a hosted-API latency.
-- The per-item Decision Index records keep each request's id, the payload's sha256 and our response, not the item text (GPQA's authors ask that its items not be published in plain text); the kit rebuilds the text from its sources.
+- One card per run and one run per configuration.
+- JevBench's v1.5 reading covers 231 of the board's 904 open items, with no judge tier and no sealed half; its published items have been public since v1.2 and may be in any model's pretraining data.
+- The Decision Index rows were rebuilt with the kit for four benchmarks; their counts and the rows' sha256 match (`decisio.bench.di_rows`), but a partial rebuild cannot be checked against the whole suite's hash.
+- The ImajevBench record was made without the rendering rules and the key-order tie-break; 2 of its 254 items ended in exact ties that the harness rejected and are counted wrong.
+- The second-engine head mode with the registered text-only class is unmeasured for latency.
+- Latency is server-side on the card's localhost; cost is the card-hour price divided by measured throughput, with nothing else counted.
+- The per-item Decision Index records keep each request's id, the payload's sha256 and our response, not the item text (GPQA's authors ask that its items not be published in plain text).
