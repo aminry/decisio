@@ -1,0 +1,3125 @@
+{
+ "id": "ticket-routing",
+ "examples": [
+  {
+   "request": {
+    "state": "Good morning. I cancelled within the trial period and still got charged. I want my $49 back. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Hello, it would be great if we could schedule reports to be emailed weekly.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Good morning. I'd love a keyboard shortcut to create a new task. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Hi team, our company is closing, please terminate the account for Acme Ltd. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Hi team, login works in one browser but not in Firefox. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hey, I need a full export of our records before the audit.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Numbers in the dashboard are wrong: totals don't match the rows. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Hi team, please close my account and delete everything you store about me. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Hi team, numbers in the dashboard are wrong: totals don't match the rows. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "I get 'invalid credentials' even though I'm sure the email is right. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Is there a way to export contacts with their history? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Hi team, we are moving to another tool. How do we cancel and remove the workspace?",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "The payment page says transaction failed but my bank shows nothing.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "How do I change my password? I can't find the option. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Requesting a full refund, the product did not do what the sales page said. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "I was charged GBP 80 this month but my plan is supposed to cost less.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Hi team, API calls return 401 even with a fresh token. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Good morning. Where do I generate a new API key?",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hi team, saving a form deletes the text I typed in the notes field. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Our finance team needs the invoices for the last three months in one PDF. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "The dashboard lags badly with more than a hundred projects. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Please refund the GBP 80 for the add-on we never used. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Good morning. The service was down for two days, so I'd like a refund for this month. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Hello, reports that used to take seconds now take 20 seconds. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Hi team, clicking export shows 'something went wrong' every time. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Hello, the password reset link says it has expired. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Hey, can you change the delivery address for my device order? Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Hey, I updated my card but the renewal still failed on Friday. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Hello, the two-factor code never arrives on my phone. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hello, single sign-on sends me back to the login page in a loop. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hi team, reset link opens a blank page in Edge.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Hey, saving a form deletes the text I typed in the notes field. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Hi team, the two-factor code never arrives on my phone. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hi team, our webhook stopped receiving events on Monday. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Good morning. Search times out when we filter by customer. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Hey, tracking says delivered but there's no package here. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Hi team, please let us set different permissions per project. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Good morning. Since the last update the calendar shows events on the wrong day. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Hello, please let us set different permissions per project. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Hi team, please send me a copy of all the data you hold for my account. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Hello, the annual plan price changed without notice. What am I paying for now? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "My card keeps getting declined when I try to renew. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Hi team, why does my invoice show two seats when we only have one user? Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "The service was down for two days, so I'd like a refund for this month. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Good morning. My account got locked after a few attempts and I need access today. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hello, I need a full export of our records before the audit. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Please close my account and delete everything you store about me. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Hi team, I want to delete my profile permanently. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "I forgot my password and the reset email never shows up.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Hello, we paid twice for the same order. Please return one of the payments. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Can you send me a corrected invoice for last month? The VAT number is missing. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Hi team, could you add a dark mode? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Good morning. Why does my invoice show two seats when we only have one user? Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Hi team, we need custom fields on contacts, is that planned? Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Everything is very slow today, pages take 45 seconds to load. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Cancel our subscription at the end of this term and shut the account down. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Good morning. I updated my card but the renewal still failed on Monday. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Good morning. API calls return 401 even with a fresh token. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hello, the app freezes for a few seconds every time I switch tabs. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Hello, cancel our subscription at the end of this term and shut the account down. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Good morning. The payment page says transaction failed but my bank shows nothing. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Hey, our bank transfer bounced and now the account says overdue. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Hello, I can't sign in, it says my session expired right after I log in.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "I reset my password twice and the new one still doesn't work. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "How do I remove my account? I no longer use the service. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "I bought the wrong plan by mistake. Can I get the money back?",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Can I get our project files exported to CSV? Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Good morning. I was charged $15.99 this month but my plan is supposed to cost less. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Good morning. Reset link opens a blank page in Edge. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Hi team, search times out when we filter by customer. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "I received the wrong model of the terminal. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Hey, clicking export shows 'something went wrong' every time. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Can you send me a corrected invoice for September? The VAT number is missing. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Good morning. Can you change the delivery address for my device order?",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Good morning. The report page crashes with an error when I pick a date range. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Hey, we paid twice for the same order. Please return one of the payments. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Hey, how do I change my password? I can't find the option. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Good morning. My card keeps getting declined when I try to renew.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "The connection to our accounting tool keeps disconnecting. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Good morning. Uploads are crawling, a small file takes minutes.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "I can't sign in, it says my session expired right after I log in. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hey, we need custom fields on contacts, is that planned? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Hi team, the export only gives me the first 1,000 rows, I need everything. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Good morning. The workflow automation fails at the authorisation step. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hey, why was my payment rejected? The card works everywhere else.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "The annual plan price changed without notice. What am I paying for now? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Hey, I forgot my password and the reset email never shows up.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Hello, the export only gives me the first 1,000 rows, I need everything. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "The mobile app closes as soon as I open a project.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "The dashboard lags badly with more than a hundred projects. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Hello, the scanner arrived damaged, the box was crushed. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Good morning. Tracking says delivered but there's no package here.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Hi team, everything is very slow today, pages take 30 seconds to load. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Please explain the extra line item on our September invoice. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "billing"
+  },
+  {
+   "request": {
+    "state": "Is there a way to export contacts with their history? Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "It would be great if we could schedule reports to be emailed weekly. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Hey, we are moving to another tool. How do we cancel and remove the workspace? Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Hello, how can I download all my data as a spreadsheet? Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Hello, I bought the wrong plan by mistake. Can I get the money back? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Hey, I want to delete my profile permanently. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "account_closure"
+  },
+  {
+   "request": {
+    "state": "Hi team, the report page crashes with an error when I pick a date range. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "bug"
+  },
+  {
+   "request": {
+    "state": "Where do I generate a new API key? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hey, our webhook stopped receiving events on Monday. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hello, my account got locked after a few attempts and I need access today.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Hey, how can I download all my data as a spreadsheet?",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "data_export"
+  },
+  {
+   "request": {
+    "state": "Uploads are crawling, a small file takes minutes. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "performance"
+  },
+  {
+   "request": {
+    "state": "Hey, the password reset link says it has expired. This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  },
+  {
+   "request": {
+    "state": "Good morning. The card reader I ordered on Friday still hasn't arrived. Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Hi team, the scanner arrived damaged, the box was crushed. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Hello, checkout errors out at the payment step with code 402.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Hi team, single sign-on sends me back to the login page in a loop. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "login"
+  },
+  {
+   "request": {
+    "state": "Good morning. The card reader I ordered on Friday still hasn't arrived.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "Good morning. Our bank transfer bounced and now the account says overdue.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "payment_failed"
+  },
+  {
+   "request": {
+    "state": "Could you add a dark mode? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Hi team, when will the hardware ship? The order shows processing for a week. Please help.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "device_delivery"
+  },
+  {
+   "request": {
+    "state": "I cancelled within the trial period and still got charged. I want my $49 back.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "refund"
+  },
+  {
+   "request": {
+    "state": "Hey, how do I connect the calendar sync with our team calendar? This is urgent for us.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hello, any chance of a Spanish version of the interface? Thanks.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "feature_request"
+  },
+  {
+   "request": {
+    "state": "Hello, the connection to our accounting tool keeps disconnecting. Thank you in advance.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "integration"
+  },
+  {
+   "request": {
+    "state": "Hi team, I need to reset the password for a colleague who left.",
+    "questions": {
+     "route": {
+      "type": "choice",
+      "instructions": "Which support queue should handle this ticket?",
+      "criteria": {
+       "billing": "Invoices, charges on the account, plan prices",
+       "refund": "The customer wants money back",
+       "payment_failed": "A card or bank payment was declined or failed",
+       "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+       "password_reset": "Forgotten password or a reset link that does not work",
+       "account_closure": "Close or delete the account",
+       "bug": "The product behaves wrongly or shows an error",
+       "feature_request": "Asks for something the product does not do yet",
+       "performance": "Slow pages, timeouts, lag",
+       "data_export": "Exporting or downloading the customer's own data",
+       "integration": "API keys, webhooks, connections to other tools",
+       "device_delivery": "Delivery of an ordered hardware device"
+      }
+     }
+    }
+   },
+   "answer": "password_reset"
+  }
+ ]
+}

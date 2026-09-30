@@ -1,0 +1,18 @@
+{
+ "type": "choice",
+ "instructions": "Which support queue should handle this ticket?",
+ "criteria": {
+  "billing": "Invoices, charges on the account, plan prices",
+  "refund": "The customer wants money back",
+  "payment_failed": "A card or bank payment was declined or failed",
+  "login": "Cannot sign in: sessions, two-factor codes, locked accounts",
+  "password_reset": "Forgotten password or a reset link that does not work",
+  "account_closure": "Close or delete the account",
+  "bug": "The product behaves wrongly or shows an error",
+  "feature_request": "Asks for something the product does not do yet",
+  "performance": "Slow pages, timeouts, lag",
+  "data_export": "Exporting or downloading the customer's own data",
+  "integration": "API keys, webhooks, connections to other tools",
+  "device_delivery": "Delivery of an ordered hardware device"
+ }
+}
