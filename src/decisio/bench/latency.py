@@ -7,7 +7,7 @@ Two numbers per cell, because they answer different questions:
   latency     one request alone (state + N distinct questions), p50 over repeats, each repeat with a
               fresh state. What a caller waits; comparable to a hosted API's p50 server time.
   throughput  R such requests at once (answer_many: all states prefilled together, then all
-              questions), R chosen so a cell holds at least --load questions. What a loaded box
+              questions), R chosen so a cell holds at least --load questions. What a loaded server
               sustains, and so what a token costs: dollars per billion input tokens =
               price per hour / (input tokens per second x 3600) x 1e9.
 

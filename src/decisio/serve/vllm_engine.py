@@ -672,7 +672,7 @@ def main():
     ap.add_argument("--image-gpu-memory-utilization", type=float, default=0.50,
                     help="the image engine's share of the card")
     ap.add_argument("--host", default="127.0.0.1",
-                    help="listen address; the box's server is reached through an SSH tunnel")
+                    help="listen address (default: this machine only; put a reverse proxy in front to expose it)")
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
