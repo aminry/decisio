@@ -59,7 +59,7 @@ jobs:
           sudo systemctl stop docker.socket docker.service
           sudo mkdir -p /mnt/docker
           [ -f /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
-          sudo jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
+          jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
           sudo mv /tmp/daemon.json /etc/docker/daemon.json
           sudo systemctl start docker.service
           docker info --format 'docker root: {{.DockerRootDir}}'
@@ -141,7 +141,7 @@ jobs:
           sudo systemctl stop docker.socket docker.service
           sudo mkdir -p /mnt/docker
           [ -f /etc/docker/daemon.json ] || echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
-          sudo jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
+          jq '. + {"data-root": "/mnt/docker"}' /etc/docker/daemon.json > /tmp/daemon.json
           sudo mv /tmp/daemon.json /etc/docker/daemon.json
           sudo systemctl start docker.service
           docker info --format 'docker root: {{.DockerRootDir}}'
