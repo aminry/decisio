@@ -1,0 +1,662 @@
+From 65d946bb88cee5eb421d69b609518376805d5da2 Mon Sep 17 00:00:00 2001
+From: Amin <roudaky@gmail.com>
+Date: Fri, 25 Sep 2026 16:25:31 -0700
+Subject: [PATCH 1/2] [Perf][MRv2] Stage only the uncached prompt suffix of
+ prefix-cache hits
+
+Behind VLLM_R9_SUFFIX_STAGING=1 (default off, read once at runner init).
+
+When a new request is added to the V2 model runner, its whole prefill
+(token ids, and M-RoPE positions for M-RoPE models) is staged into the
+persistent per-request rows RequestState.all_token_ids and
+RopeState.prefill_positions via StagedWriteTensor. With a prefix-cache hit
+only positions >= num_computed_tokens are ever run, so for workloads with a
+long shared cached prefix and a short suffix most of the per-request host
+cost (list extend in stage_write, list-to-numpy conversion in copy_to_uva,
+list clear in clear_staged_writes, and the H2D write kernel) is spent on
+columns that are never read.
+
+With the flag on, a new request with num_computed_tokens > 0 stages only
+prefill_token_ids[num_computed_tokens:] at column offset
+num_computed_tokens of its row, so every readable column holds exactly
+the same value as before and no reader needs an index translation.
+The prefill gather and the M-RoPE position gather read from the slot's
+GPU num_computed_tokens, which is initialized from num_computed_tokens at
+add time and only grows; preemption removes the slot and re-adds the
+request as a new request with its full prefill.
+
+The full prompt is still staged when any reader of the prompt columns is
+active: per request (penalties, prompt logprobs, thinking budget, and
+conservatively bad words, structured outputs, pooling) and runner-wide
+(model states other than DefaultModelState / MambaHybridModelState, EVS
+multimodal pruning, watermarking, and conservatively speculative
+decoding, pooling models, custom logits processors).
+
+Tests (tests/v1/worker/test_gpu_suffix_staging.py): the per-request
+predicate and stage start, a pure-Python model showing that staging only
+columns >= stage_start at their own offsets preserves every prefill
+gather read (query tokens and lookahead) across chunk sizes, and a CUDA
+test (skipped without CUDA) that stages a request into a RequestState
+slot holding stale data from a previous occupant, runs the real
+prepare_prefill_inputs kernel over a chunked prefill, and checks the
+gathered input ids and lookahead tokens equal those of full staging.
+---
+ tests/v1/worker/test_gpu_suffix_staging.py    | 217 ++++++++++++++++++
+ vllm/envs.py                                  |   8 +
+ vllm/v1/worker/gpu/mm/rope.py                 |  14 +-
+ vllm/v1/worker/gpu/model_runner.py            |  88 ++++++-
+ vllm/v1/worker/gpu/model_states/default.py    |   8 +-
+ .../worker/gpu/model_states/mamba_hybrid.py   |   6 +-
+ vllm/v1/worker/gpu/states.py                  |  19 +-
+ vllm/v1/worker/gpu/suffix_staging.py          |  82 +++++++
+ 8 files changed, 435 insertions(+), 7 deletions(-)
+ create mode 100644 tests/v1/worker/test_gpu_suffix_staging.py
+ create mode 100644 vllm/v1/worker/gpu/suffix_staging.py
+
+diff --git a/tests/v1/worker/test_gpu_suffix_staging.py b/tests/v1/worker/test_gpu_suffix_staging.py
+new file mode 100644
+index 000000000..588f705ef
+--- /dev/null
++++ b/tests/v1/worker/test_gpu_suffix_staging.py
+@@ -0,0 +1,217 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Tests for Model Runner V2 suffix-only prompt staging (VLLM_R9_SUFFIX_STAGING).
++
++The predicate and the row-offset simulation are pure Python. The last test
++runs the real RequestState staging and prefill gather kernel on CUDA and is
++skipped elsewhere.
++"""
++
++from types import SimpleNamespace
++
++import pytest
++
++from vllm.v1.worker.gpu.suffix_staging import (
++    get_prompt_stage_start,
++    request_needs_full_prompt,
++)
++
++
++def _params(**overrides) -> SimpleNamespace:
++    """Stand-in for SamplingParams with the defaults of the audited fields."""
++    fields = dict(
++        prompt_logprobs=None,
++        repetition_penalty=1.0,
++        frequency_penalty=0.0,
++        presence_penalty=0.0,
++        bad_words_token_ids=None,
++        structured_outputs=None,
++        thinking_token_budget=None,
++    )
++    fields.update(overrides)
++    return SimpleNamespace(**fields)
++
++
++def test_default_request_does_not_need_full_prompt():
++    assert not request_needs_full_prompt(_params())
++    # Empty bad words list is the post-tokenization default.
++    assert not request_needs_full_prompt(_params(bad_words_token_ids=[]))
++
++
++@pytest.mark.parametrize(
++    "overrides",
++    [
++        dict(prompt_logprobs=0),
++        dict(prompt_logprobs=5),
++        dict(repetition_penalty=1.1),
++        dict(frequency_penalty=0.5),
++        dict(presence_penalty=-0.5),
++        dict(bad_words_token_ids=[[1, 2]]),
++        dict(structured_outputs=object()),
++        dict(thinking_token_budget=0),
++        dict(thinking_token_budget=128),
++    ],
++)
++def test_prompt_reading_features_need_full_prompt(overrides):
++    assert request_needs_full_prompt(_params(**overrides))
++
++
++def test_pooling_request_needs_full_prompt():
++    assert request_needs_full_prompt(None)
++
++
++def test_real_sampling_params_defaults():
++    sampling_params = pytest.importorskip("vllm.sampling_params")
++    sp = sampling_params.SamplingParams(
++        max_tokens=1, temperature=0.0, logprobs=5, allowed_token_ids=[3, 4]
++    )
++    assert not request_needs_full_prompt(sp)
++    assert request_needs_full_prompt(
++        sampling_params.SamplingParams(max_tokens=1, presence_penalty=0.1)
++    )
++    assert request_needs_full_prompt(
++        sampling_params.SamplingParams(max_tokens=1, prompt_logprobs=1)
++    )
++    assert request_needs_full_prompt(
++        sampling_params.SamplingParams(max_tokens=1, _bad_words_token_ids=[[1]])
++    )
++
++
++@pytest.mark.parametrize(
++    "enabled,params,num_computed,prefill_len,expected",
++    [
++        (False, _params(), 8000, 8300, 0),  # disabled
++        (True, _params(), 0, 8300, 0),  # no prefix-cache hit
++        (True, _params(), 8000, 8300, 8000),  # prefix-cache hit
++        (True, _params(), 8299, 8300, 8299),  # only the last token uncached
++        (True, _params(), 9000, 8300, 8300),  # clamped to the prefill
++        (True, _params(presence_penalty=1.0), 8000, 8300, 0),  # needs prompt
++        (True, None, 8000, 8300, 0),  # pooling
++    ],
++)
++def test_get_prompt_stage_start(enabled, params, num_computed, prefill_len, expected):
++    assert (
++        get_prompt_stage_start(enabled, params, num_computed, prefill_len) == expected
++    )
++
++
++def _simulate_prefill_reads(
++    prefill: list[int],
++    num_computed: int,
++    stage_start: int,
++    chunk: int,
++    lookahead: int,
++    max_model_len: int,
++) -> list[tuple[list[int], list[int]]]:
++    """Pure-Python model of RequestState.add_request (staged row write at column
++    stage_start of a row with stale contents) followed by chunked
++    _prepare_prefill_inputs_kernel reads (query tokens from column
++    num_computed plus lookahead tokens below prefill_len)."""
++    row = [-7] * max_model_len  # stale data from a previous occupant
++    row[stage_start : len(prefill)] = prefill[stage_start:]
++    reads = []
++    pos = num_computed
++    while pos < len(prefill):
++        q = min(chunk, len(prefill) - pos)
++        tokens = row[pos : pos + q]
++        nxt = [
++            row[p] if p < len(prefill) else 0
++            for p in range(pos + q, pos + q + lookahead)
++        ]
++        reads.append((tokens, nxt))
++        pos += q
++    return reads
++
++
++@pytest.mark.parametrize("num_computed", [0, 1, 255, 256, 500, 7999, 8000, 8299])
++@pytest.mark.parametrize("chunk", [1, 64, 8192])
++def test_suffix_row_offsets_preserve_every_read(num_computed, chunk):
++    prefill = [1000 + i for i in range(8300)]
++    stage_start = get_prompt_stage_start(True, _params(), num_computed, len(prefill))
++    full = _simulate_prefill_reads(prefill, num_computed, 0, chunk, 2, 8448)
++    suffix = _simulate_prefill_reads(prefill, num_computed, stage_start, chunk, 2, 8448)
++    assert suffix == full
++    # And the model sees exactly the uncached prompt suffix, in order.
++    assert [t for tokens, _ in suffix for t in tokens] == prefill[num_computed:]
++
++
++@pytest.mark.parametrize("num_computed", [0, 1, 17, 1023, 1024, 1500, 1599])
++def test_cuda_suffix_staging_prefill_gather_matches_full(num_computed):
++    torch = pytest.importorskip("torch")
++    pytest.importorskip("triton")
++    if not torch.cuda.is_available():
++        pytest.skip("CUDA required for the Model Runner V2 gather kernel")
++    from vllm.v1.worker.gpu.input_batch import prepare_prefill_inputs
++    from vllm.v1.worker.gpu.states import RequestState
++
++    device = torch.device("cuda")
++    prefill_len = 1600
++    prefill = [1000 + i for i in range(prefill_len)]
++    chunk = 256
++
++    def run(stage_start: int) -> list[tuple[list[int], list[int]]]:
++        req_states = RequestState(
++            max_num_reqs=2,
++            max_model_len=2048,
++            max_num_batched_tokens=chunk,
++            num_speculative_steps=0,
++            vocab_size=4096,
++            device=device,
++            num_prefill_lookahead=2,
++        )
++        # Leave stale token ids in the slot the request will reuse.
++        req_states.add_request(
++            req_id="old",
++            prompt_len=prefill_len,
++            all_token_ids=[7] * prefill_len,
++            num_computed_tokens=0,
++            max_tokens=1,
++        )
++        req_states.apply_staged_writes()
++        old_idx = req_states.remove_request("old")
++
++        req_states.add_request(
++            req_id="req",
++            prompt_len=prefill_len,
++            all_token_ids=prefill,
++            num_computed_tokens=num_computed,
++            max_tokens=1,
++            stage_start=stage_start,
++        )
++        req_states.apply_staged_writes()
++        req_idx = req_states.req_id_to_index["req"]
++        assert req_idx == old_idx
++
++        idx_mapping = torch.tensor([req_idx], dtype=torch.int32, device=device)
++        reads = []
++        pos = num_computed
++        while pos < prefill_len:
++            q = min(chunk, prefill_len - pos)
++            input_ids = torch.zeros(q, dtype=torch.int32, device=device)
++            query_start_loc = torch.tensor([0, q], dtype=torch.int32, device=device)
++            prepare_prefill_inputs(
++                input_ids,
++                req_states.next_prefill_tokens,
++                idx_mapping,
++                query_start_loc,
++                req_states.all_token_ids.gpu,
++                req_states.prefill_len.gpu,
++                req_states.num_computed_tokens.gpu,
++            )
++            reads.append(
++                (
++                    input_ids.cpu().tolist(),
++                    req_states.next_prefill_tokens[:, req_idx].cpu().tolist(),
++                )
++            )
++            # Advance the GPU num_computed_tokens as post_update() would.
++            req_states.num_computed_tokens.gpu[req_idx] += q
++            pos += q
++        return reads
++
++    stage_start = get_prompt_stage_start(True, _params(), num_computed, prefill_len)
++    assert stage_start == num_computed
++    full = run(0)
++    suffix = run(stage_start)
++    assert suffix == full
++    assert [t for tokens, _ in suffix for t in tokens] == prefill[num_computed:]
+diff --git a/vllm/envs.py b/vllm/envs.py
+index 6158f86f8..cb60386d1 100755
+--- a/vllm/envs.py
++++ b/vllm/envs.py
+@@ -208,6 +208,7 @@ if TYPE_CHECKING:
+     ] = "relax"
+     VLLM_USE_FUSED_MOE_GROUPED_TOPK: bool = True
+     VLLM_MOE_SKIP_PADDING: bool = True
++    VLLM_R9_SUFFIX_STAGING: bool = False
+     VLLM_KIMI_K3_SHARD_SP_SHARED_EXPERT: bool = False
+     VLLM_KIMI_K3_AUX_ATTN_RES_STREAM: bool = False
+     VLLM_KIMI_K3_GEMM_AR: bool = True
+@@ -1577,6 +1578,11 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     # ids to -1 so the dispatch and experts drop them. Requires a MoE kernel that
+     # treats topk_id == -1 as a skip sentinel
+     "VLLM_MOE_SKIP_PADDING": lambda: bool(int(os.getenv("VLLM_MOE_SKIP_PADDING", "1"))),
++    # Model Runner V2 only. When a new request has a prefix-cache hit and no
++    # enabled feature reads its prompt before num_computed_tokens, stage only
++    # the uncached suffix of its prefill token ids (and M-RoPE positions) into
++    # the runner's persistent buffers. Read once at runner init. "1" enables.
++    "VLLM_R9_SUFFIX_STAGING": lambda: os.getenv("VLLM_R9_SUFFIX_STAGING", "0") == "1",
+     # Kimi-K3 only. Under sequence-parallel MoE the dense and shared-expert MLPs
+     # are replicated on every rank, so each rank streams the whole weight to
+     # serve its own token shard. Shard them across TP instead: the MLP then
+@@ -2328,6 +2334,8 @@ def compile_factors() -> dict[str, object]:
+         "VLLM_WORKER_MULTIPROC_METHOD",
+         "VLLM_ENABLE_V1_MULTIPROCESSING",
+         "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE",
++        # Host-side input staging only; does not affect compiled graphs.
++        "VLLM_R9_SUFFIX_STAGING",
+         "VLLM_CPU_KVCACHE_SPACE",
+         "VLLM_CPU_MOE_PREPACK",
+         "VLLM_ZENTORCH_WEIGHT_PREPACK",
+diff --git a/vllm/v1/worker/gpu/mm/rope.py b/vllm/v1/worker/gpu/mm/rope.py
+index 637ad4140..68843509b 100644
+--- a/vllm/v1/worker/gpu/mm/rope.py
++++ b/vllm/v1/worker/gpu/mm/rope.py
+@@ -61,7 +61,15 @@ class RopeState:
+         model: nn.Module,
+         prefill_token_ids: list[int],
+         mm_features: list,
++        stage_start: int = 0,
+     ) -> None:
++        """Stage the request's M-RoPE prefill positions.
++
++        With ``stage_start > 0`` (suffix-only staging, see suffix_staging.py)
++        only positions ``[stage_start:]`` are staged, at their own column
++        offsets. The positions are still computed from the full prefill since
++        they can depend on earlier multimodal items.
++        """
+         mrope_model = cast(SupportsMRoPE, model)
+         prefill_positions, delta = mrope_model.get_mrope_input_positions(
+             prefill_token_ids, mm_features
+@@ -69,8 +77,10 @@ class RopeState:
+         self.prefill_delta.np[req_idx] = delta
+ 
+         for i in range(self.num_dims):
+-            pos = prefill_positions[i].tolist()
+-            self.prefill_positions.stage_write(self.num_dims * req_idx + i, 0, pos)
++            pos = prefill_positions[i, stage_start:].tolist()
++            self.prefill_positions.stage_write(
++                self.num_dims * req_idx + i, stage_start, pos
++            )
+ 
+     def apply_staged_writes(self) -> None:
+         self.prefill_positions.apply_write()
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index b66d552cb..12567bf0a 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -167,6 +167,7 @@ from vllm.v1.worker.gpu.spec_decode.speculator import DraftModelSpeculator
+ from vllm.v1.worker.gpu.spec_decode.utils import DraftTokensHandler
+ from vllm.v1.worker.gpu.states import RequestState
+ from vllm.v1.worker.gpu.structured_outputs import StructuredOutputsWorker
++from vllm.v1.worker.gpu.suffix_staging import get_prompt_stage_start
+ from vllm.v1.worker.gpu.ubatch_utils import (
+     UBatchRunner,
+     UBatchState,
+@@ -296,6 +297,12 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+         self.is_pooling_model = self.model_config.runner_type == "pooling"
+         self.pooling_runner: PoolingRunner | None = None
+ 
++        # Suffix-only prompt staging (see suffix_staging.py). The env var is
++        # read once here; runner-wide eligibility is decided in load_model()
++        # once the model state is known.
++        self._suffix_staging_requested = envs.VLLM_R9_SUFFIX_STAGING
++        self.suffix_staging = False
++
+         # Multi-module MTP feeds its modules the next num_speculative_steps prefill
+         # tokens during chunked prefill. Other speculators only read the immediate
+         # next one.
+@@ -532,6 +539,55 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             )
+ 
+         get_offloader().post_init()
++        self.suffix_staging = self._init_suffix_staging()
++
++    def _init_suffix_staging(self) -> bool:
++        """Whether suffix-only prompt staging may be used by this runner.
++
++        Besides per-request features (suffix_staging.request_needs_full_prompt),
++        these runner-wide components read staged prompt ids or M-RoPE positions
++        before num_computed_tokens, or are not audited, so any of them disables
++        the feature:
++          - model states other than DefaultModelState / MambaHybridModelState
++            (model-provided states such as n-gram context builders read
++            all_token_ids before num_computed_tokens),
++          - the EVS multimodal pruner (reads all_token_ids[:prefill_len] and
++            the prefill positions from column 0),
++          - watermarking (hashes committed context tokens),
++          - speculative decoding, pooling models, custom logits processors
++            (conservative).
++        """
++        if not self._suffix_staging_requested:
++            return False
++        from vllm.v1.worker.gpu.model_states.default import DefaultModelState
++        from vllm.v1.worker.gpu.model_states.mamba_hybrid import (
++            MambaHybridModelState,
++        )
++
++        reasons: list[str] = []
++        if type(self.model_state) not in (DefaultModelState, MambaHybridModelState):
++            reasons.append(f"model state {type(self.model_state).__name__}")
++        if getattr(self.model_state, "mm_pruner", None) is not None:
++            reasons.append("multimodal embedding pruning")
++        if self.vllm_config.watermark_config is not None:
++            reasons.append("watermarking")
++        if self.speculative_config is not None:
++            reasons.append("speculative decoding")
++        if self.is_pooling_model:
++            reasons.append("pooling model")
++        if self.model_config.logits_processors:
++            reasons.append("custom logits processors")
++        if reasons:
++            logger.warning(
++                "VLLM_R9_SUFFIX_STAGING=1 ignored: not supported with %s.",
++                ", ".join(reasons),
++            )
++            return False
++        logger.info(
++            "VLLM_R9_SUFFIX_STAGING=1: staging only the uncached prompt suffix "
++            "of new requests with a prefix-cache hit."
++        )
++        return True
+ 
+     def get_model(self) -> nn.Module:
+         return self.model
+@@ -1129,12 +1185,22 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+ 
+             prompt_len = new_req_data.prompt_len
+             sampling_params = new_req_data.sampling_params
++            # Suffix-only staging: 0 (stage the full prefill) unless enabled,
++            # the request has a prefix-cache hit, and no per-request feature
++            # reads the prompt before num_computed_tokens.
++            stage_start = get_prompt_stage_start(
++                self.suffix_staging,
++                sampling_params,
++                new_req_data.num_computed_tokens,
++                len(new_req_data.prefill_token_ids),
++            )
+             self.req_states.add_request(
+                 req_id=req_id,
+                 prompt_len=prompt_len,
+                 all_token_ids=new_req_data.prefill_token_ids,
+                 num_computed_tokens=new_req_data.num_computed_tokens,
+                 max_tokens=sampling_params.max_tokens if sampling_params else 1,  # type: ignore[arg-type]
++                stage_start=stage_start,
+             )
+             req_index = self.req_states.req_id_to_index[req_id]
+             if self.adaptive_verification is not None:
+@@ -1152,7 +1218,14 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             if self.encoder_cache is not None:
+                 self.encoder_cache.add_request(req_id, new_req_data.mm_features)
+ 
+-            self.model_state.add_request(req_index, new_req_data)
++            if stage_start:
++                # Only DefaultModelState / MambaHybridModelState (enforced by
++                # _init_suffix_staging) accept stage_start.
++                self.model_state.add_request(  # type: ignore[call-arg]
++                    req_index, new_req_data, stage_start=stage_start
++                )
++            else:
++                self.model_state.add_request(req_index, new_req_data)
+             self.block_tables.append_block_ids(
+                 req_index, new_req_data.block_ids, overwrite=True
+             )
+@@ -1192,6 +1265,19 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+                     req_index, req_new_block_ids, overwrite=False
+                 )
+ 
++        # Tripwire for the suffix-staging invariant: the scheduler must not
++        # rewind a live request below the first staged prefill column
++        # (preemption removes and re-adds the request with full data).
++        if (
++            self.suffix_staging
++            and reqs.req_ids
++            and np.any(num_computed_tokens_np < self.req_states.prompt_stage_start)
++        ):
++            logger.warning_once(
++                "VLLM_R9_SUFFIX_STAGING: a running request was rewound "
++                "below its first staged prompt column."
++            )
++
+         # Update CPU num_computed_prefill_tokens.
+         np.minimum(
+             self.req_states.num_computed_tokens_np,
+diff --git a/vllm/v1/worker/gpu/model_states/default.py b/vllm/v1/worker/gpu/model_states/default.py
+index 27a9591e4..0b8955241 100644
+--- a/vllm/v1/worker/gpu/model_states/default.py
++++ b/vllm/v1/worker/gpu/model_states/default.py
+@@ -61,7 +61,12 @@ class DefaultModelState(ModelState):
+             self.model_config, model, self.rope_state, encoder_cache
+         )
+ 
+-    def add_request(self, req_index: int, new_req_data: NewRequestData) -> None:
++    def add_request(
++        self, req_index: int, new_req_data: NewRequestData, stage_start: int = 0
++    ) -> None:
++        # stage_start > 0: suffix-only staging (see suffix_staging.py). The
++        # model runner only passes it for this class and MambaHybridModelState,
++        # whose readers of the staged prefill all start at num_computed_tokens.
+         if self.rope_state is not None:
+             assert new_req_data.prefill_token_ids is not None
+             # `prompt_embeds` is a passthrough modality with no grid info, but
+@@ -74,6 +79,7 @@ class DefaultModelState(ModelState):
+                 self.model,
+                 new_req_data.prefill_token_ids,
+                 mm_features=mm_features,
++                stage_start=stage_start,
+             )
+         if self.prompt_embeds_state is not None:
+             self.prompt_embeds_state.add_request(req_index, new_req_data)
+diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+index 0ac3f2f63..c553ef80a 100644
+--- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
++++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+@@ -112,8 +112,10 @@ class MambaHybridModelState(DefaultModelState):
+             self._mamba_spec: MambaSpec | None = None
+             self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
+ 
+-    def add_request(self, req_index: int, new_req_data: NewRequestData) -> None:
+-        super().add_request(req_index, new_req_data)
++    def add_request(
++        self, req_index: int, new_req_data: NewRequestData, stage_start: int = 0
++    ) -> None:
++        super().add_request(req_index, new_req_data, stage_start=stage_start)
+         # Must reset the speculative acceptance count in this idx which could be stale.
+         self.num_accepted_tokens_gpu[req_index].fill_(1)
+         if self._align_mode:
+diff --git a/vllm/v1/worker/gpu/states.py b/vllm/v1/worker/gpu/states.py
+index 025c8300f..e973e9764 100644
+--- a/vllm/v1/worker/gpu/states.py
++++ b/vllm/v1/worker/gpu/states.py
+@@ -60,6 +60,10 @@ class RequestState:
+         )
+         # Optimistic CPU mirror of num_computed_tokens (upper bound on GPU value).
+         self.num_computed_tokens_np = np.zeros(self.max_num_reqs, dtype=np.int32)
++        # First column of all_token_ids staged for the request in each slot.
++        # Columns before it hold stale data (see suffix_staging.py); 0 means the
++        # full prefill was staged.
++        self.prompt_stage_start = np.zeros(self.max_num_reqs, dtype=np.int32)
+ 
+         # Last sampled tokens.
+         self.last_sampled_tokens = torch.zeros(
+@@ -95,6 +99,7 @@ class RequestState:
+         all_token_ids: list[int],
+         num_computed_tokens: int,
+         max_tokens: int,
++        stage_start: int = 0,
+     ) -> None:
+         assert len(self.free_indices) > 0, "No free indices"
+         req_idx = self.free_indices.pop()
+@@ -109,7 +114,19 @@ class RequestState:
+         )
+         self.prefill_len.np[req_idx] = prefill_len
+         self.total_len.stage_write_elem(req_idx, prefill_len)
+-        self.all_token_ids.stage_write(req_idx, 0, all_token_ids)
++        # stage_start > 0 (suffix-only staging): only the prefill columns that
++        # can be read for this slot, i.e. >= num_computed_tokens, are staged at
++        # their own column offsets.
++        assert 0 <= stage_start <= min(num_computed_tokens, prefill_len), (
++            f"stage_start {stage_start} out of range "
++            f"(num_computed_tokens {num_computed_tokens}, prefill_len {prefill_len})"
++        )
++        self.prompt_stage_start[req_idx] = stage_start
++        self.all_token_ids.stage_write(
++            req_idx,
++            stage_start,
++            all_token_ids[stage_start:] if stage_start else all_token_ids,
++        )
+         self.num_computed_prefill_tokens[req_idx] = num_computed_tokens
+         self.num_computed_tokens_np[req_idx] = num_computed_tokens
+         self.num_computed_tokens.stage_write_elem(req_idx, num_computed_tokens)
+diff --git a/vllm/v1/worker/gpu/suffix_staging.py b/vllm/v1/worker/gpu/suffix_staging.py
+new file mode 100644
+index 000000000..2a09d208f
+--- /dev/null
++++ b/vllm/v1/worker/gpu/suffix_staging.py
+@@ -0,0 +1,82 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Suffix-only prompt staging for Model Runner V2 (opt-in via
++``VLLM_R9_SUFFIX_STAGING=1``).
++
++When a new request is added to the runner, its prefill token ids (and, for
++M-RoPE models, its prefill positions) are staged into persistent per-request
++rows (``RequestState.all_token_ids`` / ``RopeState.prefill_positions``). By
++default the whole prefill is staged, even when a prefix-cache hit means only
++the positions ``>= num_computed_tokens`` will ever be run.
++
++With suffix-only staging, only ``prefill_token_ids[stage_start:]`` is written,
++at column offset ``stage_start`` of the same row, so every position
++``p >= stage_start`` holds exactly the value it would hold with full staging
++and no index translation is needed anywhere. Columns ``[0, stage_start)`` keep
++stale contents from an earlier occupant of the row.
++
++This is only correct if nothing reads columns ``< stage_start`` of the row for
++the lifetime of the request's slot. The prefill gather and the M-RoPE position
++gather read from the GPU ``num_computed_tokens`` of the slot, which is set to
++``num_computed_tokens`` at add time and only ever grows afterwards; preemption
++removes the slot and re-adds the request as a new request with its full
++prefill, so ``stage_start`` is recomputed then. The remaining readers of the
++prompt columns are request features (see ``request_needs_full_prompt``) and
++runner-wide features (checked by the model runner at load time); if any of
++them is active the full prompt is staged exactly as before.
++
++This module intentionally has no heavy imports so the predicate can be unit
++tested without torch.
++"""
++
++from typing import Any
++
++
++def request_needs_full_prompt(sampling_params: Any | None) -> bool:
++    """Whether a per-request feature reads staged prompt ids before
++    ``num_computed_tokens``.
++
++    Readers of ``RequestState.all_token_ids`` columns below
++    ``num_computed_tokens`` that are enabled per request:
++      - penalties: ``PenaltiesState.apply_staged_writes`` bincounts the whole
++        prefill (``[0, prefill_len)``).
++      - prompt logprobs: ``PromptLogprobsWorker`` reads prompt targets.
++      - thinking budget: ``ThinkingBudgetState`` scans from column 0 for
++        reasoning start/end tokens.
++    Conservatively also treated as needing the full prompt (no reader of the
++    prompt columns found in the runner, but cheap to exclude):
++      - bad words (the kernel reads output columns only),
++      - structured outputs (the grammar runs in the scheduler),
++      - pooling requests (``sampling_params is None``).
++    """
++    if sampling_params is None:
++        return True
++    return bool(
++        sampling_params.prompt_logprobs is not None
++        or sampling_params.repetition_penalty != 1.0
++        or sampling_params.frequency_penalty != 0.0
++        or sampling_params.presence_penalty != 0.0
++        or sampling_params.bad_words_token_ids
++        or sampling_params.structured_outputs is not None
++        or sampling_params.thinking_token_budget is not None
++    )
++
++
++def get_prompt_stage_start(
++    enabled: bool,
++    sampling_params: Any | None,
++    num_computed_tokens: int,
++    prefill_len: int,
++) -> int:
++    """First column of the prefill to stage for a newly added request.
++
++    Returns 0 (stage the full prefill, the default behavior) unless suffix
++    staging is enabled for the runner, the request has a prefix-cache hit and
++    no per-request feature needs the prompt. The result is clamped to
++    ``prefill_len`` so the staged slice is never out of range.
++    """
++    if not enabled or num_computed_tokens <= 0:
++        return 0
++    if request_needs_full_prompt(sampling_params):
++        return 0
++    return min(num_computed_tokens, prefill_len)
+-- 
+2.54.0 (Apple Git-157)
+

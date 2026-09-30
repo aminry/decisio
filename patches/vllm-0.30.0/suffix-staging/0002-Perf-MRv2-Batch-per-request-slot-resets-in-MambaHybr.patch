@@ -1,0 +1,93 @@
+From 4ccadbb5afcb962c34aff61fdd847372777a00d8 Mon Sep 17 00:00:00 2001
+From: Amin <roudaky@gmail.com>
+Date: Fri, 25 Sep 2026 16:25:50 -0700
+Subject: [PATCH 2/2] [Perf][MRv2] Batch per-request slot resets in
+ MambaHybridModelState
+
+Behind VLLM_R9_SUFFIX_STAGING=1 (default off, read once at init).
+
+MambaHybridModelState.add_request resets two per-slot GPU values for every
+new request (num_accepted_tokens_gpu[slot] = 1 and, in mamba align mode,
+_mamba_state_idx_gpu[slot] = (num_computed_tokens - 1) // block_size) with
+two single-element fill_ calls, i.e. two kernel launches plus tensor view
+creation per request. With the flag on, the values are collected in a
+slot -> value dict and applied in apply_staged_writes() with one
+index_fill_ and one index_copy_. The model runner calls
+model_state.apply_staged_writes() right after the add_request loop and
+nothing reads these buffers in between, so the GPU state seen by
+preprocess_state / prepare_attn is identical. The dict keeps the last
+value per slot, matching the sequential fill_ semantics.
+---
+ .../worker/gpu/model_states/mamba_hybrid.py   | 33 +++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+index c553ef80a..2ea789e81 100644
+--- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
++++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+@@ -7,10 +7,12 @@ import numpy as np
+ import torch
+ import torch.nn as nn
+ 
++import vllm.envs as envs
+ from vllm.config import VllmConfig
+ from vllm.config.compilation import CUDAGraphMode
+ from vllm.model_executor.layers.mamba.mamba_utils import MambaStateCopyFuncsByType
+ from vllm.triton_utils import tl, triton
++from vllm.utils.torch_utils import async_tensor_h2d
+ from vllm.v1.attention.backends.gdn_attn import GDNAttentionMetadataBuilder
+ from vllm.v1.attention.backends.mamba2_attn import Mamba2AttentionMetadataBuilder
+ from vllm.v1.attention.backends.short_conv_attn import (
+@@ -111,11 +113,23 @@ class MambaHybridModelState(DefaultModelState):
+             self._mamba_group_ids: list[int] = []
+             self._mamba_spec: MambaSpec | None = None
+             self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
++        # With VLLM_R9_SUFFIX_STAGING=1, the per-slot resets done by add_request
++        # are collected here (slot -> running state block index) and applied as
++        # two batched GPU writes in apply_staged_writes() instead of two tiny
++        # fill_ launches per new request. Nothing reads these buffers between
++        # add_request() and apply_staged_writes() (both run in add_requests()).
++        self._batch_add_resets = envs.VLLM_R9_SUFFIX_STAGING
++        self._pending_add_resets: dict[int, int] = {}
+ 
+     def add_request(
+         self, req_index: int, new_req_data: NewRequestData, stage_start: int = 0
+     ) -> None:
+         super().add_request(req_index, new_req_data, stage_start=stage_start)
++        if self._batch_add_resets:
++            self._pending_add_resets[req_index] = (
++                new_req_data.num_computed_tokens - 1
++            ) // self.cache_config.block_size
++            return
+         # Must reset the speculative acceptance count in this idx which could be stale.
+         self.num_accepted_tokens_gpu[req_index].fill_(1)
+         if self._align_mode:
+@@ -124,6 +138,25 @@ class MambaHybridModelState(DefaultModelState):
+                 (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size
+             )
+ 
++    def apply_staged_writes(self) -> None:
++        super().apply_staged_writes()
++        if not self._pending_add_resets:
++            return
++        slots = async_tensor_h2d(
++            list(self._pending_add_resets), dtype=torch.int64, device=self.device
++        )
++        # Reset the (possibly stale) speculative acceptance count of new slots.
++        self.num_accepted_tokens_gpu.index_fill_(0, slots, 1)
++        if self._align_mode:
++            # Seed the running state block from the resumed/prefilled position.
++            state_idx = async_tensor_h2d(
++                list(self._pending_add_resets.values()),
++                dtype=torch.int32,
++                device=self.device,
++            )
++            self._mamba_state_idx_gpu.index_copy_(0, slots, state_idx)
++        self._pending_add_resets.clear()
++
+     def _get_mamba_group_info(
+         self, kv_cache_config: KVCacheConfig
+     ) -> tuple[list[int], MambaSpec]:
+-- 
+2.54.0 (Apple Git-157)
+
