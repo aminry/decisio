@@ -71,7 +71,7 @@ Rules that apply to everyone, human or agent:
 - Disclose assistance in the pull request description.
 - Every pull request is reviewed and merged by a human maintainer; no change lands on `main` without that review.
 - Do not open pull requests you have not read and cannot explain.
-- Agents operated by the project commit under their own identity so their changes are reviewed like anyone else's.
+- Changes written by agents the project operates are committed under the maintainer's identity with the DCO sign-off, disclosed in the pull request, and reviewed like any other.
 
 ## Reporting problems
 
