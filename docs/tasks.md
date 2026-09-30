@@ -31,7 +31,7 @@ Each is kept only if cross-validation on your own examples shows that it helps; 
 - **Examples of the same question.** Each example is one real input (a ticket, an email, a record) with the option you would want chosen.
   Every example must use the same question with the same options, in the same order, as the questions you will ask later.
 - **Enough of them.**
-  - For calibration: at least 10 examples; 20 is where its measured effect was full.
+  - For calibration: at least 10 examples, below which the server declines to fit. The calibration results under "What you get" were measured with 20 examples per task; fewer were not measured here.
   - For the head: a question with 10 or more options, and at least 5 examples of every option. The measured gains below used 10 per option, which is what we recommend.
 - **Examples from your own traffic.** Past inputs your team has already routed or labelled are ideal. They should look like what the server will see: the same kind of text, the same mix of options where you can.
 - **A few more to check the result.** Keep some labelled inputs out of registration; `examples/tasks/evaluate.py` measures accuracy on them before and after.
