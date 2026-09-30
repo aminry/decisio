@@ -14,6 +14,7 @@
 
     uv run pytest -q tests/unit/test_names.py
 """
+import gzip
 import json
 import sys
 import types
@@ -30,6 +31,11 @@ RUN = ROOT / "runs" / "2026-09-30_plugin-verification"
 LEGACY_FP = json.dumps({"desnake_labels": True, "hide_index_keys": True, "model": "moe-fp8", "pad_to": "block",
                         "pad_where": "front", "served_name": names.LEGACY_SERVED_NAME}, sort_keys=True)
 NEW_FP = LEGACY_FP.replace(names.LEGACY_SERVED_NAME, names.SERVED_NAME)
+
+
+def load_json(path):
+    with gzip.open(path, "rt") as f:
+        return json.load(f)
 
 
 def test_w1_request_header_fallback():
@@ -75,7 +81,7 @@ def test_w2_new_records_are_decisio():
 
 
 def test_w2_committed_task_records_load():
-    record = json.loads((RUN / "r12" / "banking77_d0_task.json").read_text())
+    record = load_json(RUN / "intent_heads" / "banking77_d0_task.json.gz")
     assert (record["format"], record["calibration"]["format"], record["head"]["format"]) == \
         ("rlcd-task/1", "rlcd-task-prior/1", "rlcd-intent-head/1")
     store = TaskStore(NEW_FP)
@@ -83,7 +89,7 @@ def test_w2_committed_task_records_load():
     task = store.lookup(record["key"])
     assert task is not None and task["head"]["applied"] and isinstance(task["head"]["A"], np.ndarray)
     assert task["head"]["A"].shape == (2048, 77)
-    both = json.loads((RUN / "latency_tasks.json").read_text())
+    both = load_json(RUN / "latency_tasks.json.gz")
     store.load(both)
     assert sorted(t["id"] for t in store.by_key.values()) == ["r12_banking77_d0", "r12_v3_clinc_d0"]
     # the same record in the new spelling loads the same way
@@ -95,7 +101,7 @@ def test_w2_committed_task_records_load():
 
 @pytest.mark.parametrize("bad", [{"format": "rlcd-abstention/1"}, {"format": "decisio-task/2"}, {}])
 def test_w2_other_records_are_refused(bad):
-    record = json.loads((RUN / "r12" / "banking77_d0_task.json").read_text())
+    record = load_json(RUN / "intent_heads" / "banking77_d0_task.json.gz")
     store = TaskStore(NEW_FP)
     with pytest.raises(ValueError, match="format"):
         store.load([{**{k: v for k, v in record.items() if k != "format"}, **bad}])
@@ -133,14 +139,14 @@ def test_w3_import_endpoint_takes_legacy_tasks():
     from decisio.serve.vllm_engine import make_app
     so = SystemOne(types.SimpleNamespace(), names.SERVED_NAME, task_store=TaskStore(NEW_FP))
     client = TestClient(make_app(types.SimpleNamespace(adapters={}), so))
-    tasks = json.loads((RUN / "latency_tasks.json").read_text())
+    tasks = load_json(RUN / "latency_tasks.json.gz")
     r = client.post("/v1/tasks/import", json={"tasks": tasks})
     assert r.status_code == 200 and r.json()["loaded"] == ["r12_banking77_d0", "r12_v3_clinc_d0"], r.text
     so.task_store = TaskStore(NEW_FP.replace(names.SERVED_NAME, "my-deployment"))
     assert client.post("/v1/tasks/import", json={"tasks": tasks}).status_code == 422
 
 
-def start_with_tasks(monkeypatch, *argv):
+def start_with_tasks(monkeypatch, tasks_file, *argv):
     """The server's main() on a stand-in engine up to the point it would listen, with --tasks-file; its SystemOne."""
     import uvicorn
 
@@ -160,15 +166,17 @@ def start_with_tasks(monkeypatch, *argv):
     monkeypatch.setattr(vllm_engine, "make_app", lambda engine, so: served.update(so=so) or object())
     monkeypatch.setattr(uvicorn, "run", lambda app, **kw: None)
     monkeypatch.setattr(sys, "argv", ["decisio", "--backend", "hf", "--model", "/models/moe-fp8",
-                                      "--model-class", "view", "--tasks-file", str(RUN / "latency_tasks.json"), *argv])
+                                      "--model-class", "view", "--tasks-file", str(tasks_file), *argv])
     vllm_engine.main()
     return served["so"]
 
 
-def test_w3_tasks_file_at_start_up(monkeypatch, capsys):
-    store = start_with_tasks(monkeypatch).task_store                          # the default served name
+def test_w3_tasks_file_at_start_up(monkeypatch, capsys, tmp_path):
+    tasks_file = tmp_path / "tasks.json"                                    # GET /v1/tasks?full=1 as saved to a file
+    tasks_file.write_text(json.dumps(load_json(RUN / "latency_tasks.json.gz")))
+    store = start_with_tasks(monkeypatch, tasks_file).task_store                          # the default served name
     assert "WARNING" not in capsys.readouterr().out
     assert len(store.by_key) == 2 and all(store.lookup(k) is not None for k in store.by_key)
-    store = start_with_tasks(monkeypatch, "--served-name", "my-deployment").task_store
+    store = start_with_tasks(monkeypatch, tasks_file, "--served-name", "my-deployment").task_store
     assert "WARNING: tasks fitted under another model or rendering" in capsys.readouterr().out
     assert all(store.lookup(k) is None for k in store.by_key)

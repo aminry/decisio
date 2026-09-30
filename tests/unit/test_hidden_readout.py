@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The head's hidden state from the serving engine (decisio's hidden-readout model class and the server's recovery
-path; docs/design/hidden-state-readout.md), without a GPU: the vLLM stand-in (stub_vllm.py) and stored intent readouts
-(tests/data/r12: the hidden states an intent head was fitted and served on, BANKING77 with 10 examples per intent).
+path; docs/design/hidden-state-readout.md), without a GPU: the vLLM stand-in (stub_vllm.py) and stored intent
+readouts (tests/data/intent_readouts: the hidden states an intent head was fitted and served on, BANKING77 with 10
+examples per intent).
 
   H1  the model class: the reserved columns hold [0, h], every other logit is vLLM's own; the reserved ids are checked
       against the vocabulary and the label tokens
   H2  recovery: from the float32 log-probabilities vLLM returns for the reserved ids, h comes back within 1e-4 on every
-      stored round-12 vector (the float32 rounding at the normaliser's magnitude), and a request that does not allow
-      the reserved ids gets vLLM's own masked log-probabilities, bit for bit
+      stored vector (the float32 rounding at the normaliser's magnitude), and a request that does not allow the reserved
+      ids gets vLLM's own masked log-probabilities, bit for bit
   H3  exact arithmetic, end to end through `SingleEngineHidden` on an emulated engine (chunk requests one at a time):
       the label log-probabilities are the engine's own arithmetic (bf16 logits) on the recovered state; the readout,
       fitted with `fit_intent_head` and served with `apply_intent_head`, equals the reference functions on that same
@@ -35,13 +36,13 @@ from decisio.vllm_plugin.hidden import (  # noqa: E402
     reserved_ids,
 )
 
-R12 = Path(__file__).resolve().parents[1] / "data" / "r12"
+READOUTS = Path(__file__).resolve().parents[1] / "data" / "intent_readouts"
 START, D = 100_000, 2048
 
 
 def stored(task="banking77"):
     """(example h, example lp, example labels, evaluation h, evaluation lp) of one intent set."""
-    ex, ev = np.load(R12 / f"{task}_examples.npz"), np.load(R12 / f"{task}_eval.npz")
+    ex, ev = np.load(READOUTS / f"{task}_examples.npz"), np.load(READOUTS / f"{task}_eval.npz")
     return ex["h"], ex["lp"], ex["y"], ev["h"], ev["lp"]
 
 
@@ -76,7 +77,7 @@ def masked_logprobs(logits, allowed):
     return torch.log_softmax(logits[allowed].float(), -1)
 
 
-def test_h2_recovery_on_the_stored_round12_hidden_states():
+def test_h2_recovery_on_the_stored_hidden_states():
     import torch
 
     from decisio.serve.hidden_engine import reserved_logprobs
@@ -141,7 +142,7 @@ class EmulatedEngine:
         return outs
 
 
-def test_h3_exact_arithmetic_on_the_stored_round12_readouts(monkeypatch):
+def test_h3_exact_arithmetic_on_the_stored_readouts(monkeypatch):
     import torch
 
     from decisio.readout import intent_head

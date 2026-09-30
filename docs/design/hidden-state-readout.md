@@ -56,5 +56,5 @@ All three passed on the card:
 
 ## Tests
 
-Without a GPU (`tests/unit/test_hidden_readout.py`, `test_head_modes.py`): the class writes only the reserved columns; recovery from vLLM's float32 log-probabilities returns every stored round-12 vector within 1e-4; the whole head path through `SingleEngineHidden` on an emulated engine equals the reference arithmetic; the two head modes declare the same choice on the stored readouts.
+Without a GPU (`tests/unit/test_hidden_readout.py`, `test_head_modes.py`): the class writes only the reserved columns; recovery from vLLM's float32 log-probabilities returns every stored intent-readout vector within 1e-4; the whole head path through `SingleEngineHidden` on an emulated engine equals the reference arithmetic; the two head modes declare the same choice on the stored readouts.
 On a card (`tests/gpu/test_model_classes.py`): the same-forward check on fresh 77-option questions.

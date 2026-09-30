@@ -17,5 +17,5 @@ It bundles no third-party code; it runs on, patches, or references the following
 | Reflex | The two-order averaging and the branch-disagreement statistic (`--orders 2`) follow its method | MIT | github.com/kshetrajna12/reflex |
 | imajev | The image request extension (`images`, `unknown_probability`, `abstained`) and its image limits | Apache-2.0 | github.com/mohit67890/imajev |
 | BANKING77 intent names | The option labels of the latency grid's 77-option cells (`src/decisio/bench/banking77_labels.json`) | CC-BY-4.0 | PolyAI, github.com/PolyAI-LDN/task-specific-datasets |
-| BANKING77, CLINC150 hidden-state readouts | Test fixtures (`tests/data/r12`): the model's hidden states and label log-probabilities on examples of the two datasets, no text | CC-BY-4.0 (BANKING77), CC-BY-3.0 (CLINC150) | PolyAI; github.com/clinc/oos-eval |
+| BANKING77, CLINC150 hidden-state readouts | Test fixtures (`tests/data/intent_readouts`): the model's hidden states and label log-probabilities on examples of the two datasets, no text | CC-BY-4.0 (BANKING77), CC-BY-3.0 (CLINC150) | PolyAI; github.com/clinc/oos-eval |
 | MMLU-Pro, GPQA Diamond, BANKING77, CLINC150+OOS | The Decision Index benchmarks in `runs/`; the records hold item ids, our answers and scores, never item text | MIT, CC-BY-4.0, CC-BY-4.0, CC-BY-3.0 | TIGER-Lab/MMLU-Pro; idavidrein/gpqa; as above |

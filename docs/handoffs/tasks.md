@@ -42,7 +42,7 @@ Two modes read it; the server's flags choose (`decisio.serve.vllm_engine.resolve
 Choose the second engine for a deployment with heavy intent traffic on a dedicated card, where 45 ms per head question matters more than the second weight copy and the image route.
 Everything else should use the default.
 
-Both modes give the same declared choice on every evaluation item of the stored round-12 readouts (BANKING77, 150 items; CLINC150, 100 items), each mode fitting its own head from its own reading of the same hidden states, with probabilities within 1e-2 (`tests/unit/test_head_modes.py`, M3).
+Both modes give the same declared choice on every evaluation item of the stored intent readouts (BANKING77, 150 items; CLINC150, 100 items; `tests/data/intent_readouts`), each mode fitting its own head from its own reading of the same hidden states, with probabilities within 1e-2 (`tests/unit/test_head_modes.py`, M3).
 Tasks carry no mode, so a task registered in one mode loads in the other.
 On a card, the second-engine mode was measured with the text-only view as its model directory (`--model-class view --head-engine`); its default pairing with the registered text-only class (`--head-engine` alone) has not been run on a card yet.
 

@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # JevBench's 231 published items through its own harness (typesafe adapter) against a running decisio server, the
 # harness's own summarize per file, then the v1.5 open-set reading (decisio.bench.jevbench_v15). The layout of
-# runs/2026-09-30_step4/jevbench/<arm>/. A private reading, not a board number (EVAL_CARD.md).
+# runs/2026-09-30_served-default/jevbench/<arm>/. A private reading, not a board number (EVAL_CARD.md).
 #   JEVBENCH=<harness checkout> bash benchmarks/jevbench.sh <server url> <out dir> [served model name]
 # Needs the bench extra (uv sync --extra bench) and benchmarks/fetch_harnesses.sh.
 set -euo pipefail

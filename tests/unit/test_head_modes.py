@@ -11,7 +11,7 @@
       second engine and the text-only class; the view and the text-only class alone serve no head; contradictory
       flags are refused
   M2  the server's start-up builds the selected mode's engine (the CPU stand-in's classes, replaced by recorders)
-  M3  both modes give the same declared choice on the stored round-12 intent readouts (tests/data/r12, BANKING77 and
+  M3  both modes give the same declared choice on the stored intent readouts (tests/data/intent_readouts, BANKING77 and
       CLINC150): each mode's own code reads the stored hidden states (the single engine through vLLM's masked
       log-probabilities of the reserved columns and bf16 label logits, the second engine through a pooled h and
       float64 label logits), fits its head on its own example readouts and serves the evaluation items
