@@ -13,6 +13,9 @@ permissions: {}
 
 jobs:
   release-please:
+    # Needs RELEASE_PLEASE_TOKEN: with the default token the release pull request cannot be created (Actions may not
+    # open pull requests here) and its checks would never start. Runs once the repository is public and the token is set.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
     permissions:
       contents: write

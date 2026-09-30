@@ -44,6 +44,10 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      # The patch tests apply each series to the tagged vLLM source; without the tree they skip.
+      - name: Fetch the vLLM source the patches are checked against
+        run: bash scripts/fetch_vllm_source.sh
+
       # The slow tier (tests that load small models on the CPU) peaks at about 20 GB of RAM and is killed on
       # a 16 GB hosted runner; it runs in the nightly job (.github/workflows/gpu.yml) and locally with -m slow.
       - name: Unit tests (fast tier)
