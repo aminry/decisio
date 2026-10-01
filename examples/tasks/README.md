@@ -107,4 +107,4 @@ A task is valid only for the model and rendering it was fitted under: an export 
 Put your labelled texts in a CSV with `text` and `label` columns (or a JSONL of `{"text", "label"}`), write your question to a JSON file in the shape of `question.json`, and pass it with `--question` to each script.
 Every label must be one of the question's option keys, and every example must be the same question with the same options in the same order.
 
-`tests/unit/test_tasks_walkthrough.py` runs these steps against the stand-in in the fast test tier, on a subset of the tickets.
+`tests/unit/test_tasks_walkthrough.py` runs these steps against the stand-in: a smoke on a 3-queue version of the question in the fast tier, and the full 12 queues with the `--tasks-file` restart in the slow tier (`pytest -m slow`).

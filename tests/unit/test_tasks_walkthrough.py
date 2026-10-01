@@ -3,12 +3,14 @@
 """The task-registration walk-through (examples/tasks) end to end against the CPU stand-in, as its README runs it.
 
   E1  the committed data is what make_tickets.py writes, and examples.json is train.csv in the request format
-  E2  a server started with --backend hf takes the registration, evaluate.py reports paired accuracy with an interval,
-      ask.py shows x-decisio-tasks naming the matched task; the task lists, exports, deletes and imports
-  E3  a server started with --tasks-file on the export serves the task from its first request
+  E0  the smoke (fast tier): the same steps as E2 on a 3-queue version of the question, 4 tickets per queue registered
+      and 1 held out, so calibration is fitted and the head is declined (fewer than 10 options) in seconds
+  E2  (slow) all 12 queues, 6 tickets per queue registered and 2 held out: a server started with --backend hf takes the
+      registration, evaluate.py reports paired accuracy with an interval, ask.py shows x-decisio-tasks naming the
+      matched task; the task lists, exports, deletes and imports
+  E3  (slow) a server started with --tasks-file on the export serves the task from its first request
 
-A subset of the tickets keeps this in the fast tier (6 per queue to register, 2 per queue held out); the stand-in's
-numbers mean nothing about the served model.
+The stand-in's numbers mean nothing about the served model.
 
     uv run pytest -q tests/unit/test_tasks_walkthrough.py
 """
@@ -37,11 +39,11 @@ def run(*args):
     return r.stdout
 
 
-def subset(src, per_label, dst):
+def subset(src, per_label, dst, labels=None):
     rows, seen = [], defaultdict(int)
     with open(src, newline="") as f:
         for r in csv.DictReader(f):
-            if seen[r["label"]] < per_label:
+            if (labels is None or r["label"] in labels) and seen[r["label"]] < per_label:
                 seen[r["label"]] += 1
                 rows.append(r)
     with open(dst, "w", newline="") as f:
@@ -102,6 +104,43 @@ def server():
     s.stop()
 
 
+SMOKE_QUEUES = ("refund", "login", "bug")
+
+
+def post(url, path, body):
+    req = urllib.request.Request(
+        url + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+    )
+    return json.loads(urllib.request.urlopen(req, timeout=60).read())
+
+
+def delete(url, path):
+    urllib.request.urlopen(urllib.request.Request(url + path, method="DELETE"), timeout=60).read()
+
+
+def test_e0_smoke_register_ask_evaluate_list_export_delete_import(server, tmp_path):
+    question = json.loads((EX / "question.json").read_text())
+    question["criteria"] = {k: question["criteria"][k] for k in SMOKE_QUEUES}
+    (tmp_path / "question.json").write_text(json.dumps(question))
+    q = ["--question", tmp_path / "question.json"]
+    train = subset(EX / "train.csv", 4, tmp_path / "train.csv", SMOKE_QUEUES)
+    held = subset(EX / "heldout.csv", 1, tmp_path / "heldout.csv", SMOKE_QUEUES)
+    out = run(EX / "evaluate.py", "--url", server.url, "--id", "smoke", "--train", train, "--heldout", held, *q)
+    assert "task 'smoke': 12 examples, 3 options, at least 4 per option" in out, out
+    assert "calibration:" in out and "head: not applied" in out and "95% interval" in out, out
+    shown = run(EX / "ask.py", "--url", server.url, "--file", held, "--limit", "1", *q)
+    assert "x-decisio-tasks: smoke" in shown, shown
+    export = get(server.url, "/v1/tasks?full=1")
+    assert [t["id"] for t in export["tasks"]] == ["smoke"]
+    delete(server.url, "/v1/tasks/smoke")
+    assert get(server.url, "/v1/tasks")["tasks"] == []
+    assert "x-decisio-tasks: none" in run(EX / "ask.py", "--url", server.url, "--file", held, "--limit", "1", *q)
+    assert post(server.url, "/v1/tasks/import", {"tasks": export["tasks"]})["loaded"] == ["smoke"]
+    assert "x-decisio-tasks: smoke" in run(EX / "ask.py", "--url", server.url, "--file", held, "--limit", "1", *q)
+    delete(server.url, "/v1/tasks/smoke")
+
+
+@pytest.mark.slow
 def test_e2_register_ask_evaluate_list_export_delete_import(server, tmp_path):
     train = subset(EX / "train.csv", 6, tmp_path / "train.csv")
     held = subset(EX / "heldout.csv", 2, tmp_path / "heldout.csv")
@@ -127,6 +166,7 @@ def test_e2_register_ask_evaluate_list_export_delete_import(server, tmp_path):
     server.exported = tmp_path / "tasks.json"
 
 
+@pytest.mark.slow
 def test_e3_tasks_file_at_start(server):
     exported = getattr(server, "exported", None)
     if exported is None:
