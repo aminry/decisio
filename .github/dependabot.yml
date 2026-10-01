@@ -17,6 +17,9 @@ updates:
     ignore:
       # the plugin targets exactly this vLLM version; bumps are a deliberate, measured change
       - dependency-name: vllm
+      # vllm 0.30.0 requires setuptools<81 on Linux, so the Linux branch of uv.lock cannot take a newer one; Dependabot's uv
+      # updater then finds no file to change and the job fails on every run (docs/LAUNCH_CHECKLIST.md, flip record)
+      - dependency-name: setuptools
   - package-ecosystem: docker
     directory: /
     schedule:

@@ -96,13 +96,18 @@ What was applied, and what each setting read back as afterwards:
 | 2.8 label | `benchmark` created |
 
 Behaviour, from a scratch clone: a direct push to `main` is rejected ("Changes must be made through a pull request", "2 of 2 required status checks are expected"), a force-push is rejected, deleting `main` is refused, and deleting a `v*` tag is rejected ("Cannot delete this tag").
-The first scans: CodeQL ran on `main` for both languages with 0 results and 0 open code scanning alerts; Scorecard's first published score is 6.5; there are 0 secret scanning alerts and 1 open Dependabot alert (`setuptools` 80.10.2 in `uv.lock`, fixed in 83.0.0, medium).
+The first scans: CodeQL ran on `main` for both languages with 0 results and 0 open code scanning alerts; Scorecard's first published score is 6.5; there are 0 secret scanning alerts and 1 Dependabot alert (`setuptools` 80.10.2 in `uv.lock`, fixed in 83.0.0, medium), dismissed as not used (see below).
 The signed-commit rule was tested with two pull requests: one whose branch commit is signed with the maintainer's SSH key (accepted, squash commit verified by GitHub), and one whose branch commit is unsigned (this one); the result of the second is in the maintainer's notes, not here, because it can only be known after this merges.
 
 Things that went differently from the sections below, and are corrected there:
 - The DCO app reports on a pull request's `opened` and `synchronize` events, not on `reopened`: after installing it, push a commit to an open pull request to get the check.
 - A `v*` tag can be created under the tag ruleset (only deletion and updates are forbidden), so a probe tag cannot be removed afterwards without switching the ruleset off; do not use one as a test.
 - `RELEASE_PLEASE_APP_ID` must be the app's numeric ID, not its name.
+- GitHub's merge-state flag can say `BLOCKED` for a pull request whose every required check is green (seen on one pull request, whose branch commit was unsigned; the merge call was accepted and every rule evaluated `pass` in the rule-suite record).
+  Treat it as GitHub's merge-state lag: do not chase it, and read the rule-suite record (`gh api repos/aminry/decisio/rulesets/rule-suites`) if the result matters.
+- Dependabot's `uv` jobs failed on every run, scheduled and security, on one dependency, `setuptools` (error "No files have changed!" from `Dependabot::Uv::FileUpdater`, reproduced locally with the Dependabot CLI and the same updater image).
+  The cause is not this repository's configuration: vLLM 0.30.0 declares `setuptools<81.0.0,>=77.0.3`, vLLM is pinned exactly, so the Linux branch of `uv.lock` cannot take the fixed 83.0.0; `uv lock --upgrade-package setuptools` resolves 84.0.0 only for the non-Linux branch and keeps 80.10.2 for Linux, after which Dependabot's updater finds no file to change.
+  The alert (the advisory concerns building sdists with `MANIFEST.in` on macOS file systems, which the locked copy is not used for) is dismissed as "not used" with that note, and `setuptools` is ignored in `.github/dependabot.yml` so the weekly job stops failing; remove both when vLLM lifts its cap.
 
 ## 0. Before the repository goes public
 
