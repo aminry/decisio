@@ -109,6 +109,25 @@ Things that went differently from the sections below, and are corrected there:
   The cause is not this repository's configuration: vLLM 0.30.0 declares `setuptools<81.0.0,>=77.0.3`, vLLM is pinned exactly, so the Linux branch of `uv.lock` cannot take the fixed 83.0.0; `uv lock --upgrade-package setuptools` resolves 84.0.0 only for the non-Linux branch and keeps 80.10.2 for Linux, after which Dependabot's updater finds no file to change.
   The alert (the advisory concerns building sdists with `MANIFEST.in` on macOS file systems, which the locked copy is not used for) is dismissed as "not used" with that note, and `setuptools` is ignored in `.github/dependabot.yml` so the weekly job stops failing; remove both when vLLM lifts its cap.
 
+## Release record: 0.1.1 (2026-10-01)
+
+The first release with a PyPI package and a fully attested image. Release pull request #25 was merged at 07:00 UTC, which made the tag `v0.1.1` and its GitHub Release; two workflows ran on the tag.
+What was checked afterwards, independently of the workflows:
+
+| | Read back |
+| --- | --- |
+| `publish` run | build, build provenance and upload succeeded; the upload waited for the `pypi` environment's reviewer, who approved it |
+| PyPI | `decisio` 0.1.1 is the only release: the wheel (98,303 bytes, sha256 `7415df0c446a9d1101e2345bffb43f96ba06bee8ef28a4f164b1c553d6da636c`, identical to the downloaded file) and the sdist |
+| Install | in a clean Python 3.12 environment the wheel installs from PyPI as `decisio 0.1.1` (`__version__` 0.1.1, `Requires-Python >=3.12,<3.13`); a dry-run resolution of all its dependencies from PyPI succeeds |
+| Attestations on the wheel | `gh attestation verify` on the downloaded wheel passes (GitHub build provenance); PyPI's own PEP 740 record names the publisher GitHub, `aminry/decisio`, `publish.yml`, environment `pypi` |
+| `docker` run | build and push, attestation and the release-notes job succeeded (the run took 31 minutes; the free-disk step alone took 10 on that runner) |
+| Image | `ghcr.io/aminry/decisio@sha256:9bfb24af3b63a665b7f439e58b6f337d4d16dfd91698d87ed0f5a92ef0fc583b`, tag `0.1.1`; the digest is in the release notes; an anonymous request for it by digest and by tag returns 200 |
+| Attestations on the image | `gh attestation verify` passes for the build provenance and for the CycloneDX SBOM (`--predicate-type https://cyclonedx.org/bom`); the SBOM was 8,387,697 bytes against the 16 MiB limit, as measured before |
+
+The `0.1.1` image has not itself been started on a GPU.
+Its inputs differ from the `0.1.0` image's, which was started (gate 3.0, built on the machine and again from its pushed digest), only in the version strings in `pyproject.toml` and `__init__.py`.
+The `0.1.0` release has no PyPI upload and no SBOM attestation (see 3.4 and 3.5).
+
 ## 0. Before the repository goes public
 
 These are gates, not settings.
