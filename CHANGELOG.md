@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/aminry/decisio/compare/v0.1.1...v0.1.2) (2026-10-01)
+
+
+### Documentation
+
+* launch checklist records the 0.1.1 release and what was verified ([#29](https://github.com/aminry/decisio/issues/29)) ([23fc160](https://github.com/aminry/decisio/commit/23fc1601bbb7932eb3592faa1e22142d14664820))
+
 ## [0.1.1](https://github.com/aminry/decisio/compare/v0.1.0...v0.1.1) (2026-10-01)
 
 
