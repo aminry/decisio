@@ -23,6 +23,14 @@ Open the page, choose **Explore cities**, pick a drive, and switch the autopilot
 `?map=kitsilano&traffic=16&seed=42` picks the map, the traffic and the world seed.
 The benchmark (`/bench`) runs seeded scenarios with a chosen driver and saves a score.
 
+## Recording on a machine without a display GPU
+
+The 3D view needs a browser with hardware WebGL.
+A container with a compute GPU and no display has software WebGL only, where one frame takes about a second and the simulation crawls.
+`?norender=1` skips drawing the 3D view while the simulation, the minimap, the decision card and the inspector run at full speed, and `../tools/record_fsd.py --no-3d` records that.
+The clip then shows the decision panels and the latency, not the street.
+The benchmark page (`/bench`) never draws anything, so the measurement is unaffected.
+
 ## What a decision asks over
 
 The question sets are built in `static/js/brain/state.js`. The manoeuvre question offers the candidate speeds and lane moves the simulator generated for that tick, at most 16 (the validator in `jev/decide.py` allows 32); the motion question has two options and the route question one option per route. A server must accept the largest of these: Ollama's decision route takes 2 to 26 options, Winnow-12B up to 64, Cygnet's decision server, decider-4b and Decisio far more. `option_counts` in every response's `meta` records the options each question asked over.
