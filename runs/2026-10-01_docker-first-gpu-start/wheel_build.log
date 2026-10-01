@@ -1,0 +1,144 @@
+Building wheel...
+running egg_info
+creating src/decisio.egg-info
+writing src/decisio.egg-info/PKG-INFO
+writing dependency_links to src/decisio.egg-info/dependency_links.txt
+writing entry points to src/decisio.egg-info/entry_points.txt
+writing requirements to src/decisio.egg-info/requires.txt
+writing top-level names to src/decisio.egg-info/top_level.txt
+writing manifest file 'src/decisio.egg-info/SOURCES.txt'
+reading manifest file 'src/decisio.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+adding license file 'NOTICE'
+writing manifest file 'src/decisio.egg-info/SOURCES.txt'
+running bdist_wheel
+running build
+running build_py
+creating build/lib/decisio
+copying src/decisio/names.py -> build/lib/decisio
+copying src/decisio/__init__.py -> build/lib/decisio
+creating build/lib/decisio/serve
+copying src/decisio/serve/tasks.py -> build/lib/decisio/serve
+copying src/decisio/serve/make_text_only.py -> build/lib/decisio/serve
+copying src/decisio/serve/systemone_conformance.py -> build/lib/decisio/serve
+copying src/decisio/serve/abstention.py -> build/lib/decisio/serve
+copying src/decisio/serve/vllm_engine.py -> build/lib/decisio/serve
+copying src/decisio/serve/systemone.py -> build/lib/decisio/serve
+copying src/decisio/serve/hf_letters.py -> build/lib/decisio/serve
+copying src/decisio/serve/__init__.py -> build/lib/decisio/serve
+copying src/decisio/serve/client.py -> build/lib/decisio/serve
+copying src/decisio/serve/temperature.py -> build/lib/decisio/serve
+copying src/decisio/serve/hidden_engine.py -> build/lib/decisio/serve
+copying src/decisio/serve/image_engine.py -> build/lib/decisio/serve
+creating build/lib/decisio/readout
+copying src/decisio/readout/calibration.py -> build/lib/decisio/readout
+copying src/decisio/readout/intent_head.py -> build/lib/decisio/readout
+copying src/decisio/readout/__init__.py -> build/lib/decisio/readout
+copying src/decisio/readout/debias.py -> build/lib/decisio/readout
+copying src/decisio/readout/letters.py -> build/lib/decisio/readout
+creating build/lib/decisio/vllm_plugin
+copying src/decisio/vllm_plugin/weights.py -> build/lib/decisio/vllm_plugin
+copying src/decisio/vllm_plugin/__init__.py -> build/lib/decisio/vllm_plugin
+copying src/decisio/vllm_plugin/models.py -> build/lib/decisio/vllm_plugin
+copying src/decisio/vllm_plugin/hidden.py -> build/lib/decisio/vllm_plugin
+creating build/lib/decisio/bench
+copying src/decisio/bench/di_cal.py -> build/lib/decisio/bench
+copying src/decisio/bench/latency.py -> build/lib/decisio/bench
+copying src/decisio/bench/di_report.py -> build/lib/decisio/bench
+copying src/decisio/bench/__init__.py -> build/lib/decisio/bench
+copying src/decisio/bench/di_rows.py -> build/lib/decisio/bench
+copying src/decisio/bench/jevbench_v15.py -> build/lib/decisio/bench
+running egg_info
+writing src/decisio.egg-info/PKG-INFO
+writing dependency_links to src/decisio.egg-info/dependency_links.txt
+writing entry points to src/decisio.egg-info/entry_points.txt
+writing requirements to src/decisio.egg-info/requires.txt
+writing top-level names to src/decisio.egg-info/top_level.txt
+reading manifest file 'src/decisio.egg-info/SOURCES.txt'
+adding license file 'LICENSE'
+adding license file 'NOTICE'
+writing manifest file 'src/decisio.egg-info/SOURCES.txt'
+copying src/decisio/bench/banking77_labels.json -> build/lib/decisio/bench
+installing to build/bdist.linux-x86_64/wheel
+running install
+running install_lib
+creating build/bdist.linux-x86_64/wheel
+creating build/bdist.linux-x86_64/wheel/decisio
+creating build/bdist.linux-x86_64/wheel/decisio/serve
+copying build/lib/decisio/serve/tasks.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/make_text_only.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/systemone_conformance.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/abstention.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/vllm_engine.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/systemone.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/hf_letters.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/__init__.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/client.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/temperature.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/hidden_engine.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/serve/image_engine.py -> build/bdist.linux-x86_64/wheel/./decisio/serve
+copying build/lib/decisio/names.py -> build/bdist.linux-x86_64/wheel/./decisio
+creating build/bdist.linux-x86_64/wheel/decisio/readout
+copying build/lib/decisio/readout/calibration.py -> build/bdist.linux-x86_64/wheel/./decisio/readout
+copying build/lib/decisio/readout/intent_head.py -> build/bdist.linux-x86_64/wheel/./decisio/readout
+copying build/lib/decisio/readout/__init__.py -> build/bdist.linux-x86_64/wheel/./decisio/readout
+copying build/lib/decisio/readout/debias.py -> build/bdist.linux-x86_64/wheel/./decisio/readout
+copying build/lib/decisio/readout/letters.py -> build/bdist.linux-x86_64/wheel/./decisio/readout
+copying build/lib/decisio/__init__.py -> build/bdist.linux-x86_64/wheel/./decisio
+creating build/bdist.linux-x86_64/wheel/decisio/vllm_plugin
+copying build/lib/decisio/vllm_plugin/weights.py -> build/bdist.linux-x86_64/wheel/./decisio/vllm_plugin
+copying build/lib/decisio/vllm_plugin/__init__.py -> build/bdist.linux-x86_64/wheel/./decisio/vllm_plugin
+copying build/lib/decisio/vllm_plugin/models.py -> build/bdist.linux-x86_64/wheel/./decisio/vllm_plugin
+copying build/lib/decisio/vllm_plugin/hidden.py -> build/bdist.linux-x86_64/wheel/./decisio/vllm_plugin
+creating build/bdist.linux-x86_64/wheel/decisio/bench
+copying build/lib/decisio/bench/di_cal.py -> build/bdist.linux-x86_64/wheel/./decisio/bench
+copying build/lib/decisio/bench/latency.py -> build/bdist.linux-x86_64/wheel/./decisio/bench
+copying build/lib/decisio/bench/banking77_labels.json -> build/bdist.linux-x86_64/wheel/./decisio/bench
+copying build/lib/decisio/bench/di_report.py -> build/bdist.linux-x86_64/wheel/./decisio/bench
+copying build/lib/decisio/bench/__init__.py -> build/bdist.linux-x86_64/wheel/./decisio/bench
+copying build/lib/decisio/bench/di_rows.py -> build/bdist.linux-x86_64/wheel/./decisio/bench
+copying build/lib/decisio/bench/jevbench_v15.py -> build/bdist.linux-x86_64/wheel/./decisio/bench
+running install_egg_info
+Copying src/decisio.egg-info to build/bdist.linux-x86_64/wheel/./decisio-0.1.0-py3.12.egg-info
+running install_scripts
+creating build/bdist.linux-x86_64/wheel/decisio-0.1.0.dist-info/WHEEL
+creating '/root/decisio/dist/.tmp-psyf1jyu/decisio-0.1.0-py3-none-any.whl' and adding 'build/bdist.linux-x86_64/wheel' to it
+adding 'decisio/__init__.py'
+adding 'decisio/names.py'
+adding 'decisio/bench/__init__.py'
+adding 'decisio/bench/banking77_labels.json'
+adding 'decisio/bench/di_cal.py'
+adding 'decisio/bench/di_report.py'
+adding 'decisio/bench/di_rows.py'
+adding 'decisio/bench/jevbench_v15.py'
+adding 'decisio/bench/latency.py'
+adding 'decisio/readout/__init__.py'
+adding 'decisio/readout/calibration.py'
+adding 'decisio/readout/debias.py'
+adding 'decisio/readout/intent_head.py'
+adding 'decisio/readout/letters.py'
+adding 'decisio/serve/__init__.py'
+adding 'decisio/serve/abstention.py'
+adding 'decisio/serve/client.py'
+adding 'decisio/serve/hf_letters.py'
+adding 'decisio/serve/hidden_engine.py'
+adding 'decisio/serve/image_engine.py'
+adding 'decisio/serve/make_text_only.py'
+adding 'decisio/serve/systemone.py'
+adding 'decisio/serve/systemone_conformance.py'
+adding 'decisio/serve/tasks.py'
+adding 'decisio/serve/temperature.py'
+adding 'decisio/serve/vllm_engine.py'
+adding 'decisio/vllm_plugin/__init__.py'
+adding 'decisio/vllm_plugin/hidden.py'
+adding 'decisio/vllm_plugin/models.py'
+adding 'decisio/vllm_plugin/weights.py'
+adding 'decisio-0.1.0.dist-info/licenses/LICENSE'
+adding 'decisio-0.1.0.dist-info/licenses/NOTICE'
+adding 'decisio-0.1.0.dist-info/METADATA'
+adding 'decisio-0.1.0.dist-info/WHEEL'
+adding 'decisio-0.1.0.dist-info/entry_points.txt'
+adding 'decisio-0.1.0.dist-info/top_level.txt'
+adding 'decisio-0.1.0.dist-info/RECORD'
+removing build/bdist.linux-x86_64/wheel
+Successfully built dist/decisio-0.1.0-py3-none-any.whl
