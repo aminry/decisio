@@ -55,7 +55,7 @@ jobs:
       # a 16 GB hosted runner; it runs in the nightly job (.github/workflows/gpu.yml) and locally with -m slow.
       # The task-registration walk-through (tests/unit/test_tasks_walkthrough.py) starts servers on a small stand-in model.
       # It is fetched at this exact revision into a cache, and the test is pointed at the local copy, so a run neither
-      # downloads 1.1 GB nor follows a moving branch. Change the revision here when the stand-in changes.
+      # downloads 1.1 GB nor follows a moving branch (other tests fetch small configs from the Hub, so the run is not offline). Change the revision here when the stand-in changes.
       - name: Restore the stand-in model
         id: standin
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -70,8 +70,7 @@ jobs:
       - name: Unit tests (fast tier)
         env:
           DECISIO_STAND_IN_MODEL: ${{ runner.temp }}/decisio-standin/qwen3-0.6b-base
-          HF_HUB_OFFLINE: "1"
-        run: uv run pytest -q
+        run: uv run pytest -q --durations=10
 
       - name: Build the package
         run: uv build
