@@ -206,10 +206,18 @@ jobs:
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
         with:
           image: ${{ env.IMAGE }}@${{ needs.image.outputs.digest }}
-          format: spdx-json
-          output-file: sbom.spdx.json
+          # CycloneDX, not SPDX: the SPDX document of this 9 GB image is 49 MB and attest-sbom accepts 16 MiB (measured with
+          # syft on the 0.1.0 image: SPDX 49 MB, CycloneDX 8.4 MB)
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
           upload-artifact: false
           upload-release-assets: false
+
+      - name: The SBOM fits the attestation action's limit
+        run: |
+          size=$(wc -c < sbom.cdx.json)
+          echo "SBOM: ${size} bytes (limit 16777216)"
+          test "$size" -lt 16777216
 
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
@@ -221,7 +229,7 @@ jobs:
         with:
           subject-name: ${{ env.IMAGE }}
           subject-digest: ${{ needs.image.outputs.digest }}
-          sbom-path: sbom.spdx.json
+          sbom-path: sbom.cdx.json
           push-to-registry: true
 
   release-notes:
