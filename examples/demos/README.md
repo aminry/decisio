@@ -38,7 +38,7 @@ What is measured, per model and demo:
 
 Pong's lanes run at the same instant when their servers can be up together; on a single card they are recorded one model at a time with the same seed and merged onto one page by `compose_pong.py`.
 The client and the server run on the same machine, so the latency on screen and in the record is the server's, with a loopback round trip.
-Videos are recorded in headless Chrome driven by Playwright (`tools/demo_recorder.py`): a WebM, an MP4 with a caption strip under the picture (model, card, median latency) and a GIF under 3 MB.
+Videos are recorded in headless Chrome driven by Playwright (the driving demo's 3D view needs a browser with hardware WebGL, so on a compute-only card its clip shows the decision panels without the street; `fsd/README.md`) (`tools/demo_recorder.py`): a WebM, an MP4 with a caption strip under the picture (model, card, median latency) and a GIF under 3 MB.
 Every manifest says which card ran the server.
 A number taken on a CPU stand-in or on the Ollama listing is a check that the demo runs, not a measurement of the model, and is labelled so.
 
