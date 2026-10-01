@@ -38,7 +38,7 @@ Section 4 is the rehearsal: it is run straight after each step.
 | --- | --- | --- | --- |
 | 1 | Flip the visibility | API | the owner's decision, the last thing before section 2 |
 | 2.0 | The maintainer's commit signing (SSH key, git config, GitHub signing key) | local, then CLICK or API | before 2.4 |
-| 2.1 | Squash-only merges, branch cleanup, web sign-off | API | |
+| 2.1 | Squash-only merges, branch cleanup, web sign-off | API | applied 2026-10-01, while private |
 | 2.2 | Actions: allowed actions, SHA pinning, fork approval, read-only token | API | |
 | 2.3 | DCO GitHub App | CLICK | before the ruleset, or the required check never reports |
 | 2.4 | Rulesets on `main` and on release tags | API | needs 2.3 |
@@ -167,6 +167,22 @@ JSON
 ```
 
 Settings page: Settings, General, Pull Requests and Features.
+
+**Applied on 2026-10-01, while the repository was private** (merge settings are available on a private repository on the free plan, and they stop merge commits from landing by default).
+Read back with a fresh `GET` afterwards; the seven fields that changed:
+
+| Field | Before | After |
+| --- | --- | --- |
+| `allow_merge_commit` | true | false |
+| `allow_rebase_merge` | true | false |
+| `allow_update_branch` | false | true |
+| `delete_branch_on_merge` | false | true |
+| `squash_merge_commit_title` | `COMMIT_OR_PR_TITLE` | `PR_TITLE` |
+| `web_commit_signoff_required` | false | true |
+| `has_projects` | true | false |
+
+Already as specified and unchanged: `allow_squash_merge` true, `allow_auto_merge` false, `squash_merge_commit_message` `COMMIT_MESSAGES`, `has_wiki` false, `has_discussions` false.
+The pull requests merged before this date (#1, #2, #4, #5, #8, #9) were merged with merge commits; the history of `main` was rebuilt once for the first four and #8 and #9 stay as merged.
 
 ### 2.2 Actions policy [API]
 
