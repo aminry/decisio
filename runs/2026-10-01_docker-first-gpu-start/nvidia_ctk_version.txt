@@ -1,0 +1,2 @@
+NVIDIA Container Toolkit CLI version 1.18.0
+commit: f8daa5e26de9fd7eb79259040b6dd5a52060048c

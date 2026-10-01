@@ -1,0 +1,1 @@
+generator: PR #18 (branch conformance-items); source hashes printed by the generator on the Mac: BoolQ validation b31a036923c8947a2c31f4e42e46d5983c7e8fce174429a399ef9be9ac6f920b, BANKING77 test d12d6e3bc4c3103966ae786dc435913c0c563dfa328f5a3646d0e62cfeeb474d
