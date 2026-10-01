@@ -16,12 +16,14 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 from demo_recorder import record, to_gif, to_mp4
 from demo_run import card_name
+from stats import git_state, write_files_json
 from measure_pong import PONG, serve_replay
 
 
@@ -85,6 +87,30 @@ def main() -> None:
         (PONG / "public" / "replay.json").unlink(missing_ok=True)
     to_mp4(webm, out / f"{a.name}.mp4", caption)
     gif = to_gif(webm, out / f"{a.name}.gif", caption, start_s=1.0)
+    manifest = {
+        "id": out.parent.name,
+        "title": "Pong lanes recorded one model at a time, composed on one page",
+        "date": time.strftime("%Y-%m-%d"),
+        "submitted": False,
+        "typesafe_api_calls": 0,
+        "demo": "pong",
+        "hardware": card,
+        "code": git_state(Path(__file__).resolve().parents[3]),
+        "command": " ".join(sys.argv),
+        "seed": merged["seed"],
+        "sources": a.replay,
+        "lanes": [
+            {"id": lane["model"], "label": lane["label"], "median_latency_ms": ms}
+            for lane, (_label, ms) in zip(merged["lanes"], lane_medians(merged))
+        ],
+        "caption": caption,
+        "files": {
+            f"{a.name}_replay.json": "the merged replay the page played",
+            f"{a.name}.webm, {a.name}.mp4, {a.name}.gif": "the recording, with the caption strip on the MP4 and the GIF",
+        },
+    }
+    (out / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    write_files_json(out)
     print(webm, gif, gif.stat().st_size, caption)
 
 
