@@ -106,7 +106,7 @@ def main() -> None:
         "caption": caption,
         "files": {
             f"{a.name}_replay.json": "the merged replay the page played",
-            f"{a.name}.webm, {a.name}.mp4, {a.name}.gif": "the recording, with the caption strip on the MP4 and the GIF",
+            f"{a.name}.webm, {a.name}.mp4, {a.name}.gif": "the recording (a caption strip on the MP4 and the GIF)",
         },
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")

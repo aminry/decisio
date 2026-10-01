@@ -124,11 +124,18 @@ def caption_strip(text: str, width: int, path: str | Path) -> Path:
     """A PNG `width` x STRIP_H with `text` on a dark ground, to stack under the video."""
     from PIL import Image, ImageDraw, ImageFont
 
-    font = ImageFont.load_default(size=18)
-    for candidate in FONTS:
-        if Path(candidate).exists():
-            font = ImageFont.truetype(candidate, 18)
-            break
+    def font_at(size):
+        for candidate in FONTS:
+            if Path(candidate).exists():
+                return ImageFont.truetype(candidate, size)
+        return ImageFont.load_default(size=size)
+
+    # the largest size, down to 11 px, at which the caption fits the picture's width
+    size = 18
+    font = font_at(size)
+    while size > 11 and font.getlength(text) > width - 32:
+        size -= 1
+        font = font_at(size)
     image = Image.new("RGB", (width, STRIP_H), (10, 11, 15))
     draw = ImageDraw.Draw(image)
     draw.line([(0, 0), (width, 0)], fill=(42, 45, 54))
