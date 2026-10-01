@@ -1,0 +1,29 @@
+{
+ "state": "Hi, since this morning none of our 40 staff can log in to the dashboard. We get \"session expired\" right after entering the password. Payroll is due today.",
+ "questions": {
+  "urgent": {
+   "type": "noul",
+   "instructions": "Does this ticket need a response within the hour?"
+  },
+  "category": {
+   "type": "choice",
+   "instructions": "Which team should handle this ticket?",
+   "criteria": {
+    "billing": "Invoices, payments, refunds",
+    "access": "Login, passwords, permissions",
+    "bug": "The product behaves wrongly",
+    "other": null
+   }
+  },
+  "impact": {
+   "type": "score",
+   "instructions": "Rate the business impact using only the reported facts.",
+   "criteria": [
+    "No function impaired",
+    "One user impaired, with a workaround",
+    "Many users blocked from a core function",
+    "Data loss or legal exposure"
+   ]
+  }
+ }
+}
