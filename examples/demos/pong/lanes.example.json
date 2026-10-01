@@ -1,0 +1,7 @@
+[
+  { "id": "sys1", "label": "Decisio", "provider": "Decisio server", "kind": "systemone", "color": "#FF5416", "baseUrl": "http://127.0.0.1:8100" },
+  { "id": "cmpa", "label": "Cygnet", "provider": "Cygnet recipe server", "kind": "systemone", "baseUrl": "http://127.0.0.1:8010" },
+  { "id": "cmpb", "label": "decider-4b v2", "provider": "decider server", "kind": "systemone", "baseUrl": "http://127.0.0.1:8000" },
+  { "id": "chat", "label": "Qwen3 0.6B (chat)", "provider": "local text model", "kind": "chat", "baseUrl": "http://127.0.0.1:8200/v1", "model": "Qwen/Qwen3-0.6B",
+    "extraBody": { "chat_template_kwargs": { "enable_thinking": false } } }
+]
