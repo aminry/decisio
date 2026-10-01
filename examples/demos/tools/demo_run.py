@@ -17,10 +17,9 @@ import time
 import urllib.request
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(REPO / "examples" / "games"))
+from stats import bootstrap, git_state, latency_summary, write_files_json
 
-from gamelib.metrics import bootstrap, git_state, latency_summary, write_files_json  # noqa: E402
+REPO = Path(__file__).resolve().parents[3]
 
 __all__ = ["bootstrap", "latency_summary", "DemoRun", "server_health", "card_name", "caption_for", "interval_text"]
 

@@ -58,3 +58,14 @@ A model can serve a demo only if its option limit covers the largest question th
 
 The limits come from each model's published serving path and are checked on the card before a run; a model that fails the check is excluded from that demo, not tuned.
 Jev-Omni and Nimble publish an in-process library only, so a thin System One server in front of the library is needed to run the clients against them.
+
+## What one pass cannot do
+
+A decision here is one forward pass over the state and one choice among the listed options: the model reads, it does not search, and it does not look ahead.
+That suits the demos above, where the state already shows what the next step needs and the options are a short list.
+It does not suit a task whose answer comes from searching or planning.
+In private tests on two small games, a maze chase against two chasers (100 seeded mazes) and Hangman (200 held-out words), Decisio won 0% of the mazes from the grid alone and 13.0% [7.0, 20.0] when the state also listed the next two cells and the distances; decider-4b v2 won 0% and 9.0% [4.0, 15.0]; a breadth-first-search player won 63.0% [53.0, 72.0].
+In Hangman, which is won by searching a dictionary for the letter that splits the remaining words best, Decisio won 13.0% [8.5, 18.0] of the words and decider-4b v2 2.5% [0.5, 5.0], against 91.5% [87.5, 95.0] for an entropy solver.
+Registering labelled examples through `POST /v1/tasks` moved the letter probabilities toward the solver's but did not raise the win rate beyond its interval (-4.5 points [-10.0, +1.0] and +1.5 [-2.5, +5.5] in the two Hangman states).
+A decision model is a fast, calibrated chooser for closed questions; a search or a plan belongs in code around it.
+
