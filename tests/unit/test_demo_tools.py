@@ -125,3 +125,17 @@ def test_d5_agent_summary_counts_options_and_completion():
     assert s["completed"] == 1 and s["runs"] == 2 and s["largest_option_set"] == 9
     assert s["options_per_question"]["operation"] == {"max": 7, "mean": 6.0}
     assert s["completion_ms"]["est"] == 1000 and s["latency_ms"]["p50"] == 100
+
+
+def test_d6_replays_recorded_one_model_at_a_time_merge_into_lanes():
+    import compose_pong
+
+    a = {"seed": 1, "lanes": [{"model": "sys1", "label": "A", "snapshots": [{"t": 0, "latencyMs": 50}]}]}
+    b = {"seed": 1, "lanes": [{"model": "cmp", "label": "B", "snapshots": [{"t": 0, "latencyMs": 90}]}]}
+    merged = compose_pong.merge_replays([a, b])
+    assert [lane["model"] for lane in merged["lanes"]] == ["sys1", "cmp"]
+    assert compose_pong.lane_medians(merged) == [("A", 50.0), ("B", 90.0)]
+    with pytest.raises(ValueError, match="share a seed"):
+        compose_pong.merge_replays([a, {**b, "seed": 2}])
+    with pytest.raises(ValueError, match="two recordings"):
+        compose_pong.merge_replays([a, a])

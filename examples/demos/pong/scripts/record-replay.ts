@@ -14,7 +14,9 @@ import { recordLanes } from '../lib/record/record-lanes';
 
 const DURATION_MS = Number(process.env.RECORD_MS ?? 45_000);
 const SEED = Number(process.env.SEED ?? 20260917);
-const ONLY = process.env.LANES?.split(',').map((s) => s.trim()) as ModelId[] | undefined;
+const ONLY: ModelId[] | undefined = process.env.LANES?.trim()
+  ? process.env.LANES.split(',').map((s) => s.trim())
+  : undefined;
 
 async function main() {
   const { replay, stats } = await recordLanes({
