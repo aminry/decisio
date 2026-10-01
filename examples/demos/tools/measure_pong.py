@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import subprocess
 import time
 from pathlib import Path
@@ -63,7 +64,16 @@ def serve_replay(replay_path: Path, port: int):
         cwd=PONG,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.STDOUT,
+        start_new_session=True,  # pnpm starts the server as a child; stop_server ends the whole group
     )
+
+
+def stop_server(proc) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    proc.wait(timeout=15)
 
 
 def main() -> None:
