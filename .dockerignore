@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# The build context is the wheel, the patch series and the entry point, and nothing else: no history, no runs, no
+# local environment, no secrets that happen to sit in the working tree.
+*
+!dist/decisio-*.whl
+!patches/
+!docker/entrypoint.sh
+!docker/pin_installed.py
+!docker/check_requirements.py
+!docker/constraints.txt

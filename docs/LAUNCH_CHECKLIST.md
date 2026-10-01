@@ -50,6 +50,7 @@ Section 4 is the rehearsal: it is run straight after each step.
 | 3.2 | The `pypi` environment with a required reviewer | API | |
 | 3.3 | The publish workflow | pull request | added after 3.2 |
 | 3.4 | First release | CLICK (approval) | |
+| 3.5 | The container image on ghcr.io | CLICK (package visibility) | built by `docker.yml` on the release tag |
 
 ## Decisions taken (2026-09-30)
 
@@ -185,7 +186,11 @@ gh api -X PUT repos/aminry/decisio/actions/permissions/selected-actions --input 
     "googleapis/release-please-action@*",
     "ossf/scorecard-action@*",
     "step-security/harden-runner@*",
-    "pypa/gh-action-pypi-publish@*"
+    "pypa/gh-action-pypi-publish@*",
+    "docker/setup-buildx-action@*",
+    "docker/build-push-action@*",
+    "docker/login-action@*",
+    "anchore/sbom-action@*"
   ]
 }
 JSON
@@ -528,6 +533,29 @@ Lint it with `actionlint` before opening the pull request.
 3. [CLICK] The `publish` job waits for approval: Actions, the run, "Review deployments", tick `pypi`, Approve and deploy.
 4. Check the release (section 4).
 
+### 3.5 The container image on ghcr.io [CLICK]
+
+`.github/workflows/docker.yml` builds the image on every release tag (`v0.1.0` and so on), pushes it to `ghcr.io/aminry/decisio:<version>`, attests build provenance and an SBOM, and writes the image digest into the release notes.
+On pull requests it only builds (for linux/amd64, nothing pushed).
+Its release jobs are skipped while the repository is private, so the first image is made by the first release tag after the flip.
+It needs nothing beyond 2.2's allowed actions (the Docker and Anchore ones are listed there) and the workflow's own `GITHUB_TOKEN`; there is no registry secret.
+
+1. The first push creates the package as private, linked to the repository through the `org.opencontainers.image.source` label.
+   [CLICK] Make it public: <https://github.com/users/aminry/packages/container/decisio/settings>, Danger Zone, Change visibility, Public.
+   GitHub has no API for changing a package's visibility.
+2. Check that the repository has write access to the package (Package settings, Manage Actions access); a package created by the workflow gets it automatically.
+3. Verify the release: pull by digest from the release notes, then verify the attestations.
+
+```
+docker pull ghcr.io/aminry/decisio@sha256:<digest in the release notes>
+gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio
+gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio --predicate-type https://spdx.dev/Document/v2.3
+```
+
+The base image is pinned by digest in the `Dockerfile`; Dependabot refreshes the digest of the pinned tag and never moves the tag.
+The image has not been run on a GPU: it was built for linux/amd64 and started far enough to fail cleanly without one (pull request for the Dockerfile).
+The first GPU start on the measured card (a 96 GB RTX PRO 6000) is the check that remains.
+
 ## 4. Verify
 
 Run after each step; the expected value is in the comment.
@@ -594,7 +622,7 @@ And in the browser:
 
 ## 6. Not covered here
 
-- The container image: the repository has no Dockerfile yet; its build, attestation and push by digest belong with the Dockerfile.
+- The image has been built and its start-up checked without a GPU only; a GPU start, and the measured numbers through the container, are not part of this checklist.
 - A merge queue: it is available only to repositories owned by an organisation; `ci.yml` already runs on `merge_group`, so moving the repository to an organisation needs no workflow change.
 - OpenSSF Scorecard starts running on its own once the repository is public (`scorecard.yml` skips while it is private); check its first result on the Actions tab.
 - Second maintainer: when there is one, turn on one required approval and required code owner review in the main ruleset, and review `GOVERNANCE.md`.

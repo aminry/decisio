@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# Versions for the packages the decisio wheel adds to the vLLM image (everything else it needs is already there and is
+# held at the image's versions by pin_installed.py). Keep in step with uv.lock.
+scipy==1.18.1

@@ -17,3 +17,16 @@ updates:
     ignore:
       # the plugin targets exactly this vLLM version; bumps are a deliberate, measured change
       - dependency-name: vllm
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(docker)"
+    ignore:
+      # a vLLM tag bump is a measured change (the plugin targets exactly 0.30.0); only the digest of the pinned tag moves
+      - dependency-name: vllm/vllm-openai
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+          - version-update:semver-patch
