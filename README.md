@@ -92,7 +92,7 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 The first start downloads the checkpoint (about 36 GB) into the `decisio-data` volume; it is never part of the image.
 The container runs as a non-root user, compose publishes the port on 127.0.0.1 only, and `Dockerfile` and `compose.yaml` explain the rest.
 Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes.
-First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume; the example request below and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start`).
+First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume; the example request below and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start`); the image published with v0.1.0 repeated the start from its digest (healthy in 223 s with the checkpoint cached, example and conformance pass, `pushed_image_0.1.0` in that run).
 
 ## Without a GPU
 
