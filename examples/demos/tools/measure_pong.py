@@ -171,7 +171,7 @@ def main() -> None:
                 channel=a.channel or None,
             )
         finally:
-            server.terminate()
+            stop_server(server)
             (PONG / "public" / "replay.json").unlink(missing_ok=True)
         lead = next(iter(summary.values()))
         p50 = lead["latency_ms"].get("p50")

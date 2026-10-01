@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 from demo_recorder import record, to_gif, to_mp4
 from demo_run import card_name
-from measure_pong import PONG, serve_replay
+from measure_pong import PONG, serve_replay, stop_server
 from stats import git_state, write_files_json
 
 
@@ -83,7 +83,7 @@ def main() -> None:
             channel=a.channel or None,
         )
     finally:
-        server.terminate()
+        stop_server(server)
         (PONG / "public" / "replay.json").unlink(missing_ok=True)
     to_mp4(webm, out / f"{a.name}.mp4", caption)
     gif = to_gif(webm, out / f"{a.name}.gif", caption, start_s=1.0)
