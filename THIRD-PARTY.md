@@ -4,7 +4,7 @@
 # Third-party material
 
 decisio is Apache-2.0.
-It bundles no third-party code; it runs on, patches, or references the following.
+It bundles no third-party code except the three demo clients under `examples/demos/` (their rows are below, each with its own licence file and `ATTRIBUTION.md`); it runs on, patches, or references the rest.
 
 | What | How decisio uses it | Licence | Source |
 | --- | --- | --- | --- |
@@ -21,3 +21,8 @@ It bundles no third-party code; it runs on, patches, or references the following
 | Fitted intent heads and calibration priors | Derived parameters kept as records (`runs/2026-09-30_plugin-verification/intent_heads/*_task.json.gz`, `latency_tasks.json.gz`; `runs/2026-09-29_tasks-endpoint/intent_heads/*_task.json.gz`, `latency_tasks.json.gz`, `di_registered_tasks.json.gz`): linear heads and per-option biases fitted on the served model's readouts of 10 labelled training examples per intent; no example text | CC-BY-4.0 (BANKING77), CC-BY-3.0 (CLINC150), as the data they were fitted on | PolyAI; github.com/clinc/oos-eval |
 | ImajevBench v2.0-lite | The image route's benchmark in `runs/2026-09-27_image-input`; the records hold item ids, our distributions and scores, not the items | CC BY 4.0 (items), CC0 (images) | github.com/mohit67890/imajev-bench |
 | MMLU-Pro, GPQA Diamond, BANKING77, CLINC150+OOS | The Decision Index benchmarks in `runs/`; the records hold item ids, our answers and scores, never item text | MIT, CC-BY-4.0, CC-BY-4.0, CC-BY-3.0 | TIGER-Lab/MMLU-Pro; idavidrein/gpqa; as above |
+| jev_fsd | The driving demo, vendored and changed to call a System One server (`examples/demos/fsd`, commit bbc9012) | MIT | github.com/BrendanH18/jev_fsd |
+| jev-ultrafast | The browser-agent demo, vendored and changed to call a System One server (`examples/demos/ultrafast`, commit 1231850) | MIT | github.com/browser-use/jev-ultrafast |
+| jev-pong | The Pong lanes demo, vendored in reduced form and changed to call System One and chat servers (`examples/demos/pong`, commit d28d6ae) | Apache-2.0 | github.com/ably-labs/jev-pong |
+| Three.js | Bundled by the driving demo (`examples/demos/fsd/static/vendor/three`) | MIT | threejs.org |
+| OpenStreetMap map packs | The driving demo's streets (`examples/demos/fsd/data/maps`), derived from OpenStreetMap | ODbL 1.0 | openstreetmap.org/copyright |
