@@ -69,6 +69,8 @@ Response, abridged (the values the first GPU start returned, rounded):
   "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.01, "2": 0.96, "3": 0.02}}}}
 ```
 
+Your probabilities will differ, here by up to 0.08: the three questions of one request are scored in one batch, and on this stack a question's probabilities move with what else is in its batch and with what the server answered before (a fresh clone's first start gave `access` 0.87, `runs/2026-10-01_quickstart-public`; `EVAL_CARD.md` section 4). The choices do not change.
+
 ## Teach it your question in ten examples
 
 The model is frozen, but the server can learn one recurring question from your own labelled examples: it fits a per-task calibration and, for 10 or more options, a small head on the model's hidden state, each kept only if cross-validation on your examples shows a gain.
