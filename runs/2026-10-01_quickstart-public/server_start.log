@@ -1,0 +1,8 @@
+INFO 10-01 05:17:34 [model.py:692] Resolved architecture: DecisioQwen3_5MoeHiddenReadout
+(EngineCore pid=41366) INFO 10-01 05:23:35 [default_loader.py:430] Loading weights took 17.23 seconds
+(EngineCore pid=41366) INFO 10-01 05:23:35 [model_runner.py:428] Model loading took 33.31 GiB memory and 352.869077 seconds
+(EngineCore pid=41366) INFO 10-01 05:26:30 [gpu_worker.py:655] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.9000 is equivalent to --gpu-memory-utilization=0.8719 without CUDA graph memory profiling. To maintain the same effective KV cache size as before, increase --gpu-memory-utilization to 0.9281. To disable, set VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS=0.
+(EngineCore pid=41366) INFO 10-01 05:26:30 [kv_cache_utils.py:2395] GPU KV cache size: 2,010,058 tokens, Maximum concurrency for 32,768 tokens per request: 61.34x
+(EngineCore pid=41366) INFO 10-01 05:27:58 [core.py:372] init engine (profile, create kv cache, warmup model) took 263.38 s (compilation: 19.69 s)
+ENGINE {"vllm": "0.30.0", "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition", "mode": "separate", "block_size": 1056, "match_unit": 1056, "pad_unit": 1056, "pad_where": "front", "quantization": "fp8", "kv_cache_dtype": "auto", "mamba_ssm_cache_dtype": "float32", "adapters": [], "VLLM_USE_DEEP_GEMM": "0"}
+HEAD ENGINE {"mode": "hidden (serving engine, reserved logit columns)", "reserved_ids": [100000, 102048], "lm_head": [248320, 2048], "requests_per_question": 3}

@@ -1,0 +1,6 @@
+task 'ticket-routing': 120 examples, 12 options, at least 10 per option, registered in 15 s
+  calibration: not applied (cross-validation on the labelled examples does not show a clear gain); cross-validated log loss 0.06184 -> 0.05908, accuracy 0.9833 -> 0.9917
+  head: applied (cross-validated gain); penalty 0.0001; cross-validated log loss by penalty {"none": 0.06184, "100.0": 0.06178, "10.0": 0.06118, "1.0": 0.05647, "0.1": 0.04117, "0.01": 0.02461, "0.001": 0.01454, "0.0001": 0.01089}
+held-out tickets: 48; matched task: ticket-routing
+accuracy before 1.000, after 1.000; difference +0.0 points, 95% interval [+0.0, +0.0]
+changed answers: 0 of 48 (0 fixed, 0 broken)
