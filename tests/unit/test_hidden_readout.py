@@ -151,6 +151,7 @@ class EmulatedEngine:
         return outs
 
 
+@pytest.mark.slow
 def test_h3_exact_arithmetic_on_the_stored_readouts(monkeypatch):
     import torch
 

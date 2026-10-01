@@ -165,6 +165,7 @@ def second_engine_readout(H, W):
 
 
 @pytest.mark.parametrize("task", ["banking77", "clinc150"])
+@pytest.mark.slow
 def test_m3_both_modes_declare_the_same_choice(monkeypatch, task):
     from decisio.readout import intent_head
     from decisio.serve.systemone import top_index

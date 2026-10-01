@@ -33,7 +33,7 @@ uv run pytest
 ```
 
 The unit tests, the lint and the patch checks run on any machine without a GPU.
-`pytest` runs the fast tier; `pytest -m slow` runs the tests that load small models on the CPU, which take about three minutes and peak at about 20 GB of RAM.
+`pytest` runs the fast tier, which includes a short smoke of the task-registration walk-through on a small stand-in model; `pytest -m slow` runs the tests that load small models on the CPU at length (among them the full walk-through and the two head-mode tests on the stored intent readouts), which take a few minutes and peak at about 20 GB of RAM.
 Pull request CI runs the fast tier; the slow tier runs nightly and on demand.
 `uv.lock` is authoritative; do not upgrade a dependency in a pull request that does anything else.
 
