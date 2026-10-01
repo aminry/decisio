@@ -1,0 +1,152 @@
+[
+    {
+        "Id": "sha256:3502ca48d21c368f9ffaf2d2f003683cd1fddba418a1c500d7d3dfd725e7cd87",
+        "RepoTags": [
+            "decisio:local"
+        ],
+        "RepoDigests": [
+            "decisio@sha256:3502ca48d21c368f9ffaf2d2f003683cd1fddba418a1c500d7d3dfd725e7cd87"
+        ],
+        "Comment": "buildkit.dockerfile.v0",
+        "Created": "2026-10-01T04:13:08.021489897Z",
+        "Config": {
+            "User": "decisio",
+            "ExposedPorts": {
+                "8000/tcp": {}
+            },
+            "Env": [
+                "PATH=/usr/local/cuda/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NVARCH=x86_64",
+                "NVIDIA_REQUIRE_CUDA=cuda>=13.0 brand=unknown,driver>=535,driver<536 brand=grid,driver>=535,driver<536 brand=tesla,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=vapps,driver>=535,driver<536 brand=vpc,driver>=535,driver<536 brand=vcs,driver>=535,driver<536 brand=vws,driver>=535,driver<536 brand=cloudgaming,driver>=535,driver<536 brand=unknown,driver>=550,driver<551 brand=grid,driver>=550,driver<551 brand=tesla,driver>=550,driver<551 brand=nvidia,driver>=550,driver<551 brand=quadro,driver>=550,driver<551 brand=quadrortx,driver>=550,driver<551 brand=nvidiartx,driver>=550,driver<551 brand=vapps,driver>=550,driver<551 brand=vpc,driver>=550,driver<551 brand=vcs,driver>=550,driver<551 brand=vws,driver>=550,driver<551 brand=cloudgaming,driver>=550,driver<551 brand=unknown,driver>=565,driver<566 brand=grid,driver>=565,driver<566 brand=tesla,driver>=565,driver<566 brand=nvidia,driver>=565,driver<566 brand=quadro,driver>=565,driver<566 brand=quadrortx,driver>=565,driver<566 brand=nvidiartx,driver>=565,driver<566 brand=vapps,driver>=565,driver<566 brand=vpc,driver>=565,driver<566 brand=vcs,driver>=565,driver<566 brand=vws,driver>=565,driver<566 brand=cloudgaming,driver>=565,driver<566 brand=unknown,driver>=570,driver<571 brand=grid,driver>=570,driver<571 brand=tesla,driver>=570,driver<571 brand=nvidia,driver>=570,driver<571 brand=quadro,driver>=570,driver<571 brand=quadrortx,driver>=570,driver<571 brand=nvidiartx,driver>=570,driver<571 brand=vapps,driver>=570,driver<571 brand=vpc,driver>=570,driver<571 brand=vcs,driver>=570,driver<571 brand=vws,driver>=570,driver<571 brand=cloudgaming,driver>=570,driver<571 brand=unknown,driver>=575,driver<576 brand=grid,driver>=575,driver<576 brand=tesla,driver>=575,driver<576 brand=nvidia,driver>=575,driver<576 brand=quadro,driver>=575,driver<576 brand=quadrortx,driver>=575,driver<576 brand=nvidiartx,driver>=575,driver<576 brand=vapps,driver>=575,driver<576 brand=vpc,driver>=575,driver<576 brand=vcs,driver>=575,driver<576 brand=vws,driver>=575,driver<576 brand=cloudgaming,driver>=575,driver<576",
+                "NV_CUDA_CUDART_VERSION=13.0.96-1",
+                "CUDA_VERSION=13.0.2",
+                "LD_LIBRARY_PATH=/usr/local/nvidia/lib64:/usr/local/cuda/lib64:/usr/local/cuda/lib64:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/local/cuda/lib64",
+                "NVIDIA_VISIBLE_DEVICES=all",
+                "NVIDIA_DRIVER_CAPABILITIES=compute,utility",
+                "DEBIAN_FRONTEND=noninteractive",
+                "CUDA_HOME=/usr/local/cuda",
+                "UV_HTTP_TIMEOUT=500",
+                "UV_INDEX_STRATEGY=unsafe-best-match",
+                "UV_LINK_MODE=copy",
+                "UV_PYTHON_INSTALL_DIR=/opt/uv/python",
+                "UV_CACHE_DIR=/opt/uv/cache",
+                "UV_OVERRIDE=/etc/uv-overrides.txt",
+                "VLLM_ENABLE_CUDA_COMPATIBILITY=0",
+                "TORCH_CUDA_ARCH_LIST=7.5 8.0 8.6 8.9 9.0 10.0 12.0",
+                "VLLM_USAGE_SOURCE=production-docker-image",
+                "VLLM_BUILD_COMMIT=ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+                "VLLM_BUILD_PIPELINE=019d130e-464e-4ff7-b84b-492992c0c06b",
+                "VLLM_BUILD_URL=https://buildkite.com/vllm/release-v2/builds/7022",
+                "VLLM_IMAGE_TAG=vllm/vllm-openai:v0.30.0",
+                "HOME=/data",
+                "HF_HOME=/data/hf",
+                "XDG_CACHE_HOME=/data/cache",
+                "VLLM_CACHE_ROOT=/data/cache/vllm",
+                "VLLM_USE_DEEP_GEMM=0",
+                "VLLM_NO_USAGE_STATS=1",
+                "DO_NOT_TRACK=1",
+                "DECISIO_MODEL=Qwen/Qwen3.6-35B-A3B-FP8",
+                "DECISIO_PORT=8000"
+            ],
+            "Entrypoint": [
+                "/usr/local/bin/decisio-entrypoint"
+            ],
+            "Volumes": {
+                "/data": {}
+            },
+            "WorkingDir": "/data",
+            "Labels": {
+                "ai.vllm.build.commit": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+                "ai.vllm.build.pipeline": "019d130e-464e-4ff7-b84b-492992c0c06b",
+                "ai.vllm.build.url": "https://buildkite.com/vllm/release-v2/builds/7022",
+                "ai.vllm.image.tag": "vllm/vllm-openai:v0.30.0",
+                "com.docker.compose.project": "decisio",
+                "com.docker.compose.service": "decisio",
+                "com.docker.compose.version": "2.40.3",
+                "maintainer": "NVIDIA CORPORATION <cudatools@nvidia.com>",
+                "org.opencontainers.image.description": "A prefill-only decision server on vLLM: typed questions about a state, a probability distribution per question",
+                "org.opencontainers.image.licenses": "Apache-2.0",
+                "org.opencontainers.image.ref.name": "ubuntu",
+                "org.opencontainers.image.revision": "ced6857afa0ea7b2e3f0846a62e1394e90f15607",
+                "org.opencontainers.image.source": "https://github.com/aminry/decisio",
+                "org.opencontainers.image.title": "decisio",
+                "org.opencontainers.image.url": "https://buildkite.com/vllm/release-v2/builds/7022",
+                "org.opencontainers.image.version": "vllm/vllm-openai:v0.30.0"
+            },
+            "Healthcheck": {
+                "Test": [
+                    "CMD",
+                    "python3",
+                    "-c",
+                    "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['DECISIO_PORT'], timeout=5)"
+                ],
+                "Interval": 30000000000,
+                "Timeout": 10000000000,
+                "StartPeriod": 2700000000000,
+                "Retries": 3
+            }
+        },
+        "Architecture": "amd64",
+        "Os": "linux",
+        "Size": 8767196136,
+        "RootFS": {
+            "Type": "layers",
+            "Layers": [
+                "sha256:073ec47a8c22dcaa4d6e5758799ccefe2f9bde943685830b1bf6fd2395f5eabc",
+                "sha256:18241330a2d180465d0b9868e4978456293d37da715de2f313ba08862da2aab1",
+                "sha256:b5c4de646bbad7dd50f917376023047d99ff9a1e806943dd86799e933b6a6294",
+                "sha256:dab2da33fe40a74d9faf939b829b701aa6cfc6b4502ff68fcf716fd2973697ac",
+                "sha256:b7ec8fd7c485bbedbe64cbc5a7a810ceabb9156e95c83ba60596ddb9b4955d48",
+                "sha256:71d7d2888634e673c4117cb08190c8d0472cc0f1ebfe85a2e7ce72604260367d",
+                "sha256:231ec203d497220f93ab647176948ff7dbec57b4768ded1abbc440f4539c8ca9",
+                "sha256:5a56fe7a5ff3e2896f2a80246cfa572bccd93aec1ef68f20b0cdf6cf2fa1dd05",
+                "sha256:4db05c0f6741f29459eda0789ee9f7f6eb5be29f063d3bf284f1372bd3fd1b8d",
+                "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+                "sha256:ec10e82eacb2110bc18bcbcb26de1a920d40dd508d63018d832031e8462ecb0e",
+                "sha256:cb20b108197ff98545e00c6d647e2f91359bb3141bbba9d5774dfa1f2b4296a4",
+                "sha256:23b0cdc2126c1c66376c9640e930c7623718da07bbd526ace43c5f8c97bc3cf2",
+                "sha256:1f3ae933eed68a445b7dcbf9448284d2d75a333393a12766e1fe872b30ebd8a6",
+                "sha256:20361246d685b1b442710d42d0f84bb81fd72309e0ea999b921b8bc25cbecce0",
+                "sha256:20361246d685b1b442710d42d0f84bb81fd72309e0ea999b921b8bc25cbecce0",
+                "sha256:d5dc59f16a599043f8cc647a43890d983bda80af45952e43de342f49b68910f4",
+                "sha256:6f085663d1e82d0cfba71d0474671aa4095de24630c884bd3c94682ac6cab73a",
+                "sha256:c6f2b9a8b969aa1b830e033f87a857896cb5acaf74cb00614984f079966bcc43",
+                "sha256:7b95ad1d5323643257d6d97b1ec755aaaafe67e0d8cb9a625e401c0ca65e3623",
+                "sha256:0913f122d69217d3c67184224e77edd8ddec3a87cc4122e8091798d542e172de",
+                "sha256:1905064561521dfa2c91f3f8f9310b1f9520c14703247b72671c0ac315dad918",
+                "sha256:326021465d947cd15f28d0e6b323f53ac91621e629ffc94908118662b00e5e13",
+                "sha256:754666eaa0a11843c7e67cbf7cc233079c889c7fa29876d9ecf8b4b0ced6db06",
+                "sha256:9a0b7573448a08e20e2ed8316c9e0b00b2c257f5ebfeb7ad46c14ac0e3945d89",
+                "sha256:338575a99af38b9c75fd630e410e6bb5ec3731fef8bcfe7cb517d47b7c4bccce",
+                "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef",
+                "sha256:09b0a85f2e22e5c64d512bc6e7e5c10b6d216c8a7dc23a6d9ac64eb19b5be7d3",
+                "sha256:8bfda261631239fd65ff99980f96050267d7295db4b5c2a2a131a8dc7790bccb",
+                "sha256:6fe85be3963847a998866b8ede0705ece395846fdf8ccef3a981da3950629f15",
+                "sha256:64c615bd313cb18c4b7e5da986c73e07c584e56c1c6d9404c579fb40d09b4695",
+                "sha256:1b7c4f12d94820d28e8b22b7df758cc17e8f2500d928c99a5096ecae4dd372d5",
+                "sha256:fac293c06b470c6ae4bc66f3b486f7da963c6144c96427f891a71c60d5aee97a",
+                "sha256:896c91aa7ca0c0c0c01c3a67da6c4bc988a1935b10297e4e33dd062afdd8e938",
+                "sha256:be8c72fc0a97f9c3287ba17b7f0c8ba3bbbba60d87e05bf25fdf0ef3136916fc",
+                "sha256:27f58690a735cf850d00c85119ed4805035bfb1190fb36e8f2e246b9f503bbe5",
+                "sha256:3c2e36a934c0b6a5dba50b10a3b301647c0b9f68cafa111c134fa91a7830fc35",
+                "sha256:713fc7bbe9e48e94cdac5f6324393544c624454272a252791bbf55087504c88c",
+                "sha256:19aab4b2ddb62d8607062cb3561c4c25e1998d15a9f909700dd089fcf8979b85",
+                "sha256:af5286b4062c87d446308c800de323463e544292ede2d1ec5cfdb2095a9b2439",
+                "sha256:633dd0dfbe3dff59c62bbd10d820e41adea8196a68248bf599a006c18b8dd7f5",
+                "sha256:f5a5679e2aec95568e4249005fbc4e6f2624546987a751260f7acf87afb7f138",
+                "sha256:9b1c3924d596315a3e753b4bf917a967dea13075c7ea471742b06ddf8b7e1ab0",
+                "sha256:dd4f600ce218c86e3c7f688d418c4103f97c712b536dfa64227d832d25309aa5",
+                "sha256:0b088141c4b02c51585ed7a91ad560ed4d5f1db7ea5b5a209d66a775281711e8",
+                "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+            ]
+        },
+        "Metadata": {
+            "LastTagTime": "2026-10-01T04:13:17.953115097Z"
+        },
+        "Descriptor": {
+            "mediaType": "application/vnd.oci.image.index.v1+json",
+            "digest": "sha256:3502ca48d21c368f9ffaf2d2f003683cd1fddba418a1c500d7d3dfd725e7cd87",
+            "size": 856
+        }
+    }
+]

@@ -452,8 +452,8 @@ Before renting anything:
   The record in `EVAL_CARD.md` was measured on an RTX PRO 6000 Blackwell; no other card is covered by this gate.
   Nothing on the machine is exposed: the compose file publishes the port on 127.0.0.1 and everything below runs on the machine itself or over `ssh`.
 - **An items file for C3 and C4.** C2 needs none; C3 and C4 read a JSON list in the format documented at the top of `src/decisio/serve/systemone_conformance.py`.
-  The earlier records used the 1,400-item suite, whose text is not in this repository, and the repository has no generator yet, so the file has to be prepared before the machine is rented (the gates compare the two routes with each other, so a list of a few hundred ordinary yes/no and choice items in that format is enough).
-  Writing a generator for a public list is an open item.
+  `python benchmarks/make_conformance_items.py --out conformance_items.json` builds one from two public sets (100 BoolQ validation items and 100 BANKING77 test items, about 80 s); prepare it before the machine is rented.
+  The earlier records used a private 1,400-item suite.
 - About two hours of machine time; the first start is dominated by the checkpoint download.
 
 Steps (`R` is the run folder, named for the day of the run):
@@ -538,6 +538,12 @@ Steps (`R` is the run folder, named for the day of the run):
     One failure leaves the README sentence in place and no tag is made.
 11. When it passes, in the same pull request as the run, replace the README's status sentence in "Run with Docker" with the run's path and the two times to healthy.
     After the first release, repeat steps 3 to 5 once with the pushed image, by digest from the release notes (set `image:` in a copy of `compose.yaml` instead of `build:`): the digest on `ghcr.io` is a different build from the one tested here, and the repeat is the check that it starts the same way.
+
+**Result of the first run (2026-10-01): passed.**
+The record is `runs/2026-10-01_docker-first-gpu-start` (manifest, files with their hashes).
+One RTX PRO 6000 Blackwell Workstation Edition on a vast.ai virtual machine, `main` at `eb9ae2e`: the image built in 236 s; healthy in 651 s on the first start (the 36 GB checkpoint download at about 121 MB/s, 338 s of loading, and two CUDA graph captures of 144 s and 75 s) and in 206 s from the cached volume; the example request returned `200` and the same answer after the restart (difference 0.0); C2 passed, C3 gave identical prompts for 200 of 200 items, and C4's maximum difference was exactly `0.0`.
+Two deviations, both in the manifest: the machine had Python 3.10 only (uv installed 3.12 for the wheel build), and the conformance client ran in a second container of the same image on the host network, because the machine reached PyPI at about 0.7 MB/s and a host environment with the CUDA wheels of torch (`uv sync --extra bench`) would have taken over an hour; on a machine with a normal link, use step 6 as written.
+The image has an ID and no registry digest; step 11's repeat with the pushed digest is still due after the first release.
 
 ### 3.1 Register the trusted publisher [CLICK]
 

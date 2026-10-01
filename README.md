@@ -60,13 +60,13 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged:
+Response, abridged (the values the first GPU start returned, rounded):
 
 ```
 {"answers": {
-  "urgent":   {"type": "noul",   "noul": 0.96},
-  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.00, "access": 0.99, "bug": 0.00, "other": 0.00}},
-  "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.00, "2": 0.99, "3": 0.00}}}}
+  "urgent":   {"type": "noul",   "noul": 0.90},
+  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.03, "access": 0.79, "bug": 0.16, "other": 0.02}},
+  "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.01, "2": 0.96, "3": 0.02}}}}
 ```
 
 ## Teach it your question in ten examples
@@ -90,7 +90,7 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 The first start downloads the checkpoint (about 36 GB) into the `decisio-data` volume; it is never part of the image.
 The container runs as a non-root user, compose publishes the port on 127.0.0.1 only, and `Dockerfile` and `compose.yaml` explain the rest.
 Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes.
-Status: the image is built in CI, and CI checks that it starts and fails with a clear message when no GPU is visible; its first start on a GPU is pending (the gate in `docs/LAUNCH_CHECKLIST.md`, 3.0), so treat it as unverified until that gate is passed.
+First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume; the example request below and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start`).
 
 ## Without a GPU
 

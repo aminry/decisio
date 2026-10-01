@@ -1,0 +1,1 @@
+GPU 0: NVIDIA RTX PRO 6000 Blackwell Workstation Edition (UUID: GPU-05f3eb4d-de0d-a721-19a1-fcc1364408ae)

@@ -1,0 +1,58 @@
+{
+ "id": "2026-10-01_docker-first-gpu-start",
+ "title": "The server image's first GPU start: built from main on a GPU virtual machine, started with the compose file, example request and conformance C2-C4 answered, restarted from the cached volume (launch checklist gate 3.0)",
+ "date": "2026-10-01",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (97,887 MiB), a KVM virtual machine on vast.ai with the card passed through, 19 vCPUs, 98 GB RAM, 146 GB disk",
+ "software": {
+  "image": "decisio:local, built on the machine from the Dockerfile at the commit below (not pushed); image ID sha256:3502ca48d21c368f9ffaf2d2f003683cd1fddba418a1c500d7d3dfd725e7cd87",
+  "base_image": "vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90 (FROM line of the Dockerfile; vLLM 0.30.0, build commit ced6857)",
+  "wheel": "dist/decisio-0.1.0-py3-none-any.whl, sha256 2fead0de7b66581d37c43babc204ff2d54a93fef8893b559bf5c33d1ab9fb98a",
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 at revision 95a723d08a9490559dae23d0cff1d9466213d989 (snapshot directory name); weight files and their blob sha256 names in checkpoint_files.txt",
+  "driver": "NVIDIA 580.105.08, CUDA 13.0",
+  "docker": "Docker Engine 29.0.3, NVIDIA Container Toolkit 1.18.0 (nvidia runtime), Compose v2.40.3",
+  "vm_os": "Ubuntu 22.04.5, kernel 6.8.0-87-generic",
+  "python_for_the_wheel_build": "uv 0.9.11 with a managed CPython 3.12.12 (the VM has 3.10)"
+ },
+ "code": {
+  "repository": "https://github.com/aminry/decisio",
+  "commit": "eb9ae2eb9f56c2ad2e23452c10b442abfae9b75e",
+  "note": "main at the time; compose.yaml and Dockerfile as at that commit"
+ },
+ "servers": {
+  "command": "docker compose up -d (compose.yaml: build context ., volume decisio-data at /data, GPU reservation, 127.0.0.1:8000:8000); the entry point's served-default flags; no extra arguments",
+  "container_user": "uid=10001(decisio) gid=996(decisio) groups=996(decisio)"
+ },
+ "gates": {
+  "gpu_visible_in_container": "pass (gpu_in_container.txt)",
+  "healthy": "pass: health check healthy, failing streak 0 (compose_ps.json, health.json)",
+  "example_request": "pass: HTTP 200, answers urgent (noul), category (choice, access), impact (score) in the documented shapes (example_response.json)",
+  "C2": "pass (conformance.log)",
+  "C3": "pass: 200 of 200 items give the same prompt in both routes",
+  "C4": "pass: 200 items, max_abs_delta_p exactly 0.0, no top-answer flips, temperature 1.307",
+  "second_start": "pass: healthy from the cached volume; the example request returns the same chosen options and probabilities, difference 0.0 (example_response_second_start.json)"
+ },
+ "results": {
+  "time_build_s": 236,
+  "time_to_healthy_first_start_s": 651,
+  "first_start_includes": "the 36 GB checkpoint download (about 121 MB/s), model loading 338 s in all, CUDA graph capture 144 s and 75 s (server_first_start.log)",
+  "time_to_healthy_second_start_s": 206,
+  "conformance_wall_time_s": 50,
+  "gpu_memory_serving_mib": "87,953 of 97,887 (gpu_memory_serving.txt)"
+ },
+ "inputs": {
+  "items_file": "conformance_items.json, 200 items (100 BoolQ validation, 100 BANKING77 test), made by benchmarks/make_conformance_items.py (pull request #18); sha256 of the file and of the generator in items_and_generator.sha256; sha256 of the two downloads in items_source.txt. The file holds benchmark item text and is not part of this record.",
+  "example_request": "the request printed in README.md, extracted by script (example_request.json)"
+ },
+ "deviations": [
+  "The VM has Python 3.10 only; uv installed CPython 3.12.12 for the wheel build (vm_setup_notes.txt).",
+  "The conformance client ran in a second container of the same image on the host network, with typesafe-sdk 0.7.0 added, not from a host environment made with uv sync --extra bench: the VM reached PyPI at about 0.7 MB/s and the CUDA wheels of torch would have taken over an hour (vm_setup_notes.txt, pip_typesafe.log).",
+  "The wheel and the image were built on the machine, so the image has an ID and no registry digest; the digest on ghcr.io is a different build and is checked once after the first release (checklist 3.0, step 11)."
+ ],
+ "excluded": [
+  "the items file (benchmark item text)",
+  "the conformance rows keep ids, labels and probabilities, no text"
+ ],
+ "files": "files.json"
+}
