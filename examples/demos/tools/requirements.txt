@@ -1,0 +1,6 @@
+# The measurement and recording scripts in this directory. The demos' own requirements are in their directories.
+numpy
+pillow
+playwright
+browser-harness==0.1.13
+httpx[http2]>=0.28,<1
