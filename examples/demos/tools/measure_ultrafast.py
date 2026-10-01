@@ -83,6 +83,8 @@ def launch_chrome(port, headed):
     ]
     if not headed:
         args.insert(1, "--headless=new")
+    if hasattr(os, "geteuid") and os.geteuid() == 0:  # Chrome refuses to run as root (a container) with its sandbox
+        args.insert(1, "--no-sandbox")
     proc = subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for _ in range(100):
         try:
