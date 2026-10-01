@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# The server in a container: one NVIDIA card, the port on the loopback interface only, and a named volume for the
+# checkpoint and the compile caches (the checkpoint is fetched on the first start and is never part of the image).
+#   uv build && docker compose up --build
+# To run a published image instead of building, replace `build:` with
+#   image: ghcr.io/aminry/decisio@sha256:<the digest in the release notes>
+# There is no authentication on any route (SECURITY.md): keep the port on 127.0.0.1 or behind your own proxy.
+name: decisio
+
+services:
+  decisio:
+    image: ghcr.io/aminry/decisio@sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd
+    environment:
+      DECISIO_MODEL: Qwen/Qwen3.6-35B-A3B-FP8
+      # VLLM_SUFFIX_STAGING: "1"      # switches the patch series on; only with APPLY_PATCHES=1
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - decisio-data:/data
+    shm_size: "8gb"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+volumes:
+  decisio-data:

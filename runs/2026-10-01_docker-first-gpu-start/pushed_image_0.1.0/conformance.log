@@ -1,0 +1,4 @@
+ok   C2 ["noul, no criteria, string state: ok", "noul, both criteria, object state: ok", "noul, one criterion, JSON instructions: ok", "choice, two options, no descriptions: ok", "choice, four options with descriptions: ok", "choice, 151 options: ok", "choice, mixed and JSON descriptions: ok", "score, three levels: ok", "score, five JSON levels: ok", "three questions in one request: ok", "array state: ok", "long state, three questions: ok", "models.list: ok", "invalid (no state) -> 422 HTTPValidationError: ok"]
+ok   C3 {"items": 200, "differ": [], "n_differ": 0}
+ok   C4 {"items": 200, "temperature": 1.307, "max_abs_delta_p": 0.0, "mean_abs_delta_p": 0.0, "top_answer_flips": 0}
+CONFORMANCE PASS
