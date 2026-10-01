@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/aminry/decisio/compare/v0.1.0...v0.1.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **ci:** attest a CycloneDX SBOM of the image instead of SPDX ([#22](https://github.com/aminry/decisio/issues/22)) ([eef30b4](https://github.com/aminry/decisio/commit/eef30b4a8a99d82a3b1b14303ff1f9586a2b7a7e))
+
 ## [0.1.0](https://github.com/aminry/decisio/compare/v0.1.0...v0.1.0) (2026-10-01)
 
 
