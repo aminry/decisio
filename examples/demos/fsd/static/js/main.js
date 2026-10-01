@@ -55,6 +55,9 @@ export async function boot() {
   let savedQuality;
   try { savedQuality = localStorage.getItem("jev-fsd-quality"); } catch { /* preferences are optional */ }
   const quality = params.get("quality") || savedQuality || "high";
+  // ?norender=1 skips drawing the 3D view (the simulation, the minimap and the decision panels still run): for a machine
+  // whose browser has only a software WebGL, where one frame takes about a second and the simulation would crawl
+  const noRender = params.has("norender");
   let hour = parseHour(params.get("time"));
   const clock = new WorldClock(hour, options.clockRate);
   const view = new SceneView($("#view"), map.extent, { quality });
@@ -433,7 +436,7 @@ export async function boot() {
     weatherView.update(dt);
     if (roads.streetLights.lights) roads.streetLights.lights.update(view.camera, dt);
     view.updateCamera(renderEgo, dt);
-    view.render(dt);
+    if (!noRender) view.render(dt);
     cockpit.update(view.mode, world.weather, world.t, $("#wipers").checked);
     audio.update(world.ego, world.weather, world.paused || document.hidden, view.mode === "hood");
     const blink = world.ego.signal && world.t % 0.8 < 0.45;
