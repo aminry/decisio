@@ -1,28 +1,35 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # Maintains a release pull request from Conventional Commits; merging it tags the release and writes CHANGELOG.md.
-# Nobody edits CHANGELOG.md by hand. Use a GitHub App or fine-grained token in RELEASE_PLEASE_TOKEN so that the
-# tag it creates triggers the publish workflow; the default token cannot.
+# Nobody edits CHANGELOG.md by hand. The token comes from the project's GitHub App (docs/LAUNCH_CHECKLIST.md, 2.6), so
+# that the pull request and the tag it creates start other workflows (the default token cannot) and its commits are a
+# bot's, which the DCO check skips.
 name: release-please
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions: {}
 
 jobs:
   release-please:
-    # Needs RELEASE_PLEASE_TOKEN: with the default token the release pull request cannot be created (Actions may not
-    # open pull requests here) and its checks would never start. Runs once the repository is public and the token is set.
+    # Runs once the repository is public. The app's ID (variable RELEASE_PLEASE_APP_ID) and private key (secret
+    # RELEASE_PLEASE_APP_PRIVATE_KEY) must exist.
     if: github.event.repository.private == false
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          app-id: ${{ vars.RELEASE_PLEASE_APP_ID }}
+          private-key: ${{ secrets.RELEASE_PLEASE_APP_PRIVATE_KEY }}
+
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
