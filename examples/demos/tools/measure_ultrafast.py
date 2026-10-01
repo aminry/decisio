@@ -36,7 +36,10 @@ sys.path.insert(0, str(ROOT))
 
 TASKS = {
     "travel": {
-        "goal": "Find a Design stay in Lisbon with Free cancellation and open Casa Flora.",
+        # upstream's smoke goal: the first page already lists Casa Flora, so a goal without "use the filters" is met by
+        # clicking it, which the verification below (the filters applied) would count as a failure
+        "goal": "Use the destination search and filters to find Design stays in Lisbon with Free cancellation, "
+        "then open Casa Flora.",
         "url_end": "#casa-flora",
         "text_has": "Your filters: Design",
     },
