@@ -12,6 +12,9 @@ on:
 
 permissions: {}
 
+env:
+  STAND_IN_REVISION: da87bfb608c14b7cf20ba1ce41287e8de496c0cd
+
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -50,7 +53,24 @@ jobs:
 
       # The slow tier (tests that load small models on the CPU) peaks at about 20 GB of RAM and is killed on
       # a 16 GB hosted runner; it runs in the nightly job (.github/workflows/gpu.yml) and locally with -m slow.
+      # The task-registration walk-through (tests/unit/test_tasks_walkthrough.py) starts servers on a small stand-in model.
+      # It is fetched at this exact revision into a cache, and the test is pointed at the local copy, so a run neither
+      # downloads 1.1 GB nor follows a moving branch. Change the revision here when the stand-in changes.
+      - name: Restore the stand-in model
+        id: standin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/decisio-standin
+          key: standin-qwen3-0.6b-base-${{ env.STAND_IN_REVISION }}
+
+      - name: Fetch the stand-in model
+        if: steps.standin.outputs.cache-hit != 'true'
+        run: uv run hf download Qwen/Qwen3-0.6B-Base --revision "$STAND_IN_REVISION" --local-dir "${{ runner.temp }}/decisio-standin/qwen3-0.6b-base"
+
       - name: Unit tests (fast tier)
+        env:
+          DECISIO_STAND_IN_MODEL: ${{ runner.temp }}/decisio-standin/qwen3-0.6b-base
+          HF_HUB_OFFLINE: "1"
         run: uv run pytest -q
 
       - name: Build the package
