@@ -46,6 +46,7 @@ Section 4 is the rehearsal: it is run straight after each step.
 | 2.6 | The release token, from a GitHub App | CLICK to create, API to store | the workflow edit is a pull request |
 | 2.7 | `DECISIO_MODEL`, `DECISIO_VIEW`, `GPU_RUNNER_READY` variables | API | when a GPU runner exists |
 | 2.8 | The `benchmark` label | API | |
+| 3.0 | Gate: the image's first GPU start | by hand, on a GPU virtual machine | before any release tag |
 | 3.1 | PyPI trusted publisher | CLICK | no API exists |
 | 3.2 | The `pypi` environment with a required reviewer | API | |
 | 3.3 | The publish workflow | pull request | added after 3.2 |
@@ -389,7 +390,105 @@ Dependabot and release-please create their own labels; check that they did after
 gh label create benchmark --repo aminry/decisio --color 5319E7 --description "A benchmark claim with its record"
 ```
 
-## 3. PyPI, for the first release
+## 3. The first release: the image's first GPU start, PyPI, and the image
+
+### 3.0 First GPU start of the image [gate, by hand]
+
+A gate before the first release tag (not before the flip): the image has to start on the measured kind of card and answer correctly before a tag publishes it.
+Today CI builds the image for linux/amd64 and starts it without a GPU, where it must fail with a clear message; nothing has served a request from the container, so nothing the README says about the image is measured.
+Until this gate passes, the README's Docker section says so (step 11).
+
+Before renting anything:
+- **A virtual machine with one 96 GB card**, Docker Engine with the NVIDIA Container Toolkit, a driver that supports CUDA 13.0 (580 or later), `git`, `uv`, and about 100 GB of free disk (the image is about 25 GB unpacked, the checkpoint 36 GB).
+  The record in `EVAL_CARD.md` was measured on an RTX PRO 6000 Blackwell; no other card is covered by this gate.
+  Nothing on the machine is exposed: the compose file publishes the port on 127.0.0.1 and everything below runs on the machine itself or over `ssh`.
+- **An items file for C3 and C4.** C2 needs none; C3 and C4 read a JSON list in the format documented at the top of `src/decisio/serve/systemone_conformance.py`.
+  The earlier records used the 1,400-item suite, whose text is not in this repository, and the repository has no generator yet, so the file has to be prepared before the machine is rented (the gates compare the two routes with each other, so a list of a few hundred ordinary yes/no and choice items in that format is enough).
+  Writing a generator for a public list is an open item.
+- About two hours of machine time; the first start is dominated by the checkpoint download.
+
+Steps (`R` is the run folder, named for the day of the run):
+
+1. Check the machine and fetch the exact commit that will be tagged (a read-only deploy key or `gh auth login` is enough while the repository is private).
+   ```
+   nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
+   git clone https://github.com/aminry/decisio && cd decisio && git checkout <the commit to be tagged>
+   R=runs/$(date +%F)_docker-first-gpu-start && mkdir -p "$R"
+   ```
+2. Build the image on the machine, and check that the toolkit passes the card through.
+   No image is on `ghcr.io` before the first tag (the release workflow pushes it), so the gate builds it from the same `Dockerfile`.
+   ```
+   uv build --wheel
+   t0=$(date +%s); docker compose build 2>&1 | tee "$R/build.log"; echo "build: $(( $(date +%s) - t0 )) s" | tee "$R/time_build.txt"
+   docker run --rm --gpus all --entrypoint nvidia-smi decisio:local -L | tee "$R/gpu_in_container.txt"
+   ```
+3. First start, and the time to healthy.
+   ```
+   t0=$(date +%s); docker compose up -d
+   until curl -sf http://127.0.0.1:8000/health > "$R/health.json"; do sleep 10; done
+   echo "time to healthy, first start (checkpoint download included): $(( $(date +%s) - t0 )) s" | tee "$R/time_first_start.txt"
+   docker compose logs --no-color > "$R/server_first_start.log"
+   docker compose ps --format json > "$R/compose_ps.json"
+   ```
+   If it is not healthy after an hour, stop: the logs are the record of a failed gate, and the fix goes through a pull request.
+4. The image, the wheel and the checkpoint, by digest.
+   The image of a local build has an ID, not a registry digest; the base image's digest is the `FROM` line of the `Dockerfile`.
+   The checkpoint's snapshot directory is its commit revision, and each weight file links to a blob named by its sha256.
+   ```
+   docker image inspect decisio:local > "$R/image_inspect.json"
+   sha256sum dist/decisio-*.whl | tee "$R/wheel.sha256"
+   docker compose exec -T decisio id | tee "$R/container_user.txt"                  # uid 10001 (decisio), not root
+   docker compose exec -T decisio find /data/hf/hub/models--Qwen--Qwen3.6-35B-A3B-FP8/snapshots -maxdepth 2 \
+     -printf '%P -> %l\n' > "$R/checkpoint_files.txt"
+   nvidia-smi > "$R/nvidia_smi.txt"; docker version > "$R/docker_version.txt"; nvidia-ctk --version > "$R/nvidia_ctk_version.txt"
+   ```
+5. The README's example request, exactly as the README prints it.
+   ```
+   python3 - <<'PY' > "$R/example_request.json"
+   import json, re
+   s = open("README.md").read()
+   m = re.search(r"curl http://127\.0\.0\.1:8000/v1/systemone[^\n]*-d '(\{.*?\n\})'", s, re.S)
+   print(json.dumps(json.loads(m.group(1)), indent=1))
+   PY
+   curl -sS -o "$R/example_response.json" -w "%{http_code}\n" http://127.0.0.1:8000/v1/systemone \
+     -H 'Content-Type: application/json' -d @"$R/example_request.json" | tee "$R/example_status.txt"
+   ```
+   Expect `200` and answers `urgent` (noul), `category` (choice) and `score` in the shapes the README shows; read the values, they are the README's illustration and are not required to match it.
+6. Conformance C2-C4 from the machine that runs the container (its host), against the container.
+   ```
+   uv sync --extra bench --frozen
+   uv run python -m decisio.serve.systemone_conformance --url http://127.0.0.1:8000 --items conformance_items.json \
+     --tokenizer Qwen/Qwen3.6-35B-A3B-FP8 --block-size 1056 --n 200 --out "$R/conformance.json" 2>&1 | tee "$R/conformance.log"
+   ```
+   Expect `CONFORMANCE PASS`, with C4's `max_abs_delta_p` exactly `0.0`.
+   Gzip a JSON file of 100 KB or more, as the other runs do.
+7. Second start, with the checkpoint already in the volume.
+   ```
+   docker compose down                      # keeps the decisio-data volume
+   t0=$(date +%s); docker compose up -d
+   until curl -sf http://127.0.0.1:8000/health > /dev/null; do sleep 5; done
+   echo "time to healthy, second start: $(( $(date +%s) - t0 )) s" | tee "$R/time_second_start.txt"
+   curl -sS http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d @"$R/example_request.json" \
+     -o "$R/example_response_second_start.json"
+   ```
+   The chosen options must be the same as in step 5; the probabilities may differ in the last bits (the request history differs, `EVAL_CARD.md` section 4).
+8. Write the run record in `runs/<date>_docker-first-gpu-start/`: a `manifest.json` with the fields of the earlier runs (see `runs/2026-09-30_plugin-verification/manifest.json`: `id`, `title`, `date`, `hardware`, `software` with the image ID, the base image digest, the wheel's sha256, the checkpoint revision, the driver and the Docker and toolkit versions, `code` with the commit, `servers` with the compose command, `gates` with health, the example and C2-C4, `results` with the three times, `files`), and a `files.json` with every file's sha256:
+   ```
+   python3 - <<'PY'
+   import hashlib, json, pathlib, sys
+   root = pathlib.Path(sys.argv[1])
+   rows = [{"path": str(p.relative_to(root)), "bytes": p.stat().st_size, "sha256": hashlib.sha256(p.read_bytes()).hexdigest()}
+           for p in sorted(root.rglob("*")) if p.is_file() and p.name != "files.json"]
+   json.dump(rows, open(root / "files.json", "w"), indent=1)
+   PY
+   ```
+   (Run it as `python3 - "$R"`.)
+   No benchmark item text goes into the run: the responses are to the README's own request, and the conformance records keep ids and probabilities only.
+9. Tear down: `docker compose down`, copy `$R` back to the maintainer's machine, destroy the virtual machine, and add the run to the repository through a pull request.
+10. The gate is passed when all of these hold: the container was healthy and ran as `decisio`; the example returned `200` with the documented shapes; C2, C3 and C4 passed, with C4's maximum difference exactly `0.0`; the second start was healthy from the cached volume; and the run is committed.
+    One failure leaves the README sentence in place and no tag is made.
+11. When it passes, in the same pull request as the run, replace the README's status sentence in "Run with Docker" with the run's path and the two times to healthy.
+    After the first release, repeat steps 3 to 5 once with the pushed image, by digest from the release notes (set `image:` in a copy of `compose.yaml` instead of `build:`): the digest on `ghcr.io` is a different build from the one tested here, and the repeat is the check that it starts the same way.
 
 ### 3.1 Register the trusted publisher [CLICK]
 
@@ -526,6 +625,8 @@ Lint it with `actionlint` before opening the pull request.
 
 ### 3.4 First release [CLICK]
 
+Not before 3.0 has passed: the release tag publishes the image.
+
 1. The first public release is `0.1.0`.
    `pyproject.toml` and `.release-please-manifest.json` already say `0.1.0` and no tag exists, so release-please would propose the next version: before the flip, through a pull request, add `"release-as": "0.1.0"` to the package entry in `release-please-config.json`, and remove it in the pull request after the release.
    Then review the release pull request that release-please keeps open on `main` (its `CHANGELOG.md` and version bump) and merge it (squash).
@@ -553,8 +654,7 @@ gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry
 ```
 
 The base image is pinned by digest in the `Dockerfile`; Dependabot refreshes the digest of the pinned tag and never moves the tag.
-The image has not been run on a GPU: it was built for linux/amd64 and started far enough to fail cleanly without one (pull request for the Dockerfile).
-The first GPU start on the measured card (a 96 GB RTX PRO 6000) is the check that remains.
+The image has not been run on a GPU; 3.0 is the gate that must pass before the tag that publishes it, and its repeat with the pushed digest comes after.
 
 ## 4. Verify
 

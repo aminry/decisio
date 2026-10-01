@@ -90,6 +90,7 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 The first start downloads the checkpoint (about 36 GB) into the `decisio-data` volume; it is never part of the image.
 The container runs as a non-root user, compose publishes the port on 127.0.0.1 only, and `Dockerfile` and `compose.yaml` explain the rest.
 Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes.
+Status: the image is built in CI, and CI checks that it starts and fails with a clear message when no GPU is visible; its first start on a GPU is pending (the gate in `docs/LAUNCH_CHECKLIST.md`, 3.0), so treat it as unverified until that gate is passed.
 
 ## Without a GPU
 
