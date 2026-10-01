@@ -91,7 +91,7 @@ def main() -> None:
     per_run = []
     for i in range(a.runs):
         seed = a.seed0 + i
-        rdir = out / f"run{i + 1}"
+        rdir = (out / f"run{i + 1}").resolve()
         env = dict(
             os.environ,
             PONG_LANES_FILE=str(Path(a.lanes_file).resolve()),
