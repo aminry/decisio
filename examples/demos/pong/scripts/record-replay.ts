@@ -9,6 +9,7 @@
  * The lanes are described in lib/config/lanes.ts (lanes.example.json).
  */
 import { mkdir, writeFile } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import type { ModelId } from '../lib/game/types';
 import { recordLanes } from '../lib/record/record-lanes';
 
@@ -37,14 +38,14 @@ async function main() {
   const replayJson = JSON.stringify(replay);
   const outDir = process.env.OUT_DIR ?? new URL('../public/', import.meta.url).pathname;
   await mkdir(outDir, { recursive: true });
-  const replayOut = new URL(`file://${outDir.replace(/\/$/, '')}/replay.json`);
+  const replayOut = join(resolve(outDir), 'replay.json');
   await writeFile(replayOut, replayJson);
 
-  const statsOut = new URL(`file://${outDir.replace(/\/$/, '')}/replay-stats.json`);
+  const statsOut = join(resolve(outDir), 'replay-stats.json');
   await writeFile(statsOut, `${JSON.stringify(stats, null, 2)}\n`);
 
-  console.log(`\nWrote ${replayOut.pathname} (${(replayJson.length / 1024).toFixed(0)} KB)`);
-  console.log(`Wrote ${statsOut.pathname}`);
+  console.log(`\nWrote ${replayOut} (${(replayJson.length / 1024).toFixed(0)} KB)`);
+  console.log(`Wrote ${statsOut}`);
   for (const lane of stats.lanes) {
     console.log(
       `${lane.label.padEnd(18)} ticks=${String(lane.ticks).padStart(4)} ` +
