@@ -522,6 +522,12 @@ class SystemOne:
                 "route": "image" if use_image else "text",
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
                 **{k: v for k, v in info.items() if k in ("cached_tokens_mean", "image_tokens")},
+                # where the engine's time went, for the x-decisio-stages header (milliseconds)
+                "stages": {
+                    {"server_ms": "engine"}.get(k, k[:-3]): info[k]
+                    for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms")
+                    if isinstance(info.get(k), (int, float))
+                },
             },
         }
         if debug and self.debug_readout:
@@ -796,6 +802,9 @@ def add_routes(app, systemone: SystemOne):
         headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
         if timing.get("tasks"):
             headers[header("tasks")] = ",".join(timing["tasks"])
+        # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
+        if timing.get("stages"):
+            headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
         return JSONResponse(out, headers=headers)
 
     def debug_of(request):
