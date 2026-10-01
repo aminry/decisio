@@ -23,8 +23,8 @@ from pathlib import Path
 import numpy as np
 from demo_recorder import record, to_gif, to_mp4
 from demo_run import card_name
-from stats import git_state, write_files_json
 from measure_pong import PONG, serve_replay
+from stats import git_state, write_files_json
 
 
 def merge_replays(replays: list[dict]) -> dict:

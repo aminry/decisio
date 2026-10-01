@@ -56,6 +56,7 @@ def lane_rows(replay: dict) -> dict:
 
 def serve_replay(replay_path: Path, port: int):
     """`next start` on the production build with `replay_path` as public/replay.json."""
+    (PONG / "public").mkdir(exist_ok=True)
     shutil.copy(replay_path, PONG / "public" / "replay.json")
     return subprocess.Popen(
         ["pnpm", "exec", "next", "start", "-p", str(port)],
