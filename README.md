@@ -69,7 +69,7 @@ Response, abridged (the values the first GPU start returned, rounded):
   "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.01, "2": 0.96, "3": 0.02}}}}
 ```
 
-Your numbers will differ in the second decimal: the three questions of one request are scored in one batch, and on this stack a question's probabilities move with what else is in its batch and with what the server answered before (a fresh clone's first start gave `access` 0.87, `runs/2026-10-01_quickstart-public`; `EVAL_CARD.md` section 4). The choices do not change.
+Your probabilities will differ, here by up to 0.08: the three questions of one request are scored in one batch, and on this stack a question's probabilities move with what else is in its batch and with what the server answered before (a fresh clone's first start gave `access` 0.87, `runs/2026-10-01_quickstart-public`; `EVAL_CARD.md` section 4). The choices do not change.
 
 ## Teach it your question in ten examples
 
