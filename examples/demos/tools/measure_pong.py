@@ -68,6 +68,7 @@ def serve_replay(replay_path: Path, port: int):
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--lanes-file", required=True)
+    ap.add_argument("--only", default="", help="comma-separated lane ids to run (one model at a time on a single card)")
     ap.add_argument("--label", default="Pong lanes", help="the name of the run (the lanes carry their own labels)")
     ap.add_argument("--out", default=None, help="run directory (default runs/<date>_demos-pong)")
     ap.add_argument("--runs", type=int, default=5)
@@ -80,6 +81,9 @@ def main() -> None:
     a = ap.parse_args()
 
     lanes = json.loads(Path(a.lanes_file).read_text())
+    only = [x.strip() for x in a.only.split(",") if x.strip()]
+    if only:
+        lanes = [lane for lane in lanes if lane["id"] in only]
     base_url = next((x["baseUrl"] for x in lanes if x["kind"] == "systemone"), "")
     out = Path(a.out) if a.out else REPO / "runs" / f"{time.strftime('%Y-%m-%d')}_demos-pong"
     card = a.card or card_name()
@@ -92,6 +96,7 @@ def main() -> None:
             os.environ,
             PONG_LANES_FILE=str(Path(a.lanes_file).resolve()),
             RECORD_MS=str(int(a.seconds * 1000)),
+            LANES=",".join(only),
             SEED=str(seed),
             OUT_DIR=str(rdir),
         )

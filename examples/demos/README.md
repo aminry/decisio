@@ -22,6 +22,8 @@ The only changes are the endpoint (`SYSTEMONE_BASE_URL`, no key), the places tha
 
 ```sh
 python tools/measure_pong.py --lanes-file lanes.json --runs 5 --seconds 45 --video
+python tools/measure_pong.py --lanes-file lanes.json --only sys1 --runs 5   # one model at a time on a single card
+python tools/compose_pong.py --replay runs/a/replay_run1.json --replay runs/b/replay_run1.json --out runs/c/media
 python tools/measure_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --runs 3 --count 6
 python tools/measure_ultrafast.py --label Decisio --runs 10
 python tools/record_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --out runs/<run>/media
@@ -34,6 +36,7 @@ What is measured, per model and demo:
 - the demo's own score: Pong's rallies (returns of the ball by the model's paddle), the driving rules score (the share of drives that arrive with no collision, red light, rolled stop sign, failure to yield or a second off the road), the browser agent's task completion and completion time;
 - 95% bootstrap intervals over the repeated runs (Pong, driving, browser agent each repeat with different seeds or runs); latencies are pooled over every decision.
 
+Pong's lanes run at the same instant when their servers can be up together; on a single card they are recorded one model at a time with the same seed and merged onto one page by `compose_pong.py`.
 The client and the server run on the same machine, so the latency on screen and in the record is the server's, with a loopback round trip.
 Videos are recorded in headless Chrome driven by Playwright (`tools/demo_recorder.py`): a WebM, an MP4 with a caption strip under the picture (model, card, median latency) and a GIF under 3 MB.
 Every manifest says which card ran the server.
