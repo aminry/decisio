@@ -36,12 +36,13 @@ def record(
     storage_state: dict | None = None,
     until_drive_done: bool = False,
     chrome_args: list[str] | None = None,
+    init_script: str | None = None,
 ) -> Path:
     """Open `url` in headless Chrome, record `seconds` of it and return the WebM path.
 
     `storage_state` is a Playwright storage state (cookies, localStorage) the page starts with, for a demo that is
     opened from state a script prepared. `drive(page)` runs after the page has loaded, for demos that need clicks
-    or a task started; when it returns the
+    or a task started; `init_script` runs in every page before its own scripts; when it returns the
     recording continues until `seconds` have passed in total, or stops when it returns if `until_drive_done`.
     """
     from playwright.sync_api import sync_playwright
@@ -65,6 +66,8 @@ def record(
             record_video_size={"width": size[0], "height": size[1]},
             storage_state=storage_state,
         )
+        if init_script:
+            context.add_init_script(init_script)
         page = context.new_page()
         page.goto(url, wait_until="load")
         page.wait_for_timeout(int(settle_s * 1000))

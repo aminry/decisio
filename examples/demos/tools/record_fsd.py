@@ -54,6 +54,12 @@ def main() -> None:
     ap.add_argument("--card", default="")
     ap.add_argument("--channel", default="chrome")
     ap.add_argument("--quality", choices=["low", "high", "ultra"], default="high", help="the demo's graphics setting")
+    ap.add_argument(
+        "--render-scale",
+        type=float,
+        default=1.0,
+        help="draw the 3D view at this fraction of the page's resolution (software WebGL on a card without a display)",
+    )
     ap.add_argument("--gif-start", type=float, default=6.0)
     a = ap.parse_args()
 
@@ -119,6 +125,11 @@ def main() -> None:
             channel=a.channel or None,
             storage_state=state,
             settle_s=4.0,
+            init_script=(
+                None
+                if a.render_scale == 1.0
+                else f"Object.defineProperty(window, 'devicePixelRatio', {{get: () => {a.render_scale}}});"
+            ),
             chrome_args=["--ignore-gpu-blocklist", "--enable-unsafe-swiftshader"],
         )
     finally:
