@@ -73,10 +73,11 @@ The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, 
 - **The rendering rules were selected on the Decision Index's intent rows,** so the BANKING77 and CLINC150+OOS scores measure a configuration chosen on them.
 - **The intent heads' test items are also in the Decision Index's pools;** no head was registered during any Decision Index run.
 
-Batch-forward finding: on this stack, identical requests sent in one batch are not the same forward pass; their label probabilities differed by up to 0.59 (median 0.029) on 250 intent items, while the same requests sent one at a time agreed to 1.2e-7 (`runs/2026-09-30_plugin-verification/diag_same_row.json`, `diag_same_row_sequential.json`).
+Batch-forward finding: on this stack, questions scored in one batch are not the same forward pass as each scored alone. Identical requests sent in one batch differed by up to 0.59 in a label probability (median 0.029) on 250 intent items, while the same requests sent one at a time agreed to 1.2e-7 (`runs/2026-09-30_plugin-verification/diag_same_row.json`, `diag_same_row_sequential.json`).
+The questions of one multi-question request are scored in one batch, so its probabilities vary between repeats on one server within the measured spread, with the chosen option unchanged: about 0.12 on the README's three-question example over repeats, while each of its questions sent alone was identical 30 of 30 times (`runs/2026-10-01_docker-first-gpu-start/repeat_variability/`).
 The engine's logits are bf16, and label probabilities recomputed from the hidden state match the engine's within 3e-8 only when rounded to bf16 (`diag_same_forward.json`).
 The single-engine head therefore sends its three requests one at a time and recomputes in bf16, and its same-forward gate passes at 3.1e-8 (`same_forward.json`).
-Every harness sends one request at a time, the serving gate G2 bounds the effect of 16 extra questions in a request at 6.46e-2 with no change of choice (`gates.log`), and every bit-identity claim compares like request histories.
+Every harness in `runs/` sends one single-question request at a time, the serving gate G2 bounds the effect of 16 extra questions in a request at 6.46e-2 with no change of choice (`gates.log`), and every bit-identity claim compares single-question requests under like request histories.
 
 ## 5. Limits
 
