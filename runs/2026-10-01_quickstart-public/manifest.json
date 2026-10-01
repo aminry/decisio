@@ -1,0 +1,86 @@
+{
+ "id": "2026-10-01_quickstart-public",
+ "title": "The README quickstart followed as a stranger would, on a fresh clone of the public repository, and both submission issues' benchmark commands against that server",
+ "date": "2026-10-01",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (96 GB), a rented VM",
+ "code": {
+  "repository": "https://github.com/aminry/decisio",
+  "commit": "455c2c1948264244cf92dd1b3d1ca7406f19a75f",
+  "fresh_clone": true
+ },
+ "model": {
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 (the hub id, as the README gives it)",
+  "class": "DecisioQwen3_5MoeHiddenReadout (vLLM: Resolved architecture)",
+  "adapter": null,
+  "tasks": "none during the benchmarks"
+ },
+ "steps": {
+  "uv sync --extra serve --frozen": "exit 0 in 66 s (vLLM 0.30.0, torch 2.13.0+cu130, CUDA available); uv's cache held 0.9 GB from earlier work on this VM, and the remaining 7.4 GB downloaded at full speed, not at the 0.7 MB/s the hand-over expected, so the pre-built image was not needed",
+  "server command": "uv run python -m decisio.serve.vllm_engine --model Qwen/Qwen3.6-35B-A3B-FP8 --model-class hidden-readout, verbatim, with HF_HOME pointed at a fresh directory: /health answered after 657 s, which includes downloading the 35 GB checkpoint (weights loaded after 353 s, engine initialised in 263 s); the single-engine head loaded the output layer from the hub id (server_start.log)",
+  "Ask a question (curl)": "200; choices access and level 2 as the README shows; probabilities differ from the README's (readme_curl_responses.json)",
+  "Register a task (curl)": "200 in 13.6 s for 120 examples; calibration declined (no clear gain), head applied (task_registration_response.json); a question then carried x-decisio-tasks: ticket-routing",
+  "examples/tasks/evaluate.py": "accuracy before 1.000, after 1.000 on the 48 held-out tickets: the served model already routes the synthetic tickets correctly (walkthrough_evaluate.txt)"
+ },
+ "deviations": [
+  "README: the abridged example response lists different probabilities than this server returned (access 0.79 in the README, 0.872 here; 0.906 on one request after the benchmark stage); the README does not say that the values move with request history. Fixed in the same pull request.",
+  "JevBench issue (fstandhartinger/jevbench#169): its harness command ends in '...' and fails as written ('the following arguments are required: --results'); the complete form is benchmarks/jevbench.sh, which ran without change. Corrected in a comment on the issue.",
+  "Decision Index issue (apolinario/decision-index#38): `python -m decision_index pipeline ...` as written fails for anyone but the kit's operator, because the frozen suite dataset is private (401; the kit's issue #1). Ran instead benchmarks/decision_index.sh on the kit's own four-benchmark rebuild (the rows' sha256 equals the records'). Stated in a comment on the issue.",
+  "Operator steps not in the README and not decisio defects: HF_HOME was set by us; the VM's uv cache was not empty."
+ ],
+ "results": {
+  "jevbench": {
+   "accuracy": {
+    "easy": 1.0,
+    "original": 0.972,
+    "hard": 0.694
+   },
+   "ece": {
+    "easy": 0.023,
+    "original": 0.148,
+    "hard": 0.059
+   },
+   "v15": {
+    "choice": 79.5,
+    "yes_no": -10.9,
+    "score": 60.6,
+    "I_open_A": 43.07,
+    "I_open_B": 52.17
+   },
+   "p50_ms": {
+    "easy": 50,
+    "original": 50,
+    "hard": 68
+   },
+   "against_runs/2026-09-30_served-default": "231 of 231 predictions the same; probabilities within 2.2e-16"
+  },
+  "decision_index": {
+   "native": {
+    "BANKING77 macro-F1": 0.7311,
+    "CLINC150+OOS macro-F1": 0.8137,
+    "GPQA Diamond": 0.4541,
+    "MMLU-Pro": 0.6093
+   },
+   "ece": {
+    "BANKING77": 0.042,
+    "CLINC150+OOS": 0.17,
+    "GPQA Diamond": 0.144,
+    "MMLU-Pro": 0.009
+   },
+   "against_runs/2026-09-30_served-default": "20,810 of 20,810 requests with the same choices and payload sha256; probabilities within 3.3e-16 on all but 2 MMLU-Pro requests (up to 0.078, request history)",
+   "stage_seconds": 1058
+  }
+ },
+ "files": {
+  "jevbench/<file>/": "the harness's results.jsonl, summary.json, manifest.json; v15.json",
+  "decision_index/": "per request: ids, the payload's sha256, our response (no payload); the kit's summary, our report and calibration",
+  "readme_curl_responses.json, task_registration_response.json, walkthrough_evaluate.txt, server_start.log, di_as_written.log": "the quickstart's outputs",
+  "files.json": "sizes and sha256"
+ },
+ "excluded": [
+  "item text",
+  "the VM's address and paths",
+  "the full vLLM log"
+ ]
+}
