@@ -73,6 +73,8 @@ markers = [
 [tool.ruff]
 line-length = 120
 target-version = "py312"
+# the three demo clients are vendored under their own licences, unchanged in style (examples/demos/*/ATTRIBUTION.md)
+extend-exclude = ["examples/demos/fsd", "examples/demos/ultrafast", "examples/demos/pong"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
