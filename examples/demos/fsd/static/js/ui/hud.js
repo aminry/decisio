@@ -1,7 +1,7 @@
 // Heads-up display: trip and nav card, pilot controls, instrument cluster, live decision card,
 // incident counters and toast badges.
 
-import { $, h, ms, usd, num, pct, percentile } from "../common.js";
+import { $, h, ms, usd, num, pct, percentile, brainLabel } from "../common.js";
 import { SPEED_GRACE_MPS } from "../sim/drive-score.js";
 
 const TURN_ARROWS = { left: "↰", right: "↱", "slight left": "↖", "slight right": "↗", sharp_left: "↰", sharp_right: "↱", uturn: "↶", roundabout: "↻", none: "↑" };
@@ -109,7 +109,7 @@ export class Hud {
     if (this.el.speedWarning.hidden === speeding) this.el.speedWarning.hidden = !speeding;
     this.el.speedDisplay.classList.toggle("speeding", speeding);
     this.el.cluster.classList.toggle("speeding", speeding);
-    setText(this.el.mode, paused ? "PAUSED" : autopilot ? `${this.brain.toUpperCase()} PILOT` : "MANUAL");
+    setText(this.el.mode, paused ? "PAUSED" : autopilot ? `${brainLabel(this.brain).toUpperCase()} PILOT` : "MANUAL");
     setClass(this.el.mode, paused ? "paused" : autopilot ? "auto" : "");
     setText(this.el.speed, Math.round(Math.abs(ego.v) * 3.6));
     setText(this.el.limit, road?.limit ? Math.round(road.limit * 3.6) : "–");
@@ -179,7 +179,7 @@ export class Hud {
     motion.className = `decision-motion ${decision.motion === "stop" ? "stop" : ""}`;
     motion.textContent = decision.motion === "stop" ? (decision.chosenId === "hard_brake" ? "Braking to stop" : "Holding still")
       : chosen ? `Driving · ${describe(chosen)}` : MOTIONS[decision.motion] || decision.motion;
-    source.textContent = m.fallback ? `${m.source} · fallback` : m.source || "–";
+    source.textContent = m.fallback ? `${brainLabel(m.source)} · fallback` : brainLabel(m.source) || "–";
     source.className = `source-tag ${m.source === "rules_fallback" || m.fallback ? "fallback" : m.source === "jev" ? "live" : ""}`;
     source.title = m.error || m.fallback || "";
     latency.textContent = m.source === "local" ? "local" : ms(m.latency_ms || 0);
