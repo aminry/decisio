@@ -55,6 +55,11 @@ def main() -> None:
     ap.add_argument("--channel", default="chrome")
     ap.add_argument("--quality", choices=["low", "high", "ultra"], default="high", help="the demo's graphics setting")
     ap.add_argument(
+        "--no-3d",
+        action="store_true",
+        help="do not draw the 3D view (a browser with software WebGL only); the panels run",
+    )
+    ap.add_argument(
         "--render-scale",
         type=float,
         default=1.0,
@@ -115,7 +120,8 @@ def main() -> None:
         def drive(page):
             page.evaluate("() => document.querySelector('#panel-toggle').click()")
 
-        url = f"{base}/?replay=1&quality={a.quality}&bbox={','.join(str(x) for x in picked['bbox'])}"
+        bbox = ",".join(str(x) for x in picked["bbox"])
+        url = f"{base}/?replay=1&quality={a.quality}{'&norender=1' if a.no_3d else ''}&bbox={bbox}"
         webm = record(
             url,
             out / a.name,
