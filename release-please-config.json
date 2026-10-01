@@ -6,8 +6,7 @@
     ".": {
       "package-name": "decisio",
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [],
-      "release-as": "0.1.0"
+      "extra-files": []
     }
   }
 }
