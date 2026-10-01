@@ -1,0 +1,12 @@
+[project]
+name = "fsd-demo"
+version = "0.2.0"
+description = "A driving sim on real OpenStreetMap streets where a System One decision server drives the car (vendored from BrendanH18/jev_fsd, MIT)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = []
+
+# An application, not a library: `python3 server.py` needs only the standard library.
+[tool.uv]
+package = false
