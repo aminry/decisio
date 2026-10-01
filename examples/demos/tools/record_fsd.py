@@ -53,6 +53,7 @@ def main() -> None:
     ap.add_argument("--p50", type=float, default=None)
     ap.add_argument("--card", default="")
     ap.add_argument("--channel", default="chrome")
+    ap.add_argument("--quality", choices=["low", "high", "ultra"], default="high", help="the demo's graphics setting")
     ap.add_argument("--gif-start", type=float, default=6.0)
     a = ap.parse_args()
 
@@ -108,7 +109,7 @@ def main() -> None:
         def drive(page):
             page.evaluate("() => document.querySelector('#panel-toggle').click()")
 
-        url = f"{base}/?replay=1&bbox={','.join(str(x) for x in picked['bbox'])}"
+        url = f"{base}/?replay=1&quality={a.quality}&bbox={','.join(str(x) for x in picked['bbox'])}"
         webm = record(
             url,
             out / a.name,

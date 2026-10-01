@@ -25,6 +25,8 @@ export function usd(v) {
   return `$${v.toFixed(4)}`;
 }
 export const num = (v) => Number(v || 0).toLocaleString("en-US");
+// what a brain is called on screen: the brain id `jev` is the System One model
+export const brainLabel = (name) => (name === "jev" ? "model" : name);
 export const pct = (p) => `${Math.round(p * 100)}%`;
 export const r1 = (v) => Math.round(v * 10) / 10;
 export const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));

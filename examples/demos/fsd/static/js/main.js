@@ -1,6 +1,6 @@
 // Bootstrap: load the map, build the scene, wire the UI, run the loop.
 
-import { api, $ } from "./common.js";
+import { api, $, brainLabel } from "./common.js";
 import { MapData } from "./map/mapdata.js";
 import { Route } from "./map/route.js";
 import { World } from "./sim/world.js";
@@ -223,7 +223,7 @@ export async function boot() {
     if (!autopilot.enabled && !world.route) { hud.badge("set a destination first (click the minimap)", "", 1500); return; }
     autopilot.setEnabled(!autopilot.enabled);
     hud.setAutopilot(autopilot.enabled);
-    hud.badge(autopilot.enabled ? `AUTOPILOT: ${autopilot.brainName.toUpperCase()}` : "MANUAL", "", 900);
+    hud.badge(autopilot.enabled ? `AUTOPILOT: ${brainLabel(autopilot.brainName).toUpperCase()}` : "MANUAL", "", 900);
     if (!autopilot.enabled) overlays.setCandidates(null);
   }
   hud.onAutopilotClick(toggleAutopilot);
@@ -232,7 +232,7 @@ export async function boot() {
     if (name === autopilot.brainName) return;
     autopilot.setBrain(name);
     hud.setBrain(name);
-    hud.badge(`brain: ${name === "jev" ? "Jev" : "Rules"}`, "", 800);
+    hud.badge(`brain: ${name === "jev" ? "Model" : "Rules"}`, "", 800);
   }
   hud.onBrainChange(selectBrain);
   const audio = new DriveAudio($("#drive-sound"));
@@ -362,7 +362,7 @@ export async function boot() {
   if (replay) {
     overlays.setRoute(world.route);
     hud.setAutopilot(true);
-    hud.badge(`REPLAY ${replay.scenario.id}: ${autopilot.brainName.toUpperCase()}`, "", 2200);
+    hud.badge(`REPLAY ${replay.scenario.id}: ${brainLabel(autopilot.brainName).toUpperCase()}`, "", 2200);
     startDrive(`Replay ${replay.scenario.id}`, world.route);
   }
   window.__jev = { world, map, view, autopilot, fleet, setDestination, overlays, signs, audio, cockpit, clock, driveReport, explorer, egoMesh, vehicle: garage.vehicle, get drive() { return drive; }, finishDrive, setTime: setHour };
