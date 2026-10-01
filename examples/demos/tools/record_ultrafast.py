@@ -92,7 +92,10 @@ def main() -> None:
             page.click("#auto")
             end = time.time() + a.max_seconds
             while time.time() < end:
-                state = json.loads(urllib.request.urlopen(base + "/api/state", timeout=5).read())
+                try:  # the inspector's server answers after a running step ends, which can take a few seconds
+                    state = json.loads(urllib.request.urlopen(base + "/api/state", timeout=30).read())
+                except OSError:
+                    continue
                 if state.get("status") in ("done", "blocked"):
                     break
                 page.wait_for_timeout(300)
