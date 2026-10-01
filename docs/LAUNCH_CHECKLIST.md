@@ -78,6 +78,32 @@ It was done with one force-push, with a lease on the old tip; no rewrite is plan
 The commits that were replaced stay reachable by hash and through the pull request refs (`refs/pull/N/head`), which GitHub does not let an owner delete.
 The rebuild changes what `main` shows, not what the repository serves.
 
+## Flip record (2026-10-01)
+
+The repository became public at **2026-10-01 01:26:26 UTC**, after a history scan with no leaks (below).
+What was applied, and what each setting read back as afterwards:
+
+| Step | Read back |
+| --- | --- |
+| Before the flip: gitleaks | `.gitleaksignore` with 27 fingerprints for `gitleaks git` (28 findings: sha256 digests in run records, none a credential) and 12 for `gitleaks dir`; on a fresh clone with all pull request refs: full history 72 commits, old pull request tips 52 commits, working tree: no leaks |
+| 2.1 merge settings | squash only, `PR_TITLE` and `COMMIT_MESSAGES`, delete branch on merge, update branch, web sign-off required (applied 2026-10-01 before the flip, read back then) |
+| 2.2 Actions | `allowed_actions` selected, 9 patterns, `github_owned_allowed` and `verified_allowed` true, `sha_pinning_required` true; fork approval `all_external_contributors`; default token `read`, `can_approve_pull_request_reviews` false |
+| 2.3 DCO app | installed by the maintainer; reports a check named `DCO` from the app `dco` |
+| 2.4 rulesets | `main` (id 24282347) and `release tags` (id 24282348), both active; effective rules on `main`: deletion, non_fast_forward, pull_request, required_linear_history, required_signatures, required_status_checks; bypass: `RepositoryRole` 5, `pull_request` mode; required checks `lint, unit tests, build` (Actions app) and `DCO`, strict; squash only |
+| 2.5 security | secret scanning and push protection enabled; private vulnerability reporting enabled; CodeQL default setup configured for `actions` and `python`; Dependabot alerts and security updates enabled |
+| 2.6 release token | GitHub App `decisio-release` (ID 5143933) installed on this repository only; secret `RELEASE_PLEASE_APP_PRIVATE_KEY` and variable `RELEASE_PLEASE_APP_ID` set; `release-please` ran with the app token and opened the release pull request |
+| 2.7 variables | **not applied**: no GPU runner exists, so `GPU_RUNNER_READY`, `DECISIO_MODEL` and `DECISIO_VIEW` stay unset (the only variable is the app ID) |
+| 2.8 label | `benchmark` created |
+
+Behaviour, from a scratch clone: a direct push to `main` is rejected ("Changes must be made through a pull request", "2 of 2 required status checks are expected"), a force-push is rejected, deleting `main` is refused, and deleting a `v*` tag is rejected ("Cannot delete this tag").
+The first scans: CodeQL ran on `main` for both languages with 0 results and 0 open code scanning alerts; Scorecard's first published score is 6.5; there are 0 secret scanning alerts and 1 open Dependabot alert (`setuptools` 80.10.2 in `uv.lock`, fixed in 83.0.0, medium).
+The signed-commit rule was tested with two pull requests: one whose branch commit is signed with the maintainer's SSH key (accepted, squash commit verified by GitHub), and one whose branch commit is unsigned (this one); the result of the second is in the maintainer's notes, not here, because it can only be known after this merges.
+
+Things that went differently from the sections below, and are corrected there:
+- The DCO app reports on a pull request's `opened` and `synchronize` events, not on `reopened`: after installing it, push a commit to an open pull request to get the check.
+- A `v*` tag can be created under the tag ruleset (only deletion and updates are forbidden), so a probe tag cannot be removed afterwards without switching the ruleset off; do not use one as a test.
+- `RELEASE_PLEASE_APP_ID` must be the app's numeric ID, not its name.
+
 ## 0. Before the repository goes public
 
 These are gates, not settings.
@@ -238,7 +264,8 @@ allowRemediationCommits:
   individual: true
 ```
 
-The check appears on pull requests with the name `DCO`, which is the name the ruleset requires.
+The check appears on pull requests with the name `DCO`, which is the name the ruleset requires; it is sent on `opened` and `synchronize`, so an open pull request needs a new push to get it.
+The app's address is exactly <https://github.com/apps/dco>; a trailing full stop makes GitHub answer 404.
 Bots are skipped by the app; people, including the owner, are not.
 
 ### 2.4 Rulesets [API]
@@ -347,7 +374,8 @@ Its tokens last an hour, it is not tied to a person, and its commits are a bot's
 1. [CLICK] <https://github.com/settings/apps/new>: name `decisio-release` (any free name), homepage `https://github.com/aminry/decisio`, Webhook: untick Active, repository permissions Contents: read and write, Pull requests: read and write (Metadata: read is added automatically), "Where can this GitHub App be installed": only on this account.
 2. [CLICK] On the app's page, Generate a private key (a `.pem` downloads) and note the App ID.
 3. [CLICK] Install App, then the account, then only select repositories, `aminry/decisio`.
-4. [API] Store both, then delete the local `.pem`:
+4. [API] Store both, then delete the local `.pem`.
+   The variable is the app's numeric **App ID** (shown on its settings page), not its name; the key goes in through standard input (`<`), not as an argument:
 
 ```
 gh variable set RELEASE_PLEASE_APP_ID --repo aminry/decisio --body <app id>
@@ -717,6 +745,8 @@ git commit --allow-empty -s -m "test: ruleset probe" && git push origin HEAD:mai
 git push --force origin HEAD:main                                                    # rejected
 git push origin :main                                                                # rejected: deletion restricted
 ```
+
+Do not probe the tag ruleset by pushing a tag: creation is allowed and the tag then cannot be deleted without switching the ruleset off; once a real release tag exists, try to delete or move that one instead.
 
 And in the browser:
 
