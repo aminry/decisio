@@ -1,0 +1,1 @@
+time to healthy (pushed image, checkpoint already in the volume): 223 s

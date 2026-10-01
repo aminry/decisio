@@ -543,7 +543,10 @@ Steps (`R` is the run folder, named for the day of the run):
 The record is `runs/2026-10-01_docker-first-gpu-start` (manifest, files with their hashes).
 One RTX PRO 6000 Blackwell Workstation Edition on a vast.ai virtual machine, `main` at `eb9ae2e`: the image built in 236 s; healthy in 651 s on the first start (the 36 GB checkpoint download at about 121 MB/s, 338 s of loading, and two CUDA graph captures of 144 s and 75 s) and in 206 s from the cached volume; the example request returned `200` and the same answer after the restart (difference 0.0); C2 passed, C3 gave identical prompts for 200 of 200 items, and C4's maximum difference was exactly `0.0`.
 Two deviations, both in the manifest: the machine had Python 3.10 only (uv installed 3.12 for the wheel build), and the conformance client ran in a second container of the same image on the host network, because the machine reached PyPI at about 0.7 MB/s and a host environment with the CUDA wheels of torch (`uv sync --extra bench`) would have taken over an hour; on a machine with a normal link, use step 6 as written.
-The image has an ID and no registry digest; step 11's repeat with the pushed digest is still due after the first release.
+**Repeat with the pushed image (2026-10-01, the `0.1.0` image, `ghcr.io/aminry/decisio@sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd`): passed.**
+Pulled by digest in 193 s and started with `image:` in place of `build:`: the card is visible in the container, healthy in 223 s with the checkpoint already in the volume, the example request returns `200`, and C2 to C4 pass again (C4 maximum difference exactly `0.0`); the record is `pushed_image_0.1.0` in the run.
+One finding from it, in `repeat_variability`: the README's three-question example does not return identical probabilities on every request, on either image (30 repeats on one server gave two distinct vectors, 22 and 8; each question asked alone gave one value in 30 of 30; `access` ranged from 0.79 to 0.91 over the whole record; the chosen options never changed).
+The locally built image and the pushed image behave alike, so this is the serving stack's batching, not a difference between the images, and the README's note on the example's spread should quote the larger figure.
 
 ### 3.1 Register the trusted publisher [CLICK]
 
