@@ -4,7 +4,7 @@
 # gitleaks' generic-api-key rule matches 64-character hexadecimal strings next to words like "key" or a file name.
 # Every entry below is such a string: a sha256 digest in a run record under runs/, checked to be 64 hex characters.
 # gitleaks git reads this file from the working tree; scan with:  gitleaks git --redact -v .
-# (27 fingerprints, from the full-history scan and from the commits only the pull request refs still hold.)
+# (27 fingerprints for gitleaks git, 12 for gitleaks dir.)
 
 # a173bcf runs/2026-09-27_image-input/imajev/image/calibration/manifest.json: sha256 digests in an image-input run record: the hash of a harness file (api_models.py) that the imajev harness stores in its manifest and score files; a content hash, not a credential
 a173bcfe9b3090e1cefbdb1479c6383e39028589:runs/2026-09-27_image-input/imajev/image/calibration/manifest.json:generic-api-key:1
@@ -86,3 +86,18 @@ afe51e462c993986cd92b8ed630c5299f5041588:runs/2026-09-27_image-input/imajev/imag
 
 # 121e26f runs/2026-09-30_plugin-verification/r12/v3_clinc_d0_task.json: the task-key fingerprint (a sha256 over the registered question) in a registered-task record; an identifier, not a credential
 121e26f5ec68eebd39687ea0a8815d4e383ddc66:runs/2026-09-30_plugin-verification/r12/v3_clinc_d0_task.json:generic-api-key:1
+
+# gitleaks dir (the files as they are now): the same sha256 digests as above, whose fingerprints have no commit.
+# runs/2026-09-27_image-input/imajev/**: the hash of a harness file (api_models.py) in the run's manifest and score files.
+runs/2026-09-27_image-input/imajev/image/calibration/manifest.json:generic-api-key:1
+runs/2026-09-27_image-input/imajev/image/calibration/score.json:generic-api-key:2364
+runs/2026-09-27_image-input/imajev/image/dev/manifest.json:generic-api-key:1
+runs/2026-09-27_image-input/imajev/image/dev/score.json:generic-api-key:2921
+runs/2026-09-27_image-input/imajev/image_abstain/calibration/manifest.json:generic-api-key:1
+runs/2026-09-27_image-input/imajev/image_abstain/calibration/score.json:generic-api-key:2364
+runs/2026-09-27_image-input/imajev/image_abstain/dev/manifest.json:generic-api-key:1
+runs/2026-09-27_image-input/imajev/image_abstain/dev/score.json:generic-api-key:3077
+runs/2026-09-27_image-input/imajev/image_two_orders/calibration/manifest.json:generic-api-key:1
+runs/2026-09-27_image-input/imajev/image_two_orders/calibration/score.json:generic-api-key:2376
+runs/2026-09-27_image-input/imajev/image_two_orders/dev/manifest.json:generic-api-key:1
+runs/2026-09-27_image-input/imajev/image_two_orders/dev/score.json:generic-api-key:3071
