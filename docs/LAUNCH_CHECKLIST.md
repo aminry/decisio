@@ -680,6 +680,9 @@ Lint it with `actionlint` before opening the pull request.
 
 ### 3.4 First release [CLICK]
 
+`0.1.0` was released on 2026-10-01 without a PyPI upload: its tag was made before `publish.yml` was on `main`, and a tag's workflow runs from the file at the tagged commit, so it cannot be repeated for that tag (tags cannot be moved).
+The first PyPI release is `0.1.1`, with the image and its SBOM attestation from the same tag.
+
 Not before 3.0 has passed: the release tag publishes the image.
 
 1. The first public release is `0.1.0`.
@@ -705,9 +708,11 @@ It needs nothing beyond 2.2's allowed actions (the Docker and Anchore ones are l
 ```
 docker pull ghcr.io/aminry/decisio@sha256:<digest in the release notes>
 gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio
-gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio --predicate-type https://spdx.dev/Document/v2.3
+gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio --predicate-type https://cyclonedx.org/bom
 ```
 
+The SBOM is CycloneDX because the SPDX document of this 9 GB image is 49 MB and `actions/attest-sbom` accepts 16 MiB (CycloneDX: 8.4 MB, measured with syft on the `0.1.0` image).
+The `0.1.0` image has a build-provenance attestation and no SBOM attestation (the workflow's SBOM step failed on that tag, and its release notes say so); `0.1.1` is the first release with both.
 The base image is pinned by digest in the `Dockerfile`; Dependabot refreshes the digest of the pinned tag and never moves the tag.
 The image has not been run on a GPU; 3.0 is the gate that must pass before the tag that publishes it, and its repeat with the pushed digest comes after.
 
