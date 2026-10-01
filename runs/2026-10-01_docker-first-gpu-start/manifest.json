@@ -54,5 +54,37 @@
   "the items file (benchmark item text)",
   "the conformance rows keep ids, labels and probabilities, no text"
  ],
- "files": "files.json"
+ "files": "files.json",
+ "pushed_image_repeat": {
+  "what": "The image published by the v0.1.0 release, pulled by digest, started from the same checkpoint volume with compose.pushed.yaml (image: instead of build:), steps 3 to 5 of gate 3.0 repeated, conformance C2-C4 as an extra",
+  "image": "ghcr.io/aminry/decisio@sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd (tag 0.1.0; image revision label 455c2c1; built by the docker workflow on the release tag)",
+  "pull_s": 193,
+  "time_to_healthy_s": 223,
+  "time_to_healthy_note": "checkpoint already in the volume, so comparable to the second start of the first run (206 s), not to the first start (651 s)",
+  "gpu_visible_in_container": true,
+  "container_user": "uid=10001(decisio) gid=996(decisio) groups=996(decisio)",
+  "example_request": "HTTP 200",
+  "conformance": "pass; C4 max_abs_delta_p exactly 0.0, 200 items, no flips",
+  "result": "pass",
+  "files": "pushed_image_0.1.0/"
+ },
+ "repeat_variability": {
+  "finding": "The README's three-question example does not return identical probabilities on every request, with either image. Same running server, same request, 30 repeats of the full example: 2 distinct answer vectors (22 and 8 repeats); each question asked alone, 30 repeats each: 1 value each (identical). Across all runs of this record the three-question example gave at least 3 distinct vectors (probability of `access` from 0.7916 to 0.9059); the chosen options never changed. The locally built image and the pushed image show the same behaviour (local build: B, A, B; pushed image: A, B, B on the same sequence), so it is a property of the serving stack, not a difference between the images.",
+  "reading": "consistent with the questions of one request being scored in one batch whose composition varies with timing; not established here",
+  "distinct_vectors_in_30_repeats": [
+   {
+    "urgent": 0.891296687,
+    "access": 0.871933514,
+    "score": 2.005631646,
+    "count": 22
+   },
+   {
+    "urgent": 0.916136249,
+    "access": 0.905905969,
+    "score": 2.012058492,
+    "count": 8
+   }
+  ],
+  "files": "repeat_variability/ (ab: the sequence on both images; rep30.json; scripts/)"
+ }
 }

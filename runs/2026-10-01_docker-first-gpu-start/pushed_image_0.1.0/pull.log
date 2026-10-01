@@ -1,0 +1,31 @@
+ghcr.io/aminry/decisio@sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd: Pulling from aminry/decisio
+f8b8e8a12fbe: Pulling fs layer
+0ba3d7d084b3: Pulling fs layer
+880491882dd3: Pulling fs layer
+5ef348708f0a: Pulling fs layer
+0f14ef2eaaef: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+dc171ce0b310: Pulling fs layer
+1ef1c834d897: Pulling fs layer
+93b9141cdc55: Pulling fs layer
+4f4fb700ef54: Already exists
+f8b8e8a12fbe: Download complete
+0f14ef2eaaef: Download complete
+1ef1c834d897: Download complete
+93b9141cdc55: Download complete
+880491882dd3: Download complete
+5ef348708f0a: Download complete
+dc171ce0b310: Download complete
+dc171ce0b310: Pull complete
+0f14ef2eaaef: Pull complete
+0ba3d7d084b3: Download complete
+880491882dd3: Pull complete
+5ef348708f0a: Pull complete
+0ba3d7d084b3: Pull complete
+4f4fb700ef54: Pull complete
+f8b8e8a12fbe: Pull complete
+1ef1c834d897: Pull complete
+93b9141cdc55: Pull complete
+Digest: sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd
+Status: Downloaded newer image for ghcr.io/aminry/decisio@sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd
+ghcr.io/aminry/decisio@sha256:756a13db4e03ad1855bb8d0f71ec6f471e1a857194c1341fcf5bd07cb70a02dd
