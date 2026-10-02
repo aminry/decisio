@@ -69,13 +69,13 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged (the values the first GPU start returned, rounded, under the defaults of 2026-10-01: the questions batched and options shown as `key: description`; the current defaults return each question's single-question answer under the description rendering, to be re-measured):
+Response, abridged (rounded; the same in 30 of 30 repeats on one server, `runs/2026-10-02_readme-example/`):
 
 ```
 {"answers": {
   "urgent":   {"type": "noul",   "noul": 0.90},
-  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.03, "access": 0.79, "bug": 0.16, "other": 0.02}},
-  "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.01, "2": 0.96, "3": 0.02}}}}
+  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.01, "access": 0.97, "bug": 0.01, "other": 0.00}},
+  "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.02, "2": 0.94, "3": 0.04}}}}
 ```
 
 Repeat the request and you get the same probabilities: each question is scored in its own engine call after the state is prefilled once, so its answer equals the question sent on its own. With `--multi-question warm` the three questions are scored in one batch, faster, and their probabilities vary with that batch: by about 0.12 on this example (the probability of `access` ranged from 0.79 to 0.91, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`), and when two options are close the choice can change too.

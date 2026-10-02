@@ -1,0 +1,1263 @@
+{
+ "request": {
+  "state": "Hi, since this morning none of our 40 staff can log in to the dashboard. We get \"session expired\" right after entering the password. Payroll is due today.",
+  "questions": {
+   "urgent": {
+    "type": "noul",
+    "instructions": "Does this ticket need a response within the hour?"
+   },
+   "category": {
+    "type": "choice",
+    "instructions": "Which team should handle this ticket?",
+    "criteria": {
+     "billing": "Invoices, payments, refunds",
+     "access": "Login, passwords, permissions",
+     "bug": "The product behaves wrongly",
+     "other": null
+    }
+   },
+   "impact": {
+    "type": "score",
+    "instructions": "Rate the business impact using only the reported facts.",
+    "criteria": [
+     "No function impaired",
+     "One user impaired, with a workaround",
+     "Many users blocked from a core function",
+     "Data loss or legal exposure"
+    ]
+   }
+  }
+ },
+ "responses": [
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  },
+  {
+   "model": "decisio-qwen3.6-35b-a3b-letters",
+   "answers": {
+    "urgent": {
+     "type": "noul",
+     "noul": 0.9002220312843632
+    },
+    "category": {
+     "type": "choice",
+     "choice": "access",
+     "confidence": 0.9631974769627693,
+     "probabilities": {
+      "billing": 0.008966190985108712,
+      "access": 0.9723981077220769,
+      "bug": 0.014463891246660627,
+      "other": 0.0041718100461539615
+     }
+    },
+    "impact": {
+     "type": "score",
+     "score": 2.0120584916464446,
+     "confidence": 0.9322499975487154,
+     "legend": {
+      "0": "No function impaired",
+      "1": "One user impaired, with a workaround",
+      "2": "Many users blocked from a core function",
+      "3": "Data loss or legal exposure"
+     },
+     "probabilities": {
+      "0": 0.004639507594598195,
+      "1": 0.018566740213223774,
+      "2": 0.9368895051433137,
+      "3": 0.03990424704886444
+     }
+    }
+   },
+   "usage": {
+    "input_tokens": 155,
+    "output_tokens": 3
+   }
+  }
+ ]
+}
