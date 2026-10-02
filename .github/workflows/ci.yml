@@ -47,6 +47,10 @@ jobs:
       - name: Lint
         run: uv run ruff check .
 
+      # Every file needs a licence: an SPDX header, or an annotation in REUSE.toml (data, logs, run records, CHANGELOG.md).
+      - name: REUSE compliance
+        run: uvx --from "reuse[charset-normalizer]==6.2.0" reuse lint
+
       # The patch tests apply each series to the tagged vLLM source; without the tree they skip.
       - name: Fetch the vLLM source the patches are checked against
         run: bash scripts/fetch_vllm_source.sh
