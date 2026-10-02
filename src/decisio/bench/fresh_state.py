@@ -96,14 +96,17 @@ def engine_floor(a):
 
     deep_gemm_guard("vllm", os.environ)
     kw = engine_kwargs(argparse.Namespace(engine=json.dumps(SERVED_ENGINE), model_class=a.model_class))
+    # as LettersEngine builds it: its defaults, then the served engine's keyword arguments on top
     llm = LLM(
-        model=a.model,
-        max_model_len=32768,
-        enable_prefix_caching=True,
-        max_logprobs=256,
-        logprobs_mode="processed_logprobs",
-        limit_mm_per_prompt={"image": 0, "video": 0},
-        **kw,
+        **{
+            "model": a.model,
+            "max_model_len": 32768,
+            "enable_prefix_caching": True,
+            "max_logprobs": 256,
+            "logprobs_mode": "processed_logprobs",
+            "limit_mm_per_prompt": {"image": 0, "video": 0},
+            **kw,
+        }
     )
     rng = random.Random(0)
     sp = SamplingParams(max_tokens=1, temperature=0.0, logprobs=2, allowed_token_ids=[9454, 2152], detokenize=False)
