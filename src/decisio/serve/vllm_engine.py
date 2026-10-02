@@ -397,6 +397,11 @@ class LettersEngine:
         k = (-n % self.pad_unit) if self.pad_unit else 0
         if self.pad_policy == "shared" and len(questions) == 1:
             k = 0  # --pad-policy shared: no second question can reuse the padded boundary
+        elif self.pad_policy == "row" and len(questions) == 1 and self.pad_unit:
+            # --pad-policy row: the whole row, state and question, ends on a block boundary, so a cold prefill is
+            # one engine step (align mode stops a prefill at the last boundary, and a row just past one costs a
+            # second step); the state's boundary is then not aligned, which no second question would use anyway
+            k = -len(rows[0][0]) % self.pad_unit
         head = len(enc(USER_HEAD))
         rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
         return rows, n + k
@@ -742,10 +747,12 @@ def main():
     ap.add_argument(
         "--pad-policy",
         default="always",
-        choices=["always", "shared"],
+        choices=["always", "shared", "row"],
         help="always (the served default): front-pad every state to the block; shared: pad only when the request has "
         "more than one question to share the padded boundary (a single-question request then reads its state "
-        "unpadded, a different prompt)",
+        "unpadded, a different prompt); row: a single-question request is front-padded so its whole row, state "
+        "and question, ends on the block boundary and is prefilled in one engine step (multi-question requests "
+        "as always)",
     )
     ap.add_argument(
         "--multi-question",

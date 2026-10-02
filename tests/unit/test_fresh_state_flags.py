@@ -12,6 +12,8 @@ with the served model's tokenizer and a recording engine; no model.
   F4  the engine reports where its time went (prepare, warm-up, questions, readout)
   F5  --multi-question sequential sends the warm-up, then each question of a multi-question request in its own engine
       call, the rows unchanged
+  F6  --pad-policy row front-pads a single-question row so the whole row ends on the block boundary (less than one
+      block of padding, the prompt unchanged after it); multi-question requests are padded as always
 
     uv run pytest -q tests/unit/test_fresh_state_flags.py
 """
@@ -116,3 +118,16 @@ def test_f5_multi_question_sequential(tok):
     single = Recording(tok, multi_question="sequential")
     single.answer(STATE, ONE)
     assert single.sent[0] == sent(tok, ONE, multi_question="warm")[0]  # single question: the same in every mode
+
+
+def test_f6_pad_policy_row(tok):
+    """--pad-policy row: a single-question row is front-padded to end on the block boundary; multi-question requests
+    are padded as always."""
+    always, _ = sent(tok, ONE)
+    row, _ = sent(tok, ONE, pad_policy="row")
+    ids = row["rows"][0]
+    unpadded, _ = sent(tok, ONE, pad_policy="shared")
+    assert len(ids) % 1056 == 0 and 0 < len(ids) - len(unpadded["rows"][0]) < 1056  # less than one block of padding
+    assert ids[0] == sv.PAD_TOKEN and ids[-len(unpadded["rows"][0]) :] == unpadded["rows"][0]  # front, prompt unchanged
+    assert len(always["rows"][0]) % 1056 != 0  # as always, the row runs past the state's boundary
+    assert sent(tok, FOUR, pad_policy="row")[0] == sent(tok, FOUR)[0]  # multi-question: unchanged
