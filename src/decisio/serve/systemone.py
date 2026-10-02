@@ -125,7 +125,9 @@ def snake_label(label: str) -> bool:
     return "_" in label and SNAKE_LABEL.match(label) is not None
 
 
-def to_engine_question(q, hide_index_keys: bool = True, desnake_labels: bool = True) -> tuple[dict, list[str]]:
+def to_engine_question(
+    q, hide_index_keys: bool = True, desnake_labels: bool = True, describe_options: bool = False
+) -> tuple[dict, list[str]]:
     """(engine question dict, the answer keys in engine option order) for one wire question.
 
     `hide_index_keys` (the served default): a choice question whose keys are a pure enumeration (`index_keys`) shows
@@ -135,7 +137,11 @@ def to_engine_question(q, hide_index_keys: bool = True, desnake_labels: bool = T
 
     `desnake_labels` (the served default): when the options are shown as bare labels (index keys hidden, or keys without
     descriptions), each snake_case label (`snake_label`) is shown with spaces (`card arrival`) and every other label as
-    sent; the keys stay the answer's keys. `key: description` renderings are never changed."""
+    sent; the keys stay the answer's keys. `key: description` renderings are never changed.
+
+    `describe_options` (off by default, `--describe-options`): an option with a description is shown as its
+    description alone, with no key; an option without one is shown as its key (de-snaked as above). The keys stay the
+    answer's keys. If two options would then read the same, the question is rendered as without the rule."""
     instr = render_text(q.instructions).strip() or DEFAULT_INSTRUCTIONS[q.type]
     if q.type == "noul":
         extra = []
@@ -153,6 +159,14 @@ def to_engine_question(q, hide_index_keys: bool = True, desnake_labels: bool = T
             bare = [render_text(d) for d in q.criteria.values()]
         elif all(d is None or render_text(d) == "" for d in q.criteria.values()):
             bare = list(keys)
+        if bare is None and describe_options:
+            has = [d is not None and render_text(d) != "" for d in q.criteria.values()]
+            shown = [
+                render_text(d) if h else (k.replace("_", " ") if desnake_labels and snake_label(k) else k)
+                for (k, d), h in zip(q.criteria.items(), has)
+            ]
+            if len(set(shown)) == len(shown):
+                return {"kind": "choice", "instructions": instr, "options": shown}, keys
         if bare is not None:
             if desnake_labels:
                 bare = [x.replace("_", " ") if snake_label(x) else x for x in bare]
@@ -325,6 +339,7 @@ class SystemOne:
         abstain_option: str | None = None,
         hide_index_keys: bool = True,
         desnake_labels: bool = True,
+        describe_options: bool = False,
         abstention: bool = True,
         abstention_tasks: list[dict] | None = None,
         tasks_enabled: bool = True,
@@ -336,6 +351,7 @@ class SystemOne:
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
+        self.describe_options = describe_options  # likewise; off by default
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -391,7 +407,7 @@ class SystemOne:
         orders = int((req.model_extra or {}).get("orders") or self.orders)
         names = list(req.questions)
         wire = [req.questions[n] for n in names]
-        mapped = [to_engine_question(q, self.hide_index_keys, self.desnake_labels) for q in wire]
+        mapped = [to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options) for q in wire]
         # per-task abstention: (abstain index, config, appended?) per question, or None
         plans = [self.abstention_plan(q, keys, imajev_ext) for q, (_, keys) in zip(wire, mapped)]
         for i, pl in enumerate(plans):
@@ -551,7 +567,7 @@ class SystemOne:
         def score(pairs):
             out = []
             for state, q in pairs:
-                eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels)
+                eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
                 probs, _ = self.engine.answer(state, [eq])
                 out.append(probs[0])
             return out
@@ -559,7 +575,7 @@ class SystemOne:
         def hidden(pairs):
             out = []
             for state, q in pairs:
-                eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels)
+                eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
                 out.append(self.hidden_engine.readout(state, [eq])[0])
             return out
 
@@ -638,7 +654,7 @@ class SystemOne:
         if len(req.questions) != 1:
             raise ValueError("an abstention example carries exactly one question")
         ((name, q),) = req.questions.items()
-        eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels)
+        eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
         engine = self.image_engine if images else self.engine
         run = (
             (lambda qs: engine.answer(req.state, qs, None, images=images))

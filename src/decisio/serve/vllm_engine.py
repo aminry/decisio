@@ -597,6 +597,7 @@ def make_app(engine, systemone=None):
                 "systemone": {
                     "hide_index_keys": systemone.hide_index_keys,
                     "desnake_labels": systemone.desnake_labels,
+                    "describe_options": systemone.describe_options,
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
                         t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
@@ -809,6 +810,13 @@ def main():
         "(card_arrival, ...), show them with spaces (default on; --no-desnake-labels leaves them)",
     )
     ap.add_argument(
+        "--describe-options",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="/v1/systemone: show an option that has a description as its description alone, with no key; an "
+        "option without one as its key (default off; the keys stay the answer's keys)",
+    )
+    ap.add_argument(
         "--abstention",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1008,6 +1016,8 @@ def main():
                 "desnake_labels": args.desnake_labels,
                 # only when not the default, so the fingerprints of tasks registered under the default are unchanged
                 **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
+                # only when on, so the fingerprints of tasks registered without the rule are unchanged
+                **({"describe_options": True} if args.describe_options else {}),
             },
             sort_keys=True,
         )
@@ -1026,6 +1036,7 @@ def main():
         image_engine=image_engine,
         abstain_option=args.abstain_option,
         hide_index_keys=args.hide_index_keys,
+        describe_options=args.describe_options,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
