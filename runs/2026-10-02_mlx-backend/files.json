@@ -376,8 +376,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 8444,
-  "sha256": "cedadfab03a01db9e9261250f0fef1b28a7a404e971af6bb016a0fd5397cd895"
+  "bytes": 9058,
+  "sha256": "8dcee185918e075accaa4e916825424ddcbe54f8ab674866ebd444aee2041022"
  },
  {
   "path": "pipeline.log",
@@ -391,6 +391,16 @@
  },
  {
   "path": "rebase_check/suite_6bit.json.gz",
+  "bytes": 266497,
+  "sha256": "99401cecca14d779b7cc29aaca0095399c688d66ba7ae2c89aeb69b4f2b0cafb"
+ },
+ {
+  "path": "rebase_check_c6a4847/serving_gates_6bit.json",
+  "bytes": 1193,
+  "sha256": "93628f9e1fdb060ec6200c68f28ba644c77c2d8b5bee1fdeaff707b583cccc02"
+ },
+ {
+  "path": "rebase_check_c6a4847/suite_6bit.json.gz",
   "bytes": 266497,
   "sha256": "99401cecca14d779b7cc29aaca0095399c688d66ba7ae2c89aeb69b4f2b0cafb"
  },
