@@ -1,0 +1,25 @@
+  ok   C1 choice prompt identical to eval
+  ok   C1 choice labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C1 score  prompt identical to eval
+  ok   C1 score  labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C2 split 67 just past the state's blank line (state alone encodes to 66)
+  ok   C2 split depends on the state alone, not the question mix
+  ok   C2 pad to 16: prefix 80 = multiple, 13 pads at the split, rest unchanged
+  ok   C2 pad to 544: prefix 544 = multiple, 477 pads at the split, rest unchanged
+  ok   C2 pad to 1056: prefix 1056 = multiple, 989 pads at the split, rest unchanged
+  ok   C2 pad front: prefix 1056 = 1056 multiple, 989 pads at position 0, prompt otherwise unchanged, prefix shared
+  ok   C2 pad user: prefix 1056 = 1056 multiple, 989 pads at position 3, prompt otherwise unchanged, prefix shared
+  ok   C3 pack: piecewise encoding = whole-string encoding
+  ok   C3 pack: first turn = separate prompt
+  ok   C3 pack: every read position is the final ':' of 'Answer:'
+CPU GATES PASS
+ENGINE {"engine": "mlx", "mlx": "0.32.3", "mlx_lm": "0.32.0", "device": "Device(gpu, 0)", "machine": "arm64", "model": "/Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-8bit/snapshots/e06a74e6236a60c8367e1a3214e83d8b61b637b0/", "quantization": {"group_size": 64, "bits": 8, "mode": "affine"}, "tokenizer": "/Users/amin/.cache/huggingface/hub/models--Qwen--Qwen3.6-35B-A3B/snapshots/995ad96eacd98c81ed38be0c5b274b04031597b0", "tokenizer_json_sha256": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42", "official_tokenizer": true, "mode": "separate", "block_size": 1056, "pad_unit": 1056, "pad_where": "front", "prefill_step": 2048, "adapters": []}
+  G1 (reported) prefix path vs whole prompt: max|diff| 4.76e-03, flips 0; per question 1.6e-04, 0.0e+00, 1.5e-03, 4.8e-03
+  ok   G2 each question alone: bit-identical to the request's answers
+  ok   G2 with 16 extra questions: bit-identical to the request's answers
+  ok   G2 repeated: bit-identical to the request's answers
+  G3, G4: not applicable (no packed mode, no adapters on the MLX engine)

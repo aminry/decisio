@@ -105,6 +105,16 @@ uv run pytest
 
 `--backend hf` serves a small Hugging Face model on the CPU for development of the routes; it is not the measured system.
 
+On a Mac with Apple silicon, `--backend mlx` serves the text route with every feature (tasks, the intent head, the temperature, abstention) from an MLX conversion of the same checkpoint; the image route is not served by it:
+
+```
+uv sync --extra mlx
+uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
+```
+
+The 6-bit conversion is the Mac default and the 4-bit one the option for 32 GB machines (docs/design/mlx-backend.md).
+Its prompts are the served ones byte for byte, and at 6 bits it passes the served default's gates against the FP8 records (suite accuracy +0.4 [-0.5, +1.2] points, the intent heads reproduced, 30.7 GB at 32k tokens); a decision takes about 0.5 s on an M5 Pro, about 0.1 s per question when 100 share a state (docs/design/mlx-backend.md, `runs/2026-10-02_mlx-backend`).
+
 A laptop version of the same model, packaged for [Ollama](https://ollama.com/aminroudaki/decisio)'s decision route, exists as `ollama pull aminroudaki/decisio`.
 Ollama builds its own prompt and applies no calibration, so its numbers are the ones on that page, not the ones here.
 

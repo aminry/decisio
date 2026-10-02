@@ -15,7 +15,9 @@ Every route and feature of the text route works unchanged:
 The image route, packed mode, LoRA adapters and the second-engine head are refused with this backend.
 
     uv sync --extra mlx
-    uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-4bit
+    uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
+
+The Mac default is the 6-bit conversion; the 4-bit one is the documented option for 32 GB machines; the 8-bit one is not shipped (Gates below).
 
 ## What is replaced, and what is not
 
@@ -42,6 +44,10 @@ Every question goes through the prefix, single-question requests included:
 The letters are read at the last position: the softmax over the label logits (bf16 out of the output layer, then float64).
 The final-norm hidden state at the same position comes out of the same forward, so the intent head (`MLXHiddenReadout`) fits and serves on exactly the served readout, with no extra request and no second weight copy.
 
+With the vLLM engine's newer flags:
+- **`--multi-question`:** has no effect here, because the MLX engine always scores questions one at a time from the shared prefix, which is what `sequential` does on vLLM.
+- **`--pad-policy shared`:** applies as it does on vLLM; the row builder is shared.
+
 ## The prefix path against the whole prompt
 
 Scoring a question from the prefix cache is not bit-identical to running its whole prompt in one pass.
@@ -51,6 +57,30 @@ The MLX engine always serves the prefix path, so it never serves the other one; 
 ## Gates
 
 Measured on an Apple M5 Pro (64 GB) against the FP8 served default's records (`runs/2026-09-30_plugin-verification`), pre-registered before any measurement.
-The record is in the RLCD experiment `2026-10-02_t2_mlx_backend`.
+The record is `runs/2026-10-02_mlx-backend` (`manifest.json`, `summary.md`).
+FP8 reference: `runs/2026-09-30_plugin-verification`.
+Intervals are paired 95% bootstrap intervals over items.
 
-(Numbers to be filled from the records when the gates are in.)
+| Gate | 8-bit | 6-bit | 4-bit |
+| --- | --- | --- | --- |
+| Prompts identical to the served path (1,400 suite items) | 1,400 | 1,400 | 1,400 |
+| Isolation (G2): alone, beside 16 others, repeated | bit for bit | bit for bit | bit for bit |
+| Prefix path vs whole prompt (G1, reported) | max 4.8e-3 | max 1.1e-2 | max 4.1e-2 |
+| Conformance C2-C4 | pass | pass | pass |
+| Suite accuracy vs FP8 0.762 (points) | +0.3 [-0.6, +1.2] | +0.4 [-0.5, +1.2] | -1.0 [-2.3, +0.3] |
+| Top-answer flips vs FP8 | 56 of 1,400 | 56 | 128 |
+| Pooled ECE vs FP8 0.020 (gate: within 0.01) | 0.030 (fails, by 0.00006) | 0.025 | 0.021 |
+| Intent head BANKING77, 3 draws (FP8 0.847) | 0.842, -0.4 [-2.7, +1.6] | 0.833, -1.3 [-4.0, +1.3] | 0.831, -1.6 [-4.2, +0.7] |
+| Intent head CLINC150, 3 draws (FP8 0.893) | 0.920, +2.7 [-1.0, +6.7] | 0.913, +2.0 [-1.3, +5.7] | 0.927, +3.3 [0.0, +7.3] |
+| Head arithmetic (stored fits; served answers) | exact | exact | exact |
+| Peak memory at 32k tokens | 39.4 GB | 30.7 GB | 22.0 GB |
+| One question, server time p50 | 485 ms | 482 ms | 430 ms |
+| 100 questions sharing a state, per question p50 | 98 ms | 97 ms | 74 ms |
+
+- **Shipped:**
+  - 6-bit, the Mac default: it passes every gate.
+  - 4-bit, the documented option for 32 GB machines: twice the flips and a Brier score worse by 0.009 [+0.001, +0.017].
+- **Not shipped:** 8-bit, which misses the pre-registered ECE rule (reported as measured) and is no faster or more accurate than 6-bit.
+- **Calibration:** the FP8 ECE is in-sample for the served temperature (fitted on the FP8 readouts of this suite), and nothing was refitted for MLX.
+- **Speed:** the per-question time does not track the weight size, so it is not bandwidth. Batching a request's questions over the shared prefix and reading only the label rows of the output layer are the next steps (not done here).
+- **Registration** of an intent task (770 to 1,500 examples) takes 18 to 50 minutes on the M5 Pro.

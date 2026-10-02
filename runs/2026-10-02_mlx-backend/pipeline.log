@@ -1,0 +1,41 @@
+22:49:01 [8bit] start, model /Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-8bit/snapshots/e06a74e6236a60c8367e1a3214e83d8b61b637b0/
+22:49:09 [8bit] GATE_P {"items": 1400, "differ": 0, "pass": true}
+22:49:31 [8bit] serving gates: 21 ok lines, 0 fail lines;   G1 (reported) prefix path vs whole prompt: max|diff| 4.76e-03, flips 0; per question 1.6e-04, 0.0e+00, 1.5e-03, 4.8e-0
+22:49:41 [8bit] memory stage failed (see memory.log)
+22:49:41 [8bit] memory done
+22:49:41 [8bit] server PID 90522
+22:49:53 [8bit] server up
+23:37:45 [8bit] conformance: ok   C3 {"items": 1400, "differ": [], "n_differ": 0} ok   C4 {"items": 1400, "temperature": 1.307, "max_abs_delta_p": 0.0, "mean_abs_delta_p": 0.0, "top_answer_flips": 0} CONFORMANCE PASS 
+23:53:53 [8bit] suite: 23:53:53 SUITE 1400 items answered, 0 matched a registered task -> /Users/amin/repo/RLCD/experiments/2026-10-02_t2_mlx_backend/results/8bit/suite.json
+03:34:31 [8bit] r12: 00:28:18 R12 banking77 draw 0: head applied True (lambda 0.001), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.847; regis|00:51:27 R12 banking77 draw 1: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.847; regist|01:14:25 R12 banking77 draw 2: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.833; regist|02:00:59 R12 v3_clinc draw 0: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.900; regis|02:47:21 R12 v3_clinc draw 1: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.930; regis|03:34:30 R12 v3_clinc draw 2: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.930; regis|03:34:30 R12_DONE|
+04:19:55 [8bit] latency: pass 3: 1q p50 485 ms (484.6/q); 10q p50 1164 ms (116.4/q); 100q p50 9829 ms (98.3/q); 100q_8k p50 14716 ms (147.2/q); max foreign CPU 93% (/usr/libexec/searchpartyd), idle False
+04:19:56 [8bit] server PID 90522 stopped
+04:19:59 [8bit] compare: S 8bit: acc MLX 0.7650 FP8 0.7621 diff [0.0028571428571428914, -0.005714285714285783, 0.012142857142857122] S1 True; ECE MLX 0.0301 FP8 0.0201 S3 False; flips 56|H 8bit banking77: MLX [0.8466666666666667, 0.8466666666666667, 0.8333333333333334] mean 0.842; FP8 mean 0.847; diff [-0.004444444444444473, -0.026666666666666616, 0.015555555555555767] H2 True H1 True|H 8bit v3_clinc: MLX [0.9, 0.93, 0.93
+04:19:59 [8bit] DONE
+04:19:59 [6bit] start, model /Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-6bit/snapshots/cb7e092ef8efe540bc3672c8929c4adbe5f4f759/
+04:20:08 [6bit] GATE_P {"items": 1400, "differ": 0, "pass": true}
+04:20:23 [6bit] serving gates: 21 ok lines, 0 fail lines;   G1 (reported) prefix path vs whole prompt: max|diff| 1.12e-02, flips 0; per question 3.4e-04, 7.5e-03, 1.1e-02, 6.3e-0
+04:21:37 [6bit] memory done
+04:21:37 [6bit] server PID 86969
+04:21:46 [6bit] server up
+05:09:11 [6bit] conformance: ok   C3 {"items": 1400, "differ": [], "n_differ": 0} ok   C4 {"items": 1400, "temperature": 1.307, "max_abs_delta_p": 0.0, "mean_abs_delta_p": 0.0, "top_answer_flips": 0} CONFORMANCE PASS 
+05:24:42 [6bit] suite: 05:24:42 SUITE 1400 items answered, 0 matched a registered task -> /Users/amin/repo/RLCD/experiments/2026-10-02_t2_mlx_backend/results/6bit/suite.json
+09:20:30 [6bit] r12: 05:46:39 R12 banking77 draw 0: head applied True (lambda 0.001), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.853; regis|06:29:52 R12 banking77 draw 1: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.827; regist|06:52:58 R12 banking77 draw 2: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.820; regist|07:41:46 R12 v3_clinc draw 0: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.890; regis|08:28:43 R12 v3_clinc draw 1: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.920; regis|09:20:30 R12 v3_clinc draw 2: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.930; regis|09:20:30 R12_DONE|
+10:05:52 [6bit] latency: pass 3: 1q p50 482 ms (482.1/q); 10q p50 1148 ms (114.8/q); 100q p50 9747 ms (97.5/q); 100q_8k p50 14489 ms (144.9/q); max foreign CPU 61% (/usr/libexec/searchpartyd), idle False
+10:05:53 [6bit] server PID 86969 stopped
+10:05:56 [6bit] compare: S 6bit: acc MLX 0.7657 FP8 0.7621 diff [0.0035714285714285587, -0.0050000000000000044, 0.012142857142857122] S1 True; ECE MLX 0.0252 FP8 0.0201 S3 True; flips 56|H 6bit banking77: MLX [0.8533333333333334, 0.8266666666666667, 0.82] mean 0.833; FP8 mean 0.847; diff [-0.013333333333333308, -0.040000000000000036, 0.0133333333333332] H2 True H1 True|H 6bit v3_clinc: MLX [0.89, 0.92, 0.93] mean 0.913; F
+10:05:56 [6bit] DONE
+10:05:56 [4bit] start, model /Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-4bit/snapshots/38740b847e4cb78f352aba30aa41c76e08e6eb46/
+10:06:02 [4bit] GATE_P {"items": 1400, "differ": 0, "pass": true}
+10:06:13 [4bit] serving gates: 21 ok lines, 0 fail lines;   G1 (reported) prefix path vs whole prompt: max|diff| 4.15e-02, flips 0; per question 1.6e-04, 9.2e-03, 4.1e-02, 6.0e-0
+10:07:17 [4bit] memory done
+10:07:17 [4bit] server PID 97598
+10:07:23 [4bit] server up
+10:48:11 [4bit] conformance: ok   C3 {"items": 1400, "differ": [], "n_differ": 0} ok   C4 {"items": 1400, "temperature": 1.307, "max_abs_delta_p": 0.0, "mean_abs_delta_p": 0.0, "top_answer_flips": 0} CONFORMANCE PASS 
+11:02:03 [4bit] suite: 11:02:03 SUITE 1400 items answered, 0 matched a registered task -> /Users/amin/repo/RLCD/experiments/2026-10-02_t2_mlx_backend/results/4bit/suite.json
+14:06:05 [4bit] r12: 11:21:56 R12 banking77 draw 0: head applied True (lambda 0.001), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.853; regis|11:41:44 R12 banking77 draw 1: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.827; regist|12:01:32 R12 banking77 draw 2: head applied True (lambda 0.001), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.813; regis|12:43:05 R12 v3_clinc draw 0: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.910; regis|13:24:35 R12 v3_clinc draw 1: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.940; regis|14:06:04 R12 v3_clinc draw 2: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.930; regis|14:06:04 R12_DONE|
+14:45:37 [4bit] latency: pass 3: 1q p50 430 ms (430.4/q); 10q p50 958 ms (95.8/q); 100q p50 7404 ms (74.0/q); 100q_8k p50 11240 ms (112.4/q); max foreign CPU 41% (.app/Contents/MacOS/Google Chrome Helper (Aperitif Renderer)),
+14:45:39 [4bit] server PID 97598 stopped
+14:45:42 [4bit] compare: S 4bit: acc MLX 0.7521 FP8 0.7621 diff [-0.010000000000000009, -0.02285714285714291, 0.0028571428571428914] S1 True; ECE MLX 0.0208 FP8 0.0201 S3 True; flips 128|H 4bit banking77: MLX [0.8533333333333334, 0.8266666666666667, 0.8133333333333334] mean 0.831; FP8 mean 0.847; diff [-0.015555555555555545, -0.04222222222222227, 0.006666666666666821] H2 True H1 True|H 4bit v3_clinc: MLX [0.91, 0.94, 0.93
+14:45:42 [4bit] DONE
+14:45:42 CHAIN DONE

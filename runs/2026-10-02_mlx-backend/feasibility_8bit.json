@@ -1,0 +1,196 @@
+{
+ "model": "/Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-8bit/snapshots/e06a74e6236a60c8367e1a3214e83d8b61b637b0",
+ "load_s": 6.466956584015861,
+ "mlx": "0.32.3",
+ "items": [
+  {
+   "item": [
+    "mmlu_pro_text_x350",
+    0
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1256,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 10,
+     "top_full": 3,
+     "top_prefix": 3,
+     "max_dp_full_vs_prefix": 3.584603090212024e-05,
+     "max_dlp_full_vs_prefix": 0.25003587316739484,
+     "max_dh_full_vs_prefix": 0.8203125,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.02769636127587302,
+     "max_dlp_full_vs_prefix": 0.28175980028506187,
+     "max_dh_full_vs_prefix": 1.125,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.004240908955425331,
+     "max_dlp_full_vs_prefix": 0.12060432829525558,
+     "max_dh_full_vs_prefix": 1.40625,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 3868.3936666930094,
+   "prefix_ms": 389.1911249374971,
+   "prefix_q_ms": 117.56433333115031
+  },
+  {
+   "item": [
+    "scifact",
+    3
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1094,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 2,
+     "top_full": 1,
+     "top_prefix": 1,
+     "max_dp_full_vs_prefix": 0.00037175587536421523,
+     "max_dlp_full_vs_prefix": 0.12462713043167284,
+     "max_dh_full_vs_prefix": 0.5,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.009240864985776809,
+     "max_dlp_full_vs_prefix": 0.11495026881761072,
+     "max_dh_full_vs_prefix": 1.1875,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0,
+     "max_dlp_full_vs_prefix": 0.0,
+     "max_dh_full_vs_prefix": 1.09375,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 443.29686101991683,
+   "prefix_ms": 426.25629203394055,
+   "prefix_q_ms": 89.73161100099485
+  },
+  {
+   "item": [
+    "boolq",
+    5
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1081,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0011378267887973414,
+     "max_dlp_full_vs_prefix": 0.06134066141327077,
+     "max_dh_full_vs_prefix": 0.4375,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.02150757890718058,
+     "max_dlp_full_vs_prefix": 0.4774568085262141,
+     "max_dh_full_vs_prefix": 1.375,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.005554559108905746,
+     "max_dlp_full_vs_prefix": 0.36935964235836405,
+     "max_dh_full_vs_prefix": 1.15625,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 436.26723597602296,
+   "prefix_ms": 418.6926659895107,
+   "prefix_q_ms": 82.6421530218795
+  },
+  {
+   "item": [
+    "banking77",
+    7
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1578,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 77,
+     "top_full": 29,
+     "top_prefix": 29,
+     "max_dp_full_vs_prefix": 0.001344864464459145,
+     "max_dlp_full_vs_prefix": 0.9362967010799821,
+     "max_dh_full_vs_prefix": 1.0,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0,
+     "max_dlp_full_vs_prefix": 0.0,
+     "max_dh_full_vs_prefix": 0.9375,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.04777215766289089,
+     "max_dlp_full_vs_prefix": 0.8241019062128441,
+     "max_dh_full_vs_prefix": 1.109375,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 546.7429583271345,
+   "prefix_ms": 387.5507910270244,
+   "prefix_q_ms": 223.36195832273611
+  }
+ ],
+ "peak_memory_gb": 38.403409894
+}
