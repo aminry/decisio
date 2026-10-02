@@ -804,6 +804,14 @@ def main():
         "route, packed mode and adapters",
     )
     ap.add_argument(
+        "--prefix-cache-mb",
+        type=int,
+        default=None,
+        help="--backend mlx: the budget of the cross-request prefix cache in MB (default 2048; 0 turns it off): a "
+        "request whose state prefix was seen before continues from its kept cache instead of prefilling it, with the "
+        "same answers bit for bit",
+    )
+    ap.add_argument(
         "--tokenizer",
         default=None,
         help="--backend mlx: the tokenizer the prompts are built with (default: the official "
@@ -947,6 +955,8 @@ def main():
             ap.error(f"--backend mlx serves the text route in separate mode, without {', '.join(refused)}")
     elif args.tokenizer:
         ap.error("--tokenizer is for --backend mlx (vLLM and the CPU stand-in use the model's own)")
+    elif args.prefix_cache_mb is not None:
+        ap.error("--prefix-cache-mb is for --backend mlx (vLLM has its own prefix cache)")
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
@@ -982,11 +992,12 @@ def main():
             args.model, pad_to=None if args.pad_to == "none" else args.pad_to, pad_where=args.pad_where
         )
     elif args.backend == "mlx":
-        from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, MLXLettersEngine
+        from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, PREFIX_CACHE_MB, MLXLettersEngine
 
         engine = MLXLettersEngine(
             args.model,
             tokenizer=args.tokenizer or OFFICIAL_TOKENIZER,
+            prefix_cache_mb=PREFIX_CACHE_MB if args.prefix_cache_mb is None else args.prefix_cache_mb,
             pad_to=None if args.pad_to == "none" else args.pad_to,
             pad_where=args.pad_where,
         )

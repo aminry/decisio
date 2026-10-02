@@ -80,6 +80,11 @@ def test_pad_policy_none_never_pads_and_alone_is_inside():
         assert none._prepare_separate(STATE, [q])[0][0] == row
 
 
+def test_prefix_cache_flag_is_for_mlx_only(monkeypatch, capsys):
+    assert _main(monkeypatch, "--backend", "hf", "--prefix-cache-mb", "0") == 2
+    assert "--prefix-cache-mb is for --backend mlx" in capsys.readouterr().err
+
+
 def test_tokenizer_flag_is_for_mlx_only(monkeypatch, capsys):
     assert _main(monkeypatch, "--backend", "hf", "--tokenizer", "t") == 2
     assert "--tokenizer is for --backend mlx" in capsys.readouterr().err
@@ -105,6 +110,13 @@ def tiny(tmp_path_factory):
     for f in ("tokenizer.json", "tokenizer_config.json", "vocab.json", "merges.txt", "chat_template.jinja"):
         shutil.copy(f"{tok_dir}/{f}", d / f)
     return MLXLettersEngine(str(d), tokenizer=str(d))
+
+
+@pytest.fixture(scope="module")
+def tiny_no_prefix_cache(tiny):
+    from decisio.serve.mlx_engine import MLXLettersEngine
+
+    return MLXLettersEngine(tiny.model_name, tokenizer=tiny.tokenizer_name, prefix_cache_mb=0)
 
 
 def test_rows_are_the_served_rows(tiny):
@@ -174,3 +186,41 @@ def test_the_engine_refuses_images_adapters_and_packed_mode(tiny):
         tiny.answer(STATE, QUESTIONS[:1], adapter="a")
     with pytest.raises(ValueError, match="separate mode"):
         tiny._answer_packed([(STATE, QUESTIONS[:1])])
+
+
+def test_prefix_cache_answers_are_bit_identical_with_and_without_it(tiny, tiny_no_prefix_cache):
+    from decisio.serve.mlx_engine import MLXHiddenReadout
+
+    states = [STATE, "Another state, for the cache to hold two entries. " * 20]
+    plain = [tiny_no_prefix_cache.answer(st, QUESTIONS)[0] for st in states]
+    hits_before = tiny.prefix_cache.hits
+    first = [tiny.answer(st, QUESTIONS) for st in states]  # misses (or hits from earlier tests): either way exact
+    again = [tiny.answer(st, QUESTIONS) for st in states]  # hits
+    assert tiny.prefix_cache.hits >= hits_before + len(states)
+    assert all(info["prefix_cache_hits"] == 1 for _, info in again)
+    for p, (f, _), (g, _) in zip(plain, first, again):
+        assert all(np.array_equal(x, y) and np.array_equal(x, z) for x, y, z in zip(p, f, g))
+    for st in states:  # the head's hidden readout through the cache is the uncached one, bit for bit
+        a = MLXHiddenReadout(tiny).readout(st, QUESTIONS)
+        b = MLXHiddenReadout(tiny_no_prefix_cache).readout(st, QUESTIONS)
+        assert all(np.array_equal(x[0], y[0]) and np.array_equal(x[1], y[1]) for x, y in zip(a, b))
+    assert tiny_no_prefix_cache.facts()["prefix_cache"] is None and tiny.facts()["prefix_cache"]["entries"] >= 2
+
+
+def test_prefix_cache_evicts_least_recent_and_never_returns_other_tokens(tiny, monkeypatch):
+    from decisio.serve.mlx_engine import PrefixCache
+
+    rows, P = tiny._prepare_separate(STATE, QUESTIONS[:1])
+    base = tiny.model.make_cache()
+    tiny._feed(rows[0][0][:P], base)
+    from decisio.serve.mlx_engine import _cache_arrays
+
+    n = sum(a.nbytes for a in _cache_arrays(base))
+    cache = PrefixCache(2 * n)
+    for k in range(3):
+        cache.put([k, 1, 2], base)
+    assert len(cache.entries) == 2 and cache.get([0, 1, 2]) is None and cache.get([2, 1, 2]) is base
+    monkeypatch.setattr(PrefixCache, "_key", staticmethod(lambda ids: "same"))  # a hash collision
+    collide = PrefixCache(2 * n)
+    collide.put([1, 2, 3], base)
+    assert collide.get([4, 5, 6]) is None and collide.get([1, 2, 3]) is base

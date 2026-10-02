@@ -21,6 +21,12 @@ copy shares them; the attention layers' key and value buffers are written in pla
 and its first write allocates new ones. Every question, single-question requests included, goes through the prefix:
 a question's answer does not depend on what else is in its request, bit for bit, and repeats bit for bit.
 
+Across requests, the evaluated cache of each state prefix is kept (`PrefixCache`, least recently used first out,
+bounded by `prefix_cache_mb`, default 2,048 MB; 0 turns it off). A request whose prefix tokens equal a kept entry's
+continues from that entry instead of prefilling it again. Exact by construction: an entry is the cache the engine
+computed for exactly those tokens (compared in full, not by hash alone), and it is never written into, since every
+question continues from a copy; the forward is deterministic, so a hit gives the arrays a miss would compute.
+
 The letters are read at the last position: the softmax over the label logits (bf16 out of the output layer, then
 float64). The final-norm hidden state at the same position comes out of the same forward, so the intent head
 (`MLXHiddenReadout`) fits and serves on exactly the served readout, with no second weight copy and no extra request.
@@ -37,6 +43,7 @@ from __future__ import annotations
 import hashlib
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
@@ -48,6 +55,7 @@ OFFICIAL_TOKENIZER = "Qwen/Qwen3.6-35B-A3B-FP8"
 OFFICIAL_TOKENIZER_SHA256 = "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42"
 SERVED_BLOCK = 1056  # vLLM's block on the served default: --pad-to block pads to it, so the prompts are the same
 PREFILL_STEP = 2048  # tokens per prefill chunk (bounds the attention layers' memory at long states)
+PREFIX_CACHE_MB = 2048  # the cross-request prefix cache's budget (about 25 entries at a 1,056-token prefix, 6-bit)
 
 
 def copy_cache(cache):
@@ -100,6 +108,49 @@ def tokenizer_file(tokenizer, name="tokenizer.json"):
         return None
 
 
+class PrefixCache:
+    """Evaluated prompt caches of state prefixes, kept across requests: least recently used first out, bounded in bytes.
+    Exact by construction (see the module docstring): an entry is returned only for exactly the token ids it was
+    computed for, and callers never write into it (`copy_cache`)."""
+
+    def __init__(self, max_bytes):
+        self.max_bytes, self.entries, self.bytes, self.hits, self.misses = int(max_bytes), OrderedDict(), 0, 0, 0
+
+    @staticmethod
+    def _key(ids):
+        return hashlib.sha256(np.asarray(ids, dtype=np.int64).tobytes()).hexdigest()
+
+    def get(self, ids):
+        e = self.entries.get(self._key(ids))
+        if e is None or not np.array_equal(e[0], np.asarray(ids, dtype=np.int64)):
+            self.misses += 1
+            return None
+        self.entries.move_to_end(self._key(ids))
+        self.hits += 1
+        return e[1]
+
+    def put(self, ids, cache):
+        n = sum(a.nbytes for a in _cache_arrays(cache))
+        if n > self.max_bytes:
+            return
+        key = self._key(ids)
+        if key in self.entries:
+            self.bytes -= self.entries.pop(key)[2]
+        while self.entries and self.bytes + n > self.max_bytes:
+            self.bytes -= self.entries.popitem(last=False)[1][2]
+        self.entries[key] = (np.asarray(ids, dtype=np.int64), cache, n)
+        self.bytes += n
+
+    def facts(self):
+        return {
+            "max_mb": self.max_bytes / 2**20,
+            "entries": len(self.entries),
+            "mb": round(self.bytes / 2**20, 1),
+            "hits": self.hits,
+            "misses": self.misses,
+        }
+
+
 class MLXLettersEngine(LettersEngine):
     def __init__(
         self,
@@ -110,6 +161,7 @@ class MLXLettersEngine(LettersEngine):
         pad_where="front",
         block_size=SERVED_BLOCK,
         prefill_step=PREFILL_STEP,
+        prefix_cache_mb=PREFIX_CACHE_MB,
         warm_up=True,
     ):
         import mlx.core as mx
@@ -129,6 +181,7 @@ class MLXLettersEngine(LettersEngine):
         self.block_size = self.match_unit = int(block_size)
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self.prefill_step = int(prefill_step)
+        self.prefix_cache = PrefixCache(prefix_cache_mb * 2**20) if prefix_cache_mb else None
         self._lock = threading.Lock()
         self._mx = mx
         if warm_up:
@@ -148,16 +201,23 @@ class MLXLettersEngine(LettersEngine):
 
     def _score(self, rows, prefix):
         """[(label log-probabilities float64, hidden state float32)] per row, every row continuing from its first
-        `prefix` tokens, which all rows share and which are prefilled once."""
+        `prefix` tokens, which all rows share and which are prefilled once (or taken from the prefix cache); also the
+        prefix's time and whether it came from the cache."""
         mx = self._mx
         if any(ids[:prefix] != rows[0][0][:prefix] for ids, _ in rows):
             raise ValueError("the rows do not share their first `prefix` tokens")
         if any(len(ids) <= prefix for ids, _ in rows):
             raise ValueError("every row needs at least one token after the shared prefix")
-        base = self.model.make_cache()
         t0 = time.perf_counter()
-        if prefix:
-            self._feed(rows[0][0][:prefix], base)
+        pre = rows[0][0][:prefix]
+        base = self.prefix_cache.get(pre) if (prefix and self.prefix_cache is not None) else None
+        hit = base is not None
+        if not hit:
+            base = self.model.make_cache()
+            if prefix:
+                self._feed(pre, base)
+                if self.prefix_cache is not None:
+                    self.prefix_cache.put(pre, base)
         prefix_ms = (time.perf_counter() - t0) * 1000
         out = []
         for ids, lab in rows:
@@ -167,7 +227,7 @@ class MLXLettersEngine(LettersEngine):
             lp = z - z.max()
             lp -= np.log(np.exp(lp).sum())
             out.append((lp, np.array(h.astype(mx.float32))))
-        return out, prefix_ms
+        return out, prefix_ms, hit
 
     # ---- LettersEngine's engine interface --------------------------------------------------------
 
@@ -188,11 +248,12 @@ class MLXLettersEngine(LettersEngine):
                 first = rows[0][0]
                 while all(len(ids) > prefix + 1 and ids[prefix] == first[prefix] for ids, _ in rows):
                     prefix += 1
-        scored, prefix_ms = self._score(rows, prefix)
+        scored, prefix_ms, hit = self._score(rows, prefix)
         probs = [np.exp(lp) / np.exp(lp).sum() for lp, _ in scored]
         return probs, {
             "warm_ms": 0.0,
             "prefix_ms": prefix_ms,
+            "prefix_cache_hit": hit,
             "cached_tokens_mean": float(prefix),
             "engine_timing": [],
             "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])) if rows else 0.0,
@@ -214,6 +275,7 @@ class MLXLettersEngine(LettersEngine):
         info = {
             "warm_ms": 0.0,
             "prefix_ms": sum(i["prefix_ms"] for _, i in infos),
+            "prefix_cache_hits": sum(bool(i["prefix_cache_hit"]) for _, i in infos),
             "cached_tokens_mean": float(np.mean([c for _, i in infos for c in i["cached_tokens"]])),
             "prompt_tokens": sum(i["prompt_tokens"] for _, i in infos),
             "engine_prompt_tokens": [n for _, i in infos for n in i["engine_prompt_tokens"]],
@@ -255,6 +317,7 @@ class MLXLettersEngine(LettersEngine):
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
             "prefill_step": self.prefill_step,
+            "prefix_cache": self.prefix_cache.facts() if self.prefix_cache is not None else None,
             "adapters": [],
         }
 
@@ -275,7 +338,7 @@ class MLXHiddenReadout:
         with self._lock:
             t0 = time.perf_counter()
             rows, P = self._prepare_separate(state, questions)
-            scored, _ = self.engine._score(rows, P)
+            scored, _, _ = self.engine._score(rows, P)
             self.last_ms = (time.perf_counter() - t0) * 1000
         return scored
 
