@@ -16,7 +16,8 @@ and the readout.
 one-token generate calls on fresh, unpadded prompts of each length (no chat template, no letters prompt), which is
 what the model's forward costs on this card with nothing of ours around it. Stop the server first (one engine per card).
 
-    python -m decisio.bench.fresh_state --engine-floor --model $DECISIO_MODEL --out floor.json [--tokens 300,1056,3000]
+    python -m decisio.bench.fresh_state --engine-floor --model $DECISIO_MODEL --out floor.json [--tokens 300,1056,3000] \\
+        [--no-prefix-caching]
 """
 
 import argparse
@@ -101,7 +102,7 @@ def engine_floor(a):
         **{
             "model": a.model,
             "max_model_len": 32768,
-            "enable_prefix_caching": True,
+            "enable_prefix_caching": not a.no_prefix_caching,
             "max_logprobs": 256,
             "logprobs_mode": "processed_logprobs",
             "limit_mm_per_prompt": {"image": 0, "video": 0},
@@ -121,7 +122,14 @@ def engine_floor(a):
                 times.append((time.perf_counter() - t) * 1000)
         cells.append({"prompt_tokens": n, "median_ms": round(statistics.median(times), 2), "ms": times})
         print(f"{n:5d} tokens: engine floor {cells[-1]['median_ms']:.1f} ms", flush=True)
-    return {"label": a.label, "engine_floor": True, "model": a.model, "model_class": a.model_class, "cells": cells}
+    return {
+        "label": a.label,
+        "engine_floor": True,
+        "model": a.model,
+        "model_class": a.model_class,
+        "prefix_caching": not a.no_prefix_caching,
+        "cells": cells,
+    }
 
 
 def main():
@@ -137,6 +145,11 @@ def main():
     ap.add_argument("--engine-floor", action="store_true", help="time vLLM's forward alone, in this process")
     ap.add_argument("--model", default=None, help="--engine-floor: the checkpoint")
     ap.add_argument("--model-class", default="hidden-readout", help="--engine-floor: as the server's --model-class")
+    ap.add_argument(
+        "--no-prefix-caching",
+        action="store_true",
+        help="--engine-floor: prefix caching off, so a prompt longer than one block is prefilled in one step",
+    )
     a = ap.parse_args()
     if a.engine_floor:
         out = engine_floor(a)
