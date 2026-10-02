@@ -1006,6 +1006,8 @@ def main():
                 "pad_where": args.pad_where,
                 "hide_index_keys": args.hide_index_keys,
                 "desnake_labels": args.desnake_labels,
+                # only when not the default, so the fingerprints of tasks registered under the default are unchanged
+                **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
             },
             sort_keys=True,
         )
