@@ -10,6 +10,8 @@ with the served model's tokenizer and a recording engine; no model.
   F3  --multi-question batch sends the questions of a multi-question request in one engine call, with no warm-up,
       the rows unchanged
   F4  the engine reports where its time went (prepare, warm-up, questions, readout)
+  F5  --multi-question sequential sends the warm-up, then each question of a multi-question request in its own engine
+      call, the rows unchanged
 
     uv run pytest -q tests/unit/test_fresh_state_flags.py
 """
@@ -97,3 +99,16 @@ def test_f4_stages_reported(tok):
     _, info = sent(tok, FOUR)
     for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms"):
         assert isinstance(info[k], float) and info[k] >= 0, k
+
+
+def test_f5_multi_question_sequential(tok):
+    eng = Recording(tok, multi_question="sequential")
+    probs, info = eng.answer(STATE, FOUR)
+    warm, _ = sent(tok, FOUR)
+    assert len(eng.sent) == 4 and [len(x["rows"]) for x in eng.sent] == [1, 1, 1, 1]
+    assert eng.sent[0]["warm"] == warm["warm"] and all(x["warm"] == [] for x in eng.sent[1:])
+    assert [x["rows"][0] for x in eng.sent] == warm["rows"]  # the same rows, one call each
+    assert len(probs) == 4 and info["questions_ms"] == 4.0
+    single = Recording(tok, multi_question="sequential")
+    single.answer(STATE, ONE)
+    assert single.sent[0] == sent(tok, ONE)[0]  # single question: unchanged

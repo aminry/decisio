@@ -483,16 +483,36 @@ class LettersEngine:
             r, P = self._prepare_separate(state, questions)
             # a warm-up pays only when several questions can reuse a registered boundary; --multi-question batch
             # sends the questions without it, each prefilling the state itself, in one engine call
-            if len(r) > 1 and P >= unit and getattr(self, "multi_question", "warm") == "warm":
+            if len(r) > 1 and P >= unit and getattr(self, "multi_question", "warm") != "batch":
                 warm.append(r[0][0][: P + 1])
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
         prepare_ms = (time.perf_counter() - t) * 1000
-        probs, info = self.score_prompts(rows, adapter, warm)
+        if getattr(self, "multi_question", "warm") == "sequential" and len(rows) > 1:
+            probs, info = self._score_one_at_a_time(rows, adapter, warm)
+        else:
+            probs, info = self.score_prompts(rows, adapter, warm)
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
         info["prepare_ms"] = prepare_ms
         return [probs[a:b] for a, b in spans], info
+
+    def _score_one_at_a_time(self, rows, adapter, warm):
+        """--multi-question sequential: the warm-up, then each question in its own engine call, so no question shares
+        a forward pass with another and its answer cannot depend on what else the request asked."""
+        probs, infos = [], []
+        for i, row in enumerate(rows):
+            p, info = self.score_prompts([row], adapter, warm if i == 0 else ())
+            probs += p
+            infos.append(info)
+        merged = dict(infos[0])
+        merged["questions_ms"] = sum(x.get("questions_ms", 0.0) for x in infos)
+        merged["readout_ms"] = sum(x.get("readout_ms", 0.0) for x in infos)
+        for k in ("engine_timing", "engine_prompt_tokens", "cached_tokens"):
+            merged[k] = [v for x in infos for v in x.get(k, [])]
+        merged["prompt_tokens"] = sum(x.get("prompt_tokens", 0) for x in infos)
+        merged["cached_tokens_mean"] = float(np.mean(merged["cached_tokens"])) if merged["cached_tokens"] else 0.0
+        return probs, merged
 
     # ---- packed mode ----------------------------------------------------------------------------
 
@@ -724,10 +744,11 @@ def main():
     ap.add_argument(
         "--multi-question",
         default="warm",
-        choices=["warm", "batch"],
+        choices=["warm", "batch", "sequential"],
         help="warm (the served default): a request with several questions first prefills the state in a warm-up "
         "request, then sends the questions, which read it from the prefix cache; batch: one engine call with "
-        "every question, each prefilling the state itself",
+        "every question, each prefilling the state itself; sequential: the warm-up, then each question in its own "
+        "engine call, so a question's answer cannot depend on the others in its request",
     )
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
