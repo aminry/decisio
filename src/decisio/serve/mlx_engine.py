@@ -48,6 +48,7 @@ from pathlib import Path
 
 import numpy as np
 
+from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 OFFICIAL_TOKENIZER = "Qwen/Qwen3.6-35B-A3B-FP8"
@@ -222,10 +223,13 @@ class MLXLettersEngine(LettersEngine):
         out = []
         for ids, lab in rows:
             h = self._feed(ids[prefix:], copy_cache(base))
-            z = self._head(h[None])[0][mx.array(list(lab))]
+            z = self._head(h[None])[0][mx.array(allowed_ids(lab))]
             z = np.array(z.astype(mx.float32), dtype=np.float64)
-            lp = z - z.max()
-            lp -= np.log(np.exp(lp).sum())
+            if is_grouped(lab):  # several forms per label: their probabilities summed
+                lp = label_log_softmax(z, lab)
+            else:
+                lp = z - z.max()
+                lp -= np.log(np.exp(lp).sum())
             out.append((lp, np.array(h.astype(mx.float32))))
         return out, prefix_ms, hit
 

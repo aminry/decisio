@@ -19,6 +19,7 @@ import time
 
 import numpy as np
 
+from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 
@@ -65,12 +66,20 @@ class HFLettersEngine(LettersEngine):
         if adapter:
             raise ValueError("the CPU stand-in serves no adapters")
         t0 = time.perf_counter()
-        probs = []
+        probs, token_lps = [], []
         with torch.no_grad():
             for ids, lab in rows:
                 self.scored_rows.append((list(ids), list(lab)))
-                logits = self.model(torch.tensor([ids])).logits[0, -1].double()
-                z = logits[list(lab)].numpy()
+                # the last position's logits only: the output layer over every position dominated the stand-in's time
+                logits = self.model(torch.tensor([ids]), logits_to_keep=1).logits[0, -1].double()
+                if is_grouped(lab):  # several forms per label: their probabilities summed (label_log_softmax)
+                    flat = allowed_ids(lab)
+                    lp = torch.log_softmax(logits[flat], -1).numpy()
+                    at = dict(zip(flat, lp.tolist()))
+                    token_lps.append([[at[t] for t in g] for g in lab])
+                    z = label_log_softmax(logits[flat].numpy(), lab)
+                else:
+                    z = logits[list(lab)].numpy()
                 e = np.exp(z - z.max())
                 probs.append(e / e.sum())
         ms = (time.perf_counter() - t0) * 1000
@@ -81,6 +90,7 @@ class HFLettersEngine(LettersEngine):
             "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])) if rows else 0.0,
             "prompt_tokens": sum(len(r[0]) for r in rows),
             "forward_ms": ms,
+            **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
 
