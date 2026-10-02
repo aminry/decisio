@@ -1,0 +1,99 @@
+{
+  "engine": "di_describe",
+  "counts": {
+    "ok": 12230
+  },
+  "successful_request_latency_ms": {
+    "median": 52.00898398470599,
+    "p95": 59.901747008552775,
+    "mean": 51.905023453183944
+  },
+  "benchmarks": [
+    {
+      "catalog_id": 4,
+      "dataset": "BANKING77",
+      "requests": 3080,
+      "answered": 0,
+      "unsupported": 0,
+      "errors": 0,
+      "abstained": 0,
+      "pending": 3080,
+      "scored_requests": 0,
+      "metric": null,
+      "score": null,
+      "reference_same_cases": null,
+      "median_ms": null
+    },
+    {
+      "catalog_id": 5,
+      "dataset": "CLINC150+OOS",
+      "requests": 5500,
+      "answered": 0,
+      "unsupported": 0,
+      "errors": 0,
+      "abstained": 0,
+      "pending": 5500,
+      "scored_requests": 0,
+      "metric": null,
+      "score": null,
+      "reference_same_cases": null,
+      "median_ms": null
+    },
+    {
+      "catalog_id": 21,
+      "dataset": "Humicroedit",
+      "requests": 2628,
+      "answered": 0,
+      "unsupported": 0,
+      "errors": 0,
+      "abstained": 0,
+      "pending": 2628,
+      "scored_requests": 0,
+      "metric": null,
+      "score": null,
+      "reference_same_cases": null,
+      "median_ms": null
+    },
+    {
+      "catalog_id": 25,
+      "dataset": "GPQA Diamond",
+      "requests": 196,
+      "answered": 196,
+      "unsupported": 0,
+      "errors": 0,
+      "abstained": 0,
+      "pending": 0,
+      "scored_requests": 196,
+      "metric": "accuracy",
+      "score": 0.4897959183673469,
+      "reference_same_cases": null,
+      "median_ms": 27.193999500013888,
+      "detail": {
+        "field_accuracy": 0.4897959183673469,
+        "case_exact_accuracy": 0.4897959183673469,
+        "custom_metrics": {}
+      }
+    },
+    {
+      "catalog_id": 57,
+      "dataset": "MMLU-Pro",
+      "requests": 12032,
+      "answered": 12032,
+      "unsupported": 0,
+      "errors": 0,
+      "abstained": 0,
+      "pending": 0,
+      "metric": "accuracy",
+      "score": 0.6085438829787234,
+      "median_ms": 52.070322999497876,
+      "scored_requests": 12032,
+      "detail": {
+        "field_accuracy": 0.6085438829787234,
+        "scored_fields": 12032,
+        "chance_on_rows": 0.11087694718844986
+      }
+    }
+  ],
+  "note": "Native benchmark metrics on complete supported case groups. Unsupported cases excluded from accuracy but retained in coverage.",
+  "edition": "0.2.1"
+}

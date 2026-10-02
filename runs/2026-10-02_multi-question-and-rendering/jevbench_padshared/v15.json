@@ -1,0 +1,50 @@
+{
+ "per_type": {
+  "choice": {
+   "cc": 78.3434650455927,
+   "tiers": {
+    "easy": 100.0,
+    "standard": 100.0,
+    "hard": 62.10106382978723
+   },
+   "n": {
+    "easy": 36,
+    "standard": 36,
+    "hard": 67
+   }
+  },
+  "noul": {
+   "cc": -9.147869674185467,
+   "tiers": {
+    "easy": 100.0,
+    "standard": -8.333333333333337,
+    "hard": -36.8421052631579
+   },
+   "n": {
+    "easy": 12,
+    "standard": 24,
+    "hard": 38
+   },
+   "abstention_rate": 0.527027027027027
+  },
+  "score": {
+   "cc": 57.64826119860499,
+   "tiers": {
+    "standard": 86.2350979906667,
+    "hard": 43.35484280257415
+   },
+   "n": {
+    "standard": 12,
+    "hard": 6
+   }
+  }
+ },
+ "n_items": 231,
+ "invalid": 0,
+ "I_open_A": 42.2812855233374,
+ "I_open_B": 51.296830403901225,
+ "tiers_missing": [
+  "judge"
+ ],
+ "note": "private reading of JevBench v1.5 open-set Intelligence on the published v1.2 items; not a board number (the board's open set has 904 items and half of Intelligence is sealed)"
+}

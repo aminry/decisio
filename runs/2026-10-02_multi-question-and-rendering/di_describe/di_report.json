@@ -1,0 +1,67 @@
+{
+ "edition": "0.2.1",
+ "engine": "di_describe",
+ "latency_ms": {
+  "median": 52.00898398470599,
+  "p95": 59.901747008552775,
+  "mean": 51.905023453183944
+ },
+ "benchmarks": {
+  "BANKING77": {
+   "catalog_id": 4,
+   "metric": null,
+   "native_score": null,
+   "requests": 3080,
+   "answered": 0,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": null,
+   "chance": 0.0127,
+   "raw": 0.0,
+   "skill": 0.0,
+   "coverage": 0.0
+  },
+  "CLINC150+OOS": {
+   "catalog_id": 5,
+   "metric": null,
+   "native_score": null,
+   "requests": 5500,
+   "answered": 0,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": null,
+   "chance": 0.006,
+   "raw": 0.0,
+   "skill": 0.0,
+   "coverage": 0.0
+  },
+  "GPQA Diamond": {
+   "catalog_id": 25,
+   "metric": "accuracy",
+   "native_score": 0.4897959183673469,
+   "requests": 196,
+   "answered": 196,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": 27.193999500013888,
+   "chance": 0.25,
+   "raw": 0.4898,
+   "skill": 0.3197,
+   "coverage": 1.0
+  },
+  "MMLU-Pro": {
+   "catalog_id": 57,
+   "metric": "accuracy",
+   "native_score": 0.6085438829787234,
+   "requests": 12032,
+   "answered": 12032,
+   "errors": 0,
+   "unsupported": 0,
+   "median_ms": 52.070322999497876,
+   "chance": 0.1109,
+   "raw": 0.6085,
+   "skill": 0.5597,
+   "coverage": 1.0
+  }
+ }
+}

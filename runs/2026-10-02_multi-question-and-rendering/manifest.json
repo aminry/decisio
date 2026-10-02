@@ -1,0 +1,87 @@
+{
+ "id": "2026-10-02_multi-question-and-rendering",
+ "title": "Multi-question requests on vLLM 0.30.0 (why an answer depends on its batch, and --multi-question sequential), description-only option rendering (--describe-options), and per-request latency on fresh states",
+ "date": "2026-10-02",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition, a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0 (torch 2.13.0+cu130), VLLM_USE_DEEP_GEMM=0",
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 at revision 95a723d; the batch diagnosis also Qwen/Qwen3.6-35B-A3B (bf16) at 995ad96",
+  "server": "python -m decisio.serve.vllm_engine --model-class hidden-readout, plus each configuration's flag; one server per configuration, one request at a time"
+ },
+ "code": {
+  "servers": "decisio at a1f0121 (main 7aaa7f6 with the --multi-question, --pad-policy and --describe-options flags, all off by default)",
+  "engine_floor": "decisio.bench.fresh_state --engine-floor at 3a042c5 (fresh_floor.json) and 16400f8 (--no-prefix-caching; fresh_floor_cache_on.json, fresh_floor_cache_off.json)",
+  "batch_diagnosis": "a private in-process diagnosis using the served request builder; its summary table and the stock-vLLM reproduction are in batch_diagnosis/"
+ },
+ "servers": {
+  "default": "the served default (first start of the session)",
+  "default2": "the served default, started again at the end of the session: the suite and JevBench, for start-to-start variation and to check the 2026-09-30 records the gates pair with",
+  "sequential": "--multi-question sequential",
+  "describe": "--describe-options",
+  "padshared": "--pad-policy shared",
+  "batch": "--multi-question batch"
+ },
+ "results": {
+  "batch_dependence": {
+   "stock_vllm_reproduction": "batch_diagnosis/repro_upstream.py on 20 random 1,400-token prompts: alone repeated 0.0, alone against a batch of two 0.198, the same batch of two repeated 0.168 (max |delta logprob|)",
+   "factors": "batch_diagnosis/summary.md: prefix caching off, larger token budget, the Triton GDN prefill, CUDA graphs off, a bf16 recurrent state, the text-only class, cuBLAS's deterministic workspace and the bf16 checkpoint all leave it; one sequence per step removes it",
+   "prefill_split": "the same lone row prefilled in one step (prefix caching off) and split at the 1,056-token block boundary (on) differs by up to 0.44 in a probability, median 0.068, choice changed on 20 of 100 prompts: this model moves at that scale with any change of rounding"
+  },
+  "browser_agent_demo_steps": {
+   "note": "272 results-page steps of a browser-agent demo, each the operation question alone and the demo's four-question request 5 times; aggregates only (the pages are not published)",
+   "default": {
+    "four_question_steps_moving_across_5_repeats": 31,
+    "max_dp_across_repeats": 0.27,
+    "steps_where_four_differs_from_alone": 50,
+    "server_ms_alone_four": [
+     31.4,
+     57.4
+    ],
+    "done_on_click_steps_alone": "63 of 132",
+    "operation_label_right_alone": "118 of 272"
+   },
+   "sequential": {
+    "four_question_steps_moving_across_5_repeats": 0,
+    "max_dp_across_repeats": 0.0,
+    "steps_where_four_differs_from_alone": 0,
+    "max_dp_four_against_alone": 0.0,
+    "server_ms_alone_four": [
+     31.3,
+     134.6
+    ]
+   },
+   "batch": {
+    "four_question_steps_moving_across_5_repeats": 35,
+    "max_dp_across_repeats": 0.23,
+    "steps_where_four_differs_from_alone": 52,
+    "server_ms_alone_four": [
+     30.9,
+     48.2
+    ]
+   },
+   "describe": {
+    "four_question_steps_moving_across_5_repeats": 25,
+    "steps_where_four_differs_from_alone": 33,
+    "done_on_click_steps_alone": "12 of 132 (paired against default -38.6 points [-47.0, -30.3])",
+    "operation_label_right_alone": "176 of 272 (+21.3 [+15.8, +26.8])",
+    "done_on_done_steps_alone": "27 of 28 (default 28 of 28)"
+   }
+  },
+  "suite_single_question": "conformance_*.json.gz: C2 to C4 pass on every server; default2, sequential and describe equal the 2026-09-30 plugin-verification record (runs/2026-09-30_plugin-verification/conformance_H.json.gz) on all 1,400 items to 2.2e-16; the first default start moved 2 items (BANKING77 14 and 113) by up to 1.2e-3 with no choice change",
+  "jevbench_default2_against_2026-09-30_records": "231 items, max |dp| 2.2e-16, 0 changes",
+  "gate_tables": "summary.md"
+ },
+ "deviations": [
+  "The first server start failed to bind port 8000, which the host's portal holds; the servers then listened on 18000",
+  "The Decision Index kit's score step fails on its headline when part of an edition is run; the per-benchmark numbers come from di_report.json and di_cal.json, as in runs/2026-09-30_served-default"
+ ],
+ "excluded": [
+  "the browser-agent demo's pages and per-step answers (aggregates above)",
+  "the batch diagnosis's per-prompt files (summary table kept)",
+  "Decision Index item text (payload_sha256 kept)",
+  "JevBench raw requests and responses",
+  "server and harness logs"
+ ]
+}

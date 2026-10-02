@@ -25,7 +25,7 @@ No trained weights: every measured answer comes from the official checkpoint.
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
 | Rendering rules | enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in |
-| Determinism | a request with one question is reproducible one at a time on the same card: 30 of 30 repeats identical; the questions of a multi-question request are scored in one batch, whose probabilities vary between repeats within the measured spread (about 0.12 on the example below, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`) while the chosen option stays the same; `EVAL_CARD.md` section 4 has the measurements, and the serving gates in `tests/gpu` check the one-at-a-time case |
+| Determinism | a request with one question returns the same probabilities every time on a running server (1,400 of 1,400 suite items bit-identical, one request at a time), and across restarts in 4 of 5 starts measured (the fifth moved 2 items by up to 0.0012, no choice changed). By default the questions of a multi-question request are scored together in one batch, and on this stack a batched answer depends on the batch: on 272 four-question requests from a browser-agent demo, the answer moved between 5 repeats on 31 and differed from the same question sent alone on 50 (by up to 0.27). Start the server with `--multi-question sequential` and each question is scored in its own engine call after the state is prefilled once: every answer then equals the question sent alone (272 of 272, every repeat), at about 17 ms per question instead of 5 to 9. `EVAL_CARD.md` section 4 and `runs/2026-10-02_multi-question-and-rendering/` have the measurements, and the serving gates in `tests/gpu` check the one-at-a-time case |
 | Context | up to 32,768 tokens of state |
 
 Latency and cost on one RTX PRO 6000, from `EVAL_CARD.md`: about 28 ms server time for one question, 2.7 to 5.4 ms per question when many questions share a state, and about $0.001 to $0.012 per 1,000 decisions at $1.50 per card-hour.
@@ -69,7 +69,7 @@ Response, abridged (the values the first GPU start returned, rounded):
   "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.01, "2": 0.96, "3": 0.02}}}}
 ```
 
-Your probabilities will differ, by about 0.12 between repeats on one server (the probability of `access` ranged from 0.79 to 0.91, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`): the three questions of one request are scored in one batch, and their probabilities vary with that batch. The chosen options do not change, and each question sent on its own returns the same probabilities every time.
+Your probabilities will differ, by about 0.12 between repeats on one server (the probability of `access` ranged from 0.79 to 0.91, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`): the three questions of one request are scored in one batch, and their probabilities vary with that batch. Here the chosen options stayed the same; when two options are close, the choice can change too. Each question sent on its own returns the same probabilities every time, and so does every question of a request on a server started with `--multi-question sequential`.
 
 ## Teach it your question in ten examples
 

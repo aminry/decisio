@@ -391,6 +391,8 @@ class LettersEngine:
                     "a question's text merges with the state's last token; questions must not start with whitespace"
                 )
         k = (-n % self.pad_unit) if self.pad_unit else 0
+        if getattr(self, "pad_policy", "always") == "shared" and len(questions) == 1:
+            k = 0  # --pad-policy shared: no second question can reuse the padded boundary
         head = len(enc(USER_HEAD))
         rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
         return rows, n + k
@@ -437,9 +439,12 @@ class LettersEngine:
             )
             for _, lab in rows
         ]
+        t = time.perf_counter()
         outs = self.llm.generate(
             [TokensPrompt(prompt_token_ids=ids, **extra) for ids, _ in rows], sps, lora_request=lora, use_tqdm=False
         )
+        questions_ms = (time.perf_counter() - t) * 1000
+        t = time.perf_counter()
         probs = []
         for (_, lab), o in zip(rows, outs):
             d = o.outputs[0].logprobs[0]
@@ -460,6 +465,8 @@ class LettersEngine:
         ]
         return probs, {
             "warm_ms": warm_ms,
+            "questions_ms": questions_ms,
+            "readout_ms": (time.perf_counter() - t) * 1000,
             "cached_tokens_mean": float(np.mean(cached)),
             "engine_timing": timing,
             "prompt_tokens_mean": float(np.mean([len(r[0]) for r in rows])),
@@ -471,17 +478,41 @@ class LettersEngine:
     def _answer_separate(self, requests, adapter):
         rows, warm, spans, shared = [], [], [], []
         unit = min(self.match_unit, self.pad_unit or self.match_unit)
+        t = time.perf_counter()
         for state, questions in requests:
             r, P = self._prepare_separate(state, questions)
-            # a warm-up pays only when several questions can reuse a registered boundary
-            if len(r) > 1 and P >= unit:
+            # a warm-up pays only when several questions can reuse a registered boundary; --multi-question batch
+            # sends the questions without it, each prefilling the state itself, in one engine call
+            if len(r) > 1 and P >= unit and getattr(self, "multi_question", "warm") != "batch":
                 warm.append(r[0][0][: P + 1])
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
-        probs, info = self.score_prompts(rows, adapter, warm)
+        prepare_ms = (time.perf_counter() - t) * 1000
+        if getattr(self, "multi_question", "warm") == "sequential" and len(rows) > 1:
+            probs, info = self._score_one_at_a_time(rows, adapter, warm)
+        else:
+            probs, info = self.score_prompts(rows, adapter, warm)
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
+        info["prepare_ms"] = prepare_ms
         return [probs[a:b] for a, b in spans], info
+
+    def _score_one_at_a_time(self, rows, adapter, warm):
+        """--multi-question sequential: the warm-up, then each question in its own engine call, so no question shares
+        a forward pass with another and its answer cannot depend on what else the request asked."""
+        probs, infos = [], []
+        for i, row in enumerate(rows):
+            p, info = self.score_prompts([row], adapter, warm if i == 0 else ())
+            probs += p
+            infos.append(info)
+        merged = dict(infos[0])
+        merged["questions_ms"] = sum(x.get("questions_ms", 0.0) for x in infos)
+        merged["readout_ms"] = sum(x.get("readout_ms", 0.0) for x in infos)
+        for k in ("engine_timing", "engine_prompt_tokens", "cached_tokens"):
+            merged[k] = [v for x in infos for v in x.get(k, [])]
+        merged["prompt_tokens"] = sum(x.get("prompt_tokens", 0) for x in infos)
+        merged["cached_tokens_mean"] = float(np.mean(merged["cached_tokens"])) if merged["cached_tokens"] else 0.0
+        return probs, merged
 
     # ---- packed mode ----------------------------------------------------------------------------
 
@@ -702,6 +733,23 @@ def main():
     ap.add_argument("--pad-where", default="front", choices=PAD_PLACES)
     ap.add_argument("--adapter", action="append", default=[], help="name=path of a vLLM-format LoRA adapter")
     ap.add_argument("--pack", type=int, default=16)
+    ap.add_argument(
+        "--pad-policy",
+        default="always",
+        choices=["always", "shared"],
+        help="always (the served default): front-pad every state to the block; shared: pad only when the request has "
+        "more than one question to share the padded boundary (a single-question request then reads its state "
+        "unpadded, a different prompt)",
+    )
+    ap.add_argument(
+        "--multi-question",
+        default="warm",
+        choices=["warm", "batch", "sequential"],
+        help="warm (the served default): a request with several questions first prefills the state in a warm-up "
+        "request, then sends the questions, which read it from the prefix cache; batch: one engine call with "
+        "every question, each prefilling the state itself; sequential: the warm-up, then each question in its own "
+        "engine call, so a question's answer cannot depend on the others in its request",
+    )
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
     ap.add_argument("--engine", default=json.dumps(SERVED_ENGINE), help="extra LLM(...) keyword arguments as JSON")
@@ -876,7 +924,12 @@ def main():
             gpu_memory_utilization=args.gpu_memory_utilization,
             engine_kw=engine_kwargs(args),
         )
-    print("ENGINE", json.dumps(engine.facts()), flush=True)
+    engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
+    print(
+        "ENGINE",
+        json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),
+        flush=True,
+    )
     image_engine = engine if one else None
     if args.image_model and not one:
         pad_to = None if args.pad_to == "none" else args.pad_to
@@ -953,6 +1006,8 @@ def main():
                 "pad_where": args.pad_where,
                 "hide_index_keys": args.hide_index_keys,
                 "desnake_labels": args.desnake_labels,
+                # only when not the default, so the fingerprints of tasks registered under the default are unchanged
+                **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
             },
             sort_keys=True,
         )
