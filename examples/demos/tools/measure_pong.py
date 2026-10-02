@@ -110,6 +110,7 @@ def main() -> None:
             LANES=",".join(only),
             SEED=str(seed),
             OUT_DIR=str(rdir),
+            PONG_DECISION_LOG=str(run.decision_log_path),
         )
         run.log(f"run {i + 1}/{a.runs}: seed {seed}, {a.seconds:.0f} s, {len(lanes)} lanes")
         subprocess.run(

@@ -13,6 +13,7 @@ The upstream project is independent of this one; neither endorses the other.
 - `pyproject.toml`: no dependency; `uv.lock` is removed with the SDK it pinned.
 - `static/js/bench/runner.js`, `static/js/bench/metrics.js`: each drive's result also carries every model decision's latency (`latencies_ms`) and the server's own time (`server_ms`), so a measurement can report percentiles and decisions per second.
 - `static/js/main.js`, `static/js/ui/hud.js`, `static/js/common.js`: the autopilot badge, the cockpit label and the decision card's source tag say "model" for the brain whose id is `jev`.
+- `server.py`: with `DEMO_DECISION_LOG=<path>` set, each model decision's request body and full answer are appended to that file (`tests/test_decision_log.py`).
 - `.env.example`, `jev/envfile.py`, `jev/osm/fetch.py`, `docs/realism-validation.md`: wording that named the vendor or its key.
 - The decisions and measurements the upstream documents quote were taken from a hosted service and are not part of this directory; `UPSTREAM_README.md` is kept for how the simulator works.
 - Removed to keep the repository small: the screenshots in `docs/` (the Markdown stays).

@@ -28,6 +28,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from decision_log import DecisionLog
 from demo_run import DemoRun, bootstrap, caption_for, card_name, latency_summary
 
 REPO = Path(__file__).resolve().parents[3]
@@ -99,6 +100,23 @@ def launch_chrome(port, headed):
     sys.exit("Chrome did not open its CDP port")
 
 
+def decision_rows(index, task, decisions):
+    """One log row per model decision: the request body the server received and the full answer."""
+    return [
+        {
+            "demo": "ultrafast",
+            "run": index,
+            "task": task,
+            "step": step,
+            "request": d.get("request"),
+            "response": {"model": d.get("model"), "answers": d.get("raw_answers"), "usage": d.get("usage")},
+            "skipped_single_option": d.get("skipped_single_option", []),
+            "latency_ms": d.get("latency_ms"),
+        }
+        for step, d in enumerate(decisions, 1)
+    ]
+
+
 def run_task(name, task, base):
     from jev_ultrafast import Agent
 
@@ -115,6 +133,7 @@ def run_task(name, task, base):
     ok = state["status"] == "done" and final_url.endswith(task["url_end"]) and task["text_has"] in verify
     decisions = state["decisions"]
     return {
+        "_log": decision_rows(0, name, decisions),
         "task": name,
         "ok": bool(ok),
         "status": state["status"],
@@ -189,6 +208,7 @@ def main():
     chrome, profile = launch_chrome(a.cdp_port, a.headed)
     base = f"http://127.0.0.1:{a.fixture_port}"
     records = []
+    log = DecisionLog(run.decision_log_path)
     try:
         for name in names:
             for i in range(a.runs):
@@ -205,6 +225,8 @@ def main():
                         "actions": 0,
                         "wall_s": 0,
                     }
+                for row in rec.pop("_log", []):
+                    log.add(**{**row, "run": i + 1})
                 records.append(rec)
                 run.log(
                     f"{name} run {i + 1}/{a.runs}: ok={rec['ok']} {rec['status']} {rec['elapsed_ms']} ms, "

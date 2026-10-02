@@ -16,6 +16,7 @@ import { generateObject, type JSONValue, type LanguageModel } from 'ai';
 import { z } from 'zod';
 import type { DecisionState, LaneConfig, Move } from '../game/types';
 import { LLM_SYSTEM_PROMPT, MOVES, stateForModel } from './prompt';
+import { logDecision } from './log';
 import type { ModelDecision } from './types';
 
 /** Enough for the object plus the small amount of slack servers need. */
@@ -79,6 +80,12 @@ export async function decideWithChat(
     providerOptions: lane.extraBody ? { [lane.id]: lane.extraBody as Record<string, JSONValue> } : undefined,
   });
   const latencyMs = performance.now() - startedAt;
+  logDecision({
+    lane: lane.id,
+    request: { system: LLM_SYSTEM_PROMPT, prompt: JSON.stringify(stateForModel(state)) },
+    response: { object: result.object, usage: result.usage },
+    latency_ms: latencyMs,
+  });
 
   return { move: parseMove(result.object), latencyMs };
 }

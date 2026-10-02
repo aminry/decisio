@@ -17,6 +17,7 @@ import time
 import urllib.request
 from pathlib import Path
 
+from decision_log import LOG_NAME, compress
 from stats import bootstrap, git_state, latency_summary, write_files_json
 
 REPO = Path(__file__).resolve().parents[3]
@@ -85,7 +86,21 @@ class DemoRun:
     def write_json(self, name: str, data) -> None:
         (self.out / name).write_text(json.dumps(data, indent=1) + "\n")
 
+    @property
+    def decision_log_path(self) -> Path:
+        """Where this run's decision log is written (compressed and listed by `finish`)."""
+        return self.out / LOG_NAME
+
     def finish(self, summary: dict, markdown: str, extra: dict) -> None:
+        logged = compress(self.decision_log_path)
+        if logged is not None:
+            extra = {
+                **extra,
+                "files": {
+                    **extra.get("files", {}),
+                    logged.name: "every model decision: the request body and the full answer",
+                },
+            }
         self.write_json("summary.json", summary)
         (self.out / "summary.md").write_text(markdown + "\n")
         manifest = {

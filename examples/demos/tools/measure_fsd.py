@@ -66,7 +66,9 @@ def main() -> None:
     card = a.card or card_name()
     run = DemoRun(out, f"Driving demo against {a.label}", "fsd", a.label, a.base_url, hardware=card)
 
-    env = dict(os.environ, SYSTEMONE_BASE_URL=a.base_url, PORT=str(a.port))
+    env = dict(
+        os.environ, SYSTEMONE_BASE_URL=a.base_url, PORT=str(a.port), DEMO_DECISION_LOG=str(run.decision_log_path)
+    )
     if a.model_api:
         env["SYSTEMONE_MODEL"] = a.model_api
     server = subprocess.Popen(

@@ -30,6 +30,8 @@ python tools/record_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --ou
 python tools/record_ultrafast.py --label Decisio --out runs/<run>/media
 ```
 
+Every record also carries `decisions.jsonl.gz`: one line per model decision with the request body the server received and the full answer (every option's probability), written where the request is made (`DEMO_DECISION_LOG` for the driving demo's server, `PONG_DECISION_LOG` for Pong's recorder, the measurement script for the browser agent) and listed in the manifest (`tools/decision_log.py`).
+
 What is measured, per model and demo:
 
 - decisions per second, and p50 and p95 of the per-decision latency (the System One request, timed in the client);

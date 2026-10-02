@@ -139,3 +139,42 @@ def test_d6_replays_recorded_one_model_at_a_time_merge_into_lanes():
         compose_pong.merge_replays([a, {**b, "seed": 2}])
     with pytest.raises(ValueError, match="two recordings"):
         compose_pong.merge_replays([a, a])
+
+
+def test_d7_decision_log_rows_are_compressed_listed_and_readable(tmp_path):
+    import decision_log
+
+    run = demo_run.DemoRun(tmp_path / "r", "t", "ultrafast", "m", "http://127.0.0.1:1", hardware="card")
+    log = decision_log.DecisionLog(run.decision_log_path)
+    log.add(
+        demo="ultrafast",
+        request={"state": {"a": 1}, "questions": {"q": {}}},
+        response={"answers": {"q": {"probabilities": {"x": 0.9, "y": 0.1}}}},
+    )
+    log.add(demo="ultrafast", request={"state": {"a": 2}}, response={"answers": {}})
+    run.finish({}, "# s", {"files": {}})
+    assert not run.decision_log_path.exists()
+    rows = decision_log.read(tmp_path / "r" / "decisions.jsonl.gz")
+    assert len(rows) == 2 and rows[0]["response"]["answers"]["q"]["probabilities"] == {"x": 0.9, "y": 0.1}
+    manifest = json.loads((tmp_path / "r" / "manifest.json").read_text())
+    assert "decisions.jsonl.gz" in manifest["files"]
+    assert "decisions.jsonl.gz" in {row["path"] for row in json.loads((tmp_path / "r" / "files.json").read_text())}
+
+
+def test_d8_the_browser_agent_logs_each_decisions_request_and_full_answer():
+    decisions = [
+        {
+            "request": {"state": {"p": 1}},
+            "raw_answers": {"operation": {"probabilities": {"CLICK": 0.6, "DONE": 0.4}}},
+            "model": "m",
+            "usage": {"input_tokens": 5},
+            "latency_ms": 90,
+            "skipped_single_option": ["type_text_target"],
+        },
+        {"request": {"state": {"p": 2}}, "raw_answers": {}, "model": "m", "usage": {}, "latency_ms": 80},
+    ]
+    rows = measure_ultrafast.decision_rows(3, "travel", decisions)
+    assert [r["step"] for r in rows] == [1, 2] and rows[0]["run"] == 3 and rows[0]["task"] == "travel"
+    assert rows[0]["request"] == {"state": {"p": 1}}
+    assert rows[0]["response"]["answers"]["operation"]["probabilities"] == {"CLICK": 0.6, "DONE": 0.4}
+    assert rows[0]["skipped_single_option"] == ["type_text_target"] and rows[1]["skipped_single_option"] == []
