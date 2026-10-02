@@ -115,3 +115,38 @@ def test_r4_desnake_rendering():
     # index keys shown (flag off) keep their snake_case descriptions
     q = question({f"option_{i}": n for i, n in enumerate(NAMES)})
     assert to_engine_question(q, hide_index_keys=False)[0]["options"][0] == "option_0: card_arrival"
+
+
+def test_r5_describe_options_rule():
+    """--describe-options: word keys with descriptions show the description alone, keys stay the answer's keys."""
+    crit = {
+        "CLICK": "Click the element named in the target",
+        "TYPE_TEXT": "Type text into the target field",
+        "DONE": "The goal is complete; stop",
+        "BLOCKED": None,
+    }
+    q = question(crit)
+    off, keys = to_engine_question(q)
+    assert off["options"] == [
+        "CLICK: Click the element named in the target",
+        "TYPE_TEXT: Type text into the target field",
+        "DONE: The goal is complete; stop",
+        "BLOCKED",
+    ]
+    on, keys_on = to_engine_question(q, describe_options=True)
+    assert on["options"] == [
+        "Click the element named in the target",
+        "Type text into the target field",
+        "The goal is complete; stop",
+        "BLOCKED",
+    ]
+    assert keys_on == keys == list(crit)
+    # a snake_case key without a description is de-snaked as a bare label is
+    on2, _ = to_engine_question(question({"card_arrival": None, "refund": "Money back"}), describe_options=True)
+    assert on2["options"] == ["card arrival", "Money back"]
+    # two options that would read the same: the question is rendered as without the rule
+    dup = question({"a": "Same text", "b": "Same text"})
+    assert to_engine_question(dup, describe_options=True) == to_engine_question(dup)
+    # index keys, keys without descriptions, yes/no and score questions: unchanged by the rule
+    for c in ({f"option_{i}": n for i, n in enumerate(NAMES)}, {"billing": None, "access": None}):
+        assert to_engine_question(question(c), describe_options=True) == to_engine_question(question(c))
