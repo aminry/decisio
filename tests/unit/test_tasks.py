@@ -353,3 +353,20 @@ def test_t3_debug_and_bad_registrations(served):
     )
     assert client.post("/v1/tasks", json={"examples": []}).status_code == 422
     assert not so.task_store.by_key
+
+
+def test_t2_certain_readout_registers():
+    """A readout so confident that the fitted prior changes nothing (every fold's log-loss change exactly 0, as frozen
+    Gemma 4 gave on a card) leaves calibration off with a finite record that JSON can carry."""
+    import json
+
+    import numpy as np
+
+    from decisio.readout import calibration
+
+    K, n = 4, 20
+    labels = [i % K for i in range(n)]
+    lps = [np.log(np.clip(np.eye(K)[y], 1e-300, None)) for y in labels]  # p = 1 on the answer, 0 elsewhere
+    rec = calibration.fit_task_prior(lps, labels, fingerprint="fp", task_id="t", K=K)
+    assert rec["applied"] is False and rec["cv_t"] == 0.0
+    json.dumps(rec, allow_nan=False)

@@ -416,12 +416,12 @@ class SystemOne:
         }
 
     def usage_tokens(self, state, qs: list[dict]) -> int:
-        from decisio.readout.letters import fmt_state
+        from decisio.readout.letters import DEFAULT_FORMAT, render_state
         from decisio.serve.vllm_engine import question_text
 
-        tok = self.engine.tok
-        n = len(tok.encode(fmt_state(state), add_special_tokens=False))
-        return n + sum(len(tok.encode(question_text(tok, q)[0], add_special_tokens=False)) for q in qs)
+        tok, fmt = self.engine.tok, getattr(self.engine, "fmt", DEFAULT_FORMAT)
+        n = len(tok.encode(render_state(state, fmt), add_special_tokens=False))
+        return n + sum(len(tok.encode(question_text(tok, q, fmt)[0], add_special_tokens=False)) for q in qs)
 
     def answer(
         self, req: SystemOneRequest, adapter=None, images=None, imajev_ext=False, route=None, debug=None
@@ -526,6 +526,9 @@ class SystemOne:
                     )
                 if debug:  # the served readout before any task (order 1)
                     dbg.setdefault(name, {}).update(path="plain", p=p.tolist())
+                    forms = info.get("label_token_logprobs")
+                    if forms:  # --label-variants summed or cygnet: each form's log-probability, in engine order
+                        dbg[name]["form_logprobs"] = forms[at[i]]
                 if t is not None and t["calibration"].get("applied"):  # per-task calibration (reference arithmetic)
                     from decisio.readout.calibration import apply_task_prior
                     from decisio.readout.debias import log_probs
