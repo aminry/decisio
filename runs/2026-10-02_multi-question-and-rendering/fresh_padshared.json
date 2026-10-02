@@ -1,0 +1,1182 @@
+{
+ "label": "padshared",
+ "url": "http://127.0.0.1:18000",
+ "cells": [
+  {
+   "state_tokens": 300,
+   "questions": 1,
+   "repeats": 20,
+   "median": {
+    "wall_ms": 31.35,
+    "server_ms": 30.4,
+    "prepare": 0.5,
+    "warm": 0.0,
+    "questions": 29.5,
+    "readout": 0.0,
+    "engine": 30.05
+   },
+   "rows": [
+    {
+     "wall_ms": 31.23504700488411,
+     "server_ms": 30.4,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.4,
+     "readout": 0.0,
+     "engine": 30.0
+    },
+    {
+     "wall_ms": 31.45072198822163,
+     "server_ms": 30.5,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.6,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.59548802068457,
+     "server_ms": 30.6,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.63393901195377,
+     "server_ms": 30.6,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.206787010887638,
+     "server_ms": 30.2,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.2,
+     "readout": 0.0,
+     "engine": 29.8
+    },
+    {
+     "wall_ms": 31.111898977542296,
+     "server_ms": 30.2,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.2,
+     "readout": 0.0,
+     "engine": 29.8
+    },
+    {
+     "wall_ms": 30.90330501436256,
+     "server_ms": 30.2,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.3,
+     "readout": 0.0,
+     "engine": 29.8
+    },
+    {
+     "wall_ms": 31.252137996489182,
+     "server_ms": 30.2,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.2,
+     "readout": 0.0,
+     "engine": 29.8
+    },
+    {
+     "wall_ms": 31.436754012247548,
+     "server_ms": 30.4,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.4,
+     "readout": 0.0,
+     "engine": 30.0
+    },
+    {
+     "wall_ms": 31.348077987786382,
+     "server_ms": 30.5,
+     "prepare": 0.6,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.16157799377106,
+     "server_ms": 30.4,
+     "prepare": 0.6,
+     "warm": 0.0,
+     "questions": 29.4,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.372876022942364,
+     "server_ms": 30.5,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.27387899439782,
+     "server_ms": 30.3,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.4,
+     "readout": 0.0,
+     "engine": 29.9
+    },
+    {
+     "wall_ms": 31.474863993935287,
+     "server_ms": 30.5,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.6,
+     "readout": 0.0,
+     "engine": 30.2
+    },
+    {
+     "wall_ms": 31.490610010223463,
+     "server_ms": 30.6,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.6,
+     "readout": 0.0,
+     "engine": 30.2
+    },
+    {
+     "wall_ms": 31.924556999001652,
+     "server_ms": 31.0,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 30.1,
+     "readout": 0.0,
+     "engine": 30.7
+    },
+    {
+     "wall_ms": 31.34272401803173,
+     "server_ms": 30.4,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.1
+    },
+    {
+     "wall_ms": 31.368458992801607,
+     "server_ms": 30.4,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.0
+    },
+    {
+     "wall_ms": 30.740419984795153,
+     "server_ms": 29.9,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.0,
+     "readout": 0.0,
+     "engine": 29.5
+    },
+    {
+     "wall_ms": 31.2233209842816,
+     "server_ms": 30.5,
+     "prepare": 0.5,
+     "warm": 0.0,
+     "questions": 29.5,
+     "readout": 0.0,
+     "engine": 30.0
+    }
+   ]
+  },
+  {
+   "state_tokens": 300,
+   "questions": 4,
+   "repeats": 20,
+   "median": {
+    "wall_ms": 62.95,
+    "server_ms": 61.8,
+    "prepare": 0.7,
+    "warm": 38.9,
+    "questions": 21.5,
+    "readout": 0.0,
+    "engine": 61.2
+   },
+   "rows": [
+    {
+     "wall_ms": 63.22177400579676,
+     "server_ms": 62.7,
+     "prepare": 0.7,
+     "warm": 39.3,
+     "questions": 21.9,
+     "readout": 0.0,
+     "engine": 62.0
+    },
+    {
+     "wall_ms": 63.04544801241718,
+     "server_ms": 62.4,
+     "prepare": 0.7,
+     "warm": 39.2,
+     "questions": 21.7,
+     "readout": 0.0,
+     "engine": 61.8
+    },
+    {
+     "wall_ms": 65.95416399068199,
+     "server_ms": 62.5,
+     "prepare": 0.7,
+     "warm": 39.4,
+     "questions": 21.7,
+     "readout": 0.0,
+     "engine": 61.9
+    },
+    {
+     "wall_ms": 83.72268598759547,
+     "server_ms": 80.5,
+     "prepare": 0.7,
+     "warm": 39.1,
+     "questions": 35.1,
+     "readout": 0.3,
+     "engine": 75.5
+    },
+    {
+     "wall_ms": 80.34790199599229,
+     "server_ms": 78.1,
+     "prepare": 1.1,
+     "warm": 40.5,
+     "questions": 35.5,
+     "readout": 0.0,
+     "engine": 77.2
+    },
+    {
+     "wall_ms": 64.59117101621814,
+     "server_ms": 62.3,
+     "prepare": 0.8,
+     "warm": 39.3,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 61.6
+    },
+    {
+     "wall_ms": 62.85009000566788,
+     "server_ms": 62.2,
+     "prepare": 0.8,
+     "warm": 39.3,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 61.5
+    },
+    {
+     "wall_ms": 65.06170801003464,
+     "server_ms": 61.7,
+     "prepare": 0.7,
+     "warm": 38.9,
+     "questions": 21.3,
+     "readout": 0.0,
+     "engine": 61.0
+    },
+    {
+     "wall_ms": 65.2374209894333,
+     "server_ms": 61.6,
+     "prepare": 0.7,
+     "warm": 38.6,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 61.0
+    },
+    {
+     "wall_ms": 64.82913601212204,
+     "server_ms": 61.6,
+     "prepare": 0.7,
+     "warm": 38.7,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 61.0
+    },
+    {
+     "wall_ms": 62.6625049917493,
+     "server_ms": 61.7,
+     "prepare": 0.7,
+     "warm": 38.7,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 61.0
+    },
+    {
+     "wall_ms": 62.87181001971476,
+     "server_ms": 61.7,
+     "prepare": 0.7,
+     "warm": 38.7,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 61.0
+    },
+    {
+     "wall_ms": 62.96136399032548,
+     "server_ms": 61.9,
+     "prepare": 0.7,
+     "warm": 38.8,
+     "questions": 21.6,
+     "readout": 0.0,
+     "engine": 61.2
+    },
+    {
+     "wall_ms": 62.46051599737257,
+     "server_ms": 61.5,
+     "prepare": 0.7,
+     "warm": 38.7,
+     "questions": 21.3,
+     "readout": 0.0,
+     "engine": 60.8
+    },
+    {
+     "wall_ms": 62.92900399421342,
+     "server_ms": 61.9,
+     "prepare": 0.7,
+     "warm": 38.8,
+     "questions": 21.6,
+     "readout": 0.0,
+     "engine": 61.2
+    },
+    {
+     "wall_ms": 62.461967987474054,
+     "server_ms": 61.7,
+     "prepare": 0.7,
+     "warm": 38.9,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 61.0
+    },
+    {
+     "wall_ms": 62.85300001036376,
+     "server_ms": 61.8,
+     "prepare": 0.7,
+     "warm": 38.9,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 61.2
+    },
+    {
+     "wall_ms": 62.823411979479715,
+     "server_ms": 61.8,
+     "prepare": 0.7,
+     "warm": 39.0,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 61.2
+    },
+    {
+     "wall_ms": 62.115133012412116,
+     "server_ms": 61.5,
+     "prepare": 0.7,
+     "warm": 38.7,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 60.9
+    },
+    {
+     "wall_ms": 61.97310899733566,
+     "server_ms": 61.4,
+     "prepare": 0.7,
+     "warm": 38.5,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 60.8
+    }
+   ]
+  },
+  {
+   "state_tokens": 1000,
+   "questions": 1,
+   "repeats": 20,
+   "median": {
+    "wall_ms": 38.8,
+    "server_ms": 37.95,
+    "prepare": 1.0,
+    "warm": 0.0,
+    "questions": 36.0,
+    "readout": 0.0,
+    "engine": 37.05
+   },
+   "rows": [
+    {
+     "wall_ms": 39.08335400046781,
+     "server_ms": 38.1,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.2,
+     "readout": 0.0,
+     "engine": 37.2
+    },
+    {
+     "wall_ms": 38.79620801308192,
+     "server_ms": 38.0,
+     "prepare": 1.1,
+     "warm": 0.0,
+     "questions": 36.0,
+     "readout": 0.0,
+     "engine": 37.2
+    },
+    {
+     "wall_ms": 38.52624801220372,
+     "server_ms": 37.9,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.0,
+     "readout": 0.0,
+     "engine": 37.1
+    },
+    {
+     "wall_ms": 38.38829800952226,
+     "server_ms": 38.0,
+     "prepare": 0.9,
+     "warm": 0.0,
+     "questions": 36.1,
+     "readout": 0.0,
+     "engine": 37.1
+    },
+    {
+     "wall_ms": 38.88204399845563,
+     "server_ms": 37.9,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.0,
+     "readout": 0.0,
+     "engine": 37.0
+    },
+    {
+     "wall_ms": 39.021959993988276,
+     "server_ms": 38.1,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.1,
+     "readout": 0.0,
+     "engine": 37.2
+    },
+    {
+     "wall_ms": 39.10546898259781,
+     "server_ms": 38.1,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.2,
+     "readout": 0.0,
+     "engine": 37.2
+    },
+    {
+     "wall_ms": 39.000466000288725,
+     "server_ms": 38.0,
+     "prepare": 0.9,
+     "warm": 0.0,
+     "questions": 36.1,
+     "readout": 0.0,
+     "engine": 37.1
+    },
+    {
+     "wall_ms": 38.59863700927235,
+     "server_ms": 37.7,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 35.8,
+     "readout": 0.0,
+     "engine": 36.9
+    },
+    {
+     "wall_ms": 38.58124199905433,
+     "server_ms": 37.8,
+     "prepare": 0.9,
+     "warm": 0.0,
+     "questions": 35.9,
+     "readout": 0.0,
+     "engine": 36.9
+    },
+    {
+     "wall_ms": 38.78605700447224,
+     "server_ms": 37.8,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.0,
+     "readout": 0.0,
+     "engine": 37.0
+    },
+    {
+     "wall_ms": 39.26544901332818,
+     "server_ms": 38.3,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.1,
+     "readout": 0.0,
+     "engine": 37.1
+    },
+    {
+     "wall_ms": 38.851552992127836,
+     "server_ms": 37.9,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.0,
+     "readout": 0.0,
+     "engine": 37.0
+    },
+    {
+     "wall_ms": 38.71156901004724,
+     "server_ms": 37.8,
+     "prepare": 0.9,
+     "warm": 0.0,
+     "questions": 35.7,
+     "readout": 0.0,
+     "engine": 36.7
+    },
+    {
+     "wall_ms": 38.717278017429635,
+     "server_ms": 37.8,
+     "prepare": 0.9,
+     "warm": 0.0,
+     "questions": 35.9,
+     "readout": 0.0,
+     "engine": 37.0
+    },
+    {
+     "wall_ms": 40.582304005511105,
+     "server_ms": 39.9,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 36.4,
+     "readout": 0.2,
+     "engine": 37.9
+    },
+    {
+     "wall_ms": 38.31087698927149,
+     "server_ms": 37.9,
+     "prepare": 1.0,
+     "warm": 0.0,
+     "questions": 35.9,
+     "readout": 0.0,
+     "engine": 37.0
+    },
+    {
+     "wall_ms": 38.18310800124891,
+     "server_ms": 37.7,
+     "prepare": 0.9,
+     "warm": 0.0,
+     "questions": 35.8,
+     "readout": 0.0,
+     "engine": 36.9
+    },
+    {
+     "wall_ms": 44.29463899577968,
+     "server_ms": 43.4,
+     "prepare": 5.3,
+     "warm": 0.0,
+     "questions": 36.8,
+     "readout": 0.3,
+     "engine": 42.5
+    },
+    {
+     "wall_ms": 38.80199999548495,
+     "server_ms": 38.1,
+     "prepare": 1.1,
+     "warm": 0.0,
+     "questions": 35.8,
+     "readout": 0.0,
+     "engine": 37.0
+    }
+   ]
+  },
+  {
+   "state_tokens": 1000,
+   "questions": 4,
+   "repeats": 20,
+   "median": {
+    "wall_ms": 65.58,
+    "server_ms": 64.55,
+    "prepare": 1.2,
+    "warm": 40.45,
+    "questions": 21.5,
+    "readout": 0.0,
+    "engine": 63.35
+   },
+   "rows": [
+    {
+     "wall_ms": 65.15575500088744,
+     "server_ms": 64.0,
+     "prepare": 1.2,
+     "warm": 40.2,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 62.8
+    },
+    {
+     "wall_ms": 67.9640379967168,
+     "server_ms": 66.6,
+     "prepare": 3.6,
+     "warm": 40.4,
+     "questions": 21.1,
+     "readout": 0.0,
+     "engine": 65.2
+    },
+    {
+     "wall_ms": 65.40812598541379,
+     "server_ms": 64.4,
+     "prepare": 1.2,
+     "warm": 40.4,
+     "questions": 21.2,
+     "readout": 0.2,
+     "engine": 63.0
+    },
+    {
+     "wall_ms": 79.32105398504063,
+     "server_ms": 78.2,
+     "prepare": 1.2,
+     "warm": 40.3,
+     "questions": 35.4,
+     "readout": 0.0,
+     "engine": 77.1
+    },
+    {
+     "wall_ms": 65.98585698520765,
+     "server_ms": 64.9,
+     "prepare": 1.2,
+     "warm": 40.9,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.7
+    },
+    {
+     "wall_ms": 65.60444002388977,
+     "server_ms": 64.6,
+     "prepare": 1.2,
+     "warm": 40.7,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.5
+    },
+    {
+     "wall_ms": 65.33857501926832,
+     "server_ms": 64.2,
+     "prepare": 1.2,
+     "warm": 40.4,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.1
+    },
+    {
+     "wall_ms": 65.5556840065401,
+     "server_ms": 64.5,
+     "prepare": 1.2,
+     "warm": 40.5,
+     "questions": 21.6,
+     "readout": 0.0,
+     "engine": 63.4
+    },
+    {
+     "wall_ms": 79.07621000776999,
+     "server_ms": 77.9,
+     "prepare": 1.2,
+     "warm": 40.5,
+     "questions": 34.6,
+     "readout": 0.0,
+     "engine": 76.4
+    },
+    {
+     "wall_ms": 65.7549960014876,
+     "server_ms": 64.7,
+     "prepare": 1.2,
+     "warm": 40.8,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 63.5
+    },
+    {
+     "wall_ms": 66.07429098221473,
+     "server_ms": 65.1,
+     "prepare": 1.2,
+     "warm": 40.7,
+     "questions": 22.0,
+     "readout": 0.0,
+     "engine": 64.0
+    },
+    {
+     "wall_ms": 65.41541501064785,
+     "server_ms": 64.7,
+     "prepare": 1.2,
+     "warm": 40.7,
+     "questions": 21.7,
+     "readout": 0.0,
+     "engine": 63.6
+    },
+    {
+     "wall_ms": 65.05249801557511,
+     "server_ms": 64.5,
+     "prepare": 1.2,
+     "warm": 40.4,
+     "questions": 21.6,
+     "readout": 0.0,
+     "engine": 63.3
+    },
+    {
+     "wall_ms": 65.82384201465175,
+     "server_ms": 64.6,
+     "prepare": 1.2,
+     "warm": 40.6,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 63.3
+    },
+    {
+     "wall_ms": 65.76693500392139,
+     "server_ms": 64.7,
+     "prepare": 1.2,
+     "warm": 40.7,
+     "questions": 21.6,
+     "readout": 0.0,
+     "engine": 63.5
+    },
+    {
+     "wall_ms": 65.49906200962141,
+     "server_ms": 64.4,
+     "prepare": 1.2,
+     "warm": 40.4,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.2
+    },
+    {
+     "wall_ms": 65.3132639999967,
+     "server_ms": 64.3,
+     "prepare": 1.2,
+     "warm": 40.5,
+     "questions": 21.4,
+     "readout": 0.0,
+     "engine": 63.2
+    },
+    {
+     "wall_ms": 65.31604699557647,
+     "server_ms": 64.2,
+     "prepare": 1.2,
+     "warm": 40.2,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.0
+    },
+    {
+     "wall_ms": 65.60859401361085,
+     "server_ms": 64.3,
+     "prepare": 1.1,
+     "warm": 40.4,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.2
+    },
+    {
+     "wall_ms": 65.3471430123318,
+     "server_ms": 64.2,
+     "prepare": 1.2,
+     "warm": 40.4,
+     "questions": 21.5,
+     "readout": 0.0,
+     "engine": 63.1
+    }
+   ]
+  },
+  {
+   "state_tokens": 3000,
+   "questions": 1,
+   "repeats": 20,
+   "median": {
+    "wall_ms": 93.69,
+    "server_ms": 92.8,
+    "prepare": 2.3,
+    "warm": 0.0,
+    "questions": 84.2,
+    "readout": 0.1,
+    "engine": 86.8
+   },
+   "rows": [
+    {
+     "wall_ms": 94.24367200699635,
+     "server_ms": 93.3,
+     "prepare": 2.4,
+     "warm": 0.0,
+     "questions": 84.8,
+     "readout": 0.1,
+     "engine": 87.5
+    },
+    {
+     "wall_ms": 91.14337799837813,
+     "server_ms": 90.3,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 83.6,
+     "readout": 0.1,
+     "engine": 86.2
+    },
+    {
+     "wall_ms": 95.6202190136537,
+     "server_ms": 94.5,
+     "prepare": 2.7,
+     "warm": 0.0,
+     "questions": 85.0,
+     "readout": 0.1,
+     "engine": 88.0
+    },
+    {
+     "wall_ms": 94.15069399983622,
+     "server_ms": 93.2,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.3,
+     "readout": 0.1,
+     "engine": 86.9
+    },
+    {
+     "wall_ms": 93.69674301706254,
+     "server_ms": 92.8,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.2,
+     "readout": 0.1,
+     "engine": 86.7
+    },
+    {
+     "wall_ms": 94.3913479859475,
+     "server_ms": 93.4,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.4,
+     "readout": 0.1,
+     "engine": 87.0
+    },
+    {
+     "wall_ms": 92.68123499350622,
+     "server_ms": 91.8,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 83.7,
+     "readout": 0.1,
+     "engine": 86.2
+    },
+    {
+     "wall_ms": 93.9121260016691,
+     "server_ms": 93.1,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.2,
+     "readout": 0.1,
+     "engine": 86.8
+    },
+    {
+     "wall_ms": 93.55413299635984,
+     "server_ms": 92.7,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.1,
+     "readout": 0.1,
+     "engine": 86.6
+    },
+    {
+     "wall_ms": 93.43218099093065,
+     "server_ms": 92.6,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.3,
+     "readout": 0.1,
+     "engine": 86.8
+    },
+    {
+     "wall_ms": 93.70137902442366,
+     "server_ms": 92.8,
+     "prepare": 2.4,
+     "warm": 0.0,
+     "questions": 84.6,
+     "readout": 0.1,
+     "engine": 87.3
+    },
+    {
+     "wall_ms": 93.68609800003469,
+     "server_ms": 92.8,
+     "prepare": 2.6,
+     "warm": 0.0,
+     "questions": 84.2,
+     "readout": 0.1,
+     "engine": 87.1
+    },
+    {
+     "wall_ms": 93.19876198424026,
+     "server_ms": 92.3,
+     "prepare": 2.2,
+     "warm": 0.0,
+     "questions": 83.9,
+     "readout": 0.1,
+     "engine": 86.4
+    },
+    {
+     "wall_ms": 93.42874499270692,
+     "server_ms": 92.5,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.2,
+     "readout": 0.1,
+     "engine": 86.8
+    },
+    {
+     "wall_ms": 94.11424602149054,
+     "server_ms": 92.9,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.3,
+     "readout": 0.1,
+     "engine": 86.9
+    },
+    {
+     "wall_ms": 93.3889209991321,
+     "server_ms": 92.1,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.0,
+     "readout": 0.1,
+     "engine": 86.5
+    },
+    {
+     "wall_ms": 94.35070099425502,
+     "server_ms": 93.1,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.2,
+     "readout": 0.1,
+     "engine": 86.7
+    },
+    {
+     "wall_ms": 93.29868498025462,
+     "server_ms": 92.2,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 84.0,
+     "readout": 0.1,
+     "engine": 86.6
+    },
+    {
+     "wall_ms": 92.39414101466537,
+     "server_ms": 91.3,
+     "prepare": 2.3,
+     "warm": 0.0,
+     "questions": 83.6,
+     "readout": 0.1,
+     "engine": 86.2
+    },
+    {
+     "wall_ms": 94.6043110161554,
+     "server_ms": 93.3,
+     "prepare": 2.7,
+     "warm": 0.0,
+     "questions": 85.0,
+     "readout": 0.1,
+     "engine": 87.9
+    }
+   ]
+  },
+  {
+   "state_tokens": 3000,
+   "questions": 4,
+   "repeats": 20,
+   "median": {
+    "wall_ms": 117.87,
+    "server_ms": 116.95,
+    "prepare": 2.6,
+    "warm": 72.55,
+    "questions": 38.95,
+    "readout": 0.0,
+    "engine": 114.35
+   },
+   "rows": [
+    {
+     "wall_ms": 118.30245499731973,
+     "server_ms": 117.1,
+     "prepare": 2.5,
+     "warm": 72.3,
+     "questions": 39.7,
+     "readout": 0.0,
+     "engine": 114.7
+    },
+    {
+     "wall_ms": 123.35619199438952,
+     "server_ms": 122.1,
+     "prepare": 2.6,
+     "warm": 76.8,
+     "questions": 40.0,
+     "readout": 0.0,
+     "engine": 119.5
+    },
+    {
+     "wall_ms": 116.78284200024791,
+     "server_ms": 115.6,
+     "prepare": 2.5,
+     "warm": 72.5,
+     "questions": 37.9,
+     "readout": 0.0,
+     "engine": 113.0
+    },
+    {
+     "wall_ms": 116.59955201321281,
+     "server_ms": 115.4,
+     "prepare": 2.7,
+     "warm": 72.4,
+     "questions": 37.6,
+     "readout": 0.0,
+     "engine": 112.8
+    },
+    {
+     "wall_ms": 115.53790100151673,
+     "server_ms": 114.6,
+     "prepare": 2.5,
+     "warm": 72.3,
+     "questions": 37.1,
+     "readout": 0.0,
+     "engine": 112.1
+    },
+    {
+     "wall_ms": 117.52857000101358,
+     "server_ms": 116.3,
+     "prepare": 2.6,
+     "warm": 72.5,
+     "questions": 38.1,
+     "readout": 0.0,
+     "engine": 113.4
+    },
+    {
+     "wall_ms": 117.62972202268429,
+     "server_ms": 116.8,
+     "prepare": 2.9,
+     "warm": 73.8,
+     "questions": 37.3,
+     "readout": 0.0,
+     "engine": 114.1
+    },
+    {
+     "wall_ms": 103.17118198145181,
+     "server_ms": 102.2,
+     "prepare": 2.5,
+     "warm": 72.7,
+     "questions": 24.4,
+     "readout": 0.0,
+     "engine": 99.8
+    },
+    {
+     "wall_ms": 104.71049000625499,
+     "server_ms": 103.8,
+     "prepare": 2.5,
+     "warm": 73.6,
+     "questions": 25.1,
+     "readout": 0.0,
+     "engine": 101.3
+    },
+    {
+     "wall_ms": 115.2895640116185,
+     "server_ms": 114.4,
+     "prepare": 2.5,
+     "warm": 72.5,
+     "questions": 36.7,
+     "readout": 0.0,
+     "engine": 111.9
+    },
+    {
+     "wall_ms": 118.55828799889423,
+     "server_ms": 117.7,
+     "prepare": 2.5,
+     "warm": 72.3,
+     "questions": 40.3,
+     "readout": 0.0,
+     "engine": 115.2
+    },
+    {
+     "wall_ms": 120.18045797594823,
+     "server_ms": 118.5,
+     "prepare": 2.7,
+     "warm": 73.7,
+     "questions": 39.4,
+     "readout": 0.0,
+     "engine": 116.0
+    },
+    {
+     "wall_ms": 103.02788001718,
+     "server_ms": 102.2,
+     "prepare": 2.5,
+     "warm": 72.3,
+     "questions": 24.7,
+     "readout": 0.0,
+     "engine": 99.7
+    },
+    {
+     "wall_ms": 119.82267600251362,
+     "server_ms": 118.7,
+     "prepare": 3.0,
+     "warm": 73.4,
+     "questions": 39.5,
+     "readout": 0.0,
+     "engine": 116.2
+    },
+    {
+     "wall_ms": 120.04087198874913,
+     "server_ms": 119.0,
+     "prepare": 3.1,
+     "warm": 74.0,
+     "questions": 39.2,
+     "readout": 0.0,
+     "engine": 116.5
+    },
+    {
+     "wall_ms": 118.10942500596866,
+     "server_ms": 117.2,
+     "prepare": 2.6,
+     "warm": 72.2,
+     "questions": 39.7,
+     "readout": 0.0,
+     "engine": 114.6
+    },
+    {
+     "wall_ms": 133.15336100640707,
+     "server_ms": 132.3,
+     "prepare": 2.7,
+     "warm": 73.2,
+     "questions": 53.6,
+     "readout": 0.0,
+     "engine": 129.7
+    },
+    {
+     "wall_ms": 119.83631999464706,
+     "server_ms": 118.8,
+     "prepare": 2.6,
+     "warm": 73.4,
+     "questions": 40.1,
+     "readout": 0.0,
+     "engine": 116.3
+    },
+    {
+     "wall_ms": 118.5938359994907,
+     "server_ms": 117.4,
+     "prepare": 2.6,
+     "warm": 72.6,
+     "questions": 39.4,
+     "readout": 0.0,
+     "engine": 114.9
+    },
+    {
+     "wall_ms": 117.5050210149493,
+     "server_ms": 116.3,
+     "prepare": 2.7,
+     "warm": 72.3,
+     "questions": 38.7,
+     "readout": 0.0,
+     "engine": 113.8
+    }
+   ]
+  }
+ ]
+}

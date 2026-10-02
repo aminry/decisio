@@ -1,0 +1,1 @@
+max |d logprob| over 20 prompts: {'alone_repeat': 0.0, 'alone_vs_batch2': 0.198225736618042, 'batch2_repeat': 0.16816949844360352}
