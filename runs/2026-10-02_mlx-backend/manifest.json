@@ -26,6 +26,11 @@
     "onto": "f2d936e (--describe-options, off by default); the PR's base is 877a431, which changes no source file (REUSE compliance)",
     "check": "6-bit, on the PR's code: serving gates pass (G2 bit for bit); the 1,400 suite answers bit-identical to the gated run, 1,400 of 1,400",
     "record": "rebase_check_f2d936e/"
+   },
+   {
+    "onto": "c6a4847 (#38: --multi-question sequential and --describe-options on are the served defaults); the merged source (merge f3c5026) is identical to this checked code in src/, tests/, pyproject.toml and uv.lock",
+    "check": "6-bit, with the new defaults (describe_options on): serving gates pass (G2 bit for bit); the 1,400 suite answers bit-identical to the gated run, 1,400 of 1,400. No suite or round-12 item carries an option description, so the new rendering default changes none of their prompts; --multi-question does not apply to the MLX engine",
+    "record": "rebase_check_c6a4847/"
    }
   ]
  },
