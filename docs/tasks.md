@@ -127,6 +127,7 @@ curl -s -X DELETE http://127.0.0.1:8000/v1/tasks/ticket-routing
 **Registration is per server instance, in memory.** A restart, or a second server behind a load balancer, does not see a task registered on another.
 To persist a task, export it (`GET /v1/tasks?full=1`), then either start each server with `--tasks-file tasks.json` or post the export to `POST /v1/tasks/import`.
 A task is valid only for the model and rendering it was fitted under (the served name, the checkpoint, padding and the rendering flags): a task fitted on another configuration is not applied, and the server says which.
+The description rule (`--describe-options`, on by default) is part of the task's key instead, and only for questions it changes: a question whose options have descriptions has another key with the rule on than off, so a task fitted under the other setting is simply not matched; a question it leaves alone (index keys, bare labels, yes/no, score) keeps its tasks either way.
 
 **Abstention tasks come after the readout task.** An abstention threshold (`POST /v1/abstention/tasks`, a threshold on a "can't tell" option) is fitted on the probabilities the question is actually served with, which include a registered task's correction.
 Register the readout task first and the abstention task second; if you register the readout task again, register its abstention task again too.
