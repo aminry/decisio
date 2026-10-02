@@ -19,17 +19,20 @@ def main():
     ap.add_argument("--tokens", type=int, default=1400)
     a = ap.parse_args()
 
-    llm = LLM(model=a.model, max_model_len=8192, limit_mm_per_prompt={"image": 0, "video": 0}, max_logprobs=20,
-              logprobs_mode="processed_logprobs")
+    llm = LLM(
+        model=a.model,
+        max_model_len=8192,
+        limit_mm_per_prompt={"image": 0, "video": 0},
+        max_logprobs=20,
+        logprobs_mode="processed_logprobs",
+    )
     labels = list(range(32, 52))  # 20 token ids; their log-softmax is compared
     sp = SamplingParams(max_tokens=1, temperature=0.0, logprobs=len(labels), allowed_token_ids=labels)
     rng = random.Random(0)
 
-
     def lp(prompts):
         outs = llm.generate([TokensPrompt(prompt_token_ids=p) for p in prompts], [sp] * len(prompts), use_tqdm=False)
         return [np.array([o.outputs[0].logprobs[0][t].logprob for t in labels]) for o in outs]
-
 
     worst = {"alone_repeat": 0.0, "alone_vs_batch2": 0.0, "batch2_repeat": 0.0}
     for _ in range(a.prompts):

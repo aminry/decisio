@@ -16,8 +16,8 @@ and the readout.
 one-token generate calls on fresh, unpadded prompts of each length (no chat template, no letters prompt), which is
 what the model's forward costs on this card with nothing of ours around it. Stop the server first (one engine per card).
 
-    python -m decisio.bench.fresh_state --engine-floor --model $DECISIO_MODEL --out floor.json [--tokens 300,1056,3000] \\
-        [--no-prefix-caching]
+    python -m decisio.bench.fresh_state --engine-floor --model $DECISIO_MODEL --out floor.json \\
+        [--tokens 300,1056,3000] [--no-prefix-caching]
 """
 
 import argparse
