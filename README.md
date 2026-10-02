@@ -129,7 +129,7 @@ All numbers are on the served default described in `EVAL_CARD.md`, measured priv
 | Image input, ImajevBench v2.0-lite | 0.791 on the 230 answerable items |
 | Latency, one question | 48.5 ms server time on a new 300-token state, 27.9 ms on a state from the cache |
 
-Where it stands: on the public harnesses this frozen model is the most accurate open one-pass system we know of on the hard tier, and it is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
+Where it stands: on the public harnesses this frozen model is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
 With 10 labelled examples per intent, registered heads reach accuracy 0.847 on BANKING77 (150 held-out items) and 0.893 on CLINC150 (100 held-out items), means of three draws.
 They use labelled examples, so those figures are not comparable with zero-shot systems.
 Calibration trails too: hard-tier ECE on JevBench is 0.069, above the 0.05 we aimed for.
