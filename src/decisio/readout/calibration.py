@@ -91,13 +91,21 @@ def fit_task_prior(logps, labels, fingerprint="", task_id="", K=None):
     ll0, ll1, ok0, ok1 = _cv(logps, y, K, folds)
     d = ll1 - ll0  # per-item change in log loss; negative is better
     se = d.std(ddof=1) / np.sqrt(n) if n > 1 else np.inf
-    t = d.mean() / se if se > 0 else (-np.inf if d.mean() < 0 else np.inf)
+    if se > 0:
+        t = d.mean() / se
+    elif d.mean() == 0:
+        # every fold's change is exactly zero: no evidence either way (a readout so confident that the fitted prior
+        # moves nothing, as frozen Gemma 4 on an easy task; found on a card, 2026-10-02, where the infinite t broke
+        # the JSON response of POST /v1/tasks)
+        t = 0.0
+    else:
+        t = -np.inf if d.mean() < 0 else np.inf
     rec.update(
         cv_logloss_plain=round(float(ll0.mean()), 5),
         cv_logloss_fitted=round(float(ll1.mean()), 5),
         cv_acc_plain=round(float(ok0.mean()), 4),
         cv_acc_fitted=round(float(ok1.mean()), 4),
-        cv_t=round(float(t), 3),
+        cv_t=round(float(t), 3) if np.isfinite(t) else None,  # JSON has no infinity
     )
     # switched on only when the gain is both material and unlikely to be noise on these few examples
     if d.mean() > -MIN_GAIN or t > -T_ACCEPT or ok1.mean() < ok0.mean():
