@@ -20,7 +20,10 @@ single tokens, so 255 labels exist without adding to the vocabulary.
 from __future__ import annotations
 
 import string
+from dataclasses import dataclass
 from functools import lru_cache
+
+import numpy as np
 
 MAX_LABELS = 255  # the wire format's cap, an 8-bit option index
 
@@ -172,3 +175,201 @@ def letters_prompt(tok, kind, body, instructions, options, pool=None):
         listing = "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
         q = f"{body}\n\n{instructions}\nOptions:\n{listing}\n{say}"
     return q + "\nAnswer:", [" " + lab for lab in labs]
+
+
+# ---- prompt formats: system prompt, tail, answer slot, label variants -----------------------------------------------
+
+SYSTEM_PROMPTS = ("none", "cygnet")
+PROMPT_TAILS = ("decisio", "cygnet")
+ANSWER_SLOTS = ("prefill", "template")
+LABEL_VARIANTS = ("single", "summed", "cygnet")
+STATE_RENDERINGS = ("lines", "cygnet")
+# thinking blocks a chat template may write; with thinking off each must be closed (Qwen3.6, Gemma 4)
+THINK_MARKERS = (("<think>", "</think>"), ("<|channel>", "<channel|>"))
+
+
+@dataclass(frozen=True)
+class PromptFormat:
+    """How a letters question is put to a chat model (decisio.serve.vllm_engine builds every row through it).
+
+    system   none: no system turn; cygnet: Cygnet's system prompt (decisio.readout.cygnet.SYSTEM)
+    tail     decisio: "<instructions>\\nOptions:\\n<listing>\\nAnswer with the letter only." (score as a legend);
+             cygnet: "<instructions>\\n\\nOptions:\\n<listing>\\n\\n" + Cygnet's instruction (score levels listed)
+    slot     prefill: "Answer:" after the template's generation prompt; template: the template's own first assistant
+             position (Gemma 4: after its empty, closed thought channel)
+    variants single: one token per label, the form the slot reads (" A" after "Answer:", "A" in the template slot);
+             summed: every single-token form of the label (" A", "A", and for one letter its byte-fallback token;
+             for yes/no also " Yes" and "Yes"), their probabilities summed per label; cygnet: the forms whose text
+             is the label exactly ("A" and its byte token: what xgrammar allows for Cygnet's choice "A")
+    state    lines: the state as sent, an object as "key: value" lines (fmt_state); cygnet: an object as
+             json.dumps(indent=1), and trailing whitespace stripped, as Cygnet renders a state
+
+    The default is today's prompt, token for token."""
+
+    system: str = "none"
+    tail: str = "decisio"
+    slot: str = "prefill"
+    variants: str = "single"
+    state: str = "lines"
+
+    def __post_init__(self):
+        for value, allowed, what in (
+            (self.system, SYSTEM_PROMPTS, "system"),
+            (self.tail, PROMPT_TAILS, "tail"),
+            (self.slot, ANSWER_SLOTS, "slot"),
+            (self.variants, LABEL_VARIANTS, "variants"),
+            (self.state, STATE_RENDERINGS, "state"),
+        ):
+            if value not in allowed:
+                raise ValueError(f"PromptFormat.{what} must be one of {allowed}, not {value!r}")
+
+    def is_default(self) -> bool:
+        return self == PromptFormat()
+
+    def facts(self) -> dict:
+        return {
+            "system": self.system,
+            "tail": self.tail,
+            "slot": self.slot,
+            "variants": self.variants,
+            "state": self.state,
+        }
+
+
+DEFAULT_FORMAT = PromptFormat()
+
+
+def render_state(state, fmt: PromptFormat = DEFAULT_FORMAT) -> str:
+    """The state as the prompt shows it: fmt_state, or Cygnet's rendering under state="cygnet"."""
+    if fmt.state == "cygnet":
+        import json
+
+        text = state if isinstance(state, str) else json.dumps(state, ensure_ascii=False, indent=1)
+        return text.rstrip()
+    return fmt_state(state)
+
+
+def question_body(tok, kind, instructions, options, fmt: PromptFormat = DEFAULT_FORMAT):
+    """A question's own text, the part after "<state>\\n\\n" in the user turn, and its label strings (" A", ...;
+    " yes", " no"). Under the decisio tail it is exactly what letters_prompt writes between the state's blank line and
+    "\\nAnswer:"."""
+    if fmt.tail == "decisio":
+        full, cands = letters_prompt(tok, kind, "", instructions, options)
+        assert full.startswith("\n\n") and full.endswith("\nAnswer:")
+        return full[2 : -len("\nAnswer:")], cands
+    from decisio.readout.cygnet import TAIL
+
+    if kind == "noul":
+        return f"{instructions}\n\nAnswer with yes or no, and nothing else:", [" yes", " no"]
+    labs = letter_labels(tok, len(options))
+    listing = "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
+    return f"{instructions}\n\nOptions:\n{listing}\n\n{TAIL}", [" " + lab for lab in labs]
+
+
+def check_thinking_closed(text: str) -> None:
+    for open_, close in THINK_MARKERS:
+        if text.count(open_) != text.count(close):
+            raise AssertionError(f"thinking left open in chat mode: {text[-80:]!r}")
+
+
+def chat_turn(tok, content, fmt: PromptFormat = DEFAULT_FORMAT) -> str:
+    """The chat prompt of one question: the system turn (if any), `content` as the user turn, the template's generation
+    prompt with thinking disabled, then "Answer:" under the prefill slot. With the default format this equals
+    chat_wrap(tok, content + "\\nAnswer:", "chat"), the prompt evaluation scores."""
+    if fmt.is_default():
+        return chat_wrap(tok, content + "\nAnswer:", "chat")
+    messages = [{"role": "user", "content": content}]
+    if fmt.system == "cygnet":
+        from decisio.readout.cygnet import SYSTEM
+
+        messages.insert(0, {"role": "system", "content": SYSTEM})
+    out = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
+    check_thinking_closed(out)
+    return out + ("Answer:" if fmt.slot == "prefill" else "")
+
+
+def _byte_token(tok, ch):
+    """The id of the byte-fallback token of one ASCII character ("<0x41>" for "A"), or None."""
+    if len(ch) != 1 or ord(ch) > 127:
+        return None
+    name = f"<0x{ord(ch):02X}>"
+    tid = tok.convert_tokens_to_ids(name)
+    unk = getattr(tok, "unk_token_id", None)
+    return tid if isinstance(tid, int) and tid >= 0 and tid != unk and tok.convert_ids_to_tokens(tid) == name else None
+
+
+def _one_token(tok, text):
+    ids = tok.encode(text, add_special_tokens=False)
+    return ids[0] if len(ids) == 1 and tok.decode(ids) == text else None
+
+
+def label_forms(tok, cand, fmt: PromptFormat = DEFAULT_FORMAT) -> tuple[int, ...]:
+    """The token ids read for one label string (" A", " yes"), in a fixed order, under the format's variants rule.
+
+    single: one token, the form the slot reads (spaced after "Answer:", bare in the template slot); it must be one
+    token (as letters_prompt has always required). summed and cygnet: every form that is exactly one token, at least
+    one."""
+    lab = cand.strip()
+    if fmt.variants == "single":
+        text = (" " + lab) if fmt.slot == "prefill" else lab
+        ids = tok.encode(text, add_special_tokens=False)
+        if len(ids) != 1:
+            raise AssertionError(f"label {text!r} is {len(ids)} tokens; the letter readout needs one")
+        return (ids[0],)
+    texts = [lab] if fmt.variants == "cygnet" else [" " + lab, lab]
+    if fmt.variants == "summed" and lab.isalpha() and lab.islower():  # yes / no: the capitalised forms too
+        texts += [" " + lab.capitalize(), lab.capitalize()]
+    forms = [_one_token(tok, t) for t in texts]
+    forms.append(_byte_token(tok, lab))
+    out = tuple(dict.fromkeys(t for t in forms if t is not None))
+    if not out:
+        raise AssertionError(f"label {lab!r} has no single-token form in this tokenizer")
+    return out
+
+
+def label_groups(tok, cands, fmt: PromptFormat = DEFAULT_FORMAT):
+    """The label ids of one question: a list of ints (one token per label: today's rule, read as before) under
+    single; a tuple of per-label tuples of ids otherwise. Two labels never share a token."""
+    if fmt.variants == "single" and fmt.slot == "prefill":
+        return label_token_ids(tok, cands)
+    groups = tuple(label_forms(tok, c, fmt) for c in cands)
+    flat = [t for g in groups for t in g]
+    if len(set(flat)) != len(flat):
+        raise AssertionError(f"label forms collide: {cands}")
+    if fmt.variants == "single":
+        return [g[0] for g in groups]
+    return groups
+
+
+def is_grouped(lab) -> bool:
+    return bool(lab) and isinstance(lab[0], tuple)
+
+
+def allowed_ids(lab) -> list[int]:
+    """The token ids a question's read allows (every form of every label, in label order)."""
+    return [t for g in lab for t in g] if is_grouped(lab) else list(lab)
+
+
+def label_logprobs(lab, lp_of):
+    """Per-label log-probabilities from per-token ones (`lp_of(token id)`, a log-softmax over allowed_ids(lab)): the
+    tokens themselves for one token per label; the log of the summed probability of each label's forms otherwise.
+    float64; not renormalised (a caller softmaxes)."""
+    if not is_grouped(lab):
+        return np.array([lp_of(t) for t in lab], dtype=np.float64)
+    out = []
+    for g in lab:
+        v = np.array([lp_of(t) for t in g], dtype=np.float64)
+        m = v.max()
+        out.append(m + np.log(np.exp(v - m).sum()))
+    return np.array(out, dtype=np.float64)
+
+
+def label_log_softmax(z_allowed, lab):
+    """Per-label log-probabilities from the logits of allowed_ids(lab), in that order: the log-softmax over the allowed
+    ids (what vLLM returns as processed log-probabilities), then label_logprobs. float64."""
+    z = np.asarray(z_allowed, dtype=np.float64)
+    z = z - z.max()
+    lp = z - np.log(np.exp(z).sum())
+    ids = allowed_ids(lab)
+    at = {t: i for i, t in enumerate(ids)}
+    return label_logprobs(lab, lambda t: lp[at[t]])

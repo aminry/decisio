@@ -53,12 +53,19 @@ from pathlib import Path
 import numpy as np
 
 from decisio.readout.letters import (  # noqa: E402
+    DEFAULT_FORMAT,
     LETTERS_INSTRUCTION,
-    chat_wrap,
+    PromptFormat,
+    allowed_ids,
+    chat_turn,
     fmt_state,
+    is_grouped,
+    label_groups,
+    label_logprobs,
     label_token_ids,
     letter_labels,
-    letters_prompt,
+    question_body,
+    render_state,
 )
 
 
@@ -69,7 +76,6 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
-from decisio.serve.temperature import SERVED_TEMPERATURE  # noqa: E402
 
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
 
@@ -145,7 +151,7 @@ def check_adapter_names(model, adapters, arch=None):
             raise ValueError(f"adapter {name}: {arch} needs PEFT's original names (`base_model.model.model.layers.`)")
 
 
-def state_prefix(tok, body):
+def state_prefix(tok, body, fmt=DEFAULT_FORMAT):
     """The tokens every question about this state starts with, found from the state alone.
 
     Qwen's pre-tokenizer merges trailing punctuation with the blank line after it (".\n\n" is one
@@ -155,16 +161,17 @@ def state_prefix(tok, body):
     Depending on the state alone matters: a split computed from the request's questions (their longest
     common prefix) would move with the question mix, and so would any padding inserted there.
     """
-    a = tok.encode(user_turn(tok, f"{body}\n\nA"), add_special_tokens=False)
-    b = tok.encode(user_turn(tok, f"{body}\n\nB"), add_special_tokens=False)
+    a = tok.encode(user_turn(tok, f"{body}\n\nA", fmt), add_special_tokens=False)
+    b = tok.encode(user_turn(tok, f"{body}\n\nB", fmt), add_special_tokens=False)
     n = 0
     while a[n] == b[n]:
         n += 1
     return n, a[:n]
 
 
-def question_text(tok, q):
-    """A question's own text (no state), as letters_prompt renders it after the state, and its labels.
+def question_text(tok, q, fmt=DEFAULT_FORMAT):
+    """A question's own text (no state), as the prompt format renders it after the state (question_body; under the
+    default format exactly what letters_prompt writes), and its labels.
 
     `options_in_state`: the option listing ("Options:\nA. ...", options_listing) is already in the state,
     so the question is its instruction alone; the labels are the same letters (the shared option
@@ -174,26 +181,37 @@ def question_text(tok, q):
         labs = letter_labels(tok, len(q["options"]))
         return f"{q['instructions']}\n{LETTERS_INSTRUCTION}", [" " + x for x in labs], list(q["options"])
     options = ["yes", "no"] if kind == "noul" else list(q["options"])
-    full, cands = letters_prompt(tok, kind, "", q["instructions"], options)
-    assert full.startswith("\n\n") and full.endswith("\nAnswer:")
-    text = full[2 : -len("\nAnswer:")]
+    text, cands = question_body(tok, kind, q["instructions"], options, fmt)
     if kind == "noul" and q.get("noul_order") == "no_yes":
         # two-order mode's second yes/no branch (systemone.py, after Reflex): the answers named the other way round;
         # the labels and their order are unchanged, so the distribution stays [P(yes), P(no)]
-        assert text.endswith("\nAnswer yes or no."), "the yes/no prompt changed; update the second branch"
-        text = text[: -len("Answer yes or no.")] + "Answer no or yes."
+        for said, swapped in NOUL_SWAPS:
+            if text.endswith(said):
+                text = text[: -len(said)] + swapped
+                break
+        else:
+            raise AssertionError("the yes/no prompt changed; update the second branch")
     return text, cands, options
 
 
-def user_turn(tok, content):
-    """One chat turn exactly as evaluation renders a letters prompt (thinking disabled, "Answer:")."""
-    return chat_wrap(tok, content + "\nAnswer:", "chat")
+# the yes/no answer line of each prompt tail, and the same line with the answers named the other way round
+NOUL_SWAPS = (
+    ("\nAnswer yes or no.", "\nAnswer no or yes."),
+    ("\n\nAnswer with yes or no, and nothing else:", "\n\nAnswer with no or yes, and nothing else:"),
+)
+
+
+def user_turn(tok, content, fmt=DEFAULT_FORMAT):
+    """One question's chat prompt (decisio.readout.letters.chat_turn); under the default format exactly as evaluation
+    renders a letters prompt (thinking disabled, "Answer:")."""
+    return chat_turn(tok, content, fmt)
 
 
 class LettersEngine:
     # the served defaults (--pad-policy, --multi-question); the server sets both from its flags
     pad_policy = "always"
     multi_question = "sequential"
+    fmt = DEFAULT_FORMAT  # the prompt format (decisio.readout.letters.PromptFormat); the server sets it from its flags
 
     def __init__(
         self,
@@ -210,9 +228,17 @@ class LettersEngine:
         max_num_seqs=256,
         gpu_memory_utilization=0.90,
         engine_kw=None,
+        fmt=None,
+        family=None,
     ):
         from vllm import LLM
 
+        from decisio.families import family_of
+
+        self.family = family or family_of(model)
+        self.fmt = fmt or DEFAULT_FORMAT
+        if mode == "packed" and not self.fmt.is_default():
+            raise ValueError("packed mode reads the default prompt format only")
         self.mode, self.pad_token, self.pack, self.max_pack_tokens = mode, pad_token, pack, max_pack_tokens
         if pad_where not in PAD_PLACES:
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
@@ -223,10 +249,12 @@ class LettersEngine:
             max_model_len=max_model_len,
             max_num_seqs=max_num_seqs,
             gpu_memory_utilization=gpu_memory_utilization,
-            limit_mm_per_prompt={"image": 0, "video": 0},
+            limit_mm_per_prompt=dict(self.family.limit_mm),
         )
         if mode == "separate":
-            kw.update(enable_prefix_caching=True, max_logprobs=256, logprobs_mode="processed_logprobs")
+            # several forms per label (--label-variants summed) read up to 3 x 255 ids per question
+            max_lp = 256 if self.fmt.variants == "single" else 1024
+            kw.update(enable_prefix_caching=True, max_logprobs=max_lp, logprobs_mode="processed_logprobs")
             if adapters:
                 kw.update(enable_lora=True, max_loras=len(adapters), max_lora_rank=64)
         elif mode == "packed":
@@ -306,6 +334,9 @@ class LettersEngine:
             "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
             "adapters": sorted(self.adapters),
             "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
+            "family": self.family.key,
+            "prompt_format": self.fmt.facts(),
+            "attention_backend": str(getattr(getattr(c, "attention_config", None), "backend", None)),
         }
 
     # ---- the request API ------------------------------------------------------------------------
@@ -351,17 +382,18 @@ class LettersEngine:
 
     def _template_tail(self):
         """The chat-template text after a user turn's content (constant), rendered once."""
-        if getattr(self, "_tail", None) is None:
+        if getattr(self, "_tail", None) is None or self._tail_fmt != self.fmt:
             mark = "\ue000"
-            full = user_turn(self.tok, mark)
+            full = user_turn(self.tok, mark, self.fmt)
             self._head_text, self._tail = full.split(mark)
+            self._tail_fmt = self.fmt
         return self._tail
 
     def _labels(self, cands):
         cache = self.__dict__.setdefault("_label_cache", {})
-        key = tuple(cands)
+        key = (tuple(cands), self.fmt)
         if key not in cache:
-            cache[key] = label_token_ids(self.tok, cands)
+            cache[key] = label_groups(self.tok, cands, self.fmt)
         return cache[key]
 
     def _prepare_separate(self, state, questions):
@@ -372,23 +404,26 @@ class LettersEngine:
         The first row of every request is checked against tokenizing its whole prompt; a mismatch falls
         back to full tokenization for that request, so the rows are always what evaluation scores."""
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
-        body = fmt_state(state)
+        body = render_state(state, self.fmt)
         tail = self._template_tail()
-        texts = [question_text(self.tok, q) for q in questions]
+        texts = [question_text(self.tok, q, self.fmt) for q in questions]
         suffixes = [enc(text + tail) for text, _, _ in texts]
         # one tokenization of the state (three cost 87 ms at 8,000 tokens): the first question's
         # whole prompt, split where its own tokens begin. That boundary is the state's (the state_prefix
         # argument: a question's first character never merges back unless it is whitespace); if the whole
         # prompt does not end with the question's own tokens, fall back to the dummy-question split
-        full0 = enc(user_turn(self.tok, f"{body}\n\n{texts[0][0]}"))
+        full0 = enc(user_turn(self.tok, f"{body}\n\n{texts[0][0]}", self.fmt))
         n = len(full0) - len(suffixes[0])
         if n > 0 and full0[n:] == suffixes[0]:
             prefix = full0[:n]
         else:
-            n, prefix = state_prefix(self.tok, body)
+            n, prefix = state_prefix(self.tok, body, self.fmt)
         rows = [(prefix + sfx, self._labels(cands)) for sfx, (_, cands, _) in zip(suffixes, texts)]
         if rows[0][0] != full0:
-            rows = [(enc(user_turn(self.tok, f"{body}\n\n{text}")), self._labels(cands)) for text, cands, _ in texts]
+            rows = [
+                (enc(user_turn(self.tok, f"{body}\n\n{text}", self.fmt)), self._labels(cands))
+                for text, cands, _ in texts
+            ]
         for ids, _ in rows:
             if ids[:n] != prefix:
                 raise ValueError(
@@ -441,8 +476,8 @@ class LettersEngine:
             SamplingParams(
                 max_tokens=1,
                 temperature=0.0,
-                logprobs=len(lab),
-                allowed_token_ids=lab,
+                logprobs=len(allowed_ids(lab)),
+                allowed_token_ids=allowed_ids(lab),
                 skip_reading_prefix_cache=skip_cache or None,
                 detokenize=False,
             )
@@ -454,10 +489,12 @@ class LettersEngine:
         )
         questions_ms = (time.perf_counter() - t) * 1000
         t = time.perf_counter()
-        probs = []
+        probs, token_lps = [], []
         for (_, lab), o in zip(rows, outs):
             d = o.outputs[0].logprobs[0]
-            lp = np.array([d[t].logprob for t in lab], dtype=np.float64)  # KeyError = a label went missing
+            lp = label_logprobs(lab, lambda t: d[t].logprob)  # KeyError = a label went missing
+            if is_grouped(lab):  # each form's own log-probability, for the debug readout (verification)
+                token_lps.append([[d[t].logprob for t in g] for g in lab])
             p = np.exp(lp - lp.max())
             probs.append(p / p.sum())
         cached = [o.num_cached_tokens or 0 for o in outs]
@@ -482,6 +519,7 @@ class LettersEngine:
             "prompt_tokens": sum(len(r[0]) for r in rows) + sum(len(w) for w in warm),
             "engine_prompt_tokens": engine_len,
             "cached_tokens": cached,
+            **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
     def _answer_separate(self, requests, adapter):
@@ -517,7 +555,7 @@ class LettersEngine:
         merged = dict(infos[0])
         merged["questions_ms"] = sum(x.get("questions_ms", 0.0) for x in infos)
         merged["readout_ms"] = sum(x.get("readout_ms", 0.0) for x in infos)
-        for k in ("engine_timing", "engine_prompt_tokens", "cached_tokens"):
+        for k in ("engine_timing", "engine_prompt_tokens", "cached_tokens", "label_token_logprobs"):
             merged[k] = [v for x in infos for v in x.get(k, [])]
         merged["prompt_tokens"] = sum(x.get("prompt_tokens", 0) for x in infos)
         merged["cached_tokens_mean"] = float(np.mean(merged["cached_tokens"])) if merged["cached_tokens"] else 0.0
@@ -631,7 +669,15 @@ def make_app(engine, systemone=None):
         )
         hidden = getattr(systemone, "hidden_engine", None) if systemone is not None else None
         so.update({"head_engine": hidden.facts()} if hidden is not None else {})
-        return {"ok": True, **engine.facts(), **({"image_engine": image.facts()} if image is not None else {}), **so}
+        fam = getattr(engine, "family", None)
+        return {
+            "ok": True,
+            **engine.facts(),
+            "prompt_format": getattr(engine, "fmt", DEFAULT_FORMAT).facts(),
+            **({"family": fam.key} if fam is not None else {}),
+            **({"image_engine": image.facts()} if image is not None else {}),
+            **so,
+        }
 
     def answer(req: Request):  # sync: FastAPI runs it in a thread; the engine lock serialises
         if req.adapter and req.adapter not in engine.adapters:
@@ -723,13 +769,83 @@ def engine_kwargs(args) -> dict:
         )
     if not plugin.register():
         raise SystemExit(f"--model-class needs vllm=={plugin.SUPPORTED_VLLM}; found {plugin.vllm_version()}")
-    arch = {"text-only": plugin.TEXT_ONLY, "hidden-readout": plugin.HIDDEN_READOUT}[args.model_class]
+    from decisio.families import QWEN
+
+    arch = getattr(args, "family", QWEN).classes[args.model_class]
+    if arch is None:  # the family's own class (Gemma 4's text path is vLLM's stock class)
+        return kw
     if args.model_class == "hidden-readout":
         from decisio.vllm_plugin.hidden import DEFAULT_START, ENV_START
 
         os.environ.setdefault(ENV_START, str(DEFAULT_START))  # inherited by vLLM's engine processes
         kw = {**kw, "max_logprobs": 1024}  # a head question reads up to 1,024 columns per request
     return {**kw, **plugin.engine_kwargs(arch)}
+
+
+PRESETS = {
+    # Cygnet's prompt bytes and readout (github.com/blockbrain-ai/cygnet-recipe, shim/cygnet_shim.py): the identity
+    # check of experiments/2026-10-03_t7_gemma_base (PREREG.md, G0)
+    "cygnet-identity": {
+        "fmt": {
+            "system": "cygnet",
+            "tail": "cygnet",
+            "slot": "template",
+            "variants": "cygnet",
+            "state": "cygnet",
+        },
+        "noul_rendering": "letters",
+        "temperature": 3.4,
+    }
+}
+
+
+def resolve_family_and_format(args):
+    """(family, PromptFormat) from the command line: the checkpoint's family (decisio.families), whose defaults fill
+    every prompt flag not given, then --prompt-preset; also fills --pad-to, --served-name and --temperature. A family
+    without a fitted temperature needs --temperature (or a preset that sets one)."""
+    from decisio.families import family_of
+
+    fam = family_of(args.model)
+    if args.backend == "mlx" and fam.key != "qwen3.6-moe":
+        raise ValueError(f"--backend mlx serves the Qwen family only; {args.model} is {fam.key}")
+    preset = PRESETS[args.prompt_preset] if args.prompt_preset else None
+    given = {
+        "system": args.system_prompt,
+        "tail": args.prompt_tail,
+        "slot": args.answer_slot,
+        "variants": args.label_variants,
+        "state": args.state_rendering,
+    }
+    values = {
+        "system": fam.system_prompt,
+        "tail": fam.prompt_tail,
+        "slot": fam.answer_slot,
+        "variants": fam.label_variants,
+        "state": "lines",
+    }
+    if preset:
+        clash = [k for k, v in given.items() if v is not None and v != preset["fmt"].get(k)]
+        if clash:
+            raise ValueError(f"--prompt-preset {args.prompt_preset} fixes {clash}; do not set them too")
+        values.update(preset["fmt"])
+        if args.noul_rendering not in (None, preset["noul_rendering"]):
+            raise ValueError(f"--prompt-preset {args.prompt_preset} asks yes/no as {preset['noul_rendering']}")
+        args.noul_rendering = preset["noul_rendering"]
+        if args.temperature is None:
+            args.temperature = preset["temperature"]
+    values.update({k: v for k, v in given.items() if v is not None})
+    fmt = PromptFormat(**values)
+    if args.noul_rendering is None:
+        args.noul_rendering = fam.noul_rendering
+    if args.pad_to is None:
+        args.pad_to = fam.pad_to
+    if args.served_name is None:
+        args.served_name = fam.served_name
+    if args.temperature is None:
+        if fam.temperature is None:
+            raise ValueError(f"{fam.key} has no fitted temperature yet: give --temperature (1 is off)")
+        args.temperature = fam.temperature
+    return fam, fmt
 
 
 def main():
@@ -740,7 +856,12 @@ def main():
     ap.add_argument("--mode", default="separate", choices=["separate", "packed"])
     # served default: the official checkpoint under decisio's hidden-readout class, front padding to the block,
     # detokenize=False (always, in score_prompts), DeepGEMM off (VLLM_USE_DEEP_GEMM=0, deep_gemm_guard)
-    ap.add_argument("--pad-to", default="block", help="'block', a token count, or 'none' (separate mode)")
+    ap.add_argument(
+        "--pad-to",
+        default=None,
+        help="'block', a token count, or 'none' (separate mode); default: the model family's (Qwen: block; Gemma 4: "
+        "none, an attention model's prefix cache needs no padding)",
+    )
     ap.add_argument("--pad-where", default="front", choices=PAD_PLACES)
     ap.add_argument("--adapter", action="append", default=[], help="name=path of a vLLM-format LoRA adapter")
     ap.add_argument("--pack", type=int, default=16)
@@ -799,7 +920,9 @@ def main():
         "Qwen/Qwen3.6-35B-A3B-FP8, so the prompts are the vLLM path's byte for byte; a conversion's own tokenizer "
         "may differ)",
     )
-    ap.add_argument("--served-name", default=SERVED_NAME, help="the name GET /v1/models lists")
+    ap.add_argument(
+        "--served-name", default=None, help="the name GET /v1/models lists (default: the family's, " + SERVED_NAME + ")"
+    )
     ap.add_argument(
         "--orders",
         type=int,
@@ -841,12 +964,13 @@ def main():
     )
     ap.add_argument(
         "--noul-rendering",
-        default="words",
+        default=None,
         choices=["words", "letters", "letters-keys"],
         help="/v1/systemone: how a yes/no question is asked. words (default): the instructions with 'Yes means' and "
         "'No means' lines, read from the yes and no tokens; letters: a two-option choice, the false side first, each "
         "shown as its criteria description ('No' and 'Yes' without one), read from the letters; letters-keys: as "
-        "letters with the sides named ('No: ...', 'Yes: ...'). Abstention and two-order requests keep words",
+        "letters with the sides named ('No: ...', 'Yes: ...'). Abstention and two-order requests keep words. Default: "
+        "the family's (Qwen: words; Gemma 4: letters)",
     )
     ap.add_argument(
         "--abstention",
@@ -866,11 +990,56 @@ def main():
         "untrained, opt-in",
     )
     ap.add_argument(
+        "--system-prompt",
+        default=None,
+        choices=["none", "cygnet"],
+        help="the system turn: none, or Cygnet's system prompt (decisio.readout.cygnet); default: the family's",
+    )
+    ap.add_argument(
+        "--prompt-tail",
+        default=None,
+        choices=["decisio", "cygnet"],
+        help="the question's layout and last line: decisio ('Answer with the letter only.'), or Cygnet's (blank "
+        "lines around the options, 'Answer with the letter of exactly one option, and nothing else:'); default: the "
+        "family's",
+    )
+    ap.add_argument(
+        "--answer-slot",
+        default=None,
+        choices=["prefill", "template"],
+        help="where the label is read: after 'Answer:' prefilled in the assistant turn (prefill), or at the template's "
+        "own first assistant position (template); default: the family's",
+    )
+    ap.add_argument(
+        "--label-variants",
+        default=None,
+        choices=["single", "summed", "cygnet"],
+        help="the tokens read per label: single (one, the form the slot reads), summed (every single-token form: ' A', "
+        "'A' and the byte-fallback token; ' yes', 'yes', ' Yes', 'Yes'; their probabilities summed), cygnet (the bare "
+        "and byte forms, what Cygnet's constrained choice allows); default: the family's",
+    )
+    ap.add_argument(
+        "--state-rendering",
+        default=None,
+        choices=["lines", "cygnet"],
+        help="lines (default): the state as sent, an object as 'key: value' lines; cygnet: an object as "
+        "json.dumps(indent=1) and trailing whitespace stripped, as Cygnet renders a state",
+    )
+    ap.add_argument(
+        "--prompt-preset",
+        default=None,
+        choices=["cygnet-identity"],
+        help="cygnet-identity: Cygnet's prompt bytes exactly (its system prompt and tail, the template slot, object "
+        "states as json.dumps(indent=1)), the bare and byte label forms, yes/no as letters false first, T 3.4 unless "
+        "--temperature is given; the identity check of experiments/2026-10-03_t7_gemma_base, not a served setting",
+    )
+    ap.add_argument(
         "--temperature",
         type=float,
-        default=SERVED_TEMPERATURE,
+        default=None,
         help="/v1/systemone: the global temperature on the text route's plain readout, softmax(log p / T) "
-        "(decisio.serve.temperature; default: the value fitted on the suite's served readouts); a "
+        "(decisio.serve.temperature; default: the family's fitted value, which a family without a fit lacks, and "
+        "then the flag is required); a "
         "registered task's own correction replaces it; 1 switches it off (the output before it, bit "
         "for bit); never changes the most probable option",
     )
@@ -916,6 +1085,10 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
+    try:
+        args.family, fmt = resolve_family_and_format(args)
+    except ValueError as e:
+        ap.error(str(e))
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
@@ -969,6 +1142,7 @@ def main():
         engine = HFLettersEngine(
             args.model, pad_to=None if args.pad_to == "none" else args.pad_to, pad_where=args.pad_where
         )
+        engine.family, engine.fmt = args.family, fmt
     elif args.backend == "mlx":
         from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, MLXLettersEngine
 
@@ -988,6 +1162,8 @@ def main():
             pack=args.pack,
             gpu_memory_utilization=args.gpu_memory_utilization,
             engine_kw=engine_kwargs(args),
+            fmt=fmt,
+            family=args.family,
         )
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
     print(
@@ -1023,6 +1199,7 @@ def main():
             from decisio.serve.hidden_engine import HFReservedHiddenEngine
 
             hidden_engine = HFReservedHiddenEngine(args.model, pad_to=engine.pad_unit, pad_where=args.pad_where)
+            hidden_engine.family, hidden_engine.fmt = args.family, fmt
         else:
             from decisio.serve.hidden_engine import SingleEngineHidden
 
@@ -1077,6 +1254,8 @@ def main():
                 "desnake_labels": args.desnake_labels,
                 # only when not the default, so the fingerprints of tasks registered under the default are unchanged
                 **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
+                **({"family": args.family.key} if args.family.key != "qwen3.6-moe" else {}),
+                **({"prompt_format": fmt.facts()} if not fmt.is_default() else {}),
                 # --describe-options is not here: it enters the task key of the questions it changes (tasks.task_key)
             },
             sort_keys=True,

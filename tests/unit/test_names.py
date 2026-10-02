@@ -161,7 +161,11 @@ def test_w3_served_name_and_fingerprints():
     from decisio.serve import vllm_engine
 
     assert names.SERVED_NAME == "decisio-qwen3.6-35b-a3b-letters"
-    assert 'default=SERVED_NAME, help="the name GET /v1/models lists"' in Path(vllm_engine.__file__).read_text()
+    from decisio.families import QWEN
+
+    # the server's --served-name defaults to the family's, and the Qwen family's is the served name
+    assert QWEN.served_name == names.SERVED_NAME
+    assert "args.served_name = fam.served_name" in Path(vllm_engine.__file__).read_text()
     assert names.same_fingerprint(LEGACY_FP, NEW_FP) and names.same_fingerprint(NEW_FP, LEGACY_FP)
     assert not names.same_fingerprint(LEGACY_FP, NEW_FP.replace(names.SERVED_NAME, "my-deployment"))
     assert not names.same_fingerprint(LEGACY_FP, LEGACY_FP.replace("moe-fp8", "another-model"))
