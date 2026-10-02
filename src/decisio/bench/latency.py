@@ -142,6 +142,12 @@ def main():
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--load", type=int, default=2000, help="questions per throughput cell (at least)")
     ap.add_argument("--max-concurrent", type=int, default=64)
+    ap.add_argument(
+        "--multi-question",
+        default="warm",
+        choices=["warm", "batch", "sequential"],
+        help="as the server's flag; warm (default here): the batched mode of EVAL_CARD's throughput figures",
+    )
     ap.add_argument("--price", type=float, required=True, help="GPU dollars per hour actually paid")
     ap.add_argument("--hardware", default=None, help="label for the table, default the GPU name")
     ap.add_argument("--url", default=None, help="measure latency through a running decisio server's /v1/answer")
@@ -165,7 +171,8 @@ def main():
         pack=args.pack,
         engine_kw=json.loads(args.engine),
     )
-    facts = eng.facts()
+    eng.multi_question = args.multi_question
+    facts = {**eng.facts(), "multi_question": args.multi_question}
     print("ENGINE", json.dumps(facts), flush=True)
     tok = AutoTokenizer.from_pretrained(args.model)
     ntok = lambda s: len(tok.encode(s, add_special_tokens=False))  # noqa: E731

@@ -3,7 +3,9 @@
 """Per-task calibration and the intent head on `/v1/systemone` (`decisio.serve.tasks`, `POST /v1/tasks`).
 
 T1  a task's identity: the question type and its option list in order (plus the instructions for yes/no and score);
-    any change to the list is another task;
+    any change to the list is another task; a question whose rendering the --describe-options rule changes has
+    another key with the rule on (so a task fitted under the other rendering is not applied), and every other
+    question the same key either way;
 T2  the store: calibration is `calibration.fit_task_prior` on the examples' served log-scores, unchanged; the head is
     `intent_head.fit_intent_head` on their hidden readout, fitted only for 10 or more options with at least 5 examples
     per option (else off, with the reason); a re-registration replaces the task; the JSON form round-trips the head's
@@ -72,6 +74,27 @@ def test_t1_task_identity():
     assert answer_keys(question(noul)) == ["yes", "no"] and gold_index(question(noul), False) == 1
     with pytest.raises(ValueError):
         gold_index(question(wire("a")), "option_9")
+
+
+def test_t1_task_key_follows_the_rendering():
+    from decisio.serve.systemone import SystemOne, option_set, render_text
+
+    def server(describe_options):
+        return SystemOne(engine=None, served_name="m", describe_options=describe_options)
+
+    on, off = server(True), server(False)
+    described = question(wire("a", {"CLICK": "Click the target", "DONE": "The goal is complete"}))
+    assert on.described(described) and not off.described(described)
+    assert task_key(described, render_text, on.described(described)) != task_key(described, render_text)
+    assert option_set(described, on.described(described)) != option_set(described)
+    # index keys (hidden either way), keys without descriptions, yes/no: the rule changes nothing, nor the key
+    for body in (
+        wire("a"),
+        wire("a", {"billing": None, "access": None}),
+        {"state": {}, "questions": {"q1": {"type": "noul", "instructions": "Is it spam?"}}},
+    ):
+        q = question(body)
+        assert not on.described(q) and task_key(q, render_text, on.described(q)) == task_key(q, render_text)
 
 
 def fake_examples(n_per, K=10, seed=0):

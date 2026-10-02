@@ -75,9 +75,12 @@ def test_f1_defaults_are_the_served_default(tok):
     rows, P = base._prepare_separate(STATE, ONE)
     assert P % 1056 == 0 and rows[0][0][: P - 300].count(sv.PAD_TOKEN) > 0  # front-padded to the block
     one, _ = sent(tok, ONE)
-    four, _ = sent(tok, FOUR)
     assert one["warm"] == [] and len(one["rows"][0]) > 1056
-    assert len(four["warm"]) == 1 and len(four["warm"][0]) == P + 1 and len(four["rows"]) == 4
+    eng = Recording(tok)  # sequential: the warm-up with the first question, then one engine call per question
+    eng.answer(STATE, FOUR)
+    assert [len(x["rows"]) for x in eng.sent] == [1, 1, 1, 1]
+    assert len(eng.sent[0]["warm"]) == 1 and len(eng.sent[0]["warm"][0]) == P + 1
+    assert all(x["warm"] == [] for x in eng.sent[1:])
 
 
 def test_f2_pad_policy_shared(tok):
@@ -89,7 +92,8 @@ def test_f2_pad_policy_shared(tok):
 
 
 def test_f3_multi_question_batch(tok):
-    warm, _ = sent(tok, FOUR)
+    warm, _ = sent(tok, FOUR, multi_question="warm")
+    assert len(warm["warm"]) == 1 and len(warm["rows"]) == 4  # warm: the warm-up, then the questions in one batch
     batch, _ = sent(tok, FOUR, multi_question="batch")
     assert batch["warm"] == [] and batch["rows"] == warm["rows"]
     assert sent(tok, ONE, multi_question="batch")[0] == sent(tok, ONE)[0]  # single question: unchanged
@@ -104,11 +108,11 @@ def test_f4_stages_reported(tok):
 def test_f5_multi_question_sequential(tok):
     eng = Recording(tok, multi_question="sequential")
     probs, info = eng.answer(STATE, FOUR)
-    warm, _ = sent(tok, FOUR)
+    warm, _ = sent(tok, FOUR, multi_question="warm")
     assert len(eng.sent) == 4 and [len(x["rows"]) for x in eng.sent] == [1, 1, 1, 1]
     assert eng.sent[0]["warm"] == warm["warm"] and all(x["warm"] == [] for x in eng.sent[1:])
     assert [x["rows"][0] for x in eng.sent] == warm["rows"]  # the same rows, one call each
     assert len(probs) == 4 and info["questions_ms"] == 4.0
     single = Recording(tok, multi_question="sequential")
     single.answer(STATE, ONE)
-    assert single.sent[0] == sent(tok, ONE)[0]  # single question: unchanged
+    assert single.sent[0] == sent(tok, ONE, multi_question="warm")[0]  # single question: the same in every mode
