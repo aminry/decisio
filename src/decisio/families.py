@@ -40,6 +40,9 @@ class Family:
     head_rows: tuple[str, ...] = ("lm_head.weight",)
     # tanh softcap on the final logits (vLLM's LogitsProcessor soft_cap), or None
     softcap: float | None = None
+    # the first reserved token id of the hidden-state readout (decisio.vllm_plugin.hidden): d + 1 ordinary tokens that
+    # are no label form in any prompt format (checked at start-up, and per family in tests/unit/test_gemma_prompts.py)
+    hidden_start: int = 100_000
     # the served default temperature, or None: the server then needs --temperature (no fit has shipped)
     temperature: float | None = None
     # the prompt flags' defaults (decisio.readout.letters.PromptFormat)
@@ -84,6 +87,8 @@ GEMMA4 = Family(
         "model.embed_tokens.weight",
     ),
     softcap=30.0,
+    # 100,000 to 103,840 holds three of Gemma's two-letter label tokens (found at start-up on a card, 2026-10-02)
+    hidden_start=170_000,
     temperature=None,
     # the primary arm of experiments/2026-10-03_t7_gemma_base (PREREG.md, G1): Cygnet's system prompt and tail, the
     # template's own answer slot, every single-token form of a label summed

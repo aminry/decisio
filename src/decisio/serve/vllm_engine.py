@@ -775,9 +775,10 @@ def engine_kwargs(args) -> dict:
     if arch is None:  # the family's own class (Gemma 4's text path is vLLM's stock class)
         return kw
     if args.model_class == "hidden-readout":
-        from decisio.vllm_plugin.hidden import DEFAULT_START, ENV_START
+        from decisio.vllm_plugin.hidden import ENV_START
 
-        os.environ.setdefault(ENV_START, str(DEFAULT_START))  # inherited by vLLM's engine processes
+        # the family's reserved range, inherited by vLLM's engine processes (an explicit environment value wins)
+        os.environ.setdefault(ENV_START, str(getattr(args, "family", QWEN).hidden_start))
         kw = {**kw, "max_logprobs": 1024}  # a head question reads up to 1,024 columns per request
     return {**kw, **plugin.engine_kwargs(arch)}
 

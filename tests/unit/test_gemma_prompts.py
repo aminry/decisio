@@ -221,3 +221,28 @@ def test_f8_flags_resolve(tmp_path, monkeypatch):
     # the Qwen path with a Phase 2 arm's flags
     _, fmt = sv.resolve_family_and_format(_args(qwen, system_prompt="cygnet", answer_slot="template"))
     assert fmt == PromptFormat(system="cygnet", slot="template")
+
+
+@pytest.mark.parametrize("family_name", ["GEMMA4", "QWEN"])
+def test_f9_reserved_range_clear_of_labels(family_name, gemma, qwen):
+    """The hidden-state readout's reserved ids (decisio.vllm_plugin.hidden) hold no label form of any prompt format,
+    for each family's own tokenizer and hidden size (Gemma's 100,000 range held three two-letter labels)."""
+    from decisio import families
+    from decisio.readout.letters import MAX_LABELS
+    from decisio.vllm_plugin.hidden import check_reserved
+
+    fam = getattr(families, family_name)
+    tok, hidden = (gemma, 3840) if fam is families.GEMMA4 else (qwen, 2048)
+    cands = [" yes", " no"] + [" " + c for c in letter_labels(tok, MAX_LABELS)]
+    labels = set()
+    for variants in ("single", "summed", "cygnet"):
+        for slot in ("prefill", "template"):
+            try:
+                labels |= set(allowed_ids(label_groups(tok, cands, PromptFormat(variants=variants, slot=slot))))
+            except AssertionError:  # a format this tokenizer refuses (Qwen: bare "CJ" is two tokens), not a clash
+                # the formats that read bare forms only: single in the template slot, and cygnet
+                assert fam is families.QWEN and (variants == "cygnet" or (variants, slot) == ("single", "template"))
+    ids = check_reserved(hidden, len(tok), sorted(labels), fam.hidden_start)
+    assert ids[0] == fam.hidden_start and len(ids) == hidden + 1
+    names = tok.convert_ids_to_tokens(ids)
+    assert not any(n in tok.all_special_tokens for n in names)
