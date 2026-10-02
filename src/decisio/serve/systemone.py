@@ -126,7 +126,7 @@ def snake_label(label: str) -> bool:
 
 
 def to_engine_question(
-    q, hide_index_keys: bool = True, desnake_labels: bool = True, describe_options: bool = False
+    q, hide_index_keys: bool = True, desnake_labels: bool = True, describe_options: bool = True
 ) -> tuple[dict, list[str]]:
     """(engine question dict, the answer keys in engine option order) for one wire question.
 
@@ -139,9 +139,10 @@ def to_engine_question(
     descriptions), each snake_case label (`snake_label`) is shown with spaces (`card arrival`) and every other label as
     sent; the keys stay the answer's keys. `key: description` renderings are never changed.
 
-    `describe_options` (off by default, `--describe-options`): an option with a description is shown as its
-    description alone, with no key; an option without one is shown as its key (de-snaked as above). The keys stay the
-    answer's keys. If two options would then read the same, the question is rendered as without the rule."""
+    `describe_options` (the served default; `--no-describe-options` turns it off): an option with a description is
+    shown as its description alone, with no key; an option without one is shown as its key (de-snaked as above).
+    The keys stay the answer's keys. If two options would then read the same, the question is rendered as without
+    the rule."""
     instr = render_text(q.instructions).strip() or DEFAULT_INSTRUCTIONS[q.type]
     if q.type == "noul":
         extra = []
@@ -315,12 +316,14 @@ def extract_state_images(state):
     return walk(state), found
 
 
-def option_set(q) -> str:
+def option_set(q, described: bool = False) -> str:
     """A choice question's task identity for abstention: its options (keys and descriptions, in any order). The same
     question asked of different states keeps its options, whatever its instructions (the Decision Index puts the
-    utterance there)."""
+    utterance there). `described`: as `decisio.serve.tasks.task_key`, the --describe-options rule changes how this
+    question is shown, so a threshold fitted under the other rendering is not applied."""
     crit = sorted([k, render_text(d)] for k, d in q.criteria.items()) if q.type == "choice" else None
-    return hashlib.sha256(json.dumps({"type": q.type, "criteria": crit}, ensure_ascii=False).encode()).hexdigest()
+    spec = {"type": q.type, "criteria": crit, **({"rendering": "describe_options"} if described else {})}
+    return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
 
 
 class SystemOne:
@@ -339,7 +342,7 @@ class SystemOne:
         abstain_option: str | None = None,
         hide_index_keys: bool = True,
         desnake_labels: bool = True,
-        describe_options: bool = False,
+        describe_options: bool = True,
         abstention: bool = True,
         abstention_tasks: list[dict] | None = None,
         tasks_enabled: bool = True,
@@ -351,7 +354,7 @@ class SystemOne:
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
-        self.describe_options = describe_options  # likewise; off by default
+        self.describe_options = describe_options  # likewise
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -552,12 +555,19 @@ class SystemOne:
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
 
+    def described(self, q) -> bool:
+        """Whether this server's --describe-options rule changes how question q is shown (part of its task keys)."""
+        if not self.describe_options or q.type != "choice":
+            return False
+        on = to_engine_question(q, self.hide_index_keys, self.desnake_labels, True)[0]
+        return on != to_engine_question(q, self.hide_index_keys, self.desnake_labels, False)[0]
+
     def readout_task(self, q):
         if not self.tasks_enabled or self.task_store is None or not self.task_store.by_key:
             return None
         from decisio.serve.tasks import task_key
 
-        return self.task_store.lookup(task_key(q, render_text))
+        return self.task_store.lookup(task_key(q, render_text, self.described(q)))
 
     def register_readout_task(self, task_id: str, examples: list[tuple]):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks)."""
@@ -579,8 +589,14 @@ class SystemOne:
                 out.append(self.hidden_engine.readout(state, [eq])[0])
             return out
 
+        from decisio.serve.tasks import task_key
+
         return self.task_store.register(
-            task_id, [(q, s, g) for s, q, g in examples], score, hidden if self.hidden_engine is not None else None
+            task_id,
+            [(q, s, g) for s, q, g in examples],
+            score,
+            hidden if self.hidden_engine is not None else None,
+            key_fn=lambda q: task_key(q, render_text, self.described(q)),
         )
 
     def with_readout_task(self, state, q, eq, p):
@@ -606,7 +622,7 @@ class SystemOne:
     def task_for(self, q, imajev_ext: bool) -> dict | None:
         if not self.abstention or not self.tasks:
             return None
-        fp = option_set(q) if q.type == "choice" else None
+        fp = option_set(q, self.described(q)) if q.type == "choice" else None
         for t in self.tasks.values():
             m = t["match"]
             if (m.get("option_set") and m["option_set"] == fp) or (m.get("imajev_extension") and imajev_ext):
@@ -688,7 +704,7 @@ class SystemOne:
         p_abs, unans, ok, plain_right, plain_false, fps = [], [], [], [], [], set()
         for req, images, ext, gold in examples:
             q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext)
-            fps.add(option_set(q))
+            fps.add(option_set(q, self.described(q)))
             gold_key = gold_key_of(q, gold)
             _, best = decide(p, idx, None, keys=keys)
             u = gold_key is None

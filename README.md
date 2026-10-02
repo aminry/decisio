@@ -19,16 +19,25 @@ No trained weights: every measured answer comes from the official checkpoint.
 | | |
 | --- | --- |
 | Question types | yes/no (`noul`), choice among up to 255 options with descriptions, score on an ordered scale |
-| Many questions per request | the state is prefilled once and shared through vLLM's prefix cache |
+| Many questions per request | the state is prefilled once and shared through vLLM's prefix cache, then each question is scored in its own engine call, so its answer equals the same question sent alone; `--multi-question warm` scores them in one batch for bulk scoring |
 | Probabilities | a distribution per question, with one fitted global temperature; per-task calibration from labelled examples |
 | Task registration | `POST /v1/tasks`: from labelled examples of one recurring question the server fits per-task calibration and, for option lists of 10 or more, a linear head on the model's hidden state; guide in `docs/tasks.md` |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
-| Rendering rules | enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in; `--describe-options` (off by default) shows an option that has a description as its description alone, without its key: on 272 steps of a browser-agent demo it cut wrong "done" picks from 63 to 12 of 132, with accuracy within noise on JevBench and the Decision Index (`runs/2026-10-02_multi-question-and-rendering/`) |
-| Determinism | a request with one question returns the same probabilities every time on a running server (1,400 of 1,400 suite items bit-identical, one request at a time), and across restarts in 4 of 5 starts measured (the fifth moved 2 items by up to 0.0012, no choice changed). By default the questions of a multi-question request are scored together in one batch, and on this stack a batched answer depends on the batch: on 272 four-question requests from a browser-agent demo, the answer moved between 5 repeats on 31 and differed from the same question sent alone on 50 (by up to 0.27). Start the server with `--multi-question sequential` and each question is scored in its own engine call after the state is prefilled once: every answer then equals the question sent alone (272 of 272, every repeat), at about 17 ms per question instead of 5 to 9. `EVAL_CARD.md` section 4 and `runs/2026-10-02_multi-question-and-rendering/` have the measurements, and the serving gates in `tests/gpu` check the one-at-a-time case |
+| Rendering rules | an option with a description is shown as its description alone, without its key (`--no-describe-options` shows `key: description`): on 272 steps of a browser-agent demo it cut wrong "done" picks from 63 to 12 of 132, with accuracy within noise on JevBench and the Decision Index; enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in |
+| Determinism | a question returns the same probabilities every time on a running server, alone or among other questions: each question is scored in its own engine call (272 of 272 four-question requests equal to the question sent alone, 5 repeats each; 1,400 of 1,400 suite items bit-identical); across restarts in 4 of 5 starts measured (the fifth moved 2 items by up to 0.0012, no choice changed). With `--multi-question warm` the questions are scored in one batch, faster, but on this stack a batched answer depends on the batch: on the same 272 requests it moved between repeats on 31 and differed from the question sent alone on 50, by up to 0.27 (reported upstream, vllm-project/vllm#59764). `EVAL_CARD.md` section 4 and `runs/2026-10-02_multi-question-and-rendering/` have the measurements |
 | Context | up to 32,768 tokens of state |
 
-Latency and cost on one RTX PRO 6000, from `EVAL_CARD.md`: about 28 ms server time for one question, 2.7 to 5.4 ms per question when many questions share a state, and about $0.001 to $0.012 per 1,000 decisions at $1.50 per card-hour.
+Latency on one RTX PRO 6000, server time, from `EVAL_CARD.md` (medians; a state the server has never seen, unless marked):
+
+| State | 1 question | 4 questions, served default | 4 questions, `--multi-question warm` (batched) |
+| --- | ---: | ---: | ---: |
+| 300 tokens | 48.5 ms | 110.3 ms | 62.0 ms |
+| 1,000 tokens | 51.3 ms | 112.3 ms | 78.4 ms |
+| 3,000 tokens | 86.3 ms | 152.4 ms | 116.8 ms |
+| from the prefix cache | 27.9 ms | | |
+
+Each further question costs about 17 ms in the served default and 2.7 to 5.4 ms batched when many share a state; at $1.50 per card-hour that is about $0.012 per 1,000 single-question decisions, about $0.007 per 1,000 further questions, and $0.0012 to $0.0022 batched.
 
 ## Quickstart
 
@@ -60,7 +69,7 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged (the values the first GPU start returned, rounded):
+Response, abridged (the values the first GPU start returned, rounded, under the defaults of 2026-10-01: the questions batched and options shown as `key: description`; the current defaults return each question's single-question answer under the description rendering, to be re-measured):
 
 ```
 {"answers": {
@@ -69,7 +78,7 @@ Response, abridged (the values the first GPU start returned, rounded):
   "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.01, "2": 0.96, "3": 0.02}}}}
 ```
 
-Your probabilities will differ, by about 0.12 between repeats on one server (the probability of `access` ranged from 0.79 to 0.91, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`): the three questions of one request are scored in one batch, and their probabilities vary with that batch. Here the chosen options stayed the same; when two options are close, the choice can change too. Each question sent on its own returns the same probabilities every time, and so does every question of a request on a server started with `--multi-question sequential`.
+Repeat the request and you get the same probabilities: each question is scored in its own engine call after the state is prefilled once, so its answer equals the question sent on its own. With `--multi-question warm` the three questions are scored in one batch, faster, and their probabilities vary with that batch: by about 0.12 on this example (the probability of `access` ranged from 0.79 to 0.91, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`), and when two options are close the choice can change too.
 
 ## Teach it your question in ten examples
 
@@ -124,16 +133,16 @@ All numbers are on the served default described in `EVAL_CARD.md`, measured priv
 
 | Measure | Result |
 | --- | --- |
-| JevBench, 231 published items, accuracy by tier | easy 1.000, standard 0.972, hard 0.694 |
-| Decision Index 0.2.1, four benchmarks | BANKING77 macro-F1 0.731, CLINC150+OOS 0.814, GPQA Diamond 0.454, MMLU-Pro 0.609 |
+| JevBench, 231 published items, accuracy by tier | easy 1.000, standard 0.972, hard 0.685 |
+| Decision Index 0.2.1, four benchmarks | BANKING77 macro-F1 0.731, CLINC150+OOS 0.814, GPQA Diamond 0.490, MMLU-Pro 0.609 |
 | Intent heads from 10 labelled examples per intent | BANKING77 0.847, CLINC150 0.893 |
 | Image input, ImajevBench v2.0-lite | 0.791 on the 230 answerable items |
-| Latency, one question | about 28 ms server time |
+| Latency, one question | 48.5 ms server time on a new 300-token state, 27.9 ms on a state from the cache |
 
 Where it stands: on the public harnesses this frozen model is the most accurate open one-pass system we know of on the hard tier, and it is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
 With 10 labelled examples per intent, registered heads reach accuracy 0.847 on BANKING77 (150 held-out items) and 0.893 on CLINC150 (100 held-out items), means of three draws.
 They use labelled examples, so those figures are not comparable with zero-shot systems.
-Calibration trails too: hard-tier ECE on JevBench is 0.059, above the 0.05 we aimed for.
+Calibration trails too: hard-tier ECE on JevBench is 0.069, above the 0.05 we aimed for.
 `EVAL_CARD.md` has the full tables, the calibration figures, and the three disclosures about what was fitted on what.
 
 ## Repository layout

@@ -166,6 +166,11 @@ def test_w3_served_name_and_fingerprints():
     assert not names.same_fingerprint(LEGACY_FP, NEW_FP.replace(names.SERVED_NAME, "my-deployment"))
     assert not names.same_fingerprint(LEGACY_FP, LEGACY_FP.replace("moe-fp8", "another-model"))
     assert names.same_fingerprint("fp", "fp") and not names.same_fingerprint("fp", "other")
+    # --describe-options sat in the fingerprint before it entered the task key: such records still match
+    import json
+
+    with_flag = json.dumps({**json.loads(NEW_FP), "describe_options": True}, sort_keys=True)
+    assert names.same_fingerprint(with_flag, NEW_FP)
 
 
 def test_w3_import_endpoint_takes_legacy_tasks():

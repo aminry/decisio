@@ -38,7 +38,7 @@ def test_r1_decision_index_format():
     assert eq["options"] == NAMES and keys == [f"option_{i}" for i in range(len(NAMES))]
     eq_both, keys_both = to_engine_question(q)  # the served default: both fixes
     assert eq_both["options"] == [n.replace("_", " ") for n in NAMES] and keys_both == keys
-    eq_off, keys_off = to_engine_question(q, hide_index_keys=False)
+    eq_off, keys_off = to_engine_question(q, hide_index_keys=False, describe_options=False)
     assert eq_off["options"] == [f"option_{i}: {n}" for i, n in enumerate(NAMES)] and keys_off == keys
     assert eq["instructions"] == eq_off["instructions"]
 
@@ -109,16 +109,18 @@ def test_r4_desnake_rendering():
     assert eq["options"] == ["billing issue", "tech support", "other", "Refund_not_showing_up"]
     assert keys == ["billing_issue", "tech_support", "other", "Refund_not_showing_up"]
     assert to_engine_question(q, desnake_labels=False)[0]["options"] == keys
-    # `key: description` renderings are never touched, even with snake_case descriptions
+    # `key: description` renderings (--no-describe-options) are never touched, even with snake_case descriptions
     q = question({"a": "card_arrival", "b": "card_linking"})
-    assert to_engine_question(q)[0]["options"] == ["a: card_arrival", "b: card_linking"]
+    assert to_engine_question(q, describe_options=False)[0]["options"] == ["a: card_arrival", "b: card_linking"]
     # index keys shown (flag off) keep their snake_case descriptions
     q = question({f"option_{i}": n for i, n in enumerate(NAMES)})
-    assert to_engine_question(q, hide_index_keys=False)[0]["options"][0] == "option_0: card_arrival"
+    off, _ = to_engine_question(q, hide_index_keys=False, describe_options=False)
+    assert off["options"][0] == "option_0: card_arrival"
 
 
 def test_r5_describe_options_rule():
-    """--describe-options: word keys with descriptions show the description alone, keys stay the answer's keys."""
+    """--describe-options (the served default): word keys with descriptions show the description alone, keys stay the
+    answer's keys; --no-describe-options shows `key: description`."""
     crit = {
         "CLICK": "Click the element named in the target",
         "TYPE_TEXT": "Type text into the target field",
@@ -126,7 +128,7 @@ def test_r5_describe_options_rule():
         "BLOCKED": None,
     }
     q = question(crit)
-    off, keys = to_engine_question(q)
+    off, keys = to_engine_question(q, describe_options=False)
     assert off["options"] == [
         "CLICK: Click the element named in the target",
         "TYPE_TEXT: Type text into the target field",
@@ -141,12 +143,13 @@ def test_r5_describe_options_rule():
         "BLOCKED",
     ]
     assert keys_on == keys == list(crit)
+    assert to_engine_question(q) == (on, keys_on)  # the default
     # a snake_case key without a description is de-snaked as a bare label is
     on2, _ = to_engine_question(question({"card_arrival": None, "refund": "Money back"}), describe_options=True)
     assert on2["options"] == ["card arrival", "Money back"]
     # two options that would read the same: the question is rendered as without the rule
     dup = question({"a": "Same text", "b": "Same text"})
-    assert to_engine_question(dup, describe_options=True) == to_engine_question(dup)
+    assert to_engine_question(dup, describe_options=True) == to_engine_question(dup, describe_options=False)
     # index keys, keys without descriptions, yes/no and score questions: unchanged by the rule
     for c in ({f"option_{i}": n for i, n in enumerate(NAMES)}, {"billing": None, "access": None}):
-        assert to_engine_question(question(c), describe_options=True) == to_engine_question(question(c))
+        assert to_engine_question(question(c)) == to_engine_question(question(c), describe_options=False)
