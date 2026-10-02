@@ -183,6 +183,30 @@ def to_engine_question(
 UNKNOWN_KEY = "__unknown__"
 
 
+NOUL_RENDERINGS = ("words", "letters", "letters-keys")
+
+
+def noul_as_letters(q, keys_shown: bool = False) -> tuple[dict, list[str]] | None:
+    """A yes/no question as a two-option choice read from the option letters (--noul-rendering letters, Cygnet's
+    form): the false side first, each side shown as its criteria description, "No" and "Yes" for a side without one;
+    `keys_shown` (letters-keys) names the sides, "No: <false>" and "Yes: <true>". Returns the engine question and its
+    keys in engine order (["no", "yes"]), or None when the two sides would read the same (the question is then asked
+    in words)."""
+    instr = render_text(q.instructions).strip() or DEFAULT_INSTRUCTIONS["noul"]
+    crit = q.criteria
+
+    def side(desc, word):
+        text = None if desc is None else render_text(desc).strip()
+        if not text:
+            return word
+        return f"{word}: {text}" if keys_shown else text
+
+    options = [side(crit.false if crit else None, "No"), side(crit.true if crit else None, "Yes")]
+    if options[0] == options[1]:
+        return None
+    return {"kind": "choice", "instructions": instr, "options": options}, ["no", "yes"]
+
+
 def with_abstain(eq: dict, keys: list[str], option: str) -> tuple[dict, list[str]]:
     """The engine question with one more option, `option` (e.g. "can't tell"), listed last; yes/no questions become a
     three-option choice (yes, no, option). Its key is UNKNOWN_KEY. No training: the option is only offered."""
@@ -343,6 +367,7 @@ class SystemOne:
         hide_index_keys: bool = True,
         desnake_labels: bool = True,
         describe_options: bool = True,
+        noul_rendering: str = "words",
         abstention: bool = True,
         abstention_tasks: list[dict] | None = None,
         tasks_enabled: bool = True,
@@ -355,6 +380,9 @@ class SystemOne:
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
         self.describe_options = describe_options  # likewise
+        if noul_rendering not in NOUL_RENDERINGS:
+            raise ValueError(f"noul_rendering must be one of {NOUL_RENDERINGS}")
+        self.noul_rendering = noul_rendering  # how a yes/no question is asked (noul_as_letters); words by default
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -410,9 +438,19 @@ class SystemOne:
         orders = int((req.model_extra or {}).get("orders") or self.orders)
         names = list(req.questions)
         wire = [req.questions[n] for n in names]
-        mapped = [to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options) for q in wire]
+        # a yes/no question asked as letters is read false first and reversed to (yes, no) below; abstention and
+        # two-order mode keep the words form, whose arithmetic they assume
+        words = orders == 2 or (bool(self.abstain_option) and imajev_ext)
+        asked = [self.engine_question(q, words=words) for q in wire]
+        mapped = [(eq, keys) for eq, keys, _ in asked]
+        swapped = [sw for _, _, sw in asked]
         # per-task abstention: (abstain index, config, appended?) per question, or None
         plans = [self.abstention_plan(q, keys, imajev_ext) for q, (_, keys) in zip(wire, mapped)]
+        for i, pl in enumerate(plans):  # an abstention task asks its yes/no question in words
+            if pl and swapped[i]:
+                eq, keys, _ = self.engine_question(wire[i], words=True)
+                mapped[i], swapped[i] = (eq, keys), False
+                plans[i] = self.abstention_plan(wire[i], keys, imajev_ext)
         for i, pl in enumerate(plans):
             if pl and pl[2]:
                 mapped[i] = with_abstain(*mapped[i], pl[3])
@@ -465,6 +503,8 @@ class SystemOne:
                     dbg.setdefault(name, {}).update(path="head", task=t["id"], hidden_lp=lp.tolist(), h=h.tolist())
             else:
                 p = np.asarray(probs[at[i]], dtype=np.float64)
+                if swapped[i]:  # read false first; from here on (yes, no), as every yes/no readout
+                    p, keys = p[::-1].copy(), ["yes", "no"]
                 p2, corrected = None, False
                 if orders == 2:
                     j, perm = plan[i]
@@ -555,6 +595,24 @@ class SystemOne:
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
 
+    def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
+        """(engine question, keys in engine order, swapped) for one wire question as this server asks it. A yes/no
+        question under --noul-rendering letters or letters-keys is asked as a two-option choice whose readout comes
+        back false first: `swapped` says to reverse it to (yes, no) before anything else reads it. `words` asks yes/no
+        questions in words whatever the setting (abstention and two-order mode, whose arithmetic assumes it)."""
+        if q.type == "noul" and self.noul_rendering != "words" and not words:
+            got = noul_as_letters(q, keys_shown=self.noul_rendering == "letters-keys")
+            if got is not None:
+                return got[0], got[1], True
+        eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
+        return eq, keys, False
+
+    def noul_rendered(self, q) -> str | None:
+        """The yes/no rendering that enters question q's task key, or None (words, or not a yes/no question)."""
+        if q.type != "noul" or self.noul_rendering == "words" or noul_as_letters(q) is None:
+            return None
+        return self.noul_rendering
+
     def described(self, q) -> bool:
         """Whether this server's --describe-options rule changes how question q is shown (part of its task keys)."""
         if not self.describe_options or q.type != "choice":
@@ -567,7 +625,7 @@ class SystemOne:
             return None
         from decisio.serve.tasks import task_key
 
-        return self.task_store.lookup(task_key(q, render_text, self.described(q)))
+        return self.task_store.lookup(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
 
     def register_readout_task(self, task_id: str, examples: list[tuple]):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks)."""
@@ -577,9 +635,9 @@ class SystemOne:
         def score(pairs):
             out = []
             for state, q in pairs:
-                eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
+                eq, _, swapped = self.engine_question(q)
                 probs, _ = self.engine.answer(state, [eq])
-                out.append(probs[0])
+                out.append(probs[0][::-1] if swapped else probs[0])
             return out
 
         def hidden(pairs):
@@ -596,7 +654,7 @@ class SystemOne:
             [(q, s, g) for s, q, g in examples],
             score,
             hidden if self.hidden_engine is not None else None,
-            key_fn=lambda q: task_key(q, render_text, self.described(q)),
+            key_fn=lambda q: task_key(q, render_text, self.described(q), self.noul_rendered(q)),
         )
 
     def with_readout_task(self, state, q, eq, p):

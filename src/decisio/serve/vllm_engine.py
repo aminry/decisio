@@ -602,6 +602,7 @@ def make_app(engine, systemone=None):
                     "hide_index_keys": systemone.hide_index_keys,
                     "desnake_labels": systemone.desnake_labels,
                     "describe_options": systemone.describe_options,
+                    "noul_rendering": systemone.noul_rendering,
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
                         t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
@@ -830,6 +831,15 @@ def main():
         help="/v1/systemone: show an option that has a description as its description alone, with no key; an "
         "option without one as its key (default on; --no-describe-options shows `key: description`; the keys stay "
         "the answer's keys)",
+    )
+    ap.add_argument(
+        "--noul-rendering",
+        default="words",
+        choices=["words", "letters", "letters-keys"],
+        help="/v1/systemone: how a yes/no question is asked. words (default): the instructions with 'Yes means' and "
+        "'No means' lines, read from the yes and no tokens; letters: a two-option choice, the false side first, each "
+        "shown as its criteria description ('No' and 'Yes' without one), read from the letters; letters-keys: as "
+        "letters with the sides named ('No: ...', 'Yes: ...'). Abstention and two-order requests keep words",
     )
     ap.add_argument(
         "--abstention",
@@ -1080,6 +1090,7 @@ def main():
         abstain_option=args.abstain_option,
         hide_index_keys=args.hide_index_keys,
         describe_options=args.describe_options,
+        noul_rendering=args.noul_rendering,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
