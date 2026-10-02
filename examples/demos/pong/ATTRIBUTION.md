@@ -18,6 +18,7 @@ In summary:
 - Removed: live play, the arena, the explainer pages, the realtime transport, the clip renderer and its native canvas dependency, the analytics, the social card, the brand assets, the design notes, the pre-recorded replay and its published numbers, and the upstream README.
 - The accent colour token is renamed from `--jev` to `--accent`; the lane with id `sys1` carries it.
 - `p50Ms` was added to the per-lane statistics.
+- `lib/decide/log.ts`: with `PONG_DECISION_LOG=<path>` set, each decision's request and full answer are appended to that file.
 
 No trademark or logo of the upstream project's sponsors is used.
 Nothing in this directory contains measurements taken from any hosted service.

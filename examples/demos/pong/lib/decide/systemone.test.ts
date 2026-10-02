@@ -75,3 +75,26 @@ describe('decide', () => {
     }
   });
 });
+
+describe('decision logging', () => {
+  it('appends the request body and the full answer when PONG_DECISION_LOG is set, and nothing when it is not', async () => {
+    const { mkdtempSync, readFileSync, existsSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const path = join(mkdtempSync(join(tmpdir(), 'pong-log-')), 'decisions.jsonl');
+    const answer = { answers: { move: { choice: 'up', probabilities: { up: 0.7, down: 0.2, stay: 0.1 } } } };
+    vi.stubEnv('PONG_DECISION_LOG', path);
+    await decideWithSystemOne(LANE, STATE, { fetchImpl: reply(answer) });
+    vi.stubEnv('PONG_DECISION_LOG', '');
+    await decideWithSystemOne(LANE, STATE, { fetchImpl: reply(answer) });
+    vi.unstubAllEnvs();
+    expect(existsSync(path)).toBe(true);
+    const lines = readFileSync(path, 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(1);
+    const row = JSON.parse(lines[0] ?? '{}');
+    expect(row.lane).toBe('sys1');
+    expect(Object.keys(row.request.questions)).toEqual(['move']);
+    expect(row.response.answers.move.probabilities).toEqual({ up: 0.7, down: 0.2, stay: 0.1 });
+    expect(row.latency_ms).toBeGreaterThanOrEqual(0);
+  });
+});

@@ -9,6 +9,7 @@
  */
 import type { DecisionState, LaneConfig } from '../game/types';
 import { MOVE_QUESTIONS, isMove, stateForModel } from './prompt';
+import { logDecision } from './log';
 import type { ModelDecision } from './types';
 
 export interface SystemOneOptions {
@@ -52,6 +53,7 @@ export async function decideWithSystemOne(
   }
   const answer = (await response.json()) as { answers?: { move?: { choice?: unknown } } };
   const latencyMs = performance.now() - startedAt;
+  logDecision({ lane: lane.id, request: body, response: answer, latency_ms: latencyMs });
 
   const choice = answer.answers?.move?.choice;
   if (!isMove(choice)) throw new Error(`The server returned an unknown choice: ${String(choice)}`);

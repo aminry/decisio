@@ -17,6 +17,7 @@ import math
 import os
 import secrets
 import sys
+import threading
 import time
 import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -129,11 +130,28 @@ def api_route(body, _query):
 # --- decisions -------------------------------------------------------------------------------
 
 
+_DECISION_LOG_LOCK = threading.Lock()
+
+
+def log_decision(body, out):
+    """With DEMO_DECISION_LOG=<path> set, append one JSON line per model decision: the request body the server received and
+    the full answer (every option's probability), for the run record (examples/demos/tools/decision_log.py)."""
+    path = os.environ.get("DEMO_DECISION_LOG")
+    if not path:
+        return
+    row = {"demo": "fsd", "ts": round(time.time(), 3), "request": {"state": body.get("state"), "questions": body.get("questions")},
+           "response": {"answers": out.get("answers")}, "meta": out.get("meta")}
+    with _DECISION_LOG_LOCK, open(path, "a") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def api_decide(body, _query):
     try:
-        return decide.jev_decide(client, body)
+        out = decide.jev_decide(client, body)
     except decide.InvalidRequest as err:
         raise BadRequest(str(err))
+    log_decision(body, out)
+    return out
 
 
 def api_snapshot_save(body, _query):
