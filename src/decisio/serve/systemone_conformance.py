@@ -8,7 +8,8 @@ benchmark measurement in runs/.
       several questions per request; `models.list()` parses; an invalid request gets 422 in the SDK's
       `HTTPValidationError` shape. Every answer is also checked against the adapter's rules (keys, sums, confidence).
   C3  prompt identity, tokenizer only: for each item the engine's own request builder (`_prepare_separate`) gives the
-      same token rows and label tokens for the `/v1/systemone` form as for the `/v1/answer` form.
+      same token rows and label tokens for the `/v1/systemone` form, rendered with the server's own flags (from
+      /health), as for the `/v1/answer` form.
   C4  paired probabilities over HTTP: each item's state is cached by a first `/v1/answer` call, then `/v1/answer` and
       `/v1/systemone` are asked in turn; their probabilities must be bit-identical (max abs delta p = 0).
 
@@ -242,13 +243,22 @@ def tokenizer_engine(tokenizer, block_size, pad_where="front"):
     return eng
 
 
-def gate_c3(items, tokenizer, block_size):
+def server_rendering(url):
+    """The rendering flags the server reports in /health (to_engine_question's keyword arguments)."""
+    import httpx
+
+    s = httpx.get(f"{url}/health", timeout=60).json().get("systemone") or {}
+    return {k: s[k] for k in ("hide_index_keys", "desnake_labels", "describe_options") if k in s}
+
+
+def gate_c3(items, tokenizer, block_size, rendering=None):
     eng = tokenizer_engine(tokenizer, block_size)
+    rendering = rendering or {}
     bad = []
     for it in items:
         a_rows, a_p = eng._prepare_separate(it["answer"]["state"], it["answer"]["questions"])
         req = SystemOneRequest.model_validate(it["systemone"])
-        s_q = [to_engine_question(q)[0] for q in req.questions.values()]
+        s_q = [to_engine_question(q, **rendering)[0] for q in req.questions.values()]
         s_rows, s_p = eng._prepare_separate(req.state, s_q)
         if a_rows != s_rows or a_p != s_p:
             bad.append(f"{it['task']}:{it['i']}")
@@ -310,7 +320,7 @@ def main():
     res, ok = {"url": a.url, "items": len(items)}, True
     for name, fn in (
         ("C2", lambda: gate_c2(a.url)),
-        ("C3", lambda: gate_c3(items, a.tokenizer, a.block_size)),
+        ("C3", lambda: gate_c3(items, a.tokenizer, a.block_size, server_rendering(a.url))),
         ("C4", lambda: gate_c4(a.url, items)),
     ):
         g_ok, detail = fn()
