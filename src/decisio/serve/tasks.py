@@ -36,11 +36,12 @@ FORMAT = record_format("task")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 
 
-def task_key(q, render_text, described: bool = False) -> str:
+def task_key(q, render_text, described: bool = False, noul_rendering: str | None = None) -> str:
     """The identity of a wire question's task: type and options in order, plus instructions for yes/no and score.
     `described`: the server's --describe-options rule changes how this question is shown (its options have
     descriptions), so a task fitted under the other rendering has another key and is not applied. A question the rule
-    leaves alone keeps the same key under either setting."""
+    leaves alone keeps the same key under either setting. `noul_rendering`: a yes/no question asked as letters
+    (--noul-rendering) has another key than in words."""
     if q.type == "choice":
         spec = {"type": "choice", "options": [[k, render_text(d)] for k, d in q.criteria.items()]}
     elif q.type == "score":
@@ -54,6 +55,8 @@ def task_key(q, render_text, described: bool = False) -> str:
         spec = {"type": "noul", "criteria": crit, "instructions": render_text(q.instructions)}
     if described:
         spec["rendering"] = "describe_options"
+    if noul_rendering:
+        spec["rendering"] = noul_rendering
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
