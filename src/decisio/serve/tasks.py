@@ -36,8 +36,11 @@ FORMAT = record_format("task")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 
 
-def task_key(q, render_text) -> str:
-    """The identity of a wire question's task: type and options in order, plus instructions for yes/no and score."""
+def task_key(q, render_text, described: bool = False) -> str:
+    """The identity of a wire question's task: type and options in order, plus instructions for yes/no and score.
+    `described`: the server's --describe-options rule changes how this question is shown (its options have
+    descriptions), so a task fitted under the other rendering has another key and is not applied. A question the rule
+    leaves alone keeps the same key under either setting."""
     if q.type == "choice":
         spec = {"type": "choice", "options": [[k, render_text(d)] for k, d in q.criteria.items()]}
     elif q.type == "score":
@@ -49,6 +52,8 @@ def task_key(q, render_text) -> str:
     else:
         crit = None if q.criteria is None else [render_text(q.criteria.true), render_text(q.criteria.false)]
         spec = {"type": "noul", "criteria": crit, "instructions": render_text(q.instructions)}
+    if described:
+        spec["rendering"] = "describe_options"
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
@@ -90,13 +95,14 @@ class TaskStore:
         t = self.by_key.get(key)
         return t if t is not None and same_fingerprint(t["fingerprint"], self.fingerprint) else None
 
-    def register(self, task_id, examples, score_fn, hidden_fn=None):
+    def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
         server has none. Returns the stored task."""
         if not examples:
             raise ValueError("no examples")
-        keys = {task_key(q, _render) for q, _, _ in examples}
+        key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
+        keys = {key_fn(q) for q, _, _ in examples}
         if len(keys) != 1:
             raise ValueError("the examples must share one question: the same type and option list in the same order")
         q0 = examples[0][0]

@@ -61,6 +61,9 @@ def canonical_fingerprint(fingerprint):
         return fingerprint
     if d.get("served_name") == LEGACY_SERVED_NAME:
         d["served_name"] = SERVED_NAME
+    # an entry of servers that briefly carried --describe-options in the fingerprint; it now enters the task key of
+    # the questions it changes (decisio.serve.tasks.task_key)
+    d.pop("describe_options", None)
     return json.dumps(d, sort_keys=True)
 
 

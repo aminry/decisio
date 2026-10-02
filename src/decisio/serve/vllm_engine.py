@@ -191,6 +191,10 @@ def user_turn(tok, content):
 
 
 class LettersEngine:
+    # the served defaults (--pad-policy, --multi-question); the server sets both from its flags
+    pad_policy = "always"
+    multi_question = "sequential"
+
     def __init__(
         self,
         model,
@@ -391,7 +395,7 @@ class LettersEngine:
                     "a question's text merges with the state's last token; questions must not start with whitespace"
                 )
         k = (-n % self.pad_unit) if self.pad_unit else 0
-        if getattr(self, "pad_policy", "always") == "shared" and len(questions) == 1:
+        if self.pad_policy == "shared" and len(questions) == 1:
             k = 0  # --pad-policy shared: no second question can reuse the padded boundary
         head = len(enc(USER_HEAD))
         rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
@@ -483,13 +487,13 @@ class LettersEngine:
             r, P = self._prepare_separate(state, questions)
             # a warm-up pays only when several questions can reuse a registered boundary; --multi-question batch
             # sends the questions without it, each prefilling the state itself, in one engine call
-            if len(r) > 1 and P >= unit and getattr(self, "multi_question", "warm") != "batch":
+            if len(r) > 1 and P >= unit and self.multi_question != "batch":
                 warm.append(r[0][0][: P + 1])
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
         prepare_ms = (time.perf_counter() - t) * 1000
-        if getattr(self, "multi_question", "warm") == "sequential" and len(rows) > 1:
+        if self.multi_question == "sequential" and len(rows) > 1:
             probs, info = self._score_one_at_a_time(rows, adapter, warm)
         else:
             probs, info = self.score_prompts(rows, adapter, warm)
@@ -744,12 +748,13 @@ def main():
     )
     ap.add_argument(
         "--multi-question",
-        default="warm",
-        choices=["warm", "batch", "sequential"],
-        help="warm (the served default): a request with several questions first prefills the state in a warm-up "
-        "request, then sends the questions, which read it from the prefix cache; batch: one engine call with "
-        "every question, each prefilling the state itself; sequential: the warm-up, then each question in its own "
-        "engine call, so a question's answer cannot depend on the others in its request",
+        default="sequential",
+        choices=["sequential", "warm", "batch"],
+        help="sequential (the served default): a request with several questions first prefills the state in a "
+        "warm-up request, then sends each question in its own engine call, reading the state from the prefix cache, "
+        "so every answer equals the question sent alone; warm (for bulk scoring): the warm-up, then every question "
+        "in one batch, faster but each answer depends on the batch; batch: one engine call with every question, "
+        "each prefilling the state itself, no warm-up",
     )
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
@@ -812,9 +817,10 @@ def main():
     ap.add_argument(
         "--describe-options",
         action=argparse.BooleanOptionalAction,
-        default=False,
+        default=True,
         help="/v1/systemone: show an option that has a description as its description alone, with no key; an "
-        "option without one as its key (default off; the keys stay the answer's keys)",
+        "option without one as its key (default on; --no-describe-options shows `key: description`; the keys stay "
+        "the answer's keys)",
     )
     ap.add_argument(
         "--abstention",
@@ -1016,8 +1022,7 @@ def main():
                 "desnake_labels": args.desnake_labels,
                 # only when not the default, so the fingerprints of tasks registered under the default are unchanged
                 **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
-                # only when on, so the fingerprints of tasks registered without the rule are unchanged
-                **({"describe_options": True} if args.describe_options else {}),
+                # --describe-options is not here: it enters the task key of the questions it changes (tasks.task_key)
             },
             sort_keys=True,
         )
