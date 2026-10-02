@@ -1,0 +1,4 @@
+pass 1: 1q p50 592 ms (591.9/q); 10q p50 1360 ms (136.0/q); 100q p50 10628 ms (106.3/q); 100q_8k p50 14662 ms (146.6/q); max foreign CPU 38% (/Applications/Xcode.app/Contents/Developer/usr/bin/git), idle False
+pass 2: 1q p50 485 ms (484.9/q); 10q p50 1163 ms (116.3/q); 100q p50 9831 ms (98.3/q); 100q_8k p50 14822 ms (148.2/q); max foreign CPU 85% (it.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent), idle False
+pass 3: 1q p50 485 ms (484.6/q); 10q p50 1164 ms (116.4/q); 100q p50 9829 ms (98.3/q); 100q_8k p50 14716 ms (147.2/q); max foreign CPU 93% (/usr/libexec/searchpartyd), idle False
+LATENCY DONE

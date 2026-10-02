@@ -1,0 +1,196 @@
+{
+ "model": "/Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-6bit/snapshots/cb7e092ef8efe540bc3672c8929c4adbe5f4f759/",
+ "load_s": 3.3592854590388015,
+ "mlx": "0.32.3",
+ "items": [
+  {
+   "item": [
+    "mmlu_pro_text_x350",
+    0
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1256,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 10,
+     "top_full": 3,
+     "top_prefix": 3,
+     "max_dp_full_vs_prefix": 0.00021853572145746902,
+     "max_dlp_full_vs_prefix": 0.5622813399071394,
+     "max_dh_full_vs_prefix": 1.125,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.006104812337242055,
+     "max_dlp_full_vs_prefix": 0.05564261358169231,
+     "max_dh_full_vs_prefix": 1.125,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.004760840571489511,
+     "max_dlp_full_vs_prefix": 0.12004229245869524,
+     "max_dh_full_vs_prefix": 0.96875,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 630.7560973024616,
+   "prefix_ms": 383.1086669815704,
+   "prefix_q_ms": 116.51841667480767
+  },
+  {
+   "item": [
+    "scifact",
+    3
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1094,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 2,
+     "top_full": 1,
+     "top_prefix": 1,
+     "max_dp_full_vs_prefix": 0.00015905081824985068,
+     "max_dlp_full_vs_prefix": 0.062340542221472006,
+     "max_dh_full_vs_prefix": 0.625,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0,
+     "max_dlp_full_vs_prefix": 0.0,
+     "max_dh_full_vs_prefix": 0.6875,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.07218901801044597,
+     "max_dlp_full_vs_prefix": 0.6686655838544624,
+     "max_dh_full_vs_prefix": 1.640625,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 424.5733196924751,
+   "prefix_ms": 406.96554095484316,
+   "prefix_q_ms": 87.8689723322168
+  },
+  {
+   "item": [
+    "boolq",
+    5
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1081,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0026450165673668584,
+     "max_dlp_full_vs_prefix": 0.12229643652867184,
+     "max_dh_full_vs_prefix": 0.625,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.005042031171680228,
+     "max_dlp_full_vs_prefix": 0.11973602893031732,
+     "max_dh_full_vs_prefix": 1.6875,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0034747408586288907,
+     "max_dlp_full_vs_prefix": 0.24647531419585444,
+     "max_dh_full_vs_prefix": 1.5,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 422.06256933665526,
+   "prefix_ms": 409.9529170198366,
+   "prefix_q_ms": 80.48276401435335
+  },
+  {
+   "item": [
+    "banking77",
+    7
+   ],
+   "prefix_tokens": 1056,
+   "lengths": [
+    1578,
+    1079,
+    1091
+   ],
+   "questions": [
+    {
+     "labels": 77,
+     "top_full": 29,
+     "top_prefix": 29,
+     "max_dp_full_vs_prefix": 0.0007392835162066732,
+     "max_dlp_full_vs_prefix": 0.7505227384791446,
+     "max_dh_full_vs_prefix": 0.6875,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.008766269377654679,
+     "max_dlp_full_vs_prefix": 0.11551288784254243,
+     "max_dh_full_vs_prefix": 0.90625,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    },
+    {
+     "labels": 2,
+     "top_full": 0,
+     "top_prefix": 0,
+     "max_dp_full_vs_prefix": 0.0,
+     "max_dlp_full_vs_prefix": 0.0,
+     "max_dh_full_vs_prefix": 1.5,
+     "prefix_vs_again_equal": true,
+     "max_dp_prefix_vs_again": 0.0
+    }
+   ],
+   "full_ms_per_q": 463.0434723415722,
+   "prefix_ms": 380.71941700764,
+   "prefix_q_ms": 141.21805566052595
+  }
+ ],
+ "peak_memory_gb": 29.743810534
+}

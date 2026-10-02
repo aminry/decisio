@@ -1,0 +1,329 @@
+{
+ "id": "2026-10-02_mlx-backend",
+ "title": "The MLX engine (--backend mlx) on a Mac: the served default's gates at 4, 6 and 8 bits against the FP8 records",
+ "date": "2026-10-02",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac)",
+ "software": {
+  "mlx": "0.32.3",
+  "mlx-lm": "0.32.0",
+  "python": "3.12.13",
+  "transformers": "5.18.0"
+ },
+ "code": {
+  "branch": "feat/mlx-backend",
+  "commit": "8a92acd",
+  "engine": "src/decisio/serve/mlx_engine.py",
+  "note": "the engine files every gate run loaded are byte for byte those of the commit",
+  "rebased": [
+   {
+    "onto": "5461e0e (--multi-question, --pad-policy, stage timings)",
+    "check": "6-bit: serving gates pass (G2 bit for bit); the 1,400 suite answers bit-identical to the gated run, 1,400 of 1,400",
+    "record": "rebase_check/"
+   },
+   {
+    "onto": "f2d936e (--describe-options, off by default); the PR's base is 877a431, which changes no source file (REUSE compliance)",
+    "check": "6-bit, on the PR's code: serving gates pass (G2 bit for bit); the 1,400 suite answers bit-identical to the gated run, 1,400 of 1,400",
+    "record": "rebase_check_f2d936e/"
+   }
+  ]
+ },
+ "models": {
+  "4bit": "mlx-community/Qwen3.6-35B-A3B-4bit @ 38740b847e4cb78f352aba30aa41c76e08e6eb46",
+  "6bit": "mlx-community/Qwen3.6-35B-A3B-6bit @ cb7e092ef8efe540bc3672c8929c4adbe5f4f759",
+  "8bit": "mlx-community/Qwen3.6-35B-A3B-8bit @ e06a74e6236a60c8367e1a3214e83d8b61b637b0",
+  "licence": "Apache-2.0 (all three)",
+  "tokenizer": "Qwen/Qwen3.6-35B-A3B @ 995ad96 (tokenizer files identical to Qwen/Qwen3.6-35B-A3B-FP8; tokenizer.json sha256 5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42)"
+ },
+ "servers": "python -m decisio.serve.vllm_engine --backend mlx --model <snapshot> --tokenizer <official tokenizer> --debug-readout --port 23456 (every other flag the served default: front padding to 1,056, T = 1.307, tasks, abstention, the head from the same forward)",
+ "reference": "runs/2026-09-30_plugin-verification (FP8 served default, server H): conformance_H.json.gz C4 rows for the suite; intent_heads/ for the heads",
+ "pre_registration": "private RLCD experiment 2026-10-02_t2_mlx_backend (PLAN.md, PREREG.md), written before any gate measurement; G1 reported, not gated, for the reason stated there",
+ "gates": {
+  "8bit": {
+   "P_prompts": "pass, 1400 of 1400 rows identical",
+   "C1_cpu_and_G2_isolation": "pass",
+   "G1_reported_max_abs_dp": 0.004760840571489511,
+   "C2_C4_conformance": "pass",
+   "S1_accuracy": {
+    "pass": true,
+    "mlx": 0.765,
+    "fp8": 0.7621428571428571,
+    "mlx_minus_fp8": [
+     0.0028571428571428914,
+     -0.005714285714285783,
+     0.012142857142857122
+    ]
+   },
+   "S2_flips": 56,
+   "S3_ece": {
+    "pass": false,
+    "mlx": 0.03011858575269731,
+    "fp8": 0.02005403296685407,
+    "difference": 0.010064552785843242,
+    "interval": [
+     -0.008678061430935233,
+     0.02249267352827022
+    ]
+   },
+   "H": {
+    "banking77": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.8466666666666667,
+      0.8466666666666667,
+      0.8333333333333334
+     ],
+     "mlx_mean": 0.8422222222222221,
+     "fp8_mean": 0.8466666666666666,
+     "mlx_minus_fp8": [
+      -0.004444444444444473,
+      -0.026666666666666616,
+      0.015555555555555767
+     ]
+    },
+    "v3_clinc": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.9,
+      0.93,
+      0.93
+     ],
+     "mlx_mean": 0.92,
+     "fp8_mean": 0.8933333333333334,
+     "mlx_minus_fp8": [
+      0.026666666666666616,
+      -0.010000000000000009,
+      0.06666666666666654
+     ]
+    }
+   }
+  },
+  "6bit": {
+   "P_prompts": "pass, 1400 of 1400 rows identical",
+   "C1_cpu_and_G2_isolation": "pass",
+   "G1_reported_max_abs_dp": 0.011185372043555561,
+   "C2_C4_conformance": "pass",
+   "S1_accuracy": {
+    "pass": true,
+    "mlx": 0.7657142857142857,
+    "fp8": 0.7621428571428571,
+    "mlx_minus_fp8": [
+     0.0035714285714285587,
+     -0.0050000000000000044,
+     0.012142857142857122
+    ]
+   },
+   "S2_flips": 56,
+   "S3_ece": {
+    "pass": true,
+    "mlx": 0.025239799199751844,
+    "fp8": 0.02005403296685407,
+    "difference": 0.005185766232897775,
+    "interval": [
+     -0.010660066456937598,
+     0.018604252608647173
+    ]
+   },
+   "H": {
+    "banking77": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.8533333333333334,
+      0.8266666666666667,
+      0.82
+     ],
+     "mlx_mean": 0.8333333333333333,
+     "fp8_mean": 0.8466666666666666,
+     "mlx_minus_fp8": [
+      -0.013333333333333308,
+      -0.040000000000000036,
+      0.0133333333333332
+     ]
+    },
+    "v3_clinc": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.89,
+      0.92,
+      0.93
+     ],
+     "mlx_mean": 0.9133333333333334,
+     "fp8_mean": 0.8933333333333334,
+     "mlx_minus_fp8": [
+      0.020000000000000018,
+      -0.01333333333333342,
+      0.056666666666666754
+     ]
+    }
+   }
+  },
+  "4bit": {
+   "P_prompts": "pass, 1400 of 1400 rows identical",
+   "C1_cpu_and_G2_isolation": "pass",
+   "G1_reported_max_abs_dp": 0.04147659568477591,
+   "C2_C4_conformance": "pass",
+   "S1_accuracy": {
+    "pass": true,
+    "mlx": 0.7521428571428571,
+    "fp8": 0.7621428571428571,
+    "mlx_minus_fp8": [
+     -0.010000000000000009,
+     -0.02285714285714291,
+     0.0028571428571428914
+    ]
+   },
+   "S2_flips": 128,
+   "S3_ece": {
+    "pass": true,
+    "mlx": 0.02084246985611196,
+    "fp8": 0.02005403296685407,
+    "difference": 0.000788436889257893,
+    "interval": [
+     -0.015380229603292161,
+     0.017352836549806846
+    ]
+   },
+   "H": {
+    "banking77": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.8533333333333334,
+      0.8266666666666667,
+      0.8133333333333334
+     ],
+     "mlx_mean": 0.831111111111111,
+     "fp8_mean": 0.8466666666666666,
+     "mlx_minus_fp8": [
+      -0.015555555555555545,
+      -0.04222222222222227,
+      0.006666666666666821
+     ]
+    },
+    "v3_clinc": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.91,
+      0.94,
+      0.93
+     ],
+     "mlx_mean": 0.9266666666666665,
+     "fp8_mean": 0.8933333333333334,
+     "mlx_minus_fp8": [
+      0.033333333333333104,
+      0.0,
+      0.07333333333333347
+     ]
+    }
+   }
+  }
+ },
+ "latency_server_ms_p50_p95": {
+  "8bit": {
+   "1q": [
+    484.65,
+    494.495
+   ],
+   "10q": [
+    1163.9,
+    1182.925
+   ],
+   "100q": [
+    9828.8,
+    10779.355
+   ],
+   "100q_8k": [
+    14716.25,
+    14873.664999999999
+   ]
+  },
+  "6bit": {
+   "1q": [
+    482.05,
+    489.82
+   ],
+   "10q": [
+    1148.1,
+    1158.6399999999999
+   ],
+   "100q": [
+    9747.05,
+    10593.665
+   ],
+   "100q_8k": [
+    14488.95,
+    14619.49
+   ]
+  },
+  "4bit": {
+   "1q": [
+    430.45,
+    436.085
+   ],
+   "10q": [
+    957.6500000000001,
+    967.79
+   ],
+   "100q": [
+    7403.5,
+    7480.86
+   ],
+   "100q_8k": [
+    11239.8,
+    11476.595
+   ]
+  }
+ },
+ "latency_idle_rule_met": {
+  "8bit": false,
+  "6bit": false,
+  "4bit": false
+ },
+ "memory_peak_gb": {
+  "8bit": {
+   "8192x1": 38.89,
+   "8192x10": 38.89,
+   "16384x1": 39.06,
+   "16384x10": 39.06,
+   "32768x1": 39.37,
+   "32768x10": 39.37
+  },
+  "6bit": {
+   "8192x1": 30.23,
+   "8192x10": 30.23,
+   "16384x1": 30.4,
+   "16384x10": 30.4,
+   "32768x1": 30.71,
+   "32768x10": 30.71
+  },
+  "4bit": {
+   "8192x1": 21.58,
+   "8192x10": 21.58,
+   "16384x1": 21.74,
+   "16384x10": 21.74,
+   "32768x1": 22.05,
+   "32768x10": 22.05
+  }
+ },
+ "memory_all_fit": {
+  "8bit": true,
+  "6bit": true,
+  "4bit": true
+ },
+ "excluded": [
+  "the registrations' example hidden states (r12/*_examples.npz, 83 MB) and the server logs: kept in the private record",
+  "the 1,400 suite items and the round-12 items: private (RLCD); the records here carry answers, labels and probabilities, no item text"
+ ],
+ "cost": "this Mac's time only (16 h of wall clock for the chain)",
+ "deviations": [
+  "the 8-bit memory stage failed on a code error in the memory script (JSON-object states joined as text) and ran after the chain with the fixed script; no number was produced before the fix",
+  "the idle rule for latency was not met at any quantisation; the third pass is reported with its load (latency.json)"
+ ],
+ "decisions": "Amin, 2026-10-02: 6-bit is the Mac default; 4-bit the documented option for 32 GB machines; 8-bit not shipped, its ECE miss reported as pre-registered"
+}

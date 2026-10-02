@@ -1,0 +1,4 @@
+pass 1: 1q p50 507 ms (506.8/q); 10q p50 1086 ms (108.6/q); 100q p50 8149 ms (81.5/q); 100q_8k p50 11837 ms (118.4/q); max foreign CPU 63% (it.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent), idle False
+pass 2: 1q p50 429 ms (429.4/q); 10q p50 957 ms (95.7/q); 100q p50 7415 ms (74.2/q); 100q_8k p50 11313 ms (113.1/q); max foreign CPU 84% (s/ModelCatalogRuntime.framework/Versions/A/ModelCatalogAgent), idle False
+pass 3: 1q p50 430 ms (430.4/q); 10q p50 958 ms (95.8/q); 100q p50 7404 ms (74.0/q); 100q_8k p50 11240 ms (112.4/q); max foreign CPU 41% (.app/Contents/MacOS/Google Chrome Helper (Aperitif Renderer)), idle False
+LATENCY DONE

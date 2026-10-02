@@ -779,8 +779,17 @@ def main():
     ap.add_argument(
         "--backend",
         default="vllm",
-        choices=["vllm", "hf"],
-        help="hf: the CPU stand-in (decisio.serve.hf_letters), for the CPU smoke test only",
+        choices=["vllm", "hf", "mlx"],
+        help="hf: the CPU stand-in (decisio.serve.hf_letters), for the CPU smoke test only; mlx: Apple silicon "
+        "(decisio.serve.mlx_engine), --model an MLX conversion, the text route with every feature except the image "
+        "route, packed mode and adapters",
+    )
+    ap.add_argument(
+        "--tokenizer",
+        default=None,
+        help="--backend mlx: the tokenizer the prompts are built with (default: the official "
+        "Qwen/Qwen3.6-35B-A3B-FP8, so the prompts are the vLLM path's byte for byte; a conversion's own tokenizer "
+        "may differ)",
     )
     ap.add_argument("--served-name", default=SERVED_NAME, help="the name GET /v1/models lists")
     ap.add_argument(
@@ -893,6 +902,22 @@ def main():
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
+    if args.backend == "mlx":
+        refused = [
+            flag
+            for flag, given in (
+                ("--image-model", args.image_model),
+                ("--one-engine", args.one_engine),
+                ("--head-engine", args.head_engine),
+                ("--adapter", args.adapter),
+                ("--mode packed", args.mode == "packed"),
+            )
+            if given
+        ]
+        if refused:
+            ap.error(f"--backend mlx serves the text route in separate mode, without {', '.join(refused)}")
+    elif args.tokenizer:
+        ap.error("--tokenizer is for --backend mlx (vLLM and the CPU stand-in use the model's own)")
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
@@ -926,6 +951,15 @@ def main():
 
         engine = HFLettersEngine(
             args.model, pad_to=None if args.pad_to == "none" else args.pad_to, pad_where=args.pad_where
+        )
+    elif args.backend == "mlx":
+        from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, MLXLettersEngine
+
+        engine = MLXLettersEngine(
+            args.model,
+            tokenizer=args.tokenizer or OFFICIAL_TOKENIZER,
+            pad_to=None if args.pad_to == "none" else args.pad_to,
+            pad_where=args.pad_where,
         )
     else:
         engine = LettersEngine(
@@ -964,7 +998,11 @@ def main():
         print("IMAGE ENGINE", json.dumps(image_engine.facts()), flush=True)
     hidden_engine = None
     if head_mode == "single-engine":
-        if args.backend == "hf":
+        if args.backend == "mlx":
+            from decisio.serve.mlx_engine import MLXHiddenReadout
+
+            hidden_engine = MLXHiddenReadout(engine)
+        elif args.backend == "hf":
             from decisio.serve.hidden_engine import HFReservedHiddenEngine
 
             hidden_engine = HFReservedHiddenEngine(args.model, pad_to=engine.pad_unit, pad_where=args.pad_where)

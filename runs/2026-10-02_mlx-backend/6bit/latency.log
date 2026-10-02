@@ -1,0 +1,4 @@
+pass 1: 1q p50 583 ms (583.0/q); 10q p50 1358 ms (135.8/q); 100q p50 10836 ms (108.4/q); 100q_8k p50 14756 ms (147.6/q); max foreign CPU 100% (/Users/amin/repo/decisio/.venv/bin/python), idle False
+pass 2: 1q p50 482 ms (481.6/q); 10q p50 1148 ms (114.8/q); 100q p50 9768 ms (97.7/q); 100q_8k p50 14649 ms (146.5/q); max foreign CPU 100% (/Users/amin/repo/decisio/.venv/bin/python), idle False
+pass 3: 1q p50 482 ms (482.1/q); 10q p50 1148 ms (114.8/q); 100q p50 9747 ms (97.5/q); 100q_8k p50 14489 ms (144.9/q); max foreign CPU 61% (/usr/libexec/searchpartyd), idle False
+LATENCY DONE
