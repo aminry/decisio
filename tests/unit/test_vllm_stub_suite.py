@@ -115,12 +115,13 @@ calls = []
 models = types.ModuleType("vllm.model_executor.models")
 models.ModelRegistry = types.SimpleNamespace(register_model=lambda a, c: calls.append((a, c)))
 config = types.ModuleType("vllm.model_executor.models.config")
-config.MODELS_CONFIG_MAP = {"Qwen3_5MoeForCausalLM": object}
+config.MODELS_CONFIG_MAP = {"Qwen3_5MoeForCausalLM": object, "Gemma4UnifiedForConditionalGeneration": object}
 sys.modules.update({"vllm": vllm, "vllm.model_executor": types.ModuleType("vllm.model_executor"),
                     "vllm.model_executor.models": models, "vllm.model_executor.models.config": config})
 import decisio.vllm_plugin as p
 assert p.register() and len(calls) == len(p.MODELS) and all(isinstance(c, str) for _, c in calls)
-print(sorted(m for m in ("torch", "numpy", "decisio.vllm_plugin.models", "decisio.serve") if m in sys.modules))
+print(sorted(m for m in ("torch", "numpy", "decisio.vllm_plugin.models", "decisio.vllm_plugin.gemma", "decisio.serve")
+             if m in sys.modules))
 """
     env = {**os.environ, "PYTHONPATH": str(ROOT / "src")}
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
