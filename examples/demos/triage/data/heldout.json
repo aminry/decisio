@@ -30,7 +30,7 @@
  "tickets": [
   {
    "id": "heldout-0001",
-   "text": "Hello Notewell team! Could you explain the line items on my laest invoice? One says 'proration adjustment'. Thanks in advance for your hep.",
+   "text": "Hello Notewell team! Could you explain the line items on my laest invoice? One says 'proration adjustment'. Any help would be grat.",
    "intent": "billing",
    "secondary": null,
    "tone": "polite",
@@ -48,10 +48,10 @@
   },
   {
    "id": "heldout-0003",
-   "text": "i'm on the Family plan. Reminders from Notewell aren't showing up in my Outlook calendar anymore.",
+   "text": "I have about 5,000 notes. Reminders from Notewell aren't showing up in my Outlook calendar anymore. Regards, Chen",
    "intent": "integration",
    "secondary": null,
-   "tone": "terse",
+   "tone": "neutral",
    "typos": 0,
    "core": "integration/eval03"
   },
@@ -120,7 +120,7 @@
   },
   {
    "id": "heldout-0011",
-   "text": "Hey! I'm on the Famiy plan. The NOTES30 code worked last year, why not now? Thanks in advannce for your help. Regards, Chen",
+   "text": "Hey! I'm on the Famiy plan. The NOTES30 code worked last year, why not now? Any help wouuld be great. Regards, Chen",
    "intent": "promo_code",
    "secondary": null,
    "tone": "polite",
@@ -318,7 +318,7 @@
   },
   {
    "id": "heldout-0033",
-   "text": "Hello. Please unlcok my account, i need my work notes for a meeting at 10:30. Separately, one note seems to sync slowly, but thats not why Im writing. Thans in advance for your help.",
+   "text": "Hello. Please unlcok my account, i need my work notes for a meeting at 10:30. Separately, one note seems to sync slowly, but thats not why Im writing. Any hep would be great.",
    "intent": "account_locked",
    "secondary": "sync",
    "tone": "polite",
@@ -354,7 +354,7 @@
   },
   {
    "id": "heldout-0037",
-   "text": "Hello Notewell team! Why is the app using so much CPU in the background? Also, just curious, is there a way to export notes as Markdown? Thanks in advance for your help. - Lukas",
+   "text": "Hello Notewell team! Why is the app using so much CPU in the background? Also, just curious, is there a way to export notes as Markdown? Any help would be great. - Lukas",
    "intent": "performance",
    "secondary": "data_export",
    "tone": "polite",
@@ -525,7 +525,7 @@
   },
   {
    "id": "heldout-0056",
-   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? Thanks in advnace for yur help.",
+   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? Any help wolud be geat.",
    "intent": "two_factor",
    "secondary": null,
    "tone": "polite",
@@ -696,7 +696,7 @@
   },
   {
    "id": "heldout-0075",
-   "text": "My security key isn't recognised when I try to sign in. Thanks in advance for your hep. Thank you.",
+   "text": "My security key isn't recognised when I try to sign in. Any help would be graet. Thank you.",
    "intent": "two_factor",
    "secondary": null,
    "tone": "polite",
@@ -858,7 +858,7 @@
   },
   {
    "id": "heldout-0093",
-   "text": "An unknown device signed in to my account last night, please help me secure it. Thanks in advance for your help.",
+   "text": "An unknown device signed in to my account last night, please help me secure it. Any help would be great.",
    "intent": "security_concern",
    "secondary": null,
    "tone": "polite",
@@ -939,7 +939,7 @@
   },
   {
    "id": "heldout-0102",
-   "text": "Hey! I use it on my iPad. The note on my phone is an old version, my edits from the computer aren't there. Thaanks in advance for your help. Cheers, Yuki",
+   "text": "Hey! I use it on my iPad. The note on my phone is an old version, my edits from the computer aren't there. Any heelp would be great. Cheers, Yuki",
    "intent": "sync",
    "secondary": null,
    "tone": "polite",
@@ -1218,7 +1218,7 @@
   },
   {
    "id": "heldout-0133",
-   "text": "Could you explain the line items on my latest invoice? One says proration adjustment. By the way, is there a Slack integration? Thanks in advance for your help.",
+   "text": "Could you explain the line items on my latest invoice? One says proration adjustment. By the way, is there a Slack integration? Any help would be great.",
    "intent": "billing",
    "secondary": "integration",
    "tone": "polite",
@@ -1317,7 +1317,7 @@
   },
   {
    "id": "heldout-0144",
-   "text": "Hey! I mostly use the iPhone app. You charged me $59.88 after the free trial even though I cancelled during it. I want it back. Thanks in advance for your help.",
+   "text": "Hey! I mostly use the iPhone app. You charged me $59.88 after the free trial even though I cancelled during it. I want it back. Any help would be great.",
    "intent": "refund",
    "secondary": null,
    "tone": "polite",
@@ -1407,7 +1407,7 @@
   },
   {
    "id": "heldout-0154",
-   "text": "I mostly use the Windows app. I connected Dropbox but my notes don't appear there. Thanks in advance for your help.",
+   "text": "I mostly use the Windows app. I connected Dropbox but my notes don't appear there. Any help would be great.",
    "intent": "integration",
    "secondary": null,
    "tone": "polite",
@@ -1542,7 +1542,7 @@
   },
   {
    "id": "heldout-0169",
-   "text": "Could you add read-only links that don't need an account to view? Thanks in advance for your help. Regards, Priya",
+   "text": "Could you add read-only links that don't need an account to view? Any help would be great. Regards, Priya",
    "intent": "feature_request",
    "secondary": null,
    "tone": "polite",
@@ -2226,7 +2226,7 @@
   },
   {
    "id": "heldout-0245",
-   "text": "Startup now takes almost a minute on my Pixel 8. Thanks in advance for your help.",
+   "text": "Startup now takes almost a minute on my Pixel 8. Any help would be great.",
    "intent": "performance",
    "secondary": null,
    "tone": "polite",
@@ -2298,10 +2298,10 @@
   },
   {
    "id": "heldout-0253",
-   "text": "I'm on the Family plan. The Dropbox attachment link opens a permissions error. Please sort this out, it's been days. Cheers, Ahmed",
+   "text": "we're on the Family plan. The Dropbox attachment link opens a permissions error.",
    "intent": "integration",
    "secondary": null,
-   "tone": "frustrated",
+   "tone": "terse",
    "typos": 0,
    "core": "integration/eval05"
   },
@@ -2334,7 +2334,7 @@
   },
   {
    "id": "heldout-0257",
-   "text": "Hi team! Could you add a way to schedule notes to be setn by email? Thnaks in advance for your help.",
+   "text": "Hi team! Could you add a way to schedule ntoes to be setn by email? Any help would be great.",
    "intent": "feature_request",
    "secondary": null,
    "tone": "polite",
@@ -2550,7 +2550,7 @@
   },
   {
    "id": "heldout-0281",
-   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? Thanks in advance for your help.",
+   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? Any help would be great.",
    "intent": "two_factor",
    "secondary": null,
    "tone": "polite",
@@ -2703,7 +2703,7 @@
   },
   {
    "id": "heldout-0298",
-   "text": "We don't need Family aymore, it's just me now. Can I switch to Plus? Alos, no rush, but how do I share a notebook with my colleague? Thanks in advance for your help.",
+   "text": "Hey! We don't need Family anymore, it's just me now. Can I switch to Plus? Aso, no rush, but how do I share a notebook wtih my colleague? Any help would be great.",
    "intent": "plan_change",
    "secondary": "sharing",
    "tone": "polite",
@@ -2721,7 +2721,7 @@
   },
   {
    "id": "heldout-0300",
-   "text": "Hello! My account email is jt1987@example.org. Tags I add disappear when I reopen the note. Thanks in advance for your help. Cheers, Yuki",
+   "text": "Hello! My account email is jt1987@example.org. Tags I add disappear when I reopen the note. Any help would be great. Cheers, Yuki",
    "intent": "bug",
    "secondary": null,
    "tone": "polite",
@@ -2784,7 +2784,7 @@
   },
   {
    "id": "heldout-0307",
-   "text": "Hi! My shared notebooks have a stranger as a collaborator, I never added them. Also, no rush, but how do I share a notebook with my wife? Thanks in advance for your help. Regards, Maria",
+   "text": "Hi! My shared notebooks have a stranger as a collaborator, I never added them. Also, no rush, but how do I share a notebook with my wife? Any help would be great. Regards, Maria",
    "intent": "security_concern",
    "secondary": "sharing",
    "tone": "polite",
@@ -2793,7 +2793,7 @@
   },
   {
    "id": "heldout-0308",
-   "text": "Our webhook gets a 401 error from your API since this week. Thanks in advance for your hepl.",
+   "text": "Hello Notewell team! Our webhook gets a 401 error from your API snice this week. Any help would be great.",
    "intent": "integration",
    "secondary": null,
    "tone": "polite",
@@ -2811,7 +2811,7 @@
   },
   {
    "id": "heldout-0310",
-   "text": "I connected Zapier but my notes don't appear there. Urgent please.",
+   "text": "Good morning! I connected Outlook but my notes don't appear there. I have a deadline tomorrow.",
    "intent": "integration",
    "secondary": null,
    "tone": "urgent",
@@ -3297,7 +3297,7 @@
   },
   {
    "id": "heldout-0364",
-   "text": "Hi! Would it be possible to have a calendar view of notes? Thanks in advance for your help.",
+   "text": "Hi! Would it be possible to have a calendar view of notes? Any help would be great.",
    "intent": "feature_request",
    "secondary": null,
    "tone": "polite",
@@ -3315,7 +3315,7 @@
   },
   {
    "id": "heldout-0366",
-   "text": "Hello Notewell team! I mostly use the iPhone app. I was logged out after the update and now my login doesn't work. Also, do you still have a student discount? Thanks in advance for your help.",
+   "text": "Hello Notewell team! I mostly use the iPhone app. I was logged out after the update and now my login doesn't work. Also, do you still have a student discount? Any help would be great.",
    "intent": "login",
    "secondary": "promo_code",
    "tone": "polite",

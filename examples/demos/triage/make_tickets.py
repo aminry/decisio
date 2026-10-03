@@ -473,7 +473,7 @@ GREETINGS = ["Hi!", "Hello!", "Hi there!", "Hey!", "Good morning!", "Hello Notew
 CLOSERS = ["Thanks!", "Thank you.", "Thanks, {name}", "Cheers, {name}", "Regards, {name}", "- {name}"]
 TONES = {
     "neutral": [],
-    "polite": ["Thanks in advance for your help.", "Sorry if this has been asked before.", "I appreciate any help."],
+    "polite": ["Any help would be great.", "Sorry if this has been asked before.", "I appreciate any help."],
     "frustrated": [
         "This is really frustrating.",
         "I've already written about this twice.",

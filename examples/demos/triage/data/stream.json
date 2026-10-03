@@ -255,7 +255,7 @@
   },
   {
    "id": "stream-0026",
-   "text": "My Plus renews tomorrow and I don't want it to. How do I cancel tonight? Thanks in advance for your help. Thanks!",
+   "text": "My Plus renews tomorrow and I don't want it to. How do I cancel tonight? Any help would be great. Thanks!",
    "intent": "cancel_subscription",
    "secondary": null,
    "tone": "polite",
@@ -381,7 +381,7 @@
   },
   {
    "id": "stream-0040",
-   "text": "Hello! I've been a customer since 2019. I'm moving from Family to Plus because my kids have their own accounts now. Thanks in advance for your help.",
+   "text": "Hello! I've been a customer since 2019. I'm moving from Family to Plus because my kids have their own accounts now. Any help would be great.",
    "intent": "plan_change",
    "secondary": null,
    "tone": "polite",
@@ -669,7 +669,7 @@
   },
   {
    "id": "stream-0072",
-   "text": "There's a $49.99 charge form Notwell on my card and I'm not sure which account it belongs to. Thanks in advance for your help. Thanks!",
+   "text": "There's a $49.99 charge form Notwell on my card and I'm not sure which account it belongs to. Any help would be great. Thanks!",
    "intent": "billing",
    "secondary": null,
    "tone": "polite",

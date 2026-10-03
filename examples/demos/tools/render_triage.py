@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import functools
 import json
 from pathlib import Path
 
@@ -40,7 +41,8 @@ TOP = 5
 TAUGHT_EXTRA = "tasks registered"
 
 
-def wrap(text: str, size: int, width: int, max_lines: int) -> list[str]:
+@functools.lru_cache(maxsize=4096)
+def wrap(text: str, size: int, width: int, max_lines: int) -> tuple[str, ...]:
     """Greedy word wrap to `width` pixels; the last line ends with an ellipsis when the text does not fit."""
     f = rc.font(size)
     lines: list[str] = []
@@ -64,17 +66,37 @@ def wrap(text: str, size: int, width: int, max_lines: int) -> list[str]:
     if len(lines) > max_lines:
         lines = lines[:max_lines]
         lines[-1] = clip(lines[-1] + " …", size, width)
-    return lines
+    return tuple(lines)
 
 
+@functools.lru_cache(maxsize=4096)
 def clip(text: str, size: int, width: int) -> str:
-    """`text` cut to `width` pixels, with an ellipsis when cut."""
+    """`text` cut to `width` pixels, with an ellipsis when cut (the longest prefix that fits, by bisection)."""
     f = rc.font(size)
     if f.getlength(text) <= width:
         return text
-    while text and f.getlength(text + "…") > width:
-        text = text[:-1]
-    return text.rstrip() + "…"
+    lo, hi = 0, len(text)  # the longest prefix with the ellipsis that fits is text[:lo]
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if f.getlength(text[:mid] + "…") <= width:
+            lo = mid
+        else:
+            hi = mid - 1
+    return text[:lo].rstrip() + "…"
+
+
+def wrap_parts(text: str, size: int, width: int, sep: str = " · ") -> tuple[str, ...]:
+    """Wrap a caption at its separators, so a line never breaks inside a part ("median 1783 ms per decision"); a part
+    wider than a line is word-wrapped."""
+    f = rc.font(size)
+    lines: list[str] = []
+    for part in text.split(sep):
+        trial = f"{lines[-1]}{sep}{part}" if lines else part
+        if lines and f.getlength(trial) <= width:
+            lines[-1] = trial
+        else:
+            lines.extend(wrap(part, size, width, 99))
+    return tuple(lines)
 
 
 def fit_size(text: str, size: int, width: int, smallest: int = 11) -> int:
@@ -164,7 +186,7 @@ def registration_line(run: dict) -> str:
     kept_text = (
         ("kept: " + " and ".join("intent head" if k == "head" else k for k in kept)) if kept else "kept: nothing"
     )
-    return f"{reg.get('n_examples')} labelled tickets registered in {reg.get('seconds', 0):.0f} s, {kept_text}"
+    return f"registered from {reg.get('n_examples')} labelled tickets in {reg.get('seconds', 0):.0f} s, {kept_text}"
 
 
 # ---- drawing -------------------------------------------------------------------------------------------------------
@@ -204,11 +226,16 @@ def verdict(d, x, y, row: dict, done: bool, now_ms: float, size: int, width: int
     s = int(size * 1.1)
     mark(d, x, y - s // 2, s, row["right"])
     xx = x + s + 12
-    text = f"routed to {row['chosen']}"
+    # the longest wording that fits: the true intent is never the part that gets cut
+    what = "right" if row["right"] else f"wrong, true: {row['intent']}"
+    latency = f" · {row['latency_ms']:,.0f} ms" if row["latency_ms"] is not None else ""
+    options = [(f"routed to {row['chosen']}", what + latency), (row["chosen"], what + latency), (row["chosen"], what)]
+    for text, tail in options:
+        need = rc.font(size).getlength(text) + 14 + rc.font(size - 2).getlength(tail)
+        if xx + need <= x + width:
+            break
     d.text((xx, y), text, fill=rc.FG, font=rc.font(size), anchor="lm")
     xx += int(rc.font(size).getlength(text)) + 14
-    tail = "right" if row["right"] else f"wrong, true: {row['intent']}"
-    tail += f" · {row['latency_ms']:,.0f} ms" if row["latency_ms"] is not None else ""
     d.text(
         (xx, y),
         clip(tail, size - 2, x + width - xx),
@@ -231,8 +258,9 @@ def draw_single(feed: Feed, t: float) -> Image.Image:
     i, done, routed = feed.at(t)
     n = len(feed.rows)
     d.text((32, 30), "Notewell support · ticket triage", fill=rc.FG, font=rc.font(24), anchor="lm")
-    sub = feed.lane_name() + (f" · {registration_line(feed.run)}" if feed.taught else " · 20 queues, no examples")
-    d.text((32, 60), clip(sub, 15, 760), fill=rc.MUTED, font=rc.font(15), anchor="lm")
+    sub = f"Tasks {registration_line(feed.run)}" if feed.taught else "Plain question · 20 queues, no examples"
+    size = fit_size(sub, 15, 760, 12)
+    d.text((32, 60), clip(sub, size, 760), fill=rc.MUTED, font=rc.font(size), anchor="lm")
     d.text((W - 32, 30), accuracy_text(feed, routed), fill=rc.FG, font=rc.font(24), anchor="rm")
     d.text((W - 32, 60), f"ticket {max(i + 1, 0)} of {n}", fill=rc.MUTED, font=rc.font(15), anchor="rm")
     d.line([(0, 82), (W, 82)], fill=rc.RULE)
@@ -328,11 +356,28 @@ def compare_header(summary: dict | None, feeds: list[Feed]) -> Image.Image:
     return img
 
 
-def with_caption(img: Image.Image, text: str, size: int) -> Image.Image:
-    """render_common's caption strip at a given text size (render_common.with_caption picks the size per lane, and
-    two lanes side by side should read alike)."""
+def caption_layout(captions: list[str], width: int) -> tuple[int, list[list[str]]]:
+    """One text size for every lane's caption, so strips side by side read alike: the largest size (18 down to 14) at
+    which every caption fits on one line, else the largest (15 down to 11) at which each fits on two lines. Nothing is
+    cut: the caption's end ("tasks registered") is the part a viewer most needs."""
+    for size in range(18, 13, -1):
+        if all(rc.font(size).getlength(c) <= width for c in captions):
+            return size, [[c] for c in captions]
+    for size in range(15, 10, -1):
+        lines = [wrap_parts(c, size, width) for c in captions]
+        if all(len(x) <= 2 for x in lines):
+            return size, lines
+    return 11, [wrap(c, 11, width, 2) for c in captions]
+
+
+def with_caption(img: Image.Image, lines: list[str], size: int) -> Image.Image:
+    """render_common's caption strip with the text laid out by caption_layout."""
     out = rc.with_caption(img, "")  # the picture, the strip and its rule
-    ImageDraw.Draw(out).text((16, img.height + rc.STRIP_H // 2), text, fill=rc.FG, font=rc.font(size), anchor="lm")
+    d = ImageDraw.Draw(out)
+    step = size + 5
+    y0 = img.height + rc.STRIP_H // 2 - step * (len(lines) - 1) / 2
+    for k, line in enumerate(lines):
+        d.text((16, y0 + k * step), line, fill=rc.FG, font=rc.font(size), anchor="lm")
     return out
 
 
@@ -344,33 +389,36 @@ class Renderer:
         self.compare = len(feeds) > 1
         self.header = compare_header(summary, feeds) if self.compare else None
         self.length = max(f.duration for f in feeds) + LEAD_S + HOLD_S
-        self.captions = [f.caption() for f in feeds]
         width = (LANE_W if self.compare else W) - 32
-        self.caption_size = 18  # one size for every lane, so the two strips match
-        while self.caption_size > 11 and any(rc.font(self.caption_size).getlength(c) > width for c in self.captions):
-            self.caption_size -= 1
+        self.caption_size, self.captions = caption_layout([f.caption() for f in feeds], width)
+        self._lanes: list[tuple | None] = [None] * len(feeds)  # per lane: (state, captioned image) last drawn
         self._key, self._img = None, None
 
     def times(self, fps: int = rc.FPS) -> list[float]:
         return rc.frame_times(0.0, self.length, fps)
 
-    def _state(self, dt: float):
-        key = []
-        for f in self.feeds:
-            t = f.t0 - LEAD_S + dt
-            i, done, routed = f.at(t)
-            key.append((i, done, routed, None if done or i < 0 else int((t - f.sent[i]) * 100)))
-        return tuple(key)
+    @staticmethod
+    def _lane_state(f: Feed, t: float) -> tuple:
+        """What a lane shows at `t`: the ticket, whether its answer is back, the count routed, the ms counter."""
+        i, done, routed = f.at(t)
+        return i, done, routed, None if done or i < 0 else int((t - f.sent[i]) * 1000)
+
+    def _lane(self, k: int, dt: float) -> Image.Image:
+        f = self.feeds[k]
+        t = f.t0 - LEAD_S + dt
+        state = self._lane_state(f, t)
+        cached = self._lanes[k]
+        if cached is None or cached[0] != state:
+            pic = draw_lane(f, t) if self.compare else draw_single(f, t)
+            cached = (state, with_caption(pic, self.captions[k], self.caption_size))
+            self._lanes[k] = cached
+        return cached[1]
 
     def frame(self, dt: float) -> Image.Image:
-        key = self._state(dt)
+        key = tuple(self._lane_state(f, f.t0 - LEAD_S + dt) for f in self.feeds)
         if key == self._key:
             return self._img
-        lanes = []
-        for f, caption in zip(self.feeds, self.captions):
-            t = f.t0 - LEAD_S + dt
-            pic = draw_lane(f, t) if self.compare else draw_single(f, t)
-            lanes.append(with_caption(pic, caption, self.caption_size))
+        lanes = [self._lane(k, dt) for k in range(len(self.feeds))]
         if self.compare:
             body = rc.side_by_side(lanes)
             img = Image.new("RGB", (W, HEADER_H + body.height), rc.BG)

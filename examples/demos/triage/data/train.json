@@ -264,7 +264,7 @@
   },
   {
    "id": "train-0027",
-   "text": "I've been a customer since 2022. I tried to upgrade to Plus but the payment page says 'transaction faled'. Thanks in advance for your help.",
+   "text": "I've been a customer since 2022. I tried to upgrade to Plus but the payment page says 'transaction faled'. Any help would be great.",
    "intent": "payment_failed",
    "secondary": null,
    "tone": "polite",
@@ -273,7 +273,7 @@
   },
   {
    "id": "train-0028",
-   "text": "I want to switch my 2FA from SMS to an authenticator app. Thanks in advance for your help.",
+   "text": "I want to switch my 2FA from SMS to an authenticator app. Any help would be great.",
    "intent": "two_factor",
    "secondary": null,
    "tone": "polite",
@@ -363,7 +363,7 @@
   },
   {
    "id": "train-0038",
-   "text": "I've been a customer since 2024. Please delete my account and all of my data. Thanks in advance for your help.",
+   "text": "I've been a customer since 2024. Please delete my account and all of my data. Any help would be great.",
    "intent": "delete_account",
    "secondary": null,
    "tone": "polite",
@@ -633,7 +633,7 @@
   },
   {
    "id": "train-0068",
-   "text": "How do I close my account for good? I won't be coming back. Thanks in advance for your help.",
+   "text": "How do I close my account for good? I won't be coming back. Any help would be great.",
    "intent": "delete_account",
    "secondary": null,
    "tone": "polite",
@@ -858,7 +858,7 @@
   },
   {
    "id": "train-0093",
-   "text": "Good morning! I'm on version 9.1.0. Someone else is using a seat on my Family plan and I didn't invite thhem. Thanks in advance for your help. Thanks!",
+   "text": "Good morning! I'm on version 9.1.0. Someone else is using a seat on my Family plan and I didn't invite thhem. Any help would be great. Thanks!",
    "intent": "security_concern",
    "secondary": null,
    "tone": "polite",
@@ -1128,7 +1128,7 @@
   },
   {
    "id": "train-0123",
-   "text": "My account emaiil is jt1987@example.org. The 'forgot password' button does nothing when I tap it. Thanks in advance for your help. Thank you.",
+   "text": "My account emaiil is jt1987@example.org. The 'forgot password' button does nothing when I tap it. Any help would be great. Thank you.",
    "intent": "password_reset",
    "secondary": null,
    "tone": "polite",
@@ -1326,7 +1326,7 @@
   },
   {
    "id": "train-0145",
-   "text": "I have about 5,000 notes. I'm a student, where do I get the student discount? Unrelated, but a Linux app would be nice someday. Thanks in advance for your help.",
+   "text": "I have about 5,000 notes. I'm a student, where do I get the student discount? Unrelated, but a Linux app would be nice someday. Any help would be great.",
    "intent": "promo_code",
    "secondary": "feature_request",
    "tone": "polite",
@@ -1389,7 +1389,7 @@
   },
   {
    "id": "train-0152",
-   "text": "I've been a customer since 2019. The Windows app crashes as soon as I open the Work notebook. Separately, how do I turn on two-step verification later? Thanks in advance for your help.",
+   "text": "I've been a customer since 2019. The Windows app crashes as soon as I open the Work notebook. Separately, how do I turn on two-step verification later? Any help would be great.",
    "intent": "crash",
    "secondary": "two_factor",
    "tone": "polite",
@@ -1416,7 +1416,7 @@
   },
   {
    "id": "train-0155",
-   "text": "Good morning! I reset my password but the new one isn't accepted. Thanks in advance for your help. Thanks!",
+   "text": "Good morning! I reset my password but the new one isn't accepted. Any help would be great. Thanks!",
    "intent": "password_reset",
    "secondary": null,
    "tone": "polite",
@@ -1443,7 +1443,7 @@
   },
   {
    "id": "train-0158",
-   "text": "We're on the Family plan. PayPal says the payment went through but Notewell says my renewal failed. Thanks in advance for your help. Thanks, Amara",
+   "text": "We're on the Family plan. PayPal says the payment went through but Notewell says my renewal failed. Any help would be great. Thanks, Amara",
    "intent": "payment_failed",
    "secondary": null,
    "tone": "polite",
@@ -1461,7 +1461,7 @@
   },
   {
    "id": "train-0160",
-   "text": "Good morning! My account email is m.rossi@example.com. I can log in on my phone but not on my MacBook. Thanks in advance for your help.",
+   "text": "Good morning! My account email is m.rossi@example.com. I can log in on my phone but not on my MacBook. Any help would be great.",
    "intent": "login",
    "secondary": null,
    "tone": "polite",
@@ -1749,7 +1749,7 @@
   },
   {
    "id": "train-0192",
-   "text": "Good morning! I got an email that my payment didn't go through and my account will be downgraded. Also, a dark mode for the web app would be lovely. Thanks in advance for your help. Thank you.",
+   "text": "Good morning! I got an email that my payment didn't go through and my account will be downgraded. Also, a dark mode for the web app would be lovely. Any help would be great. Thank you.",
    "intent": "payment_failed",
    "secondary": "feature_request",
    "tone": "polite",
