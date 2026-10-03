@@ -52,6 +52,8 @@ class HiddenReadout:
         return h.astype(np.float64) @ self.label_rows(lab).T
 
     def readout(self, state, questions):
+        from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
+
         with self._lock:
             t0 = time.perf_counter()
             rows, _ = self._prepare_separate(state, questions)
@@ -59,7 +61,10 @@ class HiddenReadout:
             out = []
             for (_, lab), h in zip(rows, H):
                 h = np.asarray(h, dtype=np.float32)
-                out.append((log_softmax(self.label_logits(h, lab)), h))
+                if is_grouped(lab):  # several forms per label: the log-softmax over all of them, summed per label
+                    out.append((label_log_softmax(self.label_logits(h, allowed_ids(lab)), lab), h))
+                else:
+                    out.append((log_softmax(self.label_logits(h, lab)), h))
             self.last_ms = (time.perf_counter() - t0) * 1000
         return out
 
@@ -194,8 +199,9 @@ class HFHiddenEngine(HiddenReadout):
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._lock = threading.Lock()
 
-    # the served row builder, unchanged, with the text engine's defaults for what it reads
+    # the served row builder, unchanged, with the text engine's defaults for what it reads (the server sets fmt)
     pad_policy = LettersEngine.pad_policy
+    fmt = LettersEngine.fmt
     _prepare_separate = LettersEngine._prepare_separate
     _template_tail = LettersEngine._template_tail
     _labels = LettersEngine._labels
@@ -224,13 +230,18 @@ class SingleEngineHidden(HiddenReadout):
     computes them (`label_logits`), so fitting and serving a head are unchanged."""
 
     def __init__(self, engine, model, start=None):
-        from decisio.readout.letters import MAX_LABELS, label_token_ids, letter_labels
+        from decisio.readout.letters import DEFAULT_FORMAT, MAX_LABELS, allowed_ids, label_groups, letter_labels
         from decisio.vllm_plugin.hidden import check_reserved, reserved_chunks
 
         self.engine, self.llm, self.tok, self._lock = engine, engine.llm, engine.tok, engine._lock
         self.mode = "hidden (serving engine, reserved logit columns)"
         self._W = HiddenEngine._load_lm_head(model)
-        labels = label_token_ids(self.tok, [" yes", " no"] + [" " + c for c in letter_labels(self.tok, MAX_LABELS)])
+        # every token any question of this server's prompt format may read (all forms of every label)
+        fmt = getattr(engine, "fmt", DEFAULT_FORMAT)
+        form = fmt.label_form()
+        codes = letter_labels(self.tok, MAX_LABELS) if form == "spaced" else letter_labels(self.tok, MAX_LABELS, form)
+        cands = [" yes", " no"] + [" " + c for c in codes]
+        labels = allowed_ids(label_groups(self.tok, cands, fmt))
         self.reserved = check_reserved(self._W.shape[1], self._W.shape[0], labels, start)
         self.chunks = reserved_chunks(self._W.shape[1], self.reserved[0])
 

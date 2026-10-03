@@ -1,0 +1,51 @@
+{
+ "id": "2026-10-03_qiv-default",
+ "title": "The served default's prompt: --prompt-tail cygnet and --noul-rendering letters-keys, with T 1.506 and choice T 1.370, against the earlier default, on one card in one session",
+ "date": "2026-10-03",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (driver 595.91.07), a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0",
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 at revision 95a723d",
+  "decisio": "7648def (branch calibration-round: the prompt-format flags of c8599df plus the calibration round's flags, all off)",
+  "servers": {
+   "q0": "the earlier served default with --debug-readout",
+   "qiv": "--prompt-tail cygnet --noul-rendering letters-keys --debug-readout"
+  }
+ },
+ "results": {
+  "gates": "summary.md",
+  "temperatures": {
+   "q0": 1.307,
+   "qiv": 1.506,
+   "qiv_choice": 1.37
+  },
+  "intent_heads_six_draws": {
+   "banking77": {
+    "q0": 0.8489,
+    "qiv": 0.84
+   },
+   "clinc150": {
+    "q0": 0.9,
+    "qiv": 0.9117
+   }
+  },
+  "jevbench_i_open_a": {
+   "q0": 42.69,
+   "qiv": 49.39,
+   "difference": "+6.71 [+1.08, +12.68]"
+  }
+ },
+ "deviations": [
+  "both servers were served at T 1.307 with --debug-readout; every other temperature was applied offline to the plain readout (exact), so the JevBench and Decision Index aggregates in jevbench_*/ and di_*/ are at T 1.307 and the served-temperature values are in served_qiv.json",
+  "the intent-head gate was retested with six draws under a pre-registered amendment; draws 0 to 2 are the session's first measurement, reproduced exactly by the retest's BANKING77 draw 0 on each server",
+  "this card is the Max-Q edition; latency is compared within the session only"
+ ],
+ "excluded": [
+  "item text (ids and readouts kept)",
+  "the Decision Index per-item results (request ids, payload sha256 and responses are in the private record)",
+  "JevBench raw requests and responses",
+  "server logs"
+ ]
+}

@@ -2,12 +2,14 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """--noul-rendering: how a yes/no question is asked (`decisio.serve.systemone.noul_as_letters`, `SystemOne`).
 
-N1  words (the default): the engine gets today's yes/no question, unchanged;
+N1  words (SystemOne's default; the server's is letters-keys since 2026-10-03): the engine gets the words-form yes/no
+    question, unchanged;
 N2  letters: a two-option choice, the false side first, each side its criteria description, "No" and "Yes" for a
     side without one; the answer is P(the true option), however the engine orders it;
 N3  letters-keys: as N2 with the sides named, "No: <false>" and "Yes: <true>";
 N4  choice and score questions are asked the same under every setting;
 N5  sides that would read the same, two-order requests and the abstain option keep words;
+N7  the image route keeps words, the prompt its figures were measured with;
 N6  the rendering enters a yes/no question's task key, never a choice question's; registration scores as served.
 
   uv run pytest -q tests/unit/test_noul_rendering.py
@@ -140,3 +142,13 @@ def test_n6_task_key_and_registration():
     letters.register_readout_task("t", [("s", q, True)])
     assert letters.task_store.scored[0][0] == pytest.approx(0.8)  # (yes, no) order, as answers are read
     assert letters.task_store.key == task_key(q, render_text, False, "letters")
+
+
+def test_n7_image_route_keeps_words():
+    text, image = TextEngine(), TextEngine()
+    s1 = SystemOne(text, "m", noul_rendering="letters-keys", image_engine=image)
+    req = SystemOneRequest.model_validate({"state": "s", "questions": {"q": noul(CRIT)}})
+    out = s1.answer(req, route="image")
+    assert not text.asked and image.asked[0]["kind"] == "noul" and out["answers"]["q"]["noul"] == pytest.approx(0.7)
+    s1.answer(req)  # the text route: letters-keys
+    assert text.asked[0]["kind"] == "choice"

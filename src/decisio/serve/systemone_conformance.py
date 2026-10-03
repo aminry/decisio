@@ -237,8 +237,8 @@ def tokenizer_engine(tokenizer, block_size, pad_where="front"):
     eng.tok = AutoTokenizer.from_pretrained(tokenizer)
     eng.mode, eng.pad_token, eng.pad_where = "separate", PAD_TOKEN, pad_where
     eng.adapters = {}
-    eng.block_size = eng.match_unit = block_size
-    eng.pad_unit = block_size
+    eng.block_size = eng.match_unit = block_size or 16
+    eng.pad_unit = block_size or None  # --block-size 0: a family served without padding (Gemma 4)
     eng._lock = threading.Lock()
     return eng
 
@@ -251,14 +251,53 @@ def server_rendering(url):
     return {k: s[k] for k in ("hide_index_keys", "desnake_labels", "describe_options") if k in s}
 
 
-def gate_c3(items, tokenizer, block_size, rendering=None):
+def server_format(url):
+    """(PromptFormat, noul rendering) the server reports in /health; the defaults when it reports none."""
+    import httpx
+
+    from decisio.readout.letters import PromptFormat
+
+    h = httpx.get(f"{url}/health", timeout=60).json()
+    return PromptFormat(**(h.get("prompt_format") or {})), (h.get("systemone") or {}).get("noul_rendering", "words")
+
+
+def answer_counterpart(it, noul="words"):
+    """The `/v1/answer` body that asks exactly what `/v1/systemone` asks for this item, and the index of P(yes) in its
+    answer for a yes/no item (None for choice and score). Under --noul-rendering letters or letters-keys a yes/no
+    question is a two-option choice, false first (systemone.noul_as_letters), so its counterpart is that choice and
+    P(yes) is its second probability; otherwise the item's own `answer` body, P(yes) first."""
+    from decisio.serve.systemone import noul_as_letters
+
+    body = it["answer"]
+    q = next(iter(SystemOneRequest.model_validate(it["systemone"]).questions.values()))
+    if q.type != "noul":
+        return body, None
+    if noul != "words":
+        got = noul_as_letters(q, keys_shown=noul == "letters-keys")
+        if got is not None:
+            eq = got[0]
+            return {**body, "questions": [{k: eq[k] for k in ("kind", "instructions", "options")}]}, 1
+    return body, 0
+
+
+def gate_c3(items, tokenizer, block_size, rendering=None, fmt=None, noul="words"):
+    from decisio.serve.systemone import noul_as_letters
+
     eng = tokenizer_engine(tokenizer, block_size)
+    if fmt is not None:
+        eng.fmt = fmt
     rendering = rendering or {}
     bad = []
     for it in items:
-        a_rows, a_p = eng._prepare_separate(it["answer"]["state"], it["answer"]["questions"])
+        body, _ = answer_counterpart(it, noul)
+        a_rows, a_p = eng._prepare_separate(body["state"], body["questions"])
         req = SystemOneRequest.model_validate(it["systemone"])
-        s_q = [to_engine_question(q, **rendering)[0] for q in req.questions.values()]
+        s_q = [
+            (noul_as_letters(q, keys_shown=noul == "letters-keys") if q.type == "noul" and noul != "words" else None)
+            or to_engine_question(q, **rendering)
+            for q in req.questions.values()
+        ]
+        s_q = [x[0] for x in s_q]
         s_rows, s_p = eng._prepare_separate(req.state, s_q)
         if a_rows != s_rows or a_p != s_p:
             bad.append(f"{it['task']}:{it['i']}")
@@ -273,14 +312,16 @@ def gate_c4(url, items):
         # /v1/systemone serves its plain readout under the global temperature (decisio.serve.temperature); /v1/answer is
         # the raw readout, so the same function is applied to it before comparing
         T = float((c.get(f"{url}/health").json().get("systemone") or {}).get("temperature", 1.0))
+        noul = (c.get(f"{url}/health").json().get("systemone") or {}).get("noul_rendering", "words")
         for it in items:
-            c.post(f"{url}/v1/answer", json=it["answer"]).raise_for_status()  # caches the state
-            a = c.post(f"{url}/v1/answer", json=it["answer"]).json()["answers"][0]
+            body, yes_at = answer_counterpart(it, noul)
+            c.post(f"{url}/v1/answer", json=body).raise_for_status()  # caches the state
+            a = c.post(f"{url}/v1/answer", json=body).json()["answers"][0]
             s = c.post(f"{url}/v1/systemone", json=it["systemone"]).json()["answers"]["q"]
             # compare what each route transmits: P(yes) for yes/no (the wire carries no P(no)), every probability for
             # choice
             if s["type"] == "noul":
-                pa, ps = apply_temperature(a["probs"], T)[:1], np.array([s["noul"]])
+                pa, ps = apply_temperature(a["probs"], T)[yes_at : yes_at + 1], np.array([s["noul"]])
             else:
                 pa, ps = apply_temperature(a["probs"], T), np.array([s["probabilities"][o] for o in a["options"]])
             d = float(np.abs(pa - ps).max())
@@ -312,7 +353,7 @@ def main():
     ap.add_argument("--url", required=True)
     ap.add_argument("--items", required=True)
     ap.add_argument("--tokenizer", required=True)
-    ap.add_argument("--block-size", type=int, required=True)
+    ap.add_argument("--block-size", type=int, required=True, help="the server's padding unit; 0 for no padding")
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -320,7 +361,7 @@ def main():
     res, ok = {"url": a.url, "items": len(items)}, True
     for name, fn in (
         ("C2", lambda: gate_c2(a.url)),
-        ("C3", lambda: gate_c3(items, a.tokenizer, a.block_size, server_rendering(a.url))),
+        ("C3", lambda: gate_c3(items, a.tokenizer, a.block_size, server_rendering(a.url), *server_format(a.url))),
         ("C4", lambda: gate_c4(a.url, items)),
     ):
         g_ok, detail = fn()
