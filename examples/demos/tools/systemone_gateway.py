@@ -5,7 +5,9 @@
 The three demos post `/v1/systemone` requests to a base URL. This gateway listens on 127.0.0.1 and answers them from:
   systemone  another System One API with a bearer key (for example a hosted decision API): the request is forwarded
              as it is, with `--model` set
-  anthropic  Claude through the Anthropic SDK; openai through the OpenAI SDK; gemini through the Google GenAI SDK.
+  anthropic  Claude through the Anthropic SDK; openai through the OpenAI SDK; gemini through the Google GenAI SDK;
+  openrouter any of them through OpenRouter's OpenAI-compatible API (the OpenAI SDK), with the provider pinned by
+             `--provider` (fallbacks off, the structured-output parameter required) and the serving provider recorded.
              The request is rendered once for a chat model: the same state and the same questions (instructions and
              every option as `key: description`), with the answer constrained by a JSON schema whose properties are
              the questions, each an enum of its option keys, at temperature 0. A chat answer has no distribution, so
@@ -89,6 +91,10 @@ class Backend:
 
             # base_url: another OpenAI-compatible server (used to check this path against a local model)
             self.client = openai.OpenAI(api_key=key or "none", base_url=base_url, max_retries=4)
+        elif kind == "openrouter":
+            import openai
+
+            self.client = openai.OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1", max_retries=4)
         elif kind == "gemini":
             from google import genai
 
@@ -102,6 +108,8 @@ class Backend:
             text, schema, keys = render_chat(body)
             choices, usage = getattr(self, "_" + self.kind)(text, schema)
             out = {"model": self.model, "answers": one_hot_answers(choices, keys), "usage": usage}
+            if self.kind == "openrouter":
+                out["via"] = "OpenRouter"
         return out, (time.perf_counter() - t) * 1000
 
     def _systemone(self, body: dict) -> dict:
@@ -148,6 +156,33 @@ class Backend:
         )
         out = json.loads(r.choices[0].message.content)
         return out, {"input_tokens": r.usage.prompt_tokens, "output_tokens": r.usage.completion_tokens}
+
+    def _openrouter(self, text: str, schema: dict) -> tuple[dict, dict]:
+        provider = {"order": [self.extra["provider"]], "allow_fallbacks": False, "require_parameters": True}
+        body = {"provider": provider, "usage": {"include": True}}
+        if "reasoning" in self.extra:
+            body["reasoning"] = self.extra["reasoning"]
+        kw = {k: v for k, v in self.extra.items() if k in ("temperature", "max_tokens", "seed")}
+        r = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": text}],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": "decision", "schema": schema, "strict": True},
+            },
+            extra_body=body,
+            **kw,
+        )
+        extra = r.model_extra or {}
+        u = r.usage
+        usage = {
+            "input_tokens": u.prompt_tokens,
+            "output_tokens": u.completion_tokens,
+            "cost_usd": (u.model_extra or {}).get("cost"),
+            "provider": extra.get("provider"),
+            "generation_id": r.id,
+        }
+        return json.loads(r.choices[0].message.content), usage
 
     def _gemini(self, text: str, schema: dict) -> tuple[dict, dict]:
         cfg = {
@@ -241,7 +276,7 @@ def make_handler(backend: Backend, ledger: Ledger, log: Path | None):
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--backend", required=True, choices=["systemone", "anthropic", "openai", "gemini"])
+    ap.add_argument("--backend", required=True, choices=["systemone", "anthropic", "openai", "gemini", "openrouter"])
     ap.add_argument("--model", required=True)
     ap.add_argument("--key-file", default=None, help="a file holding the API key (read once, never written)")
     ap.add_argument(
