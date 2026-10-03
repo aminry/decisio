@@ -1,0 +1,114 @@
+"""Paths and settings. Process environment wins over the project's `.env` file.
+
+Environment variables (upstream's TypeSafe names are replaced by a System One server's address; no key):
+  SYSTEMONE_BASE_URL      root of the System One server (default http://127.0.0.1:8100)
+  SYSTEMONE_MODEL         model name sent with each request, when the server needs one (default: none)
+  JEV_FSD_BBOX            map bounding box "W,S,E,N" in degrees (default: Kitsilano, Vancouver)
+  JEV_FSD_BUDGET_USD      unused for a local server (default 0: no budget)
+  JEV_FSD_RPM             local cap on calls per minute (default 0: none)
+  JEV_FSD_NPCS            number of traffic cars (default 40)
+  PORT                    listen port (default 8322)
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+from typing import Mapping, Optional, Tuple
+
+from . import envfile
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+MAPS_DIR = DATA_DIR / "maps"
+SNAPSHOTS_DIR = DATA_DIR / "snapshots"
+RUNS_DIR = DATA_DIR / "runs"
+ENV_PATH = PROJECT_ROOT / ".env"
+
+BASE_URL_ENV = "SYSTEMONE_BASE_URL"
+MODEL_ENV = "SYSTEMONE_MODEL"
+
+DEFAULT_BASE_URL = "http://127.0.0.1:8100"
+DEFAULT_MODEL = ""
+
+# Kitsilano, Vancouver BC: W 4th Ave / Broadway between Macdonald and Arbutus. Flat, mostly two-way
+# residential grid with signalled arterials. Order is W,S,E,N (what the OSM map API expects).
+DEFAULT_BBOX: Tuple[float, float, float, float] = (-123.1700, 49.2600, -123.1500, 49.2700)
+
+PRESET_BBOXES = {
+    "kitsilano": DEFAULT_BBOX,
+    "mount_pleasant": (-123.1120, 49.2570, -123.0940, 49.2680),
+    "victoria": (-123.3740, 48.4190, -123.3570, 48.4320),
+    "toronto": (-79.4120, 43.6600, -79.3940, 43.6710),
+    "montreal": (-73.5900, 45.5160, -73.5740, 45.5280),
+    "calgary": (-114.0870, 51.0340, -114.0630, 51.0450),
+    "ottawa": (-75.7080, 45.4070, -75.6870, 45.4210),
+    "quebec_city": (-71.2350, 46.8050, -71.2180, 46.8150),
+}
+
+
+class Settings:
+    def __init__(self, environ: Optional[Mapping[str, str]] = None, env_file: Path = ENV_PATH):
+        self.environ = dict(os.environ if environ is None else environ)
+        self.env_file = env_file
+        self.file_values = envfile.read(env_file)
+
+    def reload_file(self) -> None:
+        self.file_values = envfile.read(self.env_file)
+
+    def get(self, name: str, default: Optional[str] = None) -> Optional[str]:
+        value = self.environ.get(name) or self.file_values.get(name)
+        return value if value else default
+
+    @property
+    def base_url(self) -> str:
+        return (self.get(BASE_URL_ENV, DEFAULT_BASE_URL) or DEFAULT_BASE_URL).rstrip("/")
+
+    @property
+    def model(self) -> str:
+        return self.get(MODEL_ENV, DEFAULT_MODEL) or DEFAULT_MODEL
+
+    @property
+    def bbox(self) -> Tuple[float, float, float, float]:
+        return parse_bbox(self.get("JEV_FSD_BBOX")) or DEFAULT_BBOX
+
+    @property
+    def budget_usd(self) -> float:
+        return _float(self.get("JEV_FSD_BUDGET_USD"), 0.0)
+
+    @property
+    def rpm(self) -> int:
+        return int(_float(self.get("JEV_FSD_RPM"), 0))
+
+    @property
+    def npcs(self) -> int:
+        return int(_float(self.get("JEV_FSD_NPCS"), 40))
+
+    @property
+    def port(self) -> int:
+        return int(_float(self.get("PORT"), 8322))
+
+
+def parse_bbox(value: Optional[str]) -> Optional[Tuple[float, float, float, float]]:
+    """'W,S,E,N' or a preset name -> tuple, or None when missing/invalid."""
+    if not value:
+        return None
+    if value.strip().lower() in PRESET_BBOXES:
+        return PRESET_BBOXES[value.strip().lower()]
+    try:
+        parts = [float(p) for p in value.split(",")]
+    except ValueError:
+        return None
+    if len(parts) != 4:
+        return None
+    w, s, e, n = parts
+    if not (-180 <= w < e <= 180 and -90 <= s < n <= 90):
+        return None
+    return (w, s, e, n)
+
+
+def _float(value: Optional[str], default: float) -> float:
+    try:
+        return float(value) if value not in (None, "") else default
+    except ValueError:
+        return default

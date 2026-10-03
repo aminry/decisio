@@ -1,0 +1,478 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Pong lanes — design tokens.
+
+   DESIGNER: this block is design/tokens.css, verbatim. Light is the default;
+   dark applies under prefers-color-scheme. Nothing in a component may name a
+   colour — every one of them comes from here, through the Tailwind theme
+   mapping below (bg-surface, text-fg-muted, border-hair, …) or through
+   `readCourtTheme()` for the canvas courts.
+--------------------------------------------------------------------------- */
+
+:root {
+  --bg: #F5F6F8;          /* page ground */
+  --surface: #FFFFFF;     /* cards, court, inputs */
+  --hair: #E3E5EA;        /* hairlines, card borders */
+  --fg: #111318;          /* text, primary button fill */
+  --fg-muted: #5B606B;    /* captions, tags, units */
+  --fg-inflight: #7C828C; /* counting-up latency only */
+  --court: #FFFFFF;       /* court fill, 1px --hair stroke */
+  --court-line: #D5D8DE;  /* centre line, dashed 3/7 */
+  --paddle: #14161C;      /* both paddles, every lane */
+  --ball: #5B606B;        /* non-accent ball and trail */
+  --accent: #FF5416;         /* first-lane ball, trail, bar, number >= 24px */
+  --accent-ink: #CC3D0A;     /* orange text under 24px */
+  --bar-muted: #D5D8DE;   /* non-accent bars on the end card */
+  --btn-fg: #FFFFFF;      /* text on the primary button (fill is --fg) */
+  --btn-border: #C9CDD4;  /* secondary button, input border */
+  /* 04 — the number flashes to the page's own extreme for 120ms on landing. */
+  --flash: #000000;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0A0B0F;
+    --surface: #12141A;
+    --hair: #1B1D24;
+    --fg: #F2F3F5;
+    --fg-muted: #8B909B;
+    --fg-inflight: #6B7080;
+    --court: #12141A;
+    --court-line: #2D3038;
+    --paddle: #E7E9EE;
+    --ball: #C8CCD4;
+    --accent: #FF5416;
+    --accent-ink: #FF5416;
+    --bar-muted: #2A2D36;
+    --btn-fg: #0A0B0F;
+    --btn-border: #33363E;
+    --flash: #FFFFFF;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-hair: var(--hair);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-inflight: var(--fg-inflight);
+  --color-court: var(--court);
+  --color-court-line: var(--court-line);
+  --color-paddle: var(--paddle);
+  --color-ball: var(--ball);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-bar-muted: var(--bar-muted);
+  --color-btn-fg: var(--btn-fg);
+  --color-btn-border: var(--btn-border);
+
+  --font-sans: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+
+  /* Radii: court 6 (8 on play), card 10, button/input 8, bar 4, badge 4. */
+  --radius-court: 6px;
+  --radius-card: 10px;
+  --radius-control: 8px;
+  --radius-bar: 4px;
+  --radius-badge: 4px;
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    /* g: no horizontal scroll at 390. */
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: var(--accent);
+    color: #fff;
+  }
+}
+
+@layer utilities {
+  /*
+     The home court is one component that has to be the desktop court in the
+     desktop grid and the phone court in the phone stack. A container query
+     (not a media query) switches it, so the shape always agrees with the
+     width the canvas actually measures.
+  */
+  .court-container {
+    container-type: inline-size;
+    width: 100%;
+  }
+
+  .court-home {
+    aspect-ratio: 358 / 64;
+  }
+
+  @container (min-width: 520px) {
+    .court-home {
+      aspect-ratio: 704 / 80;
+    }
+  }
+
+  /*
+     One lane row. On a phone the name and the number share a row above a
+     full-width court; on the desktop grid they are the outer columns of
+     176 | 1fr | 200, exactly as the artboards draw them.
+  */
+  .lane-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "name number"
+      "court court";
+    align-items: end;
+    column-gap: 12px;
+    row-gap: 8px;
+  }
+
+  .lane-row > .lane-name {
+    grid-area: name;
+  }
+
+  .lane-row > .lane-court {
+    grid-area: court;
+  }
+
+  .lane-row > .lane-number {
+    grid-area: number;
+    justify-self: end;
+  }
+
+  @media (min-width: 1024px) {
+    .lane-row {
+      grid-template-columns: 176px minmax(0, 1fr) 200px;
+      grid-template-areas: "name court number";
+      align-items: center;
+      column-gap: 20px;
+    }
+  }
+
+  /*
+     The results strip under the lanes. Same shape as a lane row, on purpose:
+     the name on the left, the numbers right-aligned in the columns the courts
+     line up with. On a phone the name takes its own line and the four figures
+     sit under it, each carrying its own label, so nothing has to scroll
+     sideways (must-not-get-wrong g).
+  */
+  .results-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas:
+      "name name name name"
+      "c1 c2 c3 c4";
+    column-gap: 10px;
+    row-gap: 10px;
+    align-items: end;
+  }
+
+  .results-row > .results-name {
+    grid-area: name;
+  }
+
+  @media (min-width: 1024px) {
+    .results-row {
+      grid-template-columns: 176px repeat(4, minmax(0, 1fr));
+      grid-template-areas: "name c1 c2 c3 c4";
+      column-gap: 20px;
+      align-items: center;
+    }
+  }
+
+  /* Every mono number is tabular, everywhere (must-not-get-wrong e). */
+  .mono {
+    font-family: var(--font-geist-mono), ui-monospace, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  /* Provider tags: 12/0.04em caps, never brighter than --fg-muted. */
+  .tag {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--fg-muted);
+  }
+
+  /* 06 — the live dot breathes. */
+  .breathe {
+    animation: breathe 2000ms ease-in-out infinite;
+  }
+
+  /* 05 — badges fade, never slide, never push layout. */
+  .fade-150 {
+    transition: opacity 150ms linear;
+  }
+
+  /* 05 — the decisions · returns line dips when it changes. */
+  .dip {
+    animation: dip 120ms linear;
+  }
+
+  /* 06 — a new feed line fades in, is bold for 3s, then goes muted. */
+  .feed-in {
+    animation: feed-in 200ms linear;
+  }
+
+  /* 05 — the court overlay fades in; it never slides and never pushes layout. */
+  .overlay-in {
+    animation: overlay-in 150ms linear;
+  }
+
+  /* 04 — the latency number flares as a decision lands. */
+  .flare {
+    animation: flare 180ms cubic-bezier(0.33, 0, 0.67, 1);
+  }
+
+  /*
+     The tick beside "thinking". It is a heartbeat, not a spinner: the
+     ball has genuinely stopped while the model answers, and a spinner would
+     suggest the page is loading rather than the model is deciding. Never
+     orange — orange is the first lane's ball, trail, number and bar.
+  */
+  .thinking-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 9999px;
+    background: var(--fg-muted);
+    animation: thinking 900ms ease-in-out infinite;
+  }
+
+  /* A point: the one moment on /play that is allowed to move. */
+  .overlay-pop {
+    animation: overlay-pop 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /*
+     The channel line is a <details>, so the open and closed states cost no
+     JavaScript and survive with it off. The default triangle is replaced by
+     the chevron the rest of the page would draw.
+  */
+  .channel-line > summary {
+    list-style: none;
+  }
+
+  .channel-line > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .channel-chevron {
+    transition: transform 150ms linear;
+  }
+
+  .channel-line[open] .channel-chevron {
+    transform: rotate(180deg);
+  }
+
+  /*
+     Which control hint is true depends on the pointer, not on the width: a
+     laptop at 700px still has keys, a tablet at 1100px still has none. A media
+     query answers it before hydration, so neither one flashes.
+  */
+  .pointer-coarse-only {
+    display: none;
+  }
+
+  @media (pointer: coarse) {
+    .pointer-coarse-only {
+      display: flex;
+    }
+
+    .pointer-fine-only {
+      display: none;
+    }
+  }
+
+  /*
+     A keycap. 56px square clears the 44px hit target with room to spare, and
+     the cap stands on a 2px bottom edge that it loses while it is down — the
+     one piece of arcade in a page that is otherwise a measuring instrument.
+  */
+  .keycap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    box-sizing: border-box;
+    border: 1px solid var(--btn-border);
+    border-bottom-width: 3px;
+    border-radius: var(--radius-control);
+    background: var(--surface);
+    color: var(--fg-muted);
+    transition:
+      background-color 90ms linear,
+      border-color 90ms linear,
+      color 90ms linear,
+      transform 90ms linear;
+  }
+
+  @media (min-width: 1024px) {
+    .keycap {
+      width: 68px;
+      height: 68px;
+      border-bottom-width: 4px;
+    }
+  }
+
+  .keycap-lit {
+    background: var(--fg);
+    color: var(--btn-fg);
+    border-color: var(--fg);
+    border-bottom-width: 1px;
+    transform: translateY(3px);
+  }
+
+  /*
+     The play surface: the court in the middle, big, with the controls on one
+     side and the model on the other. The court component caps itself at the
+     size design/SPEC.md draws it (704px); the play page is the one surface
+     that wants it larger, so it says so here rather than in the component.
+  */
+  .court-arcade {
+    max-width: 880px !important;
+  }
+
+  .play-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    row-gap: 18px;
+  }
+
+  @media (min-width: 1024px) {
+    .play-stage {
+      grid-template-columns: 112px minmax(0, 1fr) 216px;
+      column-gap: 24px;
+      align-items: center;
+    }
+  }
+
+  /*
+     Watching is the same cabinet with nobody's hands on it: the score over a
+     wide court, the model and its number to the right. It used to be a 440px
+     phone column at every width, which on a laptop read as a broken page.
+  */
+  .watch-stage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    row-gap: 16px;
+  }
+
+  @media (min-width: 640px) {
+    .watch-stage {
+      grid-template-columns: minmax(0, 1fr) 200px;
+      column-gap: 24px;
+      align-items: center;
+    }
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes dip {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+@keyframes feed-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The court overlay — get ready, point, game over — arrives, never slides. */
+@keyframes overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes flare {
+  0% {
+    transform: scale(1);
+  }
+  33% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes thinking {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes overlay-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 08 — no trail, no pulse, no breathing. The numbers still count. */
+@media (prefers-reduced-motion: reduce) {
+  .breathe,
+  .dip,
+  .feed-in,
+  .flare,
+  .overlay-in,
+  .overlay-pop,
+  .thinking-dot {
+    animation: none !important;
+  }
+  .fade-150,
+  .channel-chevron,
+  .keycap {
+    transition: none !important;
+  }
+}
