@@ -1,0 +1,27 @@
+{
+ "cells": {
+  "10q": {
+   "requests": 30,
+   "questions": 10,
+   "hit_answers_equal_miss": "30 of 30",
+   "miss_ms_p50": 939.15,
+   "miss_ms_p95": 992.25,
+   "hit_ms_p50": 734.25,
+   "hit_ms_p95": 814.56,
+   "miss_per_q_p50": 93.91499999999999,
+   "hit_per_q_p50": 73.425
+  }
+ },
+ "E3_exact": true,
+ "prefix_cache": {
+  "max_mb": 2048.0,
+  "entries": 30,
+  "mb": 1997.2,
+  "hits": 31,
+  "misses": 31
+ },
+ "max_foreign_cpu": 78.4,
+ "max_foreign_process": "ations/Xcode.app/Contents/Developer/usr/libexec/git-core/git",
+ "idle": false,
+ "started": "2026-10-03 00:49:33"
+}

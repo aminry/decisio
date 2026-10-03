@@ -129,7 +129,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Q
 The 6-bit conversion is the Mac default and the 4-bit one the option for 32 GB machines (docs/design/mlx-backend.md).
 It does not pad a state (`--pad-policy none`, the MLX default; its cache needs no padding), so its prompts are the served ones without the padding, and a question asked alone and inside a request is one prompt.
 At 6 bits it passes the served default's gates against the FP8 records (suite accuracy -0.1 [-1.4, +1.1] points, the intent heads reproduced, 30.7 GB at 32k tokens).
-A single question takes about 0.23 s on an M5 Pro, and about 0.1 s per question when 100 share a state (docs/design/mlx-backend.md, `runs/2026-10-02_mlx-backend`).
+A single question takes about 0.23 s on an M5 Pro, about 0.09 s when its state was seen before (a cross-request prefix cache, exact by construction), and about 0.1 s per question when 100 share a state (docs/design/mlx-backend.md, `runs/2026-10-02_mlx-backend`).
 
 A laptop version of the same model, packaged for [Ollama](https://ollama.com/aminroudaki/decisio)'s decision route, exists as `ollama pull aminroudaki/decisio`.
 Ollama builds its own prompt and applies no calibration, so its numbers are the ones on that page, not the ones here.

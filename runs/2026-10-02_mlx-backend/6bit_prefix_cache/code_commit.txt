@@ -1,0 +1,2 @@
+5b7c66d feat(serve): a cross-request prefix cache for the MLX engine (--prefix-cache-mb)
+52a3c1b feat(serve)!: no padding (--pad-policy none) is the MLX backend's default

@@ -1,0 +1,4 @@
+1 {"requests": 30, "questions": 1, "hit_answers_equal_miss": "30 of 30", "miss_ms_p50": 264.25, "miss_ms_p95": 402.4849999999999, "hit_ms_p50": 85.05, "hit_ms_p95": 92.53999999999999, "miss_per_q_p50": 264.25, "hit_per_q_p50": 85.05}
+10 {"requests": 30, "questions": 10, "hit_answers_equal_miss": "30 of 30", "miss_ms_p50": 837.5, "miss_ms_p95": 879.8449999999998, "hit_ms_p50": 837.5, "hit_ms_p95": 852.93, "miss_per_q_p50": 83.75, "hit_per_q_p50": 83.75}
+100 {"requests": 30, "questions": 100, "hit_answers_equal_miss": "30 of 30", "miss_ms_p50": 10263.85, "miss_ms_p95": 10452.34, "hit_ms_p50": 10278.85, "hit_ms_p95": 10657.64, "miss_per_q_p50": 102.63850000000001, "hit_per_q_p50": 102.7885}
+PREFIX_CACHE_LATENCY {"E3_exact": true, "idle": false, "max_foreign_cpu": 98.2}
