@@ -59,6 +59,7 @@ def main() -> None:
         caption += " | inspector slow motion"
 
     env = dict(os.environ, BH_TELEMETRY="0", BH_UPDATE_CHECK="0", BU_CDP_URL=f"http://127.0.0.1:{a.cdp_port}")
+    env.setdefault("BU_NAME", f"record-{a.cdp_port}")  # one browser-harness daemon per run
     env.update(DEMO_PORT=str(a.demo_port), PYTHONPATH=str(ROOT))
     chrome, profile = launch_chrome(a.cdp_port, headed=False)
     demo = subprocess.Popen(

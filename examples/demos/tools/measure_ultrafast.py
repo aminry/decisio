@@ -198,6 +198,8 @@ def main():
     os.environ.setdefault("BH_TELEMETRY", "0")
     os.environ.setdefault("BH_UPDATE_CHECK", "0")
     os.environ["BU_CDP_URL"] = f"http://127.0.0.1:{a.cdp_port}"
+    # browser-harness runs one daemon per BU_NAME ("default" otherwise): runs side by side must not share one
+    os.environ.setdefault("BU_NAME", f"measure-{a.cdp_port}")
     base_url = os.environ.get("SYSTEMONE_BASE_URL", "http://127.0.0.1:8100")
     slug = "".join(c if c.isalnum() else "-" for c in a.label.lower()).strip("-")
     out = Path(a.out) if a.out else REPO / "runs" / f"{time.strftime('%Y-%m-%d')}_demos-ultrafast-{slug}"
