@@ -270,9 +270,50 @@ def test_d11_openrouter_calls_pin_the_provider_deny_data_collection_and_refuse_a
     assert d["route"] == "OpenRouter" and d["served"] == [
         {"provider": "Anthropic", "served_model": "anthropic/claude-haiku-4.5", "calls": 1}
     ]
+    assert sent["max_tokens"] == g.OPENROUTER_MAX_TOKENS  # without a cap OpenRouter reserves 65,536 tokens a call
     served = "Amazon Bedrock"
     with pytest.raises(g.UpstreamError, match="not the pinned provider"):
         b.call(body)
+
+
+def test_d13_an_sdk_error_upstream_is_answered_and_logged_not_dropped(tmp_path):
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    import systemone_gateway as g
+
+    class Status402(Exception):
+        status_code = 402
+
+    def create(**kw):
+        raise Status402("This request requires more credits")
+
+    b = g.Backend("systemone", "m", None, "http://127.0.0.1:1", {})
+    b.kind = "openai"  # the OpenAI-compatible path, with the SDK client replaced (no SDK needed here)
+    b.client = types_ns(chat=types_ns(completions=types_ns(create=create)))
+    server = ThreadingHTTPServer(("127.0.0.1", 0), g.make_handler(b, g.Ledger(None, "x", None), tmp_path / "log.jsonl"))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    body = b'{"state":"s","questions":{"move":{"type":"choice","criteria":{"up":null,"down":null}}}}'
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{server.server_address[1]}/v1/systemone",
+        data=body,
+        headers={"Content-Type": "application/json"},
+    )
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(req)
+    server.shutdown()
+    assert e.value.code == 502
+    row = json.loads((tmp_path / "log.jsonl").read_text())
+    assert row["status"] == 502 and row["response"]["upstream_status"] == 402
+    assert "more credits" in row["response"]["error"]
+
+
+def types_ns(**kw):
+    import types
+
+    return types.SimpleNamespace(**kw)
 
 
 def test_d12_gateway_health_carries_the_structured_fields(tmp_path):
