@@ -11,6 +11,7 @@ import { stepWorld } from "../sim/step.js";
 import { Autopilot } from "../brain/brain.js";
 import { Route } from "../map/route.js";
 import { DriveMetrics } from "./metrics.js";
+import { TrajectoryRecorder } from "./trajectory.js";
 
 const DT = 1 / 60;
 
@@ -40,9 +41,11 @@ export function setupScenario(map, sc, { brain = "rules", npcs = 40, weather = "
   return { world, fleet, autopilot, events };
 }
 
-export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null, collectExamples = false } = {}) {
+// `trajectory`: when set ({ suite_seed, scenario }), the result also carries the drive's trajectory (bench/trajectory.js;
+// added for this repository).
+export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null, collectExamples = false, trajectory = null } = {}) {
   const metrics = new DriveMetrics(new Route(sc.route, map).length);
-  let worldRef = null;
+  let worldRef = null, recorder = null;
   const examples = [];
   const onDecision = (d) => {
     // the motion question exactly as it would be asked, labelled with the deciding brain's motion (rules: the oracle)
@@ -55,10 +58,13 @@ export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = 
         error: d.meta.error || null, motion: d.motion, chosen: d.chosenId, motion_answer: asked("motion"), vector_answer: asked("vector"),
         oracle: d.meta.oracle, latency_ms: d.meta.latency_ms ?? null, server_ms: d.meta.server_ms ?? null, flags: d.flags });
     }
+    if (recorder) recorder.decision(d);
   };
-  const ctx = setupScenario(map, sc, { brain, npcs, weather, style, vehicleSpec, onDecision });
+  const onEvent = (e) => { if (recorder) recorder.event(e); };
+  const ctx = setupScenario(map, sc, { brain, npcs, weather, style, vehicleSpec, onDecision, onEvent });
   worldRef = ctx.world;
   if (timeoutMs) ctx.autopilot.timeoutMs = timeoutMs;
+  if (trajectory) recorder = new TrajectoryRecorder(map, sc, ctx, { ...trajectory, brain, mode, weather, npcs });
   const { world, autopilot, events } = ctx;
   const limit = Math.max(120, sc.tags.length_m / 2.5);
   const wallStart = performance.now();
@@ -68,6 +74,7 @@ export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = 
     for (const e of world.events) if (e.type === "collision") events.push(e);
     metrics.record(world, autopilot.snap, road, DT);
     steps++;
+    if (recorder) recorder.step(steps, road);
     if (!autopilot.enabled) { arrived = events.some((e) => e.type === "arrived"); break; }
     if (mode === "lockstep") {
       if (autopilot.inFlight && autopilot.firing) await autopilot.firing;
@@ -81,5 +88,7 @@ export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = 
     }
   }
   const result = metrics.summary(world, autopilot, arrived);
-  return { id: sc.id, tags: sc.tags, ...result, events: events.slice(0, 50), wall_ms: Math.round(performance.now() - wallStart), ...(collectExamples ? { examples } : {}) };
+  const wallMs = Math.round(performance.now() - wallStart);
+  return { id: sc.id, tags: sc.tags, ...result, events: events.slice(0, 50), wall_ms: wallMs, ...(collectExamples ? { examples } : {}),
+    ...(recorder ? { trajectory: recorder.finish(result, steps) } : {}) };
 }
