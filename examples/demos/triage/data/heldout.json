@@ -1,0 +1,3632 @@
+{
+ "split": "heldout",
+ "seed": 20261003,
+ "generator": "examples/demos/triage/make_tickets.py",
+ "synthetic": "templated tickets written for this demo; no real customer wrote them",
+ "phrasings": "eval",
+ "n": 400,
+ "per_intent": {
+  "billing": 20,
+  "payment_failed": 20,
+  "integration": 20,
+  "feature_request": 20,
+  "sync": 20,
+  "crash": 20,
+  "plan_change": 20,
+  "security_concern": 20,
+  "promo_code": 20,
+  "delete_account": 20,
+  "data_export": 20,
+  "performance": 20,
+  "sharing": 20,
+  "bug": 20,
+  "cancel_subscription": 20,
+  "account_locked": 20,
+  "password_reset": 20,
+  "refund": 20,
+  "two_factor": 20,
+  "login": 20
+ },
+ "tickets": [
+  {
+   "id": "heldout-0001",
+   "text": "Hello Notewell team! Could you explain the line items on my laest invoice? One says 'proration adjustment'. Thanks in advance for your hep.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "billing/eval02"
+  },
+  {
+   "id": "heldout-0002",
+   "text": "We're on the Family plan. My bank says they never saw the chrage, but the app says my payment failed. - Chen",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "payment_failed/eval06"
+  },
+  {
+   "id": "heldout-0003",
+   "text": "i'm on the Family plan. Reminders from Notewell aren't showing up in my Outlook calendar anymore.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/eval03"
+  },
+  {
+   "id": "heldout-0004",
+   "text": "My accountant needs every receipt frmo last yer, can you send them all in one go? Thanks, Chen",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "billing/eval07"
+  },
+  {
+   "id": "heldout-0005",
+   "text": "Hello Notewell team! Our webhook gets a 401 error from your API since this week.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval02"
+  },
+  {
+   "id": "heldout-0006",
+   "text": "a word count goal for each note would really help my writing.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "feature_request/eval05"
+  },
+  {
+   "id": "heldout-0007",
+   "text": "every time it syncs, a few notes get duplicated. Also, do you still have a student discount?",
+   "intent": "sync",
+   "secondary": "promo_code",
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval06"
+  },
+  {
+   "id": "heldout-0008",
+   "text": "My account email is priya.n@example.net. The iPad app goes to a white screen and then closes when I open a PDF. Separately, how do I turn on two-step verification latre? Regards, Priya",
+   "intent": "crash",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "crash/eval02"
+  },
+  {
+   "id": "heldout-0009",
+   "text": "Hi there! We don't need Family anymore, it's just me now. Can I switcch to Plus? Thank you.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "plan_change/eval01"
+  },
+  {
+   "id": "heldout-0010",
+   "text": "someone changed my password and recovery phone, I believe my account was taken over.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "security_concern/eval05"
+  },
+  {
+   "id": "heldout-0011",
+   "text": "Hey! I'm on the Famiy plan. The NOTES30 code worked last year, why not now? Thanks in advannce for your help. Regards, Chen",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "promo_code/eval08"
+  },
+  {
+   "id": "heldout-0012",
+   "text": "Hi team! Please wipe my account and everything in it, Im done with this app. Thanks!",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/eval01"
+  },
+  {
+   "id": "heldout-0013",
+   "text": "I want to download every attachment I've ever uploaded. This is rally frustrating. Thank you.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "data_export/eval03"
+  },
+  {
+   "id": "heldout-0014",
+   "text": "The iPad app goes to a white screen and then closes when I open a PDF. Thanks, Maria",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/eval02"
+  },
+  {
+   "id": "heldout-0015",
+   "text": "I have about 1,200 notes. Nothing I write on the Galaxy S23 reaches my other devices anymore. Sorry if this has been asked before. Thanks, Sofia",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sync/eval08"
+  },
+  {
+   "id": "heldout-0016",
+   "text": "Hello! Please make nested notebooks possible, more than one level deep. I appreciate any help.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval04"
+  },
+  {
+   "id": "heldout-0017",
+   "text": "Ive been a customer since 2021. Opening a note with a few images takes a really long time. Also, do you still have a student discount? Cheers, Jake",
+   "intent": "performance",
+   "secondary": "promo_code",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/eval06"
+  },
+  {
+   "id": "heldout-0018",
+   "text": "Hi there! I have about 300 notes. I can't open Notewell at all, it shows the logo and then disappears. Sorry if this has been asked before.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "crash/eval08"
+  },
+  {
+   "id": "heldout-0019",
+   "text": "Good morning! I use it on my iPad. My sister accepted the Family invite but still has the Free plan.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval01"
+  },
+  {
+   "id": "heldout-0020",
+   "text": "It quits every time I try to print a note. I need this fixed today. Thank you.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "crash/eval05"
+  },
+  {
+   "id": "heldout-0021",
+   "text": "Hi! I've been a customer since 2024. Templates put the wrong date in the title. I have a deadline tomorrow.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/eval06"
+  },
+  {
+   "id": "heldout-0022",
+   "text": "Hi! I've been a customer since 2022. I clicked a link in a suspicious email that looked like it came from you. Am I at risk?",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "security_concern/eval06"
+  },
+  {
+   "id": "heldout-0023",
+   "text": "Hi there! i mostly use the Mac app. Can i upgrade for just one month to get more storage, then go back to Free? Ive already written about this twce.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "plan_change/eval05"
+  },
+  {
+   "id": "heldout-0024",
+   "text": "Hi there! I'm on the Plus plan. Where do I find older invoices? The billing page only shows the last one. Regards, Maria",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "billing/eval03"
+  },
+  {
+   "id": "heldout-0025",
+   "text": "Hi team! I use it on my Galaxy S23. My partner accepted the Family invite but still has the Free plan.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval01"
+  },
+  {
+   "id": "heldout-0026",
+   "text": "last sync says three days ago and it won't update. Also, do you still have a student discount?",
+   "intent": "sync",
+   "secondary": "promo_code",
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval01"
+  },
+  {
+   "id": "heldout-0027",
+   "text": "i tried to unsubscribe but the page just reloads.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "cancel_subscription/eval04"
+  },
+  {
+   "id": "heldout-0028",
+   "text": "Hello Notewell team! My accunt has been deactivated without any warning. Please sort this out, it's been dys.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "account_locked/eval03"
+  },
+  {
+   "id": "heldout-0029",
+   "text": "Hi! I'm on version 9.1.0. The renewal was charged in dollars but I live in Spain. Why not in my own currency? Separately, how do I turn on two-step verification later?",
+   "intent": "billing",
+   "secondary": "two_factor",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "billing/eval06"
+  },
+  {
+   "id": "heldout-0030",
+   "text": "i want to remove my account completely, not just stop paying. Also, do you still have a student discount?",
+   "intent": "delete_account",
+   "secondary": "promo_code",
+   "tone": "terse",
+   "typos": 0,
+   "core": "delete_account/eval02"
+  },
+  {
+   "id": "heldout-0031",
+   "text": "Hey! My bank says they never saw the charge, but the app says my payment failed. I've already written about this twice.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "payment_failed/eval06"
+  },
+  {
+   "id": "heldout-0032",
+   "text": "we're on the Family plan. I made two accounts by mistake. Please delete the one with priya.n@example.net.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "delete_account/eval05"
+  },
+  {
+   "id": "heldout-0033",
+   "text": "Hello. Please unlcok my account, i need my work notes for a meeting at 10:30. Separately, one note seems to sync slowly, but thats not why Im writing. Thans in advance for your help.",
+   "intent": "account_locked",
+   "secondary": "sync",
+   "tone": "polite",
+   "typos": 2,
+   "core": "account_locked/eval05"
+  },
+  {
+   "id": "heldout-0034",
+   "text": "I forgot my password and the reset page says my email isn't recognised. PS the web app feels sluggish too, not a big deal. Sorry if this has been asked before.",
+   "intent": "password_reset",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/eval06"
+  },
+  {
+   "id": "heldout-0035",
+   "text": "I can't complete the purchase, it says my billing address doesn't match. I've already written about this twice.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "payment_failed/eval07"
+  },
+  {
+   "id": "heldout-0036",
+   "text": "i have about 5,000 notes. Please refund the $59.88 renewal, I stopped using Notewell months ago.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "refund/eval01"
+  },
+  {
+   "id": "heldout-0037",
+   "text": "Hello Notewell team! Why is the app using so much CPU in the background? Also, just curious, is there a way to export notes as Markdown? Thanks in advance for your help. - Lukas",
+   "intent": "performance",
+   "secondary": "data_export",
+   "tone": "polite",
+   "typos": 0,
+   "core": "performance/eval05"
+  },
+  {
+   "id": "heldout-0038",
+   "text": "I'm on the Family plan. Your invoice shows I paid £4.49 twie on the 3rd. Refund one of them please.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "refund/eval08"
+  },
+  {
+   "id": "heldout-0039",
+   "text": "Hi! An unknown device signed in to my account last night, please help me secure it.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "security_concern/eval08"
+  },
+  {
+   "id": "heldout-0040",
+   "text": "Hi! Can I still use SPRING25? It says expired but the email said it was good until the end of the month. Sorry if this has been asked before.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "promo_code/eval02"
+  },
+  {
+   "id": "heldout-0041",
+   "text": "i mostly use the iPad app. Attachments over 10 MB show 'upload error' even though Plus allows 200 MB.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "bug/eval08"
+  },
+  {
+   "id": "heldout-0042",
+   "text": "Is this text message saying my Notewell account is suspended a scam? Honesty not happy about this.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "security_concern/eval03"
+  },
+  {
+   "id": "heldout-0043",
+   "text": "opening the Travel notebook freezes the whole app and nothing responds",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "crash/eval06"
+  },
+  {
+   "id": "heldout-0044",
+   "text": "Hello Notewell team! Could you explain the line items on my latest invoice? One says 'proration adjustment'. Unrelated, but a Linux app would be nicce someday. Thank you.",
+   "intent": "billing",
+   "secondary": "feature_request",
+   "tone": "polite",
+   "typos": 1,
+   "core": "billing/eval02"
+  },
+  {
+   "id": "heldout-0045",
+   "text": "i keep getting 'card not supported' when I enter my Visa card.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "payment_failed/eval05"
+  },
+  {
+   "id": "heldout-0046",
+   "text": "Hello. We're on the Family plan. The app says my account is temporarily blocked. How long does that last? Thanks!",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "account_locked/eval01"
+  },
+  {
+   "id": "heldout-0047",
+   "text": "It quits every time I try to print a note. Separately, one note seems to sync slowly, but that's not why I'm writing. Sorry if this has been asked before. Thanks!",
+   "intent": "crash",
+   "secondary": "sync",
+   "tone": "polite",
+   "typos": 0,
+   "core": "crash/eval05"
+  },
+  {
+   "id": "heldout-0048",
+   "text": "Hello. We're on the Family plan. I changed my phone number and now I can't receive the login code. Regards, Chen",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "two_factor/eval02"
+  },
+  {
+   "id": "heldout-0049",
+   "text": "Hi team! The app force closes on launch after todays update. This is really frustrating.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "crash/eval01"
+  },
+  {
+   "id": "heldout-0050",
+   "text": "I made two accounts by mistake. Please delete the one with priya.n@example.net. I need this fixed today. - Yuki",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "delete_account/eval05"
+  },
+  {
+   "id": "heldout-0051",
+   "text": "Hi! After typing the wrong password a few times I'm now locked out for good? I need this fixed today. - Chen",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "account_locked/eval02"
+  },
+  {
+   "id": "heldout-0052",
+   "text": "Im on version 8.5.0. Invites to my notebook never reach the other persons inbox. Sorry if this has been asked before. Thanks, Maria",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sharing/eval08"
+  },
+  {
+   "id": "heldout-0053",
+   "text": "I paid for the Family plan but nobody in my family ever joined. Can I get that money bck? Also, do you still have a student discount?",
+   "intent": "refund",
+   "secondary": "promo_code",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "refund/eval02"
+  },
+  {
+   "id": "heldout-0054",
+   "text": "The renewal failed and now my notes are read-only. My card is valid until 2029. Sorry if this has been asked bfeore. Thank you.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "payment_failed/eval03"
+  },
+  {
+   "id": "heldout-0055",
+   "text": "I'm on version 8.4.1. I want to update my password to something stronger, where is that? I have a deadline tomorrow. Thanks, Amara",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "password_reset/eval05"
+  },
+  {
+   "id": "heldout-0056",
+   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? Thanks in advnace for yur help.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "two_factor/eval04"
+  },
+  {
+   "id": "heldout-0057",
+   "text": "i use it on my MacBook. I paid for the Family plan but nobody in my family ever joined. Can I get that money back?",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "refund/eval02"
+  },
+  {
+   "id": "heldout-0058",
+   "text": "I added notes offline on the plane and they nveer uplloaded. Unrelated, but a Linux app would be nice someday. I have a deadline tomorrow.",
+   "intent": "sync",
+   "secondary": "feature_request",
+   "tone": "urgent",
+   "typos": 2,
+   "core": "sync/eval04"
+  },
+  {
+   "id": "heldout-0059",
+   "text": "I tried to unsubscribe but the page just reloads. Side question, no rush: does my plan price include VAT? Honestly not happy about this. Thank you.",
+   "intent": "cancel_subscription",
+   "secondary": "billing",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "cancel_subscription/eval04"
+  },
+  {
+   "id": "heldout-0060",
+   "text": "i want to update my password to something stronger, where is that?",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "password_reset/eval05"
+  },
+  {
+   "id": "heldout-0061",
+   "text": "Hello. Please switch my subscription from yearly to monthly when it renews. I appreciate any help.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/eval04"
+  },
+  {
+   "id": "heldout-0062",
+   "text": "i'm on version 9.0.1. Does the £4.49 include tax? My receipt doesn't say. Separately, one note seesm to sync slowly, but that's not why I'm writing",
+   "intent": "billing",
+   "secondary": "sync",
+   "tone": "terse",
+   "typos": 1,
+   "core": "billing/eval04"
+  },
+  {
+   "id": "heldout-0063",
+   "text": "the website is painfully slow during the day and fine at night. Separately, one note seems to sync slowly, but that's not why I'm writing",
+   "intent": "performance",
+   "secondary": "sync",
+   "tone": "terse",
+   "typos": 0,
+   "core": "performance/eval07"
+  },
+  {
+   "id": "heldout-0064",
+   "text": "the note on my phone is an old version, my edits from the computer aren't there. The app has also been a bit slow lately, but that's minor",
+   "intent": "sync",
+   "secondary": "performance",
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval02"
+  },
+  {
+   "id": "heldout-0065",
+   "text": "i'm on the Family plan. I got an email saying my price goes up next month. What will I be paying exactly? The app has also been a bit slow lately, but that's minor.",
+   "intent": "billing",
+   "secondary": "performance",
+   "tone": "terse",
+   "typos": 0,
+   "core": "billing/eval05"
+  },
+  {
+   "id": "heldout-0066",
+   "text": "My account email is jt1987@example.org. Signing in looops bacck to the start page on the Windows app. Thank you.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "login/eval08"
+  },
+  {
+   "id": "heldout-0067",
+   "text": "i have about 1,200 notes. I changed my phone number and now I can't receive the login code",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "two_factor/eval02"
+  },
+  {
+   "id": "heldout-0068",
+   "text": "Hi! How long after I delete my account is my data actually gone from your servers? Sorry if this has beeen asked before. - Amara",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "delete_account/eval03"
+  },
+  {
+   "id": "heldout-0069",
+   "text": "Hi team! We're on the Family plan. My Plus renews tomorrow and I don't want it to. How do I cancel tonight? Thank you.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval08"
+  },
+  {
+   "id": "heldout-0070",
+   "text": "Hi team! We're on the Family plan. Please make nested notebooks possible, more than one level deep.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "feature_request/eval04"
+  },
+  {
+   "id": "heldout-0071",
+   "text": "Please rmeove my account. I don't want any of my notes kept. I ned this fixed today. Thanks, Tom",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 2,
+   "core": "delete_account/eval08"
+  },
+  {
+   "id": "heldout-0072",
+   "text": "Hello Notewell team! My notes were deleted oveernight and I didn't do it, someone has my accoutn.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "security_concern/eval02"
+  },
+  {
+   "id": "heldout-0073",
+   "text": "The code from Google Authenticator never works, it says expired right away. Urgent please.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "two_factor/eval01"
+  },
+  {
+   "id": "heldout-0074",
+   "text": "Hello! I don't need Plus anymore. Please make sure it doesn't renew. Sorry if this has been asked before. Thank you.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "cancel_subscription/eval01"
+  },
+  {
+   "id": "heldout-0075",
+   "text": "My security key isn't recognised when I try to sign in. Thanks in advance for your hep. Thank you.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "two_factor/eval03"
+  },
+  {
+   "id": "heldout-0076",
+   "text": "Hey! How do I give soemone view-only access instead of edit? I appreciate any help.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "sharing/eval02"
+  },
+  {
+   "id": "heldout-0077",
+   "text": "Hello Notewell team! My account email is jt1987@example.org. I keep getting 'card not supported' when I enter my PayPal card. Thank you.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "payment_failed/eval05"
+  },
+  {
+   "id": "heldout-0078",
+   "text": "Hi there! Google sign-in says 'something went wrong' and won't let me in. Separately, how do I turn on two-step verification later? Sorry if this has been asked before. Thanks!",
+   "intent": "login",
+   "secondary": "two_factor",
+   "tone": "polite",
+   "typos": 0,
+   "core": "login/eval02"
+  },
+  {
+   "id": "heldout-0079",
+   "text": "Hello! I think I made my account with a different emial and now I ca't sign in. Sorry if this has been asked before. Regards, Amara",
+   "intent": "login",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "login/eval04"
+  },
+  {
+   "id": "heldout-0080",
+   "text": "Please end my Family subscription, were moving everyone to Free. i appreciate any help. Regards, Maria",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "cancel_subscription/eval03"
+  },
+  {
+   "id": "heldout-0081",
+   "text": "I need to set a new password but the email never comes, not even in spam. Cheers, Ahmed",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval03"
+  },
+  {
+   "id": "heldout-0082",
+   "text": "The discount from the newsletter disappeared when I clicked pay.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval01"
+  },
+  {
+   "id": "heldout-0083",
+   "text": "Can you seend me an archive of my account? The export button times out with so many notes. This is really frustrating.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "data_export/eval07"
+  },
+  {
+   "id": "heldout-0084",
+   "text": "Hello Notewell team! We're on the Family plan. The Family plan says all seats are taken, but there are only three of us. Thanks, Lukas",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval06"
+  },
+  {
+   "id": "heldout-0085",
+   "text": "i'm on the Family plan. The API returns 'rate limit exceeded' after just a few calls",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/eval07"
+  },
+  {
+   "id": "heldout-0086",
+   "text": "My account email is priya.n@example.net. The editor stalls for a moment every few words i type, its very laggy. Separately, how do i turn on two-step verification later?",
+   "intent": "performance",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/eval03"
+  },
+  {
+   "id": "heldout-0087",
+   "text": "I see 'sync error 1031' in the Mac app. Separately, how do I turn on two-step verification later? Tis is really frustrating. Cheers, Lukas",
+   "intent": "sync",
+   "secondary": "two_factor",
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "sync/eval03"
+  },
+  {
+   "id": "heldout-0088",
+   "text": "Hello! Please wipe my account and everything in it, I'm done with thiis app. Urgent please. Cheers, Yuki",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 1,
+   "core": "delete_account/eval01"
+  },
+  {
+   "id": "heldout-0089",
+   "text": "Hello! I was logged out after the update and now my login doesn't work. I appreciate any help.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "login/eval05"
+  },
+  {
+   "id": "heldout-0090",
+   "text": "Hi! I need my notes as plain text files for my archive. This is really frustrating.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/eval05"
+  },
+  {
+   "id": "heldout-0091",
+   "text": "the app force closes on launch after today's update",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "crash/eval01"
+  },
+  {
+   "id": "heldout-0092",
+   "text": "i use it on my Galaxy S23. I own a shared notebook but it says I don't have permission",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sharing/eval04"
+  },
+  {
+   "id": "heldout-0093",
+   "text": "An unknown device signed in to my account last night, please help me secure it. Thanks in advance for your help.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "security_concern/eval08"
+  },
+  {
+   "id": "heldout-0094",
+   "text": "I get 'this account is locked' even with the right password. Honestly not happy about this.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "account_locked/eval04"
+  },
+  {
+   "id": "heldout-0095",
+   "text": "Hi team! I'm on the Plus plan. I wish I could undo more than one step in the editor.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "feature_request/eval03"
+  },
+  {
+   "id": "heldout-0096",
+   "text": "Hi there! My laptop and phone show different versions of the same checklist.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/eval07"
+  },
+  {
+   "id": "heldout-0097",
+   "text": "I'm on vesrion 8.5.0. Suggestion: let me pin nottes to the top of a notebook.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "feature_request/eval06"
+  },
+  {
+   "id": "heldout-0098",
+   "text": "Hi! How do I leave a shared notebook someone added me to? Separately, one note seems to sync slowly, but that's not why I'm writing.",
+   "intent": "sharing",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval05"
+  },
+  {
+   "id": "heldout-0099",
+   "text": "i want to removve my account completely, not just stop paying.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "delete_account/eval02"
+  },
+  {
+   "id": "heldout-0100",
+   "text": "I mostly use the Windows app. The reset form says my new password doesn't meet the rules but doesn't say which.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval07"
+  },
+  {
+   "id": "heldout-0101",
+   "text": "The note on my phone is an old version, my edits from the computer aren't there. Honestly not happy about this.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "sync/eval02"
+  },
+  {
+   "id": "heldout-0102",
+   "text": "Hey! I use it on my iPad. The note on my phone is an old version, my edits from the computer aren't there. Thaanks in advance for your help. Cheers, Yuki",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "sync/eval02"
+  },
+  {
+   "id": "heldout-0103",
+   "text": "Good morning! i changed my phone number and now i cant receive the login code. Honestly not happy about this. Cheers, Chen",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/eval02"
+  },
+  {
+   "id": "heldout-0104",
+   "text": "The desktop app hangs completely and I have to force quit it.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/eval04"
+  },
+  {
+   "id": "heldout-0105",
+   "text": "would it be possible to have a calendar view of notes? By the way, is there a Slack integration?",
+   "intent": "feature_request",
+   "secondary": "integration",
+   "tone": "terse",
+   "typos": 0,
+   "core": "feature_request/eval02"
+  },
+  {
+   "id": "heldout-0106",
+   "text": "Good morning! I was logged out after the update and now my login doesn't work.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval05"
+  },
+  {
+   "id": "heldout-0107",
+   "text": "Hi! I mostly use the iPad app. Please unlock my account, I need my work notes for a meeting at 3pm. Urgent please.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "account_locked/eval05"
+  },
+  {
+   "id": "heldout-0108",
+   "text": "I use it on my Chromeboook. I need to set a new password but the emial never comes, not even in spam. This is really frustrating. Thank you.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "password_reset/eval03"
+  },
+  {
+   "id": "heldout-0109",
+   "text": "Why was my account suspended? I only use it for school. The app has also been a bit slow lately, but that's minor. I appreciate any help.",
+   "intent": "account_locked",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/eval06"
+  },
+  {
+   "id": "heldout-0110",
+   "text": "Hello! I use it on my Pixel 8. Can I schedule automatic backups to my cmoputer?",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "data_export/eval02"
+  },
+  {
+   "id": "heldout-0111",
+   "text": "Hey! Please remove my account. I don't want any of my notes kpet. Also, could you resend my last receit when you get a chance? Thanks!",
+   "intent": "delete_account",
+   "secondary": "billing",
+   "tone": "neutral",
+   "typos": 2,
+   "core": "delete_account/eval08"
+  },
+  {
+   "id": "heldout-0112",
+   "text": "I have about 1,200 notes. How long after I delete my account is my data actually goone from your servers?",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "delete_account/eval03"
+  },
+  {
+   "id": "heldout-0113",
+   "text": "Hello Notewell team! Everything is slow since the update, switching notebooks takes 10 seconds. Regards, Tom",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/eval01"
+  },
+  {
+   "id": "heldout-0114",
+   "text": "My shared notebooks have a stranger as a collaborator, I never added them. I need this fixed today. - Tom",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "security_concern/eval07"
+  },
+  {
+   "id": "heldout-0115",
+   "text": "i want my money back. Handwriting was the only reason I subscribed and it doesn't work on my Pixle 8.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "refund/eval07"
+  },
+  {
+   "id": "heldout-0116",
+   "text": "Hello Notewell team! I've been a customer since 2021. I need my notes as plain text files for my archive. - Amara",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/eval05"
+  },
+  {
+   "id": "heldout-0117",
+   "text": "We're on the Family plan. Close and erase my account, I've already cancelled the subscription. Thanks, Jake",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/eval04"
+  },
+  {
+   "id": "heldout-0118",
+   "text": "Hi! It says my account is under review and restricted. Please lift it. Separately, how do I turn on two-step verification later? - Amara",
+   "intent": "account_locked",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "account_locked/eval08"
+  },
+  {
+   "id": "heldout-0119",
+   "text": "We don't need Family anymore, it's just me now. Can I switch to Plus? Also, no rush, but how do I share a notebook with my partner?",
+   "intent": "plan_change",
+   "secondary": "sharing",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/eval01"
+  },
+  {
+   "id": "heldout-0120",
+   "text": "were on the Family plan. Last sync says three days ago and it wont update.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval01"
+  },
+  {
+   "id": "heldout-0121",
+   "text": "were on the Family plan. Reminders from Notewell arent showing up in my Outlook calendar anymore.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/eval03"
+  },
+  {
+   "id": "heldout-0122",
+   "text": "Good morning! It quits every time I try to print a note. Sorry if this has been asked before.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "crash/eval05"
+  },
+  {
+   "id": "heldout-0123",
+   "text": "The editor jumps to the top every time I type a bullet point. I appreciate any help. - Amara",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "bug/eval02"
+  },
+  {
+   "id": "heldout-0124",
+   "text": "Hello. Attahments over 10 MB show 'upload error' even though Plus allows 200 MB. Also, could you resend my last receipt when you get a chance? Thanks, Yuki",
+   "intent": "bug",
+   "secondary": "billing",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "bug/eval08"
+  },
+  {
+   "id": "heldout-0125",
+   "text": "can't get into my account since tis morning, the siign in button does nothing.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 2,
+   "core": "login/eval01"
+  },
+  {
+   "id": "heldout-0126",
+   "text": "It says my account is under review and restricted. Please lift it. Please sort this out, it's been days. Thank you.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "account_locked/eval08"
+  },
+  {
+   "id": "heldout-0127",
+   "text": "Please stop charging me, I want to cancel. The account itself can stay. Alsso, no rush, but how do I share a notebook with my partner?",
+   "intent": "cancel_subscription",
+   "secondary": "sharing",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "cancel_subscription/eval07"
+  },
+  {
+   "id": "heldout-0128",
+   "text": "I'm travelling abroad and the text messages with codes don't come through. I've already written about this twice. Thank you.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/eval08"
+  },
+  {
+   "id": "heldout-0129",
+   "text": "In dark mode some of my text is black on black and unreadable. Sorry if this has been asked before. Thank you.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "bug/eval07"
+  },
+  {
+   "id": "heldout-0130",
+   "text": "I have about 300 notes. Please end my Family subscription, we're moving everyone to Free. - Chen",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval03"
+  },
+  {
+   "id": "heldout-0131",
+   "text": "Hello. Would it be possible to have a calendar view of noes?",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "feature_request/eval02"
+  },
+  {
+   "id": "heldout-0132",
+   "text": "Hello Notewell team! Every timme it synccs, a few notes get duplicated. Thanks!",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "sync/eval06"
+  },
+  {
+   "id": "heldout-0133",
+   "text": "Could you explain the line items on my latest invoice? One says proration adjustment. By the way, is there a Slack integration? Thanks in advance for your help.",
+   "intent": "billing",
+   "secondary": "integration",
+   "tone": "polite",
+   "typos": 0,
+   "core": "billing/eval02"
+  },
+  {
+   "id": "heldout-0134",
+   "text": "Hey! My security key isn't recognised when I try to sign in. Also, do you still have a student discount? Thank you.",
+   "intent": "two_factor",
+   "secondary": "promo_code",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "two_factor/eval03"
+  },
+  {
+   "id": "heldout-0135",
+   "text": "Hi team! Please remove my account. I don't want any of my ntes kept. I appreciate any help. Thanks!",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "delete_account/eval08"
+  },
+  {
+   "id": "heldout-0136",
+   "text": "i've been a customer since 2024. The app says my account is temporarily blocked. How long does that last? Also, just curious, is there a way to export notes as Markdown?",
+   "intent": "account_locked",
+   "secondary": "data_export",
+   "tone": "terse",
+   "typos": 0,
+   "core": "account_locked/eval01"
+  },
+  {
+   "id": "heldout-0137",
+   "text": "Hi! I have about 1,200 notes. I lost my phone, so I can't get past the code screen. How do I turn off two-step verification?",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "two_factor/eval06"
+  },
+  {
+   "id": "heldout-0138",
+   "text": "I'm on version 9.0.1. I keep getting 'card not supported' when I enter my debit card card. I've already written about this twice.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "payment_failed/eval05"
+  },
+  {
+   "id": "heldout-0139",
+   "text": "Please refund the $4.99 renewal, i stoopped using Notewell months ago. Thanks, Jake",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "refund/eval01"
+  },
+  {
+   "id": "heldout-0140",
+   "text": "Hi! I don't need Plus anymore. Please make sure it doesn't renew.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval01"
+  },
+  {
+   "id": "heldout-0141",
+   "text": "How do I give soemone view-only access instead of edit? Urgetn please.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 2,
+   "core": "sharing/eval02"
+  },
+  {
+   "id": "heldout-0142",
+   "text": "I have about 5,000 notes. There's a $8.99 charge from Notewell on my card and I'm not sure which account it belongs to. Also, just curious, is there a way to export notes as Markdown? Regards, Lukas",
+   "intent": "billing",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "billing/eval01"
+  },
+  {
+   "id": "heldout-0143",
+   "text": "I have about 12,000 ntoes. The editor jumps to the top every time I type a bullet point.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "bug/eval02"
+  },
+  {
+   "id": "heldout-0144",
+   "text": "Hey! I mostly use the iPhone app. You charged me $59.88 after the free trial even though I cancelled during it. I want it back. Thanks in advance for your help.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "refund/eval03"
+  },
+  {
+   "id": "heldout-0145",
+   "text": "Hi! Why can't I pay for Plus? It spins and then says 'payment coudl not be processed'. Urgent please. Cheers, Sofia",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 1,
+   "core": "payment_failed/eval02"
+  },
+  {
+   "id": "heldout-0146",
+   "text": "My account email is m.rossi@example.com. How do I give someone view-only access instead of edit?",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval02"
+  },
+  {
+   "id": "heldout-0147",
+   "text": "Google Play shosw my subscription as on hold because the payment failed. Cheers, Tom",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "payment_failed/eval04"
+  },
+  {
+   "id": "heldout-0148",
+   "text": "I've been a customer since 2021. Where do I find older invoices? The billing page only shows the last one. Sorry if this has been asked before.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "billing/eval03"
+  },
+  {
+   "id": "heldout-0149",
+   "text": "We're on the Family plan. Wheree's the option to delete my account in the app? I only see sign out. I've already written about this twice.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "delete_account/eval06"
+  },
+  {
+   "id": "heldout-0150",
+   "text": "Hello Notewell team! Clicking the link in the reset email opens a blank page. Urgent please.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "password_reset/eval02"
+  },
+  {
+   "id": "heldout-0151",
+   "text": "The SMS code arrives ten minutes later, after it has already expired. Honestly not happy about this.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/eval05"
+  },
+  {
+   "id": "heldout-0152",
+   "text": "Hi team! The SMS code arrives ten minutes later, afer it has already expireed. I appreciate any help. Thanks!",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "two_factor/eval05"
+  },
+  {
+   "id": "heldout-0153",
+   "text": "Where do I find older invoices? The billing page only shows the last one. I appreciate any help.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "billing/eval03"
+  },
+  {
+   "id": "heldout-0154",
+   "text": "I mostly use the Windows app. I connected Dropbox but my notes don't appear there. Thanks in advance for your help.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "integration/eval01"
+  },
+  {
+   "id": "heldout-0155",
+   "text": "Hello. My account has been deactivated without any warning. I appreciate any help.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/eval03"
+  },
+  {
+   "id": "heldout-0156",
+   "text": "I can't complete the purchase, it says my bliling address doesn't match. This is really frustrating.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "payment_failed/eval07"
+  },
+  {
+   "id": "heldout-0157",
+   "text": "Des the export include tags and creatioon dates?",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "data_export/eval04"
+  },
+  {
+   "id": "heldout-0158",
+   "text": "Hey! I've been a customer since 2022. Can I transfer ownership of a shared notebook to my colleague?",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval07"
+  },
+  {
+   "id": "heldout-0159",
+   "text": "Hi there! Where's the option to delete my account in the app? I only see sign out. I appreciate any help. - Sofia",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "delete_account/eval06"
+  },
+  {
+   "id": "heldout-0160",
+   "text": "How do I disconnect Google Drive from my account? I need this fixed today. - Jake",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "integration/eval04"
+  },
+  {
+   "id": "heldout-0161",
+   "text": "Hey! Loading my nots on the Pixel 8 takes forever on wifi that's fine for everything else. Thanks!",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "performance/eval02"
+  },
+  {
+   "id": "heldout-0162",
+   "text": "My Plus renews tomorrow and I don't wnat it to. How do I cancel tonight? Thanks, Amara",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "cancel_subscription/eval08"
+  },
+  {
+   "id": "heldout-0163",
+   "text": "i'm moving from Family to Plus because my kids have their own accounts now. Side question, no rush: does my plan price include VAT?",
+   "intent": "plan_change",
+   "secondary": "billing",
+   "tone": "terse",
+   "typos": 0,
+   "core": "plan_change/eval07"
+  },
+  {
+   "id": "heldout-0164",
+   "text": "I mostly use the Mac app. Please tell me how to expoort my nootes before my subscription ends.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "data_export/eval08"
+  },
+  {
+   "id": "heldout-0165",
+   "text": "I mostly use the iPad app. Why can't I pay for Plus? It spins and then says 'payment could not be processed'. Thanks!",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "payment_failed/eval02"
+  },
+  {
+   "id": "heldout-0166",
+   "text": "My PayPal payment was rejected even though theres plenty of money in the account. i appreciate any help.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/eval01"
+  },
+  {
+   "id": "heldout-0167",
+   "text": "The reset form says my new password doesn't meet the rules but doesn't say which. Please sort this out, it's been days.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "password_reset/eval07"
+  },
+  {
+   "id": "heldout-0168",
+   "text": "Hey! I'm on the Family plan. The app crashed in the middle of typing and I lost what I wrote. I've already written about this twice.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "crash/eval07"
+  },
+  {
+   "id": "heldout-0169",
+   "text": "Could you add read-only links that don't need an account to view? Thanks in advance for your help. Regards, Priya",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval08"
+  },
+  {
+   "id": "heldout-0170",
+   "text": "is this text message saying my Notewell account is suspended a scam? Separately, one note seems to sync slowly, but that's not why I'm writing.",
+   "intent": "security_concern",
+   "secondary": "sync",
+   "tone": "terse",
+   "typos": 0,
+   "core": "security_concern/eval03"
+  },
+  {
+   "id": "heldout-0171",
+   "text": "Hello Notewell team! Your invoice shows I paid $49.99 twice on Friday. Refund one of them please. Honestly not happy about this.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "refund/eval08"
+  },
+  {
+   "id": "heldout-0172",
+   "text": "Someone changed my password and recovery phone, I believe my account was taken over. Thanks, Maria",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "security_concern/eval05"
+  },
+  {
+   "id": "heldout-0173",
+   "text": "i'm on version 9.0.1. Please tell me how to export my notes before my subscription ends.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "data_export/eval08"
+  },
+  {
+   "id": "heldout-0174",
+   "text": "Hi team! Can I have the two-factor codes sent to my email instead of my phone? Unrelated, but a Linux app would be nice someday. I have a deadline tomorrow. Cheers, Ahmed",
+   "intent": "two_factor",
+   "secondary": "feature_request",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "two_factor/eval07"
+  },
+  {
+   "id": "heldout-0175",
+   "text": "Hi team! I'm on version 8.4.1. Charged for Plus again after I downgraded. Please send the money back to my Amex.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/eval05"
+  },
+  {
+   "id": "heldout-0176",
+   "text": "We're on the Family plan. Can I get a partial refund for the months I have left on the annual plan?",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/eval06"
+  },
+  {
+   "id": "heldout-0177",
+   "text": "Good morning! I have about 300 notes. Clicking the link in the reset email opens a blank page. I've already written about this twice.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "password_reset/eval02"
+  },
+  {
+   "id": "heldout-0178",
+   "text": "Hi there! Sorting by date modified puts old notes first. That looks wrong. Also, do you still have a student discount?",
+   "intent": "bug",
+   "secondary": "promo_code",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/eval03"
+  },
+  {
+   "id": "heldout-0179",
+   "text": "Hi! I'm on Free and hit the device limit. How do I move to Plus? Thank you.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/eval06"
+  },
+  {
+   "id": "heldout-0180",
+   "text": "Hello! I clicked a link in a suspicious email that looked like it came from you. Am I at risk? The app has also been a bit slow lately, but that's minor. I need this fixed today.",
+   "intent": "security_concern",
+   "secondary": "performance",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "security_concern/eval06"
+  },
+  {
+   "id": "heldout-0181",
+   "text": "i added notse offline on the plane and they neer uploaded. i appreciate any help.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "sync/eval04"
+  },
+  {
+   "id": "heldout-0182",
+   "text": "An unknown device signed in to my account laast ngiht, please help me secure it. Cheers, Ahmed",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "security_concern/eval08"
+  },
+  {
+   "id": "heldout-0183",
+   "text": "Hello Notewell team! I have about 300 notes. I'm moving from Family to Plus because my kids have their own accounts now. I appreciate any help.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/eval07"
+  },
+  {
+   "id": "heldout-0184",
+   "text": "A word count goal for each note would really help my writing. Sorry if ths has been asked before.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "feature_request/eval05"
+  },
+  {
+   "id": "heldout-0185",
+   "text": "Hey! I want my money back. Handwriting was the only reason I subscribed and it doesn't work on my iPad. Sory if this has been asked before. - Lukas",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "refund/eval07"
+  },
+  {
+   "id": "heldout-0186",
+   "text": "i use it on my Android phone. Close and erase my account, I've already cancelled the subscription",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "delete_account/eval04"
+  },
+  {
+   "id": "heldout-0187",
+   "text": "i've been a customer since 2021. I lost my phone, so I can't get past the code screen. How do I turn off two-step verification?",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "two_factor/eval06"
+  },
+  {
+   "id": "heldout-0188",
+   "text": "Hi there! Please wipe my account and everything in it, I'm done with this app. The app has also been a bit slow lately, but that's minor. Sorry if tis has been asked before.",
+   "intent": "delete_account",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 1,
+   "core": "delete_account/eval01"
+  },
+  {
+   "id": "heldout-0189",
+   "text": "Hi! Nothing I write on the Android phone reaches my other devices anymore. Thanks, Tom",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/eval08"
+  },
+  {
+   "id": "heldout-0190",
+   "text": "i have about 5,000 notes. i tried to unsubscribe but the page just reloaads.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "cancel_subscription/eval04"
+  },
+  {
+   "id": "heldout-0191",
+   "text": "I use it on my MacBook. Handwriting on the iPad turns into random letters when I convert it to text. I've already written about this twice.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "bug/eval04"
+  },
+  {
+   "id": "heldout-0192",
+   "text": "I'm on the Family plan. I verifeid my sutdent email but the price didn't change.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "promo_code/eval03"
+  },
+  {
+   "id": "heldout-0193",
+   "text": "Hey! i have about 1,200 notes. i cant complete the purchase, it says my billing address doesnt match. Sorry if this has been asked before. Thank you.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/eval07"
+  },
+  {
+   "id": "heldout-0194",
+   "text": "Hello. I'm on the Plus plan. I just got a login alert from a device I don't own. Please sort this out, it's been days. Thank you.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "security_concern/eval01"
+  },
+  {
+   "id": "heldout-0195",
+   "text": "I can't log in on Firefox, it worked fine yesterday. Also, no rush, but how do I share a notebook with my colleague? Thanks, Amara",
+   "intent": "login",
+   "secondary": "sharing",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval07"
+  },
+  {
+   "id": "heldout-0196",
+   "text": "Hi team! The Dropobx attachment link opens a permissions error. Honestly not happy about this.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "integration/eval05"
+  },
+  {
+   "id": "heldout-0197",
+   "text": "Hey! We're on the Family plan. Does the export include tags and creation dates?",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/eval04"
+  },
+  {
+   "id": "heldout-0198",
+   "text": "Notes I send from Dropbox land in the wrong notebook. Honestly not happy about this.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "integration/eval08"
+  },
+  {
+   "id": "heldout-0199",
+   "text": "does the export include tags and creation dates? Separately, how do I turn on two-step verifiction later?",
+   "intent": "data_export",
+   "secondary": "two_factor",
+   "tone": "terse",
+   "typos": 1,
+   "core": "data_export/eval04"
+  },
+  {
+   "id": "heldout-0200",
+   "text": "Hi! I've been a customer since 2024. I don't need Plus anymore. Please make sure it doesn't renew. Thanks, Lukas",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval01"
+  },
+  {
+   "id": "heldout-0201",
+   "text": "after typing the wrong password a few times I'm now locked out for god?",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "account_locked/eval02"
+  },
+  {
+   "id": "heldout-0202",
+   "text": "Hi there! Can I upgrade for just one month to get more storage, then go back to Free?",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/eval05"
+  },
+  {
+   "id": "heldout-0203",
+   "text": "The word count at the bottom is clearly wrong, it says 0 words.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/eval05"
+  },
+  {
+   "id": "heldout-0204",
+   "text": "The editor stals for a moment every few wordds I type, it's very laggy.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "performance/eval03"
+  },
+  {
+   "id": "heldout-0205",
+   "text": "The API returns 'rate limit exceeded' after just a few calls. Separately, how do I turn on two-step verification later? Thanks!",
+   "intent": "integration",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval07"
+  },
+  {
+   "id": "heldout-0206",
+   "text": "Good morning! I mostly use the Android app. The editor stalls for a moment every few words I type, it's veery lagyg.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "performance/eval03"
+  },
+  {
+   "id": "heldout-0207",
+   "text": "Hi team! I have about 2,000 notes. I'd like my account and all backups of it permanently destroyed. I appreciate any help.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "delete_account/eval07"
+  },
+  {
+   "id": "heldout-0208",
+   "text": "Hi there! I'd like my account and all backups of it permanently destroyed.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/eval07"
+  },
+  {
+   "id": "heldout-0209",
+   "text": "i've been a customer since 2024. How do I save the whole Recipes notebook to my hard drive? By the way, is there a Slack integration?",
+   "intent": "data_export",
+   "secondary": "integration",
+   "tone": "terse",
+   "typos": 0,
+   "core": "data_export/eval06"
+  },
+  {
+   "id": "heldout-0210",
+   "text": "I mostly use the web app. Our webhook gets a 401 error from your API since this week. Separately, one note seems to sync slowly, but that's not why I'm writing. Thanks, Tom",
+   "intent": "integration",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval02"
+  },
+  {
+   "id": "heldout-0211",
+   "text": "I mostly use the iPad app. Where do I type in a promo code on the Android app? I can't find the field. I need this fixed today.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "promo_code/eval06"
+  },
+  {
+   "id": "heldout-0212",
+   "text": "I have about 300 notes. Is there a discount for teachers or non-prrofits? Please sort this out, it's been days.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "promo_code/eval07"
+  },
+  {
+   "id": "heldout-0213",
+   "text": "Hello Notewell team! I want my money back. Handwriting was the only reason I subscribed and it doesn't work on my Chrombook. Please sort this out, it's been days.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "refund/eval07"
+  },
+  {
+   "id": "heldout-0214",
+   "text": "Theres a session from Germany in my device list that isnt mine. Thanks!",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "security_concern/eval04"
+  },
+  {
+   "id": "heldout-0215",
+   "text": "we're on the Family plan. The discount from the newsletter disappeared when I clicked pay.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "promo_code/eval01"
+  },
+  {
+   "id": "heldout-0216",
+   "text": "could you add a way to schedule notes to be sent by email? The app has also been a bit slow lately, but that's minor",
+   "intent": "feature_request",
+   "secondary": "performance",
+   "tone": "terse",
+   "typos": 0,
+   "core": "feature_request/eval01"
+  },
+  {
+   "id": "heldout-0217",
+   "text": "I have about 300 notes. I own a shared notebook but it says I don't have permission. - Amara",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval04"
+  },
+  {
+   "id": "heldout-0218",
+   "text": "we're on the Family plan. Opening a note with a few images takes a relaly long time.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "performance/eval06"
+  },
+  {
+   "id": "heldout-0219",
+   "text": "Hey! I'm on version 9.1.0. The API returns 'rate limit exceeded' after just a few calls. Separately, one note seems to sync slowly, but that's not why I'm writing.",
+   "intent": "integration",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval07"
+  },
+  {
+   "id": "heldout-0220",
+   "text": "Invites to my notebook never reach the other person's inbox. Urgent please. Thank you.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "sharing/eval08"
+  },
+  {
+   "id": "heldout-0221",
+   "text": "Hello. Every reset link I get says 'invalid token'. Sorry if this has been asked before.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/eval04"
+  },
+  {
+   "id": "heldout-0222",
+   "text": "the discount from the newsletter disappeared when I clicked pay. Also, just curious, is there a way to export notes as Markdown?",
+   "intent": "promo_code",
+   "secondary": "data_export",
+   "tone": "terse",
+   "typos": 0,
+   "core": "promo_code/eval01"
+  },
+  {
+   "id": "heldout-0223",
+   "text": "Hello! There's an 'account lcoked' message on every device. I didn't change anything. I appreciate any help.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "account_locked/eval07"
+  },
+  {
+   "id": "heldout-0224",
+   "text": "Hi! My phone gets hot and slow whenever Notewell is open. This is really frustrating. Thanks, Chen",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "performance/eval08"
+  },
+  {
+   "id": "heldout-0225",
+   "text": "Can you cancel the subscription for me? I'm away and only have my phone. Separately, how do I turn on two-step verification later? This is really frustrating.",
+   "intent": "cancel_subscription",
+   "secondary": "two_factor",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "cancel_subscription/eval06"
+  },
+  {
+   "id": "heldout-0226",
+   "text": "I mostly use the iPhone app. Is there a discount for teachers or non-profits? Thanks!",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval07"
+  },
+  {
+   "id": "heldout-0227",
+   "text": "my phone gets hot and slow whenever Notewell is open.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "performance/eval08"
+  },
+  {
+   "id": "heldout-0228",
+   "text": "I have about 300 notes. I think I made my account with a different email and now I can't sign in. The app has also been a bit slow lately, but that's minor.",
+   "intent": "login",
+   "secondary": "performance",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval04"
+  },
+  {
+   "id": "heldout-0229",
+   "text": "I just got a login alrt from a device I donn't own.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "security_concern/eval01"
+  },
+  {
+   "id": "heldout-0230",
+   "text": "Hi team! I'm locked out because I can't remember my password. Can you send me a new reset link?",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval01"
+  },
+  {
+   "id": "heldout-0231",
+   "text": "How do I leave a shared notebook someone added me to? Thanks!",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval05"
+  },
+  {
+   "id": "heldout-0232",
+   "text": "Hello! I've been a customer since 2019. The shared notebook disappeared from my partner's account. Sorry if this has been asked before. Cheers, Maria",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sharing/eval03"
+  },
+  {
+   "id": "heldout-0233",
+   "text": "Hi there! Where do i type in a promo code on the Android app? i cant find the field. Thanks, Priya",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval06"
+  },
+  {
+   "id": "heldout-0234",
+   "text": "i've been a customer since 2022. Tags I add disappear when I reopen the note.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "bug/eval01"
+  },
+  {
+   "id": "heldout-0235",
+   "text": "Hi! The Family plan says all seats are taken, but there are only three of us. Separately, one note seems to sync sowly, but that's not why I'm writing. Thanks, Yuki",
+   "intent": "sharing",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "sharing/eval06"
+  },
+  {
+   "id": "heldout-0236",
+   "text": "Hi! Everything is slow since the update, switching notebooks takes 10 seconds. Separately, how do I turn on two-step verification later?",
+   "intent": "performance",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/eval01"
+  },
+  {
+   "id": "heldout-0237",
+   "text": "Hello! Can't get into my account since this morning, the sign in button does nothing. This is really frustrating. Thank you.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/eval01"
+  },
+  {
+   "id": "heldout-0238",
+   "text": "Hello! Where do I type in a promo code on the Android app? I can't find the field. Also, no rush, but how do I share a notebook with my wife? Honestly not happy about this.",
+   "intent": "promo_code",
+   "secondary": "sharing",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "promo_code/eval06"
+  },
+  {
+   "id": "heldout-0239",
+   "text": "Hi there! I have about 5,000 notes. The renewal failed and now my notes are read-only. My caard is valid until 2029. Sorry if this has been asked before.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "payment_failed/eval03"
+  },
+  {
+   "id": "heldout-0240",
+   "text": "Handwriting on the iPad turns into random letters when I convert it to text. Urgent please. Thanks!",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/eval04"
+  },
+  {
+   "id": "heldout-0241",
+   "text": "i'm travelling abroad and the text messages with codes don't come through.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "two_factor/eval08"
+  },
+  {
+   "id": "heldout-0242",
+   "text": "I have about 300 notes. The desktoop app won't accept my password but the website does. I've already written about this twice. Cheers, Tom",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "login/eval06"
+  },
+  {
+   "id": "heldout-0243",
+   "text": "Hi there! My friend referred me but I never got the free month you advertised. This is really frustrating.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "promo_code/eval04"
+  },
+  {
+   "id": "heldout-0244",
+   "text": "Hi! My phone gets hot and slow whenever Notewell is open. Also, do you still have a student discount? Sorry if this has been asked before. Thank you.",
+   "intent": "performance",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 0,
+   "core": "performance/eval08"
+  },
+  {
+   "id": "heldout-0245",
+   "text": "Startup now takes almost a minute on my Pixel 8. Thanks in advance for your help.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "performance/eval04"
+  },
+  {
+   "id": "heldout-0246",
+   "text": "Hey! The app crashed in the middle of typing and I lost what I wrote. Also, just curious, is there a way to export notes as Markdown? Thank you.",
+   "intent": "crash",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/eval07"
+  },
+  {
+   "id": "heldout-0247",
+   "text": "Where is the cancel button? I've looked through every setting. This is really frustrating. - Amara",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "cancel_subscription/eval02"
+  },
+  {
+   "id": "heldout-0248",
+   "text": "In dark mode some of my text is black on black and unreadable. i need this fixed today. Thanks, Tom",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/eval07"
+  },
+  {
+   "id": "heldout-0249",
+   "text": "my account email is chen.w@example.com. I wish I could undo more than one step in the editor. Also, no rush, but how do I share a notebook with my partner?",
+   "intent": "feature_request",
+   "secondary": "sharing",
+   "tone": "terse",
+   "typos": 0,
+   "core": "feature_request/eval03"
+  },
+  {
+   "id": "heldout-0250",
+   "text": "Hello Notewell team! Where is the cancel button? I've looked through every setting. Separately, one note seems to sync slowly, but that's not why I'm writing.",
+   "intent": "cancel_subscription",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval02"
+  },
+  {
+   "id": "heldout-0251",
+   "text": "Hi team! I've been a customer since 2024. I can't log in on Edge, it worked fine yesterday. Also, no rush, but how do I share a notebook with my sister?",
+   "intent": "login",
+   "secondary": "sharing",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval07"
+  },
+  {
+   "id": "heldout-0252",
+   "text": "can't get into my account since ths morning, the sign in button does nothing. Also, a dark mode for the web app would be lovely",
+   "intent": "login",
+   "secondary": "feature_request",
+   "tone": "terse",
+   "typos": 1,
+   "core": "login/eval01"
+  },
+  {
+   "id": "heldout-0253",
+   "text": "I'm on the Family plan. The Dropbox attachment link opens a permissions error. Please sort this out, it's been days. Cheers, Ahmed",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "integration/eval05"
+  },
+  {
+   "id": "heldout-0254",
+   "text": "I got an email saying my price goes up net month. What will I be paying exactly? This is really frustrating. Thanks!",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "billing/eval05"
+  },
+  {
+   "id": "heldout-0255",
+   "text": "Hey! I mostly use the web app. I need to set a new password but the email never comes, not even in spam.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval03"
+  },
+  {
+   "id": "heldout-0256",
+   "text": "every reset link I get says 'ivalid token'.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "password_reset/eval04"
+  },
+  {
+   "id": "heldout-0257",
+   "text": "Hi team! Could you add a way to schedule notes to be setn by email? Thnaks in advance for your help.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "feature_request/eval01"
+  },
+  {
+   "id": "heldout-0258",
+   "text": "Hi team! Is there any chance of a Linux desktop app? Sorry if this has been asked before. Regards, Chen",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval07"
+  },
+  {
+   "id": "heldout-0259",
+   "text": "Hi! My Plus renews tomorrow and I don't want it to. How do I cancel tonight?",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval08"
+  },
+  {
+   "id": "heldout-0260",
+   "text": "Opening the Work notebook freezes the whole app and nothing ressponds.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "crash/eval06"
+  },
+  {
+   "id": "heldout-0261",
+   "text": "Hello! Is there any chance of a Linux desktop app? Sorry if this has been asked before. Thanks!",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval07"
+  },
+  {
+   "id": "heldout-0262",
+   "text": "Hello! My notes were deleted overnight and I didn't do it, someone has my account. By the way, is there a Slack integration? Please sort this out, it's been days.",
+   "intent": "security_concern",
+   "secondary": "integration",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "security_concern/eval02"
+  },
+  {
+   "id": "heldout-0263",
+   "text": "My laptop and phone show different versions of the same checklist. This is really frustrating.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "sync/eval07"
+  },
+  {
+   "id": "heldout-0264",
+   "text": "Loading my notes on the MacBook takes forever on wifi that's fine for everyhting else. Also, no rush, but how do I share a notebook with my daughter? Urgent please. - Amara",
+   "intent": "performance",
+   "secondary": "sharing",
+   "tone": "urgent",
+   "typos": 1,
+   "core": "performance/eval02"
+  },
+  {
+   "id": "heldout-0265",
+   "text": "my account email is m.rossi@example.com. Every attempt to pay ends with error 402 and nothing is taken from my card.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "payment_failed/eval08"
+  },
+  {
+   "id": "heldout-0266",
+   "text": "I've been a customer since 2019. I can't open Notewell at all, it shows the logo and then disappears. I have a deadline tomorrow. - Tom",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "crash/eval08"
+  },
+  {
+   "id": "heldout-0267",
+   "text": "I'm on version 8.5.2. How do I save the whole Travel notebook to my hard drive? Separately, one note seems to sync slowly, but that's not why I'm writing. Please sort this out, it's been days.",
+   "intent": "data_export",
+   "secondary": "sync",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/eval06"
+  },
+  {
+   "id": "heldout-0268",
+   "text": "My account email is m.rossi@example.com. Attachments over 10 MB show 'upload error' evne though Plus allows 200 MB.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "bug/eval08"
+  },
+  {
+   "id": "heldout-0269",
+   "text": "Hello! My friend referred me but I never got the free month you advertised. Also, just curious, is there a way to export notes as Markdown?",
+   "intent": "promo_code",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval04"
+  },
+  {
+   "id": "heldout-0270",
+   "text": "nothing I write on the Pixel 8 reaches my other devices anymore. Also, no rush, but how do I share a notebook with my daughter?",
+   "intent": "sync",
+   "secondary": "sharing",
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval08"
+  },
+  {
+   "id": "heldout-0271",
+   "text": "I use it on my Windows laptop. Opening a note with a few images takees a really long time. Honestly not happy about this. Thanks, Lukas",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "performance/eval06"
+  },
+  {
+   "id": "heldout-0272",
+   "text": "Hi team! The app crashed in the midde of typing and I lost what I wrote. Thanks!",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "crash/eval07"
+  },
+  {
+   "id": "heldout-0273",
+   "text": "Why is the app uing so much CPU in the background? - Priya",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "performance/eval05"
+  },
+  {
+   "id": "heldout-0274",
+   "text": "I added notes offline on the plane and they never uploaded. Please sort this out, it's been days.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "sync/eval04"
+  },
+  {
+   "id": "heldout-0275",
+   "text": "Can you cancel the subscription for me? I'm away and only have my phonne. Unrelated, but a Linux app wuld be nice someday. Please sort this out, it's been days.",
+   "intent": "cancel_subscription",
+   "secondary": "feature_request",
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "cancel_subscription/eval06"
+  },
+  {
+   "id": "heldout-0276",
+   "text": "I've been a customer since 2021. Notes I send from Dropbox land in the wrong notebook.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval08"
+  },
+  {
+   "id": "heldout-0277",
+   "text": "Good morning! Can you change my plan from Plus monthly to Plus yearly today? Also, do you still have a student discount? Sorry if this has been asked before. Thanks, Tom",
+   "intent": "plan_change",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/eval08"
+  },
+  {
+   "id": "heldout-0278",
+   "text": "There's an 'account locked' message on every device. I didn't change anything. Separately, one note sees to sync slowly, but that's not why I'm writing.",
+   "intent": "account_locked",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "account_locked/eval07"
+  },
+  {
+   "id": "heldout-0279",
+   "text": "My account email is priya.n@example.net. I just got a login alert from a device I don't own.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "security_concern/eval01"
+  },
+  {
+   "id": "heldout-0280",
+   "text": "I forgot my password and the reset page says my email isn't recognised.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval06"
+  },
+  {
+   "id": "heldout-0281",
+   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? Thanks in advance for your help.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "two_factor/eval04"
+  },
+  {
+   "id": "heldout-0282",
+   "text": "My account email is chen.w@example.com. i cant log in on Edge, it worked fine yesterday. - Jake",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval07"
+  },
+  {
+   "id": "heldout-0283",
+   "text": "Hello! In dark mode some of my text is black on black and unreadable. Separately, how do I turn on two-step verification later?",
+   "intent": "bug",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/eval07"
+  },
+  {
+   "id": "heldout-0284",
+   "text": "Hi there! I mosty use the Android app. Can I schedule automatc backups to my computer? Thank you.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "data_export/eval02"
+  },
+  {
+   "id": "heldout-0285",
+   "text": "Hi! I'm on version 8.5.2. My friend referred me but I never got the free month you advertiseed. Honestly not happy abbout this. Thanks!",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "promo_code/eval04"
+  },
+  {
+   "id": "heldout-0286",
+   "text": "the app says my account is temporarily blocked. How long does that last?",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "account_locked/eval01"
+  },
+  {
+   "id": "heldout-0287",
+   "text": "Hey! I see a pending charge of $4.99 that I didn't expect. What is it? Urgent please.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "billing/eval08"
+  },
+  {
+   "id": "heldout-0288",
+   "text": "Hi team! My accountant needs every receipt from lasst year, can you send them all in one go?",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "billing/eval07"
+  },
+  {
+   "id": "heldout-0289",
+   "text": "i've ben a customer since 2024. How do I disconnect Google Drive from my account? Separately, one note seems to snyc slowly, but that's not why I'm writing.",
+   "intent": "integration",
+   "secondary": "sync",
+   "tone": "terse",
+   "typos": 2,
+   "core": "integration/eval04"
+  },
+  {
+   "id": "heldout-0290",
+   "text": "Hello! Some notes show on the web app but not on my Android phoen. This is really frustrating. Regards, Maria",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "sync/eval05"
+  },
+  {
+   "id": "heldout-0291",
+   "text": "Hello. You charged me $8.99 after the free trial even though I cancelled during it. I want it back. PS the web app feels sluggish too, not a big deal. Thanks, Tom",
+   "intent": "refund",
+   "secondary": "performance",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "refund/eval03"
+  },
+  {
+   "id": "heldout-0292",
+   "text": "Hello! Can you send me an archive of my account? The export button times out with so many notes. Regards, Amara",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/eval07"
+  },
+  {
+   "id": "heldout-0293",
+   "text": "I use it on my Pixel 8. My laptop and phone show different versions of the same checklist. Thanks!",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/eval07"
+  },
+  {
+   "id": "heldout-0294",
+   "text": "I want to download every attachment I've ever uploaded. I've already written about this twice. Thanks!",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/eval03"
+  },
+  {
+   "id": "heldout-0295",
+   "text": "Hi team! Can I still use SPRING25? It says expired but the email said it was good until the end of the month. Separately, one note seems to sync slowly, but that's not why I'm writing. Regards, Jake",
+   "intent": "promo_code",
+   "secondary": "sync",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval02"
+  },
+  {
+   "id": "heldout-0296",
+   "text": "Hello Notewell team! I wish I could undo more than one step in the editor. Also, do you still have a student discount? Sorry if this has been asked before.",
+   "intent": "feature_request",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval03"
+  },
+  {
+   "id": "heldout-0297",
+   "text": "Hello Notewell team! The word count at the bottom is clearly wrong, it says 0 words. Also, just curious, is there a way to export notes as Markdown? Sorry if this has been asked before. - Amara",
+   "intent": "bug",
+   "secondary": "data_export",
+   "tone": "polite",
+   "typos": 0,
+   "core": "bug/eval05"
+  },
+  {
+   "id": "heldout-0298",
+   "text": "We don't need Family aymore, it's just me now. Can I switch to Plus? Alos, no rush, but how do I share a notebook with my colleague? Thanks in advance for your help.",
+   "intent": "plan_change",
+   "secondary": "sharing",
+   "tone": "polite",
+   "typos": 2,
+   "core": "plan_change/eval01"
+  },
+  {
+   "id": "heldout-0299",
+   "text": "My account email is jt1987@example.org. Signing in loops back to the start page on the Windows app. Also, a dark mode for the web app would be lovely. - Amara",
+   "intent": "login",
+   "secondary": "feature_request",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/eval08"
+  },
+  {
+   "id": "heldout-0300",
+   "text": "Hello! My account email is jt1987@example.org. Tags I add disappear when I reopen the note. Thanks in advance for your help. Cheers, Yuki",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "bug/eval01"
+  },
+  {
+   "id": "heldout-0301",
+   "text": "We're on the Family plan. Please stop charging me, I want to cancel. The account itself can stay. Cheers, Yuki",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval07"
+  },
+  {
+   "id": "heldout-0302",
+   "text": "What's the best way to get my 5,000 notes out of Notewell and into another app? Also, no rush, but how do I share a notebook with my son? Sorry if this has been asked before.",
+   "intent": "data_export",
+   "secondary": "sharing",
+   "tone": "polite",
+   "typos": 0,
+   "core": "data_export/eval01"
+  },
+  {
+   "id": "heldout-0303",
+   "text": "Hey! I'm on the Plus plan. Google sign-in says 'something went wrong' and won't let me in. Thank you.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval02"
+  },
+  {
+   "id": "heldout-0304",
+   "text": "Is tere a discount for teachers or non-profits?",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "promo_code/eval07"
+  },
+  {
+   "id": "heldout-0305",
+   "text": "The renewal faailed and now my notes are read-only. My card is valid unttil 2029. I have a deadline tomorrow.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 2,
+   "core": "payment_failed/eval03"
+  },
+  {
+   "id": "heldout-0306",
+   "text": "Hi! The reset link worked but now the app asks for my old password again. i appreciate any help. - Lukas",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/eval08"
+  },
+  {
+   "id": "heldout-0307",
+   "text": "Hi! My shared notebooks have a stranger as a collaborator, I never added them. Also, no rush, but how do I share a notebook with my wife? Thanks in advance for your help. Regards, Maria",
+   "intent": "security_concern",
+   "secondary": "sharing",
+   "tone": "polite",
+   "typos": 0,
+   "core": "security_concern/eval07"
+  },
+  {
+   "id": "heldout-0308",
+   "text": "Our webhook gets a 401 error from your API since this week. Thanks in advance for your hepl.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "integration/eval02"
+  },
+  {
+   "id": "heldout-0309",
+   "text": "I want to remove my account completely, not just stop paying. Urgent please.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "delete_account/eval02"
+  },
+  {
+   "id": "heldout-0310",
+   "text": "I connected Zapier but my notes don't appear there. Urgent please.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "integration/eval01"
+  },
+  {
+   "id": "heldout-0311",
+   "text": "Hello Notewell team! You charged me €54.99 after the free trial even though I cancelled during it. I want it back. By the way, is there a Slack integration?",
+   "intent": "refund",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/eval03"
+  },
+  {
+   "id": "heldout-0312",
+   "text": "My account email is priya.n@example.net. Notes I send from Outlook land in the wrong notebook. I appreciate any help.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "integration/eval08"
+  },
+  {
+   "id": "heldout-0313",
+   "text": "I'm on Free and hit the device limit. How do I move to Plus? Honestly not happy about this. Thanks!",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "plan_change/eval06"
+  },
+  {
+   "id": "heldout-0314",
+   "text": "I mostly use the Windows app. Invites to my notebook never reach the other person's inbox. Also, a dark mode for the web app would be lovely. Please sort this out, it's been days.",
+   "intent": "sharing",
+   "secondary": "feature_request",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "sharing/eval08"
+  },
+  {
+   "id": "heldout-0315",
+   "text": "can I transfer ownership of a shared notebook to my colleague?",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sharing/eval07"
+  },
+  {
+   "id": "heldout-0316",
+   "text": "Hello! The shared notebook disappeared from my wife's account. By the way, is thhere a Slack integration? Thanks!",
+   "intent": "sharing",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "sharing/eval03"
+  },
+  {
+   "id": "heldout-0317",
+   "text": "Hello. Eevry attempt to pay ends with error 402 and nothing is taken from my card.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "payment_failed/eval08"
+  },
+  {
+   "id": "heldout-0318",
+   "text": "i mostly use the Mac app. The NOTES30 code worked last year, why not now?",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "promo_code/eval08"
+  },
+  {
+   "id": "heldout-0319",
+   "text": "Hello. I'm on version 9.1.0. Can I have the two-factor codes sent to my email instead of my phone? By the way, is there a Slack integration? I have a deadline tomororw.",
+   "intent": "two_factor",
+   "secondary": "integration",
+   "tone": "urgent",
+   "typos": 1,
+   "core": "two_factor/eval07"
+  },
+  {
+   "id": "heldout-0320",
+   "text": "Hello! I want to cncel before the trial ennds so I don't get billed. Honestly not happy about this.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "cancel_subscription/eval05"
+  },
+  {
+   "id": "heldout-0321",
+   "text": "google Play shows my subsccription as 'on hold' because the payment failed. Unrelated, but a Linux app would be nice someday",
+   "intent": "payment_failed",
+   "secondary": "feature_request",
+   "tone": "terse",
+   "typos": 1,
+   "core": "payment_failed/eval04"
+  },
+  {
+   "id": "heldout-0322",
+   "text": "The code from Google Authenticator never works, it says expired right away. Also, a dark mode for the web app would be lovely. I appreciate any help.",
+   "intent": "two_factor",
+   "secondary": "feature_request",
+   "tone": "polite",
+   "typos": 0,
+   "core": "two_factor/eval01"
+  },
+  {
+   "id": "heldout-0323",
+   "text": "Hello Notewell team! i mostly use the Windows app. i see a pendig chrage of €54.99 that i didnt expect. What is it?",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "billing/eval08"
+  },
+  {
+   "id": "heldout-0324",
+   "text": "The renewal was charged in dollars but I live in Germany. Why not in my own currency? I need this fixed today.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "billing/eval06"
+  },
+  {
+   "id": "heldout-0325",
+   "text": "Signing in loops back to the strt page on the Windows app. I've already written about this twice.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "login/eval08"
+  },
+  {
+   "id": "heldout-0326",
+   "text": "What's the difference between Plus and Family, and how do I change between them? Also, a dark mode for the web app would be lovely. Sorry if this has been asked before.",
+   "intent": "plan_change",
+   "secondary": "feature_request",
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/eval02"
+  },
+  {
+   "id": "heldout-0327",
+   "text": "Good morning! I've been a customer since 2022. The renewal was charged in dollars but I live in Spain. Why not in my own currency? Thank you.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "billing/eval06"
+  },
+  {
+   "id": "heldout-0328",
+   "text": "Good morning! My Visa payment was rejected even though there's plenty of money in the account. Sorry if this has been asked before.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/eval01"
+  },
+  {
+   "id": "heldout-0329",
+   "text": "Hi! I use it on my Pixel 8. Could you add read-only links that don't need an account to view? I appreciate any help. - Amara",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval08"
+  },
+  {
+   "id": "heldout-0330",
+   "text": "Please switch my subscription from yearly to monthly when it renews.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/eval04"
+  },
+  {
+   "id": "heldout-0331",
+   "text": "Hello! I've been a customer since 2021. Please tell me how to export my notes before my subscription ends. Urgent please.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "data_export/eval08"
+  },
+  {
+   "id": "heldout-0332",
+   "text": "i mostly use the iPad app. There's an 'account locked' message on every device. I didn't change anything.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "account_locked/eval07"
+  },
+  {
+   "id": "heldout-0333",
+   "text": "Hi! Please end my Family subscription, we're moving everyone to Free. Also, coulld you resend my last receipt when you get a chance? - Yuki",
+   "intent": "cancel_subscription",
+   "secondary": "billing",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "cancel_subscription/eval03"
+  },
+  {
+   "id": "heldout-0334",
+   "text": "Hi there! Loading my notes on the iPhone takes forever on wifi that's fine for everything else. I've already written about this twice. Thanks!",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "performance/eval02"
+  },
+  {
+   "id": "heldout-0335",
+   "text": "My account email is jt1987@example.org. The reset link worked but now the app asks for my old password again.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval08"
+  },
+  {
+   "id": "heldout-0336",
+   "text": "i want to cancel before the trial ends so I don't get billed",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "cancel_subscription/eval05"
+  },
+  {
+   "id": "heldout-0337",
+   "text": "Hi team! I get 'this account is locked' even with the rigght password. This is really frustrating.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "account_locked/eval04"
+  },
+  {
+   "id": "heldout-0338",
+   "text": "Hello! I mostly use the iPhone app. Notewell keeps crashing on my Chromebook when I record audio. Separately, one note seems to sync slowly, but that's not why I'm writing. Thanks, Ahmed",
+   "intent": "crash",
+   "secondary": "sync",
+   "tone": "polite",
+   "typos": 0,
+   "core": "crash/eval03"
+  },
+  {
+   "id": "heldout-0339",
+   "text": "Hello Notewell team! I've been a customer since 2021. What's the difference between Plus and Family, and how do I change between them? Regards, Tom",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/eval02"
+  },
+  {
+   "id": "heldout-0340",
+   "text": "Hey! I've been a customer since 2021. I'm stuck on the login screen on my Windows laptop, it keeps saying session expired. Sorry if this has been asked before. Thanks!",
+   "intent": "login",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "login/eval03"
+  },
+  {
+   "id": "heldout-0341",
+   "text": "How do I set up the Microsoft Teams integration? I need this fixed today.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "integration/eval06"
+  },
+  {
+   "id": "heldout-0342",
+   "text": "I verified my student email but the price didn't change. Please sort this out, it's been days.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "promo_code/eval03"
+  },
+  {
+   "id": "heldout-0343",
+   "text": "my account email is m.rossi@example.com. I was supposed to get the first year at half price, but my invoice shows $89.99.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "promo_code/eval05"
+  },
+  {
+   "id": "heldout-0344",
+   "text": "Hello. The editor jumps to the top every timme I type a bullet point. I need this fixed today.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 1,
+   "core": "bug/eval02"
+  },
+  {
+   "id": "heldout-0345",
+   "text": "Hello! The desktop app hangs completely and I have to force quit it. Honestly not happy about this. Thanks, Amara",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "crash/eval04"
+  },
+  {
+   "id": "heldout-0346",
+   "text": "Hi! Handwriting on the iPad turns into random letters when I convert it to text.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/eval04"
+  },
+  {
+   "id": "heldout-0347",
+   "text": "Hello Notewell team! I want to upgrade to Family but keep my current billing date. I've already written about this twice.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "plan_change/eval03"
+  },
+  {
+   "id": "heldout-0348",
+   "text": "I'm asking for a refund of this year's subscription, I forgot it was still running. Thank you.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/eval04"
+  },
+  {
+   "id": "heldout-0349",
+   "text": "Hello Notewell team! Why was my account suspended? I only use it for school. Also, could you resend my last receipt when you get a chance? Sorry if this has been asked before.",
+   "intent": "account_locked",
+   "secondary": "billing",
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/eval06"
+  },
+  {
+   "id": "heldout-0350",
+   "text": "close and erase my account, I've already cancelled the subscriptioon.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "delete_account/eval04"
+  },
+  {
+   "id": "heldout-0351",
+   "text": "Hey! I want to upgrade to Plus but keep my current billing date. Also, a dark mode for the web app would be lovely.",
+   "intent": "plan_change",
+   "secondary": "feature_request",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/eval03"
+  },
+  {
+   "id": "heldout-0352",
+   "text": "Hello Notewell team! My account email is chen.w@example.com. Suggestion: let me pin notes to the top of a notebook.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "feature_request/eval06"
+  },
+  {
+   "id": "heldout-0353",
+   "text": "My account email is m.rossi@example.com. Charged for Family again after i downgraded. Please send the money back to my Amex. This is really frustrating.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "refund/eval05"
+  },
+  {
+   "id": "heldout-0354",
+   "text": "I mostly use the Mac app. Can you change my plan from Plus monthly to Plus yearly today? Sorry if this has been asked before.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/eval08"
+  },
+  {
+   "id": "heldout-0355",
+   "text": "How do I set up the Microsoft Teams integration?",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval06"
+  },
+  {
+   "id": "heldout-0356",
+   "text": "Hello. There's a session from Brazil in my device list that isn't mine. PS the web app feels sluggish too, not a big deal. Sorry if this has been asked beofre.",
+   "intent": "security_concern",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 1,
+   "core": "security_concern/eval04"
+  },
+  {
+   "id": "heldout-0357",
+   "text": "I was supposed to get the first year at half price, but my invoice showws $49.99. Also, just curious, is there a way to export notes as Markdown? Cheers, Amara",
+   "intent": "promo_code",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "promo_code/eval05"
+  },
+  {
+   "id": "heldout-0358",
+   "text": "Good morning! My account email is jt1987@example.org. The website is painfully slow during the day and fine at night. Also, just curious, is there a way to export notes as Markdown? Honestly not happy about this.",
+   "intent": "performance",
+   "secondary": "data_export",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "performance/eval07"
+  },
+  {
+   "id": "heldout-0359",
+   "text": "I get 'this account is locked' even with the right password. Sorry if this has been asked before.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/eval04"
+  },
+  {
+   "id": "heldout-0360",
+   "text": "I'm on version 8.4.1. Sorting by date modified puts old notes first. That looks wrong. This is really frustrating.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "bug/eval03"
+  },
+  {
+   "id": "heldout-0361",
+   "text": "I'm asking for a refund of this year's subscription, I forgot it was still running.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/eval04"
+  },
+  {
+   "id": "heldout-0362",
+   "text": "Hi there! Can i get a partial reund for the months i have left on the annual plan? This is rally frustrating.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "refund/eval06"
+  },
+  {
+   "id": "heldout-0363",
+   "text": "Hello. Theres a $89.99 charge from Notewell on my card and Im not sure which account it belongs to.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "billing/eval01"
+  },
+  {
+   "id": "heldout-0364",
+   "text": "Hi! Would it be possible to have a calendar view of notes? Thanks in advance for your help.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval02"
+  },
+  {
+   "id": "heldout-0365",
+   "text": "There's a session from Brazil in my device list that isn't mine. This is really frustrating.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "security_concern/eval04"
+  },
+  {
+   "id": "heldout-0366",
+   "text": "Hello Notewell team! I mostly use the iPhone app. I was logged out after the update and now my login doesn't work. Also, do you still have a student discount? Thanks in advance for your help.",
+   "intent": "login",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 0,
+   "core": "login/eval05"
+  },
+  {
+   "id": "heldout-0367",
+   "text": "Reminders from Notewell aren't showing up in my Outlook calendar anymore. Please sort this out, it's been days. Thanks!",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "integration/eval03"
+  },
+  {
+   "id": "heldout-0368",
+   "text": "I have about 2,000 ntes. Some notes show on the web app but not on my Anndroid phone. Sorry if this has been asked before. Thank you.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "sync/eval05"
+  },
+  {
+   "id": "heldout-0369",
+   "text": "Could you add a way to schedule notes to be sent by email? Also, just curious, is there a way to export notes as Markdown? I appreciate any help. - Lukas",
+   "intent": "feature_request",
+   "secondary": "data_export",
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval01"
+  },
+  {
+   "id": "heldout-0370",
+   "text": "Hello Notewell team! I mostly use the iPhone app. Clicking the link in the reset email opens a blank page.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval02"
+  },
+  {
+   "id": "heldout-0371",
+   "text": "i see 'sync error 1031' in the Mac app.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval03"
+  },
+  {
+   "id": "heldout-0372",
+   "text": "Whats the difference between Plus and Famly, and how do i change betewen them?",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "plan_change/eval02"
+  },
+  {
+   "id": "heldout-0373",
+   "text": "Hi there! We're on the Family plan. I forgot my password and the reset page says my email isn't recognised. I have a deadline tomorrow. - Amara",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "password_reset/eval06"
+  },
+  {
+   "id": "heldout-0374",
+   "text": "Were on the Family plan. Im on Free and hit the device limit. How do i move to Plus? Also, a dark mode for the web app would be lovely.",
+   "intent": "plan_change",
+   "secondary": "feature_request",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "plan_change/eval06"
+  },
+  {
+   "id": "heldout-0375",
+   "text": "Hello Notewell team! I've been a customer since 2022. Is there any chance of a Linux desktop app? Sorry if this has been asked before.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval07"
+  },
+  {
+   "id": "heldout-0376",
+   "text": "i want to update my password to something strogner, where is that?",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "password_reset/eval05"
+  },
+  {
+   "id": "heldout-0377",
+   "text": "we're on the Family plan. I'm stuck on the login screen on my Pixel 8, it keeps saying session expired.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "login/eval03"
+  },
+  {
+   "id": "heldout-0378",
+   "text": "I mostly use the web app. The iPad app goes to a white screen and then closes when I open a PDF. Please sort this out, it's been days.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "crash/eval02"
+  },
+  {
+   "id": "heldout-0379",
+   "text": "Can I have the two-factor codes sent to my email instead of my phone? This is really frustrating. Thanks!",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/eval07"
+  },
+  {
+   "id": "heldout-0380",
+   "text": "Hi! I have about 2,000 notes. I'm locked out because I can't remember my password. Can you send me a new reset link?",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/eval01"
+  },
+  {
+   "id": "heldout-0381",
+   "text": "i want to dowload every attachment I've ever uploaded",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "data_export/eval03"
+  },
+  {
+   "id": "heldout-0382",
+   "text": "Please switch my subscription from yearly to monthly when it renews. Please sort this out, it's been days.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "plan_change/eval04"
+  },
+  {
+   "id": "heldout-0383",
+   "text": "Hi there! I use it on my Android phone. The desktop app won't accept my password but the website does. Please sort this out, it's been days. Thanks!",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/eval06"
+  },
+  {
+   "id": "heldout-0384",
+   "text": "I mostly use the web app. Does the $49.99 include tax? My receipt doeesn't say. I apprecite any help.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "billing/eval04"
+  },
+  {
+   "id": "heldout-0385",
+   "text": "What's the best way to get my 300 notes out of Notewell and into another app? Sorry if this has been asked before.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "data_export/eval01"
+  },
+  {
+   "id": "heldout-0386",
+   "text": "Why was my account suspended? I only use it for scool.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "account_locked/eval06"
+  },
+  {
+   "id": "heldout-0387",
+   "text": "My colleague accepted the Family invite but still has the Free plan.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval01"
+  },
+  {
+   "id": "heldout-0388",
+   "text": "Hi team! We're on the Family plan. Charged for Family again after I downgraded. Please send the money back to my Amex.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/eval05"
+  },
+  {
+   "id": "heldout-0389",
+   "text": "Good morning! Please refund the $4.99 renewal, I stpoped using Notewell months ago. This is really frustrating.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "refund/eval01"
+  },
+  {
+   "id": "heldout-0390",
+   "text": "Notewell keeeps crashing on my Windows laptop when I record audio. By the way, is theer a Slack integration?",
+   "intent": "crash",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 2,
+   "core": "crash/eval03"
+  },
+  {
+   "id": "heldout-0391",
+   "text": "Hi! I have about 2,000 notes. Startup now takes almost a minute on my Pixel 8. Sorry if this has been asked before. Thanks, Jake",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "performance/eval04"
+  },
+  {
+   "id": "heldout-0392",
+   "text": "Hello Notewell team! Is this text message saiyng my Notewell accont is suspended a scam? I appreciate any help.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "security_concern/eval03"
+  },
+  {
+   "id": "heldout-0393",
+   "text": "I've been a customer since 2019. I need my notes as plain text files for my archive. Honestly not happy about this.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/eval05"
+  },
+  {
+   "id": "heldout-0394",
+   "text": "templates put the wrong date in the title",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "bug/eval06"
+  },
+  {
+   "id": "heldout-0395",
+   "text": "I'm travelling abroad and the text messages with codes don't come through. Please sort this out, it's been days. Cheers, Sofia",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/eval08"
+  },
+  {
+   "id": "heldout-0396",
+   "text": "Hi! We're on the Family plan. How do I leave a shared notebook someone added me to? Separately, how do I turn on two-step verification later? Cheers, Jake",
+   "intent": "sharing",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval05"
+  },
+  {
+   "id": "heldout-0397",
+   "text": "Hello. There's a $49.99 charge from Notewell on my card and I'm not sure which account it belongs to. Also, just curious, is there a way to export notes as Markdown? This is really frustrating. Thanks!",
+   "intent": "billing",
+   "secondary": "data_export",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "billing/eval01"
+  },
+  {
+   "id": "heldout-0398",
+   "text": "Hi! My bank says they never saw the charge, but the app says my payment failed. Please sort this out, it's been days.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "payment_failed/eval06"
+  },
+  {
+   "id": "heldout-0399",
+   "text": "Hello. My secuirty key isn't recognised when I try to sign in.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "two_factor/eval03"
+  },
+  {
+   "id": "heldout-0400",
+   "text": "I'm on the Plus plan. I can't open Notewell at all, it shows the logo and then disappears. I have a deadline tomorrow.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "crash/eval08"
+  }
+ ]
+}
