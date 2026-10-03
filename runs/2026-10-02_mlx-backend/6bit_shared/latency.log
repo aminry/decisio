@@ -1,0 +1,4 @@
+pass 1: 1q p50 525 ms (524.8/q); 10q p50 1254 ms (125.3/q); 100q p50 11029 ms (110.3/q); 100q_8k p50 14450 ms (144.5/q); max foreign CPU 125% (Helper (Renderer).app/Contents/MacOS/Paseo Helper (Renderer)), idle False
+pass 2: 1q p50 230 ms (229.8/q); 10q p50 1127 ms (112.7/q); 100q p50 9519 ms (95.2/q); 100q_8k p50 14255 ms (142.5/q); max foreign CPU 110% (Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd), idle False
+pass 3: 1q p50 231 ms (230.9/q); 10q p50 1157 ms (115.7/q); 100q p50 9788 ms (97.9/q); 100q_8k p50 14785 ms (147.8/q); max foreign CPU 467% (/Users/amin/repo/decisio-t7/.venv/bin/python), idle False
+LATENCY DONE

@@ -1,0 +1,1 @@
+f3c5026 feat(serve): an MLX engine for the text route on Apple silicon (--backend mlx) (#39)

@@ -330,5 +330,192 @@
   "the 8-bit memory stage failed on a code error in the memory script (JSON-object states joined as text) and ran after the chain with the fixed script; no number was produced before the fix",
   "the idle rule for latency was not met at any quantisation; the third pass is reported with its load (latency.json)"
  ],
- "decisions": "Amin, 2026-10-02: 6-bit is the Mac default; 4-bit the documented option for 32 GB machines; 8-bit not shipped, its ECE miss reported as pre-registered"
+ "decisions": "Amin, 2026-10-02: 6-bit is the Mac default; 4-bit the documented option for 32 GB machines; 8-bit not shipped, its ECE miss reported as pre-registered",
+ "pad_policy_shared": {
+  "decision": "Amin, 2026-10-02: gate --pad-policy shared on the MLX backend at 6 bits with the backend's full gate set; if it passes, make it the MLX default. It passed, and is the MLX default (resolve_pad_policy)",
+  "code": "decisio f3c5026 (as merged), --pad-policy shared; records in 6bit_shared/",
+  "pre_registration": "private RLCD experiment 2026-10-02_t2_mlx_backend, PREREG.md addendum A, written before the run",
+  "gates": {
+   "P_prompts": "1,400 of 1,400 single-question rows equal the default rows minus their front padding; multi-question rows unchanged",
+   "C1_cpu_and_G2": "pass (16 fillers and repeat bit for bit); a question alone vs inside a request differs by design: max 0.021, 0 flips (reported)",
+   "C2_C4": "pass",
+   "S1_accuracy": {
+    "pass": true,
+    "mlx": 0.7607142857142857,
+    "fp8": 0.7621428571428571,
+    "mlx_minus_fp8": [
+     -0.0014285714285714457,
+     -0.013571428571428568,
+     0.010714285714285787
+    ]
+   },
+   "S2_flips": 98,
+   "S3_ece": {
+    "pass": true,
+    "mlx": 0.029725181457521385,
+    "fp8": 0.02005403296685407,
+    "difference": 0.009671148490667317
+   },
+   "brier_reported": {
+    "mlx": 0.34011703325016374,
+    "mlx_minus_fp8": [
+     0.011325633398747148,
+     0.0044662967179830105,
+     0.018445540278874847
+    ]
+   },
+   "H": {
+    "banking77": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.84,
+      0.8533333333333334,
+      0.8466666666666667
+     ],
+     "mlx_minus_fp8": [
+      1.1102230246251565e-16,
+      -0.028888888888888964,
+      0.03111111111111109
+     ]
+    },
+    "v3_clinc": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.92,
+      0.93,
+      0.93
+     ],
+     "mlx_minus_fp8": [
+      0.033333333333333104,
+      0.0,
+      0.07666666666666655
+     ]
+    }
+   },
+   "H3_reported": "a head question inside a two-question (padded) request: BANKING77 0.840 and CLINC150 0.920, 0 items changed against the same draw served alone"
+  },
+  "latency_server_ms_p50_p95": {
+   "1q": [
+    230.85000000000002,
+    306.47999999999996
+   ],
+   "10q": [
+    1157.4,
+    1167.82
+   ],
+   "100q": [
+    9787.55,
+    10696.02
+   ],
+   "100q_8k": [
+    14784.849999999999,
+    15389.545
+   ]
+  },
+  "latency_idle_rule_met": false,
+  "superseded_by": "pad_policy_none: no padding gated and adopted as the MLX default instead (Amin, 2026-10-02)"
+ },
+ "pad_policy_none": {
+  "decision": "Amin, 2026-10-02: gate no padding on MLX at 6 bits with the shared run's gate set plus the alone-vs-in-request check bit for bit and H3; if it passes, it replaces shared as the MLX default. It passed",
+  "code": "decisio f3c5026 (as merged), --pad-to none (the rows --pad-policy none builds); records in 6bit_none/",
+  "pre_registration": "private RLCD experiment 2026-10-02_t2_mlx_backend, PREREG.md addendum C, written before the run",
+  "gates": {
+   "P_prompts": "1,400 of 1,400 suite rows and the multi-question rows equal the default rows minus their front padding",
+   "C1_cpu_and_G2": "pass: 16 fillers, repeat, and each question alone against inside the request, all bit for bit",
+   "C2_C4": "pass",
+   "S1_accuracy": {
+    "pass": true,
+    "mlx": 0.7607142857142857,
+    "fp8": 0.7621428571428571,
+    "mlx_minus_fp8": [
+     -0.0014285714285714457,
+     -0.013571428571428568,
+     0.010714285714285787
+    ]
+   },
+   "S2_flips": 98,
+   "S3_ece": {
+    "pass": true,
+    "mlx": 0.029725181457521385,
+    "fp8": 0.02005403296685407,
+    "difference": 0.009671148490667317
+   },
+   "brier_reported": {
+    "mlx": 0.34011703325016374,
+    "mlx_minus_fp8": [
+     0.011325633398747148,
+     0.0044662967179830105,
+     0.018445540278874847
+    ]
+   },
+   "suite_bit_identical_to_shared": "1,400 of 1,400 (single-question prompts are the same under shared and none)",
+   "H": {
+    "banking77": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.84,
+      0.8533333333333334,
+      0.8466666666666667
+     ],
+     "mlx_minus_fp8": [
+      1.1102230246251565e-16,
+      -0.028888888888888964,
+      0.03111111111111109
+     ]
+    },
+    "v3_clinc": {
+     "H1_pass": true,
+     "H2_pass": true,
+     "mlx_per_draw": [
+      0.92,
+      0.93,
+      0.93
+     ],
+     "mlx_minus_fp8": [
+      0.033333333333333104,
+      0.0,
+      0.07666666666666655
+     ]
+    }
+   },
+   "H3_gated": {
+    "banking77": {
+     "served_equal_alone": "150 of 150",
+     "accuracy": 0.84
+    },
+    "v3_clinc": {
+     "served_equal_alone": "100 of 100",
+     "accuracy": 0.92
+    }
+   }
+  },
+  "latency_server_ms_p50_p95": {
+   "1q": [
+    231.8,
+    307.21999999999997
+   ],
+   "10q": [
+    944.5,
+    1031.455
+   ],
+   "100q": [
+    10974.3,
+    11361.615
+   ],
+   "100q_8k": [
+    15031.15,
+    15159.74
+   ]
+  },
+  "latency_idle_rule_met": false,
+  "latency_note": "every pass ran beside heavy foreign load (up to 265% CPU) and the passes differed by up to 2.6x; the multi-question cells are not a measurement of the policy",
+  "rebased_check": {
+   "code": "this PR's commit on 35d112c (with #44, #45, #50: their options off by default)",
+   "check": "6-bit with default flags (the server resolves --pad-policy to none): gate P'' and the serving gates pass; the 1,400 suite answers bit-identical to the gated 6bit_none run, 1,400 of 1,400",
+   "record": "6bit_none/rebased_check/"
+  }
+ }
 }

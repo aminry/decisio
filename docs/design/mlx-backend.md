@@ -24,9 +24,11 @@ The Mac default is the 6-bit conversion; the 4-bit one is the documented option 
 `MLXLettersEngine` (`decisio.serve.mlx_engine`) subclasses `vllm_engine.LettersEngine`, as the CPU stand-in does, and replaces only model loading and the forward pass.
 The request path before that is the served code: state tokenization, the split into state and question, the padding, the label tokens, derived questions, both routes, the temperature, tasks and abstention.
 
-The prompts are the vLLM path's, byte for byte:
+The prompts are the vLLM path's without the padding (below):
 - **Tokenizer:** the official one (`--tokenizer`, default `Qwen/Qwen3.6-35B-A3B-FP8`). The mlx-community conversions ship a different `tokenizer.json` and `tokenizer_config.json`; the chat template and the vocabulary are the same. `GET /health` reports the tokenizer file's sha256 and whether it is the official one.
-- **Padding:** the served default's, front padding to vLLM's 1,056-token block. MLX's cache does not need it, but the served prompts carry it, and the accuracy records were made with it; `--pad-to none` leaves it out.
+- **Padding:** none (`--pad-policy none`, the MLX default, `resolve_pad_policy`). MLX's cache does not need the served front padding to vLLM's 1,056-token block, which was about 70% of a single question's time (926 of 1,056 prefix tokens at the median).
+  - The prompts are the vLLM path's without the padding, and a question asked alone and inside a request is one prompt.
+  - `--pad-policy always` restores the served prompts byte for byte.
 
 ## The forward pass
 
@@ -46,7 +48,30 @@ The final-norm hidden state at the same position comes out of the same forward, 
 
 With the vLLM engine's newer flags:
 - **`--multi-question`:** has no effect here, because the MLX engine always scores questions one at a time from the shared prefix, which is what `sequential` does on vLLM.
-- **`--pad-policy shared`:** applies as it does on vLLM; the row builder is shared.
+- **`--pad-policy`:** the row builder is shared with vLLM; the MLX default is `none` (below), vLLM's `always`.
+
+## The MLX default: no padding (`--pad-policy none`)
+
+Gated at 6 bits against the FP8 records with the backend's full gate set (`runs/2026-10-02_mlx-backend`: `6bit`, `6bit_shared`, `6bit_none`; pre-registered).
+
+| | Padded (`always`) | `shared` | `none` (the default) |
+| --- | --- | --- | --- |
+| Prompts vs the vLLM path | identical | the padding of single-question requests removed | the padding of every request removed |
+| A question alone vs inside a request | bit for bit | differs (max 0.021, no flip) | bit for bit |
+| Suite accuracy vs FP8 0.762 (points) | +0.4 [-0.5, +1.2] | -0.1 [-1.4, +1.1] | -0.1 [-1.4, +1.1] |
+| Top-answer flips vs FP8 | 56 of 1,400 | 98 | 98 |
+| Pooled ECE vs FP8 0.020 (gate: within 0.01) | 0.025 | 0.030 (+0.0097) | 0.030 (+0.0097) |
+| Brier vs FP8 0.329 | -0.004 [-0.009, +0.001] | +0.011 [+0.005, +0.018] | +0.011 [+0.005, +0.018] |
+| Intent heads BANKING77 / CLINC150 (points) | -1.3 / +2.0 | 0.0 / +3.3 | 0.0 / +3.3 |
+| A head question inside a two-question request | - | no answer changed | bit for bit (250 of 250) |
+| Conformance C2-C4; head arithmetic | pass; exact | pass; exact | pass; exact |
+| One question, server time p50 / p95 | 482 / 490 ms | 231 / 306 ms | 232 / 307 ms |
+
+**How the policies compare:**
+- **Single-question requests:** `shared` and `none` send the same prompt, so their suite and head results are identical.
+- **Isolation:** `none` keeps a question's answer the same whether it is asked alone or with others, which `shared` gives up.
+- **Against padded:** both cost more flips and a Brier score worse by 0.011, and halve a single question's time.
+- **Multi-question requests:** without padding, the state prefill is about 130 tokens instead of 1,056. The latency run for those cells ran under heavy foreign load, so its multi-question numbers are not a measurement of this.
 
 ## The prefix path against the whole prompt
 
@@ -74,7 +99,7 @@ Intervals are paired 95% bootstrap intervals over items.
 | Intent head CLINC150, 3 draws (FP8 0.893) | 0.920, +2.7 [-1.0, +6.7] | 0.913, +2.0 [-1.3, +5.7] | 0.927, +3.3 [0.0, +7.3] |
 | Head arithmetic (stored fits; served answers) | exact | exact | exact |
 | Peak memory at 32k tokens | 39.4 GB | 30.7 GB | 22.0 GB |
-| One question, server time p50 | 485 ms | 482 ms | 430 ms |
+| One question, server time p50 (padded; 232 ms at 6 bits with the default `none`) | 485 ms | 482 ms | 430 ms |
 | 100 questions sharing a state, per question p50 | 98 ms | 97 ms | 74 ms |
 
 - **Shipped:**

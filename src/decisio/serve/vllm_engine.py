@@ -395,8 +395,8 @@ class LettersEngine:
                     "a question's text merges with the state's last token; questions must not start with whitespace"
                 )
         k = (-n % self.pad_unit) if self.pad_unit else 0
-        if self.pad_policy == "shared" and len(questions) == 1:
-            k = 0  # --pad-policy shared: no second question can reuse the padded boundary
+        if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
+            k = 0  # none: never pad; shared: no second question can reuse the padded boundary
         elif self.pad_policy == "row" and len(questions) == 1 and self.pad_unit:
             # --pad-policy row: the whole row, state and question, ends on a block boundary, so a cold prefill is
             # one engine step (align mode stops a prefill at the last boundary, and a row just past one costs a
@@ -708,6 +708,16 @@ def resolve_head_mode(model_class, head_engine, one_engine=False):
     return model_class, "second-engine" if head_engine else None
 
 
+def resolve_pad_policy(backend, pad_policy=None):
+    """--pad-policy's default by backend. vLLM: always, the served prompts (its hybrid prefix cache needs the block
+    boundary). MLX: none, gated at 6 bits against the FP8 records (runs/2026-10-02_mlx-backend, 6bit_none): MLX's cache
+    needs no padding, so its prompts differ from the vLLM path's by the padding only, a question asked alone and inside
+    a request is one prompt, and a single question costs about half the time."""
+    if pad_policy is not None:
+        return pad_policy
+    return "none" if backend == "mlx" else "always"
+
+
 def engine_kwargs(args) -> dict:
     """`LLM(...)` keyword arguments of the text engine: --engine's JSON, plus decisio's model class when one is chosen
     (registered here for this process; vLLM's engine processes load the plugin through its entry point)."""
@@ -746,13 +756,14 @@ def main():
     ap.add_argument("--pack", type=int, default=16)
     ap.add_argument(
         "--pad-policy",
-        default="always",
-        choices=["always", "shared", "row"],
-        help="always (the served default): front-pad every state to the block; shared: pad only when the request has "
-        "more than one question to share the padded boundary (a single-question request then reads its state "
-        "unpadded, a different prompt); row: a single-question request is front-padded so its whole row, state "
-        "and question, ends on the block boundary and is prefilled in one engine step (multi-question requests "
-        "as always)",
+        default=None,
+        choices=["always", "shared", "row", "none"],
+        help="always (the default with vLLM): front-pad every state to the block; shared: pad only when the request "
+        "has more than one question to share the padded boundary (a single-question request then reads its state "
+        "unpadded, a different prompt); row: a single-question request is front-padded so its whole row, state and "
+        "question, ends on the block boundary and is prefilled in one engine step (multi-question requests as "
+        "always); none (the default with --backend mlx, whose cache needs no padding): never pad, so a question "
+        "asked alone and inside a request is one prompt (resolve_pad_policy)",
     )
     ap.add_argument(
         "--multi-question",
@@ -919,6 +930,7 @@ def main():
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
+    args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
         refused = [
             flag

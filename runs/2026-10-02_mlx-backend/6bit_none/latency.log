@@ -1,0 +1,4 @@
+pass 1: 1q p50 601 ms (600.8/q); 10q p50 1034 ms (103.4/q); 100q p50 10933 ms (109.3/q); 100q_8k p50 15132 ms (151.3/q); max foreign CPU 265% (Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd), idle False
+pass 2: 1q p50 571 ms (571.0/q); 10q p50 890 ms (89.0/q); 100q p50 10456 ms (104.6/q); 100q_8k p50 14456 ms (144.6/q); max foreign CPU 220% (Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd), idle False
+pass 3: 1q p50 232 ms (231.8/q); 10q p50 944 ms (94.5/q); 100q p50 10974 ms (109.7/q); 100q_8k p50 15031 ms (150.3/q); max foreign CPU 259% (/private/tmp/dec-qpf/.venv/bin/python3), idle False
+LATENCY DONE

@@ -1,0 +1,7 @@
+16:48:44 R12 banking77 draw 0: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.840; registration 568s
+16:59:28 R12 banking77 draw 1: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.853; registration 582s
+17:11:53 R12 banking77 draw 2: head applied True (lambda 0.01), stored = reference: head True, calibration True; served exact 150 of 150; accuracy 0.847; registration 677s
+17:39:01 R12 v3_clinc draw 0: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.920; registration 1569s
+18:06:02 R12 v3_clinc draw 1: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.930; registration 1555s
+18:31:42 R12 v3_clinc draw 2: head applied True (lambda 0.0001), stored = reference: head True, calibration True; served exact 100 of 100; accuracy 0.930; registration 1489s
+18:31:42 R12_DONE
