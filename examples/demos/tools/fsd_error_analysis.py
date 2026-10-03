@@ -30,7 +30,7 @@ from collections import Counter, defaultdict
 from decision_log import read
 
 
-def motion_class(d: dict, margin: float) -> str | None:
+def motion_class(d: dict, margin: float, one_hot: bool = False) -> str | None:
     o = d["oracle"]
     if d["source"] == "rules_fallback":
         return "latency" if (d.get("error") or "").startswith("timeout") else "no answer (error)"
@@ -42,11 +42,13 @@ def motion_class(d: dict, margin: float) -> str | None:
         return None
     if m == o["motion"]:
         return "latency"
+    if one_hot or "one-hot" in str(ans.get("probabilities_source", "")):
+        return "near-tie or judgement (no distribution)"
     p = ans["probabilities"]
     return "near-tie" if p[m] - p.get(o["motion"], 0.0) < margin else "judgement"
 
 
-def vector_class(d: dict, margin: float, tol: float) -> tuple[str | None, bool]:
+def vector_class(d: dict, margin: float, tol: float, one_hot: bool = False) -> tuple[str | None, bool]:
     """(class or None, exact agreement); None when the vector was not asked or the model stopped."""
     ans, o = d.get("vector_answer"), d["oracle"]
     if not ans or d["source"] == "rules_fallback" or d.get("motion") == "stop":
@@ -57,11 +59,13 @@ def vector_class(d: dict, margin: float, tol: float) -> tuple[str | None, bool]:
     costs = o.get("costs") or {}
     if m in costs and o["vector"] in costs and costs[m] <= costs[o["vector"]] + tol:
         return "agree within tolerance", False
+    if one_hot or "one-hot" in str(ans.get("probabilities_source", "")):
+        return "near-tie or judgement (no distribution)", False
     p = ans["probabilities"]
     return ("near-tie" if p[m] - p.get(o["vector"], 0.0) < margin else "judgement"), False
 
 
-def analyse(rows: list[dict], margin: float, tol: float) -> dict:
+def analyse(rows: list[dict], margin: float, tol: float, one_hot: bool = False) -> dict:
     by_run = defaultdict(list)
     for r in rows:
         by_run[(r.get("run"), r.get("seed"))].append(r)
@@ -71,11 +75,11 @@ def analyse(rows: list[dict], margin: float, tol: float) -> dict:
     for key, rs in sorted(by_run.items(), key=lambda kv: str(kv[0])):
         mc, vc = Counter(), Counter()
         for d in rs:
-            c = motion_class(d, margin)
+            c = motion_class(d, margin, one_hot)
             if d.get("motion_answer") or d["source"] == "rules_fallback":
                 m_asked += 1
                 mc[c or "agree"] += 1
-            vclass, _ = vector_class(d, margin, tol)
+            vclass, _ = vector_class(d, margin, tol, one_hot)
             if vclass:
                 v_asked += 1
                 vc[vclass] += 1
@@ -96,16 +100,17 @@ def analyse(rows: list[dict], margin: float, tol: float) -> dict:
 
 def table(res: dict) -> str:
     m, v = res["motion"], res["vector"]
+    nd = "near-tie or judgement (no distribution)"
     lines = [
         f"{res['decisions']} model decisions; margin {res['margin']}, cost tolerance {res['tol']}",
         "",
-        "| question | asked | agree | agree within tolerance | latency | near-tie | judgement | no answer "
-        "| prompt or state |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| question | asked | agree | agree within tolerance | latency | near-tie | judgement "
+        "| near-tie or judgement (no distribution) | no answer | prompt or state |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         f"| motion | {res['motion_asked']} | {m.get('agree', 0)} | | {m.get('latency', 0)} | {m.get('near-tie', 0)} "
-        f"| {m.get('judgement', 0)} | {m.get('no answer (error)', 0)} | detector not yet defined |",
+        f"| {m.get('judgement', 0)} | {m.get(nd, 0)} | {m.get('no answer (error)', 0)} | detector not yet defined |",
         f"| manoeuvre | {res['vector_asked']} | {v.get('agree', 0)} | {v.get('agree within tolerance', 0)} | "
-        f"| {v.get('near-tie', 0)} | {v.get('judgement', 0)} | | detector not yet defined |",
+        f"| {v.get('near-tie', 0)} | {v.get('judgement', 0)} | {v.get(nd, 0)} | | detector not yet defined |",
     ]
     return "\n".join(lines)
 
@@ -116,9 +121,10 @@ def main() -> None:
     ap.add_argument("--margin", type=float, default=0.10)
     ap.add_argument("--tol", type=float, default=1.0)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--one-hot", action="store_true", help="the player's answers carry no distribution (a chat model)")
     a = ap.parse_args()
     rows = [r for p in a.log for r in read(p)]
-    res = analyse(rows, a.margin, a.tol)
+    res = analyse(rows, a.margin, a.tol, a.one_hot)
     print(table(res))
     if a.json:
         with open(a.json, "w") as f:

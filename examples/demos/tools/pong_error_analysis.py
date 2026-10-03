@@ -40,7 +40,10 @@ def distributions(log_paths: list[str]) -> dict:
     out = {}
     for path in log_paths:
         for r in read(path):
-            probs = (((r.get("response") or {}).get("answers") or {}).get("move") or {}).get("probabilities")
+            ans = ((r.get("response") or {}).get("answers") or {}).get("move") or {}
+            if "one-hot" in str(ans.get("probabilities_source", "")):
+                continue  # a chat answer has no distribution: its misses stay near-tie or judgement, unseparated
+            probs = ans.get("probabilities")
             state = (r.get("request") or {}).get("state")
             if probs and isinstance(state, dict):
                 out[(r.get("lane"), state_key(state))] = probs
