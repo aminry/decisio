@@ -33,7 +33,7 @@ pnpm dev -p 3100                                         # then open http://loca
 
 `?clean=1` shows the lanes and nothing else, for recording.
 `pnpm test`, `pnpm typecheck` and `pnpm lint` check the code.
-`../tools/demo_recorder.py` records the page to WebM, MP4 and a GIF under 3 MB.
+`../tools/measure_pong.py` also writes a trajectory per lane and run, and `../tools/render_pong.py` draws a clip from it (`../README.md`).
 
 ## What the numbers mean
 

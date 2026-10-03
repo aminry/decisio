@@ -20,7 +20,6 @@ import argparse
 import json
 import os
 import shutil
-import signal
 import subprocess
 import time
 from pathlib import Path
@@ -58,27 +57,6 @@ def lane_rows(replay: dict) -> dict:
             "final_score": snaps[-1]["score"] if snaps else None,
         }
     return rows
-
-
-def serve_replay(replay_path: Path, port: int):
-    """`next start` on the production build with `replay_path` as public/replay.json."""
-    (PONG / "public").mkdir(exist_ok=True)
-    shutil.copy(replay_path, PONG / "public" / "replay.json")
-    return subprocess.Popen(
-        ["pnpm", "exec", "next", "start", "-p", str(port)],
-        cwd=PONG,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,  # pnpm starts the server as a child; stop_server ends the whole group
-    )
-
-
-def stop_server(proc) -> None:
-    try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    proc.wait(timeout=15)
 
 
 def main() -> None:

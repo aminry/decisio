@@ -1,89 +1,16 @@
-"""Record a browser demo to WebM, MP4 and a small GIF, with a caption strip under the picture.
+"""MP4 and small GIF output with a caption strip under the picture, for the clips the trajectory renderers draw.
 
-Headless Chrome driven by Playwright records the video itself, so the client and the System One server can sit on
-the same machine and the latency on screen is the server's. The WebM is the raw recording. The MP4 and the GIF carry a
-caption strip below the picture (model, card, median latency), drawn with Pillow and stacked under the video, so it
-never covers the demo's own interface. The GIF is kept under `max_gif_bytes` by lowering the frame rate, then the width.
-
-    from demo_recorder import record, to_mp4, to_gif
-    webm = record("http://127.0.0.1:3100/?clean=1", "out/pong", seconds=40)
-    caption = "Decisio | RTX PRO 6000 | median 66 ms"
-    to_mp4(webm, "out/pong.mp4", caption); to_gif(webm, "out/pong.gif", caption)
-
-Chrome: `channel="chrome"` uses the system Google Chrome (the Mac); on the box pass `channel=None` for Playwright's own
-Chromium, or `executable_path` for a Chrome binary.
+The renderers (render_pong.py, render_fsd.py, render_ultrafast.py, render_triage.py) draw every frame from a trajectory
+file and encode it (render_common.encode); `to_gif` makes the small GIF for a README, keeping it under `max_gif_bytes`
+by lowering the frame rate, then the length, then the width. `to_mp4` and `caption_strip` stack a caption strip under
+an existing video. Nothing here records a live page.
 """
 
 from __future__ import annotations
 
-import shutil
 import subprocess
 import tempfile
-from collections.abc import Callable
 from pathlib import Path
-
-
-def record(
-    url: str,
-    out_base: str | Path,
-    *,
-    seconds: float,
-    size: tuple[int, int] = (1280, 720),
-    drive: Callable | None = None,
-    channel: str | None = "chrome",
-    executable_path: str | None = None,
-    settle_s: float = 1.0,
-    storage_state: dict | None = None,
-    until_drive_done: bool = False,
-    chrome_args: list[str] | None = None,
-    init_script: str | None = None,
-) -> Path:
-    """Open `url` in headless Chrome, record `seconds` of it and return the WebM path.
-
-    `storage_state` is a Playwright storage state (cookies, localStorage) the page starts with, for a demo that is
-    opened from state a script prepared. `drive(page)` runs after the page has loaded, for demos that need clicks
-    or a task started; `init_script` runs in every page before its own scripts; when it returns the
-    recording continues until `seconds` have passed in total, or stops when it returns if `until_drive_done`.
-    """
-    from playwright.sync_api import sync_playwright
-
-    out_base = Path(out_base)
-    out_base.parent.mkdir(parents=True, exist_ok=True)
-    tmp = out_base.parent / f".{out_base.name}_video"
-    shutil.rmtree(tmp, ignore_errors=True)
-    with sync_playwright() as p:
-        launch = {"headless": True}
-        if chrome_args:
-            launch["args"] = chrome_args
-        if executable_path:
-            launch["executable_path"] = executable_path
-        elif channel:
-            launch["channel"] = channel
-        browser = p.chromium.launch(**launch)
-        context = browser.new_context(
-            viewport={"width": size[0], "height": size[1]},
-            record_video_dir=str(tmp),
-            record_video_size={"width": size[0], "height": size[1]},
-            storage_state=storage_state,
-        )
-        if init_script:
-            context.add_init_script(init_script)
-        page = context.new_page()
-        page.goto(url, wait_until="load")
-        page.wait_for_timeout(int(settle_s * 1000))
-        if drive:
-            drive(page)
-        remaining = seconds - settle_s
-        if remaining > 0 and not until_drive_done:
-            page.wait_for_timeout(int(remaining * 1000))
-        video = page.video
-        context.close()
-        browser.close()
-        src = Path(video.path())
-    webm = out_base.with_suffix(".webm")
-    shutil.move(str(src), webm)
-    shutil.rmtree(tmp, ignore_errors=True)
-    return webm
 
 
 def _ffmpeg(*args: str) -> None:

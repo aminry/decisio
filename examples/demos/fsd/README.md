@@ -27,8 +27,8 @@ The benchmark (`/bench`) runs seeded scenarios with a chosen driver and saves a 
 
 The 3D view needs a browser with hardware WebGL.
 A container with a compute GPU and no display has software WebGL only, where one frame takes about a second and the simulation crawls.
-`?norender=1` skips drawing the 3D view while the simulation, the minimap, the decision card and the inspector run at full speed, and `../tools/record_fsd.py --no-3d` records that.
-The clip then shows the decision panels and the latency, not the street.
+`?norender=1` skips drawing the 3D view while the simulation, the minimap, the decision card and the inspector run at full speed.
+Clips are not recorded from the page: `../tools/measure_fsd.py` writes a trajectory per drive and `../tools/render_fsd.py` draws a top-down clip from it (`../README.md`).
 The benchmark page (`/bench`) never draws anything, so the measurement is unaffected.
 
 ## What a decision asks over

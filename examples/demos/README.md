@@ -17,42 +17,47 @@ The only changes are the endpoint (`SYSTEMONE_BASE_URL`, no key), the places tha
 
 The fourth, `triage/`, was written for this repository (Apache-2.0): a feed of synthetic support tickets routed to one of 20 queues, one request and one 20-option question per ticket, shown before and after the question is registered with 200 labelled tickets (`POST /v1/tasks`, `docs/tasks.md`); `triage/README.md`.
 
-## Measure and record
+## Measure, then render from trajectories
 
 `tools/` holds the scripts that run a demo against a server and keep a run record under `runs/` (a manifest, a `files.json` with every file's sha256, the per-run rows and the tables).
 `pip install -r tools/requirements.txt`, then:
 
 ```sh
-python tools/measure_pong.py --lanes-file lanes.json --runs 5 --seconds 45 --video
+python tools/measure_pong.py --lanes-file lanes.json --runs 5 --seconds 45
 python tools/measure_pong.py --lanes-file lanes.json --only sys1 --runs 5   # one model at a time on a single card
-python tools/compose_pong.py --replay runs/a/replay_run1.json --replay runs/b/replay_run1.json --out runs/c/media
-python tools/measure_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --runs 3 --count 6
+python tools/measure_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --runs 3 --count 6 --player player.json
+python tools/measure_ultrafast.py --label Decisio --runs 10 --player player.json
+python tools/measure_triage.py --url http://127.0.0.1:8100 --label Decisio --pace-ms 1500 --player player.json
+
+python tools/render_pong.py runs/a/trajectories/run1_sys1.jsonl.gz runs/b/trajectories/run1_cmp.jsonl.gz --out pong.mp4
 python tools/render_fsd.py runs/<run>/trajectories/run1_s1-1.jsonl.gz --out clip.mp4 --gif clip.gif
-python tools/measure_ultrafast.py --label Decisio --runs 10
-python tools/record_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --out runs/<run>/media
-python tools/record_ultrafast.py --label Decisio --out runs/<run>/media
 python tools/render_ultrafast.py runs/<run>/trajectories/travel_1 --out travel_1.mp4 --gif travel_1.gif --min-hold 0.8
-python tools/measure_triage.py --url http://127.0.0.1:8000 --label Decisio --pace-ms 1500
 python tools/render_triage.py --compare runs/<run>/plain.jsonl.gz runs/<run>/taught.jsonl.gz --summary runs/<run>/summary.json --out runs/<run>/media
 ```
 
-The browser agent's measurement also writes one trajectory per run (`tools/trajectory.py`): every decision's screenshot as the agent observed the page, the chosen element's box, the request as sent and the full answer, and the page after the agent stopped.
-`render_ultrafast.py` draws a clip from a trajectory alone, at the recorded speed (`--min-hold` holds each step longer, and the caption says so); the page is never loaded again.
+Every run writes trajectories (`tools/trajectory.py`, format `decisio-demo-trajectory/1`): a header with the format version, the demo code's commit and the player's structured fields (model ID, date, route, serving provider, card, padding; `--player`, or a lane's `player` object in Pong's lanes file), then one line per tick with a wall-clock timestamp and the complete game state, and at each decision the request as sent, the full answer (every option's probability), the option applied and the latency.
 
-Every record also carries `decisions.jsonl.gz`: one line per model decision with the request body the server received and the full answer (every option's probability), written where the request is made (`DEMO_DECISION_LOG` for the driving demo's server, `PONG_DECISION_LOG` for Pong's recorder, the measurement script for the browser agent) and listed in the manifest (`tools/decision_log.py`).
+- Pong: the engine state after every tick, one trajectory per lane and run.
+- Driving: the map in the header; the world at 10 Hz of simulated time, every applied decision (and whether the rules fallback replaced it), every violation when it happened.
+- Browser agent: a screenshot of the page as the agent observed it at each step, the chosen element's box, the decision; and the page after the agent stopped.
+- Triage: each stream ticket, its true queue and the decision, plain and after registration.
 
-A driving record also carries one trajectory per drive under `trajectories/` (`tools/trajectory.py`): the map, the world at 10 Hz of simulated time on the page's wall clock, every applied decision with its request body, its full answer, its latency and whether the rules fallback replaced it, and every violation when it happened.
-`tools/render_fsd.py` draws a clip from a trajectory alone, at the speed the drive ran: a top-down view that follows the car and the decision panel beside it.
+All video is rendered afterwards from trajectory files only (`tools/render_*.py`, `tools/render_common.py`): Pong and driving are drawn from the recorded states, the browser clip is its recorded frames with the decision overlaid, and side-by-side lanes are composed from separate trajectories, each on its own clock.
+Nothing is re-simulated and no page is driven again.
+Frames run at the recorded speed, so a slow model looks slow; the caption under every clip names the model, the card, the median latency of the recorded run and the padding.
+Rendering a trajectory twice gives identical frames, and a Pong frame drawn at a tick shows that tick's recorded state (`tests/unit/test_demo_*_trajectory.py`).
+
+Every record also carries `decisions.jsonl.gz`: one line per model decision with the request body the server received and the full answer, written where the request is made (`tools/decision_log.py`).
 
 What is measured, per model and demo:
 
 - decisions per second, and p50 and p95 of the per-decision latency (the System One request, timed in the client);
-- the demo's own score: Pong's rallies (returns of the ball by the model's paddle), the driving rules score (the share of drives that arrive with no collision, red light, rolled stop sign, failure to yield or a second off the road), the browser agent's task completion and completion time;
-- 95% bootstrap intervals over the repeated runs (Pong, driving, browser agent each repeat with different seeds or runs); latencies are pooled over every decision.
+- the demo's own score: Pong's rallies (returns of the ball by the model's paddle), the driving rules score (the share of drives that arrive with no collision, red light, rolled stop sign, failure to yield or a second off the road), the browser agent's task completion and completion time, triage accuracy before and after registration;
+- agreement with each demo's oracle and the class of every disagreement (`docs/demos/README.md`);
+- 95% bootstrap intervals over the repeated runs; latencies are pooled over every decision.
 
-Pong's lanes run at the same instant when their servers can be up together; on a single card they are recorded one model at a time with the same seed and merged onto one page by `compose_pong.py`.
-The client and the server run on the same machine, so the latency on screen and in the record is the server's, with a loopback round trip.
-Videos are recorded in headless Chrome driven by Playwright (the driving demo's 3D view needs a browser with hardware WebGL, so on a compute-only card its clip shows the decision panels without the street; `fsd/README.md`) (`tools/demo_recorder.py`): a WebM, an MP4 with a caption strip under the picture (model, card, median latency) and a GIF under 3 MB.
+The client and the server run on the same machine, so the latency in the record is the server's, with a loopback round trip.
+The browser agent's completion times include the trajectory's screenshot of every step (about 50 ms each); its decision latencies do not.
 Every manifest says which card ran the server.
 A number taken on a CPU stand-in or on the Ollama listing is a check that the demo runs, not a measurement of the model, and is labelled so.
 

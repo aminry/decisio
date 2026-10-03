@@ -61,4 +61,4 @@ python ../tools/measure_ultrafast.py --label Decisio --runs 10
 
 It serves the two fixture tasks on a loopback port, drives a headless Chrome over CDP, checks each outcome independently of the agent's own DONE, and writes a run record under `runs/`.
 The numbers are decisions per second, p50 and p95 of the per-decision latency (the System One request), and task completion time with a bootstrap interval.
-`../tools/record_ultrafast.py` records the browser as it works, with the model, the card and the median latency in a caption.
+Each run also writes a trajectory (a screenshot per step with the chosen element and the decision), and `../tools/render_ultrafast.py` draws a clip from it without loading the page again (`../README.md`).

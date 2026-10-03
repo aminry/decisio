@@ -127,18 +127,17 @@ def test_d5_agent_summary_counts_options_and_completion():
     assert s["completion_ms"]["est"] == 1000 and s["latency_ms"]["p50"] == 100
 
 
-def test_d6_replays_recorded_one_model_at_a_time_merge_into_lanes():
-    import compose_pong
+def test_d6_side_by_side_lanes_are_composed_from_separate_trajectories():
+    import render_pong
 
-    a = {"seed": 1, "lanes": [{"model": "sys1", "label": "A", "snapshots": [{"t": 0, "latencyMs": 50}]}]}
-    b = {"seed": 1, "lanes": [{"model": "cmp", "label": "B", "snapshots": [{"t": 0, "latencyMs": 90}]}]}
-    merged = compose_pong.merge_replays([a, b])
-    assert [lane["model"] for lane in merged["lanes"]] == ["sys1", "cmp"]
-    assert compose_pong.lane_medians(merged) == [("A", 50.0), ("B", 90.0)]
-    with pytest.raises(ValueError, match="share a seed"):
-        compose_pong.merge_replays([a, {**b, "seed": 2}])
-    with pytest.raises(ValueError, match="two recordings"):
-        compose_pong.merge_replays([a, a])
+    traj = Path(__file__).resolve().parents[1] / "data/pong_mock_trajectory.jsonl.gz"
+    lanes = [render_pong.PongTrajectory(traj), render_pong.PongTrajectory(traj)]
+    first = next(iter(render_pong.frames(lanes, 0, 0.1, fps=10)))
+    single = next(iter(render_pong.frames(lanes[:1], 0, 0.1, fps=10)))
+    assert first.width == render_pong.W and single.width == render_pong.W
+    half = first.width // 2
+    left, right = first.crop((0, 0, half - 4, first.height)), first.crop((half + 4, 0, first.width, first.height))
+    assert left.tobytes() == right.tobytes()  # the same trajectory twice draws the same lane twice
 
 
 def test_d7_decision_log_rows_are_compressed_listed_and_readable(tmp_path):
