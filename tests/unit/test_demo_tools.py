@@ -273,3 +273,18 @@ def test_d11_openrouter_calls_pin_the_provider_deny_data_collection_and_refuse_a
     served = "Amazon Bedrock"
     with pytest.raises(g.UpstreamError, match="not the pinned provider"):
         b.call(body)
+
+
+def test_d12_gateway_health_carries_the_structured_fields(tmp_path):
+    import threading
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    import systemone_gateway as g
+
+    b = g.Backend("systemone", "m-1", None, "http://127.0.0.1:1", {})
+    server = ThreadingHTTPServer(("127.0.0.1", 0), g.make_handler(b, g.Ledger(None, "x", None), None))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    h = json.loads(urllib.request.urlopen(f"http://127.0.0.1:{server.server_address[1]}/health").read())
+    server.shutdown()
+    assert h["ok"] and h["model"] == "m-1" and h["route"] == "systemone" and len(h["date"]) == 10

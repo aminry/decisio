@@ -270,9 +270,7 @@ def make_handler(backend: Backend, ledger: Ledger, log: Path | None):
 
         def do_GET(self):
             if self.path == "/health":
-                return self._send(
-                    200, {"ok": True, "gateway": backend.kind, "model": backend.model, "calls": ledger.count()}
-                )
+                return self._send(200, backend.describe() | {"ok": True, "calls": ledger.count()})
             self._send(404, {"error": "not found"})
 
         def do_POST(self):
