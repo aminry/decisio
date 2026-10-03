@@ -14,8 +14,8 @@ realtime mode the car moves on while the request is in flight). Classes, in orde
 vector (the manoeuvre among the eligible candidates) is asked when the car drives. Agreement is reported exactly and
 within a rules-cost tolerance (a candidate whose rules cost is within `tol` of the best's is acceptable); a disagreement
 beyond the tolerance is a near-tie or a judgement error by the same margin rule. The rules driver's cost rewards
-progress, so a manoeuvre miss is also split by kind: a speed choice among lane-keeping candidates (a style choice the oracle does
-not settle), or a stop candidate (stop at the line, for a pedestrian, at the destination) passed over.
+progress, so a manoeuvre miss is also split by kind: a speed choice among lane-keeping candidates (a style choice the
+oracle does not settle), or a stop candidate (stop at the line, for a pedestrian, at the destination) passed over.
 
 The motion question's own wording also defines when "stop" is right ("Hold completely still right now. Correct only when
 the car is already at the line (`intersection.distance` is "at") with a red or unseen signal, a stop not yet completed,
