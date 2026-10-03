@@ -1,5 +1,7 @@
 # `--noul-commit` at the served default (session of 2026-10-03)
 
+Flag names in this record are those of 2026-10-03: `--prompt-tail cygnet` is now `--prompt-tail spaced` and `--prompt-tail decisio` is `--prompt-tail compact`; the prompts are unchanged.
+
 The served default's yes/no answers on 1,474 items, before and after the transform (`systemone.commit_noul`: P(yes) strictly between 0.20 and 0.80 reported as 0.80 above 0.5 and 0.20 at or below it).
 The transform is applied to the served P(yes) in `yesno_readouts.jsonl.gz`; nothing else changes.
 

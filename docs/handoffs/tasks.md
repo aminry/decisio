@@ -51,17 +51,17 @@ The second-engine mode's default pairing, with the registered text-only class (`
 ## The global temperature
 
 `/v1/systemone` serves a question's plain readout as `softmax(log p / T)` with T = 1.506 (`--temperature`; 1 switches it off, bit for bit), and choice questions at their own T = 1.370 (`--temperature-choice`; `--temperature-noul` and `--temperature-score` exist and are unset, so those types take the global T).
-Both were fitted on the suite's plain readouts under the served prompt of 2026-10-03; under the earlier prompt the one T was 1.307.
+Both were fitted on the suite's plain readouts under the served prompt of 2026-10-03; under the compact layout the one T was 1.307.
 It never changes the chosen option.
 A registered task's calibration or head replaces it; the image route is not tempered; `/v1/answer` is the raw readout.
 How T was fitted, and where it helps and hurts, is in EVAL_CARD.md: on the Decision Index it lowered ECE on MMLU-Pro, BANKING77 and GPQA Diamond and raised it on CLINC150+OOS (0.031 to 0.170, 151 options).
 
 ## Re-registration after the 2026-10-03 prompt change
 
-The served prompt changed on 2026-10-03 (`--prompt-tail cygnet`; yes/no questions as a two-option letter choice with the sides named, `--noul-rendering letters-keys`).
-The prompt format enters the task fingerprint and the yes/no rendering enters a yes/no question's task key, so tasks fitted under the earlier prompt load but are not applied, with a start-up warning.
-Register them again from the same examples, or serve them unchanged with `--prompt-tail decisio --noul-rendering words`.
-`--mode packed` reads the earlier prompt only and now needs `--prompt-tail decisio`.
+The served prompt changed on 2026-10-03 to the spaced layout (`--prompt-tail spaced`: blank lines around the lettered options and one closing line asking for the chosen option's letter alone; yes/no questions as a two-option letter choice with the sides named, `--noul-rendering letters-keys`).
+The layout enters the task fingerprint and the yes/no rendering enters a yes/no question's task key, so tasks fitted under the earlier compact layout load but are not applied, with a start-up warning.
+Register them again from the same examples, or serve them unchanged with `--prompt-tail compact --noul-rendering words`.
+`--mode packed` reads the compact layout only and needs `--prompt-tail compact`.
 
 ## Committed yes/no answers
 
@@ -75,10 +75,10 @@ Measured on 1,474 yes/no items at the served default (`runs/2026-10-03_noul-comm
 | served | 83.9% | 67.2% | 25.7% | 0.3977 | 0.044 |
 | `--noul-commit` | 83.9% | 83.9% | 0.0% | 0.4145 | 0.078 |
 
-Under the earlier prompt (yes/no in words, T 1.307) the same items gave 81.4% accuracy with 34.3% inside the band, and the transform moved log loss from 0.4124 to 0.4379 and ECE from 0.033 to 0.072.
+Under the compact layout (yes/no in words, T 1.307) the same items gave 81.4% accuracy with 34.3% inside the band, and the transform moved log loss from 0.4124 to 0.4379 and ECE from 0.033 to 0.072.
 
 Committed accuracy counts an answer right only if it is at or beyond the band's edge on the right side.
-On JevBench v1.5, which scores a yes/no answer inside the band as no answer, the yes/no competence rose from 13.66 to 79.57 and I_open A from 49.39 to 71.36 (under the earlier prompt: -10.9 to 59.15, and 42.69 to 66.04).
+On JevBench v1.5, which scores a yes/no answer inside the band as no answer, the yes/no competence rose from 13.66 to 79.57 and I_open A from 49.39 to 71.36 (under the compact layout: -10.9 to 59.15, and 42.69 to 66.04).
 Use it only where a scorer or a downstream rule needs a committed probability; anything that reads the probability as a probability is better served without it.
 
 ## Abstention

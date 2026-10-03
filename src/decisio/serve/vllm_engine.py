@@ -234,7 +234,7 @@ class LettersEngine:
 
         self.fmt = fmt or DEFAULT_FORMAT
         if mode == "packed" and not self.fmt.is_default():
-            raise ValueError("packed mode reads the default prompt format only")
+            raise ValueError("packed mode reads the compact layout only (PromptFormat())")
         self.mode, self.pad_token, self.pack, self.max_pack_tokens = mode, pad_token, pack, max_pack_tokens
         if pad_where not in PAD_PLACES:
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
@@ -926,18 +926,13 @@ def main():
         "untrained, opt-in",
     )
     ap.add_argument(
-        "--system-prompt",
-        default="none",
-        choices=["none", "cygnet"],
-        help="the system turn: none (default), or the Cygnet recipe's system prompt (decisio.readout.cygnet)",
-    )
-    ap.add_argument(
         "--prompt-tail",
-        default="cygnet",
-        choices=["decisio", "cygnet"],
-        help="the question's layout and last line: cygnet (default since 2026-10-03; the Cygnet recipe's blank lines "
-        "around the options and 'Answer with the letter of exactly one option, and nothing else:'), or decisio (the "
-        "earlier default; 'Answer with the letter only.'). Tasks registered under one are not applied under the other",
+        default="spaced",
+        choices=["compact", "spaced"],
+        help="the question's layout and last line: spaced (default since 2026-10-03; a blank line before and after the "
+        "lettered options, then one line asking for the chosen option's letter alone, decisio.readout.spaced), or "
+        "compact (the earlier default, for tasks fitted under it; no blank lines, 'Answer with the letter only.'). "
+        "Tasks registered under one are not applied under the other",
     )
     ap.add_argument(
         "--answer-slot",
@@ -1020,9 +1015,7 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
-    fmt = PromptFormat(
-        system=args.system_prompt, tail=args.prompt_tail, slot=args.answer_slot, variants=args.label_variants
-    )
+    fmt = PromptFormat(tail=args.prompt_tail, slot=args.answer_slot, variants=args.label_variants)
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
@@ -1047,8 +1040,8 @@ def main():
         ap.error("--prefix-cache-mb is for --backend mlx (vLLM has its own prefix cache)")
     if args.mode == "packed" and not fmt.is_default():
         ap.error(
-            "--mode packed reads the earlier prompt format only: add --prompt-tail decisio (and no --system-prompt, "
-            "--answer-slot or --label-variants)"
+            "--mode packed reads the compact layout only: add --prompt-tail compact (and no --answer-slot or "
+            "--label-variants)"
         )
     one = args.one_engine
     if one and not args.image_model:
