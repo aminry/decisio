@@ -71,7 +71,15 @@ Gated at 6 bits against the FP8 records with the backend's full gate set (`runs/
 - **Single-question requests:** `shared` and `none` send the same prompt, so their suite and head results are identical.
 - **Isolation:** `none` keeps a question's answer the same whether it is asked alone or with others, which `shared` gives up.
 - **Against padded:** both cost more flips and a Brier score worse by 0.011, and halve a single question's time.
-- **Multi-question requests:** without padding, the state prefill is about 130 tokens instead of 1,056. The latency run for those cells ran under heavy foreign load, so its multi-question numbers are not a measurement of this.
+- **Multi-question requests:** without padding, the state prefill is about 130 tokens instead of 1,056. Re-measured on `main` with the cache off (`6bit_none/latency_quiet`; the passes agreed within 5%), a request costs, server p50:
+
+  | Questions | Padded | `none` |
+  | --- | --- | --- |
+  | 10 | 1,148 ms | 892 ms |
+  | 100 | 9,747 ms | 9,484 ms |
+  | 100, 8,000-token state | 14,489 ms | 14,288 ms |
+
+  That is 200-260 ms less per request, the padding's prefill.
 
 ## The cross-request prefix cache
 

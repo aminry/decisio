@@ -1,0 +1,4 @@
+pass 1: 1q p50 228 ms (227.6/q); 10q p50 875 ms (87.5/q); 100q p50 8999 ms (90.0/q); 100q_8k p50 13950 ms (139.5/q); max foreign CPU 209% (Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd), idle False
+pass 2: 1q p50 227 ms (227.2/q); 10q p50 875 ms (87.5/q); 100q p50 9427 ms (94.3/q); 100q_8k p50 14439 ms (144.4/q); max foreign CPU 192% (meworks/Metadata.framework/Versions/A/Support/corespotlightd), idle False
+pass 3: 1q p50 230 ms (230.1/q); 10q p50 892 ms (89.2/q); 100q p50 9484 ms (94.8/q); 100q_8k p50 14288 ms (142.9/q); max foreign CPU 98% (/Users/amin/repo/decisio/.venv/bin/python), idle False
+LATENCY DONE
