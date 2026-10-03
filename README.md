@@ -39,6 +39,11 @@ Latency on one RTX PRO 6000, server time, from `EVAL_CARD.md` (medians; a state 
 
 Each further question costs about 17 ms in the served default and 2.7 to 5.4 ms batched when many share a state; at $1.50 per card-hour that is about $0.012 per 1,000 single-question decisions, about $0.007 per 1,000 further questions, and $0.0012 to $0.0022 batched.
 
+`--pad-policy row` (opt-in) cuts a fresh single question by about 10 to 12 ms: the whole row, state and question, is padded to end on the block boundary, so vLLM prefills it in one engine step instead of two.
+Measured against the served default on one card in one session: 48.8 to 38.1 ms at 300 tokens, 52.1 to 40.9 at 1,000, 91.0 to 79.2 at 3,000; multi-question requests are unchanged.
+Accuracy and calibration stayed within noise on the suite, JevBench, the four Decision Index benchmarks and the intent heads.
+Its cost is repeatability: a repeated identical request can move by up to 0.015 on long prompts (2 of 1,400 suite items in the gate, no answer changed), where the default padding returns the same probabilities every time, so it stays off by default (`runs/2026-10-02_pad-policy-row/`).
+
 ## Quickstart
 
 Requirements: Linux, one NVIDIA card with 96 GB (measured on an RTX PRO 6000 Blackwell) and a driver that supports CUDA 13.0 (the runtime `uv.lock` pins), Python 3.12, [uv](https://docs.astral.sh/uv/).

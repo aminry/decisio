@@ -1,0 +1,58 @@
+{
+ "id": "2026-10-02_pad-policy-row",
+ "title": "--pad-policy row (a single-question row padded to end on the block boundary, prefilled in one engine step) against the served default, on one card in one session",
+ "date": "2026-10-02",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (driver 595.71.05), a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0",
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 at revision 95a723d",
+  "decisio": "0e55610 (main 597f383 plus #45)",
+  "servers": {
+   "reference": "the served default",
+   "l1": "the served default with --pad-policy row"
+  }
+ },
+ "results": {
+  "fresh_single_question_server_ms_median_of_20": {
+   "300": [
+    48.8,
+    38.1
+   ],
+   "1000": [
+    52.1,
+    40.9
+   ],
+   "3000": [
+    91.0,
+    79.2
+   ],
+   "note": "[served default, --pad-policy row]; four-question requests unchanged (107.4/106.9, 111.2/110.5, 156.7/156.5)"
+  },
+  "accuracy_against_the_served_default_points": {
+   "suite_1400": "+0.07 [-0.79, +0.93]",
+   "jevbench_231": "+0.00 [-1.73, +1.73]",
+   "banking77": "+0.23 [-0.45, +0.91]",
+   "clinc150_oos": "-0.13 [-0.67, +0.40]",
+   "gpqa_diamond": "+0.51 [-3.54, +4.55]",
+   "mmlu_pro": "+0.07 [-0.28, +0.41]",
+   "intent_heads_banking77": "+0.0 [-3.3, +3.3]",
+   "intent_heads_clinc150": "+4.0 [+1.0, +8.0]"
+  },
+  "suite_ece": [
+   0.0201,
+   0.0254
+  ],
+  "repeat_variation": "conformance C4: after a state is cached, /v1/answer and /v1/systemone differ on 2 of 1,400 suite items (long MMLU-Pro prompts) by 0.0119 and 0.0147, no choice changed; the served default is bit-exact there",
+  "gate_tables": "summary.md"
+ },
+ "deviations": [
+  "the reference was this session's own server start; its suite equals runs/2026-09-30_plugin-verification except BANKING77 14 and 113 (up to 1.2e-3), a two-valued start-to-start state recorded in runs/2026-10-02_multi-question-and-rendering"
+ ],
+ "excluded": [
+  "Decision Index item text (payload_sha256 kept)",
+  "JevBench raw requests and responses",
+  "server logs"
+ ]
+}
