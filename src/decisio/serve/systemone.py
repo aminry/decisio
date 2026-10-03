@@ -549,6 +549,7 @@ class SystemOne:
                 probs, info = engine.answer(req.state, engine_qs, adapter, images=images)
             else:
                 probs, info = engine.answer(req.state, engine_qs, adapter)
+        level_rows = {i: [np.asarray(r).tolist() for r in probs[slice(*spans[i])]] for i in levels}
         if levels:  # back to one readout per question, in gen order (the level rows' P(yes), normalised)
             rows_out = [levels_from_rows(probs[a:b]) if i in levels else probs[a] for i in gen for a, b in [spans[i]]]
             probs = rows_out + list(probs[spans[gen[-1]][1] :])
@@ -600,6 +601,8 @@ class SystemOne:
                     )
                 if debug:  # the served readout before any task (order 1)
                     dbg.setdefault(name, {}).update(path="plain", p=p.tolist())
+                    if i in level_rows:  # --score-rendering levels-noul: each level row's (P(yes), P(no))
+                        dbg[name]["level_rows"] = level_rows[i]
                     forms = info.get("label_token_logprobs")
                     if forms and i not in levels:  # --label-variants summed or cygnet: each form's log-probability
                         dbg[name]["form_logprobs"] = forms[spans[i][0]]  # in engine order (before level rows merge)

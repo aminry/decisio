@@ -19,6 +19,7 @@ import functools
 import numpy as np
 import pytest
 
+from decisio.names import DEBUG_KEY
 from decisio.serve.systemone import SystemOne, SystemOneRequest, apply_temperature, commit_noul
 
 TOKENIZER = "Qwen/Qwen3-0.6B-Base"  # usage counting only (the stand-in of tests/unit/test_ties.py)
@@ -120,3 +121,12 @@ def test_k5_score_levels_noul():
     assert a["n"]["noul"] == pytest.approx(0.6)
     _, asked2 = ask({"s": SCORE}, orders=2, score_rendering="levels-noul")
     assert {q["kind"] for q in asked2} == {"score"}  # two-order mode keeps letters
+
+
+def test_k5_debug_level_rows():
+    eng = Fixed()
+    s1 = SystemOne(eng, "m", score_rendering="levels-noul", debug_readout=True, temperature=1.307)
+    out = s1.answer(SystemOneRequest.model_validate({"state": "s", "questions": {"s": SCORE}}), debug="readout")
+    dbg = out[DEBUG_KEY]
+    assert dbg["s"]["p"] == pytest.approx([0.2, 0.6, 0.2])  # the plain readout, before the temperature
+    assert np.allclose(dbg["s"]["level_rows"], [[0.2, 0.8], [0.6, 0.4], [0.2, 0.8]])
