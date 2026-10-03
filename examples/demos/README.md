@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- SPDX-FileCopyrightText: Copyright contributors to the decisio project -->
 
-# Three demos on a System One server
+# Demos on a System One server
 
-Three open-source projects that were built against a hosted decision API with a System One request format, changed to talk to any `/v1/systemone` server with no key: a decisio server, or another model served by its own recipe.
+Three of the demos are open-source projects that were built against a hosted decision API with a System One request format, changed to talk to any `/v1/systemone` server with no key: a decisio server, or another model served by its own recipe.
 Each directory keeps its original licence and an `ATTRIBUTION.md` with the upstream commit and the list of changes.
 
 | demo | upstream | licence | one decision is |
@@ -14,6 +14,8 @@ Each directory keeps its original licence and an `ATTRIBUTION.md` with the upstr
 
 The clients keep their behaviour.
 The only changes are the endpoint (`SYSTEMONE_BASE_URL`, no key), the places that named a vendor, a few counters so a measurement can read decisions and latencies, and the opt-ins described in each README.
+
+The fourth, `triage/`, was written for this repository (Apache-2.0): a feed of synthetic support tickets routed to one of 20 queues, one request and one 20-option question per ticket, shown before and after the question is registered with 200 labelled tickets (`POST /v1/tasks`, `docs/tasks.md`); `triage/README.md`.
 
 ## Measure and record
 
@@ -30,6 +32,8 @@ python tools/measure_ultrafast.py --label Decisio --runs 10
 python tools/record_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --out runs/<run>/media
 python tools/record_ultrafast.py --label Decisio --out runs/<run>/media
 python tools/render_ultrafast.py runs/<run>/trajectories/travel_1 --out travel_1.mp4 --gif travel_1.gif --min-hold 0.8
+python tools/measure_triage.py --url http://127.0.0.1:8000 --label Decisio --pace-ms 1500
+python tools/render_triage.py --compare runs/<run>/plain.jsonl.gz runs/<run>/taught.jsonl.gz --summary runs/<run>/summary.json --out runs/<run>/media
 ```
 
 The browser agent's measurement also writes one trajectory per run (`tools/trajectory.py`): every decision's screenshot as the agent observed the page, the chosen element's box, the request as sent and the full answer, and the page after the agent stopped.
