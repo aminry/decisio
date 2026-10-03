@@ -4,13 +4,14 @@
 # Third-party material
 
 decisio is Apache-2.0.
-It bundles no third-party code except one prompt sentence from the Cygnet recipe (MIT, below) and the three demo clients under `examples/demos/` (their rows are below, each with its own licence file and `ATTRIBUTION.md`); it runs on, patches, or references the rest.
+It bundles no third-party code except two prompt texts from the Cygnet recipe (MIT, below) and the three demo clients under `examples/demos/` (their rows are below, each with its own licence file and `ATTRIBUTION.md`); it runs on, patches, or references the rest.
 
 | What | How decisio uses it | Licence | Source |
 | --- | --- | --- | --- |
 | vLLM 0.30.0 | The serving engine (the `serve` extra); `patches/vllm-0.30.0` modifies it at image build; the plugin subclasses its `Qwen3_5MoeForCausalLM` | Apache-2.0 | github.com/vllm-project/vllm |
 | Qwen3.6-35B-A3B (FP8) | The served model's weights, referenced by path and never redistributed | Apache-2.0 (model card) | huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8 |
-| Cygnet recipe (`shim/cygnet_shim.py` at 3cf591c) | Its trailing instruction, verbatim, the spaced layout's closing line in `src/decisio/readout/spaced.py` (`--prompt-tail spaced`); the layout around it is decisio's own code | MIT (Copyright (c) 2026 Nood Co and contributors) | github.com/blockbrain-ai/cygnet-recipe |
+| Gemma 4 12B (google/gemma-4-12B-it at revision 707f0a3b) | The second base's weights (`--base gemma-4-12b`), fetched from the hub and never redistributed; the plugin subclasses vLLM's `Gemma4UnifiedForConditionalGeneration` | Apache-2.0 (model card); use is also subject to Google's Gemma Prohibited Use Policy (ai.google.dev/gemma/prohibited_use_policy) | huggingface.co/google/gemma-4-12B-it |
+| Cygnet recipe (`shim/cygnet_shim.py` at 3cf591c) | Its trailing instruction, verbatim, the spaced layout's closing line in `src/decisio/readout/spaced.py` (`--prompt-tail spaced`); its system prompt, verbatim, the Gemma base's system turn in `src/decisio/readout/system_prompt.py`; the prompt around them is decisio's own code | MIT (Copyright (c) 2026 Nood Co and contributors) | github.com/blockbrain-ai/cygnet-recipe |
 | Qwen3-0.6B-Base, Qwen3.5-0.8B-Base | Small checkpoints the CPU tests download and run as stand-ins | Apache-2.0 (model cards) | huggingface.co/Qwen |
 | TypeSafe System One wire format, typesafe-sdk 0.7.0 | The request and response schema `/v1/systemone` implements; the SDK client in the conformance check (`bench` extra) | MIT | pypi.org/project/typesafe-sdk |
 | JevBench | The benchmark harness the benchmark stage drives (fetched at a pinned commit); its v1.5 open-set scoring method is implemented in `decisio.bench.jevbench_v15` | MIT | github.com/fstandhartinger/jevbench |

@@ -48,8 +48,12 @@ class HiddenReadout:
     `label_rows(label ids)`, both engine-specific."""
 
     def label_logits(self, h, lab):
-        """The label logits from h, in float64 (deterministic, whatever the kernels)."""
-        return h.astype(np.float64) @ self.label_rows(lab).T
+        """The label logits from h, in float64 (deterministic, whatever the kernels), with the base's final soft cap
+        when it has one (decisio.families)."""
+        z = h.astype(np.float64) @ self.label_rows(lab).T
+        family = getattr(self, "family", None)
+        cap = family.softcap if family is not None else None
+        return z if cap is None else np.tanh(z / cap) * cap
 
     def readout(self, state, questions):
         from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
@@ -113,8 +117,10 @@ class HiddenEngine(HiddenReadout, LettersEngine):
             self.readout("Warm-up. " * 40, [{"kind": "noul", "instructions": "Is this a warm-up request?"}])
 
     @staticmethod
-    def _load_lm_head(model):
-        """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards. `model` is a local
+    def _load_lm_head(model, names=("lm_head.weight",), revision=None):
+        """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards: the first of `names` the
+        checkpoint has (a base with tied embeddings names its input embedding after lm_head.weight,
+        decisio.families.Family.head_rows); `revision` pins a hub checkpoint. `model` is a local
         directory or a Hugging Face repo id, as vLLM accepts; for a repo id only the index and the shard holding
         `lm_head.weight` are fetched (from the local cache when vLLM has already downloaded them). A file missing
         from the repo is treated as absent (huggingface_hub's EntryNotFoundError); any other hub error (no network,
@@ -130,19 +136,21 @@ class HiddenEngine(HiddenReadout, LettersEngine):
             from huggingface_hub.errors import EntryNotFoundError
 
             try:
-                return Path(hf_hub_download(model, name))
+                return Path(hf_hub_download(model, name, revision=revision))
             except EntryNotFoundError:
                 return None
 
+        wanted = " or ".join(names)
         index = fetch("model.safetensors.index.json")
         if index is not None:
             weight_map = json.loads(index.read_text()).get("weight_map", {})
-            if "lm_head.weight" not in weight_map:
+            name = next((n for n in names if n in weight_map), None)
+            if name is None:
                 raise ValueError(
-                    f"{model}: model.safetensors.index.json has no lm_head.weight (tied embeddings?); the intent "
+                    f"{model}: model.safetensors.index.json has no {wanted} (tied embeddings?); the intent "
                     "head needs the output layer's own weight"
                 )
-            shard = weight_map["lm_head.weight"]
+            shard = weight_map[name]
         else:
             shard = "model.safetensors"
         path = fetch(shard)
@@ -150,12 +158,14 @@ class HiddenEngine(HiddenReadout, LettersEngine):
             raise FileNotFoundError(
                 f"{model}: neither model.safetensors.index.json nor model.safetensors found"
                 if index is None
-                else f"{model}: {shard}, the shard the index names for lm_head.weight, is missing"
+                else f"{model}: {shard}, the shard the index names for {wanted}, is missing"
             )
         with safe_open(str(path), framework="pt") as f:
-            if "lm_head.weight" not in f.keys():
-                raise ValueError(f"{model}: {shard} has no lm_head.weight (tied embeddings?)")
-            return f.get_tensor("lm_head.weight")
+            keys = set(f.keys())
+            name = next((n for n in names if n in keys), None)
+            if name is None:
+                raise ValueError(f"{model}: {shard} has no {wanted} (tied embeddings?)")
+            return f.get_tensor(name)
 
     def label_rows(self, lab):
         return self._W[list(lab)].double().numpy()
@@ -227,15 +237,21 @@ class SingleEngineHidden(HiddenReadout):
     hidden-readout model class, which writes [0, h] into d + 1 reserved logit columns; a head question is sent with
     exactly those ids allowed, and h is recovered from their log-probabilities (`recover_hidden_chunks`). No second copy
     of the weights. The label log-probabilities are recomputed from h and the output layer's label rows as the engine
-    computes them (`label_logits`), so fitting and serving a head are unchanged."""
+    computes them (`label_logits`, the base's soft cap included), so fitting and serving a head are unchanged."""
 
-    def __init__(self, engine, model, start=None):
+    def __init__(self, engine, model, start=None, revision=None):
         from decisio.readout.letters import DEFAULT_FORMAT, MAX_LABELS, allowed_ids, label_groups, letter_labels
         from decisio.vllm_plugin.hidden import check_reserved, reserved_chunks
 
         self.engine, self.llm, self.tok, self._lock = engine, engine.llm, engine.tok, engine._lock
         self.mode = "hidden (serving engine, reserved logit columns)"
-        self._W = HiddenEngine._load_lm_head(model)
+        family = getattr(engine, "family", None)
+        self.family = family
+        self.softcap = family.softcap if family is not None else None
+        rows = family.head_rows if family is not None else ("lm_head.weight",)
+        load = HiddenEngine._load_lm_head
+        # the default call unchanged for the Qwen base (and its stand-ins in tests)
+        self._W = load(model) if rows == ("lm_head.weight",) and revision is None else load(model, rows, revision)
         # every token any question of this server's prompt format may read (all forms of every label)
         fmt = getattr(engine, "fmt", DEFAULT_FORMAT)
         form = fmt.label_form()
@@ -257,8 +273,8 @@ class SingleEngineHidden(HiddenReadout):
         intent items; in float64 they differ by up to 0.019; runs/2026-09-30_plugin-verification)."""
         import torch
 
-        z = torch.from_numpy(h.astype(np.float64) @ self.label_rows(lab).T)
-        return z.float().to(torch.bfloat16).double().numpy()
+        z = torch.from_numpy(h.astype(np.float64) @ self.label_rows(lab).T).float().to(torch.bfloat16)
+        return softcap_bf16(z, self.softcap).double().numpy()
 
     def hidden_rows(self, token_lists):
         """One engine request per chunk of reserved ids (vLLM allows at most 1,024 ids per request), sent one at a time:
@@ -291,6 +307,16 @@ class SingleEngineHidden(HiddenReadout):
             "lm_head": list(self._W.shape),
             "requests_per_question": len(self.chunks),
         }
+
+
+def softcap_bf16(z, cap):
+    """vLLM's LogitsProcessor soft cap on bf16 logits, step by step in bf16 (z / cap, tanh, * cap); None: unchanged."""
+    if cap is None:
+        return z
+    import torch
+
+    z = z.to(torch.bfloat16)
+    return torch.tanh(z / cap) * cap
 
 
 def reserved_logprobs(h, start=0):

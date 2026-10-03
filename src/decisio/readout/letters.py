@@ -202,8 +202,11 @@ class PromptFormat:
     slot     prefill: "Answer:" after the template's generation prompt; template: the template's own first
              assistant position (Qwen3.6 with thinking off: after its empty, closed "<think>" block)
     variants single: one token per label, the form the slot reads (" A" after "Answer:", "A" in the template
-             slot); summed: every single-token form of a label (" A" and "A"; " yes", "yes", " Yes", "Yes"),
-             read as allowed tokens of the same request, their probabilities summed per label
+             slot); summed: every single-token form of a label (" A" and "A"; " yes", "yes", " Yes", "Yes"; a
+             byte-fallback token where the tokenizer has one), read as allowed tokens of the same request, their
+             probabilities summed per label
+    system_prompt  a system turn before the question (decisio.readout.system_prompt): the Gemma base's setting
+             (decisio.families), off for the Qwen base
 
     The default is the compact layout, the served prompt before 2026-10-03, token for token, so tasks fitted under it
     keep their fingerprint; the server's own default is the spaced layout (--prompt-tail)."""
@@ -211,6 +214,7 @@ class PromptFormat:
     tail: str = "compact"
     slot: str = "prefill"
     variants: str = "single"
+    system_prompt: bool = False
 
     def __post_init__(self):
         for value, allowed, what in (
@@ -229,7 +233,13 @@ class PromptFormat:
         return "bare" if (self.variants, self.slot) == ("single", "template") else "spaced"
 
     def facts(self) -> dict:
-        return {"tail": self.tail, "slot": self.slot, "variants": self.variants}
+        # the system prompt enters only when on, so the facts (and task fingerprints) of every Qwen format are unchanged
+        return {
+            "tail": self.tail,
+            "slot": self.slot,
+            "variants": self.variants,
+            **({"system_prompt": True} if self.system_prompt else {}),
+        }
 
 
 DEFAULT_FORMAT = PromptFormat()
@@ -260,12 +270,16 @@ def check_thinking_closed(text: str) -> None:
 
 
 def chat_turn(tok, content, fmt: PromptFormat = DEFAULT_FORMAT) -> str:
-    """One question's chat prompt: `content` as the user turn, the template's generation prompt with thinking
-    disabled, then "Answer:" under the prefill slot. With the default format this is
+    """One question's chat prompt: the system turn (if the format has one), `content` as the user turn, the template's
+    generation prompt with thinking disabled, then "Answer:" under the prefill slot. With the default format this is
     chat_wrap(tok, content + "\nAnswer:", "chat"), the prompt evaluation scores, by construction."""
     if fmt.is_default():
         return chat_wrap(tok, content + "\nAnswer:", "chat")
     messages = [{"role": "user", "content": content}]
+    if fmt.system_prompt:
+        from decisio.readout.system_prompt import SYSTEM_PROMPT
+
+        messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
     out = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
     check_thinking_closed(out)
     return out + ("Answer:" if fmt.slot == "prefill" else "")
