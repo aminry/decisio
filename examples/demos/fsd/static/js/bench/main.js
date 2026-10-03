@@ -32,6 +32,7 @@ const fmt = (v, f) => {
 };
 
 let map = null, status = null, stopRequested = false, running = false, lastRun = null;
+const trajectories = [];  // (added for this repository)
 
 async function boot() {
   const params = new URLSearchParams(location.search), selection = params.get("bbox") || params.get("map");
@@ -63,7 +64,10 @@ function runFromForm() {
   });
 }
 
-export async function run({ brain = "rules", count = 12, npcs = 40, seed = 1, mode = "lockstep", weather = "dry", save = true, timeoutMs = null, collectExamples = false, wording = "default" } = {}) {
+// `trajectory`: record each drive's trajectory (bench/trajectory.js) and hand it, as JSON text, to
+// window.__fsdTrajectory when a script has put one there, else keep it in window.__bench.trajectories
+// (added for this repository).
+export async function run({ brain = "rules", count = 12, npcs = 40, seed = 1, mode = "lockstep", weather = "dry", save = true, timeoutMs = null, collectExamples = false, wording = "default", trajectory = false } = {}) {
   running = true; stopRequested = false;
   $("#run").textContent = "Stop";
   const config = { brain, count, npcs, seed, mode, weather, timeout_ms: timeoutMs || 1500, wording, map: status.map.name, map_label: status.map.label, bbox: map.routingBbox, pack: map.pack.pack_version, started_at: new Date().toISOString() };
@@ -78,7 +82,15 @@ export async function run({ brain = "rules", count = 12, npcs = 40, seed = 1, mo
     setStatus(`running ${i + 1} / ${suite.length}: ${suite[i].tags.length_m} m, ${suite[i].tags.signals} signals, ${suite[i].tags.stops} stops`);
     render(state);
     await yieldNow();
-    const r = await runScenario(map, suite[i], { brain, npcs, mode, weather, timeoutMs, collectExamples, wording, shouldStop: () => stopRequested });
+    const r = await runScenario(map, suite[i], { brain, npcs, mode, weather, timeoutMs, collectExamples, wording, shouldStop: () => stopRequested,
+      trajectory: trajectory ? { suite_seed: seed, scenario: i + 1, scenarios: suite.length, map_label: status.map.label || null, wording } : null });
+    if (r.trajectory) {
+      // between drives, so handing it over never delays a drive
+      const t = r.trajectory;
+      delete r.trajectory;
+      if (window.__fsdTrajectory) await window.__fsdTrajectory(JSON.stringify(t));
+      else trajectories.push(t);
+    }
     state.results.push(r);
     state.summary = aggregate(state.results);
     render(state);
@@ -157,5 +169,5 @@ function watch(sc, config) {
   window.open(`/?replay=1&bbox=${encodeURIComponent((config.bbox || map.routingBbox).join(","))}`, "_blank");
 }
 
-window.__bench = { run, get last() { return lastRun; } };
+window.__bench = { run, trajectories, get last() { return lastRun; } };
 boot().catch((err) => { $("#status").textContent = `Failed to start: ${err.message}`; console.error(err); });

@@ -8,12 +8,18 @@ seeds. The clock is `realtime` by default: the car keeps driving while a request
 counts. Reported per model: the rules score (the share of drives that arrive with no collision, red light, rolled stop
 sign, failure to yield or a second off the road), decisions per second, and p50 / p95 of the per-decision latency.
 
-    python measure_fsd.py --base-url http://127.0.0.1:8100 --label "Decisio" --runs 3 --count 6
+Every drive also leaves a trajectory (`trajectories/run{N}_s{seed}-{k}.jsonl.gz`, the format of trajectory.py): the
+map, the world at 10 Hz of simulated time, each applied decision with its request and answer, each violation when it
+happened, and the outcome. The page hands each one over between drives, so recording never delays a drive;
+`render_fsd.py` draws a clip from one.
+
+    python measure_fsd.py --base-url http://127.0.0.1:8100 --label "Decisio" --runs 3 --count 6 [--player player.json]
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -22,8 +28,9 @@ import urllib.request
 from pathlib import Path
 
 import numpy as np
+import trajectory
 from decision_log import DecisionLog, compress
-from demo_run import DemoRun, bootstrap, caption_for, card_name, interval_text, latency_summary
+from demo_run import DemoRun, bootstrap, caption_for, card_name, interval_text, latency_summary, server_health
 
 FSD = Path(__file__).resolve().parents[1] / "fsd"
 REPO = Path(__file__).resolve().parents[3]
@@ -38,6 +45,37 @@ def wait_for(url: str, seconds: float = 60.0) -> None:
         except OSError:
             time.sleep(0.5)
     raise RuntimeError(f"{url} did not come up in {seconds:.0f} s")
+
+
+class TrajectorySink:
+    """Writes each drive's trajectory as the page hands it over (`window.__fsdTrajectory`, JSON text)."""
+
+    def __init__(self, out: Path, player: dict, run: DemoRun):
+        self.dir, self.player, self.run = out / "trajectories", player, run
+        self.index, self.seed = 0, 0
+        self.written: list[str] = []
+        self.errors: list[str] = []
+
+    def start(self, index: int, seed: int) -> None:
+        self.index, self.seed = index, seed
+        self.written, self.errors = [], []
+
+    def __call__(self, text: str) -> None:
+        try:
+            drive = json.loads(text)
+            head = drive["header"]
+            run = {"run": self.index, **head["run"]}
+            path = self.dir / f"run{self.index}_s{self.seed}-{run['scenario']}.jsonl.gz"
+            head = trajectory.header("fsd", self.player, run, map=head["map"])
+            sha = trajectory.write(path, head, drive["ticks"], drive["end"])
+            self.written.append(str(path.relative_to(self.dir.parent)))
+            self.run.log(
+                f"  trajectory {path.name}: {len(drive['ticks'])} ticks, {path.stat().st_size / 1e6:.1f} MB, "
+                f"sha256 {sha[:12]}"
+            )
+        except Exception as e:  # a lost trajectory is logged and listed; it must not end a long measurement
+            self.errors.append(f"{type(e).__name__}: {e}")
+            self.run.log(f"  trajectory not written: {self.errors[-1]}")
 
 
 def server_text(s: dict) -> str:
@@ -71,6 +109,10 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=8322)
     ap.add_argument("--channel", default="chrome", help="Playwright browser channel; '' for its own Chromium")
     ap.add_argument("--card", default="")
+    ap.add_argument("--player", default=None, help="the player's fields as JSON (trajectory.PLAYER_FIELDS)")
+    ap.add_argument(
+        "--no-trajectories", action="store_true", help="skip the trajectory files (to measure what recording costs)"
+    )
     ap.add_argument("--note", default="")
     a = ap.parse_args()
 
@@ -78,6 +120,8 @@ def main() -> None:
     out = Path(a.out) if a.out else REPO / "runs" / f"{time.strftime('%Y-%m-%d')}_demos-fsd-{slug}"
     card = a.card or card_name()
     run = DemoRun(out, f"Driving demo against {a.label}", "fsd", a.label, a.base_url, hardware=card)
+    player = trajectory.player_fields(a.player, label=a.label, card=card, server=server_health(a.base_url))
+    sink = None if a.no_trajectories else TrajectorySink(out, player, run)
 
     env = dict(
         os.environ, SYSTEMONE_BASE_URL=a.base_url, PORT=str(a.port), DEMO_DECISION_LOG=str(run.decision_log_path)
@@ -106,6 +150,9 @@ def main() -> None:
                 seed = a.seed0 + i
                 page = browser.new_page(viewport={"width": 1400, "height": 900})
                 page.set_default_timeout(0)
+                if sink:
+                    sink.start(i + 1, seed)
+                    page.expose_function("__fsdTrajectory", sink)
                 page.goto(f"http://127.0.0.1:{a.port}/bench")
                 # the page's CSP forbids string eval, which wait_for_function uses, so poll with a function
                 for _ in range(240):
@@ -128,6 +175,7 @@ def main() -> None:
                         "save": False,
                         "timeoutMs": a.timeout_ms,
                         "wording": a.wording,
+                        "trajectory": sink is not None,
                     },
                 )
                 wall = time.perf_counter() - t0
@@ -157,6 +205,8 @@ def main() -> None:
                         "avg_kmh": result["summary"].get("avg_kmh"),
                         "violations_per_km": result["summary"].get("violations_per_km"),
                         "wall_s": wall,
+                        "trajectories": sink.written if sink else [],
+                        "trajectory_errors": sink.errors if sink else [],
                     }
                 )
                 run.log(
@@ -219,7 +269,10 @@ def main() -> None:
                 "oracle_decisions.jsonl.gz": "every model decision: its answers (full distributions) and the rules "
                 "driver's choice on the asked snapshot and its motion on the snapshot when the answer arrived",
                 "runs.json": "one row per run: pass flags, failures, decisions, drive wall time, "
-                "every decision's latency",
+                "every decision's latency, the run's trajectory files",
+                "trajectories/run{N}_s{seed}-{k}.jsonl.gz": "one per drive (trajectory.py): the map, the world at "
+                "10 Hz of simulated time, every applied decision with its request body and full answer, every "
+                "violation when it happened, the outcome; render_fsd.py draws a clip from it",
                 "summary.json, summary.md": "the tables with their bootstrap intervals",
                 "demo_server.log": "the demo server's log",
             },

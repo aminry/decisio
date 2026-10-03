@@ -130,6 +130,8 @@ export class Autopilot {
     const state = toJevState(snap, candidates, { rejected, routeOptions }, this.style);
     const { questions, local } = buildQuestions(snap, eligible, { routeOptions });
     const request = { epoch, state, questions, local, candidates, eligible, flags, mustStop };
+    // when it was asked, for the benchmark's trajectory record (added for this repository)
+    request.asked = { wall_ms: performance.now(), t_sim: Math.round(tFire * 1000) / 1000 };
     if (!eligible.length) {
       this.apply({ motion: "stop", candidateId: "hard_brake", meta: { source: "local", latency_ms: 0, input_tokens: 0, cost_usd: 0, model: "none" }, answers: { ...local } }, snap, candidates, request);
       return;
@@ -197,6 +199,7 @@ export class Autopilot {
     this.lastDecision = {
       state: request.state, questions: request.questions, answers: result.answers, meta: result.meta, trace: result.trace,
       candidates, chosenId: chosen ? chosen.id : null, motion: result.motion, flags: request.flags, at: performance.now(),
+      asked: request.asked,  // (added for this repository)
     };
     this.onDecision(this.lastDecision);
   }
