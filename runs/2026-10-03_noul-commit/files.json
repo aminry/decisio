@@ -1,0 +1,17 @@
+[
+ {
+  "path": "manifest.json",
+  "bytes": 1467,
+  "sha256": "c7608aa5342dbbc0ca5adaabbb217f08949ee486bafabad0a70b458b21d5ab87"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 1404,
+  "sha256": "30cbfeb81d4e0355b46efc30b18645eb1983366c6b8b2c1351120bda34257767"
+ },
+ {
+  "path": "yesno_readouts.jsonl.gz",
+  "bytes": 16108,
+  "sha256": "14319abfc679a796079799ce7c4e55a0ddb596a01956b3d17f4a2ca21addd0e5"
+ }
+]

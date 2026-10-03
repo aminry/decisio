@@ -55,6 +55,22 @@ It never changes the chosen option.
 A registered task's calibration or head replaces it; the image route is not tempered; `/v1/answer` is the raw readout.
 How T was fitted, and where it helps and hurts, is in EVAL_CARD.md: on the Decision Index it lowered ECE on MMLU-Pro, BANKING77 and GPQA Diamond and raised it on CLINC150+OOS (0.031 to 0.170, 151 options).
 
+## Committed yes/no answers
+
+`--noul-commit` (off by default) is an output transform on yes/no answers (`systemone.commit_noul`): P(yes) strictly between 0.20 and 0.80 is reported as 0.80 if it is above 0.5 and as 0.20 otherwise, so an answer at exactly 0.5 stays no, as the served tie-break has it; outside the band nothing changes.
+It runs last, after the temperature or a task's correction; answers decided by an abstention task keep their own probabilities; choice and score questions are untouched.
+The served answer never changes, its calibration does.
+Measured on 1,474 yes/no items at the served default (`runs/2026-10-03_noul-commit/`):
+
+| | Accuracy | Committed accuracy | Inside 0.20 to 0.80 | Log loss | ECE, tie-robust |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| served | 81.4% | 59.6% | 34.3% | 0.4124 | 0.033 |
+| `--noul-commit` | 81.4% | 81.4% | 0.0% | 0.4379 | 0.072 |
+
+Committed accuracy counts an answer right only if it is at or beyond the band's edge on the right side.
+On JevBench v1.5, which scores a yes/no answer inside the band as no answer, the yes/no competence rose from -10.9 to 59.15 and I_open A from 42.69 to 66.04.
+Use it only where a scorer or a downstream rule needs a committed probability; anything that reads the probability as a probability is better served without it.
+
 ## Abstention
 
 `POST /v1/abstention/tasks` registers a threshold on an abstain option's probability (`decisio.serve.abstention`): the customer's own option (for example "out of scope") or one the server appends (`--abstain-option`, answered through imajev's `unknown_probability` and `abstained` fields).
