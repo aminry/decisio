@@ -25,12 +25,16 @@ python tools/measure_pong.py --lanes-file lanes.json --runs 5 --seconds 45 --vid
 python tools/measure_pong.py --lanes-file lanes.json --only sys1 --runs 5   # one model at a time on a single card
 python tools/compose_pong.py --replay runs/a/replay_run1.json --replay runs/b/replay_run1.json --out runs/c/media
 python tools/measure_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --runs 3 --count 6
+python tools/render_fsd.py runs/<run>/trajectories/run1_s1-1.jsonl.gz --out clip.mp4 --gif clip.gif
 python tools/measure_ultrafast.py --label Decisio --runs 10
 python tools/record_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --out runs/<run>/media
 python tools/record_ultrafast.py --label Decisio --out runs/<run>/media
 ```
 
 Every record also carries `decisions.jsonl.gz`: one line per model decision with the request body the server received and the full answer (every option's probability), written where the request is made (`DEMO_DECISION_LOG` for the driving demo's server, `PONG_DECISION_LOG` for Pong's recorder, the measurement script for the browser agent) and listed in the manifest (`tools/decision_log.py`).
+
+A driving record also carries one trajectory per drive under `trajectories/` (`tools/trajectory.py`): the map, the world at 10 Hz of simulated time on the page's wall clock, every applied decision with its request body, its full answer, its latency and whether the rules fallback replaced it, and every violation when it happened.
+`tools/render_fsd.py` draws a clip from a trajectory alone, at the speed the drive ran: a top-down view that follows the car and the decision panel beside it.
 
 What is measured, per model and demo:
 
