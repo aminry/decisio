@@ -104,7 +104,12 @@ def choose(state, goal, history):
     }
     operations = {key: labels[key] for key in targets}
     operations.update({key: value["label"] for key, value in controls.items()})
-    operations.update(DONE="Every requirement is visibly satisfied.", BLOCKED="No supported operation can progress.")
+    done = "Every requirement is visibly satisfied."
+    # Opt-in wording variant for testing a fix against the oracle (added for this repository; the default is unchanged):
+    # DONE's description restates the instructions' own rule that a typed search is applied only once submitted.
+    if os.environ.get("ULTRAFAST_PROMPT_VARIANT") == "done-submitted":
+        done = "Every requirement is visibly satisfied; a typed search that has not been submitted is not applied yet."
+    operations.update(DONE=done, BLOCKED="No supported operation can progress.")
     questions = {
         "operation": {"type": "choice", "criteria": operations, "instructions": {"goal": goal, "rules": NEXT_ACTION}}
     }

@@ -369,3 +369,22 @@ def test_skip_single_option_does_not_ask_a_one_option_head_and_answers_it_with_i
     assert d["target_probabilities"] == {"1": 1.0}
     assert d["skipped_single_option"] == ["type_text_target"]
     assert d["option_counts"]["type_text_target"] == 1
+
+
+def test_done_submitted_variant_changes_only_dones_description(monkeypatch):
+    seen = []
+
+    def post(url, key, body):
+        seen.append(body["questions"]["operation"]["criteria"])
+        ids = list(body["questions"]["operation"]["criteria"])
+        return {"model": "stub", "answers": {"operation": choice(ids, "DONE")}}
+
+    monkeypatch.setattr(model, "post_json", post)
+    monkeypatch.delenv("ULTRAFAST_PROMPT_VARIANT", raising=False)
+    model.choose(page(), "Find a book", [])
+    monkeypatch.setenv("ULTRAFAST_PROMPT_VARIANT", "done-submitted")
+    model.choose(page(), "Find a book", [])
+    plain, variant = seen
+    assert plain["DONE"] == "Every requirement is visibly satisfied."
+    assert "not been submitted" in variant["DONE"]
+    assert {k: v for k, v in plain.items() if k != "DONE"} == {k: v for k, v in variant.items() if k != "DONE"}
