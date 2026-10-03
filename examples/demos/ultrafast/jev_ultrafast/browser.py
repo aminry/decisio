@@ -190,5 +190,10 @@ def browser_operation(request):
         raise StalePage("Document is navigating")
     info["fingerprint"] = fingerprint(info)
     if request.get("screenshot", True):
-        info["screenshot"] = call("Page.captureScreenshot", format="jpeg", quality=72)["data"]
+        # screenshot="png" asks for a lossless frame, and its capture time is kept (added for this repository:
+        # measure_ultrafast.py's trajectories)
+        shot = {"format": "png"} if request.get("screenshot") == "png" else {"format": "jpeg", "quality": 72}
+        started = time.perf_counter()
+        info["screenshot"] = call("Page.captureScreenshot", **shot)["data"]
+        info["screenshot_ms"] = round((time.perf_counter() - started) * 1000, 1)
     return info

@@ -28,7 +28,11 @@ python tools/measure_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --r
 python tools/measure_ultrafast.py --label Decisio --runs 10
 python tools/record_fsd.py --base-url http://127.0.0.1:8100 --label Decisio --out runs/<run>/media
 python tools/record_ultrafast.py --label Decisio --out runs/<run>/media
+python tools/render_ultrafast.py runs/<run>/trajectories/travel_1 --out travel_1.mp4 --gif travel_1.gif --min-hold 0.8
 ```
+
+The browser agent's measurement also writes one trajectory per run (`tools/trajectory.py`): every decision's screenshot as the agent observed the page, the chosen element's box, the request as sent and the full answer, and the page after the agent stopped.
+`render_ultrafast.py` draws a clip from a trajectory alone, at the recorded speed (`--min-hold` holds each step longer, and the caption says so); the page is never loaded again.
 
 Every record also carries `decisions.jsonl.gz`: one line per model decision with the request body the server received and the full answer (every option's probability), written where the request is made (`DEMO_DECISION_LOG` for the driving demo's server, `PONG_DECISION_LOG` for Pong's recorder, the measurement script for the browser agent) and listed in the manifest (`tools/decision_log.py`).
 

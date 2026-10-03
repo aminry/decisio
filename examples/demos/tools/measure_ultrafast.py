@@ -8,6 +8,12 @@ per second, p50 and p95 of the per-decision latency (the System One request, wal
 asked over, the task completion time with a bootstrap interval, and the number of text-helper calls. Nothing is sent to
 any hosted service: browser-harness telemetry and update checks are off.
 
+Every run also writes its trajectory (`trajectory.py`) to `trajectories/<task>_<run>/`: one tick per model decision with
+the screenshot the agent observed for it (`frames/step_NNN.png`, a lossless capture taken with the page's state), the
+chosen element's box in screenshot pixels, the request as sent and the full answer, the typed text and the latency, then
+a tick with the page after the agent stopped. `render_ultrafast.py` draws a clip from it alone. The screenshots are read
+only and are not in the request, so the agent decides on the same page; they add their capture time to every step.
+
     SYSTEMONE_BASE_URL=http://127.0.0.1:8100 TEXT_MODEL_BASE_URL=http://127.0.0.1:8200/v1 TEXT_MODEL=qwen \\
         python measure_ultrafast.py --label Decisio --runs 10
 """
@@ -15,9 +21,11 @@ any hosted service: browser-harness telemetry and update checks are off.
 from __future__ import annotations
 
 import argparse
+import base64
 import os
 import shutil
 import statistics
+import struct
 import subprocess
 import sys
 import tempfile
@@ -28,8 +36,9 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+import trajectory
 from decision_log import DecisionLog
-from demo_run import DemoRun, bootstrap, caption_for, card_name, latency_summary
+from demo_run import DemoRun, bootstrap, caption_for, card_name, latency_summary, server_health
 
 REPO = Path(__file__).resolve().parents[3]
 ROOT = Path(__file__).resolve().parents[1] / "ultrafast"
@@ -66,9 +75,13 @@ def chrome_path():
     sys.exit("no Chrome found: set CHROME=/path/to/chrome")
 
 
+class QuietHandler(SimpleHTTPRequestHandler):
+    def log_message(self, *_args):
+        pass
+
+
 def serve_fixture(port):
-    handler = partial(SimpleHTTPRequestHandler, directory=str(ROOT / "jev_ultrafast" / "static"))
-    handler.log_message = lambda *a: None
+    handler = partial(QuietHandler, directory=str(ROOT / "jev_ultrafast" / "static"))
     server = ThreadingHTTPServer(("127.0.0.1", port), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
@@ -117,15 +130,147 @@ def decision_rows(index, task, decisions):
     ]
 
 
-def run_task(name, task, base):
+def png_size(data: bytes) -> list[int]:
+    """Width and height from a PNG's header."""
+    return list(struct.unpack(">II", data[16:24]))
+
+
+class Trajectory:
+    """One run's trajectory: a tick per model decision, kept from the page the decision was made on (its screenshot
+    taken with its state, the chosen element's box), and a tick with the page after the agent stopped. Screenshots stay
+    in memory during the run and are written with the trajectory after it, so the run's clock does not include them."""
+
+    def __init__(self, directory: Path, player: dict, run: dict):
+        self.dir, self.player, self.run = Path(directory), player, run
+        self.steps: list[dict] = []
+        self.final: dict | None = None
+        self.executed = 0
+
+    def agent_options(self) -> dict:
+        return {"screenshots": "png", "on_decision": self.on_decision}
+
+    def on_decision(self, page, decision) -> None:
+        self.steps.append({"t_wall": time.time(), "page": page, "decision": decision, "action": None})
+
+    def after_tick(self, history) -> None:
+        """Attach an executed action (its typed text) to the decision it executed: a tick runs at most one."""
+        new = len(history) > self.executed
+        if new and self.steps and history[-1]["choice"] == self.steps[-1]["decision"]["choice"]:
+            self.steps[-1]["action"] = history[-1]
+        self.executed = len(history)
+
+    def stopped(self, browser) -> None:
+        """The page after the agent stopped: a read-only capture, after the run's last step."""
+        t_wall = time.time()
+        try:
+            shot = browser.call("Page.captureScreenshot", format="png")["data"]
+            self.final = {
+                "t_wall": t_wall,
+                "url": browser.evaluate("location.href"),
+                "title": browser.evaluate("document.title"),
+                "viewport": [browser.evaluate("innerWidth"), browser.evaluate("innerHeight")],
+                "screenshot": shot,
+            }
+        except Exception as err:  # a broken page is recorded, not hidden
+            self.final = {"t_wall": t_wall, "error": str(err)}
+
+    def _frame(self, name: str, b64: str) -> dict:
+        data = base64.b64decode(b64)
+        path = self.dir / "frames" / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return {"frame": f"frames/{name}", "frame_sha256": trajectory.file_sha256(path), "frame_size": png_size(data)}
+
+    @staticmethod
+    def highlight(page, decision, frame_size) -> dict | None:
+        """The chosen element's box in screenshot pixels (the page's CSS box times the device-pixel ratio); none for
+        an operation without an element (DONE, BLOCKED, WAIT, SCROLL)."""
+        action = next((a for a in page["actions"] if a["id"] == decision["choice"]), None)
+        if not action or "rect" not in action:
+            return None
+        scale = frame_size[0] / page["w"]
+        r = action["rect"]
+        bbox = [round(r[k] * scale, 1) for k in ("x", "y", "w", "h")]
+        return {"bbox": bbox, "index": decision["target"], "label": action["label"]}
+
+    def ticks(self) -> list[dict]:
+        out = []
+        for k, s in enumerate(self.steps):
+            page, d, act = s["page"], s["decision"], s["action"]
+            frame = self._frame(f"step_{k + 1:03d}.png", page["screenshot"])
+            action = next((a for a in page["actions"] if a["id"] == d["choice"]), {})
+            out.append(
+                {
+                    "tick": k,
+                    "t_wall": s["t_wall"],
+                    "step": k + 1,
+                    "url": page["url"],
+                    "title": page["title"],
+                    "viewport": [page["w"], page["h"]],
+                    "scroll_y": page["scroll"]["y"],
+                    "screenshot_ms": page.get("screenshot_ms"),
+                    **frame,
+                    "highlight": self.highlight(page, d, frame["frame_size"]),
+                    "decision": {
+                        "request": d["request"],
+                        "answer": d["raw_answers"],
+                        "model": d["model"],
+                        "usage": d["usage"],
+                        "skipped_single_option": d["skipped_single_option"],
+                        "chosen": {
+                            "operation": d["operation"],
+                            "target": d["target"],
+                            "action": d["choice"],
+                            "kind": action.get("kind"),
+                            "label": action.get("label"),
+                        },
+                        "text": act["text"] if act else None,
+                        "text_helper": (
+                            {"model": act["text_helper"], "latency_ms": act["text_latency_ms"]}
+                            if act and act["text_helper"]
+                            else None
+                        ),
+                        "latency_ms": d["latency_ms"],
+                    },
+                    "executed": act is not None,
+                    "page_changed": act["page_changed"] if act else None,
+                }
+            )
+        if self.final:
+            f = self.final
+            tick = {"tick": len(out), "t_wall": f["t_wall"], "step": None, "final": True, "decision": None}
+            if "screenshot" in f:
+                tick.update(url=f["url"], title=f["title"], viewport=f["viewport"])
+                tick.update(self._frame("final.png", f["screenshot"]), highlight=None)
+            else:
+                tick["error"] = f["error"]
+            out.append(tick)
+        return out
+
+    def write(self, end: dict) -> str:
+        ticks = self.ticks()
+        framed = next((t for t in ticks if t.get("frame")), None)
+        dpr = framed["frame_size"][0] / framed["viewport"][0] if framed else None
+        run = {**self.run, "viewport": {"width": 1120, "height": 780, "device_pixel_ratio": dpr}}
+        head = trajectory.header("ultrafast", self.player, run)
+        return trajectory.write(self.dir / trajectory.NAME, head, ticks, end)
+
+
+def run_task(name, task, base, traj=None):
+    """One run of a task; with `traj` (a Trajectory) the agent also captures a screenshot with every observation."""
     from jev_ultrafast import Agent
 
     url = f"{base}/fixture.html?scenario={name}"
     started = time.perf_counter()
-    with Agent(url, task["goal"]) as agent:
+    with Agent(url, task["goal"], **(traj.agent_options() if traj else {})) as agent:
         state = None
-        for state in agent.run():
-            pass
+        try:
+            for state in agent.run():
+                if traj:
+                    traj.after_tick(state["history"])
+        finally:
+            if traj:
+                traj.stopped(agent.browser)
         wall = time.perf_counter() - started
         verify = agent.browser.evaluate("document.body.innerText") or ""
         final_url = agent.browser.evaluate("location.href") or ""
@@ -134,6 +279,15 @@ def run_task(name, task, base):
     decisions = state["decisions"]
     return {
         "_log": decision_rows(0, name, decisions),
+        "_verification": {
+            "status": state["status"],
+            "final_url": final_url,
+            "url_end": task["url_end"],
+            "url_ok": final_url.endswith(task["url_end"]),
+            "text_has": task["text_has"],
+            "text_ok": task["text_has"] in verify,
+            "ok": bool(ok),
+        },
         "task": name,
         "ok": bool(ok),
         "status": state["status"],
@@ -180,6 +334,8 @@ def summarise(runs):
         },
         "largest_option_set": max((max(v) for v in per_question.values()), default=0),
         "text_helper_calls": sum(len(r["text_calls"]) for r in runs),
+        # the trajectory's screenshot of each decision's page: its capture is in the completion time, not the latency
+        "screenshot_ms": latency_summary([ms for r in runs for ms in r.get("screenshot_ms", []) if ms is not None]),
     }
 
 
@@ -194,6 +350,7 @@ def main():
     ap.add_argument("--fixture-port", type=int, default=8766)
     ap.add_argument("--card", default="")
     ap.add_argument("--note", default="")
+    ap.add_argument("--player", default=None, help="the player's fields as JSON (trajectory.PLAYER_FIELDS)")
     a = ap.parse_args()
     os.environ.setdefault("BH_TELEMETRY", "0")
     os.environ.setdefault("BH_UPDATE_CHECK", "0")
@@ -206,6 +363,15 @@ def main():
     card = a.card or card_name()
     run = DemoRun(out, f"Browser agent against {a.label}", "ultrafast", a.label, base_url, hardware=card)
     names = a.tasks.split(",")
+    player = trajectory.player_fields(a.player, label=a.label, card=card, server=server_health(base_url))
+    # what shapes the request besides the page: the prompt variant and the request opt-ins (model.py)
+    variant = {
+        "prompt_variant": os.environ.get("ULTRAFAST_PROMPT_VARIANT", "default"),
+        "string_descriptions": os.environ.get("SYSTEMONE_STRING_DESCRIPTIONS") == "1",
+        "skip_single_option": os.environ.get("SYSTEMONE_SKIP_SINGLE_OPTION") == "1",
+        "systemone_model": os.environ.get("SYSTEMONE_MODEL"),
+        "text_model": os.environ.get("TEXT_MODEL"),
+    }
     server = serve_fixture(a.fixture_port)
     chrome, profile = launch_chrome(a.cdp_port, a.headed)
     base = f"http://127.0.0.1:{a.fixture_port}"
@@ -214,8 +380,16 @@ def main():
     try:
         for name in names:
             for i in range(a.runs):
+                traj_run = {
+                    "task": name,
+                    "goal": TASKS[name]["goal"],
+                    "index": i + 1,
+                    "url": f"{base}/fixture.html?scenario={name}",
+                    **variant,
+                }
+                traj = Trajectory(out / "trajectories" / f"{name}_{i + 1}", player, traj_run)
                 try:
-                    rec = run_task(name, TASKS[name], base)
+                    rec = run_task(name, TASKS[name], base, traj)
                 except Exception as err:  # a failed run is a result, recorded with its reason
                     rec = {
                         "task": name,
@@ -229,6 +403,19 @@ def main():
                     }
                 for row in rec.pop("_log", []):
                     log.add(**{**row, "run": i + 1})
+                traj.write(
+                    {
+                        "completed": rec["ok"],
+                        "status": rec["status"],
+                        "verification": rec.pop("_verification", None),
+                        "elapsed_ms": rec["elapsed_ms"],
+                        "wall_s": rec["wall_s"],
+                        "decisions": len(traj.steps),
+                        "actions": rec["actions"],
+                        "text_calls": len(rec["text_calls"]),
+                    }
+                )
+                rec["screenshot_ms"] = [s["page"].get("screenshot_ms") for s in traj.steps]
                 records.append(rec)
                 run.log(
                     f"{name} run {i + 1}/{a.runs}: ok={rec['ok']} {rec['status']} {rec['elapsed_ms']} ms, "
@@ -269,6 +456,13 @@ def main():
         "Options per question (max, mean): "
         + "; ".join(f"{q} {v['max']}, {v['mean']}" for q, v in allr["options_per_question"].items()),
     ]
+    shots = allr["screenshot_ms"]
+    if shots.get("n"):
+        md += [
+            "",
+            "Every observation also captures a lossless screenshot for the run's trajectory "
+            f"(p50 {shots['p50']:.0f} ms per capture); the completion times include it, the decision latencies do not.",
+        ]
     if a.note:
         md += ["", a.note]
     run.finish(
@@ -282,6 +476,8 @@ def main():
             "files": {
                 "runs.json": "one row per run: outcome, completion time, every decision's latency and option counts",
                 "summary.json, summary.md": "the tables with their bootstrap intervals",
+                "trajectories/<task>_<run>/": "each run's trajectory (trajectory.jsonl.gz) and its screenshots "
+                "(frames/), the only input of render_ultrafast.py",
             },
         },
     )

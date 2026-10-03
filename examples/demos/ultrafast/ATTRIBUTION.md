@@ -13,11 +13,13 @@ This directory is a modified copy of **jev-ultrafast** by Browser Use.
   An opt-in `SYSTEMONE_STRING_DESCRIPTIONS=1` sends each option's description as a JSON string, for servers that only accept text descriptions, and an opt-in `SYSTEMONE_SKIP_SINGLE_OPTION=1` leaves a one-option head out of the request and answers it with its only element, for servers that refuse a question with a single option.
 - An opt-in wording variant, `ULTRAFAST_PROMPT_VARIANT=done-submitted`, adds to DONE's description that a typed search is applied only once submitted (for testing a fix against an oracle; the default wording is unchanged).
 - The text helper (typed content) reads `TEXT_MODEL_BASE_URL`, `TEXT_MODEL`, an optional key and `TEXT_MODEL_EXTRA_JSON`, so any small local OpenAI-compatible model can serve it.
+- For the run trajectories of `../tools/measure_ultrafast.py`: `Agent` takes an optional `on_decision(page, decision)` callback, called right after each model call with the page the decision was made on, and `observe(screenshot="png")` captures a lossless screenshot and records its capture time (`screenshot_ms`).
+  Neither changes a request or a decision; the default screenshot is still the upstream JPEG.
 - `jev_ultrafast/demo.py`, `static/`: the port variable is `DEMO_PORT`, and the vendor branding is removed.
 - `.env.example`, `pyproject.toml`, `tests/test_agent.py` follow the above; the tests no longer need a key and cover the new behaviour.
 - The package directory keeps the name `jev_ultrafast` so that imports in the code and tests are unchanged.
 - Removed: the upstream README, its docs and published measurements, the agent notes, the live Google Flights example and its scenario in the inspector, and the scripts that render promotional media or measure live sites, and the lock file.
-- Added: `../tools/measure_ultrafast.py`, which measures the agent on local fixture pages.
+- Added: `../tools/measure_ultrafast.py`, which measures the agent on local fixture pages and writes each run's trajectory, and `../tools/render_ultrafast.py`, which draws a clip from a trajectory alone.
 
 Nothing in this directory contains measurements taken from any hosted service.
 
