@@ -183,10 +183,9 @@ def letters_prompt(tok, kind, body, instructions, options, pool=None, form="spac
     return q + "\nAnswer:", [" " + lab for lab in labs]
 
 
-# ---- prompt formats: system prompt, tail, answer slot, label forms ---------------------------------------------------
+# ---- prompt formats: tail, answer slot, label forms -----------------------------------------------------------------
 
-SYSTEM_PROMPTS = ("none", "cygnet")
-PROMPT_TAILS = ("decisio", "cygnet")
+PROMPT_TAILS = ("compact", "spaced")
 ANSWER_SLOTS = ("prefill", "template")
 LABEL_VARIANTS = ("single", "summed")
 # thinking blocks a chat template may write; with thinking off each must be closed
@@ -197,25 +196,24 @@ THINK_MARKERS = (("<think>", "</think>"), ("<|channel>", "<channel|>"))
 class PromptFormat:
     """How a letters question is put to the chat model; every row the engine builds goes through it.
 
-    system   none: no system turn; cygnet: the Cygnet recipe's system prompt (decisio.readout.cygnet.SYSTEM)
-    tail     decisio: "<instructions>\nOptions:\n<listing>\nAnswer with the letter only." (a score as a legend);
-             cygnet: "<instructions>\n\nOptions:\n<listing>\n\n" + the recipe's last line (score levels listed)
+    tail     compact: "<instructions>\nOptions:\n<listing>\nAnswer with the letter only." (a score as a legend);
+             spaced: "<instructions>\n\nOptions:\n<listing>\n\n" + decisio.readout.spaced.ANSWER_LINE (score levels
+             listed as options)
     slot     prefill: "Answer:" after the template's generation prompt; template: the template's own first
              assistant position (Qwen3.6 with thinking off: after its empty, closed "<think>" block)
     variants single: one token per label, the form the slot reads (" A" after "Answer:", "A" in the template
              slot); summed: every single-token form of a label (" A" and "A"; " yes", "yes", " Yes", "Yes"),
              read as allowed tokens of the same request, their probabilities summed per label
 
-    The default is the served prompt as it was before these flags, token for token."""
+    The default is the compact layout, the served prompt before 2026-10-03, token for token, so tasks fitted under it
+    keep their fingerprint; the server's own default is the spaced layout (--prompt-tail)."""
 
-    system: str = "none"
-    tail: str = "decisio"
+    tail: str = "compact"
     slot: str = "prefill"
     variants: str = "single"
 
     def __post_init__(self):
         for value, allowed, what in (
-            (self.system, SYSTEM_PROMPTS, "system"),
             (self.tail, PROMPT_TAILS, "tail"),
             (self.slot, ANSWER_SLOTS, "slot"),
             (self.variants, LABEL_VARIANTS, "variants"),
@@ -231,7 +229,7 @@ class PromptFormat:
         return "bare" if (self.variants, self.slot) == ("single", "template") else "spaced"
 
     def facts(self) -> dict:
-        return {"system": self.system, "tail": self.tail, "slot": self.slot, "variants": self.variants}
+        return {"tail": self.tail, "slot": self.slot, "variants": self.variants}
 
 
 DEFAULT_FORMAT = PromptFormat()
@@ -242,17 +240,17 @@ def question_body(tok, kind, instructions, options, fmt: PromptFormat = DEFAULT_
     " yes", " no"). Under the default format exactly what letters_prompt writes between the state's blank line and
     "\nAnswer:"."""
     form = fmt.label_form()
-    if fmt.tail == "decisio":
+    if fmt.tail == "compact":
         full, cands = letters_prompt(tok, kind, "", instructions, options, form=form)
         assert full.startswith("\n\n") and full.endswith("\nAnswer:")
         return full[2 : -len("\nAnswer:")], cands
-    from decisio.readout.cygnet import TAIL
+    from decisio.readout.spaced import ANSWER_LINE
 
     if kind == "noul":
         return f"{instructions}\n\nAnswer with yes or no, and nothing else:", [" yes", " no"]
     labs = letter_labels(tok, len(options), form)
     listing = "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
-    return f"{instructions}\n\nOptions:\n{listing}\n\n{TAIL}", [" " + lab for lab in labs]
+    return f"{instructions}\n\nOptions:\n{listing}\n\n{ANSWER_LINE}", [" " + lab for lab in labs]
 
 
 def check_thinking_closed(text: str) -> None:
@@ -262,16 +260,12 @@ def check_thinking_closed(text: str) -> None:
 
 
 def chat_turn(tok, content, fmt: PromptFormat = DEFAULT_FORMAT) -> str:
-    """One question's chat prompt: the system turn (if any), `content` as the user turn, the template's generation
-    prompt with thinking disabled, then "Answer:" under the prefill slot. With the default format this is
+    """One question's chat prompt: `content` as the user turn, the template's generation prompt with thinking
+    disabled, then "Answer:" under the prefill slot. With the default format this is
     chat_wrap(tok, content + "\nAnswer:", "chat"), the prompt evaluation scores, by construction."""
     if fmt.is_default():
         return chat_wrap(tok, content + "\nAnswer:", "chat")
     messages = [{"role": "user", "content": content}]
-    if fmt.system == "cygnet":
-        from decisio.readout.cygnet import SYSTEM
-
-        messages.insert(0, {"role": "system", "content": SYSTEM})
     out = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
     check_thinking_closed(out)
     return out + ("Answer:" if fmt.slot == "prefill" else "")

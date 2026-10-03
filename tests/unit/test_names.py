@@ -231,14 +231,14 @@ def start_with_tasks(monkeypatch, tasks_file, *argv):
 def test_w3_tasks_file_at_start_up(monkeypatch, capsys, tmp_path):
     tasks_file = tmp_path / "tasks.json"  # GET /v1/tasks?full=1 as saved to a file
     tasks_file.write_text(json.dumps(load_json(RUN / "latency_tasks.json.gz")))
-    earlier = ["--prompt-tail", "decisio", "--noul-rendering", "words"]  # the format these tasks were fitted under
+    earlier = ["--prompt-tail", "compact", "--noul-rendering", "words"]  # the format these tasks were fitted under
     store = start_with_tasks(monkeypatch, tasks_file, *earlier).task_store  # the default served name
     assert "WARNING" not in capsys.readouterr().out
     assert len(store.by_key) == 2 and all(store.lookup(k) is not None for k in store.by_key)
     store = start_with_tasks(monkeypatch, tasks_file, *earlier, "--served-name", "my-deployment").task_store
     assert "WARNING: tasks fitted under another model or rendering" in capsys.readouterr().out
     assert all(store.lookup(k) is None for k in store.by_key)
-    # the served default since 2026-10-03 (the Cygnet tail): tasks fitted under the earlier format must be re-registered
+    # the served default since 2026-10-03 (the spaced layout): tasks fitted under the compact one must be re-registered
     store = start_with_tasks(monkeypatch, tasks_file).task_store
     assert "WARNING: tasks fitted under another model or rendering" in capsys.readouterr().out
     assert all(store.lookup(k) is None for k in store.by_key)

@@ -24,7 +24,7 @@ No trained weights: every measured answer comes from the official checkpoint.
 | Task registration | `POST /v1/tasks`: from labelled examples of one recurring question the server fits per-task calibration and, for option lists of 10 or more, a linear head on the model's hidden state; guide in `docs/tasks.md` |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
-| Rendering rules | each question ends with the Cygnet recipe's answer line ("Answer with the letter of exactly one option, and nothing else:") and a yes/no question is asked as a two-option letter choice with its sides named (`--prompt-tail cygnet`, `--noul-rendering letters-keys`, the served default since 2026-10-03); an option with a description is shown as its description alone, without its key (`--no-describe-options` shows `key: description`): on 272 steps of a browser-agent demo it cut wrong "done" picks from 63 to 12 of 132, with accuracy within noise on JevBench and the Decision Index; enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in |
+| Rendering rules | the lettered options sit between blank lines and the question closes with one line asking for the chosen option's letter alone, and a yes/no question is asked as a two-option letter choice with its sides named (`--prompt-tail spaced`, `--noul-rendering letters-keys`, the served default since 2026-10-03); an option with a description is shown as its description alone, without its key (`--no-describe-options` shows `key: description`): on 272 steps of a browser-agent demo it cut wrong "done" picks from 63 to 12 of 132, with accuracy within noise on JevBench and the Decision Index; enumerated option keys are hidden, snake_case labels are shown as words, ties resolve by key so the answer never depends on the order keys arrive in |
 | Determinism | a question returns the same probabilities every time on a running server, alone or among other questions: each question is scored in its own engine call (272 of 272 four-question requests equal to the question sent alone, 5 repeats each; 1,400 of 1,400 suite items bit-identical); across restarts in 4 of 5 starts measured (the fifth moved 2 items by up to 0.0012, no choice changed). With `--multi-question warm` the questions are scored in one batch, faster, but on this stack a batched answer depends on the batch: on the same 272 requests it moved between repeats on 31 and differed from the question sent alone on 50, by up to 0.27 (reported upstream, vllm-project/vllm#59764). `EVAL_CARD.md` section 4 and `runs/2026-10-02_multi-question-and-rendering/` have the measurements |
 | Context | up to 32,768 tokens of state |
 
@@ -38,7 +38,7 @@ Latency on one RTX PRO 6000, server time, from `EVAL_CARD.md` (medians; a state 
 | from the prefix cache | 27.9 ms | | |
 
 Each further question costs about 17 ms in the served default and 2.7 to 5.4 ms batched when many share a state; at $1.50 per card-hour that is about $0.012 per 1,000 single-question decisions, about $0.007 per 1,000 further questions, and $0.0012 to $0.0022 batched.
-These latencies were measured under the earlier prompt; on one card in one session the current one measured within 3 ms of it (+0.7 ms on a cached state, 0.0 to +0.5 ms for a single question on a new state, +1.8 to +2.9 ms for four), `runs/2026-10-03_qiv-default/`.
+These latencies were measured under the compact layout; on one card in one session the current one measured within 3 ms of it (+0.7 ms on a cached state, 0.0 to +0.5 ms for a single question on a new state, +1.8 to +2.9 ms for four), `runs/2026-10-03_qiv-default/`.
 
 `--pad-policy row` (opt-in) cuts a fresh single question by about 10 to 12 ms: the whole row, state and question, is padded to end on the block boundary, so vLLM prefills it in one engine step instead of two.
 Measured against the served default on one card in one session: 48.8 to 38.1 ms at 300 tokens, 52.1 to 40.9 at 1,000, 91.0 to 79.2 at 3,000; multi-question requests are unchanged.
@@ -90,7 +90,7 @@ Repeat the request and you get the same probabilities: each question is scored i
 
 The model is frozen, but the server can learn one recurring question from your own labelled examples: it fits a per-task calibration and, for 10 or more options, a small head on the model's hidden state, each kept only if cross-validation on your examples shows a gain.
 With 10 labelled examples per intent, accuracy on held-out test items rose from 0.747 to 0.840 on BANKING77 (77 intents) and from 0.820 to 0.912 on CLINC150 (150 intents), against the same model unregistered (means of six draws).
-Tasks registered before 2026-10-03, under the earlier prompt, are not applied by the current default and need registering again (`docs/tasks.md`).
+Tasks registered before 2026-10-03, under the earlier compact layout, are not applied by the current default and need registering again (`docs/tasks.md`).
 
 ```
 curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @examples/tasks/examples.json
@@ -145,13 +145,13 @@ All numbers are on the served default described in `EVAL_CARD.md`, measured priv
 | JevBench, 231 published items, accuracy by tier | easy 1.000, standard 0.972, hard 0.739 |
 | Decision Index 0.2.1, four benchmarks | BANKING77 macro-F1 0.746, CLINC150+OOS 0.822, GPQA Diamond 0.510, MMLU-Pro 0.613 |
 | Intent heads from 10 labelled examples per intent | BANKING77 0.840, CLINC150 0.912 |
-| Image input, ImajevBench v2.0-lite | 0.791 on the 230 answerable items (the image route keeps the earlier prompt) |
+| Image input, ImajevBench v2.0-lite | 0.791 on the 230 answerable items (the image route keeps the compact layout) |
 | Latency, one question | 48.5 ms server time on a new 300-token state, 27.9 ms on a state from the cache |
 
 Where it stands: on the public harnesses this frozen model is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
 With 10 labelled examples per intent, registered heads reach accuracy 0.840 on BANKING77 (150 held-out items) and 0.912 on CLINC150 (100 held-out items), means of six draws.
 They use labelled examples, so those figures are not comparable with zero-shot systems.
-Calibration on JevBench's hard tier is an ECE of 0.043 (0.069 under the earlier prompt), with standard-tier ECE still 0.121.
+Calibration on JevBench's hard tier is an ECE of 0.043 (0.069 under the compact layout), with standard-tier ECE still 0.121.
 `EVAL_CARD.md` has the full tables, the calibration figures, and the three disclosures about what was fitted on what.
 
 `--noul-commit` (opt-in) is for scorers that treat a yes/no probability between 0.20 and 0.80 as no answer, as JevBench v1.5 does: such an answer is reported at the band's edge on its own side, 0.80 above 0.5 and 0.20 at or below it.

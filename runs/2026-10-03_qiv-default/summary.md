@@ -1,5 +1,7 @@
 # The served default's prompt: the Cygnet tail and yes/no as named letters (session of 2026-10-03)
 
+Flag names in this record are those of 2026-10-03: `--prompt-tail cygnet` is now `--prompt-tail spaced` and `--prompt-tail decisio` is `--prompt-tail compact`; the prompts are unchanged.
+
 Q0 is the earlier served default (`--prompt-tail decisio`, `--noul-rendering words`, T 1.307); Q-IV is `--prompt-tail cygnet --noul-rendering letters-keys`, each judged at its own temperature, fitted by minimum log loss with 5-fold cross-validation stratified by task on its suite readouts (Q0 1.307, Q-IV 1.506).
 Both servers ran in one session on one card with `--debug-readout`, so every temperature was applied offline to the plain readout, which is exact.
 The gates were pre-registered; the intent-head gate was retested with six draws per set under an amendment written before that measurement.
