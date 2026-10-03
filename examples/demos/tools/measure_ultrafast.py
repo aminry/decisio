@@ -87,6 +87,16 @@ def serve_fixture(port):
     return server
 
 
+def stop_daemon():
+    """Stop this run's browser-harness daemon (BU_NAME), if one is running; best effort."""
+    try:
+        from browser_harness.admin import restart_daemon
+
+        restart_daemon(os.environ.get("BU_NAME"))
+    except Exception as e:  # noqa: BLE001 - nothing to stop, or an older browser-harness: the run goes on
+        print(f"browser-harness daemon not stopped: {e}", file=sys.stderr)
+
+
 def launch_chrome(port, headed):
     profile = tempfile.mkdtemp(prefix="uf-chrome-")
     args = [
@@ -373,6 +383,9 @@ def main():
         "text_model": os.environ.get("TEXT_MODEL"),
     }
     server = serve_fixture(a.fixture_port)
+    # A daemon of this name left by an earlier run would still hold that run's Chrome session: on the card (2026-10-03)
+    # such a daemon made every screenshot of the next run time out. Stop it before starting and when finishing.
+    stop_daemon()
     chrome, profile = launch_chrome(a.cdp_port, a.headed)
     base = f"http://127.0.0.1:{a.fixture_port}"
     records = []
@@ -424,6 +437,7 @@ def main():
     finally:
         chrome.terminate()
         server.shutdown()
+        stop_daemon()
         shutil.rmtree(profile, ignore_errors=True)
     summary = {name: summarise([r for r in records if r["task"] == name]) for name in names}
     summary["all"] = summarise(records)
