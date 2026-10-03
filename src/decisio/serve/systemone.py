@@ -207,6 +207,44 @@ def noul_as_letters(q, keys_shown: bool = False) -> tuple[dict, list[str]] | Non
     return {"kind": "choice", "instructions": instr, "options": options}, ["no", "yes"]
 
 
+SCORE_RENDERINGS = ("letters", "levels-noul")
+COMMIT_LO, COMMIT_HI = 0.20, 0.80
+
+
+def score_level_rows(eq: dict) -> list[dict]:
+    """--score-rendering levels-noul (decider's form): one yes/no engine question per level of a score question, asked
+    in words; the levels' P(yes), normalised over the levels, are the score's distribution (`levels_from_rows`)."""
+    return [
+        {"kind": "noul", "instructions": f"{eq['instructions']}\nDoes this level apply? Level: {level}"}
+        for level in eq["options"]
+    ]
+
+
+def levels_from_rows(rows) -> np.ndarray:
+    """The score distribution from its level rows' readouts ((P(yes), P(no)) each): P(yes) per level, normalised."""
+    p = np.array([float(r[0]) for r in rows], dtype=np.float64)
+    return p / p.sum()
+
+
+def commit_noul(p: np.ndarray) -> np.ndarray:
+    """--noul-commit: a yes/no answer with 0.20 < P(yes) < 0.80 is reported at the band's edge on its own side, 0.80 if
+    P(yes) > 0.5 and 0.20 otherwise (exactly 0.5 stays no, the served tie-break); outside the band it is unchanged. An
+    output transform: the answer never changes, its probability does."""
+    py = float(p[0])
+    if COMMIT_LO < py < COMMIT_HI:
+        py = COMMIT_HI if py > 0.5 else COMMIT_LO
+    return np.array([py, 1.0 - py])
+
+
+def with_position_prior(p: np.ndarray, prior) -> np.ndarray:
+    """--position-priors: the menu size's per-position log prior subtracted from a readout in engine (display) order,
+    renormalised; applied before any task correction or temperature."""
+    lp = np.log(np.clip(np.asarray(p, dtype=np.float64), 1e-300, 1.0)) - np.asarray(prior, dtype=np.float64)
+    lp -= lp.max()
+    q = np.exp(lp)
+    return q / q.sum()
+
+
 def with_abstain(eq: dict, keys: list[str], option: str) -> tuple[dict, list[str]]:
     """The engine question with one more option, `option` (e.g. "can't tell"), listed last; yes/no questions become a
     three-option choice (yes, no, option). Its key is UNKNOWN_KEY. No training: the option is only offered."""
@@ -368,6 +406,9 @@ class SystemOne:
         desnake_labels: bool = True,
         describe_options: bool = True,
         noul_rendering: str = "words",
+        score_rendering: str = "letters",
+        position_priors: dict | None = None,
+        noul_commit: bool = False,
         abstention: bool = True,
         abstention_tasks: list[dict] | None = None,
         tasks_enabled: bool = True,
@@ -375,6 +416,7 @@ class SystemOne:
         hidden_engine=None,
         debug_readout: bool = False,
         temperature: float = 1.0,
+        temperatures: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -383,6 +425,12 @@ class SystemOne:
         if noul_rendering not in NOUL_RENDERINGS:
             raise ValueError(f"noul_rendering must be one of {NOUL_RENDERINGS}")
         self.noul_rendering = noul_rendering  # how a yes/no question is asked (noul_as_letters); words by default
+        if score_rendering not in SCORE_RENDERINGS:
+            raise ValueError(f"score_rendering must be one of {SCORE_RENDERINGS}")
+        self.score_rendering = score_rendering  # how a score question is asked (score_level_rows); letters by default
+        # per menu size, a log prior per display position, subtracted from choice readouts (with_position_prior)
+        self.position_priors = {int(k): list(map(float, v)) for k, v in (position_priors or {}).items()}
+        self.noul_commit = bool(noul_commit)  # an output transform on yes/no answers (commit_noul); off by default
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -400,6 +448,8 @@ class SystemOne:
         # the global temperature on the text route's plain readout (decisio.serve.temperature); 1.0 is off, bit for bit;
         # a registered task's own correction replaces it
         self.temperature = float(temperature)
+        # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
+        self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
         self.release_date, self.description = release_date, description
         self.branch_log = branch_log
         self._log_lock = threading.Lock()
@@ -472,7 +522,21 @@ class SystemOne:
                 "head was asked with orders=2 (the head is bound to one option order)"
             )
         gen = [i for i in range(len(names)) if i not in head]
-        engine_qs, plan = [qs[i] for i in gen], {}
+        # --score-rendering levels-noul: a score question becomes one yes/no row per level (one order: `words` covers
+        # orders=2 and the abstain option; no abstention task, no registered task)
+        levels = {
+            i: score_level_rows(qs[i])
+            for i in gen
+            if self.score_rendering == "levels-noul"
+            and wire[i].type == "score"
+            and not words
+            and not plans[i]
+            and rts[i] is None
+        }
+        engine_qs, plan, spans = [], {}, {}
+        for i in gen:
+            spans[i] = (len(engine_qs), len(engine_qs) + len(levels.get(i, [qs[i]])))
+            engine_qs.extend(levels.get(i, [qs[i]]))
         if orders == 2:
             for i in gen:
                 q2, perm = second_order(names[i], *mapped[i])
@@ -485,6 +549,9 @@ class SystemOne:
                 probs, info = engine.answer(req.state, engine_qs, adapter, images=images)
             else:
                 probs, info = engine.answer(req.state, engine_qs, adapter)
+        if levels:  # back to one readout per question, in gen order (the level rows' P(yes), normalised)
+            rows_out = [levels_from_rows(probs[a:b]) if i in levels else probs[a] for i in gen for a, b in [spans[i]]]
+            probs = rows_out + list(probs[spans[gen[-1]][1] :])
         at = {i: n for n, i in enumerate(gen)}
         hidden = dict(zip(head, self.hidden_engine.readout(req.state, [qs[i] for i in head]))) if head else {}
         dbg = {}
@@ -503,14 +570,21 @@ class SystemOne:
                     dbg.setdefault(name, {}).update(path="head", task=t["id"], hidden_lp=lp.tolist(), h=h.tolist())
             else:
                 p = np.asarray(probs[at[i]], dtype=np.float64)
+                # --position-priors: choice readouts (yes/no as letters included) of a size with a prior and no task
+                # calibration (itself a per-slot correction), in display order, before the swap and the temperature
+                calibrated = t is not None and t["calibration"].get("applied")
+                prior = self.position_priors.get(len(p)) if eq["kind"] == "choice" and not calibrated else None
+                if prior:
+                    p = with_position_prior(p, prior)
                 if swapped[i]:  # read false first; from here on (yes, no), as every yes/no readout
                     p, keys = p[::-1].copy(), ["yes", "no"]
                 p2, corrected = None, False
                 if orders == 2:
                     j, perm = plan[i]
                     p2 = np.zeros_like(p)
+                    shown = probs[j] if not prior else with_position_prior(probs[j], prior)  # its display order
                     for pos, orig in enumerate(perm):  # branch 2 position pos shows original option perm[pos]
-                        p2[orig] = probs[j][pos]
+                        p2[orig] = shown[pos]
                     d = disagreement([p, p2])
                     log.append(
                         {
@@ -527,8 +601,8 @@ class SystemOne:
                 if debug:  # the served readout before any task (order 1)
                     dbg.setdefault(name, {}).update(path="plain", p=p.tolist())
                     forms = info.get("label_token_logprobs")
-                    if forms:  # --label-variants summed or cygnet: each form's log-probability, in engine order
-                        dbg[name]["form_logprobs"] = forms[at[i]]
+                    if forms and i not in levels:  # --label-variants summed or cygnet: each form's log-probability
+                        dbg[name]["form_logprobs"] = forms[spans[i][0]]  # in engine order (before level rows merge)
                 if t is not None and t["calibration"].get("applied"):  # per-task calibration (reference arithmetic)
                     from decisio.readout.calibration import apply_task_prior
                     from decisio.readout.debias import log_probs
@@ -548,16 +622,20 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                if not corrected and self.temperature != 1.0 and not use_image:
-                    p = apply_temperature(p, self.temperature)
+                t_q = self.temperature_of(q.type)
+                if not corrected and t_q != 1.0 and not use_image:
+                    p = apply_temperature(p, t_q)
                     if debug:
-                        dbg[name].update(path="temperature", temperature=self.temperature)
+                        dbg[name].update(path="temperature", temperature=t_q)
             if plans[i]:
                 answers[name] = self.abstention_answer(q, keys, p, plans[i], imajev_ext)
                 continue
             if abstain:
                 answers[name] = abstain_answer(q, keys, p)
                 continue
+            # --noul-commit, the output transform, last (abstention answers above keep theirs)
+            if self.noul_commit and q.type == "noul":
+                p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
             if imajev_ext:
                 answers[name].update(unknown_probability=0.0, abstained=False)
@@ -597,6 +675,10 @@ class SystemOne:
         return out
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
+
+    def temperature_of(self, qtype: str) -> float:
+        """The temperature a question of this type is served at: its own (--temperature-<type>) or the global one."""
+        return self.temperatures.get(qtype, self.temperature)
 
     def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
         """(engine question, keys in engine order, swapped) for one wire question as this server asks it. A yes/no
@@ -665,7 +747,7 @@ class SystemOne:
         the plain readout p (for abstention examples, so a threshold is fitted on what it will decide)."""
         t = self.readout_task(q)
         if t is None:
-            return apply_temperature(p, self.temperature)
+            return apply_temperature(p, self.temperature_of(q.type))
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
@@ -676,7 +758,7 @@ class SystemOne:
             from decisio.readout.debias import log_probs
 
             return apply_task_prior(log_probs(p), t["calibration"])
-        return apply_temperature(p, self.temperature)
+        return apply_temperature(p, self.temperature_of(q.type))
 
     # ---- per-task abstention -------------------------------------------------------------------------------------
 

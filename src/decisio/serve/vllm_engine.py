@@ -43,6 +43,7 @@ packed: questions are packed into one prompt as consecutive chat turns, each tur
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
@@ -640,6 +641,10 @@ def make_app(engine, systemone=None):
                     "desnake_labels": systemone.desnake_labels,
                     "describe_options": systemone.describe_options,
                     "noul_rendering": systemone.noul_rendering,
+                    "score_rendering": systemone.score_rendering,
+                    "position_priors": {str(k): v for k, v in systemone.position_priors.items()},
+                    "noul_commit": systemone.noul_commit,
+                    "temperatures": systemone.temperatures,
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
                         t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
@@ -939,6 +944,35 @@ def main():
         "registered task's own correction replaces it; 1 switches it off (the output before it, bit "
         "for bit); never changes the most probable option",
     )
+    for qtype in ("choice", "noul", "score"):
+        ap.add_argument(
+            f"--temperature-{qtype}",
+            type=float,
+            default=None,
+            help=f"/v1/systemone: a temperature for {qtype} questions in place of --temperature (default: unset, the "
+            "global one)",
+        )
+    ap.add_argument(
+        "--score-rendering",
+        default="letters",
+        choices=["letters", "levels-noul"],
+        help="/v1/systemone: how a score question is asked. letters (default): one question over its levels; "
+        "levels-noul: one yes/no row per level ('Does this level apply?'), the levels' P(yes) normalised (one row per "
+        "level per question; two-order and abstention requests keep letters)",
+    )
+    ap.add_argument(
+        "--position-priors",
+        default=None,
+        help="/v1/systemone: a JSON file {menu size: [log prior per display position]}, subtracted from choice "
+        "readouts of that size (yes/no asked as letters included) before the temperature; questions of a task with "
+        "its own calibration keep theirs (default: none)",
+    )
+    ap.add_argument(
+        "--noul-commit",
+        action="store_true",
+        help="/v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported "
+        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does; off by default",
+    )
     ap.add_argument(
         "--tasks",
         action=argparse.BooleanOptionalAction,
@@ -1153,6 +1187,14 @@ def main():
                 **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
                 # likewise: only a non-default prompt format enters, so tasks fitted under the default keep matching
                 **({"prompt_format": fmt.facts()} if not fmt.is_default() else {}),
+                # likewise: what changes the plain readout a task is fitted on (temperatures and the commit transform
+                # do not: a task's correction replaces the temperature, and the transform comes after it)
+                **({"score_rendering": args.score_rendering} if args.score_rendering != "letters" else {}),
+                **(
+                    {"position_priors": hashlib.sha256(Path(args.position_priors).read_bytes()).hexdigest()}
+                    if args.position_priors
+                    else {}
+                ),
                 # --describe-options is not here: it enters the task key of the questions it changes (tasks.task_key)
             },
             sort_keys=True,
@@ -1174,6 +1216,9 @@ def main():
         hide_index_keys=args.hide_index_keys,
         describe_options=args.describe_options,
         noul_rendering=args.noul_rendering,
+        score_rendering=args.score_rendering,
+        position_priors=json.loads(Path(args.position_priors).read_text()) if args.position_priors else None,
+        noul_commit=args.noul_commit,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
@@ -1182,6 +1227,11 @@ def main():
         hidden_engine=hidden_engine,
         debug_readout=args.debug_readout,
         temperature=args.temperature,
+        temperatures={
+            "choice": args.temperature_choice,
+            "noul": args.temperature_noul,
+            "score": args.temperature_score,
+        },
     )
     uvicorn.run(make_app(engine, so), host=args.host, port=args.port, log_level="warning")
 
