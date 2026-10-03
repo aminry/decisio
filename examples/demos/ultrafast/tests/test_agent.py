@@ -115,10 +115,18 @@ def test_click_cannot_consume_a_text_target(monkeypatch):
 
 def test_target_head_receives_control_state_and_full_next_step_rules(monkeypatch):
     p = page()
-    p["actions"].insert(0, {
-        "id": "toggle", "kind": "click", "label": "Free cancellation", "node": 30,
-        "role": "checkbox", "checked": "true", "selected": False,
-    })
+    p["actions"].insert(
+        0,
+        {
+            "id": "toggle",
+            "kind": "click",
+            "label": "Free cancellation",
+            "node": 30,
+            "role": "checkbox",
+            "checked": "true",
+            "selected": False,
+        },
+    )
 
     def post(_url, _key, body):
         questions = body["questions"]
@@ -261,9 +269,18 @@ def test_interrupted_dropdown_mutation_cannot_be_retried_as_stale(monkeypatch, r
     cdp = Mock(return_value=response)
     monkeypatch.setattr(browser, "cdp", cdp)
     with pytest.raises(RuntimeError, match="Dropdown execution"):
-        browser_operation({"operation": "act", "session": "test", "action": {
-            "id": "e1", "kind": "select", "node": 1, "value": "Design",
-        }})
+        browser_operation(
+            {
+                "operation": "act",
+                "session": "test",
+                "action": {
+                    "id": "e1",
+                    "kind": "select",
+                    "node": 1,
+                    "value": "Design",
+                },
+            }
+        )
     assert cdp.call_count == 1
 
 
@@ -340,8 +357,14 @@ def test_string_descriptions_option_turns_json_descriptions_into_text(monkeypatc
     def post(url, key, body):
         seen["body"] = body
         ids = ["CLICK", "TYPE_TEXT", "WAIT", "DONE", "BLOCKED"]
-        return {"model": "m", "answers": {"operation": choice(ids, "CLICK"), "click_target": choice(["1", "2"], "1"),
-                                           "type_text_target": choice(["1"], "1")}}
+        return {
+            "model": "m",
+            "answers": {
+                "operation": choice(ids, "CLICK"),
+                "click_target": choice(["1", "2"], "1"),
+                "type_text_target": choice(["1"], "1"),
+            },
+        }
 
     monkeypatch.setattr(model, "post_json", post)
     monkeypatch.delenv("SYSTEMONE_STRING_DESCRIPTIONS", raising=False)
@@ -388,3 +411,35 @@ def test_done_submitted_variant_changes_only_dones_description(monkeypatch):
     assert plain["DONE"] == "Every requirement is visibly satisfied."
     assert "not been submitted" in variant["DONE"]
     assert {k: v for k, v in plain.items() if k != "DONE"} == {k: v for k, v in variant.items() if k != "DONE"}
+
+
+def test_applied_state_variant_marks_submitted_fields_and_applied_filters(monkeypatch):
+    """ULTRAFAST_STATE_VARIANT=applied (added for this repository): observations only, the default state untouched."""
+    actions = [
+        {"id": "f1", "kind": "fill", "node": 11, "label": "Destination", "role": "searchbox", "value": "LISBON"},
+        {"id": "c1", "kind": "click", "node": 12, "label": "Find stays", "role": "button"},
+        {
+            "id": "s1",
+            "kind": "select",
+            "node": 13,
+            "label": "Stay category → Design",
+            "role": "combobox",
+            "value": "Design",
+            "current_value": "Design",
+        },
+        {"id": "c2", "kind": "click", "node": 14, "label": "Free cancellation", "role": "checkbox", "checked": "true"},
+    ]
+    elements, _targets, _controls = model.action_space(actions)
+    history = [
+        {"action": "Destination", "kind": "fill", "page_changed": False},
+        {"action": "Stay category → Design", "kind": "select", "page_changed": True},
+        {"action": "Free cancellation", "kind": "click", "page_changed": False},
+    ]
+    marked = model.mark_applied(elements, {"actions": actions, "submitted_fields": {"11": False}}, history)
+    by = {e["label"]: e for e in marked}
+    assert by["Destination"]["submitted"] is False
+    assert by["Stay category"]["applied"] is True and by["Free cancellation"]["applied"] is False
+    assert "applied" not in by["Find stays"] and "submitted" not in by["Find stays"]
+    assert elements == model.action_space(actions)[0]  # the default elements are not modified
+    marked = model.mark_applied(elements, {"actions": actions, "submitted_fields": {"11": True}}, history)
+    assert {e["label"]: e for e in marked}["Destination"]["submitted"] is True

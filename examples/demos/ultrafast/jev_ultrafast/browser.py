@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -12,6 +13,30 @@ from browser_harness.helpers import cdp
 # Atomically read visible content and controls, preserving actual DOM node identity.
 READ_STATE = Path(__file__).with_name("snapshot.js").read_text()
 MARKER = f"(() => {{ const state={READ_STATE}; return state?.marker ?? null; }})()"
+
+# Opt-in observation for the `applied` state variant (added for this repository; see model.py): a capture listener
+# records each form submission's field values, so a typed field can be reported as submitted or not. It observes the
+# page's own submit event; it changes nothing the page does.
+SUBMITTED_FIELDS = """(() => {
+  if (!window.__decisioSubmitted) {
+    window.__decisioSubmitted = {};
+    document.addEventListener('submit', e => {
+      for (const el of e.target.elements || []) {
+        if (el.name || el.id) window.__decisioSubmitted[el.name || el.id] = el.value;
+      }
+    }, true);
+  }
+  const out = {}, c = window.__jevFast;
+  if (!c) return out;
+  for (const [node, el] of c.nodes) {
+    if (el && el.form && el.matches('input[type=search],input[type=text],input:not([type]),textarea')) {
+      const key = el.name || el.id;
+      out[node] = key in window.__decisioSubmitted && window.__decisioSubmitted[key] === el.value;
+    }
+  }
+  return out;
+})()"""
+
 
 class StalePage(ValueError):
     """A decision no longer refers to the observed page."""
@@ -76,9 +101,10 @@ class Browser:
                 pass
         for attempt in range(10):
             try:
-                return browser_operation(
-                    {"operation": "observe", "session": self.session, "screenshot": screenshot}
-                )
+                page = browser_operation({"operation": "observe", "session": self.session, "screenshot": screenshot})
+                if os.environ.get("ULTRAFAST_STATE_VARIANT") == "applied":
+                    page["submitted_fields"] = self.evaluate(SUBMITTED_FIELDS) or {}
+                return page
             except StalePage:
                 if attempt == 9:
                     raise

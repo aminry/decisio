@@ -84,6 +84,35 @@ def action_space(actions):
     return elements, targets, controls
 
 
+def mark_applied(elements, page, history):
+    """The `applied` state variant (added for this repository; opt in with ULTRAFAST_STATE_VARIANT=applied):
+    observations the default state leaves implicit. A typed field in a form carries `submitted` (whether its current
+    value has been submitted, from the page's own submit events, browser.SUBMITTED_FIELDS); a select or checkbox the
+    agent changed carries `applied` (whether the page changed after the agent's last change to it). Nothing says what
+    to do next."""
+    submitted = page.get("submitted_fields") or {}
+    node_of, seen = {}, []
+    for action in page["actions"]:  # the same first-appearance order action_space numbers the elements in
+        if action["kind"] in ("click", "fill", "select") and action["node"] not in seen:
+            seen.append(action["node"])
+            node_of[str(len(seen))] = action["node"]
+    out = []
+    for element in elements:
+        element = dict(element)
+        node = str(node_of.get(element["index"]))
+        if "TYPE_TEXT" in element["operations"] and node in submitted and element.get("value"):
+            element["submitted"] = bool(submitted[node])
+        changed = [
+            h
+            for h in history
+            if h.get("kind") in ("select", "click") and h.get("action", "").split(" → ")[0] == element["label"]
+        ]
+        if changed and ("SELECT" in element["operations"] or element.get("role") == "checkbox"):
+            element["applied"] = bool(changed[-1].get("page_changed"))
+        out.append(element)
+    return out
+
+
 def stringify_descriptions(questions):
     """For a server that takes an option's description only as text (Ollama's route does): each JSON description becomes
     its compact JSON string, so the model reads the same content. Opt in with SYSTEMONE_STRING_DESCRIPTIONS=1."""
@@ -136,13 +165,14 @@ def choose(state, goal, history):
         for name in [n for n, q in questions.items() if n != "operation" and len(q["criteria"]) == 1]:
             index = next(iter(questions.pop(name)["criteria"]))
             sole[name] = {"type": "choice", "choice": index, "probabilities": {index: 1.0}, "confidence": 1.0}
+    recent = [{k: h.get(k) for k in ("action", "kind", "text", "page_changed")} for h in history[-10:]]
+    if os.environ.get("ULTRAFAST_STATE_VARIANT") == "applied":
+        elements, recent = mark_applied(elements, state, history), recent[-5:]
     body = {
         "state": {
             "page": {k: state[k] for k in ("url", "title", "text")},
             "elements": elements,
-            "recent_actions": [
-                {k: h.get(k) for k in ("action", "kind", "text", "page_changed")} for h in history[-10:]
-            ],
+            "recent_actions": recent,
         },
         "questions": questions,
     }
