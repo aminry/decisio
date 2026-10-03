@@ -353,3 +353,46 @@ def test_t3_debug_and_bad_registrations(served):
     )
     assert client.post("/v1/tasks", json={"examples": []}).status_code == 422
     assert not so.task_store.by_key
+
+
+def test_t2_certain_readout_registers():
+    """A readout so confident that the fitted prior changes nothing (every fold's log-loss change exactly 0) leaves
+    calibration off with a finite record that JSON can carry."""
+    import json
+
+    import numpy as np
+
+    from decisio.readout import calibration
+
+    K, n = 4, 20
+    labels = [i % K for i in range(n)]
+    lps = [np.log(np.clip(np.eye(K)[y], 1e-300, None)) for y in labels]  # p = 1 on the answer, 0 elsewhere
+    rec = calibration.fit_task_prior(lps, labels, fingerprint="fp", task_id="t", K=K)
+    assert rec["applied"] is False and rec["cv_t"] == 0.0
+    json.dumps(rec, allow_nan=False)
+
+
+def test_t2_certain_readout_over_http():
+    """POST /v1/tasks on a readout certain on every example answers 200 (it answered 500: the record held +inf)."""
+    import types
+
+    import numpy as np
+    from fastapi.testclient import TestClient
+
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.tasks import TaskStore
+    from decisio.serve.vllm_engine import make_app
+
+    keys = ["billing", "access", "sales", "other"]
+
+    def answer(state, questions, adapter=None):  # probability 1 on the option the state names
+        return [np.eye(len(keys))[keys.index(state)] for _ in questions], {}
+
+    engine = types.SimpleNamespace(adapters={}, answer=answer)
+    so = SystemOne(engine, "test", task_store=TaskStore("fp"))
+    client = TestClient(make_app(engine, so))
+    q = {"type": "choice", "instructions": "Which team?", "criteria": {k: None for k in keys}}
+    examples = [{"request": {"state": k, "questions": {"q": q}}, "answer": k} for k in keys * 5]
+    r = client.post("/v1/tasks", json={"id": "certain", "examples": examples})
+    assert r.status_code == 200, r.text
+    assert r.json()["calibration"]["applied"] is False and r.json()["calibration"]["cv_t"] == 0.0
