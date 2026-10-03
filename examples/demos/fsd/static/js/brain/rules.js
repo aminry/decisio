@@ -27,6 +27,7 @@ export class RulesBrain {
     const vDesired = snap.target ? snap.target.v : desiredSpeed(snap).v;
 
     let best = null;
+    const costs = {};
     for (const c of eligible) {
       const s = c.sim;
       const vWant = Math.min(vDesired, snap.limit);
@@ -40,9 +41,10 @@ export class RulesBrain {
       if (c.law.kind === "reverse") cost += 2;
       if (!s.stays_in_lane) cost += 2;
       if (s.min_gap_m < 3) cost += (3 - s.min_gap_m) * 3;
+      costs[c.id] = Math.round(cost * 1000) / 1000;
       if (best === null || cost < best.cost) best = { c, cost };
     }
-    return { motion, candidateId: best ? best.c.id : null, meta: { source: "rules", latency_ms: 0, input_tokens: 0, cost_usd: 0, model: "rules" }, answers: null };
+    return { motion, candidateId: best ? best.c.id : null, costs, meta: { source: "rules", latency_ms: 0, input_tokens: 0, cost_usd: 0, model: "rules" }, answers: null };
   }
 
   async decide(snap, eligible) { return this.decideSync(snap, eligible); }

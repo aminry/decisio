@@ -18,6 +18,7 @@ export class DriveMetrics {
     this.speeding = 0; this.stopped = 0; this.maxProgress = 0;
     this.latencies = [];
     this.serverLatencies = [];
+    this.decisions = [];
   }
 
   // Once per physics step, after the world moved.
@@ -103,6 +104,7 @@ export class DriveMetrics {
       latency_p95_ms: lat.length ? Math.round(lat[Math.min(lat.length - 1, Math.floor(lat.length * 0.95))]) : null,
       latencies_ms: this.latencies.map((x) => Math.round(x * 10) / 10),
       server_ms: this.serverLatencies.map((x) => Math.round(x * 10) / 10),
+      decision_log: this.decisions,
     };
     out.failures = failures(out);
     out.pass = out.failures.length === 0;
