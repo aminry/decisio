@@ -169,6 +169,7 @@ def test_missing_text_model_stops_before_guessing(monkeypatch):
 def runner():
     a = loop.Agent.__new__(loop.Agent)
     a.screenshots = False
+    a.on_decision = None
     a.pending_text = None
     p = page()
     a.state = {
@@ -443,3 +444,29 @@ def test_applied_state_variant_marks_submitted_fields_and_applied_filters(monkey
     assert elements == model.action_space(actions)[0]  # the default elements are not modified
     marked = model.mark_applied(elements, {"actions": actions, "submitted_fields": {"11": True}}, history)
     assert {e["label"]: e for e in marked}["Destination"]["submitted"] is True
+
+
+def test_on_decision_sees_the_page_each_decision_was_made_on(runner, monkeypatch):
+    # (added for this repository) the hook measure_ultrafast.py's trajectories are written from
+    made = {**decision("e3"), "operation": "CLICK"}
+    monkeypatch.setattr(loop, "choose", Mock(return_value=made))
+    runner.on_decision = Mock()
+    runner.state["status"] = "ready"
+    runner.command("predict")
+    runner.on_decision.assert_called_once_with(runner.state["page"], made)
+
+
+@pytest.mark.parametrize("shot, expected", [(True, {"format": "jpeg", "quality": 72}), ("png", {"format": "png"})])
+def test_png_screenshot_is_lossless_and_timed(monkeypatch, shot, expected):
+    # (added for this repository) screenshot="png" for the trajectories; the default stays the upstream JPEG
+    import jev_ultrafast.browser as browser
+
+    def cdp(method, **params):
+        return {"data": "AAAA"} if method == "Page.captureScreenshot" else {"result": {"value": page()}}
+
+    calls = Mock(side_effect=cdp)
+    monkeypatch.setattr(browser, "cdp", calls)
+    actual = browser_operation({"operation": "observe", "session": "test", "screenshot": shot})
+    assert calls.call_args.args[0] == "Page.captureScreenshot"
+    assert {k: v for k, v in calls.call_args.kwargs.items() if k != "session_id"} == expected
+    assert actual["screenshot"] == "AAAA" and actual["screenshot_ms"] >= 0

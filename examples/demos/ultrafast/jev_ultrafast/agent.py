@@ -10,7 +10,7 @@ from .questions import MAX_STEPS
 
 
 class Agent:
-    def __init__(self, url, goals, *, record_dir=None, screenshots=False):
+    def __init__(self, url, goals, *, record_dir=None, screenshots=False, on_decision=None):
         task = goals.strip() if isinstance(goals, str) else "\n".join(goals).strip()
         if not task:
             raise ValueError("Supply a task")
@@ -19,6 +19,9 @@ class Agent:
         self.browser = Browser(url)
         self.record_dir = Path(record_dir) if record_dir else None
         self.screenshots = screenshots or bool(record_dir)
+        # Called with the observed page and the decision right after each model call, so a caller can keep the page
+        # the decision was made on (added for this repository: measure_ultrafast.py's trajectories).
+        self.on_decision = on_decision
         try:
             page = self.browser.observe(screenshot=self.screenshots)
         except Exception:
@@ -83,6 +86,8 @@ class Agent:
                 }
             )
             state["status"] = "predicted"
+            if self.on_decision:  # (added for this repository)
+                self.on_decision(state["page"], state["decision"])
         elif name == "act":
             decision, page = state["decision"], state["page"]
             if not decision or body.get("fingerprint") != page["fingerprint"]:
