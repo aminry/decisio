@@ -9,7 +9,8 @@ ticket, under a header line with the held-out lift from the run's summary.json (
 recorded wall clock (a ticket appears when it was sent and its answer when it came back), so a slow model looks slow.
 Every lane has the caption strip of render_common (the taught lane says "tasks registered").
 
-Nothing is re-asked or simulated: the renderer draws only what the trajectories hold.
+Nothing is re-asked or simulated: the renderer draws only what the trajectories hold. When `--out` lies in a run
+record, the record's files.json is written again so it lists the media.
 
     python render_triage.py runs/<run>/taught.jsonl.gz --out runs/<run>/media --stills 6
     python render_triage.py --compare runs/<run>/plain.jsonl.gz runs/<run>/taught.jsonl.gz \\
@@ -27,6 +28,7 @@ from pathlib import Path
 import render_common as rc
 import trajectory
 from PIL import Image, ImageDraw
+from stats import write_files_json
 
 W, H = 1280, 720
 HEADER_H = 56  # the compare header band
@@ -458,6 +460,12 @@ def main() -> None:
     if not a.no_video:
         mp4 = rc.encode((r.frame(t) for t in times), out / f"{stem}.mp4", fps=a.fps)
         print(f"{mp4}: {len(times)} frames, {r.length:.1f} s")
+    record = next(
+        (p for p in (out, *out.parents) if (p / "manifest.json").exists() and (p / "files.json").exists()), None
+    )
+    if record is not None:  # the media belong to the run record: list them with their hashes
+        write_files_json(record)
+        print(f"{record / 'files.json'} updated")
 
 
 if __name__ == "__main__":
