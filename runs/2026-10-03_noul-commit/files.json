@@ -1,0 +1,22 @@
+[
+ {
+  "path": "manifest.json",
+  "bytes": 2187,
+  "sha256": "179c8c7fc455959978f7fca22a33fa12442e42706238fe901aae31217f28bf6f"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 1940,
+  "sha256": "a5dd468eb65fc2792b9852606095faf0248c99883bfcca407c887cd4d14fcea2"
+ },
+ {
+  "path": "yesno_readouts.jsonl.gz",
+  "bytes": 17075,
+  "sha256": "71887e080797b1b0a9636f57b0f7bdb8a3e18a04e076e84564943d86edf2c768"
+ },
+ {
+  "path": "yesno_readouts_earlier_default.jsonl.gz",
+  "bytes": 16108,
+  "sha256": "14319abfc679a796079799ce7c4e55a0ddb596a01956b3d17f4a2ca21addd0e5"
+ }
+]

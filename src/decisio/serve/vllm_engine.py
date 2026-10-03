@@ -640,6 +640,7 @@ def make_app(engine, systemone=None):
                     "desnake_labels": systemone.desnake_labels,
                     "describe_options": systemone.describe_options,
                     "noul_rendering": systemone.noul_rendering,
+                    "noul_commit": systemone.noul_commit,
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
                         t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
@@ -971,6 +972,13 @@ def main():
             + "); 1 switches it off for that type",
         )
     ap.add_argument(
+        "--noul-commit",
+        action="store_true",
+        help="/v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported "
+        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does (the measured cost "
+        "in docs/handoffs/tasks.md); off by default",
+    )
+    ap.add_argument(
         "--tasks",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1212,6 +1220,7 @@ def main():
         hide_index_keys=args.hide_index_keys,
         describe_options=args.describe_options,
         noul_rendering=args.noul_rendering,
+        noul_commit=args.noul_commit,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
