@@ -76,6 +76,12 @@ def one_hot_answers(choices: dict, keys: dict) -> dict:
     return out
 
 
+# Without a cap OpenRouter reserves the model's whole output limit (65,536 tokens) against the account's credit for
+# every call in flight, and refuses calls with 402 well before the credit is spent. The largest answer seen in the
+# correctness round was 2,274 tokens (Gemini 3.8 Flash, its reasoning included), so this cap does not cut answers.
+OPENROUTER_MAX_TOKENS = 8192
+
+
 class Backend:
     """Turns a System One request into an answer body. `call` returns (answer body, upstream ms)."""
 
@@ -110,6 +116,7 @@ class Backend:
             d |= {
                 "route": "OpenRouter",
                 "provider_routing": self.openrouter_provider(),
+                "max_tokens": self.extra.get("max_tokens", OPENROUTER_MAX_TOKENS),
                 "served": [{"provider": p, "served_model": m, "calls": n} for (p, m), n in self.served.items()],
             }
         return d
@@ -120,7 +127,12 @@ class Backend:
             out = self._systemone(body)
         else:
             text, schema, keys = render_chat(body)
-            choices, usage = getattr(self, "_" + self.kind)(text, schema)
+            try:
+                choices, usage = getattr(self, "_" + self.kind)(text, schema)
+            except UpstreamError:
+                raise
+            except Exception as e:  # an SDK's own error (402 credits, 400, a dropped connection): answer it, log it
+                raise UpstreamError(getattr(e, "status_code", None) or 0, f"{type(e).__name__}: {str(e)[:400]}") from e
             out = {"model": self.model, "answers": one_hot_answers(choices, keys), "usage": usage}
             if self.kind == "openrouter":
                 out["via"] = "OpenRouter"
@@ -185,7 +197,9 @@ class Backend:
         body = {"provider": self.openrouter_provider(), "usage": {"include": True}}
         if "reasoning" in self.extra:
             body["reasoning"] = self.extra["reasoning"]
-        kw = {k: v for k, v in self.extra.items() if k in ("temperature", "max_tokens", "seed")}
+        kw = {"max_tokens": OPENROUTER_MAX_TOKENS} | {
+            k: v for k, v in self.extra.items() if k in ("temperature", "max_tokens", "seed")
+        }
         r = self.client.chat.completions.create(
             model=self.model,
             messages=[{"role": "system", "content": SYSTEM}, {"role": "user", "content": text}],
@@ -286,10 +300,13 @@ def make_handler(backend: Backend, ledger: Ledger, log: Path | None):
                     ledger.add(200)
                 except UpstreamError as e:
                     ledger.add(e.status)
-                    status, out = (429 if e.status == 429 else 502), {"error": str(e)}
+                    status, out = (429 if e.status == 429 else 502), {"error": str(e), "upstream_status": e.status}
                 except (ValueError, KeyError) as e:
                     ledger.add(422)
                     status, out = 422, {"error": str(e)}
+                except Exception as e:  # anything else still gets an answer and a log row, never a dropped connection
+                    ledger.add(500)
+                    status, out = 500, {"error": f"{type(e).__name__}: {str(e)[:400]}"}
             if log:
                 with log_lock, log.open("a") as f:
                     row = {"t": time.time(), "status": status, "upstream_ms": ms, "request": body, "response": out}
