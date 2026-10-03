@@ -221,9 +221,9 @@ def browser_operation(request):
         shot = {"format": "png"} if request.get("screenshot") == "png" else {"format": "jpeg", "quality": 72}
         started = time.perf_counter()
         if request.get("screenshot") == "png":
-            # The agent's tab is a background target, and after typed input Chromium renders it slowly (1.5 s per capture
-            # on the card, and one capture past browser-harness's 5 s limit): activate the tab first. It changes nothing
-            # on the page.
+            # The agent's tab is a background target, and after typed input Chromium renders it slowly (1.5 s per
+            # capture on the card, and one capture past browser-harness's 5 s limit): activate the tab first. It
+            # changes nothing on the page.
             call("Page.bringToFront")
         info["screenshot"] = call("Page.captureScreenshot", **shot)["data"]
         info["screenshot_ms"] = round((time.perf_counter() - started) * 1000, 1)
