@@ -178,3 +178,54 @@ def test_d8_the_browser_agent_logs_each_decisions_request_and_full_answer():
     assert rows[0]["request"] == {"state": {"p": 1}}
     assert rows[0]["response"]["answers"]["operation"]["probabilities"] == {"CLICK": 0.6, "DONE": 0.4}
     assert rows[0]["skipped_single_option"] == ["type_text_target"] and rows[1]["skipped_single_option"] == []
+
+
+def test_d9_gateway_renders_choice_questions_and_answers_one_hot():
+    import systemone_gateway as g
+
+    body = {
+        "state": {"ball": {"x": 1}},
+        "questions": {"move": {"type": "choice", "instructions": "Pick.", "criteria": {"up": "go up", "stay": None}}},
+    }
+    text, schema, keys = g.render_chat(body)
+    assert '{"ball":{"x":1}}' in text and "- up: go up" in text and "- stay" in text and "move: Pick." in text
+    assert schema["properties"]["move"]["enum"] == ["up", "stay"] and schema["required"] == ["move"]
+    ans = g.one_hot_answers({"move": "stay"}, keys)["move"]
+    assert ans["choice"] == "stay" and ans["probabilities"] == {"up": 0.0, "stay": 1.0}
+    with pytest.raises(ValueError):
+        g.one_hot_answers({"move": "left"}, keys)
+    with pytest.raises(ValueError):
+        g.render_chat({"state": "s", "questions": {"q": {"type": "noul"}}})
+
+
+def test_d10_gateway_refuses_calls_beyond_its_budget(tmp_path):
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    import systemone_gateway as g
+
+    class Fake:
+        kind, model = "fake", "m"
+
+        def call(self, body):
+            return {"model": "m", "answers": {}}, 1.0
+
+    ledger = g.Ledger(tmp_path / "ledger.jsonl", "round", 2)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), g.make_handler(Fake(), ledger, tmp_path / "log.jsonl"))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{server.server_address[1]}/v1/systemone"
+    codes = []
+    for _ in range(3):
+        req = urllib.request.Request(
+            url, data=b'{"state":"s","questions":{}}', headers={"Content-Type": "application/json"}
+        )
+        try:
+            codes.append(urllib.request.urlopen(req).status)
+        except urllib.error.HTTPError as e:
+            codes.append(e.code)
+    server.shutdown()
+    assert codes == [200, 200, 429]
+    assert ledger.count() == 2  # the refused call never reached the upstream and is not counted
+    assert len((tmp_path / "log.jsonl").read_text().splitlines()) == 3
