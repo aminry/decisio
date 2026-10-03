@@ -275,6 +275,7 @@ def main():
         {
             "caption": caption_for(a.label, card, allr["latency_ms"].get("p50")),
             "text_model": os.environ.get("TEXT_MODEL"),
+            "prompt_variant": os.environ.get("ULTRAFAST_PROMPT_VARIANT", "default"),
             "text_model_base_url": os.environ.get("TEXT_MODEL_BASE_URL"),
             "files": {
                 "runs.json": "one row per run: outcome, completion time, every decision's latency and option counts",

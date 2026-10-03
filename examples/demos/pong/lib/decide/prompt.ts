@@ -61,6 +61,44 @@ export const LLM_SYSTEM_PROMPT = [
 ].join('\n');
 
 /**
+ * Prompt variants for testing fixes against the oracle (added for this repository; the default is unchanged):
+ *   tolerance6  the stay band is 6 units, half the paddle's 12-unit step (the game's own rule: inside it a move
+ *               overshoots), instead of 5
+ *   offset      the state also carries `offset`, interceptY minus paddle.y (null while the ball moves away): the
+ *               distance the question is about, an observation computed from the state, not a move
+ * Selected with PONG_PROMPT_VARIANT (a "+"-joined list), read by the System One lane.
+ */
+export type PromptVariant = { tolerance: number; offset: boolean; name: string };
+
+export function promptVariant(name: string | undefined = undefined): PromptVariant {
+  const parts = new Set((name ?? 'default').split('+').filter((p) => p && p !== 'default'));
+  for (const p of parts) if (p !== 'tolerance6' && p !== 'offset') throw new Error(`unknown prompt variant: ${p}`);
+  return { tolerance: parts.has('tolerance6') ? 6 : STAY_TOLERANCE, offset: parts.has('offset'), name: name ?? 'default' };
+}
+
+/** The move question for a variant; the default variant gives exactly MOVE_QUESTIONS. */
+export function moveQuestionsFor(v: PromptVariant) {
+  if (v.tolerance === STAY_TOLERANCE && !v.offset) return MOVE_QUESTIONS;
+  const t = v.tolerance;
+  const instructions = [
+    DECISION_INSTRUCTIONS.replace(`within ${STAY_TOLERANCE} units`, `within ${t} units`),
+    ...(v.offset ? ['offset is interceptY minus paddle.y (null when the ball is moving away).'] : []),
+  ].join(' ');
+  const criteria = Object.fromEntries(
+    MOVES.map((m) => [m, MOVE_CRITERIA[m].replaceAll(`${STAY_TOLERANCE} units`, `${t} units`).replaceAll(`- ${STAY_TOLERANCE})`, `- ${t})`).replaceAll(`+ ${STAY_TOLERANCE})`, `+ ${t})`)]),
+  );
+  return { move: { type: 'choice', instructions, criteria } } as const;
+}
+
+/** The state for a variant: stateForModel, plus `offset` when the variant asks for it. */
+export function stateForVariant(state: DecisionState, v: PromptVariant): Record<string, JSONValue> {
+  const base = stateForModel(state);
+  if (!v.offset) return base;
+  const offset = state.interceptY === null ? null : Math.round((state.interceptY - state.paddle.y) * 10) / 10;
+  return { ...base, offset };
+}
+
+/**
  * The exact payload handed to a model: the DecisionState, numbers only, no prose.
  * Rebuilt field by field so nothing a caller bolted onto the object leaks out.
  */

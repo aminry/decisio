@@ -8,7 +8,7 @@
  * would be charged to this decision's latency. One call, one tick.
  */
 import type { DecisionState, LaneConfig } from '../game/types';
-import { MOVE_QUESTIONS, isMove, stateForModel } from './prompt';
+import { isMove, moveQuestionsFor, promptVariant, stateForVariant } from './prompt';
 import { logDecision } from './log';
 import type { ModelDecision } from './types';
 
@@ -36,7 +36,8 @@ export async function decideWithSystemOne(
 ): Promise<ModelDecision> {
   if (!lane.baseUrl) throw new Error(`Lane "${lane.id}" has no baseUrl.`);
   const doFetch = opts.fetchImpl ?? fetch;
-  const body: Record<string, unknown> = { state: stateForModel(state), questions: MOVE_QUESTIONS };
+  const variant = promptVariant(process.env.PONG_PROMPT_VARIANT);
+  const body: Record<string, unknown> = { state: stateForVariant(state, variant), questions: moveQuestionsFor(variant) };
   if (lane.model) body.model = lane.model;
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (lane.apiKey) headers.authorization = `Bearer ${lane.apiKey}`;

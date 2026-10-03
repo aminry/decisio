@@ -88,6 +88,7 @@ def main() -> None:
     ap.add_argument("--video", action="store_true", help="record the last run's replay page as MP4 and GIF")
     ap.add_argument("--port", type=int, default=3100)
     ap.add_argument("--channel", default="chrome")
+    ap.add_argument("--prompt-variant", default="default", help="PONG_PROMPT_VARIANT for the System One lanes")
     ap.add_argument("--card", default="")
     a = ap.parse_args()
 
@@ -111,6 +112,7 @@ def main() -> None:
             SEED=str(seed),
             OUT_DIR=str(rdir),
             PONG_DECISION_LOG=str(run.decision_log_path),
+            PONG_PROMPT_VARIANT=a.prompt_variant,
         )
         run.log(f"run {i + 1}/{a.runs}: seed {seed}, {a.seconds:.0f} s, {len(lanes)} lanes")
         subprocess.run(
@@ -203,6 +205,7 @@ def main() -> None:
         "\n".join(md),
         {
             "lanes": [{k: v for k, v in lane.items() if k != "apiKey"} for lane in lanes],
+            "prompt_variant": a.prompt_variant,
             "files": {
                 "runs.json": "one row per run and lane: every decision's latency, returns, misses, duration, "
                 "final score",

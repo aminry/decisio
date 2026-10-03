@@ -11,12 +11,15 @@
  *              oracle's move (the engine itself plays it out), so a disagreement is harmful only if it turns a return into a miss
  * Each reconstructed tick is checked against the next recorded snapshot, so the reconstruction is verified on every row.
  *
- *   pnpm exec tsx scripts/oracle-replay.ts <replay.json> [more.json ...] > rows.jsonl
+ *   pnpm exec tsx scripts/oracle-replay.ts [--variant tolerance6] <replay.json> [more.json ...] > rows.jsonl
+ *
+ * --variant names the prompt variant the lane was asked with (lib/decide/prompt.ts), so `question` is the move that
+ * variant's wording asks for.
  */
 import { readFileSync } from 'node:fs';
 import { applyTick, moveToward, predictIntercept, toDecisionState } from '../lib/game/engine';
 import type { EngineState, Move, Replay, Snapshot } from '../lib/game/types';
-import { expectedMove } from '../lib/decide/prompt';
+import { promptVariant } from '../lib/decide/prompt';
 
 function stateOf(s: Snapshot): EngineState {
   return {
@@ -38,7 +41,20 @@ function outcome(start: EngineState, first: Move): 'return' | 'miss' | 'unresolv
   return 'unresolved';
 }
 
-for (const file of process.argv.slice(2)) {
+const args = process.argv.slice(2);
+const vi = args.indexOf('--variant');
+const variant = promptVariant(vi >= 0 ? args[vi + 1] : undefined);
+const files = vi >= 0 ? args.filter((_, i) => i !== vi && i !== vi + 1) : args;
+
+/** The move the variant's wording asks for: stay within its tolerance of interceptY. */
+function wordingMove(ds: { interceptY: number | null; paddle: { y: number } }): Move {
+  if (ds.interceptY === null) return 'stay';
+  const d = ds.interceptY - ds.paddle.y;
+  if (Math.abs(d) <= variant.tolerance) return 'stay';
+  return d < 0 ? 'up' : 'down';
+}
+
+for (const file of files) {
   const replay = JSON.parse(readFileSync(file, 'utf8')) as Replay;
   for (const lane of replay.lanes) {
     const snaps = lane.snapshots;
@@ -51,10 +67,10 @@ for (const file of process.argv.slice(2)) {
       const rebuilt = applyTick(start, cur.move, 'auto');
       const verified = Math.abs(rebuilt.rightY - cur.rightY) < 1e-6 && (cur.status !== 'playing' || Math.abs(rebuilt.ball.y - cur.ball.y) < 1e-6);
       const oracle = moveToward(start.rightY, predictIntercept(start, 'right'));
-      const question = expectedMove(ds);
+      const question = wordingMove(ds);
       const d = ds.interceptY === null ? null : ds.interceptY - ds.paddle.y;
       process.stdout.write(`${JSON.stringify({
-        file, lane: lane.model, label: lane.label, seed: replay.seed, tick: cur.tick, move: cur.move, oracle, question, state: ds,
+        file, variant: variant.name, lane: lane.model, label: lane.label, seed: replay.seed, tick: cur.tick, move: cur.move, oracle, question, state: ds,
         delta: d, outcome_model: outcome(start, cur.move), outcome_oracle: outcome(start, oracle), verified, latency_ms: cur.latencyMs,
       })}\n`);
     }
