@@ -15,7 +15,8 @@ vector (the manoeuvre among the eligible candidates) is asked when the car drive
 within a rules-cost tolerance (a candidate whose rules cost is within `tol` of the best's is acceptable); a disagreement
 beyond the tolerance is a near-tie or a judgement error by the same margin rule. The rules driver's cost rewards
 progress, so a manoeuvre miss is also split by kind: a speed choice among lane-keeping candidates (a style choice the
-oracle does not settle), or a stop candidate (stop at the line, for a pedestrian, at the destination) passed over.
+oracle does not settle), or a stop candidate (stop at the line, for a pedestrian, at the destination) passed over,
+split at 25 m (the state's "close"): further out the motion question itself says to keep driving.
 
 The motion question's own wording also defines when "stop" is right ("Hold completely still right now. Correct only when
 the car is already at the line (`intersection.distance` is "at") with a red or unseen signal, a stop not yet completed,
@@ -106,6 +107,14 @@ def miss_kind(d: dict, tol: float) -> str | None:
         return None
     o, m = d["oracle"]["vector"], d["vector_answer"]["choice"]
     if o.startswith("stop_") and not m.startswith("stop_"):
+        st = d.get("_state") or {}
+        far = (
+            (st.get("intersection") or {}).get("distance") in ("approaching", "far")
+            if o == "stop_at_line"
+            else ((st.get("nav") or {}).get("remaining_m") or 0) >= 25
+        )
+        if st and far:
+            return "a stop candidate passed over 25 m or more out (the question says keep driving there)"
         return "a stop candidate passed over"
     if o.startswith("keep_lane_") and m.startswith("keep_lane_"):
         return "a speed choice among lane-keeping candidates"
