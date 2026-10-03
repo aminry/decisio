@@ -73,6 +73,30 @@ Gated at 6 bits against the FP8 records with the backend's full gate set (`runs/
 - **Against padded:** both cost more flips and a Brier score worse by 0.011, and halve a single question's time.
 - **Multi-question requests:** without padding, the state prefill is about 130 tokens instead of 1,056. The latency run for those cells ran under heavy foreign load, so its multi-question numbers are not a measurement of this.
 
+## The cross-request prefix cache
+
+The evaluated cache of each state prefix is kept across requests (`PrefixCache`): least recently used first out, `--prefix-cache-mb`, default 2,048, 0 is off.
+
+**Exact by construction:**
+- an entry is returned only for exactly the token ids it was computed for (compared in full, not by hash alone);
+- it is never written into, since every question continues from a copy;
+- the forward is deterministic.
+
+**Measured** on 6 bits with the defaults (no padding; `runs/2026-10-02_mlx-backend`, `6bit_prefix_cache`):
+- the 1,400 suite answers with the cache on are bit-identical to those without it;
+- on 30 repeated states every hit's answers equal its miss's.
+
+| Questions per request | First request (miss), server p50 | Repeated state (hit), server p50 |
+| --- | --- | --- |
+| 1 | 264 ms | 85 ms |
+| 10 | 939 ms | 734 ms |
+| 100 | 10.70 s | 10.56 s |
+
+**What the cache saves:**
+- An entry holds the state's recurrent and attention caches, about 67 MB at 6 bits (2,048 MB kept 30 states).
+- Without padding, a request with any number of questions on the same state hits the same entry.
+- A hit saves the state's prefill and nothing else, so it matters for a few questions on a repeated state, and little at 100 questions, where the questions' own forwards dominate.
+
 ## The prefix path against the whole prompt
 
 Scoring a question from the prefix cache is not bit-identical to running its whole prompt in one pass.

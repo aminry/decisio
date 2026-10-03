@@ -1,0 +1,27 @@
+{
+ "cells": {
+  "100q": {
+   "requests": 30,
+   "questions": 100,
+   "hit_answers_equal_miss": "30 of 30",
+   "miss_ms_p50": 10697.3,
+   "miss_ms_p95": 11060.2,
+   "hit_ms_p50": 10556.25,
+   "hit_ms_p95": 10921.75,
+   "miss_per_q_p50": 106.973,
+   "hit_per_q_p50": 105.5625
+  }
+ },
+ "E3_exact": true,
+ "prefix_cache": {
+  "max_mb": 2048.0,
+  "entries": 30,
+  "mb": 1997.2,
+  "hits": 31,
+  "misses": 31
+ },
+ "max_foreign_cpu": 217.5,
+ "max_foreign_process": "Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd",
+ "idle": false,
+ "started": "2026-10-03 01:00:11"
+}

@@ -517,5 +517,56 @@
    "check": "6-bit with default flags (the server resolves --pad-policy to none): gate P'' and the serving gates pass; the 1,400 suite answers bit-identical to the gated 6bit_none run, 1,400 of 1,400",
    "record": "6bit_none/rebased_check/"
   }
+ },
+ "prefix_cache": {
+  "decision": "Amin, 2026-10-02: a cross-request prefix cache, exact by construction, with a test that answers are bit-identical with and without it and a latency table for repeated states",
+  "code": "decisio feat/mlx-prefix-cache, stacked on #46 (no padding the MLX default); every flag the default (--pad-policy none, --prefix-cache-mb 2048); records in 6bit_prefix_cache/",
+  "E1_unit_tests": "pass: answers and hidden readouts bit-identical with and without the cache on a miss and a hit; least-recent eviction; a hash collision never returns another prefix's cache",
+  "E2_suite": "pass: the 1,400 suite answers with the cache on are bit-identical to 6bit_none/suite.json.gz, 1,400 of 1,400",
+  "E3_repeated_states": {
+   "1q": {
+    "requests": 30,
+    "questions": 1,
+    "hit_answers_equal_miss": "30 of 30",
+    "miss_ms_p50": 264.25,
+    "miss_ms_p95": 402.4849999999999,
+    "hit_ms_p50": 85.05,
+    "hit_ms_p95": 92.53999999999999,
+    "miss_per_q_p50": 264.25,
+    "hit_per_q_p50": 85.05
+   },
+   "10q": {
+    "requests": 30,
+    "questions": 10,
+    "hit_answers_equal_miss": "30 of 30",
+    "miss_ms_p50": 939.15,
+    "miss_ms_p95": 992.25,
+    "hit_ms_p50": 734.25,
+    "hit_ms_p95": 814.56,
+    "miss_per_q_p50": 93.91499999999999,
+    "hit_per_q_p50": 73.425
+   },
+   "100q": {
+    "requests": 30,
+    "questions": 100,
+    "hit_answers_equal_miss": "30 of 30",
+    "miss_ms_p50": 10697.3,
+    "miss_ms_p95": 11060.2,
+    "hit_ms_p50": 10556.25,
+    "hit_ms_p95": 10921.75,
+    "miss_per_q_p50": 106.973,
+    "hit_per_q_p50": 105.5625
+   }
+  },
+  "E3_exact": true,
+  "E3_note": "the 1-question cell ran first on an empty cache (prefix_cache_latency.json); its 10- and 100-question cells were hits already under no padding (the same prefix as the 1-question request), so those two cells were re-measured with a fresh server each (prefix_cache_latency_cell10.json, _cell100.json)",
+  "E3_idle_rule_met": false,
+  "cache_after_first_run": {
+   "max_mb": 2048.0,
+   "entries": 30,
+   "mb": 1997.2,
+   "hits": 153,
+   "misses": 1429
+  }
  }
 }
