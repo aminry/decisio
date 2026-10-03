@@ -22,6 +22,7 @@ import urllib.request
 from pathlib import Path
 
 import numpy as np
+from decision_log import DecisionLog, compress
 from demo_run import DemoRun, bootstrap, caption_for, card_name, interval_text, latency_summary
 
 FSD = Path(__file__).resolve().parents[1] / "fsd"
@@ -55,6 +56,12 @@ def main() -> None:
     ap.add_argument("--seed0", type=int, default=1)
     ap.add_argument("--mode", choices=["realtime", "lockstep"], default="realtime")
     ap.add_argument("--weather", default="dry")
+    ap.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=None,
+        help="the demo's decision timeout (default 1500 ms; raise it for lockstep)",
+    )
     ap.add_argument("--port", type=int, default=8322)
     ap.add_argument("--channel", default="chrome", help="Playwright browser channel; '' for its own Chromium")
     ap.add_argument("--card", default="")
@@ -79,6 +86,7 @@ def main() -> None:
         stderr=subprocess.STDOUT,
     )
     rows = []
+    oracle_log = DecisionLog(out / "oracle_decisions.jsonl")
     try:
         wait_for(f"http://127.0.0.1:{a.port}/api/status")
         from playwright.sync_api import sync_playwright
@@ -112,11 +120,16 @@ def main() -> None:
                         "mode": a.mode,
                         "weather": a.weather,
                         "save": False,
+                        "timeoutMs": a.timeout_ms,
                     },
                 )
                 wall = time.perf_counter() - t0
                 page.close()
                 results = result["results"]
+                # every model decision with its rules oracle, one line each, kept apart from the per-run rows
+                for k, r in enumerate(results):
+                    for dec in r.pop("decision_log", []):
+                        oracle_log.add(demo="fsd", run=i + 1, seed=seed, scenario=k + 1, scenario_id=r.get("id"), **dec)
                 lat = [x for r in results for x in r.get("latencies_ms", [])]
                 srv = [x for r in results for x in r.get("server_ms", [])]
                 # model decisions only: the pilot also takes local decisions (a hard brake) that make no request
@@ -152,6 +165,7 @@ def main() -> None:
             server.kill()
 
     run.write_json("runs.json", rows)
+    compress(out / "oracle_decisions.jsonl")
     passes = [x for r in rows for x in r["pass"]]
     lat_all = [x for r in rows for x in r["latency_ms"]]
     srv_all = [x for r in rows for x in r["server_ms"]]
@@ -194,6 +208,8 @@ def main() -> None:
         {
             "caption": caption_for(a.label, card, summary["latency_ms"].get("p50")),
             "files": {
+                "oracle_decisions.jsonl.gz": "every model decision: its answers (full distributions) and the rules "
+                "driver's choice on the asked snapshot and its motion on the snapshot when the answer arrived",
                 "runs.json": "one row per run: pass flags, failures, decisions, drive wall time, "
                 "every decision's latency",
                 "summary.json, summary.md": "the tables with their bootstrap intervals",

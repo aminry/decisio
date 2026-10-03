@@ -38,6 +38,7 @@ export class Autopilot {
     this.offRouteFor = 0;
     this.rerouting = false;
     this.pendingRoutes = null;
+    this.timeoutMs = TIMEOUT_MS;  // a benchmark may raise it (lockstep measures decision quality alone)
   }
 
   get brain() { return this.brains[this.brainName]; }
@@ -104,9 +105,20 @@ export class Autopilot {
     if (!this.inFlight && now - this.lastStart >= interval) this.firing = this.fire(snap, now, flags);
   }
 
+  // The rules driver's choice on the snapshot a decision was asked about, and its motion on the snapshot current when the
+  // answer arrives (in realtime mode the car has moved on meanwhile), for scoring the model's decisions against an oracle
+  // (added for this repository; the rules driver is deterministic and side-effect free).
+  oracleFor(snap, eligible, questions, tFire) {
+    const atFire = this.brains.rules.decideSync(snap, eligible);
+    const atArrival = this.snap && this.snap !== snap ? this.brains.rules.decideSync(this.snap, eligible) : atFire;
+    return { motion: atFire.motion, vector: atFire.candidateId, costs: atFire.costs, motion_at_arrival: atArrival.motion,
+      asked: Object.keys(questions), sim_lag_s: Math.round((this.world.t - tFire) * 1000) / 1000 };
+  }
+
   async fire(snap, now, flags) {
     const world = this.world;
     this.lastStart = now;
+    const tFire = world.t;
     const epoch = this.epoch;
     const candidates = sampleCandidates(snap, world);
     const { eligible, rejected, mustStop } = simulateAll(candidates, snap, world);
@@ -130,11 +142,12 @@ export class Autopilot {
     }
     const controller = new AbortController();
     this.inFlight = controller;
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
       const result = await this.brain.decide(snap, eligible, request, controller.signal);
       clearTimeout(timer);
       if (epoch !== this.epoch) return;
+      result.meta.oracle = this.oracleFor(snap, eligible, questions, tFire);
       if (result.candidateId === null && eligible.length) {
         const r = this.brains.rules.decideSync(snap, eligible);
         result.candidateId = r.candidateId;
@@ -148,7 +161,8 @@ export class Autopilot {
       if (epoch !== this.epoch) return;
       const r = this.brains.rules.decideSync(snap, eligible);
       r.meta.source = "rules_fallback";
-      r.meta.error = err.name === "AbortError" ? `timeout after ${TIMEOUT_MS} ms` : err.message;
+      r.meta.error = err.name === "AbortError" ? `timeout after ${this.timeoutMs} ms` : err.message;
+      r.meta.oracle = this.oracleFor(snap, eligible, questions, tFire);
       r.answers = { ...local };
       this.world.violations.fallbacks++;
       this.onEvent({ type: "fallback", error: r.meta.error, status: err.status });

@@ -40,9 +40,22 @@ export function setupScenario(map, sc, { brain = "rules", npcs = 40, weather = "
   return { world, fleet, autopilot, events };
 }
 
-export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false } = {}) {
+export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null } = {}) {
   const metrics = new DriveMetrics(new Route(sc.route, map).length);
-  const ctx = setupScenario(map, sc, { brain, npcs, weather, style, vehicleSpec, onDecision: (d) => { if (d.meta && d.meta.source === "jev" && d.meta.latency_ms) { metrics.latencies.push(d.meta.latency_ms); if (d.meta.server_ms) metrics.serverLatencies.push(d.meta.server_ms); } } });
+  let worldRef = null;
+  const onDecision = (d) => {
+    if (d.meta && d.meta.source === "jev" && d.meta.latency_ms) { metrics.latencies.push(d.meta.latency_ms); if (d.meta.server_ms) metrics.serverLatencies.push(d.meta.server_ms); }
+    // every model decision (and every timeout fallback) with its oracle, for the error analysis (added for this repository)
+    if (d.meta && d.meta.oracle) {
+      const asked = (q) => (d.answers && d.answers[q] && !d.answers[q].local ? { choice: d.answers[q].choice, probabilities: d.answers[q].probabilities } : null);
+      metrics.decisions.push({ t: worldRef ? Math.round(worldRef.t * 100) / 100 : null, source: d.meta.source, fallback: d.meta.fallback || null,
+        error: d.meta.error || null, motion: d.motion, chosen: d.chosenId, motion_answer: asked("motion"), vector_answer: asked("vector"),
+        oracle: d.meta.oracle, latency_ms: d.meta.latency_ms ?? null, server_ms: d.meta.server_ms ?? null, flags: d.flags });
+    }
+  };
+  const ctx = setupScenario(map, sc, { brain, npcs, weather, style, vehicleSpec, onDecision });
+  worldRef = ctx.world;
+  if (timeoutMs) ctx.autopilot.timeoutMs = timeoutMs;
   const { world, autopilot, events } = ctx;
   const limit = Math.max(120, sc.tags.length_m / 2.5);
   const wallStart = performance.now();

@@ -63,10 +63,10 @@ function runFromForm() {
   });
 }
 
-export async function run({ brain = "rules", count = 12, npcs = 40, seed = 1, mode = "lockstep", weather = "dry", save = true } = {}) {
+export async function run({ brain = "rules", count = 12, npcs = 40, seed = 1, mode = "lockstep", weather = "dry", save = true, timeoutMs = null } = {}) {
   running = true; stopRequested = false;
   $("#run").textContent = "Stop";
-  const config = { brain, count, npcs, seed, mode, weather, map: status.map.name, map_label: status.map.label, bbox: map.routingBbox, pack: map.pack.pack_version, started_at: new Date().toISOString() };
+  const config = { brain, count, npcs, seed, mode, weather, timeout_ms: timeoutMs || 1500, map: status.map.name, map_label: status.map.label, bbox: map.routingBbox, pack: map.pack.pack_version, started_at: new Date().toISOString() };
   const setStatus = (t) => { $("#status").textContent = t; };
   setStatus("building the scenario suite…");
   const suite = await buildSuite(map, { count, seed });
@@ -78,7 +78,7 @@ export async function run({ brain = "rules", count = 12, npcs = 40, seed = 1, mo
     setStatus(`running ${i + 1} / ${suite.length}: ${suite[i].tags.length_m} m, ${suite[i].tags.signals} signals, ${suite[i].tags.stops} stops`);
     render(state);
     await yieldNow();
-    const r = await runScenario(map, suite[i], { brain, npcs, mode, weather, shouldStop: () => stopRequested });
+    const r = await runScenario(map, suite[i], { brain, npcs, mode, weather, timeoutMs, shouldStop: () => stopRequested });
     state.results.push(r);
     state.summary = aggregate(state.results);
     render(state);
