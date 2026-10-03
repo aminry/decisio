@@ -50,10 +50,18 @@ The second-engine mode's default pairing, with the registered text-only class (`
 
 ## The global temperature
 
-`/v1/systemone` serves a question's plain readout as `softmax(log p / T)` with T = 1.307 (`--temperature`; 1 switches it off, bit for bit).
+`/v1/systemone` serves a question's plain readout as `softmax(log p / T)` with T = 1.506 (`--temperature`; 1 switches it off, bit for bit), and choice questions at their own T = 1.370 (`--temperature-choice`; `--temperature-noul` and `--temperature-score` exist and are unset, so those types take the global T).
+Both were fitted on the suite's plain readouts under the served prompt of 2026-10-03; under the earlier prompt the one T was 1.307.
 It never changes the chosen option.
 A registered task's calibration or head replaces it; the image route is not tempered; `/v1/answer` is the raw readout.
 How T was fitted, and where it helps and hurts, is in EVAL_CARD.md: on the Decision Index it lowered ECE on MMLU-Pro, BANKING77 and GPQA Diamond and raised it on CLINC150+OOS (0.031 to 0.170, 151 options).
+
+## Re-registration after the 2026-10-03 prompt change
+
+The served prompt changed on 2026-10-03 (`--prompt-tail cygnet`; yes/no questions as a two-option letter choice with the sides named, `--noul-rendering letters-keys`).
+The prompt format enters the task fingerprint and the yes/no rendering enters a yes/no question's task key, so tasks fitted under the earlier prompt load but are not applied, with a start-up warning.
+Register them again from the same examples, or serve them unchanged with `--prompt-tail decisio --noul-rendering words`.
+`--mode packed` reads the earlier prompt only and now needs `--prompt-tail decisio`.
 
 ## Abstention
 

@@ -16,14 +16,14 @@ G3  composition: a registered task's own correction replaces the temperature (no
 import numpy as np
 import pytest
 
-from decisio.serve.temperature import SERVED_TEMPERATURE, apply_temperature
+from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE, SERVED_TEMPERATURE, apply_temperature
 
 MODEL = "Qwen/Qwen3-0.6B-Base"
 T = 1.307
 
 
 def test_g1_function():
-    assert SERVED_TEMPERATURE == 1.307  # the fitted value in the config
+    assert SERVED_TEMPERATURE == 1.506 and SERVED_CHOICE_TEMPERATURE == 1.370  # the fitted values in the config
     rng = np.random.default_rng(0)
     for k in (2, 3, 4, 10, 77, 151):
         for _ in range(200):
@@ -165,3 +165,13 @@ def test_g3_a_task_correction_replaces_the_temperature(served):
     assert np.allclose(np.exp(r.json()["decisio_debug"]["lps"][0]), raw["probs"], atol=1e-12)
     so.task_store.by_key.clear()
     so.debug_readout = False
+
+
+def test_g5_per_type_temperature():
+    """--temperature-<type>: choice questions at their own temperature, yes/no and score at the global one."""
+    from decisio.serve.systemone import SystemOne
+
+    so = SystemOne(None, "m", temperature=1.506, temperatures={"choice": 1.370, "noul": None})
+    assert so.temperature_of("choice") == 1.370
+    assert so.temperature_of("noul") == 1.506 and so.temperature_of("score") == 1.506
+    assert SystemOne(None, "m", temperature=1.506).temperature_of("choice") == 1.506
