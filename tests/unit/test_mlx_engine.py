@@ -57,6 +57,29 @@ def test_mlx_backend_refuses_what_it_does_not_serve(monkeypatch, flags, capsys):
     assert "--backend mlx serves the text route" in capsys.readouterr().err
 
 
+def test_pad_policy_defaults_by_backend():
+    from decisio.serve.vllm_engine import resolve_pad_policy
+
+    assert resolve_pad_policy("mlx") == "none"  # gated at 6 bits (runs/2026-10-02_mlx-backend, 6bit_none)
+    assert resolve_pad_policy("vllm") == "always" and resolve_pad_policy("hf") == "always"
+    assert resolve_pad_policy("mlx", "always") == "always" and resolve_pad_policy("vllm", "shared") == "shared"
+
+
+def test_pad_policy_none_never_pads_and_alone_is_inside():
+    from transformers import AutoTokenizer
+
+    tok = AutoTokenizer.from_pretrained(TOKENIZER)
+    padded = _Tokonly(tok, 1056, "front")
+    none = _Tokonly(tok, 1056, "front")
+    none.pad_policy = "none"
+    rows, P = none._prepare_separate(STATE, QUESTIONS)
+    d_rows, dP = padded._prepare_separate(STATE, QUESTIONS)
+    k = dP - P
+    assert k > 0 and all(d[0][:k] == [none.pad_token] * k and d[0][k:] == r[0] for r, d in zip(rows, d_rows))
+    for q, row in zip(QUESTIONS, rows):  # a question alone is the same prompt as inside the request
+        assert none._prepare_separate(STATE, [q])[0][0] == row
+
+
 def test_tokenizer_flag_is_for_mlx_only(monkeypatch, capsys):
     assert _main(monkeypatch, "--backend", "hf", "--tokenizer", "t") == 2
     assert "--tokenizer is for --backend mlx" in capsys.readouterr().err

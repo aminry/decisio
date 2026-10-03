@@ -1,0 +1,18 @@
+{
+ "cpu_gates_pass": true,
+ "G2 with 16 extra questions": true,
+ "G2 repeated": true,
+ "G2_pass": true,
+ "alone_vs_in_request_reported": {
+  "max_abs_dp": 0.02139335631254262,
+  "flips": 0,
+  "per_question": [
+   0.0009540056466944558,
+   0.0074600409656215075,
+   0.02139335631254262,
+   0.019603754269882256
+  ]
+ },
+ "G1_max_abs_dp": 0.0027231743717117673,
+ "G1_flips": 0
+}

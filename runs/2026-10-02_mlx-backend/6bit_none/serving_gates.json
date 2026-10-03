@@ -1,0 +1,18 @@
+{
+ "cpu_gates_pass": true,
+ "G2 with 16 extra questions": {
+  "bit_identical": true,
+  "max_abs_dp": 0.0
+ },
+ "G2 repeated": {
+  "bit_identical": true,
+  "max_abs_dp": 0.0
+ },
+ "G2 each question alone": {
+  "bit_identical": true,
+  "max_abs_dp": 0.0
+ },
+ "G1_max_abs_dp": 0.0027231743717117673,
+ "G1_flips": 0,
+ "G2_pass": true
+}

@@ -1,0 +1,20 @@
+  ok   C1 choice prompt identical to eval
+  ok   C1 choice labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C1 score  prompt identical to eval
+  ok   C1 score  labels
+  ok   C1 noul   prompt identical to eval
+  ok   C1 noul   labels
+  ok   C2 split 67 just past the state's blank line (state alone encodes to 66)
+  ok   C2 split depends on the state alone, not the question mix
+  ok   C2 pad to 16: prefix 80 = multiple, 13 pads at the split, rest unchanged
+  ok   C2 pad to 544: prefix 544 = multiple, 477 pads at the split, rest unchanged
+  ok   C2 pad to 1056: prefix 1056 = multiple, 989 pads at the split, rest unchanged
+  ok   C2 pad front: prefix 1056 = 1056 multiple, 989 pads at position 0, prompt otherwise unchanged, prefix shared
+  ok   C2 pad user: prefix 1056 = 1056 multiple, 989 pads at position 3, prompt otherwise unchanged, prefix shared
+  ok   C3 pack: piecewise encoding = whole-string encoding
+  ok   C3 pack: first turn = separate prompt
+  ok   C3 pack: every read position is the final ':' of 'Answer:'
+CPU GATES PASS
+SERVING_GATES_NONE {"cpu_gates_pass": true, "G2 with 16 extra questions": {"bit_identical": true, "max_abs_dp": 0.0}, "G2 repeated": {"bit_identical": true, "max_abs_dp": 0.0}, "G2 each question alone": {"bit_identical": true, "max_abs_dp": 0.0}, "G1_max_abs_dp": 0.0027231743717117673, "G1_flips": 0, "G2_pass": true}
