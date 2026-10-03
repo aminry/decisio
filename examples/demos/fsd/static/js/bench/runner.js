@@ -40,10 +40,13 @@ export function setupScenario(map, sc, { brain = "rules", npcs = 40, weather = "
   return { world, fleet, autopilot, events };
 }
 
-export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null } = {}) {
+export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null, collectExamples = false } = {}) {
   const metrics = new DriveMetrics(new Route(sc.route, map).length);
   let worldRef = null;
+  const examples = [];
   const onDecision = (d) => {
+    // the motion question exactly as it would be asked, labelled with the deciding brain's motion (rules: the oracle)
+    if (collectExamples && d.questions && d.questions.motion) examples.push({ state: d.state, question: d.questions.motion, label: d.motion, t: worldRef ? Math.round(worldRef.t * 100) / 100 : null });
     if (d.meta && d.meta.source === "jev" && d.meta.latency_ms) { metrics.latencies.push(d.meta.latency_ms); if (d.meta.server_ms) metrics.serverLatencies.push(d.meta.server_ms); }
     // every model decision (and every timeout fallback) with its oracle, for the error analysis (added for this repository)
     if (d.meta && d.meta.oracle) {
@@ -78,5 +81,5 @@ export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = 
     }
   }
   const result = metrics.summary(world, autopilot, arrived);
-  return { id: sc.id, tags: sc.tags, ...result, events: events.slice(0, 50), wall_ms: Math.round(performance.now() - wallStart) };
+  return { id: sc.id, tags: sc.tags, ...result, events: events.slice(0, 50), wall_ms: Math.round(performance.now() - wallStart), ...(collectExamples ? { examples } : {}) };
 }
