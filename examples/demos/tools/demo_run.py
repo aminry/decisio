@@ -33,7 +33,7 @@ def server_health(base_url: str) -> dict:
     except (OSError, ValueError) as e:
         return {"error": str(e)}
     keys = ("engine", "model", "mode", "block_size", "pad_unit", "adapters", "systemone", "head_engine")
-    keys += ("gateway", "route", "date", "provider_routing", "served")  # a player behind tools/systemone_gateway.py
+    keys += ("gateway", "route", "date", "provider_routing", "served", "calls")  # a player behind systemone_gateway.py
     return {k: info.get(k) for k in keys}
 
 
@@ -104,17 +104,21 @@ class DemoRun:
             }
         self.write_json("summary.json", summary)
         (self.out / "summary.md").write_text(markdown + "\n")
+        health = server_health(self.base_url)
+        # Calls to TypeSafe's API: none, unless the server is tools/systemone_gateway.py in front of it, whose /health
+        # carries its ledger count (cumulative over the ledger's label, read when the run finished).
+        typesafe = health.get("calls") if health.get("gateway") == "systemone" else 0
         manifest = {
             "id": self.out.name,
             "title": self.title,
             "date": time.strftime("%Y-%m-%d"),
             "started": self.started,
             "submitted": False,
-            "typesafe_api_calls": 0,
+            "typesafe_api_calls": typesafe,
             "demo": self.demo,
             "model": self.model,
             "server": self.base_url,
-            "server_health": server_health(self.base_url),
+            "server_health": health,
             "hardware": self.hardware,
             "code": git_state(REPO),
             "command": " ".join(sys.argv),
