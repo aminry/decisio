@@ -17,8 +17,10 @@ B6  the head's numbers: vLLM's bf16 soft cap; under the Gemma base the head's la
 """
 
 import os
+import threading
 import types
 
+import numpy as np
 import pytest
 
 from decisio.families import BASES, GEMMA4, QWEN, family_of
@@ -183,3 +185,27 @@ def test_b6_softcap_follows_vllm():
     z = (torch.randn(1000, dtype=torch.float64) * 40).float().to(torch.bfloat16)
     ref = torch.tanh(z / 30.0) * 30.0  # vLLM's LogitsProcessor.forward, in the logits' dtype
     assert torch.equal(softcap_bf16(z, 30.0), ref) and softcap_bf16(z, None) is z
+
+
+def test_b6_head_reads_the_engines_readout():
+    """Under the Gemma base, SingleEngineHidden.readout returns the engine's own label probabilities for the row
+    (score_prompts, the plain path), and the hidden state from the reserved columns; no recomputation."""
+    from decisio.serve.hidden_engine import SingleEngineHidden
+
+    rows = [([1, 2, 3], ((10, 11), (20, 21))), ([1, 2, 4], ((10, 11), (20, 21)))]
+    engine_p = [np.array([0.7, 0.3]), np.array([0.2, 0.8])]
+    calls = []
+
+    def score_prompts(rs):
+        calls.append(("label", rs[0][0]))
+        return [engine_p[[r for r, _ in rows].index(rs[0][0])]], {}
+
+    eng = types.SimpleNamespace(score_prompts=score_prompts, _prepare_separate=lambda s, q: (rows, 2))
+    head = SingleEngineHidden.__new__(SingleEngineHidden)
+    head.engine, head._lock, head.label_source = eng, threading.Lock(), "engine"
+    head.hidden_rows = lambda token_lists: calls.append(("hidden", token_lists[0])) or [np.ones(4)]
+    head.label_logits = lambda h, lab: pytest.fail("the Gemma head must not recompute label logits")
+    out = head.readout("state", ["q1", "q2"])
+    assert [np.exp(lp).round(12).tolist() for lp, _ in out] == [p.tolist() for p in engine_p]
+    # each row: its label readout, then its hidden-state chunks, one row after the other
+    assert calls == [("label", [1, 2, 3]), ("hidden", [1, 2, 3]), ("label", [1, 2, 4]), ("hidden", [1, 2, 4])]

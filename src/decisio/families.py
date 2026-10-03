@@ -45,6 +45,10 @@ class Family:
     head_rows: tuple[str, ...] = ("lm_head.weight",)
     # tanh soft cap on the final logits (vLLM's LogitsProcessor soft_cap), or None
     softcap: float | None = None
+    # where the intent head takes the label log-probabilities from: "recompute" (from the hidden state and the output
+    # layer's rows, the engine's arithmetic reproduced) or "engine" (the engine's own readout of the same prompt, one
+    # more request; for a base whose logits the recomputation cannot reproduce exactly, Gemma's soft cap)
+    head_label_logprobs: str = "recompute"
     # the first reserved token id of the hidden-state readout (decisio.vllm_plugin.hidden): d + 1 ordinary tokens that
     # are no label form in any prompt format (checked at start-up and per base in tests)
     hidden_start: int = 100_000
@@ -93,6 +97,7 @@ GEMMA4 = Family(
         "model.embed_tokens.weight",
     ),
     softcap=30.0,
+    head_label_logprobs="engine",
     # 100,000 to 103,840 holds three of Gemma's two-letter label tokens
     hidden_start=170_000,
     temperature=3.592,

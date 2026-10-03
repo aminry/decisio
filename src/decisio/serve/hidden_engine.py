@@ -236,8 +236,15 @@ class SingleEngineHidden(HiddenReadout):
     """h from the serving engine itself (docs/design/hidden-state-readout.md): the text engine runs decisio's
     hidden-readout model class, which writes [0, h] into d + 1 reserved logit columns; a head question is sent with
     exactly those ids allowed, and h is recovered from their log-probabilities (`recover_hidden_chunks`). No second copy
-    of the weights. The label log-probabilities are recomputed from h and the output layer's label rows as the engine
-    computes them (`label_logits`, the base's soft cap included), so fitting and serving a head are unchanged."""
+    of the weights.
+
+    The label log-probabilities come one of two ways, by base (decisio.families.Family.head_label_logprobs):
+    recompute (Qwen) recomputes them from h and the output layer's label rows as the engine computes them
+    (`label_logits`, within 3.1e-8 of the engine on a card); engine (Gemma) reads them from the engine's own readout of
+    the same prompt, one more request before the hidden-state chunks, because a recomputation cannot follow the soft
+    cap's bf16 rounding on the card exactly (one bf16 step near the cap moved a probability by up to 0.062). Either
+    way, fitting a head and serving it read the same function, and under `engine` the head's base log-probabilities
+    are the plain readout's, exactly."""
 
     def __init__(self, engine, model, start=None, revision=None):
         from decisio.readout.letters import DEFAULT_FORMAT, MAX_LABELS, allowed_ids, label_groups, letter_labels
@@ -248,6 +255,7 @@ class SingleEngineHidden(HiddenReadout):
         family = getattr(engine, "family", None)
         self.family = family
         self.softcap = family.softcap if family is not None else None
+        self.label_source = family.head_label_logprobs if family is not None else "recompute"
         rows = family.head_rows if family is not None else ("lm_head.weight",)
         load = HiddenEngine._load_lm_head
         # the default call unchanged for the Qwen base (and its stand-ins in tests)
@@ -275,6 +283,25 @@ class SingleEngineHidden(HiddenReadout):
 
         z = torch.from_numpy(h.astype(np.float64) @ self.label_rows(lab).T).float().to(torch.bfloat16)
         return softcap_bf16(z, self.softcap).double().numpy()
+
+    def readout(self, state, questions):
+        """[(label log-probabilities, h)] per question. Under `engine` the log-probabilities are the engine's own
+        readout of the row (the plain path's score_prompts, so they equal what the question gets without a head),
+        read just before the row's hidden-state chunks under the same lock."""
+        if self.label_source != "engine":
+            return HiddenReadout.readout(self, state, questions)
+        with self._lock:
+            t0 = time.perf_counter()
+            rows, _ = self._prepare_separate(state, questions)
+            out = []
+            for row in rows:
+                (p,), _ = self.engine.score_prompts([row])
+                with np.errstate(divide="ignore"):
+                    lp = np.log(np.asarray(p, dtype=np.float64))
+                (h,) = self.hidden_rows([row[0]])
+                out.append((lp, np.asarray(h, dtype=np.float32)))
+            self.last_ms = (time.perf_counter() - t0) * 1000
+        return out
 
     def hidden_rows(self, token_lists):
         """One engine request per chunk of reserved ids (vLLM allows at most 1,024 ids per request), sent one at a time:
@@ -305,7 +332,8 @@ class SingleEngineHidden(HiddenReadout):
             "mode": self.mode,
             "reserved_ids": [self.reserved[0], self.reserved[-1]],
             "lm_head": list(self._W.shape),
-            "requests_per_question": len(self.chunks),
+            "label_logprobs": self.label_source,
+            "requests_per_question": len(self.chunks) + (self.label_source == "engine"),
         }
 
 
