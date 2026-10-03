@@ -1,0 +1,80 @@
+{
+ "id": "2026-10-03_noul-commit",
+ "title": "--noul-commit (yes/no answers inside 0.20 to 0.80 reported at the band's edge) against the served default's own answers, under the prompt of 2026-10-03 and the earlier one",
+ "date": "2026-10-03",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Max-Q Workstation Edition (driver 595.91.07), a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0",
+  "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 at revision 95a723d",
+  "decisio": "7648def (branch calibration-round), the same session as runs/2026-10-03_qiv-default; the served default of 2026-10-03 (main 6c581d4) is that record's qiv server at T 1.506",
+  "servers": {
+   "served_default": "--prompt-tail cygnet --noul-rendering letters-keys --debug-readout, P(yes) at T 1.506 (applied offline, exact)",
+   "earlier_default": "the earlier served default with --debug-readout, at T 1.307"
+  }
+ },
+ "results": {
+  "items": 1474,
+  "served_default": {
+   "served": {
+    "accuracy": 0.8385,
+    "committed_accuracy": 0.6716,
+    "in_band": 0.2571,
+    "log_loss": 0.3977,
+    "ece_tie_robust": 0.044
+   },
+   "noul_commit": {
+    "accuracy": 0.8385,
+    "committed_accuracy": 0.8385,
+    "in_band": 0.0,
+    "log_loss": 0.4145,
+    "ece_tie_robust": 0.078
+   },
+   "jevbench_v15": {
+    "noul_competence": [
+     13.66,
+     79.57
+    ],
+    "I_open_A": [
+     49.39,
+     71.36
+    ]
+   }
+  },
+  "earlier_default": {
+   "served": {
+    "accuracy": 0.8141,
+    "committed_accuracy": 0.5963,
+    "in_band": 0.3433,
+    "log_loss": 0.4124,
+    "ece_tie_robust": 0.033
+   },
+   "noul_commit": {
+    "accuracy": 0.8141,
+    "committed_accuracy": 0.8141,
+    "in_band": 0.0,
+    "log_loss": 0.4379,
+    "ece_tie_robust": 0.072
+   },
+   "jevbench_v15": {
+    "noul_competence": [
+     -10.9,
+     59.15
+    ],
+    "I_open_A": [
+     42.69,
+     66.04
+    ]
+   }
+  }
+ },
+ "deviations": [
+  "the transform was applied offline to the served answers, which is what the flag does on the server (unit tests in tests/unit/test_noul_commit.py)"
+ ],
+ "excluded": [
+  "item texts (ids kept)",
+  "JevBench raw requests and responses",
+  "server logs"
+ ]
+}

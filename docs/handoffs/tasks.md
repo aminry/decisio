@@ -63,6 +63,24 @@ The prompt format enters the task fingerprint and the yes/no rendering enters a 
 Register them again from the same examples, or serve them unchanged with `--prompt-tail decisio --noul-rendering words`.
 `--mode packed` reads the earlier prompt only and now needs `--prompt-tail decisio`.
 
+## Committed yes/no answers
+
+`--noul-commit` (off by default) is an output transform on yes/no answers (`systemone.commit_noul`): P(yes) strictly between 0.20 and 0.80 is reported as 0.80 if it is above 0.5 and as 0.20 otherwise, so an answer at exactly 0.5 stays no, as the served tie-break has it; outside the band nothing changes.
+It runs last, after the temperature or a task's correction; answers decided by an abstention task keep their own probabilities; choice and score questions are untouched.
+The served answer never changes, its calibration does.
+Measured on 1,474 yes/no items at the served default (`runs/2026-10-03_noul-commit/`):
+
+| | Accuracy | Committed accuracy | Inside 0.20 to 0.80 | Log loss | ECE, tie-robust |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| served | 83.9% | 67.2% | 25.7% | 0.3977 | 0.044 |
+| `--noul-commit` | 83.9% | 83.9% | 0.0% | 0.4145 | 0.078 |
+
+Under the earlier prompt (yes/no in words, T 1.307) the same items gave 81.4% accuracy with 34.3% inside the band, and the transform moved log loss from 0.4124 to 0.4379 and ECE from 0.033 to 0.072.
+
+Committed accuracy counts an answer right only if it is at or beyond the band's edge on the right side.
+On JevBench v1.5, which scores a yes/no answer inside the band as no answer, the yes/no competence rose from 13.66 to 79.57 and I_open A from 49.39 to 71.36 (under the earlier prompt: -10.9 to 59.15, and 42.69 to 66.04).
+Use it only where a scorer or a downstream rule needs a committed probability; anything that reads the probability as a probability is better served without it.
+
 ## Abstention
 
 `POST /v1/abstention/tasks` registers a threshold on an abstain option's probability (`decisio.serve.abstention`): the customer's own option (for example "out of scope") or one the server appends (`--abstain-option`, answered through imajev's `unknown_probability` and `abstained` fields).
