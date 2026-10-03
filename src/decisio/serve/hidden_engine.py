@@ -194,7 +194,8 @@ class HFHiddenEngine(HiddenReadout):
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._lock = threading.Lock()
 
-    # the served row builder, unchanged
+    # the served row builder, unchanged, with the text engine's defaults for what it reads
+    pad_policy = LettersEngine.pad_policy
     _prepare_separate = LettersEngine._prepare_separate
     _template_tail = LettersEngine._template_tail
     _labels = LettersEngine._labels
