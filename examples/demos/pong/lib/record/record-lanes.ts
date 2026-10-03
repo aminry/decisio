@@ -14,7 +14,7 @@
 import { loadLanes } from '../config/lanes';
 import { decide } from '../decide';
 import { buildReplay, createRecorder } from '../game/replay';
-import { createLaneRunner } from '../game/runner';
+import { createLaneRunner, type TickRecord } from '../game/runner';
 import {
   type LaneConfig,
   type Decider,
@@ -76,6 +76,8 @@ export interface RecordLanesOptions {
   onProgress?: (progress: RecordProgress) => void;
   /** How often `onProgress` fires. Default 5 s; 0 turns it off. */
   progressMs?: number;
+  /** Every lane's trajectory ticks as they happen (added for this repository; lib/game/runner.ts TickRecord). */
+  onTick?: (model: ModelId, tick: TickRecord) => void;
 }
 
 function laneDecider(model: ModelId, lanes: LaneConfig[]): Decider {
@@ -126,6 +128,7 @@ export async function recordLanes(
       decider: laneDecider(config.id, lanes),
       seed,
       leftInput: 'auto',
+      onTick: opts.onTick ? (tick) => opts.onTick?.(config.id, tick) : undefined,
     });
     return { config, runner, recorder: createRecorder(runner) };
   });

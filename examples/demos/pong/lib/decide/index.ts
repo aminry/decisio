@@ -63,7 +63,7 @@ export async function decide(req: DecideRequest, opts: DecideOptions = {}): Prom
         ? await decideWithSystemOne(lane, state, { signal: controller.signal })
         : await decideWithChat(lane, state, { signal: controller.signal });
 
-    return { ok: true, move: decision.move, latencyMs: Math.round(decision.latencyMs), model };
+    return { ok: true, move: decision.move, latencyMs: Math.round(decision.latencyMs), model, trace: decision.trace };
   } catch (err) {
     if (timedOut) return fail('model_error', `Timed out after ${timeoutMs}ms.`);
     if (opts.signal?.aborted) return fail('model_error', 'Cancelled.');

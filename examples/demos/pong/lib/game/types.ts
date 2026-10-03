@@ -141,7 +141,7 @@ export type DecideErrorCode =
   | 'bad_request';
 
 export type DecideResponse =
-  | { ok: true; move: Move; latencyMs: number; model: ModelId }
+  | { ok: true; move: Move; latencyMs: number; model: ModelId; trace?: { request: unknown; response: unknown } }
   | { ok: false; error: DecideErrorCode; message: string };
 
 /** Anything that turns a DecisionState into a Move. Server route, mock, human input. */

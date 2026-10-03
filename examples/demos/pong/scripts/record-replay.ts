@@ -19,11 +19,22 @@ const ONLY: ModelId[] | undefined = process.env.LANES?.trim()
   ? process.env.LANES.split(',').map((s) => s.trim())
   : undefined;
 
+// TRAJECTORY_DIR=<dir>: every lane's trajectory ticks, one JSON line each, to <dir>/<lane>.ticks.jsonl (added for this
+// repository); tools/measure_pong.py adds the header and the end line (tools/trajectory.py).
+const TRAJECTORY_DIR = process.env.TRAJECTORY_DIR;
+
 async function main() {
+  const ticks = new Map<string, string[]>();
   const { replay, stats } = await recordLanes({
     seconds: DURATION_MS / 1000,
     seed: SEED,
     lanes: ONLY,
+    onTick: TRAJECTORY_DIR
+      ? (model, tick) => {
+          if (!ticks.has(model)) ticks.set(model, []);
+          ticks.get(model)?.push(JSON.stringify(tick));
+        }
+      : undefined,
     onProgress: ({ elapsedMs, lanes }) => {
       const line = lanes
         .map(
@@ -40,6 +51,11 @@ async function main() {
   await mkdir(outDir, { recursive: true });
   const replayOut = join(resolve(outDir), 'replay.json');
   await writeFile(replayOut, replayJson);
+
+  if (TRAJECTORY_DIR) {
+    await mkdir(TRAJECTORY_DIR, { recursive: true });
+    for (const [model, rows] of ticks) await writeFile(join(TRAJECTORY_DIR, `${model}.ticks.jsonl`), `${rows.join('\n')}\n`);
+  }
 
   const statsOut = join(resolve(outDir), 'replay-stats.json');
   await writeFile(statsOut, `${JSON.stringify(stats, null, 2)}\n`);

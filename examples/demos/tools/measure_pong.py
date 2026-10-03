@@ -5,10 +5,13 @@
 Each run is `pnpm record` with a different seed: the lanes play the same serve at the same instant, each against its own
 server, for `--seconds`. Reported per lane: decisions per second, p50 and p95 of the per-decision latency (the System
 One or chat request, timed in the recorder), and the lane's score, the rallies it kept going (returns of the ball by its
-paddle) and the points it conceded. Intervals are 95% bootstrap intervals over the runs; latencies are pooled. With
-`--video`, the last run is also recorded as a clip with a caption per lane.
+paddle) and the points it conceded. Intervals are 95% bootstrap intervals over the runs; latencies are pooled. Every run
+writes one trajectory per lane (`trajectories/run<N>_<lane>.jsonl.gz`, tools/trajectory.py): the complete engine state
+of every tick with its wall-clock time, and each decision's request as sent, the full answer and the latency. Clips are
+rendered from those afterwards (tools/render_pong.py); nothing here records video. A lane's structured fields (model
+ID, date, route, provider, padding) come from its `player` object in the lanes file.
 
-    python measure_pong.py --lanes-file lanes.json --runs 5 --seconds 45 --video
+    python measure_pong.py --lanes-file lanes.json --runs 5 --seconds 45
 """
 
 from __future__ import annotations
@@ -22,10 +25,12 @@ import subprocess
 import time
 from pathlib import Path
 
-from demo_recorder import record, to_gif, to_mp4
-from demo_run import DemoRun, bootstrap, card_name, interval_text, latency_summary
+import trajectory
+from demo_run import DemoRun, bootstrap, card_name, interval_text, latency_summary, server_health
 
 PONG = Path(__file__).resolve().parents[1] / "pong"
+# The court the engine plays on (pong/lib/game/types.ts; tests/unit/test_demo_pong_trajectory.py checks they agree)
+COURT = {"w": 160, "h": 100, "paddle_h": 20, "ball_r": 1.5, "paddle_inset": 4, "paddle_step": 12, "points_to_win": 5}
 REPO = Path(__file__).resolve().parents[3]
 
 
@@ -85,9 +90,8 @@ def main() -> None:
     ap.add_argument("--runs", type=int, default=5)
     ap.add_argument("--seconds", type=float, default=45)
     ap.add_argument("--seed0", type=int, default=20260917)
-    ap.add_argument("--video", action="store_true", help="record the last run's replay page as MP4 and GIF")
-    ap.add_argument("--port", type=int, default=3100)
-    ap.add_argument("--channel", default="chrome")
+    ap.add_argument("--port", type=int, default=3100, help="unused; kept so older command lines still parse")
+    ap.add_argument("--channel", default="chrome", help="unused; kept so older command lines still parse")
     ap.add_argument("--prompt-variant", default="default", help="PONG_PROMPT_VARIANT for the System One lanes")
     ap.add_argument("--card", default="")
     a = ap.parse_args()
@@ -100,6 +104,15 @@ def main() -> None:
     out = Path(a.out) if a.out else REPO / "runs" / f"{time.strftime('%Y-%m-%d')}_demos-pong"
     card = a.card or card_name()
     run = DemoRun(out, "Pong lanes", "pong", a.label, base_url, hardware=card)
+    players = {
+        lane["id"]: trajectory.player_fields(
+            lane.get("player"),
+            label=lane["label"],
+            card=card,
+            server=server_health(lane["baseUrl"]) if lane["kind"] == "systemone" else None,
+        )
+        for lane in lanes
+    }
     per_run = []
     for i in range(a.runs):
         seed = a.seed0 + i
@@ -113,6 +126,7 @@ def main() -> None:
             OUT_DIR=str(rdir),
             PONG_DECISION_LOG=str(run.decision_log_path),
             PONG_PROMPT_VARIANT=a.prompt_variant,
+            TRAJECTORY_DIR=str(rdir / "ticks"),
         )
         run.log(f"run {i + 1}/{a.runs}: seed {seed}, {a.seconds:.0f} s, {len(lanes)} lanes")
         subprocess.run(
@@ -128,6 +142,17 @@ def main() -> None:
         per_run.append({"seed": seed, "lanes": rows})
         for lane_id, r in rows.items():
             run.log(f"  {lane_id}: {r['decisions']} decisions, {r['returns']} returns, {r['misses']} misses")
+            ticks_path = rdir / "ticks" / f"{lane_id}.ticks.jsonl"
+            ticks = [json.loads(x) for x in ticks_path.read_text().splitlines() if x.strip()]
+            head = trajectory.header(
+                "pong",
+                players[lane_id],
+                {"lane": lane_id, "seed": seed, "run": i + 1, "seconds": a.seconds, "prompt_variant": a.prompt_variant},
+                court=COURT,
+            )
+            end = {k: r[k] for k in ("decisions", "returns", "misses", "final_score")}
+            end["status"] = ticks[-1]["state"]["status"] if ticks else None
+            trajectory.write(out / "trajectories" / f"run{i + 1}_{lane_id}.jsonl.gz", head, ticks, end)
         (rdir / "replay.json").rename(out / f"replay_run{i + 1}.json")
         shutil.rmtree(rdir, ignore_errors=True)
 
@@ -168,38 +193,6 @@ def main() -> None:
             f"{lat.get('p50', float('nan')):.0f} / {lat.get('p95', float('nan')):.0f} | "
             f"{interval_text(s['rallies_returns_per_run'], 1)} | {interval_text(s['points_conceded_per_run'], 1)} |"
         )
-    media = {}
-    if a.video:
-        mdir = out / "media"
-        mdir.mkdir(exist_ok=True)
-        subprocess.run(["pnpm", "build"], cwd=PONG, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
-        server = serve_replay(out / f"replay_run{a.runs}.json", a.port)
-        try:
-            time.sleep(4)
-            webm = record(
-                f"http://127.0.0.1:{a.port}/?clean=1",
-                mdir / "pong",
-                seconds=a.seconds + 3,
-                size=(1280, 560),
-                channel=a.channel or None,
-            )
-        finally:
-            stop_server(server)
-            (PONG / "public" / "replay.json").unlink(missing_ok=True)
-        lead = next(iter(summary.values()))
-        p50 = lead["latency_ms"].get("p50")
-        caption = (
-            " | ".join(f"{s['label']} {s['latency_ms'].get('p50', float('nan')):.0f} ms" for s in summary.values())
-            + f" median | {card}"
-        )
-        to_mp4(webm, mdir / "pong.mp4", caption)
-        gif = to_gif(webm, mdir / "pong.gif", caption, start_s=1.0)
-        media = {
-            "media/pong.webm": "raw recording",
-            "media/pong.mp4": "recording with caption",
-            "media/pong.gif": f"{gif.stat().st_size} bytes",
-        }
-        del p50
     run.finish(
         summary,
         "\n".join(md),
@@ -212,7 +205,7 @@ def main() -> None:
                 "replay_run<N>.json": "the recording of each run, as the page replays it",
                 "summary.json, summary.md": "the tables with their bootstrap intervals",
                 "record.log": "the recorder's progress",
-                **media,
+                "trajectories/run<N>_<lane>.jsonl.gz": "each run's trajectory per lane (tools/trajectory.py)",
             },
         },
     )

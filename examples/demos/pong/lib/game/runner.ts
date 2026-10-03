@@ -44,6 +44,24 @@ export interface LaneRunnerOptions {
    * always ends at once. Mirrors the game worker.
    */
   maxConsecutiveFailures?: number;
+  /**
+   * Called once per tick with the complete engine state after it and, when the model was asked, the request as sent,
+   * the whole answer and the latency: the run's trajectory (added for this repository). Also called on every serve.
+   */
+  onTick?: (tick: TickRecord) => void;
+}
+
+/** One trajectory tick (examples/demos/tools/trajectory.py): the state after the tick, and the decision behind it. */
+export interface TickRecord {
+  kind: 'serve' | 'tick';
+  tick: number;
+  /** Unix seconds when the tick was applied. */
+  t_wall: number;
+  state: EngineState;
+  decision:
+    | null
+    | { request: unknown; answer: unknown; chosen: Move; latency_ms: number; call_ms: number }
+    | { error: string; message: string; chosen: Move; latency_ms: number };
 }
 
 export const MAX_CONSECUTIVE_FAILURES = 3;
@@ -61,7 +79,10 @@ export function createLaneRunner(opts: LaneRunnerOptions): LaneRunner {
     startDelayMs = 0,
     serveDir = 1,
     maxConsecutiveFailures = MAX_CONSECUTIVE_FAILURES,
+    onTick,
   } = opts;
+  const record = (kind: TickRecord['kind'], decision: TickRecord['decision']) =>
+    onTick?.({ kind, tick: state.tick, t_wall: Date.now() / 1000, state: structuredClone(state), decision });
 
   const listeners: Listeners = { snapshot: new Set(), end: new Set() };
   let state: EngineState = createEngine(seed, serveDir);
@@ -152,6 +173,21 @@ export function createLaneRunner(opts: LaneRunnerOptions): LaneRunner {
       state = applyTick(state, move, leftInput === 'auto' ? 'auto' : consumeManualMove());
       const s = snapshot(message === undefined ? { latencyMs, move } : { latencyMs, move, message });
       emit(s);
+      if (onTick) {
+        const response = (res.ok ? res.trace?.response : undefined) as { answers?: unknown; model?: unknown } | undefined;
+        record(
+          'tick',
+          res.ok
+            ? {
+                request: res.trace?.request ?? null,
+                answer: response?.answers ?? null,
+                chosen: move,
+                latency_ms: latencyMs,
+                call_ms: res.latencyMs,
+              }
+            : { error: res.error, message: res.message, chosen: move, latency_ms: latencyMs },
+        );
+      }
 
       if (state.status === 'over') {
         end(s);
@@ -159,7 +195,10 @@ export function createLaneRunner(opts: LaneRunnerOptions): LaneRunner {
       }
       // A conceded point re-serves straight away, so the next decision sees a
       // live ball rather than a parked one.
-      if (state.status === 'point') state = serve(state);
+      if (state.status === 'point') {
+        state = serve(state);
+        record('serve', null);
+      }
     }
   }
 
@@ -174,6 +213,7 @@ export function createLaneRunner(opts: LaneRunnerOptions): LaneRunner {
       // Status 'serving' (not 'playing') so the UI can render the court before
       // the first decision has come back.
       emit(snapshot({ status: 'serving' }));
+      record('serve', null);
       if (startDelayMs > 0) {
         delayTimer = setTimeout(() => {
           delayTimer = null;

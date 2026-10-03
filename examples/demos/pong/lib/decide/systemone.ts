@@ -58,5 +58,5 @@ export async function decideWithSystemOne(
 
   const choice = answer.answers?.move?.choice;
   if (!isMove(choice)) throw new Error(`The server returned an unknown choice: ${String(choice)}`);
-  return { move: choice, latencyMs };
+  return { move: choice, latencyMs, trace: { request: body, response: answer } };
 }
