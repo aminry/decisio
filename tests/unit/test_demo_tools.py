@@ -229,3 +229,47 @@ def test_d10_gateway_refuses_calls_beyond_its_budget(tmp_path):
     assert codes == [200, 200, 429]
     assert ledger.count() == 2  # the refused call never reached the upstream and is not counted
     assert len((tmp_path / "log.jsonl").read_text().splitlines()) == 3
+
+
+def test_d11_openrouter_calls_pin_the_provider_deny_data_collection_and_refuse_another_provider():
+    import types
+
+    import systemone_gateway as g
+
+    pytest.importorskip("openai")
+    extra = {"provider": "anthropic", "provider_name": "Anthropic", "temperature": 0}
+    b = g.Backend("openrouter", "anthropic/claude-haiku-4.5", "k", None, extra)
+    headers = {k.lower() for k in b.client.default_headers}
+    assert not headers & {"http-referer", "x-title"}  # no app-attribution headers
+    sent = {}
+
+    def create(**kw):
+        sent.update(kw)
+        msg = types.SimpleNamespace(content='{"move": "up"}')
+        usage = types.SimpleNamespace(prompt_tokens=10, completion_tokens=2, model_extra={"cost": 0.0})
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=msg)],
+            usage=usage,
+            id="gen-1",
+            model="anthropic/claude-haiku-4.5",
+            model_extra={"provider": served},
+        )
+
+    b.client = types.SimpleNamespace(chat=types.SimpleNamespace(completions=types.SimpleNamespace(create=create)))
+    body = {"state": "s", "questions": {"move": {"type": "choice", "criteria": {"up": None, "down": None}}}}
+    served = "Anthropic"
+    out, _ = b.call(body)
+    assert sent["extra_body"]["provider"] == {
+        "only": ["anthropic"],
+        "allow_fallbacks": False,
+        "data_collection": "deny",
+        "require_parameters": True,
+    }
+    assert out["usage"]["provider"] == "Anthropic" and out["via"] == "OpenRouter"
+    d = b.describe()
+    assert d["route"] == "OpenRouter" and d["served"] == [
+        {"provider": "Anthropic", "served_model": "anthropic/claude-haiku-4.5", "calls": 1}
+    ]
+    served = "Amazon Bedrock"
+    with pytest.raises(g.UpstreamError, match="not the pinned provider"):
+        b.call(body)

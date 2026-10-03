@@ -82,6 +82,7 @@ class Backend:
     def __init__(self, kind: str, model: str, key: str | None, base_url: str | None, extra: dict):
         self.kind, self.model, self.key, self.base_url, self.extra = kind, model, key, base_url, extra
         self.client = None
+        self.served: dict = {}
         if kind == "anthropic":
             import anthropic
 
@@ -94,11 +95,24 @@ class Backend:
         elif kind == "openrouter":
             import openai
 
+            # no app-attribution headers (HTTP-Referer, X-Title): the client sends only its own defaults
             self.client = openai.OpenAI(api_key=key, base_url="https://openrouter.ai/api/v1", max_retries=4)
         elif kind == "gemini":
             from google import genai
 
             self.client = genai.Client(api_key=key)
+
+    def describe(self) -> dict:
+        """Structured fields for the run record: the model ID, the route, the measurement date, and for OpenRouter the
+        pinned routing and every (serving provider, served model) seen so far."""
+        d = {"gateway": self.kind, "model": self.model, "route": self.kind, "date": time.strftime("%Y-%m-%d")}
+        if self.kind == "openrouter":
+            d |= {
+                "route": "OpenRouter",
+                "provider_routing": self.openrouter_provider(),
+                "served": [{"provider": p, "served_model": m, "calls": n} for (p, m), n in self.served.items()],
+            }
+        return d
 
     def call(self, body: dict) -> tuple[dict, float]:
         t = time.perf_counter()
@@ -157,9 +171,18 @@ class Backend:
         out = json.loads(r.choices[0].message.content)
         return out, {"input_tokens": r.usage.prompt_tokens, "output_tokens": r.usage.completion_tokens}
 
+    def openrouter_provider(self) -> dict:
+        """The routing every OpenRouter call carries: the first-party provider only, no fallback to another, no data
+        collection by the provider, and the structured-output parameter required of it."""
+        return {
+            "only": [self.extra["provider"]],
+            "allow_fallbacks": False,
+            "data_collection": "deny",
+            "require_parameters": True,
+        }
+
     def _openrouter(self, text: str, schema: dict) -> tuple[dict, dict]:
-        provider = {"order": [self.extra["provider"]], "allow_fallbacks": False, "require_parameters": True}
-        body = {"provider": provider, "usage": {"include": True}}
+        body = {"provider": self.openrouter_provider(), "usage": {"include": True}}
         if "reasoning" in self.extra:
             body["reasoning"] = self.extra["reasoning"]
         kw = {k: v for k, v in self.extra.items() if k in ("temperature", "max_tokens", "seed")}
@@ -174,14 +197,21 @@ class Backend:
             **kw,
         )
         extra = r.model_extra or {}
+        served_by = extra.get("provider")
+        if self.extra.get("provider_name") and served_by != self.extra["provider_name"]:
+            raise UpstreamError(
+                502, f"served by {served_by!r}, not the pinned provider {self.extra['provider_name']!r}"
+            )
         u = r.usage
         usage = {
             "input_tokens": u.prompt_tokens,
             "output_tokens": u.completion_tokens,
             "cost_usd": (u.model_extra or {}).get("cost"),
-            "provider": extra.get("provider"),
+            "provider": served_by,
+            "served_model": r.model,
             "generation_id": r.id,
         }
+        self.served[(served_by, r.model)] = self.served.get((served_by, r.model), 0) + 1
         return json.loads(r.choices[0].message.content), usage
 
     def _gemini(self, text: str, schema: dict) -> tuple[dict, dict]:
