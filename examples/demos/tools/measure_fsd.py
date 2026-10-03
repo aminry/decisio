@@ -62,6 +62,12 @@ def main() -> None:
         default=None,
         help="the demo's decision timeout (default 1500 ms; raise it for lockstep)",
     )
+    ap.add_argument(
+        "--wording",
+        default="default",
+        choices=["default", "entered"],
+        help="the state's wording: 'entered' states that the car is already in the junction after a completed stop",
+    )
     ap.add_argument("--port", type=int, default=8322)
     ap.add_argument("--channel", default="chrome", help="Playwright browser channel; '' for its own Chromium")
     ap.add_argument("--card", default="")
@@ -121,6 +127,7 @@ def main() -> None:
                         "weather": a.weather,
                         "save": False,
                         "timeoutMs": a.timeout_ms,
+                        "wording": a.wording,
                     },
                 )
                 wall = time.perf_counter() - t0
@@ -177,6 +184,7 @@ def main() -> None:
         "runs": a.runs,
         "scenarios_per_run": a.count,
         "mode": a.mode,
+        "wording": a.wording,
         "rules_score_pass_rate": bootstrap(passes),
         "rules_score_pass_rate_per_run": bootstrap(per_run_pass),
         "decisions_per_s": bootstrap(per_run_rate),

@@ -17,7 +17,7 @@
  * moving away.
  */
 import type { JSONValue } from 'ai';
-import type { DecisionState, Move } from '../game/types';
+import { MODEL_PADDLE_STEP, type DecisionState, type Move } from '../game/types';
 
 /** Every legal answer, in a fixed order. */
 export const MOVES = ['up', 'down', 'stay'] as const;
@@ -66,18 +66,60 @@ export const LLM_SYSTEM_PROMPT = [
  *               overshoots), instead of 5
  *   offset      the state also carries `offset`, interceptY minus paddle.y (null while the ball moves away): the
  *               distance the question is about, an observation computed from the state, not a move
+ *   words       the state is the paddle-to-intercept relationship in words the game computes ("the ball will arrive
+ *               14.2 units above the centre of your paddle") instead of raw coordinates, and the options say what
+ *               each move does ("up moves the paddle 12 units toward the top of the screen") instead of when to
+ *               choose it; the stay band is the game's 6 units
  * Selected with PONG_PROMPT_VARIANT (a "+"-joined list), read by the System One lane.
  */
-export type PromptVariant = { tolerance: number; offset: boolean; name: string };
+export type PromptVariant = { tolerance: number; offset: boolean; words: boolean; name: string };
+
+/** The paddle's step per move, stated in the words variant. */
+export const PADDLE_STEP = MODEL_PADDLE_STEP;
+
+/** The words variant's question: what each move does, not when to choose it. */
+export const WORDS_QUESTIONS = {
+  move: {
+    type: 'choice',
+    instructions: [
+      'You control the right paddle in a game of Pong.',
+      "The state says where the ball will next reach your paddle, relative to the paddle's centre.",
+      `Each move shifts the paddle ${PADDLE_STEP} units.`,
+      "Keep the paddle's centre within 6 units of where the ball will arrive; while the ball is moving away there is nothing to cover.",
+      'Answer with one move only.',
+    ].join(' '),
+    criteria: {
+      up: `Move the paddle ${PADDLE_STEP} units toward the top of the screen.`,
+      down: `Move the paddle ${PADDLE_STEP} units toward the bottom of the screen.`,
+      stay: 'Keep the paddle where it is.',
+    },
+  },
+} as const;
+
+/** The words variant's state: one sentence the game computes from interceptY and paddle.y, no coordinates. */
+export function arrivalInWords(state: DecisionState): string {
+  if (state.interceptY === null) return 'The ball is moving away from your paddle.';
+  const d = Math.round((state.interceptY - state.paddle.y) * 10) / 10;
+  if (d === 0) return 'The ball will arrive level with the centre of your paddle.';
+  return `The ball will arrive ${Math.abs(d)} units ${d < 0 ? 'above' : 'below'} the centre of your paddle.`;
+}
 
 export function promptVariant(name: string | undefined = undefined): PromptVariant {
   const parts = new Set((name ?? 'default').split('+').filter((p) => p && p !== 'default'));
-  for (const p of parts) if (p !== 'tolerance6' && p !== 'offset') throw new Error(`unknown prompt variant: ${p}`);
-  return { tolerance: parts.has('tolerance6') ? 6 : STAY_TOLERANCE, offset: parts.has('offset'), name: name ?? 'default' };
+  for (const p of parts) if (!['tolerance6', 'offset', 'words'].includes(p)) throw new Error(`unknown prompt variant: ${p}`);
+  if (parts.has('words') && parts.size > 1) throw new Error('the words variant stands alone');
+  const words = parts.has('words');
+  return {
+    tolerance: parts.has('tolerance6') || words ? 6 : STAY_TOLERANCE,
+    offset: parts.has('offset'),
+    words,
+    name: name ?? 'default',
+  };
 }
 
 /** The move question for a variant; the default variant gives exactly MOVE_QUESTIONS. */
 export function moveQuestionsFor(v: PromptVariant) {
+  if (v.words) return WORDS_QUESTIONS;
   if (v.tolerance === STAY_TOLERANCE && !v.offset) return MOVE_QUESTIONS;
   const t = v.tolerance;
   const instructions = [
@@ -92,6 +134,7 @@ export function moveQuestionsFor(v: PromptVariant) {
 
 /** The state for a variant: stateForModel, plus `offset` when the variant asks for it. */
 export function stateForVariant(state: DecisionState, v: PromptVariant): Record<string, JSONValue> {
+  if (v.words) return { ball: arrivalInWords(state) };
   const base = stateForModel(state);
   if (!v.offset) return base;
   const offset = state.interceptY === null ? null : Math.round((state.interceptY - state.paddle.y) * 10) / 10;

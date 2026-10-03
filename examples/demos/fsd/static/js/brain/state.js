@@ -101,6 +101,9 @@ export function situationClauses(snap) {
     else out.push(`The signal ${m} m ahead is green; proceed unless the path is blocked.`);
   } else if (i && i.control === "stop") {
     if (!i.stop_completed) out.push(atLine ? "The car is at the stop line and the stop is not completed yet: hold still until it is." : `A stop sign is ${m} m ahead: keep rolling toward it, come to a full stop at the line, then go when cross traffic is clear.`);
+    // Opt-in wording (added for this repository, bench option `wording: "entered"`): once the car is past the line
+    // after a completed stop, say so as an observation; the default text tells it to hold for cross traffic even then.
+    else if (globalThis.__fsdWording === "entered" && i.entered) out.push(`The stop is completed and the car is already in the junction, ${Math.max(0, Math.round(-i.bumper_to_line_m))} m past the stop line.`);
     else out.push(i.cross_traffic_moving ? "The stop is completed but cross traffic is moving through the junction: hold until it is clear." : "The stop is completed and no crossing traffic is visible: check sight lines before proceeding.");
   } else if (i && i.control === "yield") {
     const exit = snap.nav && snap.nav.exit ? ` and take exit ${snap.nav.exit}` : "";

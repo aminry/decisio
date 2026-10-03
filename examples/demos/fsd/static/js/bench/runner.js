@@ -40,7 +40,9 @@ export function setupScenario(map, sc, { brain = "rules", npcs = 40, weather = "
   return { world, fleet, autopilot, events };
 }
 
-export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null, collectExamples = false } = {}) {
+export async function runScenario(map, sc, { brain = "rules", npcs = 40, mode = "lockstep", weather = "dry", style = null, vehicleSpec = undefined, shouldStop = () => false, timeoutMs = null, collectExamples = false, wording = "default" } = {}) {
+  // the state's wording variant for this drive (added for this repository; brain/state.js reads it)
+  globalThis.__fsdWording = wording;
   const metrics = new DriveMetrics(new Route(sc.route, map).length);
   let worldRef = null;
   const examples = [];
