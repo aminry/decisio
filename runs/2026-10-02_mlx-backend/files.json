@@ -295,6 +295,26 @@
   "sha256": "9a963de18c858ec1fbbd6cdc0e09241405278184c2698ff2bd72722105b37f79"
  },
  {
+  "path": "6bit_none/latency_quiet/code_commit.txt",
+  "bytes": 95,
+  "sha256": "c7ad545ad706dadae83e9908010355a11d1b7417a31e303c8a3cc668df572a8a"
+ },
+ {
+  "path": "6bit_none/latency_quiet/health.json",
+  "bytes": 1030,
+  "sha256": "4a2b05f5f2395b6556a7e860076fbf824c029514d35803c422dc81175b42ea52"
+ },
+ {
+  "path": "6bit_none/latency_quiet/latency.json",
+  "bytes": 10059,
+  "sha256": "37b7d2431763b386d093190503691b0d9d3ab2e6030f67bb69785adc6f2e3612"
+ },
+ {
+  "path": "6bit_none/latency_quiet/latency.log",
+  "bytes": 632,
+  "sha256": "8ae01577b9888f7e0f07d3e5ed3499a5d21d4defa39462c1a22f88061abb7522"
+ },
+ {
   "path": "6bit_none/r12/banking77_d0.json.gz",
   "bytes": 161961,
   "sha256": "b99a3ef17d5131f582a2a04988a6b0a7fdb684472ba30b04472ccd69bf716c43"
@@ -691,8 +711,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 16488,
-  "sha256": "2753d5615d51f8cb4ac5f47f87feebcafed0634e8b530c8319ed003233f55790"
+  "bytes": 18317,
+  "sha256": "b0cafa3ea2d4409e01b0dbcc845402240a344a75c24f25270e8895cb22b285c2"
  },
  {
   "path": "pipeline.log",

@@ -516,6 +516,74 @@
    "code": "this PR's commit on 35d112c (with #44, #45, #50: their options off by default)",
    "check": "6-bit with default flags (the server resolves --pad-policy to none): gate P'' and the serving gates pass; the 1,400 suite answers bit-identical to the gated 6bit_none run, 1,400 of 1,400",
    "record": "6bit_none/rebased_check/"
+  },
+  "latency_quiet": {
+   "why": "every latency pass of the gate run ran under heavy foreign load (up to 265% CPU), passes differing by up to 2.6x; re-measured on main (8e3f54f) with every flag the default except --prefix-cache-mb 0 (latency.py reuses its states across cells, which the cache would turn into hits), pre-registered (RLCD PREREG addendum D)",
+   "start": "the quiet-wait start condition did not reach 5 quiet minutes in an hour; started at Amin's request, the per-pass idle rule applied",
+   "server_ms_p50_p95": {
+    "1q": [
+     230.10000000000002,
+     306.185
+    ],
+    "10q": [
+     891.8499999999999,
+     967.8299999999999
+    ],
+    "100q": [
+     9483.5,
+     10158.099999999999
+    ],
+    "100q_8k": [
+     14288.05,
+     14442.164999999999
+    ]
+   },
+   "per_question_p50_ms": {
+    "1q": 230.10000000000002,
+    "10q": 89.18499999999999,
+    "100q": 94.835,
+    "100q_8k": 142.88049999999998
+   },
+   "passes": [
+    {
+     "attempt": 1,
+     "max_foreign_cpu": 209.1,
+     "max_foreign_process": "Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd",
+     "idle": false,
+     "p50_ms": {
+      "1q": 228,
+      "10q": 875,
+      "100q": 8999,
+      "100q_8k": 13950
+     }
+    },
+    {
+     "attempt": 2,
+     "max_foreign_cpu": 192.1,
+     "max_foreign_process": "meworks/Metadata.framework/Versions/A/Support/corespotlightd",
+     "idle": false,
+     "p50_ms": {
+      "1q": 227,
+      "10q": 875,
+      "100q": 9427,
+      "100q_8k": 14439
+     }
+    },
+    {
+     "attempt": 3,
+     "max_foreign_cpu": 98.4,
+     "max_foreign_process": "/Users/amin/repo/decisio/.venv/bin/python",
+     "idle": false,
+     "p50_ms": {
+      "1q": 230,
+      "10q": 892,
+      "100q": 9484,
+      "100q_8k": 14288
+     }
+    }
+   ],
+   "idle_rule_met": false,
+   "record": "6bit_none/latency_quiet/"
   }
  },
  "prefix_cache": {
