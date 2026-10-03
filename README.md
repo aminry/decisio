@@ -152,6 +152,10 @@ They use labelled examples, so those figures are not comparable with zero-shot s
 Calibration trails too: hard-tier ECE on JevBench is 0.069, above the 0.05 we aimed for.
 `EVAL_CARD.md` has the full tables, the calibration figures, and the three disclosures about what was fitted on what.
 
+`--noul-commit` (opt-in) is for scorers that treat a yes/no probability between 0.20 and 0.80 as no answer, as JevBench v1.5 does: such an answer is reported at the band's edge on its own side, 0.80 above 0.5 and 0.20 at or below it.
+The answer never changes; its probability does, and calibration pays for it.
+On 1,474 yes/no items at the served default (the suite's 600, PAWS, Civil Comments, Aegis 2.0 and JevBench's 74), 34.3% fell inside the band; accuracy stayed 81.4%, log loss rose from 0.412 to 0.438 and tie-robust ECE from 0.033 to 0.072, and JevBench v1.5's yes/no competence rose from -10.9 to 59.2 (`runs/2026-10-03_noul-commit/`, `docs/handoffs/tasks.md`).
+
 ## Repository layout
 
 ```

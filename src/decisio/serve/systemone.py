@@ -207,6 +207,19 @@ def noul_as_letters(q, keys_shown: bool = False) -> tuple[dict, list[str]] | Non
     return {"kind": "choice", "instructions": instr, "options": options}, ["no", "yes"]
 
 
+COMMIT_LO, COMMIT_HI = 0.20, 0.80
+
+
+def commit_noul(p: np.ndarray) -> np.ndarray:
+    """--noul-commit: a yes/no answer with 0.20 < P(yes) < 0.80 is reported at the band's edge on its own side, 0.80 if
+    P(yes) > 0.5 and 0.20 otherwise (exactly 0.5 stays no, the served tie-break); outside the band it is unchanged. An
+    output transform: the answer never changes, its probability does."""
+    py = float(p[0])
+    if COMMIT_LO < py < COMMIT_HI:
+        py = COMMIT_HI if py > 0.5 else COMMIT_LO
+    return np.array([py, 1.0 - py])
+
+
 def with_abstain(eq: dict, keys: list[str], option: str) -> tuple[dict, list[str]]:
     """The engine question with one more option, `option` (e.g. "can't tell"), listed last; yes/no questions become a
     three-option choice (yes, no, option). Its key is UNKNOWN_KEY. No training: the option is only offered."""
@@ -368,6 +381,7 @@ class SystemOne:
         desnake_labels: bool = True,
         describe_options: bool = True,
         noul_rendering: str = "words",
+        noul_commit: bool = False,
         abstention: bool = True,
         abstention_tasks: list[dict] | None = None,
         tasks_enabled: bool = True,
@@ -383,6 +397,7 @@ class SystemOne:
         if noul_rendering not in NOUL_RENDERINGS:
             raise ValueError(f"noul_rendering must be one of {NOUL_RENDERINGS}")
         self.noul_rendering = noul_rendering  # how a yes/no question is asked (noul_as_letters); words by default
+        self.noul_commit = bool(noul_commit)  # an output transform on yes/no answers (commit_noul); off by default
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -555,6 +570,9 @@ class SystemOne:
             if abstain:
                 answers[name] = abstain_answer(q, keys, p)
                 continue
+            # --noul-commit, the output transform, last (abstention answers above keep theirs)
+            if self.noul_commit and q.type == "noul":
+                p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
             if imajev_ext:
                 answers[name].update(unknown_probability=0.0, abstained=False)
