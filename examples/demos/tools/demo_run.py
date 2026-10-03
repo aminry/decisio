@@ -33,6 +33,7 @@ def server_health(base_url: str) -> dict:
     except (OSError, ValueError) as e:
         return {"error": str(e)}
     keys = ("engine", "model", "mode", "block_size", "pad_unit", "adapters", "systemone", "head_engine")
+    keys += ("gateway", "route", "date", "provider_routing", "served")  # a player behind tools/systemone_gateway.py
     return {k: info.get(k) for k in keys}
 
 
