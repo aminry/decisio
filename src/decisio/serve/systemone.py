@@ -375,6 +375,7 @@ class SystemOne:
         hidden_engine=None,
         debug_readout: bool = False,
         temperature: float = 1.0,
+        temperatures: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -400,6 +401,8 @@ class SystemOne:
         # the global temperature on the text route's plain readout (decisio.serve.temperature); 1.0 is off, bit for bit;
         # a registered task's own correction replaces it
         self.temperature = float(temperature)
+        # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
+        self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
         self.release_date, self.description = release_date, description
         self.branch_log = branch_log
         self._log_lock = threading.Lock()
@@ -439,8 +442,9 @@ class SystemOne:
         names = list(req.questions)
         wire = [req.questions[n] for n in names]
         # a yes/no question asked as letters is read false first and reversed to (yes, no) below; abstention and
-        # two-order mode keep the words form, whose arithmetic they assume
-        words = orders == 2 or (bool(self.abstain_option) and imajev_ext)
+        # two-order mode keep the words form, whose arithmetic they assume; the image route keeps it too, the prompt
+        # its ImajevBench figures were measured with (its engine builds photo prompts without --prompt-tail)
+        words = orders == 2 or (bool(self.abstain_option) and imajev_ext) or use_image
         asked = [self.engine_question(q, words=words) for q in wire]
         mapped = [(eq, keys) for eq, keys, _ in asked]
         swapped = [sw for _, _, sw in asked]
@@ -548,10 +552,11 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                if not corrected and self.temperature != 1.0 and not use_image:
-                    p = apply_temperature(p, self.temperature)
+                t_q = self.temperature_of(q.type)
+                if not corrected and t_q != 1.0 and not use_image:
+                    p = apply_temperature(p, t_q)
                     if debug:
-                        dbg[name].update(path="temperature", temperature=self.temperature)
+                        dbg[name].update(path="temperature", temperature=t_q)
             if plans[i]:
                 answers[name] = self.abstention_answer(q, keys, p, plans[i], imajev_ext)
                 continue
@@ -597,6 +602,10 @@ class SystemOne:
         return out
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
+
+    def temperature_of(self, qtype: str) -> float:
+        """The temperature a question of this type is served at: its own (--temperature-<type>) or the global one."""
+        return self.temperatures.get(qtype, self.temperature)
 
     def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
         """(engine question, keys in engine order, swapped) for one wire question as this server asks it. A yes/no
@@ -665,7 +674,7 @@ class SystemOne:
         the plain readout p (for abstention examples, so a threshold is fitted on what it will decide)."""
         t = self.readout_task(q)
         if t is None:
-            return apply_temperature(p, self.temperature)
+            return apply_temperature(p, self.temperature_of(q.type))
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
@@ -676,7 +685,7 @@ class SystemOne:
             from decisio.readout.debias import log_probs
 
             return apply_task_prior(log_probs(p), t["calibration"])
-        return apply_temperature(p, self.temperature)
+        return apply_temperature(p, self.temperature_of(q.type))
 
     # ---- per-task abstention -------------------------------------------------------------------------------------
 

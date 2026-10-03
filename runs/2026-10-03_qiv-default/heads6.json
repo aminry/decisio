@@ -1,0 +1,111 @@
+{
+ "draws": {
+  "q0": {
+   "banking77": {
+    "n": 150,
+    "correct": [
+     127,
+     128,
+     126,
+     128,
+     128,
+     127
+    ],
+    "plain": 111,
+    "gain": [
+     0.10888888888888892,
+     0.06000000000000003,
+     0.1611111111111111
+    ]
+   },
+   "v3_clinc": {
+    "n": 100,
+    "correct": [
+     87,
+     90,
+     91,
+     90,
+     89,
+     93
+    ],
+    "plain": 82,
+    "gain": [
+     0.08000000000000007,
+     0.02666666666666669,
+     0.1366666666666667
+    ]
+   }
+  },
+  "qiv": {
+   "banking77": {
+    "n": 150,
+    "correct": [
+     126,
+     126,
+     122,
+     127,
+     126,
+     129
+    ],
+    "plain": 112,
+    "gain": [
+     0.09333333333333328,
+     0.05111111111111107,
+     0.14000000000000004
+    ]
+   },
+   "v3_clinc": {
+    "n": 100,
+    "correct": [
+     88,
+     92,
+     91,
+     91,
+     91,
+     94
+    ],
+    "plain": 82,
+    "gain": [
+     0.09166666666666673,
+     0.034999999999999976,
+     0.1516666666666667
+    ]
+   }
+  }
+ },
+ "checks": {
+  "q0": {
+   "banking77": {
+    "plain_identical": true,
+    "draw0_identical": true
+   },
+   "v3_clinc": {
+    "plain_identical": true,
+    "draw0_identical": null
+   }
+  },
+  "qiv": {
+   "banking77": {
+    "plain_identical": true,
+    "draw0_identical": true
+   },
+   "v3_clinc": {
+    "plain_identical": true,
+    "draw0_identical": null
+   }
+  }
+ },
+ "gate": {
+  "banking77": {
+   "margin": true,
+   "gain": true,
+   "difference_points": -0.8888888888888888
+  },
+  "v3_clinc": {
+   "margin": true,
+   "gain": true,
+   "difference_points": 1.1666666666666667
+  }
+ },
+ "pass": true
+}

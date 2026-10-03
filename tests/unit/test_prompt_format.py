@@ -119,8 +119,10 @@ def test_p1_defaults_are_todays_prompt(tok):
 
 
 def test_p1_server_starts_with_the_defaults(monkeypatch, tmp_path):
-    """main() on a stand-in engine: no prompt flag given, the engine gets the default format and the task
-    fingerprint carries no prompt_format entry (so tasks registered before these flags still apply)."""
+    """main() on a stand-in engine: no prompt flag given, the engine gets the served default's format (the Cygnet tail
+    since 2026-10-03), and the task fingerprint carries it, so tasks registered under the earlier format are not
+    applied; --prompt-tail decisio gives the earlier format and a fingerprint without a prompt_format entry, under which
+    those tasks still apply."""
     import uvicorn
 
     import decisio.serve.hf_letters as hf
@@ -142,10 +144,15 @@ def test_p1_server_starts_with_the_defaults(monkeypatch, tmp_path):
     base = ["decisio", "--backend", "hf", "--model", "/models/moe-fp8", "--model-class", "view"]
     monkeypatch.setattr(sys, "argv", base)
     sv.main()
+    assert made["engine"].fmt == PromptFormat(tail="cygnet") and '"prompt_format"' in made["so"].task_store.fingerprint
+    assert made["so"].noul_rendering == "letters-keys"
+    assert made["so"].temperature == 1.506 and made["so"].temperatures == {"choice": 1.370}
+    monkeypatch.setattr(sys, "argv", [*base, "--prompt-tail", "decisio"])
+    sv.main()
     assert made["engine"].fmt == DEFAULT_FORMAT and "prompt_format" not in made["so"].task_store.fingerprint
     monkeypatch.setattr(sys, "argv", [*base, "--system-prompt", "cygnet", "--answer-slot", "template"])
     sv.main()
-    assert made["engine"].fmt == PromptFormat(system="cygnet", slot="template")
+    assert made["engine"].fmt == PromptFormat(system="cygnet", tail="cygnet", slot="template")
     assert '"prompt_format"' in made["so"].task_store.fingerprint
 
 

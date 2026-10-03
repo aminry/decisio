@@ -75,7 +75,7 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
-from decisio.serve.temperature import SERVED_TEMPERATURE  # noqa: E402
+from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE, SERVED_TEMPERATURE  # noqa: E402
 
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
 
@@ -649,6 +649,7 @@ def make_app(engine, systemone=None):
                     "tasks": systemone.tasks_enabled,
                     "debug_readout": systemone.debug_readout,
                     "temperature": systemone.temperature,
+                    "temperatures": systemone.temperatures,
                     "readout_tasks": {
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),
@@ -898,12 +899,13 @@ def main():
     )
     ap.add_argument(
         "--noul-rendering",
-        default="words",
+        default="letters-keys",
         choices=["words", "letters", "letters-keys"],
-        help="/v1/systemone: how a yes/no question is asked. words (default): the instructions with 'Yes means' and "
-        "'No means' lines, read from the yes and no tokens; letters: a two-option choice, the false side first, each "
-        "shown as its criteria description ('No' and 'Yes' without one), read from the letters; letters-keys: as "
-        "letters with the sides named ('No: ...', 'Yes: ...'). Abstention and two-order requests keep words",
+        help="/v1/systemone: how a yes/no question is asked. letters-keys (default since 2026-10-03): a two-option "
+        "choice, the false side first, the sides named ('No: ...', 'Yes: ...'), read from the letters; letters: as "
+        "letters-keys with each side shown as its criteria description alone ('No' and 'Yes' without one); words (the "
+        "earlier default): the instructions with 'Yes means' and 'No means' lines, read from the yes and no tokens. "
+        "Abstention and two-order requests keep words",
     )
     ap.add_argument(
         "--abstention",
@@ -930,10 +932,11 @@ def main():
     )
     ap.add_argument(
         "--prompt-tail",
-        default="decisio",
+        default="cygnet",
         choices=["decisio", "cygnet"],
-        help="the question's layout and last line: decisio (default; 'Answer with the letter only.'), or the Cygnet "
-        "recipe's (blank lines around the options, 'Answer with the letter of exactly one option, and nothing else:')",
+        help="the question's layout and last line: cygnet (default since 2026-10-03; the Cygnet recipe's blank lines "
+        "around the options and 'Answer with the letter of exactly one option, and nothing else:'), or decisio (the "
+        "earlier default; 'Answer with the letter only.'). Tasks registered under one are not applied under the other",
     )
     ap.add_argument(
         "--answer-slot",
@@ -958,6 +961,15 @@ def main():
         "registered task's own correction replaces it; 1 switches it off (the output before it, bit "
         "for bit); never changes the most probable option",
     )
+    for qtype, default in (("choice", SERVED_CHOICE_TEMPERATURE), ("noul", None), ("score", None)):
+        ap.add_argument(
+            f"--temperature-{qtype}",
+            type=float,
+            default=default,
+            help=f"/v1/systemone: the temperature for {qtype} questions in place of --temperature (default: "
+            + (f"{default}, fitted on the suite's choice items" if default else "the global one")
+            + "); 1 switches it off for that type",
+        )
     ap.add_argument(
         "--tasks",
         action=argparse.BooleanOptionalAction,
@@ -1003,8 +1015,6 @@ def main():
     fmt = PromptFormat(
         system=args.system_prompt, tail=args.prompt_tail, slot=args.answer_slot, variants=args.label_variants
     )
-    if args.mode == "packed" and not fmt.is_default():
-        ap.error("--mode packed reads the default prompt format only")
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
@@ -1027,6 +1037,11 @@ def main():
         ap.error("--tokenizer is for --backend mlx (vLLM and the CPU stand-in use the model's own)")
     elif args.prefix_cache_mb is not None:
         ap.error("--prefix-cache-mb is for --backend mlx (vLLM has its own prefix cache)")
+    if args.mode == "packed" and not fmt.is_default():
+        ap.error(
+            "--mode packed reads the earlier prompt format only: add --prompt-tail decisio (and no --system-prompt, "
+            "--answer-slot or --label-variants)"
+        )
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
@@ -1205,6 +1220,11 @@ def main():
         hidden_engine=hidden_engine,
         debug_readout=args.debug_readout,
         temperature=args.temperature,
+        temperatures={
+            "choice": args.temperature_choice,
+            "noul": args.temperature_noul,
+            "score": args.temperature_score,
+        },
     )
     uvicorn.run(make_app(engine, so), host=args.host, port=args.port, log_level="warning")
 
