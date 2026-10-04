@@ -881,8 +881,8 @@ def main():
         default=None,
         choices=["qwen3.6-35b-a3b", "gemma-4-12b"],
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): qwen3.6-35b-a3b "
-        "(Qwen/Qwen3.6-35B-A3B-FP8, the default) or gemma-4-12b (google/gemma-4-12B-it at a pinned revision). Every "
-        "setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
+        "(Qwen/Qwen3.6-35B-A3B-FP8, the default) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision. "
+        "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",
     )
     ap.add_argument(

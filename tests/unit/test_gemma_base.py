@@ -12,18 +12,20 @@ B4  the bases resolve: the Qwen base keeps the served defaults; the Gemma base b
 B5  the hidden-state readout's reserved ids hold no label form, for each base on its own tokenizer
 B6  the head's numbers: vLLM's bf16 soft cap; under the Gemma base the head's label log-probabilities are the
     engine's own readout of the row, not a recomputation
+B8  every base pins a checkpoint revision (a full commit hash); --base serves it, and --revision overrides it
 
   uv run pytest -q tests/unit/test_gemma_base.py      (downloads both tokenizers once)
 """
 
 import os
+import re
 import threading
 import types
 
 import numpy as np
 import pytest
 
-from decisio.families import BASES, GEMMA4, QWEN, family_of
+from decisio.families import BASES, FAMILIES, GEMMA4, QWEN, family_of
 from decisio.readout.letters import (
     PromptFormat,
     allowed_ids,
@@ -212,6 +214,23 @@ def test_b6_head_reads_the_engines_readout():
     assert [np.exp(lp).round(12).tolist() for lp, _ in out] == [p.tolist() for p in engine_p]
     # each row: its label readout, then its hidden-state chunks, one row after the other
     assert calls == [("label", [1, 2, 3]), ("hidden", [1, 2, 3]), ("label", [1, 2, 4]), ("hidden", [1, 2, 4])]
+
+
+@pytest.mark.parametrize("fam", FAMILIES, ids=lambda f: f.key)
+def test_b8_every_family_pins_a_revision(fam):
+    """A run record names the bytes it was measured on: no base serves the repository's head."""
+    assert isinstance(fam.revision, str) and re.fullmatch(r"[0-9a-f]{40}", fam.revision), fam.key
+    # --base alone serves the checkpoint at the pin; an explicit --revision wins
+    a = _args(base=fam.key)
+    sv.resolve_base(a)
+    assert (a.model, a.revision) == (fam.model, fam.revision)
+    a = _args(base=fam.key, revision="refs/pr/1")
+    sv.resolve_base(a)
+    assert (a.model, a.revision) == (fam.model, "refs/pr/1")
+
+
+def test_b8_the_pins_are_the_recorded_revisions():
+    assert QWEN.revision.startswith("95a723d0") and GEMMA4.revision.startswith("707f0a3b")
 
 
 def test_b7_health_reports_the_profile():
