@@ -1,0 +1,64 @@
+{
+ "id": "2026-10-04_gemma-base",
+ "title": "The Gemma base (--base gemma-4-12b) and the Qwen base on the same code, card and items, paired; the Gemma base's gates; Gemma under the Qwen base's prompt; the 32 GB fit, simulated",
+ "date": "2026-10-04",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (97,887 MiB, driver 595.84), a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0",
+  "checkpoints": {
+   "gemma": "google/gemma-4-12B-it at revision 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7 (bf16)",
+   "qwen": "Qwen/Qwen3.6-35B-A3B-FP8 at revision 95a723d08a9490559dae23d0cff1d9466213d989"
+  },
+  "decisio": "5b605da (branch gemma-base as measured, before its rebase onto main); the cache-unit and C4 checks after the session ran with the /health cache-unit commit's two source files and the C4 fix (#60) copied over that tree",
+  "servers": {
+   "gemma": "--base gemma-4-12b --debug-readout --branch-log",
+   "gemma_q": "--base gemma-4-12b --no-system-prompt --prompt-tail spaced --answer-slot prefill --label-variants single --noul-rendering letters-keys --temperature 1 --temperature-choice 1 --debug-readout",
+   "qwen": "--base qwen3.6-35b-a3b --debug-readout",
+   "fit32": "--base gemma-4-12b with gpu_memory_utilization 0.294, max_model_len 32768, then 16384"
+  },
+  "harnesses": {
+   "jevbench": "published items, 231, bundle bb05a33; the v1.5 open-set reading by decisio.bench.jevbench_v15",
+   "decision_index": "0.2.1 rows for BANKING77, CLINC150+OOS, GPQA Diamond and MMLU-Pro (decisio.bench.di_rows)"
+  }
+ },
+ "results": {
+  "summary": "summary.md",
+  "paired_and_gates": "report.json",
+  "temperatures": {
+   "gemma": 3.592,
+   "gemma_refit_on_this_session": 3.608,
+   "gemma_q_fitted": 3.396,
+   "qwen": 1.506,
+   "qwen_choice": 1.37
+  },
+  "jevbench_correct": {
+   "gemma": 200,
+   "qwen": 200
+  },
+  "jevbench_i_open_a": {
+   "gemma": 64.42,
+   "qwen": 49.39,
+   "difference": "+15.03 [+6.96, +23.63]"
+  },
+  "suite_accuracy": {
+   "gemma": 0.735,
+   "qwen": 0.77,
+   "difference": "-3.50 [-5.50, -1.57]"
+  },
+  "fit32": "did not start at 32768 (0.16 GiB left for the KV cache, 10.5 GiB needed) or 16384 tokens (no memory for cache blocks)"
+ },
+ "deviations": [
+  "the session's head check (sameforward_gemma.json) passed at a 1e-6 threshold where the pre-registration said 0; its reading, 5.55e-17, is the rounding of the exponential it took; the log-space check after the session (samelog_gemma.json) reads 0 on 250 of 250 items",
+  "the pipeline's own cache verdict for the Gemma base used /health's 16-token unit and printed FAIL; the pre-registered gate (questions 2 to 4 read at least P minus 64 tokens from the cache) passes on all 9 rows; /health now reports the 64-token hit unit (cache_hit_unit)",
+  "the session's C4 on the Qwen base failed because the check applied the global temperature to choice questions served at their own; rerun after the session with the fixed check (#60): conformance_qwen_c4fix.json.gz passes",
+  "vLLM's compile caches were written to the host template's cache directory, not the run's own; this changes no result"
+ ],
+ "excluded": [
+  "item text (ids and readouts kept)",
+  "the Decision Index per-item results (request ids, payload sha256 and responses are in the private record)",
+  "JevBench raw requests and responses",
+  "server logs (the memory lines are in memory_*.txt)"
+ ]
+}

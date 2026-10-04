@@ -5,7 +5,7 @@
 
 **A decision server: typed questions about a piece of text, a probability for every option, one forward pass per question.**
 
-Decisio serves a frozen open model, Qwen3.6-35B-A3B, on vLLM and reads its answer to a closed question from the option letters' logits.
+Decisio serves a frozen open model on vLLM, Qwen3.6-35B-A3B by default or Gemma 4 12B (see "Choosing a base"), and reads its answer to a closed question from the option letters' logits.
 No text is generated.
 A request carries a state (a ticket, a document, a record) and one or more questions of three types: yes/no, a choice among named options, or a score on an ordered scale.
 The answer to each question is a distribution over its options, and the request format is TypeSafe's System One wire format, so existing clients work unchanged.
@@ -100,6 +100,63 @@ Response, abridged (rounded; the same in 30 of 30 repeats on one server, `runs/2
 
 Repeat the request and you get the same probabilities: each question is scored in its own engine call after the state is prefilled once, so its answer equals the question sent on its own. With `--multi-question warm` the three questions are scored in one batch, faster, and their probabilities vary with that batch: by about 0.12 on this example (the probability of `access` ranged from 0.79 to 0.91, `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`), and when two options are close the choice can change too.
 
+## Choosing a base
+
+Two base models are served behind the same routes, wire format and features, one per server, chosen with `--base`:
+
+```
+uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b   # the default: Qwen/Qwen3.6-35B-A3B-FP8
+uv run python -m decisio.serve.vllm_engine --base gemma-4-12b       # google/gemma-4-12B-it at a pinned revision
+```
+
+`--base` brings its checkpoint and every setting below; a flag given explicitly overrides the base's value.
+Without `--base`, the base is detected from `--model`'s `config.json`, so a local copy of either checkpoint brings its own settings.
+Each base's settings were measured as one configuration, and the numbers below hold for them as listed.
+
+| Setting | `qwen3.6-35b-a3b` (default) | `gemma-4-12b` |
+| --- | --- | --- |
+| Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8`, 33.3 GiB in memory | `google/gemma-4-12B-it` at revision `707f0a3b`, bf16, 22.8 GiB in memory |
+| Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type |
+| Prompt | the spaced layout, no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, the spaced layout, read at the chat template's own answer position, every single-token form of each letter summed |
+| Yes/no | a two-option letter choice with its sides named (`--noul-rendering letters-keys`) | a two-option letter choice, each side shown as its description (`--noul-rendering letters`) |
+| Padding | the state padded to the 1,056-token block | none |
+| Several questions in one request | each scored in its own engine call: the same probabilities as the question sent alone, bit for bit | each scored in its own engine call: the same choice as the question sent alone, probabilities within 0.035 |
+
+Measured on one RTX PRO 6000 Blackwell in one session (2026-10-04), each base with its own defaults, paired over the same items (Gemma minus Qwen, 95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):
+
+| Measure | Gemma 4 12B | Qwen3.6-35B-A3B | Gemma minus Qwen |
+| --- | ---: | ---: | --- |
+| JevBench, 231 published items, correct | 200 | 200 | 0.0 points [-4.3, +4.3] |
+| JevBench v1.5 open-set reading, I_open (equal types) | 64.4 | 49.4 | +15.0 [+7.0, +23.6] |
+| v1.5 by type: choice / yes/no / score | 80.6 / 49.0 / 63.7 | 77.3 / 13.7 / 57.2 | |
+| Yes/no answers between 0.20 and 0.80 (74 items) | 15% | 39% | |
+| 1,400-item suite, accuracy | 0.735 | 0.770 | -3.5 points [-5.5, -1.6] |
+| 1,400-item suite, ECE | 0.029 | 0.033 | |
+| Decision Index BANKING77, accuracy (3,080) | 0.741 | 0.755 | -1.4 [-2.7, -0.1] |
+| Decision Index CLINC150+OOS, accuracy (5,500) | 0.872 | 0.827 | +4.5 [+3.6, +5.5] |
+| Decision Index GPQA Diamond, accuracy (198) | 0.374 | 0.510 | -13.6 [-21.7, -5.6] |
+| Decision Index MMLU-Pro, accuracy (12,032) | 0.549 | 0.613 | -6.4 [-7.2, -5.5] |
+| Intent heads from 10 examples per intent, BANKING77 / CLINC150 (six draws) | 0.832 / 0.908 | 0.840 / 0.912 | |
+| One question, state from the cache (server time) | 26.7 ms | 20.9 ms | |
+| One question, new state of 300 / 1,000 / 3,000 tokens | 39 / 102 / 293 ms | 48 / 52 / 91 ms | |
+| Four questions, new state of 300 / 1,000 / 3,000 tokens | 131 / 196 / 392 ms | 110 / 114 / 157 ms | |
+
+In plain words:
+- Choose Gemma 4 12B for committed yes/no answers, scores and intent routing: its v1.5 reading is 49.0 against 13.7 on yes/no, with 15% of its yes/no answers between 0.20 and 0.80 against 39%, and 63.7 against 57.2 on scores; it routes CLINC150+OOS 4.5 points better (BANKING77 1.4 points lower).
+- Choose Qwen3.6-35B-A3B for knowledge questions and long states seen for the first time: GPQA Diamond is 13.6 points higher, MMLU-Pro 6.4 and the suite 3.5, and one question on a new 3,000-token state takes 91 ms against 293.
+- On JevBench's 231 published items they are level, 200 correct each.
+
+Repeatability differs.
+On a running server, Qwen returns the same probabilities bit for bit every time.
+Gemma's logits come out in bf16 after its soft cap, in steps of 0.0625 to 0.125 near the top, and a state read for the first time and the same state read from the prefix cache can land a step apart: within one session its answers moved by up to 0.035 (49 of 231 JevBench items, no choice changed), and between two sessions on two cards by up to 0.128, where two near-tied choices changed (`EVAL_CARD.md` section 6).
+
+Gemma 4 12B does not fit a 32 GB card on vLLM's defaults.
+Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the cache.
+Its path to 32 GB machines is an MLX build, in preparation.
+
+`GET /health` says which base a server runs, in its `profile` block: the base, the checkpoint and its revision, the temperature each question type is served at, and the prompt (layout, answer position, label forms, system turn, yes/no and option rendering, multi-question scoring, padding).
+`cache_hit_unit` is the step prefix-cache hits come in (64 tokens on Gemma, whose cache has groups of 16- and 64-token blocks; 1,056 on Qwen) and `hash_unit` the step prefixes are hashed at (16 and 1,056).
+
 ## Teach it your question in ten examples
 
 The model is frozen, but the server can learn one recurring question from your own labelled examples: it fits a per-task calibration and, for 10 or more options, a small head on the model's hidden state, each kept only if cross-validation on your examples shows a gain.
@@ -152,7 +209,8 @@ Ollama builds its own prompt and applies no calibration, so its numbers are the 
 
 ## How it performs
 
-All numbers are on the served default described in `EVAL_CARD.md`, measured privately with the public harnesses; nothing here is a leaderboard score.
+All numbers are on the served default, the Qwen base, described in `EVAL_CARD.md`, measured privately with the public harnesses; nothing here is a leaderboard score.
+The Gemma base's numbers are in "Choosing a base" and `EVAL_CARD.md` section 6.
 
 | Measure | Result |
 | --- | --- |
@@ -198,5 +256,5 @@ Security issues go through GitHub's private vulnerability reporting, as describe
 ## Licence
 
 Apache-2.0 (`LICENSE`, `NOTICE`).
-The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and are downloaded, not redistributed.
+The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the second base, Google's Gemma 4 12B under Apache-2.0 with Google's Gemma Prohibited Use Policy; both are downloaded, not redistributed.
 `THIRD-PARTY.md` lists everything else this project builds on.

@@ -1,0 +1,103 @@
+{
+ "health": {
+  "family": null,
+  "prompt_format": {
+   "tail": "spaced",
+   "slot": "prefill",
+   "variants": "single"
+  },
+  "pad_unit": 1056,
+  "block_size": 1056,
+  "engine": null,
+  "noul_rendering": "letters-keys"
+ },
+ "F1_types_and_states": {
+  "pass": true,
+  "answers": {
+   "team": {
+    "type": "choice",
+    "choice": "repairs",
+    "confidence": 0.6933493234032365,
+    "probabilities": {
+     "billing": 0.03576123151391097,
+     "logistics": 0.1686725528839315,
+     "repairs": 0.7955662156021577
+    }
+   },
+   "damaged": {
+    "type": "noul",
+    "noul": 0.9964741093324762
+   },
+   "urgency": {
+    "type": "score",
+    "score": 1.8062523183529215,
+    "confidence": 0.7093784775293825,
+    "legend": {
+     "0": "low",
+     "1": "medium",
+     "2": "high"
+    },
+    "probabilities": {
+     "0": 0.03920599502181358,
+     "1": 0.1153356916034512,
+     "2": 0.8454583133747352
+    }
+   },
+   "late": {
+    "type": "noul",
+    "noul": 0.974718071549927
+   }
+  }
+ },
+ "F2_forms_summed": {
+  "pass": true,
+  "team": "no form_logprobs (single variants?)",
+  "damaged": "no form_logprobs (single variants?)"
+ },
+ "F3_sequential_equals_alone": {
+  "pass": true,
+  "max_abs_delta_p": 0.0,
+  "bit_identical": true
+ },
+ "F4_two_order": {
+  "pass": true,
+  "answers": {
+   "team": "repairs",
+   "damaged": 0.9592736477476261,
+   "urgency": 1.8094791137513013,
+   "late": 0.9073322934810011
+  }
+ },
+ "F5_task_registration": {
+  "pass": true,
+  "register_s": 7.3,
+  "head": {
+   "applied": true,
+   "reason": "cross-validated gain"
+  },
+  "calibration": {
+   "applied": false,
+   "reason": "cross-validation on the labelled examples does not show a clear gain"
+  },
+  "x-decisio-tasks": "smoke_intents"
+ },
+ "F6_abstention": {
+  "pass": true,
+  "threshold": null,
+  "listed": true,
+  "answer": {
+   "type": "choice",
+   "choice": "oos",
+   "confidence": 0.9905306538562031,
+   "probabilities": {
+    "intent_00": 0.0020052548716550382,
+    "intent_01": 0.001670778054597905,
+    "intent_02": 0.0007350046418667054,
+    "intent_03": 0.0031644393469176715,
+    "oos": 0.9924245230849625
+   }
+  }
+ },
+ "pass": true,
+ "temperature": 1.506
+}
