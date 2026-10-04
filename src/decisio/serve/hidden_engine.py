@@ -86,6 +86,7 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         engine_kw=None,
         max_model_len=32768,
         max_num_seqs=256,
+        revision=None,
     ):
         from vllm import LLM
         from vllm.config import PoolerConfig
@@ -101,6 +102,7 @@ class HiddenEngine(HiddenReadout, LettersEngine):
             runner="pooling",
             convert="embed",
             pooler_config=PoolerConfig(task="embed", seq_pooling_type="LAST", use_activation=False),
+            **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
         )
         kw.update({k: v for k, v in (engine_kw or {}).items() if k != "limit_mm_per_prompt"})
         self.llm = LLM(**kw)
@@ -109,7 +111,7 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         self.block_size = cfg.block_size
         self.match_unit = self.block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
-        self._W = self._load_lm_head(model)
+        self._W = self._load_lm_head(model, revision=revision)
         import threading
 
         self._lock = threading.Lock()
@@ -195,7 +197,7 @@ class HFHiddenEngine(HiddenReadout):
     """The CPU stand-in: h from the HF model's final-norm hidden state at the last position, the label rows from its
     `lm_head` (float32 model). Not for measurement."""
 
-    def __init__(self, model, pad_to="block", pad_where="front", block_size=64):
+    def __init__(self, model, pad_to="block", pad_where="front", block_size=64, revision=None):
         import threading
 
         import torch
@@ -203,8 +205,8 @@ class HFHiddenEngine(HiddenReadout):
 
         self.mode, self.pad_token, self.pad_where = "hidden", 198, pad_where
         self.adapters = {}
-        self.tok = AutoTokenizer.from_pretrained(model)
-        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float32).eval()
+        self.tok = AutoTokenizer.from_pretrained(model, revision=revision)
+        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float32, revision=revision).eval()
         self.block_size = self.match_unit = block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._lock = threading.Lock()

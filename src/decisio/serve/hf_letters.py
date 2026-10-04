@@ -24,7 +24,9 @@ from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 
 class HFLettersEngine(LettersEngine):
-    def __init__(self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64, warm_up=True):
+    def __init__(
+        self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64, warm_up=True, revision=None
+    ):
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -32,9 +34,9 @@ class HFLettersEngine(LettersEngine):
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
         self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
         self.adapters = {}
-        self.tok = AutoTokenizer.from_pretrained(model)
-        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float32).eval()
-        self.model_name = model
+        self.tok = AutoTokenizer.from_pretrained(model, revision=revision)
+        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float32, revision=revision).eval()
+        self.model_name, self.revision = model, revision
         self.block_size = self.match_unit = block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._lock = threading.Lock()
