@@ -238,7 +238,7 @@ def tokenizer_engine(tokenizer, block_size, pad_where="front"):
     eng.mode, eng.pad_token, eng.pad_where = "separate", PAD_TOKEN, pad_where
     eng.adapters = {}
     eng.block_size = eng.match_unit = block_size or 16
-    eng.pad_unit = block_size or None  # --block-size 0: a family served without padding (Gemma 4)
+    eng.pad_unit = block_size or None  # --block-size 0: a base served without padding (Gemma 4)
     eng._lock = threading.Lock()
     return eng
 

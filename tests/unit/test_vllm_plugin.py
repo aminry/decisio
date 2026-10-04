@@ -7,6 +7,8 @@ P2  re-entrancy: vLLM calls the entry point in every process and may call it aga
 P3  version guard: on any other vLLM version (and without vLLM) nothing is registered, and it says so once
 P4  the entry point is declared in pyproject.toml under `vllm.general_plugins` and resolves to `register`
 P5  no name a decisio class defines shadows an attribute of torch.nn.Module instances or of the vLLM base class
+W1  the worker extension reports vLLM's own (hit unit, hash step) for the engine's KV cache groups, None where vLLM
+    cannot say; its qualified name resolves the way vLLM resolves `worker_extension_cls`
 
   uv run pytest -q tests/unit/test_vllm_plugin.py
 """
@@ -47,11 +49,17 @@ def test_p1_config_hook_registered_for_every_class():
         before = dict(registry.config_map)
         assert p.register()
         for arch in p.MODELS:
-            assert registry.config_map[arch] == before[p.BASE_ARCH]
+            assert registry.config_map[arch] == before[p.BASE_ARCHS[arch]]
+        assert registry.config_map[p.GEMMA4_HIDDEN_READOUT] == "Gemma4Config"
         assert {k: v for k, v in registry.config_map.items() if k not in p.MODELS} == before  # nothing else touched
     with stub_vllm("0.30.0", config_map={"Qwen3ForCausalLM": "other"}) as registry:  # no hook to reuse
         p = plugin()
         assert p.register() is False and registry.calls == []
+    # a vLLM without Gemma 4's hook: the Qwen classes register, the Gemma class does not
+    with stub_vllm("0.30.0", config_map={"Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig"}) as registry:
+        p = plugin()
+        assert p.register() is True
+        assert sorted(a for a, _ in registry.calls) == sorted([p.TEXT_ONLY, p.HIDDEN_READOUT])
 
 
 def test_p2_reentrant():
@@ -174,3 +182,61 @@ def test_m1_engine_kwargs_and_entry_point_check():
         with pytest.raises(KeyError):
             p.engine_kwargs("Qwen3_5MoeForCausalLM")
         assert isinstance(p.installed_entry_point(), bool)
+
+
+# ---- the Gemma 4 hidden-readout class -----------------------------------------------------------------------------
+
+
+def test_g1_gemma_hidden_readout_writes_after_the_soft_cap(monkeypatch):
+    """DecisioGemma4UnifiedHiddenReadout is vLLM's Gemma 4 unified class with [0, h] in the reserved columns, written
+    after the class's own logits (soft cap included); every other column is the stock class's, bit for bit."""
+    import torch
+
+    from decisio.vllm_plugin.hidden import ENV_START, recover_hidden
+
+    monkeypatch.setenv(ENV_START, "40")
+    with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
+        p = plugin()
+        assert p.register()
+        cls = registry.resolve(p.GEMMA4_HIDDEN_READOUT)
+        base = sys.modules["vllm.model_executor.models.gemma4_unified"].Gemma4UnifiedForConditionalGeneration
+        assert issubclass(cls, base) and cls.__name__ == p.GEMMA4_HIDDEN_READOUT
+        m = cls(vllm_config=None)
+        h = torch.randn(3, 8)
+        with torch.no_grad():
+            got, stock = m.compute_logits(h), base.compute_logits(m, h)
+        keep = [i for i in range(64) if not 40 <= i <= 48]
+        assert torch.equal(got[:, keep], stock[:, keep])
+        lp = torch.log_softmax(got[:, 40:49].double(), -1).numpy()
+        assert abs(recover_hidden(lp) - h.double().numpy()).max() < 1e-6
+        dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
+        assert set(vars(cls)) - dunder == {"compute_logits"}
+
+
+def test_w1_worker_extension_reports_vllms_block_sizes(monkeypatch):
+    import types
+
+    from decisio.vllm_plugin import worker
+
+    module, _, name = worker.QUALNAME.rpartition(".")  # vLLM's resolve_obj_by_qualname
+    assert getattr(importlib.import_module(module), name) is worker.DecisioWorkerExtension
+    seen = []
+
+    def resolve(cfg, vllm_config):
+        seen.append((cfg, vllm_config))
+        return 64, 16
+
+    utils = types.ModuleType("vllm.v1.core.kv_cache_utils")
+    utils.resolve_kv_cache_block_sizes = resolve
+    for m in ("vllm", "vllm.v1", "vllm.v1.core"):
+        monkeypatch.setitem(sys.modules, m, types.ModuleType(m))
+    monkeypatch.setitem(sys.modules, "vllm.v1.core.kv_cache_utils", utils)
+    w = worker.DecisioWorkerExtension()
+    w.vllm_config = "config"
+    w.model_runner = types.SimpleNamespace(kv_cache_config="groups")
+    assert w.decisio_kv_block_sizes() == [64, 16] and seen == [("groups", "config")]
+    w.model_runner = types.SimpleNamespace()  # before the KV cache exists
+    assert w.decisio_kv_block_sizes() is None
+    monkeypatch.setitem(sys.modules, "vllm.v1.core.kv_cache_utils", None)  # a vLLM without the function
+    w.model_runner = types.SimpleNamespace(kv_cache_config="groups")
+    assert w.decisio_kv_block_sizes() is None

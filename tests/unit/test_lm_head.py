@@ -83,3 +83,20 @@ def test_clear_errors(tmp_path):
     (missing / "model-00002-of-00002.safetensors").unlink()
     with pytest.raises(FileNotFoundError, match="the shard the index names"):
         HiddenEngine._load_lm_head(str(missing))
+
+
+def test_tied_embeddings_by_name(tmp_path):
+    """A family with tied embeddings (Gemma 4) names its input embedding after lm_head.weight: the first name the
+    checkpoint has is loaded, from one file or through the index."""
+    from decisio.families import GEMMA4
+
+    tied = tmp_path / "tied"
+    tied.mkdir()
+    save_file({"model.language_model.embed_tokens.weight": W}, str(tied / "model.safetensors"))
+    assert torch.equal(HiddenEngine._load_lm_head(str(tied), GEMMA4.head_rows), W)
+    (tied / "model.safetensors.index.json").write_text(
+        json.dumps({"weight_map": {"model.language_model.embed_tokens.weight": "model.safetensors"}})
+    )
+    assert torch.equal(HiddenEngine._load_lm_head(str(tied), GEMMA4.head_rows), W)
+    with pytest.raises(ValueError, match="no lm_head.weight"):
+        HiddenEngine._load_lm_head(str(tied))  # the default name alone still refuses tied embeddings

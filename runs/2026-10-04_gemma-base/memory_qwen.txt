@@ -1,0 +1,15 @@
+INFO 10-04 02:36:33 [api_utils.py:286] non-default args: {'max_model_len': 32768, 'enable_prefix_caching': True, 'gpu_memory_utilization': 0.9, 'max_num_seqs': 256, 'max_logprobs': 1024, 'logprobs_mode': 'processed_logprobs', 'disable_log_s
+(EngineCore pid=84998) INFO 10-04 02:36:41 [core.py:123] Initializing a V1 LLM engine (v0.30.0) with config: model='Qwen/Qwen3.6-35B-A3B-FP8', speculative_config=None, tokenizer='Qwen/Qwen3.6-35B-A3B-FP8', skip_tokenizer_init=False, tokeniz
+(EngineCore pid=84998) INFO 10-04 02:36:42 [parallel_state.py:1827] world_size=1 rank=0 local_rank=0 distributed_init_method=file:///tmp/vllm_dist_14f892be9b8a465e9926f8ad22dc58be backend=nccl
+(EngineCore pid=84998) INFO 10-04 02:36:43 [fp8.py:438] Using TRITON Fp8 MoE backend out of potential backends: ['AITER', 'FLASHINFER_TRTLLM', 'FLASHINFER_CUTLASS', 'TRITON', 'MARLIN', 'HUMMING', 'BATCHED_TRITON', 'XPU', 'CPU', 'HPC'].
+(EngineCore pid=84998) INFO 10-04 02:36:43 [cuda.py:538] Using FLASH_ATTN attention backend out of potential backends: ['FLASH_ATTN', 'FLASHINFER', 'TRITON_ATTN', 'FLEX_ATTENTION'].
+(EngineCore pid=84998) INFO 10-04 02:36:51 [model_runner.py:428] Model loading took 33.31 GiB memory and 8.637110 seconds
+(EngineCore pid=84998) INFO 10-04 02:36:55 [backends.py:1094] Using cache directory: /workspace/.vllm_cache/torch_compile_cache/f527387109/rank_0_0/backbone for vLLM's torch.compile
+(EngineCore pid=84998) INFO 10-04 02:36:55 [backends.py:1155] Dynamo bytecode transform time: 4.09 s
+(EngineCore pid=84998) INFO 10-04 02:37:05 [backends.py:393] Compiling a graph for compile range (1, 16384) takes 8.62 s
+(EngineCore pid=84998) INFO 10-04 02:37:07 [backends.py:920] collected artifacts: 41 entries, 14 artifacts, 16942799 bytes total
+(EngineCore pid=84998) INFO 10-04 02:38:28 [gpu_worker.py:640] Available KV cache memory: 47.01 GiB
+(EngineCore pid=84998) INFO 10-04 02:38:28 [gpu_worker.py:655] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.9000 is equivalent to --gpu-memory-utilization=0.8729 without CUDA graph m
+(EngineCore pid=84998) INFO 10-04 02:38:28 [kv_cache_utils.py:2395] GPU KV cache size: 2,012,645 tokens, Maximum concurrency for 32,768 tokens per request: 61.42x
+(EngineCore pid=84998) INFO 10-04 02:39:44 [kv_cache_utils.py:749] kv lcm block sizes 1056
+ENGINE {"vllm": "0.30.0", "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition", "mode": "separate", "block_size": 1056, "match_unit": 1056, "pad_unit": 1056, "pad_where": "front", "quantization": "fp8", "kv_cache_dtype": "auto", "mamb

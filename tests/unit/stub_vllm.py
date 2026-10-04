@@ -71,6 +71,28 @@ def _qwen3_5_module(vocab=64, hidden=8, zero_head=False):
     return mod
 
 
+def _gemma4_unified_module(vocab=64, hidden=8, softcap=30.0):
+    import torch
+    from torch import nn
+
+    class Gemma4UnifiedForConditionalGeneration(nn.Module):
+        """The slice of vLLM's Gemma 4 unified class the plugin subclasses: compute_logits with the final soft cap."""
+
+        def __init__(self, *, vllm_config=None, prefix: str = ""):
+            super().__init__()
+            self.config = types.SimpleNamespace(vocab_size=vocab, hidden_size=hidden)
+            torch.manual_seed(0)
+            self.lm_head = nn.Linear(hidden, vocab, bias=False)
+
+        def compute_logits(self, hidden_states):
+            z = self.lm_head(hidden_states)
+            return torch.tanh(z / softcap) * softcap
+
+    mod = types.ModuleType("vllm.model_executor.models.gemma4_unified")
+    mod.Gemma4UnifiedForConditionalGeneration = Gemma4UnifiedForConditionalGeneration
+    return mod
+
+
 @contextlib.contextmanager
 def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=False, config_map=None):
     names = [
@@ -80,6 +102,7 @@ def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=
         "vllm.model_executor.models",
         "vllm.model_executor.models.config",
         "vllm.model_executor.models.qwen3_5",
+        "vllm.model_executor.models.gemma4_unified",
     ]
     saved = {n: sys.modules.get(n) for n in names}
     ours = [n for n in list(sys.modules) if n.startswith("decisio.vllm_plugin")]
@@ -98,13 +121,18 @@ def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=
     config.MODELS_CONFIG_MAP = dict(
         config_map
         if config_map is not None
-        else {"Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig", "Qwen3ForCausalLM": "other"}
+        else {
+            "Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig",
+            "Qwen3ForCausalLM": "other",
+            "Gemma4UnifiedForConditionalGeneration": "Gemma4Config",
+        }
     )
     registry.config_map = config.MODELS_CONFIG_MAP
     sys.modules["vllm.model_executor.models.config"] = config
     sys.modules.update({"vllm": vllm, "vllm.model_executor": me, "vllm.model_executor.models": models})
     if with_models:
         sys.modules["vllm.model_executor.models.qwen3_5"] = _qwen3_5_module(vocab, hidden, zero_head)
+        sys.modules["vllm.model_executor.models.gemma4_unified"] = _gemma4_unified_module(vocab, hidden)
     try:
         yield registry
     finally:

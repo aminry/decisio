@@ -1,0 +1,117 @@
+{
+ "health": {
+  "family": null,
+  "prompt_format": {
+   "tail": "spaced",
+   "slot": "template",
+   "variants": "summed",
+   "system_prompt": true
+  },
+  "pad_unit": null,
+  "block_size": 16,
+  "engine": null,
+  "noul_rendering": "letters"
+ },
+ "F1_types_and_states": {
+  "pass": true,
+  "answers": {
+   "team": {
+    "type": "choice",
+    "choice": "repairs",
+    "confidence": 0.858924176834811,
+    "probabilities": {
+     "billing": 0.027429749773642598,
+     "logistics": 0.06662079900314981,
+     "repairs": 0.9059494512232075
+    }
+   },
+   "damaged": {
+    "type": "noul",
+    "noul": 0.9945746524887512
+   },
+   "urgency": {
+    "type": "score",
+    "score": 1.9091307038548286,
+    "confidence": 0.8636960557822431,
+    "legend": {
+     "0": "low",
+     "1": "medium",
+     "2": "high"
+    },
+    "probabilities": {
+     "0": 0.01633897032927495,
+     "1": 0.058191355486621375,
+     "2": 0.9254696741841036
+    }
+   },
+   "late": {
+    "type": "noul",
+    "noul": 0.9892701939733688
+   }
+  }
+ },
+ "F2_forms_summed": {
+  "pass": true,
+  "team": {
+   "forms_per_label": [
+    3,
+    3,
+    3
+   ],
+   "max_abs": 1.1102230246251565e-16
+  },
+  "damaged": {
+   "forms_per_label": [
+    3,
+    3
+   ],
+   "max_abs": 1.1102230246251565e-16
+  }
+ },
+ "F3_sequential_equals_alone": {
+  "pass": true,
+  "max_abs_delta_p": 0.0,
+  "bit_identical": true
+ },
+ "F4_two_order": {
+  "pass": true,
+  "answers": {
+   "team": "repairs",
+   "damaged": 0.8844780595007562,
+   "urgency": 1.9237436362349196,
+   "late": 0.8180880045244376
+  }
+ },
+ "F5_task_registration": {
+  "pass": true,
+  "register_s": 8.0,
+  "head": {
+   "applied": false,
+   "reason": "cross-validation on the labelled examples prefers the plain readout"
+  },
+  "calibration": {
+   "applied": false,
+   "reason": "cross-validation on the labelled examples does not show a clear gain"
+  },
+  "x-decisio-tasks": "smoke_intents"
+ },
+ "F6_abstention": {
+  "pass": true,
+  "threshold": null,
+  "listed": true,
+  "answer": {
+   "type": "choice",
+   "choice": "oos",
+   "confidence": 0.9498268855225483,
+   "probabilities": {
+    "intent_00": 0.011506312382570074,
+    "intent_01": 0.01181058043552846,
+    "intent_02": 0.009176985271859246,
+    "intent_03": 0.0076446134920036286,
+    "oos": 0.9598615084180386
+   }
+  }
+ },
+ "pass": true,
+ "temperature": 3.592
+}

@@ -75,7 +75,8 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
-from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE, SERVED_TEMPERATURE  # noqa: E402
+from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
+from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
 
@@ -229,9 +230,15 @@ class LettersEngine:
         gpu_memory_utilization=0.90,
         engine_kw=None,
         fmt=None,
+        family=None,
+        revision=None,
     ):
         from vllm import LLM
 
+        from decisio.families import family_of
+
+        self.family = family or family_of(model, revision)
+        self.model_name, self.revision = model, revision
         self.fmt = fmt or DEFAULT_FORMAT
         if mode == "packed" and not self.fmt.is_default():
             raise ValueError("packed mode reads the compact layout only (PromptFormat())")
@@ -245,7 +252,9 @@ class LettersEngine:
             max_model_len=max_model_len,
             max_num_seqs=max_num_seqs,
             gpu_memory_utilization=gpu_memory_utilization,
-            limit_mm_per_prompt={"image": 0, "video": 0},
+            limit_mm_per_prompt=dict(self.family.limit_mm),
+            worker_extension_cls=WORKER_EXTENSION,
+            **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
         )
         if mode == "separate":
             # several forms per label (--label-variants summed) read up to 4 x 255 ids per question
@@ -283,6 +292,10 @@ class LettersEngine:
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
         self.match_unit = getattr(cfg, "prefix_match_unit", None) or self.block_size
+        # what /health reports of the prefix cache (padding keeps match_unit): vLLM's hit unit, the least common
+        # multiple of its KV cache groups' block sizes (64 on Gemma 4, whose groups are 16 and 64), and its hash step
+        sizes = self.llm.collective_rpc("decisio_kv_block_sizes")[0]
+        self.cache_hit_unit, self.hash_unit = sizes or (None, None)
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         if adapters:
             from vllm.lora.request import LoRARequest
@@ -323,6 +336,8 @@ class LettersEngine:
             "mode": self.mode,
             "block_size": self.block_size,
             "match_unit": self.match_unit,
+            "cache_hit_unit": self.cache_hit_unit,
+            "hash_unit": self.hash_unit,
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
             "quantization": str(c.model_config.quantization),
@@ -331,6 +346,8 @@ class LettersEngine:
             "adapters": sorted(self.adapters),
             "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
             "prompt_format": self.fmt.facts(),
+            "base": self.family.key,
+            "attention_backend": str(getattr(getattr(c, "attention_config", None), "backend", None)),
         }
 
     # ---- the request API ------------------------------------------------------------------------
@@ -669,6 +686,10 @@ def make_app(engine, systemone=None):
             "ok": True,
             **engine.facts(),
             "prompt_format": getattr(engine, "fmt", DEFAULT_FORMAT).facts(),
+            **({"base": engine.family.key} if getattr(engine, "family", None) is not None else {}),
+            # what this server serves, in one block a run record can quote: the base profile, the temperature each
+            # question type gets, and the prompt (decisio.families)
+            **({"profile": served_profile(engine, systemone)} if systemone is not None else {}),
             **({"image_engine": image.facts()} if image is not None else {}),
             **so,
         }
@@ -773,24 +794,116 @@ def engine_kwargs(args) -> dict:
         )
     if not plugin.register():
         raise SystemExit(f"--model-class needs vllm=={plugin.SUPPORTED_VLLM}; found {plugin.vllm_version()}")
-    arch = {"text-only": plugin.TEXT_ONLY, "hidden-readout": plugin.HIDDEN_READOUT}[args.model_class]
-    if args.model_class == "hidden-readout":
-        from decisio.vllm_plugin.hidden import DEFAULT_START, ENV_START
+    from decisio.families import QWEN
 
-        os.environ.setdefault(ENV_START, str(DEFAULT_START))  # inherited by vLLM's engine processes
+    family = getattr(args, "family", QWEN)
+    if args.model_class == "hidden-readout":
+        from decisio.vllm_plugin.hidden import ENV_START
+
+        # the base's reserved range, inherited by vLLM's engine processes (an explicit environment value wins)
+        os.environ.setdefault(ENV_START, str(family.hidden_start))
         kw = {**kw, "max_logprobs": 1024}  # a head question reads up to 1,024 columns per request
+    arch = family.classes[args.model_class]
+    if arch is None:  # the base's own class, unmodified (Gemma's text path)
+        return kw
     return {**kw, **plugin.engine_kwargs(arch)}
+
+
+def served_profile(engine, systemone) -> dict:
+    """The base profile in effect and the settings it resolved to: the base, the temperature each question type is
+    served at (the global one where a type has none of its own), and the prompt, yes/no rendering, option rendering and
+    multi-question scoring."""
+    fam = getattr(engine, "family", None)
+    fmt = getattr(engine, "fmt", DEFAULT_FORMAT)
+    return {
+        "base": fam.key if fam is not None else None,
+        "checkpoint": getattr(engine, "model_name", None),
+        "revision": getattr(engine, "revision", None),
+        "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
+        "prompt": {
+            **fmt.facts(),
+            "system_prompt": bool(getattr(fmt, "system_prompt", False)),
+            "noul_rendering": systemone.noul_rendering,
+            "describe_options": systemone.describe_options,
+            "multi_question": getattr(engine, "multi_question", None),
+            "pad_policy": getattr(engine, "pad_policy", None),
+            "pad_unit": getattr(engine, "pad_unit", None),
+        },
+    }
+
+
+def resolve_base(args):
+    """(family, PromptFormat) from the command line (decisio.families): --base, else the base --model's config.json
+    names; the base's checkpoint and revision when --model is not given; and the base's value for every setting left
+    unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
+    from decisio.families import BASES, FAMILIES, family_of, read_config
+
+    if args.base is not None:
+        fam = BASES[args.base]
+        if args.model is None:
+            args.model, args.revision = fam.model, args.revision or fam.revision
+        else:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
+            mt = read_config(args.model, args.revision).get("model_type")
+            other = next((f for f in FAMILIES if mt in f.model_types and f is not fam), None)
+            if other is not None:
+                raise ValueError(f"--base {args.base}, but --model {args.model} is a {other.key} checkpoint ({mt})")
+    else:
+        if args.model is None:
+            raise ValueError("give --model or --base")
+        fam = family_of(args.model, args.revision)
+    if args.backend == "mlx" and fam.key != "qwen3.6-35b-a3b":
+        raise ValueError(f"--backend mlx serves the Qwen base only, not {fam.key}")
+    fmt = PromptFormat(
+        tail=args.prompt_tail or fam.prompt_tail,
+        slot=args.answer_slot or fam.answer_slot,
+        variants=args.label_variants or fam.label_variants,
+        system_prompt=fam.system_prompt if args.system_prompt is None else args.system_prompt,
+    )
+    if args.pad_to is None:
+        args.pad_to = fam.pad_to
+    if args.served_name is None:
+        args.served_name = fam.served_name
+    if args.noul_rendering is None:
+        args.noul_rendering = fam.noul_rendering
+    if args.temperature is None:
+        args.temperature = fam.temperature
+    if args.temperature_choice is None:
+        args.temperature_choice = fam.choice_temperature
+    return fam, fmt
 
 
 def main():
     import argparse
 
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", required=True)
+    ap.add_argument(
+        "--base",
+        default=None,
+        choices=["qwen3.6-35b-a3b", "gemma-4-12b"],
+        help="the base model and its served settings (decisio.families; README, 'Choosing a base'): qwen3.6-35b-a3b "
+        "(Qwen/Qwen3.6-35B-A3B-FP8, the default) or gemma-4-12b (google/gemma-4-12B-it at a pinned revision). Every "
+        "setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
+        "detected from --model's config.json",
+    )
+    ap.add_argument(
+        "--model",
+        default=None,
+        help="the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint)",
+    )
+    ap.add_argument(
+        "--revision",
+        default=None,
+        help="the checkpoint's revision on the Hugging Face hub (default: the base's pinned revision when --model is "
+        "the base's own checkpoint)",
+    )
     ap.add_argument("--mode", default="separate", choices=["separate", "packed"])
     # served default: the official checkpoint under decisio's hidden-readout class, front padding to the block,
     # detokenize=False (always, in score_prompts), DeepGEMM off (VLLM_USE_DEEP_GEMM=0, deep_gemm_guard)
-    ap.add_argument("--pad-to", default="block", help="'block', a token count, or 'none' (separate mode)")
+    ap.add_argument(
+        "--pad-to",
+        default=None,
+        help="'block', a token count, or 'none' (separate mode); default: the base's (Qwen: block; Gemma: none)",
+    )
     ap.add_argument("--pad-where", default="front", choices=PAD_PLACES)
     ap.add_argument("--adapter", action="append", default=[], help="name=path of a vLLM-format LoRA adapter")
     ap.add_argument("--pack", type=int, default=16)
@@ -858,7 +971,9 @@ def main():
         "Qwen/Qwen3.6-35B-A3B-FP8, so the prompts are the vLLM path's byte for byte; a conversion's own tokenizer "
         "may differ)",
     )
-    ap.add_argument("--served-name", default=SERVED_NAME, help="the name GET /v1/models lists")
+    ap.add_argument(
+        "--served-name", default=None, help=f"the name GET /v1/models lists (default: the base's; Qwen: {SERVED_NAME})"
+    )
     ap.add_argument(
         "--orders",
         type=int,
@@ -900,9 +1015,10 @@ def main():
     )
     ap.add_argument(
         "--noul-rendering",
-        default="letters-keys",
+        default=None,
         choices=["words", "letters", "letters-keys"],
-        help="/v1/systemone: how a yes/no question is asked. letters-keys (default since 2026-10-03): a two-option "
+        help="/v1/systemone: how a yes/no question is asked (default: the base's; Qwen letters-keys, Gemma letters). "
+        "letters-keys: a two-option "
         "choice, the false side first, the sides named ('No: ...', 'Yes: ...'), read from the letters; letters: as "
         "letters-keys with each side shown as its criteria description alone ('No' and 'Yes' without one); words (the "
         "earlier default): the instructions with 'Yes means' and 'No means' lines, read from the yes and no tokens. "
@@ -926,44 +1042,58 @@ def main():
         "untrained, opt-in",
     )
     ap.add_argument(
+        "--system-prompt",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="a system turn before each question (decisio.readout.system_prompt); default: the base's (Gemma: on, "
+        "Qwen: off)",
+    )
+    ap.add_argument(
         "--prompt-tail",
-        default="spaced",
+        default=None,
         choices=["compact", "spaced"],
-        help="the question's layout and last line: spaced (default since 2026-10-03; a blank line before and after the "
+        help="the question's layout and last line (default: the base's, spaced for both): spaced (a blank line before "
+        "and after the "
         "lettered options, then one line asking for the chosen option's letter alone, decisio.readout.spaced), or "
         "compact (the earlier default, for tasks fitted under it; no blank lines, 'Answer with the letter only.'). "
         "Tasks registered under one are not applied under the other",
     )
     ap.add_argument(
         "--answer-slot",
-        default="prefill",
+        default=None,
         choices=["prefill", "template"],
-        help="where the label is read: after 'Answer:' prefilled in the assistant turn (prefill, default), or at the "
-        "chat template's own first assistant position (template)",
+        help="where the label is read: after 'Answer:' prefilled in the assistant turn (prefill; the Qwen base's), or "
+        "at the chat template's own first assistant position (template; the Gemma base's)",
     )
     ap.add_argument(
         "--label-variants",
-        default="single",
+        default=None,
         choices=["single", "summed"],
-        help="the tokens read per label: single (default; one, the form the slot reads), or summed (every single-token "
-        "form: ' A' and 'A'; ' yes', 'yes', ' Yes' and 'Yes'; their probabilities summed)",
+        help="the tokens read per label: single (the Qwen base's; one, the form the slot reads), or summed (the Gemma "
+        "base's; every single-token form: ' A', 'A' and a byte-fallback token where there is one; ' yes', 'yes', "
+        "' Yes' and 'Yes'; their probabilities summed)",
     )
     ap.add_argument(
         "--temperature",
         type=float,
-        default=SERVED_TEMPERATURE,
+        default=None,
         help="/v1/systemone: the global temperature on the text route's plain readout, softmax(log p / T) "
         "(decisio.serve.temperature; default: the value fitted on the suite's served readouts); a "
         "registered task's own correction replaces it; 1 switches it off (the output before it, bit "
         "for bit); never changes the most probable option",
     )
-    for qtype, default in (("choice", SERVED_CHOICE_TEMPERATURE), ("noul", None), ("score", None)):
+    for qtype in ("choice", "noul", "score"):
         ap.add_argument(
             f"--temperature-{qtype}",
             type=float,
-            default=default,
+            default=None,
             help=f"/v1/systemone: the temperature for {qtype} questions in place of --temperature (default: "
-            + (f"{default}, fitted on the suite's choice items" if default else "the global one")
+            + (
+                f"the base's; Qwen {SERVED_CHOICE_TEMPERATURE}, fitted on the suite's choice items; Gemma the "
+                "global one"
+                if qtype == "choice"
+                else "the global one"
+            )
             + "); 1 switches it off for that type",
         )
     ap.add_argument(
@@ -1015,7 +1145,10 @@ def main():
     ap.add_argument("--port", type=int, default=8000)
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
-    fmt = PromptFormat(tail=args.prompt_tail, slot=args.answer_slot, variants=args.label_variants)
+    try:
+        args.family, fmt = resolve_base(args)
+    except ValueError as e:
+        ap.error(str(e))
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
@@ -1077,7 +1210,7 @@ def main():
         engine = HFLettersEngine(
             args.model, pad_to=None if args.pad_to == "none" else args.pad_to, pad_where=args.pad_where
         )
-        engine.fmt = fmt
+        engine.fmt, engine.family = fmt, args.family
     elif args.backend == "mlx":
         from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, PREFIX_CACHE_MB, MLXLettersEngine
 
@@ -1099,6 +1232,8 @@ def main():
             gpu_memory_utilization=args.gpu_memory_utilization,
             engine_kw=engine_kwargs(args),
             fmt=fmt,
+            family=args.family,
+            revision=args.revision,
         )
     engine.fmt = fmt
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
@@ -1135,11 +1270,12 @@ def main():
             from decisio.serve.hidden_engine import HFReservedHiddenEngine
 
             hidden_engine = HFReservedHiddenEngine(args.model, pad_to=engine.pad_unit, pad_where=args.pad_where)
+            hidden_engine.family = args.family
             hidden_engine.fmt = fmt
         else:
             from decisio.serve.hidden_engine import SingleEngineHidden
 
-            hidden_engine = SingleEngineHidden(engine, args.model)
+            hidden_engine = SingleEngineHidden(engine, args.model, revision=args.revision)
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
     if head_mode == "second-engine":
         if args.backend == "vllm" and args.gpu_memory_utilization + args.head_gpu_memory_utilization > 0.95:
@@ -1192,6 +1328,8 @@ def main():
                 **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
                 # likewise: only a non-default prompt format enters, so tasks fitted under the default keep matching
                 **({"prompt_format": fmt.facts()} if not fmt.is_default() else {}),
+                # and only a base other than Qwen (whose fingerprints predate bases)
+                **({"base": args.family.key} if args.family.key != "qwen3.6-35b-a3b" else {}),
                 # --describe-options is not here: it enters the task key of the questions it changes (tasks.task_key)
             },
             sort_keys=True,

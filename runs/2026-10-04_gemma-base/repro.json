@@ -1,0 +1,32 @@
+{
+ "gemma": {
+  "within_session": {
+   "items": 231,
+   "max_abs_delta_p": 0.034523866583433205,
+   "items_moved_over_1e-6": 49,
+   "choice_changed": []
+  },
+  "across_sessions": {
+   "items": 231,
+   "max_abs_delta_p": 0.12850318179717685,
+   "items_moved_over_1e-6": 212,
+   "choice_changed": [
+    "hard-sol-b-temporal_numeric-02",
+    "hard-sol-b-temporal_numeric-03"
+   ]
+  },
+  "logprob_grid_near_top": {
+   "pairs": 212,
+   "smallest_nonzero_spacing": 0.0625,
+   "spacings_multiple_of_1/16": 1.0
+  }
+ },
+ "qwen": {
+  "within_session": {
+   "items": 231,
+   "max_abs_delta_p": 0.0,
+   "items_moved_over_1e-6": 0,
+   "choice_changed": []
+  }
+ }
+}

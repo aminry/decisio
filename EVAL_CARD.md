@@ -4,6 +4,7 @@
 # Evaluation card
 
 What the served default is, what it can do, how it measures, and what was fitted on what.
+Sections 1 to 5 are the served default, the Qwen base; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`).
 Every number is on the current served default and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
 ## 1. The system measured
@@ -100,3 +101,83 @@ Every harness in `runs/` sends one single-question request at a time, the servin
 - The second-engine head mode with the registered text-only class is unmeasured for latency.
 - Latency is server-side on the card's localhost; cost is the card-hour price divided by measured throughput, with nothing else counted.
 - The per-item Decision Index records keep each request's id, the payload's sha256 and our response, not the item text (GPQA's authors ask that its items not be published in plain text).
+
+## 6. The Gemma base
+
+`--base gemma-4-12b` serves Gemma 4 12B behind the same routes and wire format; the README's "Choosing a base" compares the two bases.
+Every number in this section comes from one session on one card (2026-10-04, `runs/2026-10-04_gemma-base/`), where the Qwen base was measured beside it on the same code, card and items.
+
+### 6.1 The system measured
+
+| Part | The Gemma base |
+| --- | --- |
+| Checkpoint | `google/gemma-4-12B-it` at revision `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7`, bf16, the official weights, untrained by us |
+| Engine | vLLM 0.30.0 with decisio's plugin: the checkpoint's encoder-free class `Gemma4UnifiedForConditionalGeneration`, served through its text path with every multimodal input off, under decisio's hidden-readout subclass (the hidden state at the answer position, written after the final-logit soft cap of 30); the TRITON_ATTN attention backend, which vLLM picks for the model's two head sizes; no padding; `--multi-question sequential` |
+| Readout | Letters, as on the Qwen base, with every single-token form of each option letter (with a leading space, bare, and as a byte) summed into the letter's probability |
+| Prompt | A system turn (`decisio.readout.system_prompt`), then the spaced layout, read at the chat template's own answer position; a yes/no question asked as a two-option letter choice, the false side first, each side shown as its description (`--noul-rendering letters`) |
+| Temperature | T = 3.592 for every question type, on the plain readout; no separate choice temperature |
+| Intent head | Single engine; the head takes its label log-probabilities from the engine's own readout of the question (one more request), so a head is fitted and served on exactly the plain readout's probabilities |
+| Hardware | One NVIDIA RTX PRO 6000 Blackwell (96 GB); the weights take 22.8 GiB, leaving 57.4 GiB for the KV cache at vLLM's 0.90 share |
+| `/health` | The `profile` block quotes the base, the checkpoint and revision, the temperature per question type and the prompt; `cache_hit_unit` 64 and `hash_unit` 16: vLLM keeps this model's cache in groups of 16- and 64-token blocks, hashes prefixes every 16 tokens, and a hit must hold in every group, so hits come in 64-token steps |
+
+The capabilities of section 2 apply, with these differences: several questions in one request return the same choice as each question sent alone, with probabilities within 0.035 rather than bit for bit (6.3); the image route was not measured with this base.
+
+### 6.2 Numbers
+
+| Measure | Result | Record |
+| --- | --- | --- |
+| JevBench, 231 published items, harness accuracy | easy 1.000 (48), standard 0.972 (72), hard 0.739 (111): 200 correct, as the Qwen base in the same session (0.0 points [-4.3, +4.3], paired) | `jevbench_gemma/*/summary.json`, `report.json` |
+| JevBench, ECE per file | easy 0.023, standard 0.033, hard 0.085 | `jevbench_gemma/*/summary.json` |
+| JevBench v1.5 open-set reading | choice 80.6; yes/no 49.0, 15% of yes/no answers between 0.20 and 0.80; score 63.7; I_open 64.4 (equal types), +15.0 [+7.0, +23.6] against the Qwen base, paired | `jevbench_gemma/v15.json`, `report.json` |
+| JevBench latency, one request at a time | p50 23.5 to 28.1 ms by file | `jevbench_gemma/*/summary.json` |
+| Decision Index 0.2.1, BANKING77 (3,080) | macro-F1 0.729, accuracy 0.741, ECE 0.042 | `di_gemma/di_report.json`, `report.json` |
+| Decision Index 0.2.1, CLINC150+OOS (5,500) | macro-F1 0.871, accuracy 0.872, ECE 0.079 | same |
+| Decision Index 0.2.1, GPQA Diamond (196 scored) | accuracy 0.378, ECE 0.165 (over the 198 rows) | same |
+| Decision Index 0.2.1, MMLU-Pro (12,032) | accuracy 0.549, ECE 0.034 | same |
+| 1,400-item suite, accuracy / ECE | BoolQ 0.873 / 0.061, BANKING77 0.747 / 0.059, ToxicChat 0.947 / 0.023, MMLU 0.827 / 0.084, SciFact 0.833 / 0.099, SciFact clarified 0.880 / 0.071, MMLU-Pro 0.547 / 0.101 (150) and 0.517 / 0.070 (350); pooled 0.735 / 0.029 | `capture_gemma.json.gz`, `report.json` |
+| Intent heads from 10 labelled examples per intent | BANKING77 0.832 (plain readout 0.747), CLINC150 0.908 (0.850), means of six draws; registration 195 s and 441 s | `intents_gemma_*.json.gz`, `report.json` |
+| Latency, one question, state from the cache | 26.7 ms server time (median of 20) | `latency_gemma.json` |
+| Latency, one question, a state never seen | 39.1 ms at 300 tokens, 102.4 at 1,000, 293.5 at 3,000 | same |
+| Latency, four questions, a state never seen | 131.0 ms at 300 tokens, 195.8 at 1,000, 391.6 at 3,000 | same |
+
+ECE is as in section 3; the suite's is the tie-robust version over 10 equal-mass bins.
+The Qwen base measured in the same session reproduced its record in section 3: 200 correct on JevBench, I_open 49.4, suite 0.770 / 0.033, and its plain readouts chose the record's answer on 1,400 of 1,400 suite items (largest difference 1.1e-16).
+
+### 6.3 Gates
+
+Each claim above was gated before it was written, in a pre-registration fixed before the session:
+- Conformance C2, C3 and C4 pass on the 1,400 items (C4 max |dp| 0).
+- The intent head is exact: on the 250 intent items, read under like request histories, its label log-probabilities equal the log of the plain readout's probabilities bit for bit (250 of 250; `samelog_gemma.json`).
+  The session's own check compared the exponential of those log-probabilities with the probabilities and read 5.55e-17, the rounding of that conversion (`sameforward_gemma.json`).
+- Intent heads gain over the plain readout across six draws, +8.6 points on BANKING77 and +5.8 on CLINC150, and BANKING77's first draw, run twice, returned the same rows.
+- Several questions in one request: on 272 four-question requests from a browser-agent demo, 5 repeats each, every request chose what each question chose alone; the largest probability difference was 0.035 (`travel_gemma.json.gz`).
+- Prefix sharing: in four-question requests on states of 300, 1,000 and 3,000 tokens, questions 2 to 4 read at least the shared prefix minus 64 tokens from the cache (9 of 9; `cache_gemma.json`).
+- The feature checks (question types and states, summed label forms, sequential scoring, two-order mode, task registration, abstention) pass (`features_gemma.json`).
+
+### 6.4 What was fitted on what
+
+| Component | Fitted or chosen on |
+| --- | --- |
+| Model weights | Nothing by us |
+| Temperature T = 3.592 | Minimum log loss on this prompt's plain readouts of the private 1,400-item suite of section 3, with 5-fold cross-validation stratified by task, in an earlier session with token rows identical to these on JevBench's 231 items; recomputed on this session's readouts it is 3.608, and a separate choice temperature is not supported (out-of-fold log loss -0.0012 [-0.0051, +0.0029]; `temps_gemma_refit.json`) |
+| The prompt (the system turn, the answer position, summed forms, yes/no as letters) | Chosen in an earlier session by ablation on the suite and JevBench 231, then tested in this session against the Qwen base's prompt on this model, its temperature fitted the same way (3.396): suite accuracy +0.14 points [-1.21, +1.43], JevBench hard tier +3.6 [-1.8, +9.0], suite ECE 0.041 against 0.029, JevBench choice ECE 0.074 against 0.064; level on accuracy, worse on calibration, so the system turn stays (`gemma_q.json`, `temps_gemma_q.json`) |
+| Intent heads and calibration priors | Per task, on 10 labelled training examples per intent, six draws |
+
+The disclosures of section 4 hold here too: the suite is the temperature's fit set, so its ECE figures are in-sample, and the prompt was chosen with JevBench among its measurements.
+
+### 6.5 Reproducibility
+
+Unlike the Qwen base, this base does not return the same probabilities bit for bit for a repeated question.
+Its final logits are bf16 after the soft cap, so near the top they lie on a grid of 0.0625 to 0.125 (every one of 212 spacings between leading labels in this session's JevBench readouts is a multiple of 1/16), and a state read for the first time and the same state read from the prefix cache can land a step apart.
+Within the session, the JevBench answers read on first contact and the same questions asked again later differed by up to 0.035 at the served temperature, on 49 of 231 items, and no choice changed; on the Qwen base the two were identical.
+Between this session and an earlier one on another card of the same type, with the same prompts and temperature, the answers differed by up to 0.128, on 212 of 231 items; two near-tied choices changed, one of them from right to wrong (`repro.json`).
+Several questions in one request stay within the same bound (0.035, 6.3).
+
+### 6.6 Limits
+
+- One card and one session; the Qwen base's numbers beside it are from the same session.
+- The Gemma base does not fit a 32 GB card on vLLM's defaults.
+  Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
+  Its path to 32 GB machines is an MLX build, in preparation.
+- The image route, `--multi-question warm` and `--pad-policy row` were not measured on this base.
+- The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted.
