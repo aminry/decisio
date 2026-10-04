@@ -1,0 +1,1 @@
+pass 1: 1q p50 269 ms (268.5/q); 10q p50 1264 ms (126.4/q); 100q p50 12609 ms (126.1/q); 100q_8k p50 17635 ms (176.4/q); max foreign CPU 120% (Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd), idle False

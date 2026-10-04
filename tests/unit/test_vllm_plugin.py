@@ -6,6 +6,7 @@ P1  on the supported version it registers exactly the declared architectures, ea
 P2  re-entrancy: vLLM calls the entry point in every process and may call it again; a second call registers nothing
 P3  version guard: on any other vLLM version (and without vLLM) nothing is registered, and it says so once
 P4  the entry point is declared in pyproject.toml under `vllm.general_plugins` and resolves to `register`
+P5  no name a decisio class defines shadows an attribute of torch.nn.Module instances or of the vLLM base class
 
   uv run pytest -q tests/unit/test_vllm_plugin.py
 """
@@ -83,6 +84,35 @@ def test_p4_entry_point_declared():
     assert eps == {"decisio": "decisio.vllm_plugin:register"}
     module, _, name = eps["decisio"].partition(":")
     assert callable(getattr(importlib.import_module(module), name))
+
+
+def test_p5_no_class_shadows_a_torch_or_vllm_attribute():
+    """A name a decisio class defines must not collide with an attribute torch.nn.Module sets on every instance (a
+    method called `_buffers` is shadowed by the module's buffer registry) or with one of the vLLM base class."""
+    import torch.nn as nn
+
+    instance_attrs = set(vars(nn.Module()))
+    with stub_vllm("0.30.0") as registry:
+        p = plugin()
+        assert p.register()
+        base = sys.modules["vllm.model_executor.models.qwen3_5"].Qwen3_5MoeForCausalLM
+        inherited = {n for c in base.__mro__ for n in vars(c)}
+        for arch in p.MODELS:
+            cls = registry.resolve(arch)
+            own = {n for c in cls.__mro__ if c.__module__.startswith("decisio.") for n in vars(c)} - {
+                "__module__",
+                "__doc__",
+                "__qualname__",
+                "__firstlineno__",
+                "__static_attributes__",
+                "__init__",
+                "forward",
+                "compute_logits",
+                "compute_logits_local",
+                "load_weights",
+            }
+            assert not own & instance_attrs, (arch, sorted(own & instance_attrs))
+            assert not own & inherited, (arch, sorted(own & inherited))
 
 
 # ---- the text-only model class ------------------------------------------------------------------------------------

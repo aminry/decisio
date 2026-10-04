@@ -1,0 +1,4 @@
+pass 1: 1q p50 266 ms (266.2/q); 10q p50 1266 ms (126.6/q); 100q p50 13788 ms (137.9/q); 100q_8k p50 17990 ms (179.9/q); max foreign CPU 111% (/Frameworks/Metadata.framework/Versions/A/Support/mds_stores), idle False
+pass 2: 1q p50 265 ms (265.2/q); 10q p50 1259 ms (125.9/q); 100q p50 13052 ms (130.5/q); 100q_8k p50 18035 ms (180.3/q); max foreign CPU 250% (/Users/amin/repo/decisio-t7/.venv/bin/python), idle False
+pass 3: 1q p50 266 ms (266.4/q); 10q p50 1259 ms (125.9/q); 100q p50 12966 ms (129.7/q); 100q_8k p50 17904 ms (179.0/q); max foreign CPU 180% (Helper (Renderer).app/Contents/MacOS/Devin Helper (Renderer)), idle False
+LATENCY DONE
