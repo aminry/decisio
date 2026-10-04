@@ -106,6 +106,7 @@ def _args(**kw):
         base=None,
         model=None,
         revision=None,
+        system_prompt=None,
         backend="vllm",
         prompt_tail=None,
         answer_slot=None,
@@ -147,9 +148,11 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     fam, fmt = sv.resolve_base(a)
     assert fam is GEMMA4 and (a.model, a.revision) == (GEMMA4.model, GEMMA4.revision) and fmt == GEMMA_FORMAT
     assert (a.pad_to, a.noul_rendering, a.temperature, a.temperature_choice) == ("none", "letters", 3.592, None)
-    # an explicit setting wins over the base's
+    # an explicit setting wins over the base's, the system turn included
     a = _args(base="gemma-4-12b", answer_slot="prefill", temperature=1.0)
     assert sv.resolve_base(a)[1].slot == "prefill" and a.temperature == 1.0
+    assert not sv.resolve_base(_args(base="gemma-4-12b", system_prompt=False))[1].system_prompt
+    assert sv.resolve_base(_args(model=qwen_dir, system_prompt=True))[1].system_prompt
     with pytest.raises(ValueError, match="is a qwen3.6-35b-a3b checkpoint"):
         sv.resolve_base(_args(base="gemma-4-12b", model=qwen_dir))
     with pytest.raises(ValueError, match="MLX|mlx"):
@@ -209,3 +212,42 @@ def test_b6_head_reads_the_engines_readout():
     assert [np.exp(lp).round(12).tolist() for lp, _ in out] == [p.tolist() for p in engine_p]
     # each row: its label readout, then its hidden-state chunks, one row after the other
     assert calls == [("label", [1, 2, 3]), ("hidden", [1, 2, 3]), ("label", [1, 2, 4]), ("hidden", [1, 2, 4])]
+
+
+def test_b7_health_reports_the_profile():
+    """/health quotes what a run record needs: the base, the temperature each question type is served at, and the
+    prompt (layout, system turn, yes/no and option rendering, multi-question scoring, padding)."""
+    from fastapi.testclient import TestClient
+
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.vllm_engine import make_app
+
+    for fam, temps, fmt, noul in (
+        (
+            GEMMA4,
+            {"choice": None},
+            PromptFormat(tail="spaced", slot="template", variants="summed", system_prompt=True),
+            "letters",
+        ),
+        (QWEN, {"choice": 1.37}, PromptFormat(tail="spaced"), "letters-keys"),
+    ):
+        engine = types.SimpleNamespace(
+            adapters={},
+            family=fam,
+            fmt=fmt,
+            model_name=fam.model,
+            revision=fam.revision,
+            multi_question="sequential",
+            pad_policy="always",
+            pad_unit=None if fam is GEMMA4 else 1056,
+            facts=lambda: {},
+        )
+        T = fam.temperature
+        so = SystemOne(engine, fam.served_name, noul_rendering=noul, temperature=T, temperatures=temps)
+        h = TestClient(make_app(engine, so)).get("/health").json()
+        p = h["profile"]
+        assert h["base"] == p["base"] == fam.key and (p["checkpoint"], p["revision"]) == (fam.model, fam.revision)
+        want_choice = T if temps["choice"] is None else temps["choice"]
+        assert p["temperatures"] == {"choice": want_choice, "noul": T, "score": T}
+        assert p["prompt"]["noul_rendering"] == noul and p["prompt"]["multi_question"] == "sequential"
+        assert p["prompt"]["system_prompt"] is (fam is GEMMA4) and p["prompt"]["tail"] == "spaced"

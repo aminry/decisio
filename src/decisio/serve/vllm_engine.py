@@ -237,6 +237,7 @@ class LettersEngine:
         from decisio.families import family_of
 
         self.family = family or family_of(model, revision)
+        self.model_name, self.revision = model, revision
         self.fmt = fmt or DEFAULT_FORMAT
         if mode == "packed" and not self.fmt.is_default():
             raise ValueError("packed mode reads the compact layout only (PromptFormat())")
@@ -678,6 +679,9 @@ def make_app(engine, systemone=None):
             **engine.facts(),
             "prompt_format": getattr(engine, "fmt", DEFAULT_FORMAT).facts(),
             **({"base": engine.family.key} if getattr(engine, "family", None) is not None else {}),
+            # what this server serves, in one block a run record can quote: the base profile, the temperature each
+            # question type gets, and the prompt (decisio.families)
+            **({"profile": served_profile(engine, systemone)} if systemone is not None else {}),
             **({"image_engine": image.facts()} if image is not None else {}),
             **so,
         }
@@ -797,6 +801,29 @@ def engine_kwargs(args) -> dict:
     return {**kw, **plugin.engine_kwargs(arch)}
 
 
+def served_profile(engine, systemone) -> dict:
+    """The base profile in effect and the settings it resolved to: the base, the temperature each question type is
+    served at (the global one where a type has none of its own), and the prompt, yes/no rendering, option rendering and
+    multi-question scoring."""
+    fam = getattr(engine, "family", None)
+    fmt = getattr(engine, "fmt", DEFAULT_FORMAT)
+    return {
+        "base": fam.key if fam is not None else None,
+        "checkpoint": getattr(engine, "model_name", None),
+        "revision": getattr(engine, "revision", None),
+        "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
+        "prompt": {
+            **fmt.facts(),
+            "system_prompt": bool(getattr(fmt, "system_prompt", False)),
+            "noul_rendering": systemone.noul_rendering,
+            "describe_options": systemone.describe_options,
+            "multi_question": getattr(engine, "multi_question", None),
+            "pad_policy": getattr(engine, "pad_policy", None),
+            "pad_unit": getattr(engine, "pad_unit", None),
+        },
+    }
+
+
 def resolve_base(args):
     """(family, PromptFormat) from the command line (decisio.families): --base, else the base --model's config.json
     names; the base's checkpoint and revision when --model is not given; and the base's value for every setting left
@@ -822,7 +849,7 @@ def resolve_base(args):
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
         variants=args.label_variants or fam.label_variants,
-        system_prompt=fam.system_prompt,
+        system_prompt=fam.system_prompt if args.system_prompt is None else args.system_prompt,
     )
     if args.pad_to is None:
         args.pad_to = fam.pad_to
@@ -1005,6 +1032,13 @@ def main():
         help='offer this extra option (e.g. "can\'t tell") on every question of requests that use '
         "imajev's extension, and report its probability as unknown_probability / abstained; "
         "untrained, opt-in",
+    )
+    ap.add_argument(
+        "--system-prompt",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="a system turn before each question (decisio.readout.system_prompt); default: the base's (Gemma: on, "
+        "Qwen: off)",
     )
     ap.add_argument(
         "--prompt-tail",
