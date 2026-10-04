@@ -1,0 +1,1 @@
+S: acc MLX 0.7093 bf16 0.7350 diff [-0.0257, -0.0414, -0.01] S1 False; ECE MLX 0.0180 bf16 0.0288 S3 False; flips 214; max |dp| 0.941

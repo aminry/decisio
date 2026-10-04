@@ -1,0 +1,2 @@
+cf4a8b6 docs: the Gemma base on a Mac with MLX (6-bit default, no 4-bit option)
+?? runs/2026-10-05_mlx-gemma/

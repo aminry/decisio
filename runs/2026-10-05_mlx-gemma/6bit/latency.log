@@ -1,0 +1,4 @@
+pass 1: 1q p50 407 ms (406.6/q); 10q p50 1816 ms (181.6/q); 100q p50 16774 ms (167.7/q); 100q_8k p50 28571 ms (285.7/q); max foreign CPU 100% (/Users/amin/repo/rlcd_ext/decision-index/.venv/bin/python), idle False
+pass 2: 1q p50 393 ms (392.6/q); 10q p50 1786 ms (178.7/q); 100q p50 16244 ms (162.4/q); 100q_8k p50 28475 ms (284.8/q); max foreign CPU 124% (it.WebContent.xpc/Contents/MacOS/com.apple.WebKit.WebContent), idle False
+pass 3: 1q p50 392 ms (392.0/q); 10q p50 1788 ms (178.8/q); 100q p50 16258 ms (162.6/q); 100q_8k p50 28535 ms (285.3/q); max foreign CPU 121% (/usr/libexec/PerfPowerServices), idle False
+LATENCY DONE

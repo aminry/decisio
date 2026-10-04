@@ -1,0 +1,118 @@
+{
+ "id": "2026-10-05_mlx-gemma",
+ "title": "The Gemma base on --backend mlx: the gates at 6 bits (all), 4 bits (gate S; stopped after it failed) and 8 bits (gate S) against runs/2026-10-04_gemma-base",
+ "date": "2026-10-05",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2",
+ "software": {
+  "mlx": "0.32.3",
+  "mlx-lm": "0.32.0",
+  "python": "3.12.13",
+  "transformers": "5.18.0"
+ },
+ "models": {
+  "6bit": "mlx-community/gemma-4-12B-it-6bit at 2fe53aeb9b8686eefa543a60d6aa364c5b219aac",
+  "4bit": "mlx-community/gemma-4-12B-it-4bit at 73bcf09092aa277861d5a191b989b666f7f32e8f",
+  "8bit": "mlx-community/gemma-4-12B-it-8bit at 200bb6db075e137a4deb08838865ac4ddb86292e",
+  "tokenizer": "google/gemma-4-12B-it at 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7 (the base's own)"
+ },
+ "reference": "runs/2026-10-04_gemma-base (vLLM 0.30.0, bf16)",
+ "code": {
+  "gates": "e7d20fc (v0.4.0 plus this change)",
+  "check_b": [
+   "e7d20fc",
+   "cf4a8b6 (rebased onto main)"
+  ]
+ },
+ "servers": {
+  "A": "--backend mlx --model <conversion> --debug-readout (every other flag the default)",
+  "L": "as A, fresh (latency)",
+  "C": "as A with --prefix-cache-mb 0 (latency.py)"
+ },
+ "preregistration": "RLCD experiments/2026-10-03_t2_gemma_mac/PREREG.md",
+ "results": {
+  "default": "6bit",
+  "S": {
+   "6bit": {
+    "accuracy": 0.7357142857142858,
+    "ref_accuracy": 0.735,
+    "mlx-ref": [
+     0.0007142857142857784,
+     -0.0071428571428571175,
+     0.008571428571428674
+    ],
+    "ece": 0.028623920835708482,
+    "ref_ece": 0.028814858872125988,
+    "flips": 56,
+    "S1_pass": true,
+    "S3_pass": true
+   },
+   "4bit": {
+    "accuracy": 0.7092857142857143,
+    "ref_accuracy": 0.735,
+    "mlx-ref": [
+     -0.02571428571428569,
+     -0.04142857142857148,
+     -0.010000000000000009
+    ],
+    "ece": 0.01804443857797423,
+    "ref_ece": 0.028814858872125988,
+    "flips": 214,
+    "S1_pass": false,
+    "S3_pass": false
+   },
+   "8bit": {
+    "accuracy": 0.7335714285714285,
+    "ref_accuracy": 0.735,
+    "mlx-ref": [
+     -0.0014285714285714457,
+     -0.005714285714285783,
+     0.0028571428571428914
+    ],
+    "ece": 0.02855920334589689,
+    "ref_ece": 0.028814858872125988,
+    "flips": 23,
+    "S1_pass": true,
+    "S3_pass": true
+   }
+  },
+  "H": {
+   "banking77": {
+    "mlx_mean": 0.8455555555555555,
+    "ref_mean": 0.8322222222222223,
+    "mlx-ref": [
+     0.013333333333333197,
+     -0.007777777777777883,
+     0.03555555555555556
+    ],
+    "pass": true
+   },
+   "v3_clinc": {
+    "mlx_mean": 0.9016666666666667,
+    "ref_mean": 0.9083333333333333,
+    "mlx-ref": [
+     -0.006666666666666599,
+     -0.020000000000000018,
+     0.0050000000000000044
+    ],
+    "pass": true
+   }
+  },
+  "conformance_6bit": "C2, C3, C4 pass",
+  "check_b": "B1 and B2 50 of 50 bit-identical, on both commits",
+  "memory_6bit_gb": {
+   "weights": 9.678069362,
+   "peak_at_32687_tokens": 15.12521721
+  }
+ },
+ "deviations": [
+  "the 4-bit run was stopped after gate S failed S1: by the pre-registered rule 4-bit could no longer be the 32 GB option, so its heads, conformance and latency were not run",
+  "latency: the Mac was not quiet within the 60 minutes allowed; measured with each pass's load recorded"
+ ],
+ "excluded": [
+  "item text",
+  "server logs"
+ ],
+ "files": "files.json"
+}
