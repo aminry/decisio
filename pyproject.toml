@@ -64,10 +64,11 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "--strict-markers -m 'not gpu and not slow'"
+addopts = "--strict-markers -m 'not gpu and not slow and not mlx_model'"
 markers = [
     "gpu: needs a CUDA card, vLLM 0.30.0 and a local checkpoint (tests/gpu; run with -m gpu)",
     "slow: loads a small Hugging Face model on the CPU",
+    "mlx_model: loads an MLX conversion from the local Hugging Face cache (Apple silicon; tests/mlx; run with -m mlx_model)",
 ]
 
 [tool.ruff]

@@ -52,10 +52,14 @@ The image has been started on a GPU with the Qwen base only.
 ```
 uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
 ```
 
-- `--backend mlx` serves the text route on Apple silicon from an MLX conversion of the Qwen base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
-- It refuses the image route, packed mode, LoRA adapters, the second-engine head and the Gemma base.
+- `--backend mlx` serves the text route on Apple silicon from an MLX conversion of either base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
+- The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
+- It refuses the image route, packed mode, LoRA adapters and the second-engine head.
+
+The Qwen base:
 - The 6-bit conversion is the Mac default and the 4-bit one the option for 32 GB machines; the 8-bit one is not shipped.
 - Peak memory at 32,761 tokens of state: 30.7 GB at 6 bits, 22.0 GB at 4 bits, 39.4 GB at 8 bits (`runs/2026-10-02_mlx-backend/`).
 - It does not pad a state (`--pad-policy none`, the MLX default; its cache needs no padding), so its prompts are the served ones without the padding, and a question asked alone and inside a request is one prompt.
@@ -63,6 +67,13 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Q
 - The prompts are built with the official tokenizer by default (`--tokenizer`), so they are the vLLM path's byte for byte.
 - At 6 bits, under the current served default, it passes the gates against the FP8 records except the pooled-ECE gate, which changes no setting (`runs/2026-10-03_mlx-regate/summary.md` explains why).
 - Server time on an Apple M5 Pro (64 GB), median: 266 ms for one question on a new state, 111 ms on a state seen before, 130 ms per question when 100 share a state (`runs/2026-10-03_mlx-regate/`).
+
+The Gemma base (`--base gemma-4-12b`):
+- The 6-bit conversion is the default; there is no 4-bit option, since the 4-bit conversion fails the suite-accuracy gate (`runs/2026-10-05_mlx-gemma/`).
+- The 6-bit conversion holds 9.7 GB of weights and peaks at 15.1 GB at 32,687 tokens of state, so it runs on a 32 GB Mac (`runs/2026-10-05_mlx-gemma/6bit/memory.json`).
+- The prompts are built with the base's own tokenizer and chat template, `google/gemma-4-12B-it` at its pinned revision, not the conversion's, whose chat template is older.
+- At 6 bits it passes every gate against the base's vLLM bf16 record: suite accuracy and ECE, the intent heads over six draws, conformance, and answers bit for bit on a fresh server (`runs/2026-10-05_mlx-gemma/summary.md`).
+- It reads a new state more slowly than the Qwen base on the same Mac: one question on a new 1,000-token state takes 1,299 ms, against 704 ms for the Qwen base (server medians on an Apple M5 Pro under load; `runs/2026-10-05_mlx-gemma/`, `runs/2026-10-03_mlx-regate/`).
 
 `docs/design/mlx-backend.md` has the design, the gates of each conversion and the padding decision.
 

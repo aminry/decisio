@@ -56,7 +56,7 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 | --- | --- | --- |
 | Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured; each base's weights are in [Choosing a base](#choosing-a-base) |
 | Linux with one NVIDIA card and Docker | [Docker](#docker) | as the GPU server |
-| Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | 30.7 GB at 32,761 tokens of state at 6 bits, 22.0 GB at 4 bits |
+| Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | each base's, in [docs/running.md](docs/running.md#mac-with-mlx) |
 | Mac, Linux or Windows with Ollama | [Ollama](#ollama) | the size of the tag, on the [model page](https://ollama.com/aminroudaki/decisio) |
 | Any machine, for development | [CPU stand-in](#cpu-stand-in-for-development) | a small Hugging Face model on the CPU |
 
@@ -90,9 +90,11 @@ Release images are published to `ghcr.io/aminry/decisio`, with their digest in t
 ```
 uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
 ```
 
-It serves the text route with every feature (tasks, the intent head, the temperatures, abstention), not the image route.
+The Qwen base runs from its 6-bit MLX conversion, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
+The Gemma base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
 
 ### Ollama
 
@@ -175,7 +177,7 @@ In plain words:
 - Choose Gemma 4 12B for committed yes/no answers, scores and intent routing on taxonomies like CLINC150.
 - Choose Qwen3.6-35B-A3B for knowledge questions, long states seen for the first time, and answers that repeat bit for bit.
 - On JevBench's published items they are level.
-- Gemma 4 12B does not fit a 32 GB card on vLLM; its path to smaller machines is an MLX build, in preparation.
+- Gemma 4 12B does not fit a 32 GB card on vLLM; on a Mac it runs from its MLX conversion ([Mac with MLX](#mac-with-mlx)).
 
 What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, each base with its own defaults, paired over the same items (95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):
 

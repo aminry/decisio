@@ -9,8 +9,12 @@ derived questions, `/v1/answer` and `/v1/systemone`, the temperature, tasks, the
 
 The prompts are byte for byte the vLLM path's:
 
-- the tokenizer is the official one (`--tokenizer`, default `Qwen/Qwen3.6-35B-A3B-FP8`), not a conversion's: the
-  mlx-community conversions of Qwen3.6-35B-A3B ship a different `tokenizer.json` and `tokenizer_config.json`;
+- the tokenizer is the base's official one (its checkpoint at its revision, `decisio.families`, found from the
+  conversion's `model_type`; Qwen: `Qwen/Qwen3.6-35B-A3B-FP8`, Gemma 4: `google/gemma-4-12B-it` at `707f0a3b`), not a
+  conversion's: the mlx-community
+  conversions of Qwen3.6-35B-A3B ship a different `tokenizer.json` and `tokenizer_config.json`, and those of
+  gemma-4-12B-it the chat template from before Google's 2026-07-15 fix; `--tokenizer` overrides it (`repo@revision`
+  pins a revision);
 - the padding is the served default's (front, to vLLM's 1,056-token block), which MLX's cache does not need but the
   served prompts carry; `--pad-to none` leaves it out.
 
@@ -18,7 +22,9 @@ Separate mode only: one forward per question. For each request the state prefix 
 padding included) is prefilled once into a fresh prompt cache and evaluated; each question then continues from a copy
 of that cache, one question at a time. The Gated DeltaNet layers' cache entries are replaced, never written into, so a
 copy shares them; the attention layers' key and value buffers are written in place, so a copy slices them to the prefix
-and its first write allocates new ones. Every question, single-question requests included, goes through the prefix:
+and its first write allocates new ones; a sliding-window layer's ring buffer (Gemma 4) is copied whole, with its write
+position, into new array objects, so writes into the copy leave the original as it was. Every question, single-question
+requests included, goes through the prefix:
 a question's answer does not depend on what else is in its request, bit for bit, and repeats bit for bit.
 
 Across requests, the evaluated cache of each state prefix is kept (`PrefixCache`, least recently used first out,
@@ -27,8 +33,9 @@ continues from that entry instead of prefilling it again. Exact by construction:
 computed for exactly those tokens (compared in full, not by hash alone), and it is never written into, since every
 question continues from a copy; the forward is deterministic, so a hit gives the arrays a miss would compute.
 
-The letters are read at the last position: the softmax over the label logits (bf16 out of the output layer, then
-float64). The final-norm hidden state at the same position comes out of the same forward, so the intent head
+The letters are read at the last position: the softmax over the label logits (bf16 out of the output layer, through
+the model's final-logit softcap when it has one, as mlx-lm applies it: Gemma 4's 30; then float64). The final-norm
+hidden state at the same position comes out of the same forward, so the intent head
 (`MLXHiddenReadout`) fits and serves on exactly the served readout, with no second weight copy and no extra request.
 
     from decisio.serve.mlx_engine import MLXLettersEngine
@@ -48,26 +55,49 @@ from pathlib import Path
 
 import numpy as np
 
+from decisio.families import QWEN, family_of
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
-OFFICIAL_TOKENIZER = "Qwen/Qwen3.6-35B-A3B-FP8"
-# sha256 of the official tokenizer files (Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B, identical)
-OFFICIAL_TOKENIZER_SHA256 = "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42"
+# sha256 of each base's official tokenizer.json (the base's checkpoint at its revision, decisio.families). Qwen:
+# Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B have identical files. Gemma 4: unchanged since the first upload; the
+# revision pins the chat template (the mlx-community conversions ship the one from before Google's 2026-07-15 fix).
+TOKENIZER_SHA256 = {
+    "qwen3.6-35b-a3b": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "gemma-4-12b": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+}
+OFFICIAL_TOKENIZER, OFFICIAL_TOKENIZER_SHA256 = QWEN.model, TOKENIZER_SHA256[QWEN.key]
 SERVED_BLOCK = 1056  # vLLM's block on the served default: --pad-to block pads to it, so the prompts are the same
 PREFILL_STEP = 2048  # tokens per prefill chunk (bounds the attention layers' memory at long states)
 PREFIX_CACHE_MB = 2048  # the cross-request prefix cache's budget (about 25 entries at a 1,056-token prefix, 6-bit)
 
 
+def split_revision(tokenizer):
+    """`repo@revision` -> (repo, revision); a local directory or a bare repository -> (it, None)."""
+    t = str(tokenizer)
+    if "@" in t and not Path(t).exists():
+        name, rev = t.rsplit("@", 1)
+        return name, rev
+    return t, None
+
+
 def copy_cache(cache):
     """A prompt cache that continues from `cache` without changing it (see the module docstring)."""
-    from mlx_lm.models.cache import ArraysCache, KVCache
+    from mlx_lm.models.cache import ArraysCache, KVCache, RotatingKVCache
 
     out = []
     for c in cache:
         if isinstance(c, ArraysCache):
             n = ArraysCache(len(c.cache))
             n.cache = list(c.cache)
+        elif isinstance(c, RotatingKVCache):
+            # the ring buffer whole, with its write position: a one-token step writes into the copy's arrays in place
+            # and a longer one concatenates; either way the copy's arrays are new objects, and a write into a slice of
+            # an MLX array does not reach the array it was sliced from, so the original keeps its values
+            n = RotatingKVCache(max_size=c.max_size, keep=c.keep)
+            if c.keys is not None:
+                n.keys, n.values = c.keys[...], c.values[...]
+            n.offset, n._idx = c.offset, c._idx
         elif isinstance(c, KVCache):
             n = KVCache()
             if c.keys is not None:
@@ -96,7 +126,7 @@ def _sha256(path):
     return h.hexdigest()
 
 
-def tokenizer_file(tokenizer, name="tokenizer.json"):
+def tokenizer_file(tokenizer, name="tokenizer.json", revision=None):
     """The local path of a tokenizer's file: in its directory, or from the Hugging Face cache (fetched if missing)."""
     if Path(tokenizer).is_dir():
         p = Path(tokenizer) / name
@@ -104,7 +134,7 @@ def tokenizer_file(tokenizer, name="tokenizer.json"):
     from huggingface_hub import hf_hub_download
 
     try:
-        return Path(hf_hub_download(tokenizer, name))
+        return Path(hf_hub_download(tokenizer, name, revision=revision))
     except Exception:  # noqa: BLE001  (a repo without the file, or offline: reported as unknown in facts)
         return None
 
@@ -156,7 +186,8 @@ class MLXLettersEngine(LettersEngine):
     def __init__(
         self,
         model,
-        tokenizer=OFFICIAL_TOKENIZER,
+        tokenizer=None,
+        family=None,
         pad_to="block",
         pad_token=PAD_TOKEN,
         pad_where="front",
@@ -173,12 +204,21 @@ class MLXLettersEngine(LettersEngine):
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
         self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
         self.adapters = {}
-        self.model_name, self.tokenizer_name = str(model), str(tokenizer)
+        self.model_name = str(model)
+        # the base (decisio.families), from the conversion's config.json model_type unless given; Qwen for any other
+        self.family = family or family_of(str(model))
+        self.official_tokenizer_sha256 = TOKENIZER_SHA256.get(self.family.key)
+        if tokenizer is None:
+            self.tokenizer_name, self.tokenizer_revision = self.family.model, self.family.revision
+        else:
+            self.tokenizer_name, self.tokenizer_revision = split_revision(tokenizer)
         self.model, _ = load(str(model))  # its own tokenizer is not used (see the module docstring)
         lm = getattr(self.model, "language_model", self.model)
         self._backbone = lm.model  # returns the final-norm hidden states
         self._head = lm.lm_head if hasattr(lm, "lm_head") else lm.model.embed_tokens.as_linear
-        self.tok = AutoTokenizer.from_pretrained(str(tokenizer))
+        # the model's final-logit softcap where it has one (Gemma 4: 30), applied as mlx-lm applies it
+        self.softcap = getattr(lm, "final_logit_softcapping", None)
+        self.tok = AutoTokenizer.from_pretrained(self.tokenizer_name, revision=self.tokenizer_revision)
         self.block_size = self.match_unit = int(block_size)
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self.prefill_step = int(prefill_step)
@@ -224,6 +264,8 @@ class MLXLettersEngine(LettersEngine):
         for ids, lab in rows:
             h = self._feed(ids[prefix:], copy_cache(base))
             z = self._head(h[None])[0][mx.array(allowed_ids(lab))]
+            if self.softcap is not None:  # elementwise in the logits' dtype, so the labels' values of the capped vector
+                z = mx.tanh(z / self.softcap) * self.softcap
             z = np.array(z.astype(mx.float32), dtype=np.float64)
             if is_grouped(lab):  # several forms per label: their probabilities summed
                 lp = label_log_softmax(z, lab)
@@ -303,10 +345,11 @@ class MLXLettersEngine(LettersEngine):
         if config.exists():
             q = json.loads(config.read_text()).get("quantization") or {}
             quant = {k: v for k, v in q.items() if not isinstance(v, dict)} or None
-        tj = tokenizer_file(self.tokenizer_name)
+        tj = tokenizer_file(self.tokenizer_name, revision=self.tokenizer_revision)
         tok_sha = _sha256(tj) if tj else None
         return {
             "engine": "mlx",
+            "base": self.family.key,
             "mlx": version("mlx"),
             "mlx_lm": version("mlx-lm"),
             "device": str(mx.default_device()),
@@ -314,8 +357,10 @@ class MLXLettersEngine(LettersEngine):
             "model": self.model_name,
             "quantization": quant,
             "tokenizer": self.tokenizer_name,
+            "tokenizer_revision": self.tokenizer_revision,
             "tokenizer_json_sha256": tok_sha,
-            "official_tokenizer": tok_sha == OFFICIAL_TOKENIZER_SHA256,
+            "official_tokenizer": tok_sha == self.official_tokenizer_sha256,
+            "final_logit_softcap": self.softcap,
             "mode": self.mode,
             "block_size": self.block_size,
             "pad_unit": self.pad_unit,

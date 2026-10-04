@@ -839,6 +839,8 @@ def resolve_base(args):
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
     from decisio.families import BASES, FAMILIES, family_of, pinned_revision, read_config
 
+    if args.backend == "mlx" and args.model is None:
+        raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
     if args.base is not None:
         fam = BASES[args.base]
         given = args.model is not None
@@ -855,8 +857,6 @@ def resolve_base(args):
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision)
-    if args.backend == "mlx" and fam.key != "qwen3.6-35b-a3b":
-        raise ValueError(f"--backend mlx serves the Qwen base only, not {fam.key}")
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
@@ -971,9 +971,9 @@ def main():
     ap.add_argument(
         "--tokenizer",
         default=None,
-        help="--backend mlx: the tokenizer the prompts are built with (default: the official "
-        "Qwen/Qwen3.6-35B-A3B-FP8, so the prompts are the vLLM path's byte for byte; a conversion's own tokenizer "
-        "may differ)",
+        help="--backend mlx: the tokenizer the prompts are built with, a directory, a repository or repo@revision "
+        "(default: the base's official one, its checkpoint at its revision in decisio.families, so the prompts are "
+        "the vLLM path's byte for byte; a conversion's own tokenizer may differ)",
     )
     ap.add_argument(
         "--served-name", default=None, help=f"the name GET /v1/models lists (default: the base's; Qwen: {SERVED_NAME})"
@@ -1219,11 +1219,12 @@ def main():
         )
         engine.fmt, engine.family = fmt, args.family
     elif args.backend == "mlx":
-        from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, PREFIX_CACHE_MB, MLXLettersEngine
+        from decisio.serve.mlx_engine import PREFIX_CACHE_MB, MLXLettersEngine
 
         engine = MLXLettersEngine(
             args.model,
-            tokenizer=args.tokenizer or OFFICIAL_TOKENIZER,
+            tokenizer=args.tokenizer,
+            family=args.family,
             prefix_cache_mb=PREFIX_CACHE_MB if args.prefix_cache_mb is None else args.prefix_cache_mb,
             pad_to=None if args.pad_to == "none" else args.pad_to,
             pad_where=args.pad_where,
