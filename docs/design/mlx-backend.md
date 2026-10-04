@@ -141,3 +141,15 @@ Intervals are paired 95% bootstrap intervals over items.
 - **Calibration:** the FP8 ECE is in-sample for the served temperature (fitted on the FP8 readouts of this suite), and nothing was refitted for MLX.
 - **Speed:** the per-question time does not track the weight size, so it is not bandwidth. Batching a request's questions over the shared prefix and reading only the label rows of the output layer are the next steps (not done here).
 - **Registration** of an intent task (770 to 1,500 examples) takes 18 to 50 minutes on the M5 Pro.
+
+## The Gemma base
+
+The engine serves the Gemma base from an MLX conversion of `google/gemma-4-12B-it` with three additions; nothing in the Qwen path changes (50 suite answers bit-identical, `runs/2026-10-05_mlx-gemma/`).
+
+- **Sliding-window layers.** Forty of Gemma 4's 48 layers keep a ring buffer of the last 1,024 tokens (mlx-lm's `RotatingKVCache`). `copy_cache` copies it whole with its write position into new array objects. A question's one-token steps write into the copy in place and longer ones concatenate; either way the prefix stays as it was.
+- **The final-logit softcap.** Gemma 4 caps its logits at 30 (`tanh(z / 30) * 30`). The label logits pass through the same cap, in the logits' dtype, as mlx-lm applies it, and the intent head's base readout is that capped readout.
+  - The readout takes the output layer at the last position alone. On quantised weights that matrix-vector product rounds differently from the model's own matrix-matrix product, by at most two bf16 steps at the label tokens; the tests bound it there.
+- **The base's tokenizer.** The prompts are built with `google/gemma-4-12B-it` at the base's pinned revision. The conversions' tokenizer is the same file, but their chat template predates Google's 2026-07-15 fix.
+
+The base and its settings (the system turn, the template's answer slot, summed label forms, the temperature, the yes/no rendering) come from `decisio.families`, as on vLLM.
+The 6-bit conversion is the default; the 4-bit one fails the suite-accuracy gate, and the 8-bit one adds nothing over 6-bit on the suite.
