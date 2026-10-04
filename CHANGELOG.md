@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/aminry/decisio/compare/v0.2.0...v0.3.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** tasks registered under the earlier compact layout are not applied by the new default (the layout enters the task fingerprint and the yes/no rendering a yes/no question's task key); register them again, or serve them with --prompt-tail compact --noul-rendering words. --mode packed reads only the compact layout and needs --prompt-tail compact.
+
+### Features
+
+* **demos:** four demos on a System One server, judged decision by decision, with clips rendered from trajectories ([#33](https://github.com/aminry/decisio/issues/33)) ([86abd52](https://github.com/aminry/decisio/commit/86abd5243fa595a89426e11aa63a60d47cbbc955))
+* **serve:** --noul-commit, an opt-in transform reporting yes/no answers inside 0.20 to 0.80 at the band's edge ([#53](https://github.com/aminry/decisio/issues/53)) ([62dfe1f](https://github.com/aminry/decisio/commit/62dfe1fa9af8bb490a53c1a1cccee345adbc2020))
+* **serve:** the spaced layout and yes/no as named letters are the served default, with T 1.506 and choice T 1.370 ([6c581d4](https://github.com/aminry/decisio/commit/6c581d46e5062d902763b6aa9adee0600cc022e1))
+
 ## [0.2.0](https://github.com/aminry/decisio/compare/v0.1.1...v0.2.0) (2026-10-03)
 
 
