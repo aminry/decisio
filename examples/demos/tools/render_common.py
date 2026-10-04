@@ -63,16 +63,37 @@ def caption_text(player: dict, ticks: list[dict], extra: str = "") -> str:
     return " · ".join(parts)
 
 
+def caption_lines(text: str, width: int) -> tuple[list[str], int]:
+    """The caption as one line at the largest size from 18 px down to 13 px that fits `width`, or else as two lines
+    split at the " · " nearest the middle (down to 11 px): it is never cut off."""
+    room = width - 32
+    for size in range(18, 12, -1):
+        if font(size).getlength(text) <= room:
+            return [text], size
+    parts = text.split(" · ")
+    if len(parts) > 1:
+        best = min(range(1, len(parts)), key=lambda k: abs(len(" · ".join(parts[:k])) - len(text) / 2))
+        lines = [" · ".join(parts[:best]), " · ".join(parts[best:])]
+    else:
+        lines = [text]
+    size = 16
+    while size > 11 and max(font(size).getlength(line) for line in lines) > room:
+        size -= 1
+    return lines, size
+
+
 def with_caption(img: Image.Image, text: str) -> Image.Image:
-    """The picture with a caption strip under it; the text shrinks (down to 11 px) to fit the width."""
-    out = Image.new("RGB", (img.width, img.height + STRIP_H), BG)
+    """The picture with a caption strip under it (one or two lines, see caption_lines)."""
+    lines, size = caption_lines(text, img.width)
+    strip = STRIP_H if len(lines) == 1 else STRIP_H + size + 6
+    out = Image.new("RGB", (img.width, img.height + strip), BG)
     out.paste(img, (0, 0))
     d = ImageDraw.Draw(out)
-    size = 18
-    while size > 11 and font(size).getlength(text) > img.width - 32:
-        size -= 1
     d.line([(0, img.height), (img.width, img.height)], fill=RULE)
-    d.text((16, img.height + STRIP_H // 2), text, fill=FG, font=font(size), anchor="lm")
+    step = size + 6
+    top = img.height + strip // 2 - step * (len(lines) - 1) / 2
+    for k, line in enumerate(lines):
+        d.text((16, top + k * step), line, fill=FG, font=font(size), anchor="lm")
     return out
 
 
