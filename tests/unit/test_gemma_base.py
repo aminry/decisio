@@ -8,7 +8,7 @@ B2  the template slot is the position after Gemma 4's empty, closed thought chan
     layout render as written
 B3  the state prefix is the same for every question mix, with no padding
 B4  the bases resolve: the Qwen base keeps the served defaults; the Gemma base brings its checkpoint, revision and
-    settings; a checkpoint of the other base is refused; MLX serves the Qwen base only
+    settings; a checkpoint of the other base is refused; MLX takes either base from an MLX conversion (--model)
 B5  the hidden-state readout's reserved ids hold no label form, for each base on its own tokenizer
 B6  the head's numbers: vLLM's bf16 soft cap; under the Gemma base the head's label log-probabilities are the
     engine's own readout of the row, not a recomputation
@@ -160,8 +160,11 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     assert sv.resolve_base(_args(model=qwen_dir, system_prompt=True))[1].system_prompt
     with pytest.raises(ValueError, match="is a qwen3.6-35b-a3b checkpoint"):
         sv.resolve_base(_args(base="gemma-4-12b", model=qwen_dir))
-    with pytest.raises(ValueError, match="MLX|mlx"):
+    with pytest.raises(ValueError, match="--backend mlx needs --model"):
         sv.resolve_base(_args(base="gemma-4-12b", backend="mlx"))
+    a = _args(model=gemma_dir, backend="mlx")  # an MLX conversion names the base's model type: its settings follow
+    fam, fmt = sv.resolve_base(a)
+    assert fam.key == "gemma-4-12b" and fmt.system_prompt and (a.temperature, a.noul_rendering) == (3.592, "letters")
     with pytest.raises(ValueError, match="--model or --base"):
         sv.resolve_base(_args())
     assert sorted(BASES) == ["gemma-4-12b", "qwen3.6-35b-a3b"]

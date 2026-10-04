@@ -7,7 +7,8 @@ cache at pinned revisions (skipped where they are not there; nothing is download
   - the sliding-window layers' cache (40 of 48 layers, a 1,024-token window), copied for every question;
   - the final-logit softcap (30) on the label logits, and so on the intent head's base readout.
 
-The prompts are main's served rows on Gemma's tokenizer; the Gemma prompt format and flags come with the model family.
+The prompts are the Gemma base's served rows (decisio.families.GEMMA4: the system turn, the spaced layout, the
+template's answer slot, every single-token form of a label summed).
 
     uv run pytest -q -m mlx_model tests/mlx/test_gemma_conversions.py
 """
@@ -37,9 +38,12 @@ QUESTION = {
 }
 # a state past the sliding window (1,024 tokens), so the prefix's sliding layers have rotated before the question
 LONG_STATE = " ".join(f"Line {i}: the order was scanned at depot {i % 7}." for i in range(160)) + " " + STATE
-# the capped logits recomputed from the last position alone against the model's own: the matrix-vector kernel rounds
-# differently from the model's matrix-matrix one, by 1 to 3.5 bf16 steps near 30 (0.125 each); measured 0.125 to 0.44
-BF16_STEPS = 0.5
+# the capped logits read at the last position alone (the engine's readout, a matrix-vector kernel) against the model's
+# own (a matrix-matrix kernel over the sequence): on 20 suite items under the Gemma base's prompt they differ by up to
+# 0.44 (4-bit) and 0.75 (6-bit) over the vocabulary, and the model's own lie within 0.16 of a float32 product, so the
+# difference is the matrix-vector kernel's rounding; at the label tokens the readout reads, by at most 0.25 (two bf16
+# steps between 16 and 32), which bounds them here (RLCD experiments/2026-10-03_t2_gemma_mac, cap_kernel_*.json)
+LABEL_BF16_STEPS = 0.25
 
 
 @pytest.fixture(scope="module", params=sorted(CONVERSIONS))
@@ -61,8 +65,18 @@ def engine(request):
         )
     except Exception:  # noqa: BLE001
         pytest.skip(f"{repo}@{rev[:8]} or the official tokenizer is not in the local Hugging Face cache")
+    from decisio.families import GEMMA4
+    from decisio.readout.letters import PromptFormat
+
     eng = MLXLettersEngine(path, pad_to=None, prefix_cache_mb=0, warm_up=False)
+    eng.fmt = PromptFormat(
+        tail=GEMMA4.prompt_tail,
+        slot=GEMMA4.answer_slot,
+        variants=GEMMA4.label_variants,
+        system_prompt=GEMMA4.system_prompt,
+    )
     eng.pad_policy = "none"
+    assert eng.family is GEMMA4
     return eng
 
 
@@ -70,11 +84,13 @@ def _whole(engine, ids, lab):
     """The label log-probabilities with the whole prompt in one pass from an empty cache (never served)."""
     import mlx.core as mx
 
-    from decisio.readout.letters import allowed_ids
+    from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 
     h = engine._feed(ids, engine.model.make_cache())
     z = engine._head(h[None])[0][mx.array(allowed_ids(lab))]
     z = np.array((mx.tanh(z / engine.softcap) * engine.softcap).astype(mx.float32), dtype=np.float64)
+    if is_grouped(lab):
+        return label_log_softmax(z, lab)
     z -= z.max()
     return z - np.log(np.exp(z).sum())
 
@@ -102,13 +118,16 @@ def test_prefix_path_equals_the_whole_prompt(engine, state):
 def test_capped_last_position_logits_match_the_model(engine):
     import mlx.core as mx
 
+    from decisio.readout.letters import allowed_ids
+
     rows, _ = engine._prepare_separate(STATE, [QUESTION])
     x = mx.array([rows[0][0]])
     h = engine._feed(rows[0][0], engine.model.make_cache())
     capped = mx.tanh(engine._head(h[None])[0] / engine.softcap) * engine.softcap
     own = engine.model(x, cache=engine.model.make_cache())[0, -1]
+    labels = mx.array(allowed_ids(rows[0][1]))
     mx.eval(capped, own)
-    assert float(mx.abs(capped.astype(mx.float32) - own.astype(mx.float32)).max()) <= BF16_STEPS
+    assert float(mx.abs(capped[labels].astype(mx.float32) - own[labels].astype(mx.float32)).max()) <= LABEL_BF16_STEPS
     raw = engine._head(h[None])[0]
     assert float(mx.abs(raw.astype(mx.float32) - own.astype(mx.float32)).max()) > 1.0  # the cap is not a no-op
 

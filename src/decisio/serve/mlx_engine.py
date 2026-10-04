@@ -9,8 +9,9 @@ derived questions, `/v1/answer` and `/v1/systemone`, the temperature, tasks, the
 
 The prompts are byte for byte the vLLM path's:
 
-- the tokenizer is the model family's official one (`OFFICIAL_TOKENIZERS`, by the checkpoint's `model_type`; Qwen:
-  `Qwen/Qwen3.6-35B-A3B-FP8`, Gemma 4: `google/gemma-4-12B-it` at `707f0a3b`), not a conversion's: the mlx-community
+- the tokenizer is the base's official one (its checkpoint at its revision, `decisio.families`, found from the
+  conversion's `model_type`; Qwen: `Qwen/Qwen3.6-35B-A3B-FP8`, Gemma 4: `google/gemma-4-12B-it` at `707f0a3b`), not a
+  conversion's: the mlx-community
   conversions of Qwen3.6-35B-A3B ship a different `tokenizer.json` and `tokenizer_config.json`, and those of
   gemma-4-12B-it the chat template from before Google's 2026-07-15 fix; `--tokenizer` overrides it (`repo@revision`
   pins a revision);
@@ -54,52 +55,21 @@ from pathlib import Path
 
 import numpy as np
 
+from decisio.families import QWEN, family_of
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
-# the official tokenizer of each model family, by the checkpoint's config.json `model_type`: (repository, revision or
-# None, sha256 of its tokenizer.json). Qwen: Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B have identical files.
-# Gemma 4: google/gemma-4-12B-it at the revision the vLLM path serves (its tokenizer.json unchanged since the first
-# upload; the revision pins the chat template).
-OFFICIAL_TOKENIZERS = {
-    "qwen3_5_moe": (
-        "Qwen/Qwen3.6-35B-A3B-FP8",
-        None,
-        "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
-    ),
-    "gemma4_unified": (
-        "google/gemma-4-12B-it",
-        "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
-        "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
-    ),
+# sha256 of each base's official tokenizer.json (the base's checkpoint at its revision, decisio.families). Qwen:
+# Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B have identical files. Gemma 4: unchanged since the first upload; the
+# revision pins the chat template (the mlx-community conversions ship the one from before Google's 2026-07-15 fix).
+TOKENIZER_SHA256 = {
+    "qwen3.6-35b-a3b": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
+    "gemma-4-12b": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
 }
-# a checkpoint of any other model type (the tests' tiny models included) is read with Qwen's, as before
-OFFICIAL_TOKENIZER, _, OFFICIAL_TOKENIZER_SHA256 = OFFICIAL_TOKENIZERS["qwen3_5_moe"]
+OFFICIAL_TOKENIZER, OFFICIAL_TOKENIZER_SHA256 = QWEN.model, TOKENIZER_SHA256[QWEN.key]
 SERVED_BLOCK = 1056  # vLLM's block on the served default: --pad-to block pads to it, so the prompts are the same
 PREFILL_STEP = 2048  # tokens per prefill chunk (bounds the attention layers' memory at long states)
 PREFIX_CACHE_MB = 2048  # the cross-request prefix cache's budget (about 25 entries at a 1,056-token prefix, 6-bit)
-
-
-def model_type(model):
-    """The checkpoint's config.json `model_type`: from a local directory, else from the Hugging Face hub (the file
-    alone); None when there is none."""
-    import json
-
-    p = Path(model) / "config.json"
-    if not p.exists() and not Path(model).exists():
-        from huggingface_hub import hf_hub_download
-
-        try:
-            p = Path(hf_hub_download(str(model), "config.json"))
-        except Exception:  # noqa: BLE001  (offline, or not a hub id)
-            return None
-    return json.loads(p.read_text()).get("model_type") if p.exists() else None
-
-
-def official_tokenizer(model):
-    """(repository, revision, tokenizer.json sha256) of the model's family (`OFFICIAL_TOKENIZERS`); Qwen's for any
-    other model type."""
-    return OFFICIAL_TOKENIZERS.get(model_type(model), OFFICIAL_TOKENIZERS["qwen3_5_moe"])
 
 
 def split_revision(tokenizer):
@@ -217,6 +187,7 @@ class MLXLettersEngine(LettersEngine):
         self,
         model,
         tokenizer=None,
+        family=None,
         pad_to="block",
         pad_token=PAD_TOKEN,
         pad_where="front",
@@ -234,9 +205,11 @@ class MLXLettersEngine(LettersEngine):
         self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
         self.adapters = {}
         self.model_name = str(model)
-        family_tok, family_rev, self.official_tokenizer_sha256 = official_tokenizer(model)
+        # the base (decisio.families), from the conversion's config.json model_type unless given; Qwen for any other
+        self.family = family or family_of(str(model))
+        self.official_tokenizer_sha256 = TOKENIZER_SHA256.get(self.family.key)
         if tokenizer is None:
-            self.tokenizer_name, self.tokenizer_revision = family_tok, family_rev
+            self.tokenizer_name, self.tokenizer_revision = self.family.model, self.family.revision
         else:
             self.tokenizer_name, self.tokenizer_revision = split_revision(tokenizer)
         self.model, _ = load(str(model))  # its own tokenizer is not used (see the module docstring)
@@ -376,6 +349,7 @@ class MLXLettersEngine(LettersEngine):
         tok_sha = _sha256(tj) if tj else None
         return {
             "engine": "mlx",
+            "base": self.family.key,
             "mlx": version("mlx"),
             "mlx_lm": version("mlx-lm"),
             "device": str(mx.default_device()),

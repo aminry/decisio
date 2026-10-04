@@ -226,22 +226,15 @@ def test_prefix_cache_evicts_least_recent_and_never_returns_other_tokens(tiny, m
     assert collide.get([4, 5, 6]) is None and collide.get([1, 2, 3]) is base
 
 
-def test_official_tokenizer_by_family(tmp_path):
-    from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, OFFICIAL_TOKENIZERS, official_tokenizer, split_revision
+def test_official_tokenizer_by_base():
+    from decisio.families import FAMILIES, GEMMA4, QWEN
+    from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, TOKENIZER_SHA256, split_revision
 
-    for mt in ("qwen3_5_moe", "gemma4_unified", "llama"):
-        d = tmp_path / mt
-        d.mkdir()
-        (d / "config.json").write_text(json.dumps({"model_type": mt}))
-        got = official_tokenizer(str(d))
-        if mt == "gemma4_unified":
-            assert got[:2] == ("google/gemma-4-12B-it", "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7")
-            assert len(got[2]) == 64
-        else:  # Qwen, and anything of another family, read as before families existed
-            assert got == OFFICIAL_TOKENIZERS["qwen3_5_moe"] and got[0] == OFFICIAL_TOKENIZER
+    # every base has its tokenizer's sha256; the tokenizer is the base's own checkpoint at its revision
+    assert sorted(TOKENIZER_SHA256) == sorted(f.key for f in FAMILIES) and OFFICIAL_TOKENIZER == QWEN.model
+    assert (GEMMA4.model, GEMMA4.revision) == ("google/gemma-4-12B-it", "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7")
     assert split_revision("google/gemma-4-12B-it@707f0a3b") == ("google/gemma-4-12B-it", "707f0a3b")
     assert split_revision("Qwen/Qwen3.6-35B-A3B-FP8") == ("Qwen/Qwen3.6-35B-A3B-FP8", None)
-    assert split_revision(str(tmp_path)) == (str(tmp_path), None)
 
 
 @pytest.mark.parametrize("steps", [[1, 1, 1], [5], [3, 1]])
