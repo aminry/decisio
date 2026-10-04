@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/aminry/decisio/compare/v0.4.0...v0.4.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* **serve:** load the pinned revision in packed mode, the hf stand-in and the second-engine head ([#65](https://github.com/aminry/decisio/issues/65)) ([b0b4ea5](https://github.com/aminry/decisio/commit/b0b4ea58dd6cbf5275bdcc627ec0c3cb18d7a93e))
+* **serve:** pin the Qwen base's checkpoint revision at 95a723d ([#63](https://github.com/aminry/decisio/issues/63)) ([9a36b96](https://github.com/aminry/decisio/commit/9a36b9681d1a1b7b3d83e90286ef9ffcb90fcc9b))
+
 ## [0.4.0](https://github.com/aminry/decisio/compare/v0.3.0...v0.4.0) (2026-10-04)
 
 
