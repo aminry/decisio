@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """MP4 and small GIF output with a caption strip under the picture, for the clips the trajectory renderers draw.
 
 The renderers (render_pong.py, render_fsd.py, render_ultrafast.py, render_triage.py) draw every frame from a trajectory

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # The measurement and recording scripts in this directory. The demos' own requirements are in their directories.
 numpy
 pillow

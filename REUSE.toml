@@ -42,3 +42,23 @@ path = ["examples/demos/pong/**"]
 precedence = "override"
 SPDX-FileCopyrightText = "Copyright 2026 Ably Real-time Ltd"
 SPDX-License-Identifier = "Apache-2.0"
+
+# The rendered demo clips (docs/demos/media/): drawn by the trajectory renderers in this repository; the driving clips
+# draw OpenStreetMap map data, and the browser-agent clips show the vendored fixture pages.
+[[annotations]]
+path = ["docs/demos/media/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright contributors to the decisio project"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["docs/demos/media/driving_*"]
+precedence = "override"
+SPDX-FileCopyrightText = ["Copyright contributors to the decisio project", "OpenStreetMap contributors"]
+SPDX-License-Identifier = "Apache-2.0 AND ODbL-1.0"
+
+[[annotations]]
+path = ["docs/demos/media/browser_*"]
+precedence = "override"
+SPDX-FileCopyrightText = ["Copyright contributors to the decisio project", "Copyright (c) 2026 Browser Use"]
+SPDX-License-Identifier = "Apache-2.0 AND MIT"

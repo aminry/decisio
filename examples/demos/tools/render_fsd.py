@@ -408,6 +408,8 @@ class FsdRenderer:
         for x in (x0, x1):
             d.line([(x, y0 - 5), (x, y0 + 5)], fill=rc.MUTED, width=2)
         d.text((x1 + 8, y0), f"{n} m", fill=rc.MUTED, font=rc.font(13), anchor="lm")
+        # the map's licence (ODbL) asks for its attribution on anything drawn from it
+        d.text((MAP_W - 12, y0), "Map data © OpenStreetMap contributors", fill=rc.MUTED, font=rc.font(12), anchor="rm")
 
     # --- the decision panel --------------------------------------------------------------------------------
 
