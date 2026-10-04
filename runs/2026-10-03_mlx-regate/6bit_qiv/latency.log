@@ -1,0 +1,4 @@
+pass 1: 1q p50 413 ms (413.2/q); 10q p50 1699 ms (169.9/q); 100q p50 15040 ms (150.4/q); 100q_8k p50 19428 ms (194.3/q); max foreign CPU 915% (ffmpeg), idle False
+pass 2: 1q p50 474 ms (474.2/q); 10q p50 1357 ms (135.7/q); 100q p50 15679 ms (156.8/q); 100q_8k p50 20097 ms (201.0/q); max foreign CPU 214% (Frameworks/MediaAnalysis.framework/Versions/A/mediaanalysisd), idle False
+pass 3: 1q p50 471 ms (471.4/q); 10q p50 1417 ms (141.7/q); 100q p50 16194 ms (161.9/q); 100q_8k p50 21616 ms (216.2/q); max foreign CPU 486% (/Users/amin/repo/decisio-t7/.venv/bin/python), idle False
+LATENCY DONE

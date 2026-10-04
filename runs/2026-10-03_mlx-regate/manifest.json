@@ -1,0 +1,91 @@
+{
+ "id": "2026-10-03_mlx-regate",
+ "title": "The MLX engine re-gated at 6 bits under the current served default (#54), #56's renames confirmed, and the latency re-measured",
+ "date": "2026-10-03",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2",
+ "software": {
+  "mlx": "0.32.3",
+  "mlx-lm": "0.32.0",
+  "python": "3.12.13",
+  "transformers": "5.18.0"
+ },
+ "model": "mlx-community/Qwen3.6-35B-A3B-6bit at cb7e092; tokenizer Qwen/Qwen3.6-35B-A3B at 995ad96 (official)",
+ "reference": "runs/2026-10-03_qiv-default (FP8, the current served default)",
+ "code": {
+  "gates": "62dfe1f",
+  "check_56": "4f5c704",
+  "latency": "4f5c704"
+ },
+ "servers": {
+  "A": "every flag the default, --debug-readout (suite, intent heads, the JevBench capture)",
+  "B2": "--temperature 1.307 --temperature-choice 1.307 --debug-readout (conformance, as the FP8 record's)",
+  "C": "--prefix-cache-mb 0 (latency.py)"
+ },
+ "preregistration": "RLCD experiments/2026-10-02_t2_mlx_backend/PREREG.md, addenda E, F, G",
+ "results": {
+  "S1_accuracy": {
+   "mlx": 0.7721428571428571,
+   "fp8": 0.77,
+   "mlx-fp8": [
+    0.002142857142857113,
+    -0.010000000000000009,
+    0.013571428571428568
+   ],
+   "pass": true
+  },
+  "S2_flips": 102,
+  "S3_ece": {
+   "mlx": 0.045144529716849006,
+   "fp8": 0.032658027186903936,
+   "pass": false
+  },
+  "H": {
+   "banking77": {
+    "mlx_mean": 0.8411111111111111,
+    "fp8_mean": 0.84,
+    "mlx-fp8": [
+     0.0011111111111111738,
+     -0.01777777777777767,
+     0.020000000000000018
+    ],
+    "pass": true
+   },
+   "v3_clinc": {
+    "mlx_mean": 0.9116666666666667,
+    "fp8_mean": 0.9116666666666666,
+    "mlx-fp8": [
+     1.1102230246251565e-16,
+     -0.02999999999999992,
+     0.02833333333333332
+    ],
+    "pass": true
+   }
+  },
+  "F_heldout_jevbench": {
+   "candidate_T": {
+    "choice": 1.472,
+    "other": 1.646
+   },
+   "logloss_candidate_minus_served": [
+    0.0032947197643377634,
+    -0.0018501240893870647,
+    0.007873452345853349
+   ],
+   "pass": false,
+   "ece_served": {
+    "mlx": 0.03334538214174426,
+    "fp8": 0.04218524582084676
+   }
+  },
+  "conformance": "C2, C3, C4 pass",
+  "check_56": "G1 pass, G2 50 of 50 bit-identical",
+  "latency_server_ms_p50": {
+   "one_question_cold": 266.4,
+   "one_question_cached_state": 110.65,
+   "per_question_100_sharing_a_state": 129.6565
+  }
+ },
+ "files": "files.json"
+}

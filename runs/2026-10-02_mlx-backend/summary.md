@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- SPDX-FileCopyrightText: Copyright contributors to the decisio project -->
 
+Every number here was measured under the earlier served default (the earlier prompt tail, yes/no as words, T 1.307); the re-gate under the current default is `runs/2026-10-03_mlx-regate`.
+
 ## Gates
 
 | Gate | 8bit | 6bit | 4bit |
