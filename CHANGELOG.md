@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/aminry/decisio/compare/v0.4.1...v0.5.0) (2026-10-04)
+
+
+### Features
+
+* the Gemma base on a Mac with --backend mlx, 6-bit by default ([#69](https://github.com/aminry/decisio/issues/69)) ([587c8b2](https://github.com/aminry/decisio/commit/587c8b26a9eb71ddc0080686a512f4bd73738ed8))
+
 ## [0.4.1](https://github.com/aminry/decisio/compare/v0.4.0...v0.4.1) (2026-10-04)
 
 
