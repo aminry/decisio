@@ -261,6 +261,12 @@ def server_format(url):
     return PromptFormat(**(h.get("prompt_format") or {})), (h.get("systemone") or {}).get("noul_rendering", "words")
 
 
+def served_temperature(health: dict, qtype: str) -> float:
+    """The temperature `/v1/systemone` serves a question type at, from /health's systemone block (as
+    SystemOne.temperature_of: the type's own temperature, else the global one)."""
+    return float((health.get("temperatures") or {}).get(qtype, health.get("temperature", 1.0)))
+
+
 def answer_counterpart(it, noul="words"):
     """The `/v1/answer` body that asks exactly what `/v1/systemone` asks for this item, and the index of P(yes) in its
     answer for a yes/no item (None for choice and score). Under --noul-rendering letters or letters-keys a yes/no
@@ -309,15 +315,18 @@ def gate_c4(url, items):
 
     diffs, flips, rows = [], 0, []
     with httpx.Client(timeout=600) as c:
-        # /v1/systemone serves its plain readout under the global temperature (decisio.serve.temperature); /v1/answer is
-        # the raw readout, so the same function is applied to it before comparing
-        T = float((c.get(f"{url}/health").json().get("systemone") or {}).get("temperature", 1.0))
-        noul = (c.get(f"{url}/health").json().get("systemone") or {}).get("noul_rendering", "words")
+        # /v1/systemone serves its plain readout under each question type's temperature (decisio.serve.temperature:
+        # the global one, or the type's own, as choice questions on the Qwen base); /v1/answer is the raw readout, so
+        # the same function is applied to it before comparing
+        health = c.get(f"{url}/health").json().get("systemone") or {}
+        noul = health.get("noul_rendering", "words")
+        used = {}
         for it in items:
             body, yes_at = answer_counterpart(it, noul)
             c.post(f"{url}/v1/answer", json=body).raise_for_status()  # caches the state
             a = c.post(f"{url}/v1/answer", json=body).json()["answers"][0]
             s = c.post(f"{url}/v1/systemone", json=it["systemone"]).json()["answers"]["q"]
+            T = used.setdefault(s["type"], served_temperature(health, s["type"]))
             # compare what each route transmits: P(yes) for yes/no (the wire carries no P(no)), every probability for
             # choice
             if s["type"] == "noul":
@@ -340,7 +349,7 @@ def gate_c4(url, items):
     m = max(diffs) if diffs else float("nan")
     return m == 0.0 and flips == 0, {
         "items": len(items),
-        "temperature": T,
+        "temperatures": used,
         "max_abs_delta_p": m,
         "mean_abs_delta_p": float(np.mean(diffs)),
         "top_answer_flips": flips,
