@@ -76,6 +76,7 @@ def options_listing(tok, options):
 
 from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
+from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
 
@@ -252,6 +253,7 @@ class LettersEngine:
             max_num_seqs=max_num_seqs,
             gpu_memory_utilization=gpu_memory_utilization,
             limit_mm_per_prompt=dict(self.family.limit_mm),
+            worker_extension_cls=WORKER_EXTENSION,
             **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
         )
         if mode == "separate":
@@ -290,6 +292,10 @@ class LettersEngine:
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
         self.match_unit = getattr(cfg, "prefix_match_unit", None) or self.block_size
+        # what /health reports of the prefix cache (padding keeps match_unit): vLLM's hit unit, the least common
+        # multiple of its KV cache groups' block sizes (64 on Gemma 4, whose groups are 16 and 64), and its hash step
+        sizes = self.llm.collective_rpc("decisio_kv_block_sizes")[0]
+        self.cache_hit_unit, self.hash_unit = sizes or (None, None)
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         if adapters:
             from vllm.lora.request import LoRARequest
@@ -330,6 +336,8 @@ class LettersEngine:
             "mode": self.mode,
             "block_size": self.block_size,
             "match_unit": self.match_unit,
+            "cache_hit_unit": self.cache_hit_unit,
+            "hash_unit": self.hash_unit,
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
             "quantization": str(c.model_config.quantization),

@@ -7,6 +7,8 @@ P2  re-entrancy: vLLM calls the entry point in every process and may call it aga
 P3  version guard: on any other vLLM version (and without vLLM) nothing is registered, and it says so once
 P4  the entry point is declared in pyproject.toml under `vllm.general_plugins` and resolves to `register`
 P5  no name a decisio class defines shadows an attribute of torch.nn.Module instances or of the vLLM base class
+W1  the worker extension reports vLLM's own (hit unit, hash step) for the engine's KV cache groups, None where vLLM
+    cannot say; its qualified name resolves the way vLLM resolves `worker_extension_cls`
 
   uv run pytest -q tests/unit/test_vllm_plugin.py
 """
@@ -209,3 +211,32 @@ def test_g1_gemma_hidden_readout_writes_after_the_soft_cap(monkeypatch):
         assert abs(recover_hidden(lp) - h.double().numpy()).max() < 1e-6
         dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
         assert set(vars(cls)) - dunder == {"compute_logits"}
+
+
+def test_w1_worker_extension_reports_vllms_block_sizes(monkeypatch):
+    import types
+
+    from decisio.vllm_plugin import worker
+
+    module, _, name = worker.QUALNAME.rpartition(".")  # vLLM's resolve_obj_by_qualname
+    assert getattr(importlib.import_module(module), name) is worker.DecisioWorkerExtension
+    seen = []
+
+    def resolve(cfg, vllm_config):
+        seen.append((cfg, vllm_config))
+        return 64, 16
+
+    utils = types.ModuleType("vllm.v1.core.kv_cache_utils")
+    utils.resolve_kv_cache_block_sizes = resolve
+    for m in ("vllm", "vllm.v1", "vllm.v1.core"):
+        monkeypatch.setitem(sys.modules, m, types.ModuleType(m))
+    monkeypatch.setitem(sys.modules, "vllm.v1.core.kv_cache_utils", utils)
+    w = worker.DecisioWorkerExtension()
+    w.vllm_config = "config"
+    w.model_runner = types.SimpleNamespace(kv_cache_config="groups")
+    assert w.decisio_kv_block_sizes() == [64, 16] and seen == [("groups", "config")]
+    w.model_runner = types.SimpleNamespace()  # before the KV cache exists
+    assert w.decisio_kv_block_sizes() is None
+    monkeypatch.setitem(sys.modules, "vllm.v1.core.kv_cache_utils", None)  # a vLLM without the function
+    w.model_runner = types.SimpleNamespace(kv_cache_config="groups")
+    assert w.decisio_kv_block_sizes() is None

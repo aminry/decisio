@@ -59,9 +59,10 @@ def gpu_gates(
         )
         print("ENGINE", eng.facts())
         a, info = eng.answer(STATE, QUESTIONS)
-        # padded: the whole shared prefix; unpadded: down to the last match-unit boundary inside it
+        # padded: the whole shared prefix; unpadded: down to the last boundary of vLLM's hit unit inside it
         P = info["shared_prefix_tokens"]
-        expect = P - 1 if eng.pad_unit else (P // eng.match_unit) * eng.match_unit
+        unit = eng.cache_hit_unit or eng.match_unit
+        expect = P - 1 if eng.pad_unit else (P // unit) * unit
         ok &= _check(
             f"G1 prefix served from cache ({info['cached_tokens_mean']:.0f} of "
             f"{info['prompt_tokens_mean']:.0f} tokens per question, shared prefix {P}, expected >= {expect})",
