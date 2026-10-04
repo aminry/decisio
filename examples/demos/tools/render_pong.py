@@ -148,7 +148,13 @@ class PongTrajectory:
     def panel(self, d: ImageDraw.ImageDraw, t: float, x: int, y: int, w: int, compact: bool = False) -> None:
         dec = self.decision_at(t)
         n = sum(1 for k in self.decided if self.times[k] <= t)
-        d.text((x, y + 4), "the model's last answer", fill=rc.MUTED, font=rc.font(14), anchor="lm")
+        d.text(
+            (x, y + 4),
+            "the model's last move" if rc.MOVES_ONLY else "the model's last answer",
+            fill=rc.MUTED,
+            font=rc.font(14),
+            anchor="lm",
+        )
         if not dec:
             d.text((x, y + 34), "waiting for the first answer", fill=rc.FG, font=rc.font(14), anchor="lm")
             return
@@ -186,14 +192,16 @@ def main() -> None:
     ap.add_argument("--gif", default=None)
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--seconds", type=float, default=None)
+    rc.add_clip_options(ap)
     a = ap.parse_args()
+    rc.apply_clip_options(a)
     lanes = [PongTrajectory(p) for p in a.trajectories]
     mp4 = rc.encode(frames(lanes, a.start, a.seconds), a.out)
     if a.gif:
         from demo_recorder import to_gif
 
         to_gif(mp4, a.gif)
-    print(mp4)
+    print(rc.finish_clip(mp4, a))
 
 
 if __name__ == "__main__":

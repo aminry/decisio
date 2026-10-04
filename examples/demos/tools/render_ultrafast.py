@@ -190,6 +190,9 @@ class Clip:
         answer = (decision.get("answer") or {}).get("operation") or {}
         probs = answer.get("probabilities") or {}
         chosen = (decision.get("chosen") or {}).get("operation")
+        if rc.MOVES_ONLY:  # the question's own order, never the answer's
+            asked = (((decision.get("request") or {}).get("questions") or {}).get("operation") or {}).get("criteria")
+            probs = {k: 0.0 for k in (asked or probs)}
         for option, p in probs.items():
             rc.bar(d, PANEL_X, y, PANEL_W, 22, float(p), option, option == chosen)
             y += 27
@@ -205,6 +208,8 @@ class Clip:
         ranked = sorted(probs, key=lambda k: -float(probs[k]))[:top]
         if target in probs and target not in ranked:
             ranked[-1] = target
+        if rc.MOVES_ONLY:  # the chosen target alone, no ranking
+            ranked = [target] if target in probs else []
         f = rc.font(13)
         for key in ranked:
             desc = criteria.get(key)
@@ -214,13 +219,14 @@ class Clip:
                 except ValueError:
                     desc = {"element": desc}
             label = (desc or {}).get("element") or f"[{key}]"
-            room = PANEL_W - 12 - f.getlength(f"  {float(probs[key]):.2f}")
+            room = PANEL_W - 12 - f.getlength("  (chosen)" if rc.MOVES_ONLY else f"  {float(probs[key]):.2f}")
             while f.getlength(label) > room and len(label) > 2:
                 label = label[:-2] + "…"
             rc.bar(d, PANEL_X, y, PANEL_W, 20, float(probs[key]), label, key == target, size=13)
             y += 24
         if len(probs) > len(ranked):
-            d.text((PANEL_X, y), f"{len(probs) - len(ranked)} more options", fill=rc.MUTED, font=rc.font(12))
+            more = f"chosen from {len(probs)} options" if rc.MOVES_ONLY else f"{len(probs) - len(ranked)} more options"
+            d.text((PANEL_X, y), more, fill=rc.MUTED, font=rc.font(12))
             y += 16
         return y
 
@@ -313,9 +319,11 @@ def main() -> None:
     ap.add_argument("--out", required=True, help="the MP4 to write")
     ap.add_argument("--gif", default=None, help="also a GIF (under 3 MB, demo_recorder.to_gif)")
     ap.add_argument("--min-hold", type=float, default=0.0, help="show every step at least this many seconds")
+    rc.add_clip_options(ap)
     a = ap.parse_args()
+    rc.apply_clip_options(a)
     clip = Clip(a.trajectory, a.min_hold)
-    mp4 = render(clip, a.out, a.gif)
+    mp4 = rc.finish_clip(render(clip, a.out, a.gif), a)
     print(mp4, f"{clip.duration:.2f} s", clip.caption())
 
 
