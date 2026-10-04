@@ -266,7 +266,7 @@ class LettersEngine:
             from transformers import AutoTokenizer
             from vllm.config import PoolerConfig
 
-            t = AutoTokenizer.from_pretrained(model)
+            t = AutoTokenizer.from_pretrained(model, revision=revision)
             self.label_ids = sorted(
                 set(label_token_ids(t, [" yes", " no"] + [" " + c for c in letter_labels(t, max_labels)]))
             )
@@ -1212,7 +1212,10 @@ def main():
         from decisio.serve.hf_letters import HFLettersEngine
 
         engine = HFLettersEngine(
-            args.model, pad_to=None if args.pad_to == "none" else args.pad_to, pad_where=args.pad_where
+            args.model,
+            pad_to=None if args.pad_to == "none" else args.pad_to,
+            pad_where=args.pad_where,
+            revision=args.revision,
         )
         engine.fmt, engine.family = fmt, args.family
     elif args.backend == "mlx":
@@ -1273,7 +1276,9 @@ def main():
         elif args.backend == "hf":
             from decisio.serve.hidden_engine import HFReservedHiddenEngine
 
-            hidden_engine = HFReservedHiddenEngine(args.model, pad_to=engine.pad_unit, pad_where=args.pad_where)
+            hidden_engine = HFReservedHiddenEngine(
+                args.model, pad_to=engine.pad_unit, pad_where=args.pad_where, revision=args.revision
+            )
             hidden_engine.family = args.family
             hidden_engine.fmt = fmt
         else:
@@ -1291,7 +1296,7 @@ def main():
         if args.backend == "hf":
             from decisio.serve.hidden_engine import HFHiddenEngine
 
-            hidden_engine = HFHiddenEngine(args.model, pad_to=pad_to, pad_where=args.pad_where)
+            hidden_engine = HFHiddenEngine(args.model, pad_to=pad_to, pad_where=args.pad_where, revision=args.revision)
         else:
             from decisio.serve.hidden_engine import HiddenEngine
 
@@ -1301,6 +1306,7 @@ def main():
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.head_gpu_memory_utilization,
                 engine_kw=engine_kwargs(args),
+                revision=args.revision,
             )
         # the head is fitted and served on the text route's exact token rows: refuse to start if they differ
         probe = (
