@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# The measurement and recording scripts in this directory. The demos' own requirements are in their directories.
+numpy
+pillow
+playwright
+browser-harness==0.1.13
+httpx[http2]>=0.28,<1
+# the API players' SDKs, imported only by systemone_gateway.py when that backend is chosen
+anthropic
+openai
+google-genai

@@ -1,0 +1,1832 @@
+{
+ "split": "train",
+ "seed": 20261003,
+ "generator": "examples/demos/triage/make_tickets.py",
+ "synthetic": "templated tickets written for this demo; no real customer wrote them",
+ "phrasings": "train",
+ "n": 200,
+ "per_intent": {
+  "data_export": 10,
+  "integration": 10,
+  "password_reset": 10,
+  "sync": 10,
+  "delete_account": 10,
+  "two_factor": 10,
+  "crash": 10,
+  "cancel_subscription": 10,
+  "promo_code": 10,
+  "security_concern": 10,
+  "billing": 10,
+  "login": 10,
+  "payment_failed": 10,
+  "account_locked": 10,
+  "bug": 10,
+  "feature_request": 10,
+  "plan_change": 10,
+  "performance": 10,
+  "refund": 10,
+  "sharing": 10
+ },
+ "tickets": [
+  {
+   "id": "train-0001",
+   "text": "Hi! How can I export all my notes at once? Thanks, Tom",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/train01"
+  },
+  {
+   "id": "train-0002",
+   "text": "i'm on version 8.5.2. Saving emails to Notewell from Outlook stopped workiing",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "integration/train06"
+  },
+  {
+   "id": "train-0003",
+   "text": "We're on the Family plan. How do I change my password? I can't find it in settings.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/train03"
+  },
+  {
+   "id": "train-0004",
+   "text": "Hi there! Changes I made this morning are missing on my iPad. Honestly not happy about this. Cheers, Amara",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "sync/train05"
+  },
+  {
+   "id": "train-0005",
+   "text": "I've been a customer sinnce 2019. My late father had a Notewell account. How can we have it deleted? Thanks, Sofia",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "delete_account/train05"
+  },
+  {
+   "id": "train-0006",
+   "text": "Reset emails go to my old work address, which I can't access anymore. I appreciate any help.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/train06"
+  },
+  {
+   "id": "train-0007",
+   "text": "Where do I find my backup codes? I lost access to my phone. PS the web app feels sluggish too, not a big deal.",
+   "intent": "two_factor",
+   "secondary": "performance",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "two_factor/train03"
+  },
+  {
+   "id": "train-0008",
+   "text": "Every time I tap 'share' the app quits. Honestly not happy about this.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "crash/train06"
+  },
+  {
+   "id": "train-0009",
+   "text": "Hi! I mostly use the Android app. I watn to stop paying for Plus, but keep my notes. By the way, is there a Slack integration? This is really frustrating.",
+   "intent": "cancel_subscription",
+   "secondary": "integration",
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "cancel_subscription/train03"
+  },
+  {
+   "id": "train-0010",
+   "text": "Hello Notewell team! How do I connect Notewell to Slack? This is really frustrating.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "integration/train01"
+  },
+  {
+   "id": "train-0011",
+   "text": "Hello! Your emial promised 30% off the yearly plan but i dont see the discount anywhere. Ive already written about this twice. Regards, Ahmed",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "promo_code/train04"
+  },
+  {
+   "id": "train-0012",
+   "text": "my account email is jt1987@example.org. Thre are notes in my account I din't write. Has it been hacked?",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 2,
+   "core": "security_concern/train03"
+  },
+  {
+   "id": "train-0013",
+   "text": "Hello Notewell team! Im a student, where do i get the student discount? Also, just curious, is there a way to export notes as Markdown?",
+   "intent": "promo_code",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/train02"
+  },
+  {
+   "id": "train-0014",
+   "text": "My account email is m.rossi@example.com. My Recipes notebook is empty on the desktop but full on my phone. Unrelated, but a Linux app would be nice someday. Sorry if this has been asked before.",
+   "intent": "sync",
+   "secondary": "feature_request",
+   "tone": "polite",
+   "typos": 0,
+   "core": "sync/train06"
+  },
+  {
+   "id": "train-0015",
+   "text": "My account email is m.rossi@example.com. I used WELCOME20 but was charged the full $89.99. I have a deadline tomorrow. Regards, Tom",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "promo_code/train03"
+  },
+  {
+   "id": "train-0016",
+   "text": "Hi! Im on version 9.1.0. Can you send me a receipt for my last payment? i need it for my expenses. By the way, is there a Slack integration?",
+   "intent": "billing",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "billing/train02"
+  },
+  {
+   "id": "train-0017",
+   "text": "i'm on the Family plan. Every time I log in on the web app it logs me out again after a few seconds",
+   "intent": "login",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "login/train03"
+  },
+  {
+   "id": "train-0018",
+   "text": "I mostly use the iPad app. My cad keeps getting declined when I try to renew. This is really frustrating.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "payment_failed/train01"
+  },
+  {
+   "id": "train-0019",
+   "text": "My account was frozen for 'unusual activity'. Can you unlock it?",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "account_locked/train05"
+  },
+  {
+   "id": "train-0020",
+   "text": "Hi there! There are notes in my account i didnt write. Has it been hacked? i need this fixed today. Thank you.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "security_concern/train03"
+  },
+  {
+   "id": "train-0021",
+   "text": "I'm locked out and the message says try again in 24 hours. I need my notes now. Also, could you resend my last receipt when you get a chance? I've already written about this twice.",
+   "intent": "account_locked",
+   "secondary": "billing",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "account_locked/train04"
+  },
+  {
+   "id": "train-0022",
+   "text": "i mostly use the iPhone app. My Meeting notes notebook is empty on the desktop but fll on my phhone. Also, a dark mode for the web app would be lovely. Ive already written about this twice.",
+   "intent": "sync",
+   "secondary": "feature_request",
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "sync/train06"
+  },
+  {
+   "id": "train-0023",
+   "text": "I'm on the Plus plan. I can log in on my phone but not on my Android phone.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/train04"
+  },
+  {
+   "id": "train-0024",
+   "text": "i have about 5,000 notes. Search doesnt find notes that i know contain the word. i have a deadline tomorrow. Cheers, Tom",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/train01"
+  },
+  {
+   "id": "train-0025",
+   "text": "Hello! How much will I pay when my yearly Family plan renews? The price on the website changed. Sorry if this has been asked before. Thanks!",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "billing/train05"
+  },
+  {
+   "id": "train-0026",
+   "text": "I have about 300 notes. I got a new phone and my authentiicator app no longer has the Notewell code.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "two_factor/train02"
+  },
+  {
+   "id": "train-0027",
+   "text": "I've been a customer since 2022. I tried to upgrade to Plus but the payment page says 'transaction faled'. Any help would be great.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "payment_failed/train02"
+  },
+  {
+   "id": "train-0028",
+   "text": "I want to switch my 2FA from SMS to an authenticator app. Any help would be great.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "two_factor/train06"
+  },
+  {
+   "id": "train-0029",
+   "text": "I entered a coupon on my phone and it didn't apply. Sorry if this has been asked before.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "promo_code/train06"
+  },
+  {
+   "id": "train-0030",
+   "text": "Checkboxes in my lists uncheck themselves after i close the note. Thank you.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/train02"
+  },
+  {
+   "id": "train-0031",
+   "text": "Good morning! I mostly use the web app. Checkout gives me an error at the payment step every time.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "payment_failed/train06"
+  },
+  {
+   "id": "train-0032",
+   "text": "Hi there! I have about 12,000 notes. Sign in with Apple takes me back to the login screen every time.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/train02"
+  },
+  {
+   "id": "train-0033",
+   "text": "I'd love to be able to set recurring reminders. I appreciate any help.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/train04"
+  },
+  {
+   "id": "train-0034",
+   "text": "I use it on my iPhone. Can I go back to monthly instead of yearly? I don't use it enough. I have a deadline tomorrow.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "plan_change/train06"
+  },
+  {
+   "id": "train-0035",
+   "text": "Hello Notewell team! I use it on my iPhone. How muuch will I pay wheen my yearly Family plan renews? The price on the website changed. Regards, Tom",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "billing/train05"
+  },
+  {
+   "id": "train-0036",
+   "text": "We're on the Family plan. The six-digit code is always rejected as invalid. Urgent please.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "two_factor/train04"
+  },
+  {
+   "id": "train-0037",
+   "text": "Sign in with Apple takes me back to the login screen every time. Regards, Sofia",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/train02"
+  },
+  {
+   "id": "train-0038",
+   "text": "I've been a customer since 2024. Please delete my account and all of my data. Any help would be great.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "delete_account/train01"
+  },
+  {
+   "id": "train-0039",
+   "text": "Hi there! I need my company name and VAT number on the invoices. Where can I add them? I've already written about this twice.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "billing/train06"
+  },
+  {
+   "id": "train-0040",
+   "text": "Good morning! I'm on the Family plan. Notewell drains my phone battery even when I'm not using it. Also, do you still have a student discount? This is really frustrating.",
+   "intent": "performance",
+   "secondary": "promo_code",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "performance/train03"
+  },
+  {
+   "id": "train-0041",
+   "text": "Hello! I need my company name and VAT number on the invoices. Where can I add them? Sorry if this has been asked before. Regards, Jake",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "billing/train06"
+  },
+  {
+   "id": "train-0042",
+   "text": "Where do I find my backup codes? I lost access to my phone. Please sort this out, it's been days. - Chen",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/train03"
+  },
+  {
+   "id": "train-0043",
+   "text": "I'm on version 9.0.1. I neeed a backup of everything, including attachments. Sorry if this has been asked before.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "data_export/train02"
+  },
+  {
+   "id": "train-0044",
+   "text": "Hey! The app hasnt worked for me all week, so Id like this month refuded. Sorry if this has been asked before. Thanks, Yuki",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "refund/train05"
+  },
+  {
+   "id": "train-0045",
+   "text": "my Google Calendar events stopped appearing in Notewell. Also, a dark mode for the web app would be lovely.",
+   "intent": "integration",
+   "secondary": "feature_request",
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/train02"
+  },
+  {
+   "id": "train-0046",
+   "text": "Im on version 9.0.1. The app crashes every time i open it on my Pixel 8. Also, just curious, is there a way to exort notes as Markdown? Sorry if this has been asked before.",
+   "intent": "crash",
+   "secondary": "data_export",
+   "tone": "polite",
+   "typos": 1,
+   "core": "crash/train01"
+  },
+  {
+   "id": "train-0047",
+   "text": "how do I connect Notewell to Zapier?",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/train01"
+  },
+  {
+   "id": "train-0048",
+   "text": "A notebook I deleted on the web keeps coming back on my iPad. I appreciate any help. - Ahmed",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sync/train04"
+  },
+  {
+   "id": "train-0049",
+   "text": "My yearly plan renewed without a reminder email and I don't want it. I'd like a refund. Sorry if this has been asked before. - Ahmed",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "refund/train03"
+  },
+  {
+   "id": "train-0050",
+   "text": "Deos the Black Friday offer work for people who already subscribe? This is really frustrating. Thank you.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "promo_code/train05"
+  },
+  {
+   "id": "train-0051",
+   "text": "Is there a way to export one notebook to a file? Honestly not happy about this. Cheers, Yuki",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/train05"
+  },
+  {
+   "id": "train-0052",
+   "text": "Hello! I think my password was in a data leak. What should I do? - Lukas",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "security_concern/train06"
+  },
+  {
+   "id": "train-0053",
+   "text": "Hello Notewell team! I'm on version 8.5.0. Please cancel my subscription. I don't want to be charged again. I appreciate any help.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "cancel_subscription/train01"
+  },
+  {
+   "id": "train-0054",
+   "text": "Hi! It says 'account disabled, contact support'. What did I do? Separately, one note seems to sync slowly, but that's not why I'm writing. Sorry if this has been asked before.",
+   "intent": "account_locked",
+   "secondary": "sync",
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/train03"
+  },
+  {
+   "id": "train-0055",
+   "text": "How do I share a notebook with my husband? Also, a dark modde for the web app would be lovely. I need this fixed tooday. Regards, Chen",
+   "intent": "sharing",
+   "secondary": "feature_request",
+   "tone": "urgent",
+   "typos": 2,
+   "core": "sharing/train01"
+  },
+  {
+   "id": "train-0056",
+   "text": "Were on the Family plan. i need a backup of everything, including attachments. Ive already written about this twice.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/train02"
+  },
+  {
+   "id": "train-0057",
+   "text": "could you support Markdown tables?",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "feature_request/train03"
+  },
+  {
+   "id": "train-0058",
+   "text": "i use it on my Windows laptop. i forgot my password and the reset email never arrives. i appreciate any help. Thanks, Lukas",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/train01"
+  },
+  {
+   "id": "train-0059",
+   "text": "Hey! i cant sign in. It says my email or password is wrong but Im sure theyre right. Honestly not happy about this. Thanks!",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/train01"
+  },
+  {
+   "id": "train-0060",
+   "text": "I tried to upgrade to Family but the payment page says 'transaction failed'. I appreciate any help.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/train02"
+  },
+  {
+   "id": "train-0061",
+   "text": "Hi there! I'm on version 9.1.0. Can I download my notes as PDF or Markdown? Sorry if ths has been asked before.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "data_export/train03"
+  },
+  {
+   "id": "train-0062",
+   "text": "Hi there! I've been a customer since 2019. Why does my March invoice sow $8.99 when the Family plan is advertised as cheaper? Honeestly not happy about this.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "billing/train03"
+  },
+  {
+   "id": "train-0063",
+   "text": "Hi team! I've been a customer since 2019. Stop my plan from renewing in December. Thanks, Jake",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/train06"
+  },
+  {
+   "id": "train-0064",
+   "text": "I have about 1,200 notes. How do I add my daughter to our Family plan? This is really frustrating.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "sharing/train03"
+  },
+  {
+   "id": "train-0065",
+   "text": "can I go back to monthly instead of yearly? I don't use it enuogh.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "plan_change/train06"
+  },
+  {
+   "id": "train-0066",
+   "text": "Good morning! When I paste a table it loses all its formatting. Honestly not happy about this.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "bug/train05"
+  },
+  {
+   "id": "train-0067",
+   "text": "Hi there! I want to change my plan to Plus. Where is the option in the iPhone app? I have a deadline tomorrow. - Ahmed",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "plan_change/train05"
+  },
+  {
+   "id": "train-0068",
+   "text": "How do I close my account for good? I won't be coming back. Any help would be great.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "delete_account/train04"
+  },
+  {
+   "id": "train-0069",
+   "text": "My account email is m.rossi@example.com. How do I turn on two-step verification? Sorry if this has been asked before.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "two_factor/train05"
+  },
+  {
+   "id": "train-0070",
+   "text": "I've been a customer since 2021. Please let us pick a colour for each notebook. Also, do you still have a student discouunt?",
+   "intent": "feature_request",
+   "secondary": "promo_code",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "feature_request/train06"
+  },
+  {
+   "id": "train-0071",
+   "text": "Can you send me a receipt for my last payment? I need it for my expenses.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "billing/train02"
+  },
+  {
+   "id": "train-0072",
+   "text": "Hello. I subscribed through the App Store, how do I cancel? This is really frustrating.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "cancel_subscription/train05"
+  },
+  {
+   "id": "train-0073",
+   "text": "my account email is chen.w@example.com. The app has become very slow, it takes ages to open a note. Also, no rush, but how do I share a notebook with my colleague?",
+   "intent": "performance",
+   "secondary": "sharing",
+   "tone": "terse",
+   "typos": 0,
+   "core": "performance/train01"
+  },
+  {
+   "id": "train-0074",
+   "text": "could you spport Markdown tabls?",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 2,
+   "core": "feature_request/train03"
+  },
+  {
+   "id": "train-0075",
+   "text": "Im not getting the verification code by text. This is really frustrating.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/train01"
+  },
+  {
+   "id": "train-0076",
+   "text": "i've been a customer since 2022. The Slack integration hasn't posted anything since yesterday",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/train03"
+  },
+  {
+   "id": "train-0077",
+   "text": "Hi there! How can i export all my notes at once?",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/train01"
+  },
+  {
+   "id": "train-0078",
+   "text": "How do I change my password? I cna't find it in settings.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "password_reset/train03"
+  },
+  {
+   "id": "train-0079",
+   "text": "It would be great to have a dark mode on the web app.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "feature_request/train01"
+  },
+  {
+   "id": "train-0080",
+   "text": "Hello Notewell team! Why does my January invoice show €54.99 when the Plus plan is advertised as cheaper? Urgent please. Thanks!",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "billing/train03"
+  },
+  {
+   "id": "train-0081",
+   "text": "Im on the Plus pllan. How do i upgrade from Pluus to Family so my daughter can join?",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "plan_change/train02"
+  },
+  {
+   "id": "train-0082",
+   "text": "Hello. The invite link I sent says it has expired. I appreciate any help.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sharing/train05"
+  },
+  {
+   "id": "train-0083",
+   "text": "Hi team! I'm on version 9.1.0. Delete my profile. I made it by mistake with the wrong email. I've already written about this twice.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "delete_account/train06"
+  },
+  {
+   "id": "train-0084",
+   "text": "Reminders go off an hour latte since the clocks changed. I've already written about tis twice.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "bug/train04"
+  },
+  {
+   "id": "train-0085",
+   "text": "i'm on version 9.1.0. Your email promised 30% off the yearly plan but I don't see the discount anywhere.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "promo_code/train04"
+  },
+  {
+   "id": "train-0086",
+   "text": "Before I leave I want a copy of all my notebooks. How?",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/train04"
+  },
+  {
+   "id": "train-0087",
+   "text": "Good morning! My account email is priya.n@example.net. How do I turn off auto-renew? I want to stay on Free. Honestly not happy about this.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "cancel_subscription/train02"
+  },
+  {
+   "id": "train-0088",
+   "text": "I'm on version 9.0.1. The password reset link sas it has expired. This is really frustrating.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "password_reset/train02"
+  },
+  {
+   "id": "train-0089",
+   "text": "the web app is sluggish in Firefox and scrolling stutters.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "performance/train05"
+  },
+  {
+   "id": "train-0090",
+   "text": "Hey! I reset my password but the new one isn't accepted. Cheers, Jake",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "password_reset/train04"
+  },
+  {
+   "id": "train-0091",
+   "text": "I want my Notewell account removved permanently, including notes and attachments. Please srt this out, it's been days. Thanks, Amara",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "delete_account/train02"
+  },
+  {
+   "id": "train-0092",
+   "text": "Hello Notewell team! We're on the Family plan. Please let us pick a colour for each notebook. Separately, how do I turn on two-step verification later? Sorry if this has been asked before.",
+   "intent": "feature_request",
+   "secondary": "two_factor",
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/train06"
+  },
+  {
+   "id": "train-0093",
+   "text": "Good morning! I'm on version 9.1.0. Someone else is using a seat on my Family plan and I didn't invite thhem. Any help would be great. Thanks!",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "security_concern/train05"
+  },
+  {
+   "id": "train-0094",
+   "text": "We're on the Family plan. I'd love to be able to set recurring reminders. Sorry if this has been asked before.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/train04"
+  },
+  {
+   "id": "train-0095",
+   "text": "I'm on version 8.5.0. Sync has been stuck on 'syncing' for two days. Sorry if this has been asked before. - Yuki",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sync/train03"
+  },
+  {
+   "id": "train-0096",
+   "text": "Hello Notewell team! My son bought Plus on my card without asking. Can that be reversed? Unrelated, but a Linux app would be nice someday.",
+   "intent": "refund",
+   "secondary": "feature_request",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/train06"
+  },
+  {
+   "id": "train-0097",
+   "text": "I use it on my iPhone. A notebook I deleted on the web keeps coming back on my iPad.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/train04"
+  },
+  {
+   "id": "train-0098",
+   "text": "Hi team! I'm on the Plus plan. I want my Notewell account removed permanently, including notes and attachments. Thanks!",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/train02"
+  },
+  {
+   "id": "train-0099",
+   "text": "The login page just spins forever in Edge. Sorry if this has been asked before. Cheers, Amara",
+   "intent": "login",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "login/train05"
+  },
+  {
+   "id": "train-0100",
+   "text": "i'm on version 8.5.2. I want to remove someone's access to a shared notebook",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sharing/train04"
+  },
+  {
+   "id": "train-0101",
+   "text": "Hello Notewell team! I want to remove someone's access to a shared notebook. I have a deadline tomorrow.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "sharing/train04"
+  },
+  {
+   "id": "train-0102",
+   "text": "Hey! My account email is priya.n@example.net. Notewell drains my phone battery even when I'm not using it. I appreciate any help. Regards, Yuki",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "performance/train03"
+  },
+  {
+   "id": "train-0103",
+   "text": "Hello. Ive been a customer since 2024. The web app is sluggish in Chrome and scrolling stutters.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/train05"
+  },
+  {
+   "id": "train-0104",
+   "text": "Hello. I'm on the Plus plan. Images in my notes show as broken grey boxes in the web app. I need this fixed today. Regards, Amara",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/train06"
+  },
+  {
+   "id": "train-0105",
+   "text": "We're on the Family plan. I got an email that my payment didn't go through and my account will be downgraded.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "payment_failed/train04"
+  },
+  {
+   "id": "train-0106",
+   "text": "my bank statement shows two charges from Notewell ths month. Is one of them a mistake?",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "billing/train04"
+  },
+  {
+   "id": "train-0107",
+   "text": "Hi! I received an email asking for my Notewell password. Is it real? Separately, one note seems to sync slowly, but that's not why I'm writing. I appreciate any help.",
+   "intent": "security_concern",
+   "secondary": "sync",
+   "tone": "polite",
+   "typos": 0,
+   "core": "security_concern/train04"
+  },
+  {
+   "id": "train-0108",
+   "text": "Hey! I upgraded to Family by accident yesterday. Can you refund it? I need this fixed today. Cheers, Yuki",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "refund/train02"
+  },
+  {
+   "id": "train-0109",
+   "text": "every time I tap 'share' the app quits.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "crash/train06"
+  },
+  {
+   "id": "train-0110",
+   "text": "i have about 12,000 notes. My card keeps getting declined when I try to renew.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "payment_failed/train01"
+  },
+  {
+   "id": "train-0111",
+   "text": "Hi! I can't sign in. It says my email or password is wrong but I'm sure they're right. Please sort this out, it's been days. Thank you.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/train01"
+  },
+  {
+   "id": "train-0112",
+   "text": "Hi team! We're on the Family plan. I was charged twice for the same month. Please return the duplicate payment.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/train04"
+  },
+  {
+   "id": "train-0113",
+   "text": "Hey! I updated my card details but the charge still fails. By the way, is there a Slack integration?",
+   "intent": "payment_failed",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "payment_failed/train05"
+  },
+  {
+   "id": "train-0114",
+   "text": "Hello! i have about 5,000 notes. Please downgrade me to the Free paln at the end of this period. Honestly not happy about this. Cheers, Maria",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "plan_change/train03"
+  },
+  {
+   "id": "train-0115",
+   "text": "I want to stop paying for Family, but keep my notes.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/train03"
+  },
+  {
+   "id": "train-0116",
+   "text": "Notewell closes itself when I try to attach a poto. This is reallly frustrating. Regards, Lukas",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "crash/train02"
+  },
+  {
+   "id": "train-0117",
+   "text": "the Zapier trigger 'new note' doesn't fire anymore. Allso, do you still have a student discount?",
+   "intent": "integration",
+   "secondary": "promo_code",
+   "tone": "terse",
+   "typos": 1,
+   "core": "integration/train05"
+  },
+  {
+   "id": "train-0118",
+   "text": "Does the Black Friday offer work for people who already subscribe?",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/train05"
+  },
+  {
+   "id": "train-0119",
+   "text": "Hello. Delete my profile. I made it by mistake with the wrong email. Separately, how do I turn on two-step verification later?",
+   "intent": "delete_account",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/train06"
+  },
+  {
+   "id": "train-0120",
+   "text": "Notewell flagged my account and I can't open anything. Please restore access.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "account_locked/train06"
+  },
+  {
+   "id": "train-0121",
+   "text": "Hello Notewell team! My account email is chen.w@example.com. The Android app freezes and then shuts down when I scroll a long note.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/train04"
+  },
+  {
+   "id": "train-0122",
+   "text": "any plans for an Apple Watch app?",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "feature_request/train05"
+  },
+  {
+   "id": "train-0123",
+   "text": "My account emaiil is jt1987@example.org. The 'forgot password' button does nothing when I tap it. Any help would be great. Thank you.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "password_reset/train05"
+  },
+  {
+   "id": "train-0124",
+   "text": "it says 'account disabled, contact support'. Wat did I do?",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "account_locked/train03"
+  },
+  {
+   "id": "train-0125",
+   "text": "i'm on the Plus plan. Somebody changed my account email and I can't get in anymore. Also, no rush, but how do I share a notebook with my son?",
+   "intent": "security_concern",
+   "secondary": "sharing",
+   "tone": "terse",
+   "typos": 0,
+   "core": "security_concern/train02"
+  },
+  {
+   "id": "train-0126",
+   "text": "Im on the Family plan. My coworker says she cant edit the note i shared with her. Regards, Amara",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/train02"
+  },
+  {
+   "id": "train-0127",
+   "text": "I mostly use the Windows app. My Google Calendar events stopped appearing in Notewell. Separately, one note seems to sync slowly, but that's not why I'm writing. Urgent please.",
+   "intent": "integration",
+   "secondary": "sync",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "integration/train02"
+  },
+  {
+   "id": "train-0128",
+   "text": "i use it on my Galaxy S23. Typing lags behind by a second or two in long notes",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "performance/train02"
+  },
+  {
+   "id": "train-0129",
+   "text": "Hello. Search takes more than 30 seconds with about 2,000 notes. Thank you.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/train04"
+  },
+  {
+   "id": "train-0130",
+   "text": "the app hasn't worked for me all week, so I'd like this month refunded.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "refund/train05"
+  },
+  {
+   "id": "train-0131",
+   "text": "Hello! I mostly use the Windows app. My son bought Plus on my card without asking. Can that be reversed? I have a deadline tmoorrow.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 1,
+   "core": "refund/train06"
+  },
+  {
+   "id": "train-0132",
+   "text": "my account email is chen.w@example.com. How do I upgrade from Plus to Family so my partner can join?",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "plan_change/train02"
+  },
+  {
+   "id": "train-0133",
+   "text": "My account was frozen for 'unusual activity'. Can you unlock it? Also, do you still have a student discount? Thanks!",
+   "intent": "account_locked",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/train05"
+  },
+  {
+   "id": "train-0134",
+   "text": "If I switch to Family now, what happens to the rest of my Plus month? Regards, Ahmed",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "plan_change/train04"
+  },
+  {
+   "id": "train-0135",
+   "text": "Hello. I'm on version 8.5.0. Search doesn't find notes that I know contain the word. Honestly not happy about this.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "bug/train01"
+  },
+  {
+   "id": "train-0136",
+   "text": "Hello! How do I share a notebook with my daughter? Sorry if this has been asked before. Regards, Amara",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "sharing/train01"
+  },
+  {
+   "id": "train-0137",
+   "text": "Hello. I got an email that someone signed in frm another country. That wasn't me. Unrelated, but a Linnux app would be nice someday.",
+   "intent": "security_concern",
+   "secondary": "feature_request",
+   "tone": "neutral",
+   "typos": 2,
+   "core": "security_concern/train01"
+  },
+  {
+   "id": "train-0138",
+   "text": "I was charged twie for the same month. Please return the duplicate paymnet. I appreciate any help. - Priya",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "refund/train04"
+  },
+  {
+   "id": "train-0139",
+   "text": "Hi there! Since version 9.1.0 the Mac app won't start at all. Thanks, Sofia",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/train03"
+  },
+  {
+   "id": "train-0140",
+   "text": "Hi! It says no account exists with my email, but Ive been paying for two years. i need this fixed today. Thanks, Amara",
+   "intent": "login",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "login/train06"
+  },
+  {
+   "id": "train-0141",
+   "text": "Please add a way to lock individual notes with a PIN. PS the web app feels sluggish too, not a big deal. Sorry if this has been asked before.",
+   "intent": "feature_request",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/train02"
+  },
+  {
+   "id": "train-0142",
+   "text": "my late father had a Notewell account. How can we have it deleted? By the way, is there a Slack integration?",
+   "intent": "delete_account",
+   "secondary": "integration",
+   "tone": "terse",
+   "typos": 0,
+   "core": "delete_account/train05"
+  },
+  {
+   "id": "train-0143",
+   "text": "I have about 2,000 notes. The desktop app uses 4 GB of memory and my laptop fans go crazy. Also, could you resend my last receipt when you get a chance?",
+   "intent": "performance",
+   "secondary": "billing",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "performance/train06"
+  },
+  {
+   "id": "train-0144",
+   "text": "My account email is priya.n@example.net. I ued STUDENT50 but was chargeed the full $49.99. Also, just curious, is there a way to export notes as Markdown? Please sort this out, it's been days.",
+   "intent": "promo_code",
+   "secondary": "data_export",
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "promo_code/train03"
+  },
+  {
+   "id": "train-0145",
+   "text": "I have about 5,000 notes. I'm a student, where do I get the student discount? Unrelated, but a Linux app would be nice someday. Any help would be great.",
+   "intent": "promo_code",
+   "secondary": "feature_request",
+   "tone": "polite",
+   "typos": 0,
+   "core": "promo_code/train02"
+  },
+  {
+   "id": "train-0146",
+   "text": "Hi team! I'm on the Plus plan. Sync has been stuck on 'syncing' for two days.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/train03"
+  },
+  {
+   "id": "train-0147",
+   "text": "Checkboxes in my lists uncheck themselves after I close the note.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/train02"
+  },
+  {
+   "id": "train-0148",
+   "text": "Under GDPR I am asking you to erase all personal data you hold about me. Aslo, could you resend my lats receipt when you get a chance?",
+   "intent": "delete_account",
+   "secondary": "billing",
+   "tone": "neutral",
+   "typos": 2,
+   "core": "delete_account/train03"
+  },
+  {
+   "id": "train-0149",
+   "text": "i mostly use the Android app. The password reset link says it has expired. Also, a dark mode for the web app would be lovely.",
+   "intent": "password_reset",
+   "secondary": "feature_request",
+   "tone": "terse",
+   "typos": 0,
+   "core": "password_reset/train02"
+  },
+  {
+   "id": "train-0150",
+   "text": "how do I add my son to our Family plan?",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sharing/train03"
+  },
+  {
+   "id": "train-0151",
+   "text": "I reeceived an email asking for my Notewell password. Is it real? Separately, how do I turn on two-step vrification later? Regards, Chen",
+   "intent": "security_concern",
+   "secondary": "two_factor",
+   "tone": "polite",
+   "typos": 2,
+   "core": "security_concern/train04"
+  },
+  {
+   "id": "train-0152",
+   "text": "I've been a customer since 2019. The Windows app crashes as soon as I open the Work notebook. Separately, how do I turn on two-step verification later? Any help would be great.",
+   "intent": "crash",
+   "secondary": "two_factor",
+   "tone": "polite",
+   "typos": 0,
+   "core": "crash/train05"
+  },
+  {
+   "id": "train-0153",
+   "text": "i want to change my plan to Plus. Where is the option in the iPhone app? Honestly not happy about this. Thanks, Tom",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "plan_change/train05"
+  },
+  {
+   "id": "train-0154",
+   "text": "i use it on my MacBook. I'm not getting the verification code by text.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "two_factor/train01"
+  },
+  {
+   "id": "train-0155",
+   "text": "Good morning! I reset my password but the new one isn't accepted. Any help would be great. Thanks!",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/train04"
+  },
+  {
+   "id": "train-0156",
+   "text": "Notewell closes itself when I try to attach a photo.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/train02"
+  },
+  {
+   "id": "train-0157",
+   "text": "I'd liek to move frm monthly to yearly billing on Family. Thanks, Yuki",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "plan_change/train01"
+  },
+  {
+   "id": "train-0158",
+   "text": "We're on the Family plan. PayPal says the payment went through but Notewell says my renewal failed. Any help would be great. Thanks, Amara",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/train03"
+  },
+  {
+   "id": "train-0159",
+   "text": "Hi there! Canel my Notewell membership at the end of this month please. Please sort this out, it's been days. - Yuki",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "cancel_subscription/train04"
+  },
+  {
+   "id": "train-0160",
+   "text": "Good morning! My account email is m.rossi@example.com. I can log in on my phone but not on my MacBook. Any help would be great.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "login/train04"
+  },
+  {
+   "id": "train-0161",
+   "text": "somebody changed my account email and I can't get in anymore.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "security_concern/train02"
+  },
+  {
+   "id": "train-0162",
+   "text": "Typing lags behind by a second or two in long notes. I've already written about this twice. Thanks!",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "performance/train02"
+  },
+  {
+   "id": "train-0163",
+   "text": "I got an email that somoene signed in from another country. That wasn't me. Thank you.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "security_concern/train01"
+  },
+  {
+   "id": "train-0164",
+   "text": "i was charged $89.99 on Monday and I don't understand what it is for. PS the web app feels sluggish too, not a big deal",
+   "intent": "billing",
+   "secondary": "performance",
+   "tone": "terse",
+   "typos": 0,
+   "core": "billing/train01"
+  },
+  {
+   "id": "train-0165",
+   "text": "Hi! I want to switch my 2FA from SMS to an authenticator app. Soryr if this has been asked before. - Chen",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "two_factor/train06"
+  },
+  {
+   "id": "train-0166",
+   "text": "Hey! Can I download my notes as PDF or Markdown? I've already written about this twice. Thanks, Maria",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/train03"
+  },
+  {
+   "id": "train-0167",
+   "text": "My account says it's been locked afetr too many attempts. I've already written about this twice. Regards, Jake",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "account_locked/train01"
+  },
+  {
+   "id": "train-0168",
+   "text": "My account email is jt1987@example.org. The code FRIEND1M sasy it's invalid at checkuot. Regards, Lukas",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "promo_code/train01"
+  },
+  {
+   "id": "train-0169",
+   "text": "Hey! We're on the Family plan. Notes I wriet on my phone don't show up on my laptop. I have a dealine tomorrow.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 2,
+   "core": "sync/train01"
+  },
+  {
+   "id": "train-0170",
+   "text": "Notes I write on my phone don't show up on my laptop. Cheers, Yuki",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/train01"
+  },
+  {
+   "id": "train-0171",
+   "text": "Hi team! Im on version 8.4.1. Is there a way to export one notebook to a file? By the way, is there a Slack integration? Thank you.",
+   "intent": "data_export",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "data_export/train05"
+  },
+  {
+   "id": "train-0172",
+   "text": "Hi there! I'm on version 8.5.0. Any plans for an Apple Watch app?",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "feature_request/train05"
+  },
+  {
+   "id": "train-0173",
+   "text": "Stp my plan from renewing in October. Sorry if this has been asked before.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "cancel_subscription/train06"
+  },
+  {
+   "id": "train-0174",
+   "text": "I cancelled on the 3rd but was still charged $8.99. Please give me my money back. By the way, is there a Slack integration? Thanks!",
+   "intent": "refund",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "refund/train01"
+  },
+  {
+   "id": "train-0175",
+   "text": "Hi! Please cancel my subscription. I don't want to be charged again.",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/train01"
+  },
+  {
+   "id": "train-0176",
+   "text": "Hello Notewell team! Since version 9.1.0 the Mac app won't start at all. Urgent please.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "crash/train03"
+  },
+  {
+   "id": "train-0177",
+   "text": "Hi! Images in my notes show as broken grey boxes in the iPhone app. - Sofia",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "bug/train06"
+  },
+  {
+   "id": "train-0178",
+   "text": "i mostly use the iPad app. I got an email saying my account was suspended. Why? Also, no rush, but how do I share a notebook with my wife?",
+   "intent": "account_locked",
+   "secondary": "sharing",
+   "tone": "terse",
+   "typos": 0,
+   "core": "account_locked/train02"
+  },
+  {
+   "id": "train-0179",
+   "text": "I have about 12,000 notes. The desktop app uses 4 GB of memory and my laptop fans go crazy. Separately, how do I turn on two-step verification later? I need this fixed today.",
+   "intent": "performance",
+   "secondary": "two_factor",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "performance/train06"
+  },
+  {
+   "id": "train-0180",
+   "text": "How do I close my account for good? I won't be coming back. The app has also been a bit slow lately, but that's minor. Thank you.",
+   "intent": "delete_account",
+   "secondary": "performance",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/train04"
+  },
+  {
+   "id": "train-0181",
+   "text": "Hello. Please downgrade me to the Free plan at the end of this period. Sorry if this has been asked before. Cheers, Jake",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/train03"
+  },
+  {
+   "id": "train-0182",
+   "text": "I'm on the Family plan. Where do I get an API key for my own scripts? PS the web app feels sluggish too, not a big deal. Sorry if this has been asked before.",
+   "intent": "integration",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 0,
+   "core": "integration/train04"
+  },
+  {
+   "id": "train-0183",
+   "text": "Hey! I'm on version 9.0.1. I'm locked out and the message says try again in 24 hours. I need my notes now.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "account_locked/train04"
+  },
+  {
+   "id": "train-0184",
+   "text": "Hello! My account email is priya.n@example.net. The app crashes every time i open it on my MacBook. Regards, Jake",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/train01"
+  },
+  {
+   "id": "train-0185",
+   "text": "the Zapier trigger new note doesnt fire anymore. Sparately, how do i turn on two-step verification later?",
+   "intent": "integration",
+   "secondary": "two_factor",
+   "tone": "terse",
+   "typos": 1,
+   "core": "integration/train05"
+  },
+  {
+   "id": "train-0186",
+   "text": "Hello! The login page just spins forever in Chrome. Please sort this out, it's been days.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/train05"
+  },
+  {
+   "id": "train-0187",
+   "text": "Hello! Notewell flagged my account and i cant open anything. Please restore access. i appreciate any help.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/train06"
+  },
+  {
+   "id": "train-0188",
+   "text": "I edited a note on two devices and now there are two conflicting copies. Thank you.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/train02"
+  },
+  {
+   "id": "train-0189",
+   "text": "Hello. I use it on my Pixel 8. Saving emails to Notewell from Outlook stopped working. PS the web app feels sluggish too, not a big deal.",
+   "intent": "integration",
+   "secondary": "performance",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/train06"
+  },
+  {
+   "id": "train-0190",
+   "text": "Hi! Id like a copy of all the data you hold abot me.",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "data_export/train06"
+  },
+  {
+   "id": "train-0191",
+   "text": "Can people I share with see my other notebooks? I have a deadline tomorrow.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "sharing/train06"
+  },
+  {
+   "id": "train-0192",
+   "text": "Good morning! I got an email that my payment didn't go through and my account will be downgraded. Also, a dark mode for the web app would be lovely. Any help would be great. Thank you.",
+   "intent": "payment_failed",
+   "secondary": "feature_request",
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/train04"
+  },
+  {
+   "id": "train-0193",
+   "text": "The web clipper saves an empty note instead of the page. Urgent please.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/train03"
+  },
+  {
+   "id": "train-0194",
+   "text": "Can people I share with see my other notebooks? By the way, is there a Slack integration? I appreciate any help. Thank you.",
+   "intent": "sharing",
+   "secondary": "integration",
+   "tone": "polite",
+   "typos": 0,
+   "core": "sharing/train06"
+  },
+  {
+   "id": "train-0195",
+   "text": "I subscribed through the App Store, how do I cancel? I've already written about this twice. Thanks, Jake",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "cancel_subscription/train05"
+  },
+  {
+   "id": "train-0196",
+   "text": "I updated my card details but the charge stil fails. Thanks!",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "payment_failed/train05"
+  },
+  {
+   "id": "train-0197",
+   "text": "Reminders go off an hour late since the clocks changed. I appreciate any help.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "bug/train04"
+  },
+  {
+   "id": "train-0198",
+   "text": "How do I turn on two-step verification? This is really frustrating.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/train05"
+  },
+  {
+   "id": "train-0199",
+   "text": "We're on the Family plan. My yearly plan renewed without a reminder email and I don't want it. I'd like a refund. Sorry if this has been asked before.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "refund/train03"
+  },
+  {
+   "id": "train-0200",
+   "text": "Hello. My account email is priya.n@example.net. The 'forgot password' button does nothing when I tap it. Sorry if this has been askked before.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 1,
+   "core": "password_reset/train05"
+  }
+ ]
+}

@@ -45,6 +45,20 @@ Measured against the served default on one card in one session: 48.8 to 38.1 ms 
 Accuracy and calibration stayed within noise on the suite, JevBench, the four Decision Index benchmarks and the intent heads.
 Its cost is repeatability: a repeated identical request can move by up to 0.015 on long prompts (2 of 1,400 suite items in the gate, no answer changed), where the default padding returns the same probabilities every time, so it stays off by default (`runs/2026-10-02_pad-policy-row/`).
 
+## Watch it play
+
+Four demos call a decisio server for every move (`examples/demos/`): Pong, a driving simulator, a browser agent and a support-ticket triage feed.
+Each clip is rendered from a recorded run at the speed it happened, with the model, the card, the median latency and `--pad-policy row` in its caption.
+
+| | |
+| --- | --- |
+| ![Pong, Decisio and Cygnet](docs/demos/media/pong_decisio_cygnet.gif) | ![Driving, Decisio](docs/demos/media/driving_decisio_s1-1.gif) |
+| Pong, Decisio and Cygnet on the same serve ([MP4](docs/demos/media/pong_decisio_cygnet.mp4)) | Driving in real time ([MP4](docs/demos/media/driving_decisio_s1-1.mp4); [beside Cygnet](docs/demos/media/driving_decisio_cygnet_s1-1.mp4)) |
+| ![Browser agent, Decisio](docs/demos/media/browser_decisio_travel.gif) | ![Triage, before and after registration](docs/demos/media/triage_plain_vs_taught.gif) |
+| A browser agent's travel task ([MP4](docs/demos/media/browser_decisio_travel.mp4); [beside Cygnet](docs/demos/media/browser_decisio_cygnet_travel.mp4); [the reading room](docs/demos/media/browser_decisio_reading.mp4)) | Triage before and after registering 200 labelled tickets ([MP4](docs/demos/media/triage_plain_vs_taught.mp4)) |
+
+`docs/demos/README.md` judges every decision against an oracle, classes the errors, and reports the renderings tested on held-out data and what teaching did.
+
 ## Quickstart
 
 Requirements: Linux, one NVIDIA card with 96 GB (measured on an RTX PRO 6000 Blackwell) and a driver that supports CUDA 13.0 (the runtime `uv.lock` pins), Python 3.12, [uv](https://docs.astral.sh/uv/).

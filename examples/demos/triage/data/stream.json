@@ -1,0 +1,752 @@
+{
+ "split": "stream",
+ "seed": 20261003,
+ "generator": "examples/demos/triage/make_tickets.py",
+ "synthetic": "templated tickets written for this demo; no real customer wrote them",
+ "phrasings": "eval",
+ "n": 80,
+ "per_intent": {
+  "billing": 4,
+  "sync": 4,
+  "cancel_subscription": 4,
+  "refund": 4,
+  "sharing": 4,
+  "feature_request": 4,
+  "login": 4,
+  "two_factor": 4,
+  "payment_failed": 4,
+  "crash": 4,
+  "plan_change": 4,
+  "performance": 4,
+  "password_reset": 4,
+  "security_concern": 4,
+  "data_export": 4,
+  "account_locked": 4,
+  "delete_account": 4,
+  "bug": 4,
+  "promo_code": 4,
+  "integration": 4
+ },
+ "tickets": [
+  {
+   "id": "stream-0001",
+   "text": "i got an email saying my price goes up next month. What will I be paying exactly?",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "billing/eval05"
+  },
+  {
+   "id": "stream-0002",
+   "text": "Hello. Last sync says three days ago and it won't update. Separately, how do I turn on two-step verification later?",
+   "intent": "sync",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/eval01"
+  },
+  {
+   "id": "stream-0003",
+   "text": "I use it on my iPad. Can you cancel the subscription for me? I'm away and only have my phone. Also, no rush, but how do I share a notebook with my wife?",
+   "intent": "cancel_subscription",
+   "secondary": "sharing",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "cancel_subscription/eval06"
+  },
+  {
+   "id": "stream-0004",
+   "text": "Were on the Family plan. Im asking for a refund of this years subscription, i forgot it was still running. Ive already written about this twice.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "refund/eval04"
+  },
+  {
+   "id": "stream-0005",
+   "text": "My account email is chen.w@example.com. Invites to my notebook never reach the other person's inbox.",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sharing/eval08"
+  },
+  {
+   "id": "stream-0006",
+   "text": "I want to cancel before the trial ends so I don't get billed. Urgent pleease. Thanks!",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 1,
+   "core": "cancel_subscription/eval05"
+  },
+  {
+   "id": "stream-0007",
+   "text": "A word count goal for each note would really help my writing. PS the web app feels sluggish too, not a big dal. Sorry if this has been asked before.",
+   "intent": "feature_request",
+   "secondary": "performance",
+   "tone": "polite",
+   "typos": 1,
+   "core": "feature_request/eval05"
+  },
+  {
+   "id": "stream-0008",
+   "text": "Good morning! I use it on my Windows laptop. Signing in loops back to the start page on the Windows app. Separately, how do I turn on two-step verification later? Thank you.",
+   "intent": "login",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "login/eval08"
+  },
+  {
+   "id": "stream-0009",
+   "text": "I'm on version 8.5.0. I changed my phone number and now I can't receive the login code. Unrelated, but a Linux app would be nice someday. I need this fixed today.",
+   "intent": "two_factor",
+   "secondary": "feature_request",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "two_factor/eval02"
+  },
+  {
+   "id": "stream-0010",
+   "text": "Good morning! Why can't I pay for Plus? It spins and then says 'payment could not be processed'. Sorry if this has been asked before. Thanks, Ahmed",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "payment_failed/eval02"
+  },
+  {
+   "id": "stream-0011",
+   "text": "Hello Notewell team! i have about 2,000 notes. Opening the Q3 planning notebook freezes the whole app and nothing responds. Thanks!",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/eval06"
+  },
+  {
+   "id": "stream-0012",
+   "text": "My PayPal payment was rejected even though there's plenty of money in the account.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "payment_failed/eval01"
+  },
+  {
+   "id": "stream-0013",
+   "text": "Hi team! What's the difference between Plus and Family, and how do I change between them? Also, just curious, is there a way to export ntes as Markdown?",
+   "intent": "plan_change",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 1,
+   "core": "plan_change/eval02"
+  },
+  {
+   "id": "stream-0014",
+   "text": "Hi! The Family plan syas all seats are taken, but there are only three of us. Separately, one note seems to sync slowly, but that's not why I'm writing. I've already written about this twice.",
+   "intent": "sharing",
+   "secondary": "sync",
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "sharing/eval06"
+  },
+  {
+   "id": "stream-0015",
+   "text": "Startup now takes almmost a minute on my iad. This is really frustrating.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "performance/eval04"
+  },
+  {
+   "id": "stream-0016",
+   "text": "Hi! Loading my notes on the Chromebook takes forever on wifi that's fine for everything else. This is really frustrating.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "performance/eval02"
+  },
+  {
+   "id": "stream-0017",
+   "text": "Good morning! The reset form says my new password doesn't meet the rules but doesn't say which. Separately, one note seems to sync slowly, but that's not why I'm writing. Sorry if this has been asked before. Thank you.",
+   "intent": "password_reset",
+   "secondary": "sync",
+   "tone": "polite",
+   "typos": 0,
+   "core": "password_reset/eval07"
+  },
+  {
+   "id": "stream-0018",
+   "text": "Hi there! The reset link worked but now the app asks for my old passwod again. Urgent please. - Jake",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 1,
+   "core": "password_reset/eval08"
+  },
+  {
+   "id": "stream-0019",
+   "text": "were on the Family plan. i see sync error 1031 in the Mac app.",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval03"
+  },
+  {
+   "id": "stream-0020",
+   "text": "I'm on version 9.0.1. I want to upgrade to Family but keep my current billing date. Honestly not happy about this.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "plan_change/eval03"
+  },
+  {
+   "id": "stream-0021",
+   "text": "Hey! My noes were deleted overnight and I didn't do it, someone has my accunt. Regards, Lukas",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "security_concern/eval02"
+  },
+  {
+   "id": "stream-0022",
+   "text": "Hi! I need my notes as plain text files for my archive. Sorry if this has been asked before. Cheers, Yuki",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "data_export/eval05"
+  },
+  {
+   "id": "stream-0023",
+   "text": "My account has been deactivated without any warning. I appreciate any help. - Amara",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "account_locked/eval03"
+  },
+  {
+   "id": "stream-0024",
+   "text": "Hi! I was logged out after the update and now my login doesn't woork.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "login/eval05"
+  },
+  {
+   "id": "stream-0025",
+   "text": "Hi! I can't open Notewell at all, it shows the logo and then disappears.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "crash/eval08"
+  },
+  {
+   "id": "stream-0026",
+   "text": "My Plus renews tomorrow and I don't want it to. How do I cancel tonight? Any help would be great. Thanks!",
+   "intent": "cancel_subscription",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "cancel_subscription/eval08"
+  },
+  {
+   "id": "stream-0027",
+   "text": "I'm asked for a verification code every time I open the app. Can it remember my device? This is really frustrating. Thanks, Jake",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "two_factor/eval04"
+  },
+  {
+   "id": "stream-0028",
+   "text": "Good morning! The app force closes on launch after today's update. I appreciate any help.",
+   "intent": "crash",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "crash/eval01"
+  },
+  {
+   "id": "stream-0029",
+   "text": "please end my Family subscription, were moving everyone to Free. PS the web app feels sluggish too, not a big deal.",
+   "intent": "cancel_subscription",
+   "secondary": "performance",
+   "tone": "terse",
+   "typos": 0,
+   "core": "cancel_subscription/eval03"
+  },
+  {
+   "id": "stream-0030",
+   "text": "Hey! Sugggestion: let me pin notes to the top of a notebook.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "feature_request/eval06"
+  },
+  {
+   "id": "stream-0031",
+   "text": "i mostly use the web app. Could you explain the line items on my latest invoice? One says 'proration adjustment'.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "billing/eval02"
+  },
+  {
+   "id": "stream-0032",
+   "text": "I can't log in on Firefox, it worked fine yesterday. I've already written abbout this tice. - Tom",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "login/eval07"
+  },
+  {
+   "id": "stream-0033",
+   "text": "Pease wipe my account and everything in it, I'm done wih this app. Honestly not happy about this.",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "delete_account/eval01"
+  },
+  {
+   "id": "stream-0034",
+   "text": "I'm on the Plus plan. Pleaase refund the $4.99 renewal, I stopped using Notewell months ago. I have a deadlie tomorrow. Thank you.",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 2,
+   "core": "refund/eval01"
+  },
+  {
+   "id": "stream-0035",
+   "text": "I'm travelling abroad and the text messages with codes don't come through. Also, do you still have a student discount? Sorry if thhis has been asked before.",
+   "intent": "two_factor",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 1,
+   "core": "two_factor/eval08"
+  },
+  {
+   "id": "stream-0036",
+   "text": "Notewell keeps crashing on my Pixel 8 when I record audio. Also, no rush, but how do I share a notebook with my daughter? This is really frustrating. Thank you.",
+   "intent": "crash",
+   "secondary": "sharing",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "crash/eval03"
+  },
+  {
+   "id": "stream-0037",
+   "text": "Hey! I have about 5,000 notes. Is this text message saying my Notewell account is suspended a scam? Honestly not happy about this.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "security_concern/eval03"
+  },
+  {
+   "id": "stream-0038",
+   "text": "I wish I could undo moore tahn one step in the editor. Thanks, Yuki",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "feature_request/eval03"
+  },
+  {
+   "id": "stream-0039",
+   "text": "Is there any chance of a Linux desktop app? I appreciate any help.",
+   "intent": "feature_request",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "feature_request/eval07"
+  },
+  {
+   "id": "stream-0040",
+   "text": "Hello! I've been a customer since 2019. I'm moving from Family to Plus because my kids have their own accounts now. Any help would be great.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "plan_change/eval07"
+  },
+  {
+   "id": "stream-0041",
+   "text": "i have about 300 notes. Sorting by date modified puts old notes first. That looks wrong. Separately, how do I turn on two-step verification later?",
+   "intent": "bug",
+   "secondary": "two_factor",
+   "tone": "terse",
+   "typos": 0,
+   "core": "bug/eval03"
+  },
+  {
+   "id": "stream-0042",
+   "text": "Hi team! I have about 1,200 notes. I want to remove my account completely, not just stop paying. Also, just curious, is there a way to export notes as Markdown? Thanks, Chen",
+   "intent": "delete_account",
+   "secondary": "data_export",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "delete_account/eval02"
+  },
+  {
+   "id": "stream-0043",
+   "text": "Hello. I was supposed to get the first year at half price, but my invoice shows $59.88.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval05"
+  },
+  {
+   "id": "stream-0044",
+   "text": "Every time it syncs, a few notes get duplicated. Separately, how do i turn on two-step verification later?",
+   "intent": "sync",
+   "secondary": "two_factor",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "sync/eval06"
+  },
+  {
+   "id": "stream-0045",
+   "text": "Good morning! Someone changed my password and recovery phone, I believe my account was taken oer.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "security_concern/eval05"
+  },
+  {
+   "id": "stream-0046",
+   "text": "i want to update my password to something stronger, where is that? Unrelated, but a Linux app would be nice someday.",
+   "intent": "password_reset",
+   "secondary": "feature_request",
+   "tone": "terse",
+   "typos": 0,
+   "core": "password_reset/eval05"
+  },
+  {
+   "id": "stream-0047",
+   "text": "The discount from the newsletter disappeared when I clicked pay. This is really frustrating.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "promo_code/eval01"
+  },
+  {
+   "id": "stream-0048",
+   "text": "My account email is priya.n@example.net. The word count at the bottom is clearly wrong, it says 0 words. Also, just curious, is there a way to export notes as Markdown? Sorry if this has been asked before.",
+   "intent": "bug",
+   "secondary": "data_export",
+   "tone": "polite",
+   "typos": 0,
+   "core": "bug/eval05"
+  },
+  {
+   "id": "stream-0049",
+   "text": "I mostly use the iPd app. Does the export include taags and creation dates?",
+   "intent": "data_export",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "data_export/eval04"
+  },
+  {
+   "id": "stream-0050",
+   "text": "i use it on my Windows laptop. Templates put the wrong date in the title. i need this fixed today.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "bug/eval06"
+  },
+  {
+   "id": "stream-0051",
+   "text": "Hey! Every attempt to pay ends with error 402 and nothing is taken from my card. Thank you.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "payment_failed/eval08"
+  },
+  {
+   "id": "stream-0052",
+   "text": "The Dropbox attacmhent link opens a permissions error. This is really frustrating.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "integration/eval05"
+  },
+  {
+   "id": "stream-0053",
+   "text": "Please switch my subbscription from yearyl to monthly when it renews. This is really frustrating.",
+   "intent": "plan_change",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 2,
+   "core": "plan_change/eval04"
+  },
+  {
+   "id": "stream-0054",
+   "text": "Hi! Clicking the link in the reet email opes a blank page.",
+   "intent": "password_reset",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 2,
+   "core": "password_reset/eval02"
+  },
+  {
+   "id": "stream-0055",
+   "text": "Im on versioon 8.5.2. Please remove my account. i dont want any of my notes kept. - Amara",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "delete_account/eval08"
+  },
+  {
+   "id": "stream-0056",
+   "text": "notes I send from Google Calendar land in the wrong notebook. PS the web app feels sluggish too, not a big deal",
+   "intent": "integration",
+   "secondary": "performance",
+   "tone": "terse",
+   "typos": 0,
+   "core": "integration/eval08"
+  },
+  {
+   "id": "stream-0057",
+   "text": "I've been a customer since 2022. My friend referred me but I never got the free month you advertised.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "promo_code/eval04"
+  },
+  {
+   "id": "stream-0058",
+   "text": "Hello. My account email is priya.n@example.net. I think I made my account with a different email and now I can't sign in. I've already written about this twice.",
+   "intent": "login",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "login/eval04"
+  },
+  {
+   "id": "stream-0059",
+   "text": "Handwriting on the iPad turns into random letters when I convert it to text. Please sort this out, it's been days.",
+   "intent": "bug",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "bug/eval04"
+  },
+  {
+   "id": "stream-0060",
+   "text": "Can I schedule automatic backups to my computer? Also, do you still have a student discount? Sorry if this has been asked before. Thank you.",
+   "intent": "data_export",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 0,
+   "core": "data_export/eval02"
+  },
+  {
+   "id": "stream-0061",
+   "text": "The website is painfully slow during the day and fine at night. I appreciate any help.",
+   "intent": "performance",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "performance/eval07"
+  },
+  {
+   "id": "stream-0062",
+   "text": "theres an account locked message on every device. i didnt change anything.",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "account_locked/eval07"
+  },
+  {
+   "id": "stream-0063",
+   "text": "i use it on my iPhone. I added notes offline on the plane and they never uploaded",
+   "intent": "sync",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "sync/eval04"
+  },
+  {
+   "id": "stream-0064",
+   "text": "Hello. How long after i delete my account is my data actually gone from your servers? i have a deadline tomorrow. Thanks!",
+   "intent": "delete_account",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "delete_account/eval03"
+  },
+  {
+   "id": "stream-0065",
+   "text": "Hey! My accountant needs every receipt froom last year, can you send them all in one go? I need thiis fixed today.",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 2,
+   "core": "billing/eval07"
+  },
+  {
+   "id": "stream-0066",
+   "text": "Hey! Can I still use BF2026? It says expired but the email said it was good until the end of the month. I need this fixed today.",
+   "intent": "promo_code",
+   "secondary": null,
+   "tone": "urgent",
+   "typos": 0,
+   "core": "promo_code/eval02"
+  },
+  {
+   "id": "stream-0067",
+   "text": "i mostly use the web app. My wie accepted the Family invite but still has the Free plan",
+   "intent": "sharing",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 1,
+   "core": "sharing/eval01"
+  },
+  {
+   "id": "stream-0068",
+   "text": "I'm on version 8.5.0. I own a shared notebook but it says I don't have permission. Unrelated, but a Linux app would be nice someday. I have a deadline tomorrow.",
+   "intent": "sharing",
+   "secondary": "feature_request",
+   "tone": "urgent",
+   "typos": 0,
+   "core": "sharing/eval04"
+  },
+  {
+   "id": "stream-0069",
+   "text": "I want my mooney back. Handwriting was the only reason I subscribed and it doesn't work on my Android phone. Honestly not happy about this. Regards, Sofia",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 1,
+   "core": "refund/eval07"
+  },
+  {
+   "id": "stream-0070",
+   "text": "Hi there! The API returns 'rate limit exceeded' after just a few calls. Thank you.",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval07"
+  },
+  {
+   "id": "stream-0071",
+   "text": "My security key isn't recognised when I try to sign in. I appreciate any help.",
+   "intent": "two_factor",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 0,
+   "core": "two_factor/eval03"
+  },
+  {
+   "id": "stream-0072",
+   "text": "There's a $49.99 charge form Notwell on my card and I'm not sure which account it belongs to. Any help would be great. Thanks!",
+   "intent": "billing",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "billing/eval01"
+  },
+  {
+   "id": "stream-0073",
+   "text": "there's a session from Japan in my device list that isn't mine.",
+   "intent": "security_concern",
+   "secondary": null,
+   "tone": "terse",
+   "typos": 0,
+   "core": "security_concern/eval04"
+  },
+  {
+   "id": "stream-0074",
+   "text": "Hello! Google Play shhows my subscription as 'on hold' becase the payment failed. I appreciate any help.",
+   "intent": "payment_failed",
+   "secondary": null,
+   "tone": "polite",
+   "typos": 2,
+   "core": "payment_failed/eval04"
+  },
+  {
+   "id": "stream-0075",
+   "text": "Opening a note with a few images takes a really logn time. Also, do you still have a student discount? Sorry if this has been asked before. Cheers, Lukas",
+   "intent": "performance",
+   "secondary": "promo_code",
+   "tone": "polite",
+   "typos": 1,
+   "core": "performance/eval06"
+  },
+  {
+   "id": "stream-0076",
+   "text": "The app says my account is temporarily blocked. How long does that last? Honestly not happy about this. - Lukas",
+   "intent": "account_locked",
+   "secondary": null,
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "account_locked/eval01"
+  },
+  {
+   "id": "stream-0077",
+   "text": "I paid for the Family plan but nobdy in my family ever joined. Can I get that money back?",
+   "intent": "refund",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 1,
+   "core": "refund/eval02"
+  },
+  {
+   "id": "stream-0078",
+   "text": "Hey! How do I save the whole Thesis notebook to my hard drive? Unrelated, but a Linux app would be nice someday. Honestly not happy about this.",
+   "intent": "data_export",
+   "secondary": "feature_request",
+   "tone": "frustrated",
+   "typos": 0,
+   "core": "data_export/eval06"
+  },
+  {
+   "id": "stream-0079",
+   "text": "Hi there! How do I set up the Microsoft Teams integration?",
+   "intent": "integration",
+   "secondary": null,
+   "tone": "neutral",
+   "typos": 0,
+   "core": "integration/eval06"
+  },
+  {
+   "id": "stream-0080",
+   "text": "Hi team! Why was my account suspended? I only use it for school. By the way, is there a Slack integration? Cheers, Priya",
+   "intent": "account_locked",
+   "secondary": "integration",
+   "tone": "neutral",
+   "typos": 0,
+   "core": "account_locked/eval06"
+  }
+ ]
+}

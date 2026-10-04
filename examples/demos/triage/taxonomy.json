@@ -1,0 +1,27 @@
+{
+ "product": "Notewell, a fictional note-taking app sold as a consumer subscription (Free, Plus and Family plans; apps for iPhone, iPad, Android, Mac, Windows and the web)",
+ "question": "route",
+ "instructions": "Which support queue should handle this ticket?",
+ "intents": [
+  {"key": "billing", "description": "Questions about charges, invoices, receipts or what the plan costs"},
+  {"key": "refund", "description": "The customer asks for money back for a charge"},
+  {"key": "payment_failed", "description": "A card, PayPal or app store payment was declined or did not go through"},
+  {"key": "plan_change", "description": "Upgrade, downgrade or switch between Free, Plus and Family, or monthly and yearly"},
+  {"key": "promo_code", "description": "A discount, coupon, student offer or promotion code that does not work or is missing"},
+  {"key": "cancel_subscription", "description": "Stop the paid subscription or its automatic renewal"},
+  {"key": "delete_account", "description": "Permanently delete the account and the data stored with it"},
+  {"key": "login", "description": "Cannot sign in: credentials not accepted, single sign-on, sign-in loops"},
+  {"key": "two_factor", "description": "Two-step verification codes, authenticator apps, backup codes"},
+  {"key": "account_locked", "description": "The account is locked, suspended or disabled"},
+  {"key": "password_reset", "description": "Forgotten password, or the reset email or link does not work"},
+  {"key": "security_concern", "description": "Suspected unauthorised access, phishing or a hacked account"},
+  {"key": "bug", "description": "A feature behaves wrongly or shows an error message"},
+  {"key": "crash", "description": "The app closes, freezes or will not open"},
+  {"key": "performance", "description": "The app or website is slow, lags, or drains battery or memory"},
+  {"key": "sync", "description": "Notes missing or out of date between devices, sync conflicts"},
+  {"key": "data_export", "description": "Export, back up or download the customer's notes and attachments"},
+  {"key": "feature_request", "description": "Asks for something the product does not do yet"},
+  {"key": "integration", "description": "Connections to other tools: calendars, Slack, Google Drive, Zapier, the API"},
+  {"key": "sharing", "description": "Sharing notebooks, collaborators, Family plan members and their permissions"}
+ ]
+}

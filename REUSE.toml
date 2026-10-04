@@ -10,3 +10,55 @@ path = ["**/*.json", "**/*.jsonl", "**/*.csv", "**/*.gz", "**/*.npz", "**/*.patc
 precedence = "aggregate"
 SPDX-FileCopyrightText = "Copyright contributors to the decisio project"
 SPDX-License-Identifier = "Apache-2.0"
+
+# The three demo clients are vendored from other projects under their own licences (examples/demos/<name>/ATTRIBUTION.md).
+# Changes made here stay under the licence of the file they change. Later annotations win over earlier ones.
+[[annotations]]
+path = ["examples/demos/fsd/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) 2026 Brendan Hallas"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["examples/demos/fsd/static/vendor/three/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright three.js authors"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["examples/demos/fsd/data/maps/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "OpenStreetMap contributors"
+SPDX-License-Identifier = "ODbL-1.0"
+
+[[annotations]]
+path = ["examples/demos/ultrafast/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright (c) 2026 Browser Use"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = ["examples/demos/pong/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright 2026 Ably Real-time Ltd"
+SPDX-License-Identifier = "Apache-2.0"
+
+# The rendered demo clips (docs/demos/media/): drawn by the trajectory renderers in this repository; the driving clips
+# draw OpenStreetMap map data, and the browser-agent clips show the vendored fixture pages.
+[[annotations]]
+path = ["docs/demos/media/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright contributors to the decisio project"
+SPDX-License-Identifier = "Apache-2.0"
+
+[[annotations]]
+path = ["docs/demos/media/driving_*"]
+precedence = "override"
+SPDX-FileCopyrightText = ["Copyright contributors to the decisio project", "OpenStreetMap contributors"]
+SPDX-License-Identifier = "Apache-2.0 AND ODbL-1.0"
+
+[[annotations]]
+path = ["docs/demos/media/browser_*"]
+precedence = "override"
+SPDX-FileCopyrightText = ["Copyright contributors to the decisio project", "Copyright (c) 2026 Browser Use"]
+SPDX-License-Identifier = "Apache-2.0 AND MIT"
