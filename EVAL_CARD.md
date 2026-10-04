@@ -12,6 +12,7 @@ Every number is on the current served default and names the record it comes from
 | Part | The served default |
 | --- | --- |
 | Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8`, the official weights, untrained by us: no adapter, no fine-tuning |
+| Provenance | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us (revision `95a723d08a9490559dae23d0cff1d9466213d989`) |
 | Engine | vLLM 0.30.0 with decisio's plugin: the official checkpoint under the hidden-readout class (the text model without its vision tower, plus the hidden state at the answer position); DeepGEMM off; front padding to the 1,056-token block; the questions of a request scored one engine call each after the state is prefilled once (`--multi-question sequential`); CUDA graphs up to 4,096 tokens; float32 recurrent state; the suffix-staging patch series optional (latency only) |
 | Readout | Letters: each question is one prompt, and its distribution is the softmax over the option letters' logits at the last position |
 | Prompt | Since 2026-10-03, the spaced layout (`--prompt-tail spaced`): no system prompt; the question's instructions, a blank line, the lettered options, a blank line, and one closing line asking for the chosen option's letter alone (`decisio.readout.spaced`); a yes/no question asked as a two-option letter choice, the false side first, the sides named ("No: ...", "Yes: ...", `--noul-rendering letters-keys`). The image route keeps the compact layout (no blank lines, "Answer with the letter only.", yes/no in words) |
@@ -112,6 +113,7 @@ Every number in this section comes from one session on one card (2026-10-04, `ru
 | Part | The Gemma base |
 | --- | --- |
 | Checkpoint | `google/gemma-4-12B-it` at revision `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7`, bf16, the official weights, untrained by us |
+| Provenance | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
 | Engine | vLLM 0.30.0 with decisio's plugin: the checkpoint's encoder-free class `Gemma4UnifiedForConditionalGeneration`, served through its text path with every multimodal input off, under decisio's hidden-readout subclass (the hidden state at the answer position, written after the final-logit soft cap of 30); the TRITON_ATTN attention backend, which vLLM picks for the model's two head sizes; no padding; `--multi-question sequential` |
 | Readout | Letters, as on the Qwen base, with every single-token form of each option letter (with a leading space, bare, and as a byte) summed into the letter's probability |
 | Prompt | A system turn (`decisio.readout.system_prompt`), then the spaced layout, read at the chat template's own answer position; a yes/no question asked as a two-option letter choice, the false side first, each side shown as its description (`--noul-rendering letters`) |
