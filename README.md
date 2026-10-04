@@ -7,9 +7,9 @@
 [![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 [![CI](https://github.com/aminry/decisio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aminry/decisio/actions/workflows/ci.yml)
 
-Decisio is a decision server: send it a piece of text and typed questions about it, and it returns a probability for every option of every question.
-It serves a frozen open model on vLLM and reads each answer from the option letters' logits, one forward pass per question, with no text generated.
-It speaks TypeSafe's System One wire format, so existing clients work unchanged, and it ships code, recipes and evaluation records, not trained weights.
+Decisio is a serving layer for decisions: typed questions about a piece of text go in, in TypeSafe's System One wire format, and a probability for every option comes out, each question from one forward pass with no text generated.
+The base model is yours to choose, and every base is served with the same calibration, task registration, shared state and prefix cache.
+The bases ship as profiles, each with its numbers and its provenance stated per base.
 
 ## Contents
 
@@ -156,9 +156,15 @@ uv run python -m decisio.serve.vllm_engine --base gemma-4-12b
 `--base` brings its checkpoint at a pinned revision and every setting below; a flag given explicitly overrides the base's value.
 Each base's settings were measured as one configuration.
 
+| Base | Checkpoint | Provenance |
+| --- | --- | --- |
+| `qwen3.6-35b-a3b` (default) | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-12b` | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
+
+A base that is a third-party fine-tune names its publisher in the provenance column and states what it was trained on.
+
 | Setting | `qwen3.6-35b-a3b` (default) | `gemma-4-12b` |
 | --- | --- | --- |
-| Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory |
 | Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type |
 | Prompt | no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, read at the chat template's own answer position, every single-token form of each letter summed |
 | Yes/no | a two-option letter choice with its sides named | a two-option letter choice, each side shown as its description |
