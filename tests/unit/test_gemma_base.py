@@ -12,18 +12,23 @@ B4  the bases resolve: the Qwen base keeps the served defaults; the Gemma base b
 B5  the hidden-state readout's reserved ids hold no label form, for each base on its own tokenizer
 B6  the head's numbers: vLLM's bf16 soft cap; under the Gemma base the head's label log-probabilities are the
     engine's own readout of the row, not a recomputation
+B8  every base pins a checkpoint revision (a full commit hash), applied whenever the checkpoint is the base's own
+    (--base alone, --model by hand, the container's explicit --model, the hf stand-in); --revision overrides it; any
+    other checkpoint gets none
 
   uv run pytest -q tests/unit/test_gemma_base.py      (downloads both tokenizers once)
 """
 
 import os
+import re
 import threading
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
 
-from decisio.families import BASES, GEMMA4, QWEN, family_of
+from decisio.families import BASES, FAMILIES, GEMMA4, QWEN, family_of
 from decisio.readout.letters import (
     PromptFormat,
     allowed_ids,
@@ -212,6 +217,79 @@ def test_b6_head_reads_the_engines_readout():
     assert [np.exp(lp).round(12).tolist() for lp, _ in out] == [p.tolist() for p in engine_p]
     # each row: its label readout, then its hidden-state chunks, one row after the other
     assert calls == [("label", [1, 2, 3]), ("hidden", [1, 2, 3]), ("label", [1, 2, 4]), ("hidden", [1, 2, 4])]
+
+
+@pytest.mark.parametrize("fam", FAMILIES, ids=lambda f: f.key)
+def test_b8_every_family_pins_a_revision(fam):
+    """A run record names the bytes it was measured on: no base serves the repository's head."""
+    assert isinstance(fam.revision, str) and re.fullmatch(r"[0-9a-f]{40}", fam.revision), fam.key
+    # --base alone serves the checkpoint at the pin; an explicit --revision wins
+    a = _args(base=fam.key)
+    sv.resolve_base(a)
+    assert (a.model, a.revision) == (fam.model, fam.revision)
+    a = _args(base=fam.key, revision="refs/pr/1")
+    sv.resolve_base(a)
+    assert (a.model, a.revision) == (fam.model, "refs/pr/1")
+
+
+def _config_reader(monkeypatch):
+    """read_config without the network: the model type each family's checkpoint declares; records what it was asked."""
+    calls = []
+    types_ = {QWEN.model: "qwen3_5_moe", GEMMA4.model: "gemma4_unified"}
+
+    def read(model, revision=None):
+        calls.append((model, revision))
+        return {"model_type": "qwen3" if Path(model).exists() else types_.get(model, "qwen3")}  # a local one: unknown
+
+    monkeypatch.setattr("decisio.families.read_config", read)
+    return calls
+
+
+@pytest.mark.parametrize("backend", ["vllm", "hf"])
+@pytest.mark.parametrize("base", [None, "own"])
+@pytest.mark.parametrize("fam", FAMILIES, ids=lambda f: f.key)
+def test_b8_the_pin_follows_the_checkpoint(fam, base, backend, monkeypatch):
+    """--model naming the base's own checkpoint (a user by hand, docker/entrypoint.sh, the hf stand-in) is served at the
+    pin, with or without --base; the config is read at the pin too."""
+    calls = _config_reader(monkeypatch)
+    a = _args(base=fam.key if base else None, model=fam.model, backend=backend)
+    got, _ = sv.resolve_base(a)
+    assert got is fam and (a.model, a.revision) == (fam.model, fam.revision)
+    assert all(c == (fam.model, fam.revision) for c in calls)
+    # an explicit --revision wins, and is what the config is read at
+    calls.clear()
+    a = _args(base=fam.key if base else None, model=fam.model, revision="refs/pr/1", backend=backend)
+    sv.resolve_base(a)
+    assert a.revision == "refs/pr/1" and all(c == (fam.model, "refs/pr/1") for c in calls)
+
+
+@pytest.mark.parametrize("base", [None, "qwen3.6-35b-a3b", "gemma-4-12b"])
+def test_b8_another_checkpoint_gets_no_pin(base, tmp_path, monkeypatch):
+    calls = _config_reader(monkeypatch)
+    # a different hub repository, even one of the same family or one a base would otherwise be served from
+    for model in ("Qwen/Qwen3-0.6B-Base", "Qwen/Qwen3.6-35B-A3B", "google/gemma-4-12B-it-other"):
+        a = _args(base=base, model=model)
+        sv.resolve_base(a)
+        assert a.revision is None, model
+    # a revision given for it is kept
+    a = _args(base=base, model="Qwen/Qwen3-0.6B-Base", revision="abc123")
+    sv.resolve_base(a)
+    assert a.revision == "abc123"
+    calls.clear()
+    # a local directory, including one named like a base's repository (a relative path that exists is not the hub's)
+    local = tmp_path / "Qwen" / "Qwen3.6-35B-A3B-FP8"
+    local.mkdir(parents=True)
+    monkeypatch.chdir(tmp_path)
+    for model in (str(local), QWEN.model):
+        a = _args(base=base, model=model)
+        sv.resolve_base(a)
+        assert a.revision is None, model
+    assert calls  # the configs were read, at no revision
+    assert all(rev is None for _, rev in calls)
+
+
+def test_b8_the_pins_are_the_recorded_revisions():
+    assert QWEN.revision.startswith("95a723d0") and GEMMA4.revision.startswith("707f0a3b")
 
 
 def test_b7_health_reports_the_profile():

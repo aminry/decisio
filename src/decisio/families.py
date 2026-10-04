@@ -2,8 +2,9 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The two bases decisio serves, chosen with `--base`, and what differs between them.
 
-  qwen3.6-35b-a3b  Qwen/Qwen3.6-35B-A3B-FP8, the default: a hybrid MoE (Gated DeltaNet plus attention). Its defaults
-                   are the served defaults as they were before bases existed, so a Qwen server is unchanged.
+  qwen3.6-35b-a3b  Qwen/Qwen3.6-35B-A3B-FP8 at a pinned revision, the default: a hybrid MoE (Gated DeltaNet plus
+                   attention). Its defaults are the served defaults as they were before bases existed, so a Qwen
+                   server is unchanged.
   gemma-4-12b      google/gemma-4-12B-it at a pinned revision: dense attention (sliding plus full layers), read
                    through vLLM's encoder-free multimodal class with every multimodal input off. No front padding (an
                    attention model's prefix cache needs none); tied embeddings and a final-logit soft cap of 30, which
@@ -31,9 +32,11 @@ from decisio.names import SERVED_NAME
 class Family:
     key: str
     model_types: tuple[str, ...]
-    # the checkpoint --base serves when --model is not given, and its pinned revision (None: the repository's head)
+    # the checkpoint --base serves when --model is not given, and its pinned revision (every base pins one, so a run
+    # record names the bytes it was measured on; it applies whenever the checkpoint is this one, however it was named,
+    # and --revision overrides it: see pinned_revision)
     model: str
-    revision: str | None
+    revision: str
     served_name: str
     # --pad-to's default: "block" (front padding to vLLM's block) or "none"
     pad_to: str
@@ -67,7 +70,8 @@ QWEN = Family(
     key="qwen3.6-35b-a3b",
     model_types=("qwen3_5_moe",),
     model="Qwen/Qwen3.6-35B-A3B-FP8",
-    revision=None,
+    # the revision behind every Qwen record (runs/); the repository's head was the same commit when it was pinned
+    revision="95a723d08a9490559dae23d0cff1d9466213d989",
     served_name=SERVED_NAME,
     pad_to="block",
     limit_mm={"image": 0, "video": 0},
@@ -111,6 +115,17 @@ GEMMA4 = Family(
 
 FAMILIES = (QWEN, GEMMA4)
 BASES = {f.key: f for f in FAMILIES}
+
+
+def pinned_revision(model: str, revision: str | None = None) -> str | None:
+    """The revision to load `model` at: the one given, else the pin of the base whose checkpoint `model` is (however it
+    was named: --base, --model, the container's entrypoint), else None. A local directory that happens to be called
+    like a base's repository is not that repository and gets no pin."""
+    if revision is not None:
+        return revision
+    if Path(model).exists():
+        return None
+    return next((f.revision for f in FAMILIES if f.model == model), None)
 
 
 def read_config(model: str, revision: str | None = None) -> dict:

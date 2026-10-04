@@ -105,7 +105,7 @@ Repeat the request and you get the same probabilities: each question is scored i
 Two base models are served behind the same routes, wire format and features, one per server, chosen with `--base`:
 
 ```
-uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b   # the default: Qwen/Qwen3.6-35B-A3B-FP8
+uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b   # the default: Qwen/Qwen3.6-35B-A3B-FP8 at a pinned revision
 uv run python -m decisio.serve.vllm_engine --base gemma-4-12b       # google/gemma-4-12B-it at a pinned revision
 ```
 
@@ -115,7 +115,7 @@ Each base's settings were measured as one configuration, and the numbers below h
 
 | Setting | `qwen3.6-35b-a3b` (default) | `gemma-4-12b` |
 | --- | --- | --- |
-| Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8`, 33.3 GiB in memory | `google/gemma-4-12B-it` at revision `707f0a3b`, bf16, 22.8 GiB in memory |
+| Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8` at revision `95a723d0`, 33.3 GiB in memory | `google/gemma-4-12B-it` at revision `707f0a3b`, bf16, 22.8 GiB in memory |
 | Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type |
 | Prompt | the spaced layout, no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, the spaced layout, read at the chat template's own answer position, every single-token form of each letter summed |
 | Yes/no | a two-option letter choice with its sides named (`--noul-rendering letters-keys`) | a two-option letter choice, each side shown as its description (`--noul-rendering letters`) |
