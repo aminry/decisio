@@ -1,0 +1,27 @@
+{
+ "cells": {
+  "1q": {
+   "requests": 30,
+   "questions": 1,
+   "hit_answers_equal_miss": "30 of 30",
+   "miss_ms_p50": 278.85,
+   "miss_ms_p95": 353.41499999999996,
+   "hit_ms_p50": 110.65,
+   "hit_ms_p95": 124.255,
+   "miss_per_q_p50": 278.85,
+   "hit_per_q_p50": 110.65
+  }
+ },
+ "E3_exact": true,
+ "prefix_cache": {
+  "max_mb": 2048.0,
+  "entries": 30,
+  "mb": 1997.2,
+  "hits": 31,
+  "misses": 31
+ },
+ "max_foreign_cpu": 46.4,
+ "max_foreign_process": "/usr/libexec/PerfPowerServices",
+ "idle": false,
+ "started": "2026-10-04 02:28:08"
+}
