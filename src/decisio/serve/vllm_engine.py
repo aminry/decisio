@@ -834,15 +834,18 @@ def served_profile(engine, systemone) -> dict:
 
 def resolve_base(args):
     """(family, PromptFormat) from the command line (decisio.families): --base, else the base --model's config.json
-    names; the base's checkpoint and revision when --model is not given; and the base's value for every setting left
+    names; the base's checkpoint when --model is not given; its pinned revision whenever the checkpoint is the base's
+    own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
-    from decisio.families import BASES, FAMILIES, family_of, read_config
+    from decisio.families import BASES, FAMILIES, family_of, pinned_revision, read_config
 
     if args.base is not None:
         fam = BASES[args.base]
-        if args.model is None:
-            args.model, args.revision = fam.model, args.revision or fam.revision
-        else:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
+        given = args.model is not None
+        if not given:
+            args.model = fam.model
+        args.revision = pinned_revision(args.model, args.revision)
+        if given:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
             mt = read_config(args.model, args.revision).get("model_type")
             other = next((f for f in FAMILIES if mt in f.model_types and f is not fam), None)
             if other is not None:
@@ -850,6 +853,7 @@ def resolve_base(args):
     else:
         if args.model is None:
             raise ValueError("give --model or --base")
+        args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision)
     if args.backend == "mlx" and fam.key != "qwen3.6-35b-a3b":
         raise ValueError(f"--backend mlx serves the Qwen base only, not {fam.key}")

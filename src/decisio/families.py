@@ -33,7 +33,8 @@ class Family:
     key: str
     model_types: tuple[str, ...]
     # the checkpoint --base serves when --model is not given, and its pinned revision (every base pins one, so a run
-    # record names the bytes it was measured on; --revision overrides it)
+    # record names the bytes it was measured on; it applies whenever the checkpoint is this one, however it was named,
+    # and --revision overrides it: see pinned_revision)
     model: str
     revision: str
     served_name: str
@@ -114,6 +115,17 @@ GEMMA4 = Family(
 
 FAMILIES = (QWEN, GEMMA4)
 BASES = {f.key: f for f in FAMILIES}
+
+
+def pinned_revision(model: str, revision: str | None = None) -> str | None:
+    """The revision to load `model` at: the one given, else the pin of the base whose checkpoint `model` is (however it
+    was named: --base, --model, the container's entrypoint), else None. A local directory that happens to be called
+    like a base's repository is not that repository and gets no pin."""
+    if revision is not None:
+        return revision
+    if Path(model).exists():
+        return None
+    return next((f.revision for f in FAMILIES if f.model == model), None)
 
 
 def read_config(model: str, revision: str | None = None) -> dict:
