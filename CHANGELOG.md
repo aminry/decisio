@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/aminry/decisio/compare/v0.3.0...v0.4.0) (2026-10-04)
+
+
+### Features
+
+* **serve:** Gemma 4 12B as a second base (--base gemma-4-12b) ([#48](https://github.com/aminry/decisio/issues/48)) ([61d7519](https://github.com/aminry/decisio/commit/61d7519bfed0910747970c2ff862ca10074a454d))
+
+
+### Bug Fixes
+
+* **conformance:** C4 applies each question type's served temperature ([#60](https://github.com/aminry/decisio/issues/60)) ([4ab98af](https://github.com/aminry/decisio/commit/4ab98afe0de5ce6ef6203d47bf45d913d0a1abd4))
+
 ## [0.3.0](https://github.com/aminry/decisio/compare/v0.2.0...v0.3.0) (2026-10-04)
 
 
