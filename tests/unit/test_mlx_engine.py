@@ -224,3 +224,48 @@ def test_prefix_cache_evicts_least_recent_and_never_returns_other_tokens(tiny, m
     collide = PrefixCache(2 * n)
     collide.put([1, 2, 3], base)
     assert collide.get([4, 5, 6]) is None and collide.get([1, 2, 3]) is base
+
+
+def test_official_tokenizer_by_family(tmp_path):
+    from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, OFFICIAL_TOKENIZERS, official_tokenizer, split_revision
+
+    for mt in ("qwen3_5_moe", "gemma4_unified", "llama"):
+        d = tmp_path / mt
+        d.mkdir()
+        (d / "config.json").write_text(json.dumps({"model_type": mt}))
+        got = official_tokenizer(str(d))
+        if mt == "gemma4_unified":
+            assert got[:2] == ("google/gemma-4-12B-it", "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7")
+            assert len(got[2]) == 64
+        else:  # Qwen, and anything of another family, read as before families existed
+            assert got == OFFICIAL_TOKENIZERS["qwen3_5_moe"] and got[0] == OFFICIAL_TOKENIZER
+    assert split_revision("google/gemma-4-12B-it@707f0a3b") == ("google/gemma-4-12B-it", "707f0a3b")
+    assert split_revision("Qwen/Qwen3.6-35B-A3B-FP8") == ("Qwen/Qwen3.6-35B-A3B-FP8", None)
+    assert split_revision(str(tmp_path)) == (str(tmp_path), None)
+
+
+@pytest.mark.parametrize("steps", [[1, 1, 1], [5], [3, 1]])
+def test_copy_cache_rotating_leaves_the_original_untouched(steps):
+    # a sliding-window layer (Gemma 4) past its window: continuing a copy by one token (written in place) or several
+    # (concatenated) leaves the original's arrays, offset and write position as they were, and two copies agree
+    mx = pytest.importorskip("mlx.core")
+    from mlx_lm.models.cache import RotatingKVCache
+
+    from decisio.serve.mlx_engine import copy_cache
+
+    mx.random.seed(0)
+    base = RotatingKVCache(max_size=8)
+    pre = mx.random.normal((1, 2, 11, 4))
+    base.update_and_fetch(pre, pre)
+    base.update_and_fetch(pre[..., :1, :], pre[..., :1, :])  # a one-token step: the buffer now rotates in place
+    before = (np.array(base.keys), np.array(base.values), base.offset, base._idx)
+    outs = []
+    for _ in range(2):
+        (c,) = copy_cache([base])
+        for n in steps:
+            x = mx.random.normal((1, 2, n, 4))
+            k, v = c.update_and_fetch(x, x)
+        outs.append((c.offset, c._idx))
+    after = (np.array(base.keys), np.array(base.values), base.offset, base._idx)
+    assert all(np.array_equal(a, b) for a, b in zip(before[:2], after[:2])) and before[2:] == after[2:]
+    assert outs[0] == outs[1] == (base.offset + sum(steps), outs[0][1])
