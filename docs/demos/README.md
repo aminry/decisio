@@ -8,6 +8,7 @@ Cygnet and four hosted models played the same games on the same seeds for compar
 This page has the results, the error analysis behind them, the renderings that were tested on held-out data, and what teaching (task registration) did.
 
 The decisio server ran its served defaults from main at 62dfe1f with `--pad-policy row`, on one NVIDIA RTX PRO 6000 Blackwell Workstation Edition (500 W), with the demo client on the same machine.
+What was served at 62dfe1f is the layout now named `--prompt-tail spaced`, with yes/no asked as named letters, temperature 1.506 and 1.370 for choice questions; the run records of that session carry the server's own record from then, where the same layout is named `cygnet` (#56 renamed it without changing any prompt).
 `--pad-policy row` is stated under every clip and table.
 The measurements were taken on 2026-10-03.
 
