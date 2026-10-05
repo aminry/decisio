@@ -1,0 +1,42 @@
+[
+ {
+  "path": "RULE.md",
+  "bytes": 5297,
+  "sha256": "da5dad6cd9a8796da427268eaaedf76fed2dcda65aec9ef8eec1dac56e36c8d7"
+ },
+ {
+  "path": "compute.py",
+  "bytes": 11400,
+  "sha256": "cbbf37a07e527fdc40c0341dc74354383af2d86b22392554a3c04ff86d19884a"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 3950,
+  "sha256": "caec0e29918e13bf4ea87656a76d8b72ffc72cc40b9b148dfd4e11be43cf1118"
+ },
+ {
+  "path": "results.json",
+  "bytes": 30547,
+  "sha256": "c99aa6e620d4274a5815ad68942a51fbede6e9e8578093654bd664d094c3db09"
+ },
+ {
+  "path": "snapshots/decision-index_index-v0.2.1.json.gz",
+  "bytes": 110240,
+  "sha256": "33fb0859df5d776e9e75c3a3efab273de457313df7d45ed9b7855e7ac1e02be0"
+ },
+ {
+  "path": "snapshots/jevbench_v1.4.2.2-results.json.gz",
+  "bytes": 110865,
+  "sha256": "fbaa17a58f3c015c6120774b448ff36ca2b5a7b926b1d8e0db3be82832140d0c"
+ },
+ {
+  "path": "snapshots/typesafe_docs.json",
+  "bytes": 2707,
+  "sha256": "f3e9e1a4c8deb3b4d934a87cf5a89cfd2f790a951734fbac1808cc856706e192"
+ },
+ {
+  "path": "tables.md",
+  "bytes": 8025,
+  "sha256": "64074ded08476646f8343593c08957314885bad1b137be44000a0e297e7d76fd"
+ }
+]

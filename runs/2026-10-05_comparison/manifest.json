@@ -1,0 +1,83 @@
+{
+ "id": "2026-10-05_comparison",
+ "title": "decisio's three bases against Jev 1.13 and the three open-weights entries with the highest Decision Index, from the public boards and this repository's run records",
+ "date": "2026-10-05",
+ "typesafe_api_calls": 0,
+ "rule": {
+  "file": "RULE.md",
+  "committed_before_computing": [
+   "f3f9a08 (the rule)",
+   "08333a4 (amendment 1, n takes the headline track's case count)"
+  ]
+ },
+ "ours": {
+  "label": "self-run; the Decision Index runs are submitted in apolinario/decision-index#62 and pending the maintainers' validation; the JevBench counts are this repository's records, not board entries",
+  "decision_index": [
+   "runs/2026-10-05_decision-index/decisio-0.4.0-qwen3.6-35b-a3b/scores.json",
+   "runs/2026-10-05_decision-index/decisio-0.4.0-gemma-4-12b/scores.json",
+   "runs/2026-10-05_decision-index/decisio-0.6.0-gemma-4-31b/scores.json"
+  ],
+  "jevbench_231": [
+   "runs/2026-10-03_qiv-default/jevbench_qiv/{easy,original,hard}/summary.json",
+   "runs/2026-10-04_gemma-base/jevbench_gemma/{easy,original,hard}/summary.json",
+   "runs/2026-10-04_gemma-4-31b/jevbench_g31/{easy,original,hard}/summary.json"
+  ],
+  "self_hosting_cost": "mean request latency (scores.json latency_ms.mean) x 150,759 requests at $1.48 per card-hour (about $26 for 17.6 card-hours of the RTX PRO 6000 on vast.ai, 2026-10-04 to 05); one request at a time"
+ },
+ "snapshots": {
+  "snapshots/decision-index_index-v0.2.1.json.gz": {
+   "source": "https://huggingface.co/spaces/multimodalart/jev-decision-index/blob/cdbd1cab3b6eb1811ebd82d2686ad563a4d0fc0d/data/index-v0.2.1.json",
+   "space_commit": "cdbd1cab3b6eb1811ebd82d2686ad563a4d0fc0d",
+   "generated_utc": "2026-09-28T00:39:36+00:00",
+   "read_utc": "2026-10-05",
+   "sha256_uncompressed": "37526dd3f3d8f06e37722ef749344a7c877ed31260bad37de2e348cca1220d50",
+   "fields_read": [
+    "jev.benchmarks[id].raw",
+    "jev.results['48'].score (ForecastBench Brier)",
+    "jev.results[id].cases",
+    "jev.results[id].usd",
+    "jev.categories[].skill",
+    "jev.scores.balanced_skill",
+    "jev.latency",
+    "models[].benchmarks[id].raw",
+    "models[].results['48'].score",
+    "models[].categories[].skill",
+    "models[].scores.balanced_skill",
+    "models[].latency",
+    "models[].meta",
+    "benchmarks[id].cases|lower|gold|dataset|metric",
+    "suite.areas",
+    "suite.area_weights",
+    "suite.chance_levels"
+   ]
+  },
+  "snapshots/jevbench_v1.4.2.2-results.json.gz": {
+   "source": "https://github.com/fstandhartinger/jevbench/blob/bb05a335bc809e61b20c0f745d25499a82b326fc/results/v1.4.2.2/jevbench-v1.4.2.2-results.json",
+   "revision": "v1.4.2.2",
+   "generated_utc": "2026-09-27T18:49:51+00:00",
+   "read_utc": "2026-10-05",
+   "why_this_revision": "the latest JevBench revision that publishes each system's accuracy on the 231 published questions (public_accuracy); v1.6.0 scores a different open set of 300",
+   "sha256_uncompressed": "7f39b2f742a69ded7384fb7eb4c54daa9cf67b26e72e25133c6da1f8e49cf570",
+   "fields_read": [
+    "systems[].public_accuracy",
+    "systems[].tiers.hard",
+    "systems[].class",
+    "systems[].display",
+    "systems[].key"
+   ]
+  },
+  "snapshots/typesafe_docs.json": {
+   "source": "https://docs.typesafe.ai",
+   "read_utc": "2026-10-05T21:44:44Z",
+   "content": "verbatim sentences and each page's sha256; the pages are not copied"
+  }
+ },
+ "open_entries_selection": "the three board entries with a public weights repository or served checkpoint (models[].meta.weights_repo or served_checkpoint) and the highest scores.balanced_skill",
+ "files": {
+  "RULE.md": "the rule, committed before computing",
+  "compute.py": "applies the rule; writes results.json and tables.md",
+  "results.json": "every value, n, interval, difference and mark",
+  "tables.md": "the tables docs/comparison.md quotes"
+ },
+ "excluded": "no item text, no per-item output of Jev or any other system, no figure from any call of ours to TypeSafe's API"
+}

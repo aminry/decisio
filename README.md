@@ -233,6 +233,7 @@ Paired on one host (an AMD EPYC 7452 with an RTX PRO 6000 Blackwell), the in-pro
 On that host the Qwen base took 1.4 to 2.1 times the times above in either arrangement, while the Gemma bases did not, so absolute latency depends on the host (`docs/running.md`).
 
 Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions (the public board's figures and their date are in `EVAL_CARD.md` section 8.1) and on intent taxonomies without labelled examples.
+[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every Decision Index benchmark, JevBench's published questions, latency, cost and capabilities, each cell marked ahead, level or behind by a rule written before anything was computed.
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).

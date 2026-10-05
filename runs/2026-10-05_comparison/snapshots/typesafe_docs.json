@@ -1,0 +1,54 @@
+{
+ "source": "https://docs.typesafe.ai (each page's Markdown form, <page>.md)",
+ "read_utc": "2026-10-05T21:44:44Z",
+ "note": "sentences quoted verbatim from TypeSafe's public documentation, with each page's sha256 as read; the pages themselves are not copied here",
+ "pages": [
+  {
+   "url": "https://docs.typesafe.ai/models",
+   "sha256": "15351adaab85874b5f1a942fc2fdf3c7b3ecadcc936d580793d734855a0038f3",
+   "quotes": [
+    "64k tokens per request; 32k tokens for `state` plus the longest question",
+    "Text only. String, JSON object, or array of text values. No image, audio, or video input.",
+    "$42 / $0.042",
+    "Charged per input token. Output tokens are free.",
+    "Every model on this page is served by the same endpoint, `POST /v1/systemone`.",
+    "Jev is not fine-tuned or LoRA-adapted with customer data.",
+    "the same weights serve every account. You shape its answers to your domain through the request rather than through per-account weights",
+    "Jev is not trained on customer requests or responses.",
+    "An alias moves when a new release ships, so the answers behind it can change without a change on your side.",
+    "English is the primary training language and where accuracy is currently best."
+   ]
+  },
+  {
+   "url": "https://docs.typesafe.ai/api",
+   "sha256": "6b760275f89341fe15cff80c28aacae94d7d0c0c99afcd987ec0bca680b5713a",
+   "quotes": [
+    "You can have a maximum of 255 options per Choice.",
+    "A Score should have at least two levels; the API accepts up to 10."
+   ]
+  },
+  {
+   "url": "https://docs.typesafe.ai/primitives",
+   "sha256": "fe67e1062c34ffef8f64ba5e541d00159214cd15c48f6c19ef46c25a6357a294",
+   "quotes": [
+    "The three TypeSafe question types (Choice, Score, Noul)",
+    "System One models evaluate every question in a request in parallel."
+   ]
+  },
+  {
+   "url": "https://docs.typesafe.ai/concepts/system-one",
+   "sha256": "a9a536be92d9c906c02f8aee6c28622a563bbe4a1ead5078d9bc48fe3612f265",
+   "quotes": [
+    "System One models are trained for calibrated decisions: their probabilities are optimized against outcomes to reflect uncertainty. Calibration is measured across groups of predictions; it does not guarantee that an individual answer is correct."
+   ]
+  },
+  {
+   "url": "https://docs.typesafe.ai/legal",
+   "sha256": "cc96ee6f2d53a89a76b21dc0df6102e5982d2583aa9ad95971d8bebc9de55897",
+   "quotes": [
+    "We also offer zero data retention (ZDR) for enterprise customers.",
+    "These documents cover how TypeSafe handles your data when you have an account with us, including data retention, our commitment not to train models on user data, and the general customer agreements that govern your use of TypeSafe."
+   ]
+  }
+ ]
+}
