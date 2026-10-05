@@ -65,7 +65,7 @@ The 2026-09-30 JevBench and Decision Index numbers were measured with the text-o
 With `--temperature 1` every choice and every accuracy is the same; calibration changes, and with it the v1.5 yes/no and score values, which depend on the probabilities (`runs/2026-09-30_served-default`, arm `temperature_1`); T = 1 is a bit-exact no-op, so that arm's JevBench responses are byte for byte those of the untempered run recorded in `runs/2026-09-27_boards-baseline`.
 None of these is a board number: JevBench's official score needs its sealed set, and a Decision Index value needs all 38 of its benchmarks, which section 8 runs.
 Nothing was submitted to JevBench's board; the Decision Index runs of section 8 were self-run and submitted for review.
-No output of Jev (TypeSafe's hosted model behind the System One API, which JevBench is named after) is in this repository; section 8 quotes two of its values from the Decision Index's public board.
+No output of Jev (TypeSafe's hosted model behind the System One API, which JevBench is named after) is in this repository; section 8 and `docs/comparison.md` quote its aggregate values from the public boards, whose files are kept in `runs/2026-10-05_comparison/snapshots/`.
 The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, the served name `rlcd-qwen3.6-35b-a3b-letters`); decisio reads both spellings (`decisio.names`).
 
 ## 4. What was fitted on what
@@ -315,3 +315,5 @@ The board file holds a second Jev value for GPQA Diamond, `jev.results['25'].sco
 That value is over all 198 questions (its `cases`: 198; 0.7828 is 155 of 198), including the two rows edition 0.2.1 excludes from scoring, while ours and its `raw` 0.7857 (154 of 196) are over the 196 it scores; so 0.7828 is not the comparison with our accuracy.
 For MMLU-Pro both fields are 0.827.
 On these two knowledge benchmarks Jev is ahead of every base served here.
+
+`docs/comparison.md` extends this to every index benchmark, the five areas, JevBench's 231 published questions, latency, cost and capabilities, for the three bases, Jev and the three open-weights entries with the highest index, each of our cells marked ahead, level or behind by a rule written before computing (`runs/2026-10-05_comparison/`).
