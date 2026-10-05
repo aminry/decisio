@@ -44,6 +44,7 @@ import pytest
 
 from decisio.serve.engine_health import (
     EXIT_ENGINE_DEAD,
+    PROBE_SLOWEST_FACTOR,
     PROBE_TIMEOUT_S,
     EngineDead,
     EngineHealth,
@@ -53,7 +54,9 @@ from decisio.serve.engine_health import (
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
-FAST_S = 5.0  # a refused request answers in milliseconds; a hanging one never does
+# the lag runs (DYING_ENGINE_LAG, tests/unit/dying_engine.py) slow the stand-in down; every bound allows for it
+LAG_S = sum(float(x.split("=")[1]) for x in filter(None, os.environ.get("DYING_ENGINE_LAG", "").split(",")))
+FAST_S = 5.0 + LAG_S  # a refused request answers in milliseconds; a hanging one never does
 GRACE_S = 2.0  # EngineHealth's default, as the server runs it
 
 
@@ -80,6 +83,8 @@ class Engine:
 
     def probe(self):
         self.probes += 1
+        if self.mode == "slow":
+            time.sleep(0.5)
         if self.mode == "fails":
             raise RuntimeError("CUDA error: an illegal memory access was encountered")
         if self.mode == "hangs":
@@ -167,6 +172,64 @@ def test_h1_vllm_saying_dead_kills_at_once_without_a_probe(eng, e, why):
     assert exits == [EXIT_ENGINE_DEAD]
 
 
+def test_h1_a_probe_ends_when_the_engine_is_declared_dead_meanwhile():
+    """A request waiting on its probe gets EngineDead as soon as another path (the watch thread, another request)
+    declares the engine dead, not after the probe's timeout, and not the dropped connection of the exit that follows."""
+    exits, eng = [], Engine(probe="hangs")
+    h = health(exits, probe_timeout_s=5.0)
+    threading.Timer(0.2, h.mark_dead, args=("vLLM's engine-core process exited",)).start()
+    t0 = time.perf_counter()
+    with pytest.raises(EngineDead, match="engine-core process exited"):
+        h.call(eng, raising(IndexError("list index out of range")))
+    assert time.perf_counter() - t0 < 1.0 and eng.probes == 1
+
+
+def test_h1_a_slow_engine_is_given_time_to_answer_its_probe():
+    """The probe's timeout is 3 times the slowest recent successful call when that is longer than probe_timeout_s, so
+    an engine that is slow but alive is not declared dead (seen with the stand-in's forward passes made 6 s slow)."""
+    exits, eng = [], Engine(probe="slow")  # the probe takes 0.5 s, more than the 0.2 s timeout below
+    h = health(exits, probe_timeout_s=0.2)
+    assert h.call(eng, lambda: time.sleep(0.4) or 7) == 7  # the engine's calls take 0.4 s: the timeout becomes 1.2 s
+    assert h.probe_deadline_s() >= PROBE_SLOWEST_FACTOR * 0.4
+    with pytest.raises(IndexError):
+        h.call(eng, raising(IndexError("list index out of range")))
+    assert not h.dead and eng.probes == 1
+    fresh = health(exits, probe_timeout_s=0.2)  # no slow call seen: 0.2 s, and the 0.5 s probe is too slow
+    with pytest.raises(EngineDead, match="within 0.2 s"):
+        fresh.call(Engine(probe="slow"), raising(IndexError("list index out of range")))
+
+
+def test_h1_a_start_up_probe_gives_the_first_request_a_slow_engine_s_time():
+    """The server times one probe per engine at start-up (calibrate), so even its first request that trips a bug gives
+    a slow engine's probe its time."""
+    exits, eng = [], Engine(probe="slow")
+    h = health(exits, probe_timeout_s=0.2)
+    took = h.calibrate([eng, types.SimpleNamespace(), None])  # engines without a probe are skipped
+    assert list(took) == ["Engine"] and took["Engine"] >= 500 and h.probe_deadline_s() >= 1.5
+    with pytest.raises(IndexError):
+        h.call(eng, raising(IndexError("list index out of range")))
+    assert not h.dead and eng.probes == 2
+
+
+def test_h1_the_exit_waits_for_the_requests_in_flight():
+    """After the grace period the process ends once no request is in flight, and at the latest drain_s later."""
+    exits = []
+    h = EngineHealth(grace_s=0.05, drain_s=2.0, exit_fn=exits.append)
+    h.request_started()
+    h.mark_dead("vLLM's engine-core process exited")
+    time.sleep(0.4)
+    assert exits == []  # the request is still being answered
+    h.request_finished()
+    time.sleep(0.4)
+    assert exits == [EXIT_ENGINE_DEAD]
+    exits = []
+    h = EngineHealth(grace_s=0.05, drain_s=0.3, exit_fn=exits.append)
+    h.request_started()  # a request the dead engine never returns
+    h.mark_dead("the engine did not answer a probe within 5 s")
+    time.sleep(0.7)
+    assert exits == [EXIT_ENGINE_DEAD]
+
+
 def test_h1_dead_refuses_without_calling_and_dies_once():
     exits, calls = [], []
     h = health(exits)
@@ -223,7 +286,7 @@ def call(url, path, body=None, timeout=60.0):
 class DyingServer:
     """tests/unit/dying_engine.py in a child process: the real server, whose engine dies when the test says."""
 
-    def __init__(self, tmp_path, arrangement):
+    def __init__(self, tmp_path, arrangement, lag=None):
         with socket.socket() as s:
             s.bind(("127.0.0.1", 0))
             self.port = s.getsockname()[1]
@@ -236,6 +299,7 @@ class DyingServer:
             stdout=self.log,
             stderr=subprocess.STDOUT,
             start_new_session=True,
+            env={**os.environ, "DYING_ENGINE_LAG": lag} if lag else None,
         )
         self.core_pid = None
         deadline = time.time() + 900
@@ -306,7 +370,8 @@ def assert_dead_and_exits(s, why):
 
 
 POISONED = {**QUESTION, "questions": {"q1": {**QUESTION["questions"]["q1"], "instructions": "Pick one. xyzzy"}}}
-DIES_WITHIN_S = PROBE_TIMEOUT_S + GRACE_S + 3.0  # the probe's timeout, the grace period, and time to stop
+# the probe's timeout (longer with the stand-in's lag), the grace period, and time to stop
+DIES_WITHIN_S = PROBE_TIMEOUT_S + GRACE_S + 3.0 + (PROBE_SLOWEST_FACTOR + 1) * LAG_S
 
 
 @pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
@@ -379,7 +444,9 @@ def test_h2_requests_in_flight_when_it_dies(server):
         for f in (first, waiting):
             status, body, _ = f.result()
             assert status == 503 and "the engine is dead" in body["detail"], (status, body)
-    assert_dead_and_exits(server, "RuntimeError" if server.core_pid is None else "EngineDeadError")
+    # separate: the request in flight sees the core gone (EngineDeadError), or vLLM's flag does first
+    gone = ("EngineDeadError", "engine-core process exited")
+    assert_dead_and_exits(server, "RuntimeError" if server.core_pid is None else gone)
 
 
 @pytest.mark.parametrize("server", ["separate"], indirect=True)
@@ -390,6 +457,39 @@ def test_h2_engine_core_killed_between_requests(server):
     while call(server.url, "/health", timeout=FAST_S)[0] == 200 and time.time() < deadline:
         time.sleep(0.1)
     assert_dead_and_exits(server, "engine-core process exited")
+
+
+def test_h2_a_request_inside_the_engine_when_it_dies_gets_its_answer(tmp_path):
+    """separate: the request in flight sees the killed core 4 s late (DYING_ENGINE_LAG alive=4) while vLLM's flag sees
+    it at once and the server declares the engine dead; the exit waits for that request's answer instead of dropping
+    its connection after the 2 s grace period."""
+    server = DyingServer(tmp_path, "separate", lag="alive=4")
+    try:
+        server.say("hold")
+        with ThreadPoolExecutor(1) as pool:
+            first = pool.submit(call, server.url, "/v1/systemone", QUESTION, 30.0)
+            time.sleep(1.0)
+            os.kill(server.core_pid, 9)
+            status, body, _ = first.result()
+        assert status == 503 and "the engine is dead" in body["detail"], (status, body)
+        assert server.exit_code() == EXIT_ENGINE_DEAD, server.output()
+    finally:
+        server.stop()
+
+
+def test_h2_a_slow_healthy_engine_is_not_declared_dead(tmp_path):
+    """separate: the engine core answers every forward pass 6 s late (DYING_ENGINE_LAG ping=6), longer than the probe's
+    5 s; the server's very first request trips a bug and still gets 500, and the server stays up, since the probe waits
+    3 times the slowest call seen, the start-up probe's included."""
+    server = DyingServer(tmp_path, "separate", lag="ping=6")
+    try:
+        status, body, took = call(server.url, "/v1/systemone", POISONED, timeout=60)
+        assert status == 500, (status, body, took)
+        assert call(server.url, "/health")[0] == 200
+        assert server.exit_code(timeout=GRACE_S + 1.0) is None, server.output()
+        assert "the engine answered a probe" in server.output()
+    finally:
+        server.stop()
 
 
 # ---- H3 the container ------------------------------------------------------------------------------------------------

@@ -18,9 +18,14 @@ POISON      a prompt containing the tokens of " xyzzy" raises IndexError before 
             state: a bug on decisio's side, tripped by one request while the engine is healthy
 
 The model is the stand-in's own (warm-up runs before the stub goes in); only its forward pass is wrapped.
+
+DYING_ENGINE_LAG (e.g. "flag=1.5,ping=0.5") makes a wait or poll of the stand-in lag by that many seconds, for the
+engine-death tests' lag runs: control (each read of CONTROL), alive (the forward pass's own view of the engine core
+sees its death late), flag (vLLM's flag sees it late), ping (the engine core answers each forward pass late).
 """
 
 import multiprocessing as mp
+import os
 import sys
 import threading
 import time
@@ -40,36 +45,66 @@ class EngineDeadError(VLLMServerError):
     """As vllm.exceptions.EngineDeadError: what vLLM's client raises once its engine-core process is gone."""
 
 
-def core(conn):
+def lags():
+    out = {}
+    for part in filter(None, os.environ.get("DYING_ENGINE_LAG", "").split(",")):
+        point, seconds = part.split("=")
+        assert point in ("control", "alive", "flag", "ping"), point
+        out[point] = float(seconds)
+    return out
+
+
+LAG = lags()
+
+
+def core(conn, lag=0.0):
     """The engine-core process: answers every forward pass until it is killed."""
     while True:
-        conn.send(conn.recv())
+        x = conn.recv()
+        time.sleep(lag)
+        conn.send(x)
+
+
+class Liveness:
+    """A view of the engine core's liveness that sees its death `lag` seconds after it first could."""
+
+    def __init__(self, proc, lag=0.0):
+        self.proc, self.lag, self.seen_dead = proc, lag, None
+
+    def alive(self):
+        if self.proc.is_alive():
+            return True
+        if self.seen_dead is None:
+            self.seen_dead = time.monotonic()
+        return time.monotonic() - self.seen_dead < self.lag
 
 
 class Resources:
     """vLLM's client resources: `engine_dead` once the engine-core process is gone."""
 
     def __init__(self, proc):
-        self.proc = proc
+        self.view = Liveness(proc, LAG.get("flag", 0.0))
 
     @property
     def engine_dead(self):
-        return not self.proc.is_alive()
+        return not self.view.alive()
 
 
 class DyingModel:
     def __init__(self, model, arrangement, control, poison, proc=None, conn=None):
         self.model, self.arrangement, self.control, self.proc, self.conn = model, arrangement, control, proc, conn
         self.poison, self.broken = poison, False
+        self.view = Liveness(proc, LAG.get("alive", 0.0)) if proc is not None else None
 
     def __getattr__(self, name):
         return getattr(self.model, name)
 
     def command(self):
+        time.sleep(LAG.get("control", 0.0))
         return self.control.read_text().strip() if self.control.exists() else ""
 
     def alive_or_raise(self):
-        if self.proc is not None and not self.proc.is_alive():
+        if self.proc is not None and not self.view.alive():
             raise EngineDeadError("EngineCore encountered an issue. See stack trace (above) for the root cause.")
 
     def poisoned(self, args, kwargs):
@@ -88,17 +123,17 @@ class DyingModel:
             time.sleep(0.05)
             cmd = self.command()
         if cmd == "break":
-            if self.proc is not None:
+            if self.proc is not None:  # the core dies with it, and vLLM's client says so at once (not a poll)
                 self.proc.kill()
                 self.proc.join()
-                self.alive_or_raise()
+                raise EngineDeadError("EngineCore encountered an issue. See stack trace (above) for the root cause.")
             self.broken = True
             threading.Event().wait()
         if cmd == "raise":
-            if self.proc is not None:
+            if self.proc is not None:  # the core dies with it, and vLLM's client says so at once (not a poll)
                 self.proc.kill()
                 self.proc.join()
-                self.alive_or_raise()
+                raise EngineDeadError("EngineCore encountered an issue. See stack trace (above) for the root cause.")
             self.broken = True
             raise RuntimeError("CUDA error: an illegal memory access was encountered (injected)")
         if self.proc is not None:
@@ -118,8 +153,9 @@ def main():
     if arrangement == "separate":
         ctx = mp.get_context("spawn")
         conn, child = ctx.Pipe()
-        proc = ctx.Process(target=core, args=(child,), daemon=True)
+        proc = ctx.Process(target=core, args=(child, LAG.get("ping", 0.0)), daemon=True)
         proc.start()
+        child.close()  # only the core holds its end: once it is gone, a forward pass sees EOF (vLLM raises at once)
         print(f"ENGINE CORE PID {proc.pid}", flush=True)
 
     from decisio.serve import hf_letters, vllm_engine

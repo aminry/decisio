@@ -75,7 +75,7 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
-from decisio.serve.engine_health import EngineDead, EngineHealth, guarded  # noqa: E402
+from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
@@ -684,6 +684,8 @@ def make_app(engine, systemone=None, health=None):
         adapter: str | None = None
 
     app = FastAPI(title="letters readout")
+    if health is not None:  # the exit after a death waits for the answers in flight (decisio.serve.engine_health)
+        app.add_middleware(InFlight, health=health)
 
     @app.exception_handler(EngineDead)
     def engine_dead(request, exc):
@@ -1527,6 +1529,8 @@ def main():
     for e in engines:
         e.health = health
     health.watch(engines)
+    probe_ms = health.calibrate(engines)  # one timed probe per engine: the first request's probe allows for a slow one
+    print("ENGINE PROBE", json.dumps({"ms": probe_ms, "deadline_s": health.probe_deadline_s()}), flush=True)
     uvicorn.run(make_app(engine, so), host=args.host, port=args.port, log_level="warning")
 
 
