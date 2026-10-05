@@ -9,6 +9,7 @@ S3  --one-engine --image-model: the image engine alone, serving both routes
 
 The server's start-up runs for real (both engines load and build their prompts) up to the point where it would listen.
 A change of the served prompt layout broke S2 silently from 0.3.0 to 0.6.0, so each configuration is started here.
+Each engine also answers its probe (decisio.serve.engine_health), which tells a failed request from a dead engine.
 The stand-in is the image route's (`DECISIO_IMAGE_TEST_MODEL`, a small checkpoint of the served model's family).
 
   uv run pytest -q tests/unit/test_second_engines.py
@@ -38,6 +39,8 @@ def start(monkeypatch, *flags):
 def test_s1_image_model_starts(monkeypatch):
     text, so = start(monkeypatch, "--image-model", MODEL)
     assert so.image_engine is not None and so.image_engine is not text
+    text.probe()  # each engine answers the probe that tells a failed request from a dead engine (engine_health)
+    so.image_engine.probe()
 
 
 def test_s2_head_engine_starts_with_the_served_format(monkeypatch):
@@ -45,8 +48,10 @@ def test_s2_head_engine_starts_with_the_served_format(monkeypatch):
     hidden = so.hidden_engine
     assert type(hidden).__name__ == "HFHiddenEngine"
     assert hidden.fmt == text.fmt and hidden.family == text.family
+    hidden.probe()
 
 
 def test_s3_one_engine_starts(monkeypatch):
     text, so = start(monkeypatch, "--one-engine", "--image-model", MODEL)
     assert so.image_engine is text  # the image engine alone serves both routes
+    text.probe()

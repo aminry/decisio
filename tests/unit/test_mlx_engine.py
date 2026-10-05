@@ -154,6 +154,16 @@ def test_hidden_readout_is_the_served_readout(tiny):
         assert h.shape == (TINY_TEXT["hidden_size"],) and h.dtype == np.float32
 
 
+def test_the_probe_answers_and_changes_no_answer(tiny):
+    """The engine's probe (decisio.serve.engine_health): a one-token forward pass into a new cache."""
+    from decisio.serve.mlx_engine import MLXHiddenReadout
+
+    before = tiny.answer(STATE, QUESTIONS)[0]
+    tiny.probe()
+    MLXHiddenReadout(tiny).probe()
+    assert all(np.array_equal(a, b) for a, b in zip(before, tiny.answer(STATE, QUESTIONS)[0]))
+
+
 def test_copy_cache_leaves_the_prefix_untouched(tiny):
     import mlx.core as mx
 
