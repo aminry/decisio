@@ -260,7 +260,11 @@ class DyingServer:
         return self.log.read()
 
     def say(self, command):
-        self.control.write_text(command)
+        """Atomically: the engine reads the file every 50 ms, and write_text truncates it first, so a read in between
+        saw it empty and ended a hold as if told to go on (one request answered 200 instead of failing)."""
+        tmp = self.control.with_name(self.control.name + ".tmp")
+        tmp.write_text(command)
+        os.replace(tmp, self.control)
 
     def exit_code(self, timeout=15.0):
         try:
