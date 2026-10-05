@@ -213,7 +213,7 @@ Qwen3.6-35B-A3B answered fastest in Pong, driving and triage (Pong 44 ms per dec
 ## Benchmarks
 
 Each base with its own defaults on one RTX PRO 6000 Blackwell: the Qwen and Gemma 4 12B bases in one session (`runs/2026-10-04_gemma-base/`), Gemma 4 31B in its own (`runs/2026-10-04_gemma-4-31b/`), image input in another (`runs/2026-09-27_image-input/`).
-Measured privately with the public harnesses (the Decision Index kit 0.2.1); none is a board score.
+Measured by us with the public harnesses (the Decision Index kit 0.2.1) and recorded in `runs/`; none is a board score.
 
 | Measure | Qwen3.6-35B-A3B (default) | Gemma 4 12B | Gemma 4 31B |
 | --- | ---: | ---: | ---: |
