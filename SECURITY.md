@@ -26,3 +26,7 @@ Decisio is a model server, not a hardened public endpoint.
 - `--debug-readout` exposes raw model readouts; leave it off in production.
 - The image route accepts image payloads from requests; size limits belong in the proxy.
 - vLLM's own security guidance applies to the engine underneath: https://docs.vllm.ai/en/stable/usage/security/
+
+A decisio server is single-tenant.
+Its prefix cache and registered tasks are shared by every caller, so response timing can reveal whether another caller recently sent the same text, and one caller's registered task answers another's identical question.
+Run one server per trust boundary.
