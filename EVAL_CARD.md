@@ -309,4 +309,9 @@ The public board's Jev row, read from its data file `data/index-v0.2.1.json` at 
 | MMLU-Pro | 0.827 | 0.613 | 0.550 | 0.694 |
 
 Jev's values are quoted from the board, not measured by us (`runs/2026-10-05_decision-index/board_jev.json`).
+Each is the board's `jev.benchmarks[id].raw` (GPQA Diamond id 25: 0.7857; MMLU-Pro id 57: 0.827), the value its index uses and the one it lists beside every model as Jev on the same cases (`models[].results[id].jev`).
+Ours are the same field of each run's `scores.json` (`index_benchmarks[id].raw`), so both sides are scored on the same requests: 196 for GPQA Diamond, 12,032 for MMLU-Pro.
+The board file holds a second Jev value for GPQA Diamond, `jev.results['25'].score` = 0.7828, which its GPQA Diamond column and benchmark page display as 78.3.
+That value is over all 198 questions (its `cases`: 198; 0.7828 is 155 of 198), including the two rows edition 0.2.1 excludes from scoring, while ours and its `raw` 0.7857 (154 of 196) are over the 196 it scores; so 0.7828 is not the comparison with our accuracy.
+For MMLU-Pro both fields are 0.827.
 On these two knowledge benchmarks Jev is ahead of every base served here.
