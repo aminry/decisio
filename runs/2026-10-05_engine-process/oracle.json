@@ -1,0 +1,566 @@
+{
+ "wip": {
+  "operation": {
+   "steps": 272,
+   "batched_right": 236,
+   "alone_right": 232,
+   "batched_acc": 0.8676470588235294,
+   "batched_ci": [
+    0.8222092500505229,
+    0.9028445489413623
+   ],
+   "alone_acc": 0.8529411764705882,
+   "alone_ci": [
+    0.8059421142819767,
+    0.8901095327502331
+   ],
+   "diff_points": [
+    1.4705882352941175,
+    -1.1029411764705883,
+    4.044117647058823
+   ],
+   "batched_right_alone_wrong": 8,
+   "batched_wrong_alone_right": 4,
+   "degenerate": false
+  },
+  "click_target": {
+   "steps": 200,
+   "batched_right": 98,
+   "alone_right": 105,
+   "batched_acc": 0.49,
+   "batched_ci": [
+    0.4215615528275274,
+    0.5588153672908391
+   ],
+   "alone_acc": 0.525,
+   "alone_ci": [
+    0.45597270710507,
+    0.5930849925990139
+   ],
+   "diff_points": [
+    -3.5000000000000004,
+    -7.5,
+    0.0
+   ],
+   "batched_right_alone_wrong": 4,
+   "batched_wrong_alone_right": 11,
+   "degenerate": false
+  },
+  "type_text_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": true
+  },
+  "select_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  }
+ },
+ "wip (second answer, cached)": {
+  "operation": {
+   "steps": 272,
+   "batched_right": 236,
+   "alone_right": 232,
+   "batched_acc": 0.8676470588235294,
+   "batched_ci": [
+    0.8222092500505229,
+    0.9028445489413623
+   ],
+   "alone_acc": 0.8529411764705882,
+   "alone_ci": [
+    0.8059421142819767,
+    0.8901095327502331
+   ],
+   "diff_points": [
+    1.4705882352941175,
+    -1.1029411764705883,
+    4.044117647058823
+   ],
+   "batched_right_alone_wrong": 8,
+   "batched_wrong_alone_right": 4,
+   "degenerate": false
+  },
+  "click_target": {
+   "steps": 200,
+   "batched_right": 98,
+   "alone_right": 105,
+   "batched_acc": 0.49,
+   "batched_ci": [
+    0.4215615528275274,
+    0.5588153672908391
+   ],
+   "alone_acc": 0.525,
+   "alone_ci": [
+    0.45597270710507,
+    0.5930849925990139
+   ],
+   "diff_points": [
+    -3.5000000000000004,
+    -7.5,
+    0.0
+   ],
+   "batched_right_alone_wrong": 4,
+   "batched_wrong_alone_right": 11,
+   "degenerate": false
+  },
+  "type_text_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": true
+  },
+  "select_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  }
+ },
+ "g31wip": {
+  "operation": {
+   "steps": 272,
+   "batched_right": 248,
+   "alone_right": 248,
+   "batched_acc": 0.9117647058823529,
+   "batched_ci": [
+    0.8720699047451267,
+    0.9399903501257846
+   ],
+   "alone_acc": 0.9117647058823529,
+   "alone_ci": [
+    0.8720699047451267,
+    0.9399903501257846
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  },
+  "click_target": {
+   "steps": 200,
+   "batched_right": 143,
+   "alone_right": 143,
+   "batched_acc": 0.715,
+   "batched_ci": [
+    0.648845269187895,
+    0.773050948267227
+   ],
+   "alone_acc": 0.715,
+   "alone_ci": [
+    0.648845269187895,
+    0.773050948267227
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  },
+  "type_text_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": true
+  },
+  "select_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  }
+ },
+ "g31wip (second answer, cached)": {
+  "operation": {
+   "steps": 272,
+   "batched_right": 248,
+   "alone_right": 248,
+   "batched_acc": 0.9117647058823529,
+   "batched_ci": [
+    0.8720699047451267,
+    0.9399903501257846
+   ],
+   "alone_acc": 0.9117647058823529,
+   "alone_ci": [
+    0.8720699047451267,
+    0.9399903501257846
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  },
+  "click_target": {
+   "steps": 200,
+   "batched_right": 143,
+   "alone_right": 143,
+   "batched_acc": 0.715,
+   "batched_ci": [
+    0.648845269187895,
+    0.773050948267227
+   ],
+   "alone_acc": 0.715,
+   "alone_ci": [
+    0.648845269187895,
+    0.773050948267227
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  },
+  "type_text_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": true
+  },
+  "select_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  }
+ },
+ "g12wip": {
+  "operation": {
+   "steps": 272,
+   "batched_right": 267,
+   "alone_right": 267,
+   "batched_acc": 0.9816176470588235,
+   "batched_ci": [
+    0.9576971250445488,
+    0.9921233516348206
+   ],
+   "alone_acc": 0.9816176470588235,
+   "alone_ci": [
+    0.9576971250445488,
+    0.9921233516348206
+   ],
+   "diff_points": [
+    0.0,
+    -1.1029411764705883,
+    1.1029411764705883
+   ],
+   "batched_right_alone_wrong": 1,
+   "batched_wrong_alone_right": 1,
+   "degenerate": false
+  },
+  "click_target": {
+   "steps": 200,
+   "batched_right": 136,
+   "alone_right": 134,
+   "batched_acc": 0.68,
+   "batched_ci": [
+    0.612479733946457,
+    0.7407357039229475
+   ],
+   "alone_acc": 0.67,
+   "alone_ci": [
+    0.602165564130804,
+    0.7314267938569671
+   ],
+   "diff_points": [
+    1.0,
+    -1.0,
+    3.0
+   ],
+   "batched_right_alone_wrong": 3,
+   "batched_wrong_alone_right": 1,
+   "degenerate": false
+  },
+  "type_text_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": true
+  },
+  "select_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  }
+ },
+ "g12wip (second answer, cached)": {
+  "operation": {
+   "steps": 272,
+   "batched_right": 267,
+   "alone_right": 267,
+   "batched_acc": 0.9816176470588235,
+   "batched_ci": [
+    0.9576971250445488,
+    0.9921233516348206
+   ],
+   "alone_acc": 0.9816176470588235,
+   "alone_ci": [
+    0.9576971250445488,
+    0.9921233516348206
+   ],
+   "diff_points": [
+    0.0,
+    -1.1029411764705883,
+    1.1029411764705883
+   ],
+   "batched_right_alone_wrong": 1,
+   "batched_wrong_alone_right": 1,
+   "degenerate": false
+  },
+  "click_target": {
+   "steps": 200,
+   "batched_right": 137,
+   "alone_right": 134,
+   "batched_acc": 0.685,
+   "batched_ci": [
+    0.617649158589664,
+    0.7453778192205573
+   ],
+   "alone_acc": 0.67,
+   "alone_ci": [
+    0.602165564130804,
+    0.7314267938569671
+   ],
+   "diff_points": [
+    1.5,
+    0.0,
+    3.5000000000000004
+   ],
+   "batched_right_alone_wrong": 3,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  },
+  "type_text_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": true
+  },
+  "select_target": {
+   "steps": 108,
+   "batched_right": 108,
+   "alone_right": 108,
+   "batched_acc": 1.0,
+   "batched_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "alone_acc": 1.0,
+   "alone_ci": [
+    0.9656514212958325,
+    0.9999999999999998
+   ],
+   "diff_points": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "batched_right_alone_wrong": 0,
+   "batched_wrong_alone_right": 0,
+   "degenerate": false
+  }
+ }
+}

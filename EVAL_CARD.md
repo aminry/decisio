@@ -86,11 +86,13 @@ The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, 
 Batch-forward finding: on this stack, questions scored in one batch are not the same forward pass as each scored alone.
 Identical requests sent in one batch differed by up to 0.59 in a label probability (median 0.029) on 250 intent items, while the same requests sent one at a time agreed to 1.2e-7 (`runs/2026-09-30_plugin-verification/diag_same_row.json`, `diag_same_row_sequential.json`).
 So the served default scores each question of a request in its own engine call after the shared prefill (`--multi-question sequential`).
-With the questions batched (`--multi-question warm`, the default until 2026-10-02), their probabilities vary between repeats on one server: about 0.12 on the README's three-question example, while each of its questions sent alone was identical 30 of 30 times (`runs/2026-10-01_docker-first-gpu-start/repeat_variability/`).
-The choice can change when options are close: on 272 four-question requests from a browser-agent demo, the batched answer moved between 5 repeats on 31 requests and differed from the same question sent alone on 50, by up to 0.27 (`runs/2026-10-02_multi-question-and-rendering/`).
+With the questions batched (`--multi-question warm`, the default until 2026-10-02) and vLLM's engine in a process of its own (vLLM's arrangement, `--engine-process separate`, the default), their probabilities vary between repeats on one server: about 0.12 on the README's three-question example, while each of its questions sent alone was identical 30 of 30 times (`runs/2026-10-01_docker-first-gpu-start/repeat_variability/`); on 272 four-question requests from a browser-agent demo, 22 repeated exactly over 5 repeats and a choice changed on 52 (`runs/2026-10-05_engine-process/`; 31 requests moved on its operation question in `runs/2026-10-02_multi-question-and-rendering/`).
+That variation comes from the separate engine process: it receives a batch's requests one at a time and starts an engine step with whatever has arrived, so a request's questions do not always share a step (vllm-project/vllm#59764).
+With the engine in the server's process (`--engine-process in`), every question is added before the first step, and an identical batched request repeats exactly: 272 of 272 four-question requests, 5 repeats each, also with four concurrent clients sending different requests (`runs/2026-10-05_engine-process/`).
+A batched answer is still not the same forward pass as the question sent alone: on those requests all 272 differ from each question sent alone on three of the four questions, by up to 0.39, and 11 to 25 choices change per question; scored against the demo's acceptable actions, accuracy batched against alone is +1.5 points [-1.1, +4.0] on the operation and -3.5 [-7.5, +0.0] on the click target.
 The dependence is in vLLM 0.30.0's forward for this model whenever more than one sequence shares an engine step.
 It appears in the bf16 checkpoint as in FP8, and with prefix caching off, the GDN prefill on Triton, CUDA graphs off and cuBLAS's deterministic workspace.
-It disappears with one sequence per step, and it reproduces on stock vLLM with no decisio code: alone against a batch of two, up to 0.198 in log-probability (`batch_diagnosis/` in the same record); the same batch of two, repeated, differs by up to 0.168, while a lone prompt repeats exactly.
+It disappears with one sequence per step, and it reproduces on stock vLLM with no decisio code: alone against a batch of two, up to 0.198 in log-probability (`batch_diagnosis/` in the same record); the same batch of two, repeated, differs by up to 0.168 with the engine in its own process and not at all with it in the server's process (0.145 and 0.0, the FP8 and bf16 checkpoints alike, `runs/2026-10-05_engine-process/`), while a lone prompt repeats exactly.
 This model's answers move at that scale with any change of rounding, not only the batch: the same lone row prefilled in one step and split at the 1,056-token block boundary differs by up to 0.44 in a probability (median 0.068), so the bit-identity claims here hold for a fixed configuration and request form.
 Scored one engine call each, every answer equals the question sent alone: 272 of 272 requests, 5 repeats each, max |dp| 0.
 The cost is about 17 ms per question instead of 5 to 9 batched (four questions on a fresh 300-token state: 110 ms against 62).
@@ -182,6 +184,7 @@ Its final logits are bf16 after the soft cap, so near the top they lie on a grid
 Within the session, the JevBench answers read on first contact and the same questions asked again later differed by up to 0.035 at the served temperature, on 49 of 231 items, and no choice changed; on the Qwen base the two were identical.
 Between this session and an earlier one on another card of the same type, with the same prompts and temperature, the answers differed by up to 0.128, on 212 of 231 items; two near-tied choices changed, one of them from right to wrong (`repro.json`).
 Several questions in one request stay within the same bound (0.035, 6.3).
+With the questions batched (`--multi-question warm`) and the engine in the server's process, a repeated request moves only as a single question does, between a state's first read and later reads from the prefix cache: on 272 four-question travel requests the first answer differed from the next four, which agreed, on 204, by up to 0.046, with one choice changed (`runs/2026-10-05_engine-process/`).
 
 ### 6.6 Limits
 
@@ -189,7 +192,7 @@ Several questions in one request stay within the same bound (0.035, 6.3).
 - The Gemma base does not fit a 32 GB card on vLLM's defaults.
   Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
   Its path to 32 GB machines is an MLX build, in preparation.
-- The image route, `--multi-question warm` and `--pad-policy row` were not measured on this base.
+- The image route and `--pad-policy row` were not measured on this base; `--multi-question warm` only on the 272 travel requests of section 6.5.
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted.
 
 ## 7. The Gemma 4 31B base
@@ -264,7 +267,7 @@ The disclosures of section 4 hold here too, with one more: the go rule this base
 ### 7.5 Limits
 
 - At bf16 the checkpoint does not serve a 32,768-token context on one 96 GB card: its weights (57.91 GiB) leave 20.24 GiB for the KV cache at vLLM's 0.90 share, while one 32,768-token request needs 27.51 GiB; vLLM estimates 24,096 tokens as the most that fits (`bf16_start.txt`), hence FP8 on load.
-- Several questions in one request were not measured against the same questions sent alone on this base, where each is scored in its own engine call, as on the other bases.
+- Several questions in one request, scored one engine call each as on the other bases, equalled each question sent alone on all 272 travel requests; batched (`--multi-question warm`, engine in the server's process) they repeated exactly and matched each question alone except 6 of 1,088 answers, by at most 0.005, with no choice changed (`runs/2026-10-05_engine-process/`); the 1,400-item suite and JevBench were not measured that way.
 - Slower than both served bases on states it has not seen before, the more so the longer the state (one question on a new 3,000-token state: 476 ms, against 91 ms on the Qwen base).
 - One card and one session; the intent heads over three draws, the other bases' over six.
 - Not served on a Mac; the image route was not measured.

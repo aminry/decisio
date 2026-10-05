@@ -1,0 +1,5456 @@
+{
+ "model": "/workspace/t6g/hf/hub/models--Qwen--Qwen3.6-35B-A3B-FP8/snapshots/95a723d08a9490559dae23d0cff1d9466213d989",
+ "revision": null,
+ "hooked_modules": [
+  800
+ ],
+ "records": 602,
+ "modules_equal_before_first": [],
+ "first_divergent_op": null,
+ "first_unequal_output": null,
+ "pair_rows_equal": true,
+ "pair_max_abs": 0.0,
+ "alone_eager": [
+  -1.6085339784622192,
+  -2.2960338592529297,
+  -2.9991588592529297,
+  -3.7022838592529297,
+  -3.2804088592529297,
+  -2.2022838592529297,
+  -3.8741588592529297,
+  -4.09290885925293,
+  -2.5147838592529297,
+  -2.4522838592529297,
+  -3.8897838592529297,
+  -4.37415885925293,
+  -3.2647838592529297,
+  -3.2491588592529297,
+  -4.95228385925293,
+  -2.7022838592529297,
+  -3.4679088592529297,
+  -3.5304088592529297,
+  -4.18665885925293,
+  -4.40540885925293
+ ],
+ "per_module": [
+  {
+   "order": 0,
+   "module": "language_model.model.embed_tokens",
+   "type": "VocabParallelEmbedding",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 1,
+   "module": "language_model.model.layers.0.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 2,
+   "module": "language_model.model.layers.0.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 3,
+   "module": "language_model.model.layers.0.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 4,
+   "module": "language_model.model.layers.0.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 5,
+   "module": "language_model.model.layers.0.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 6,
+   "module": "language_model.model.layers.0.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 7,
+   "module": "language_model.model.layers.0.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 8,
+   "module": "language_model.model.layers.0.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 9,
+   "module": "language_model.model.layers.0.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 10,
+   "module": "language_model.model.layers.0.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 11,
+   "module": "language_model.model.layers.0.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 12,
+   "module": "language_model.model.layers.0.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 13,
+   "module": "language_model.model.layers.0.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 14,
+   "module": "language_model.model.layers.0.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 15,
+   "module": "language_model.model.layers.0",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 16,
+   "module": "language_model.model.layers.1.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 17,
+   "module": "language_model.model.layers.1.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 18,
+   "module": "language_model.model.layers.1.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 19,
+   "module": "language_model.model.layers.1.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 20,
+   "module": "language_model.model.layers.1.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 21,
+   "module": "language_model.model.layers.1.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 22,
+   "module": "language_model.model.layers.1.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 23,
+   "module": "language_model.model.layers.1.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 24,
+   "module": "language_model.model.layers.1.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 25,
+   "module": "language_model.model.layers.1.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 26,
+   "module": "language_model.model.layers.1.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 27,
+   "module": "language_model.model.layers.1.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 28,
+   "module": "language_model.model.layers.1.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 29,
+   "module": "language_model.model.layers.1.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 30,
+   "module": "language_model.model.layers.1",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 31,
+   "module": "language_model.model.layers.2.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 32,
+   "module": "language_model.model.layers.2.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 33,
+   "module": "language_model.model.layers.2.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 34,
+   "module": "language_model.model.layers.2.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 35,
+   "module": "language_model.model.layers.2.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 36,
+   "module": "language_model.model.layers.2.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 37,
+   "module": "language_model.model.layers.2.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 38,
+   "module": "language_model.model.layers.2.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 39,
+   "module": "language_model.model.layers.2.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 40,
+   "module": "language_model.model.layers.2.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 41,
+   "module": "language_model.model.layers.2.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 42,
+   "module": "language_model.model.layers.2.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 43,
+   "module": "language_model.model.layers.2.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 44,
+   "module": "language_model.model.layers.2.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 45,
+   "module": "language_model.model.layers.2",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 46,
+   "module": "language_model.model.layers.3.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 47,
+   "module": "language_model.model.layers.3.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 48,
+   "module": "language_model.model.layers.3.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 49,
+   "module": "language_model.model.layers.3.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 50,
+   "module": "language_model.model.layers.3.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 51,
+   "module": "language_model.model.layers.3.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 52,
+   "module": "language_model.model.layers.3.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 53,
+   "module": "language_model.model.layers.3.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 54,
+   "module": "language_model.model.layers.3.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 55,
+   "module": "language_model.model.layers.3.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 56,
+   "module": "language_model.model.layers.3.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 57,
+   "module": "language_model.model.layers.3.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 58,
+   "module": "language_model.model.layers.3.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 59,
+   "module": "language_model.model.layers.3.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 60,
+   "module": "language_model.model.layers.3",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 61,
+   "module": "language_model.model.layers.4.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 62,
+   "module": "language_model.model.layers.4.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 63,
+   "module": "language_model.model.layers.4.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 64,
+   "module": "language_model.model.layers.4.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 65,
+   "module": "language_model.model.layers.4.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 66,
+   "module": "language_model.model.layers.4.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 67,
+   "module": "language_model.model.layers.4.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 68,
+   "module": "language_model.model.layers.4.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 69,
+   "module": "language_model.model.layers.4.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 70,
+   "module": "language_model.model.layers.4.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 71,
+   "module": "language_model.model.layers.4.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 72,
+   "module": "language_model.model.layers.4.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 73,
+   "module": "language_model.model.layers.4.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 74,
+   "module": "language_model.model.layers.4.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 75,
+   "module": "language_model.model.layers.4",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 76,
+   "module": "language_model.model.layers.5.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 77,
+   "module": "language_model.model.layers.5.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 78,
+   "module": "language_model.model.layers.5.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 79,
+   "module": "language_model.model.layers.5.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 80,
+   "module": "language_model.model.layers.5.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 81,
+   "module": "language_model.model.layers.5.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 82,
+   "module": "language_model.model.layers.5.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 83,
+   "module": "language_model.model.layers.5.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 84,
+   "module": "language_model.model.layers.5.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 85,
+   "module": "language_model.model.layers.5.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 86,
+   "module": "language_model.model.layers.5.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 87,
+   "module": "language_model.model.layers.5.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 88,
+   "module": "language_model.model.layers.5.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 89,
+   "module": "language_model.model.layers.5.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 90,
+   "module": "language_model.model.layers.5",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 91,
+   "module": "language_model.model.layers.6.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 92,
+   "module": "language_model.model.layers.6.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 93,
+   "module": "language_model.model.layers.6.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 94,
+   "module": "language_model.model.layers.6.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 95,
+   "module": "language_model.model.layers.6.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 96,
+   "module": "language_model.model.layers.6.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 97,
+   "module": "language_model.model.layers.6.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 98,
+   "module": "language_model.model.layers.6.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 99,
+   "module": "language_model.model.layers.6.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 100,
+   "module": "language_model.model.layers.6.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 101,
+   "module": "language_model.model.layers.6.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 102,
+   "module": "language_model.model.layers.6.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 103,
+   "module": "language_model.model.layers.6.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 104,
+   "module": "language_model.model.layers.6.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 105,
+   "module": "language_model.model.layers.6",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 106,
+   "module": "language_model.model.layers.7.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 107,
+   "module": "language_model.model.layers.7.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 108,
+   "module": "language_model.model.layers.7.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 109,
+   "module": "language_model.model.layers.7.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 110,
+   "module": "language_model.model.layers.7.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 111,
+   "module": "language_model.model.layers.7.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 112,
+   "module": "language_model.model.layers.7.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 113,
+   "module": "language_model.model.layers.7.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 114,
+   "module": "language_model.model.layers.7.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 115,
+   "module": "language_model.model.layers.7.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 116,
+   "module": "language_model.model.layers.7.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 117,
+   "module": "language_model.model.layers.7.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 118,
+   "module": "language_model.model.layers.7.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 119,
+   "module": "language_model.model.layers.7.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 120,
+   "module": "language_model.model.layers.7",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 121,
+   "module": "language_model.model.layers.8.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 122,
+   "module": "language_model.model.layers.8.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 123,
+   "module": "language_model.model.layers.8.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 124,
+   "module": "language_model.model.layers.8.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 125,
+   "module": "language_model.model.layers.8.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 126,
+   "module": "language_model.model.layers.8.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 127,
+   "module": "language_model.model.layers.8.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 128,
+   "module": "language_model.model.layers.8.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 129,
+   "module": "language_model.model.layers.8.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 130,
+   "module": "language_model.model.layers.8.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 131,
+   "module": "language_model.model.layers.8.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 132,
+   "module": "language_model.model.layers.8.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 133,
+   "module": "language_model.model.layers.8.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 134,
+   "module": "language_model.model.layers.8.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 135,
+   "module": "language_model.model.layers.8",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 136,
+   "module": "language_model.model.layers.9.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 137,
+   "module": "language_model.model.layers.9.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 138,
+   "module": "language_model.model.layers.9.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 139,
+   "module": "language_model.model.layers.9.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 140,
+   "module": "language_model.model.layers.9.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 141,
+   "module": "language_model.model.layers.9.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 142,
+   "module": "language_model.model.layers.9.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 143,
+   "module": "language_model.model.layers.9.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 144,
+   "module": "language_model.model.layers.9.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 145,
+   "module": "language_model.model.layers.9.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 146,
+   "module": "language_model.model.layers.9.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 147,
+   "module": "language_model.model.layers.9.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 148,
+   "module": "language_model.model.layers.9.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 149,
+   "module": "language_model.model.layers.9.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 150,
+   "module": "language_model.model.layers.9",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 151,
+   "module": "language_model.model.layers.10.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 152,
+   "module": "language_model.model.layers.10.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 153,
+   "module": "language_model.model.layers.10.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 154,
+   "module": "language_model.model.layers.10.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 155,
+   "module": "language_model.model.layers.10.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 156,
+   "module": "language_model.model.layers.10.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 157,
+   "module": "language_model.model.layers.10.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 158,
+   "module": "language_model.model.layers.10.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 159,
+   "module": "language_model.model.layers.10.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 160,
+   "module": "language_model.model.layers.10.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 161,
+   "module": "language_model.model.layers.10.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 162,
+   "module": "language_model.model.layers.10.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 163,
+   "module": "language_model.model.layers.10.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 164,
+   "module": "language_model.model.layers.10.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 165,
+   "module": "language_model.model.layers.10",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 166,
+   "module": "language_model.model.layers.11.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 167,
+   "module": "language_model.model.layers.11.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 168,
+   "module": "language_model.model.layers.11.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 169,
+   "module": "language_model.model.layers.11.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 170,
+   "module": "language_model.model.layers.11.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 171,
+   "module": "language_model.model.layers.11.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 172,
+   "module": "language_model.model.layers.11.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 173,
+   "module": "language_model.model.layers.11.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 174,
+   "module": "language_model.model.layers.11.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 175,
+   "module": "language_model.model.layers.11.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 176,
+   "module": "language_model.model.layers.11.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 177,
+   "module": "language_model.model.layers.11.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 178,
+   "module": "language_model.model.layers.11.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 179,
+   "module": "language_model.model.layers.11.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 180,
+   "module": "language_model.model.layers.11",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 181,
+   "module": "language_model.model.layers.12.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 182,
+   "module": "language_model.model.layers.12.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 183,
+   "module": "language_model.model.layers.12.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 184,
+   "module": "language_model.model.layers.12.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 185,
+   "module": "language_model.model.layers.12.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 186,
+   "module": "language_model.model.layers.12.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 187,
+   "module": "language_model.model.layers.12.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 188,
+   "module": "language_model.model.layers.12.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 189,
+   "module": "language_model.model.layers.12.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 190,
+   "module": "language_model.model.layers.12.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 191,
+   "module": "language_model.model.layers.12.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 192,
+   "module": "language_model.model.layers.12.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 193,
+   "module": "language_model.model.layers.12.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 194,
+   "module": "language_model.model.layers.12.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 195,
+   "module": "language_model.model.layers.12",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 196,
+   "module": "language_model.model.layers.13.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 197,
+   "module": "language_model.model.layers.13.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 198,
+   "module": "language_model.model.layers.13.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 199,
+   "module": "language_model.model.layers.13.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 200,
+   "module": "language_model.model.layers.13.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 201,
+   "module": "language_model.model.layers.13.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 202,
+   "module": "language_model.model.layers.13.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 203,
+   "module": "language_model.model.layers.13.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 204,
+   "module": "language_model.model.layers.13.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 205,
+   "module": "language_model.model.layers.13.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 206,
+   "module": "language_model.model.layers.13.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 207,
+   "module": "language_model.model.layers.13.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 208,
+   "module": "language_model.model.layers.13.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 209,
+   "module": "language_model.model.layers.13.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 210,
+   "module": "language_model.model.layers.13",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 211,
+   "module": "language_model.model.layers.14.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 212,
+   "module": "language_model.model.layers.14.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 213,
+   "module": "language_model.model.layers.14.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 214,
+   "module": "language_model.model.layers.14.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 215,
+   "module": "language_model.model.layers.14.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 216,
+   "module": "language_model.model.layers.14.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 217,
+   "module": "language_model.model.layers.14.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 218,
+   "module": "language_model.model.layers.14.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 219,
+   "module": "language_model.model.layers.14.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 220,
+   "module": "language_model.model.layers.14.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 221,
+   "module": "language_model.model.layers.14.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 222,
+   "module": "language_model.model.layers.14.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 223,
+   "module": "language_model.model.layers.14.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 224,
+   "module": "language_model.model.layers.14.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 225,
+   "module": "language_model.model.layers.14",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 226,
+   "module": "language_model.model.layers.15.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 227,
+   "module": "language_model.model.layers.15.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 228,
+   "module": "language_model.model.layers.15.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 229,
+   "module": "language_model.model.layers.15.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 230,
+   "module": "language_model.model.layers.15.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 231,
+   "module": "language_model.model.layers.15.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 232,
+   "module": "language_model.model.layers.15.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 233,
+   "module": "language_model.model.layers.15.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 234,
+   "module": "language_model.model.layers.15.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 235,
+   "module": "language_model.model.layers.15.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 236,
+   "module": "language_model.model.layers.15.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 237,
+   "module": "language_model.model.layers.15.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 238,
+   "module": "language_model.model.layers.15.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 239,
+   "module": "language_model.model.layers.15.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 240,
+   "module": "language_model.model.layers.15",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 241,
+   "module": "language_model.model.layers.16.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 242,
+   "module": "language_model.model.layers.16.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 243,
+   "module": "language_model.model.layers.16.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 244,
+   "module": "language_model.model.layers.16.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 245,
+   "module": "language_model.model.layers.16.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 246,
+   "module": "language_model.model.layers.16.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 247,
+   "module": "language_model.model.layers.16.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 248,
+   "module": "language_model.model.layers.16.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 249,
+   "module": "language_model.model.layers.16.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 250,
+   "module": "language_model.model.layers.16.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 251,
+   "module": "language_model.model.layers.16.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 252,
+   "module": "language_model.model.layers.16.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 253,
+   "module": "language_model.model.layers.16.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 254,
+   "module": "language_model.model.layers.16.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 255,
+   "module": "language_model.model.layers.16",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 256,
+   "module": "language_model.model.layers.17.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 257,
+   "module": "language_model.model.layers.17.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 258,
+   "module": "language_model.model.layers.17.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 259,
+   "module": "language_model.model.layers.17.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 260,
+   "module": "language_model.model.layers.17.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 261,
+   "module": "language_model.model.layers.17.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 262,
+   "module": "language_model.model.layers.17.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 263,
+   "module": "language_model.model.layers.17.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 264,
+   "module": "language_model.model.layers.17.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 265,
+   "module": "language_model.model.layers.17.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 266,
+   "module": "language_model.model.layers.17.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 267,
+   "module": "language_model.model.layers.17.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 268,
+   "module": "language_model.model.layers.17.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 269,
+   "module": "language_model.model.layers.17.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 270,
+   "module": "language_model.model.layers.17",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 271,
+   "module": "language_model.model.layers.18.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 272,
+   "module": "language_model.model.layers.18.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 273,
+   "module": "language_model.model.layers.18.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 274,
+   "module": "language_model.model.layers.18.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 275,
+   "module": "language_model.model.layers.18.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 276,
+   "module": "language_model.model.layers.18.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 277,
+   "module": "language_model.model.layers.18.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 278,
+   "module": "language_model.model.layers.18.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 279,
+   "module": "language_model.model.layers.18.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 280,
+   "module": "language_model.model.layers.18.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 281,
+   "module": "language_model.model.layers.18.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 282,
+   "module": "language_model.model.layers.18.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 283,
+   "module": "language_model.model.layers.18.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 284,
+   "module": "language_model.model.layers.18.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 285,
+   "module": "language_model.model.layers.18",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 286,
+   "module": "language_model.model.layers.19.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 287,
+   "module": "language_model.model.layers.19.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 288,
+   "module": "language_model.model.layers.19.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 289,
+   "module": "language_model.model.layers.19.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 290,
+   "module": "language_model.model.layers.19.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 291,
+   "module": "language_model.model.layers.19.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 292,
+   "module": "language_model.model.layers.19.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 293,
+   "module": "language_model.model.layers.19.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 294,
+   "module": "language_model.model.layers.19.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 295,
+   "module": "language_model.model.layers.19.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 296,
+   "module": "language_model.model.layers.19.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 297,
+   "module": "language_model.model.layers.19.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 298,
+   "module": "language_model.model.layers.19.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 299,
+   "module": "language_model.model.layers.19.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 300,
+   "module": "language_model.model.layers.19",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 301,
+   "module": "language_model.model.layers.20.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 302,
+   "module": "language_model.model.layers.20.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 303,
+   "module": "language_model.model.layers.20.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 304,
+   "module": "language_model.model.layers.20.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 305,
+   "module": "language_model.model.layers.20.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 306,
+   "module": "language_model.model.layers.20.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 307,
+   "module": "language_model.model.layers.20.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 308,
+   "module": "language_model.model.layers.20.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 309,
+   "module": "language_model.model.layers.20.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 310,
+   "module": "language_model.model.layers.20.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 311,
+   "module": "language_model.model.layers.20.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 312,
+   "module": "language_model.model.layers.20.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 313,
+   "module": "language_model.model.layers.20.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 314,
+   "module": "language_model.model.layers.20.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 315,
+   "module": "language_model.model.layers.20",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 316,
+   "module": "language_model.model.layers.21.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 317,
+   "module": "language_model.model.layers.21.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 318,
+   "module": "language_model.model.layers.21.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 319,
+   "module": "language_model.model.layers.21.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 320,
+   "module": "language_model.model.layers.21.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 321,
+   "module": "language_model.model.layers.21.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 322,
+   "module": "language_model.model.layers.21.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 323,
+   "module": "language_model.model.layers.21.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 324,
+   "module": "language_model.model.layers.21.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 325,
+   "module": "language_model.model.layers.21.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 326,
+   "module": "language_model.model.layers.21.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 327,
+   "module": "language_model.model.layers.21.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 328,
+   "module": "language_model.model.layers.21.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 329,
+   "module": "language_model.model.layers.21.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 330,
+   "module": "language_model.model.layers.21",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 331,
+   "module": "language_model.model.layers.22.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 332,
+   "module": "language_model.model.layers.22.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 333,
+   "module": "language_model.model.layers.22.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 334,
+   "module": "language_model.model.layers.22.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 335,
+   "module": "language_model.model.layers.22.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 336,
+   "module": "language_model.model.layers.22.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 337,
+   "module": "language_model.model.layers.22.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 338,
+   "module": "language_model.model.layers.22.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 339,
+   "module": "language_model.model.layers.22.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 340,
+   "module": "language_model.model.layers.22.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 341,
+   "module": "language_model.model.layers.22.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 342,
+   "module": "language_model.model.layers.22.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 343,
+   "module": "language_model.model.layers.22.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 344,
+   "module": "language_model.model.layers.22.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 345,
+   "module": "language_model.model.layers.22",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 346,
+   "module": "language_model.model.layers.23.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 347,
+   "module": "language_model.model.layers.23.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 348,
+   "module": "language_model.model.layers.23.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 349,
+   "module": "language_model.model.layers.23.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 350,
+   "module": "language_model.model.layers.23.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 351,
+   "module": "language_model.model.layers.23.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 352,
+   "module": "language_model.model.layers.23.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 353,
+   "module": "language_model.model.layers.23.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 354,
+   "module": "language_model.model.layers.23.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 355,
+   "module": "language_model.model.layers.23.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 356,
+   "module": "language_model.model.layers.23.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 357,
+   "module": "language_model.model.layers.23.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 358,
+   "module": "language_model.model.layers.23.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 359,
+   "module": "language_model.model.layers.23.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 360,
+   "module": "language_model.model.layers.23",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 361,
+   "module": "language_model.model.layers.24.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 362,
+   "module": "language_model.model.layers.24.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 363,
+   "module": "language_model.model.layers.24.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 364,
+   "module": "language_model.model.layers.24.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 365,
+   "module": "language_model.model.layers.24.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 366,
+   "module": "language_model.model.layers.24.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 367,
+   "module": "language_model.model.layers.24.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 368,
+   "module": "language_model.model.layers.24.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 369,
+   "module": "language_model.model.layers.24.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 370,
+   "module": "language_model.model.layers.24.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 371,
+   "module": "language_model.model.layers.24.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 372,
+   "module": "language_model.model.layers.24.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 373,
+   "module": "language_model.model.layers.24.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 374,
+   "module": "language_model.model.layers.24.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 375,
+   "module": "language_model.model.layers.24",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 376,
+   "module": "language_model.model.layers.25.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 377,
+   "module": "language_model.model.layers.25.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 378,
+   "module": "language_model.model.layers.25.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 379,
+   "module": "language_model.model.layers.25.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 380,
+   "module": "language_model.model.layers.25.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 381,
+   "module": "language_model.model.layers.25.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 382,
+   "module": "language_model.model.layers.25.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 383,
+   "module": "language_model.model.layers.25.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 384,
+   "module": "language_model.model.layers.25.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 385,
+   "module": "language_model.model.layers.25.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 386,
+   "module": "language_model.model.layers.25.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 387,
+   "module": "language_model.model.layers.25.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 388,
+   "module": "language_model.model.layers.25.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 389,
+   "module": "language_model.model.layers.25.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 390,
+   "module": "language_model.model.layers.25",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 391,
+   "module": "language_model.model.layers.26.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 392,
+   "module": "language_model.model.layers.26.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 393,
+   "module": "language_model.model.layers.26.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 394,
+   "module": "language_model.model.layers.26.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 395,
+   "module": "language_model.model.layers.26.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 396,
+   "module": "language_model.model.layers.26.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 397,
+   "module": "language_model.model.layers.26.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 398,
+   "module": "language_model.model.layers.26.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 399,
+   "module": "language_model.model.layers.26.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 400,
+   "module": "language_model.model.layers.26.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 401,
+   "module": "language_model.model.layers.26.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 402,
+   "module": "language_model.model.layers.26.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 403,
+   "module": "language_model.model.layers.26.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 404,
+   "module": "language_model.model.layers.26.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 405,
+   "module": "language_model.model.layers.26",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 406,
+   "module": "language_model.model.layers.27.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 407,
+   "module": "language_model.model.layers.27.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 408,
+   "module": "language_model.model.layers.27.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 409,
+   "module": "language_model.model.layers.27.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 410,
+   "module": "language_model.model.layers.27.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 411,
+   "module": "language_model.model.layers.27.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 412,
+   "module": "language_model.model.layers.27.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 413,
+   "module": "language_model.model.layers.27.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 414,
+   "module": "language_model.model.layers.27.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 415,
+   "module": "language_model.model.layers.27.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 416,
+   "module": "language_model.model.layers.27.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 417,
+   "module": "language_model.model.layers.27.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 418,
+   "module": "language_model.model.layers.27.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 419,
+   "module": "language_model.model.layers.27.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 420,
+   "module": "language_model.model.layers.27",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 421,
+   "module": "language_model.model.layers.28.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 422,
+   "module": "language_model.model.layers.28.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 423,
+   "module": "language_model.model.layers.28.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 424,
+   "module": "language_model.model.layers.28.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 425,
+   "module": "language_model.model.layers.28.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 426,
+   "module": "language_model.model.layers.28.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 427,
+   "module": "language_model.model.layers.28.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 428,
+   "module": "language_model.model.layers.28.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 429,
+   "module": "language_model.model.layers.28.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 430,
+   "module": "language_model.model.layers.28.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 431,
+   "module": "language_model.model.layers.28.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 432,
+   "module": "language_model.model.layers.28.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 433,
+   "module": "language_model.model.layers.28.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 434,
+   "module": "language_model.model.layers.28.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 435,
+   "module": "language_model.model.layers.28",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 436,
+   "module": "language_model.model.layers.29.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 437,
+   "module": "language_model.model.layers.29.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 438,
+   "module": "language_model.model.layers.29.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 439,
+   "module": "language_model.model.layers.29.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 440,
+   "module": "language_model.model.layers.29.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 441,
+   "module": "language_model.model.layers.29.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 442,
+   "module": "language_model.model.layers.29.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 443,
+   "module": "language_model.model.layers.29.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 444,
+   "module": "language_model.model.layers.29.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 445,
+   "module": "language_model.model.layers.29.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 446,
+   "module": "language_model.model.layers.29.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 447,
+   "module": "language_model.model.layers.29.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 448,
+   "module": "language_model.model.layers.29.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 449,
+   "module": "language_model.model.layers.29.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 450,
+   "module": "language_model.model.layers.29",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 451,
+   "module": "language_model.model.layers.30.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 452,
+   "module": "language_model.model.layers.30.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 453,
+   "module": "language_model.model.layers.30.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 454,
+   "module": "language_model.model.layers.30.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 455,
+   "module": "language_model.model.layers.30.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 456,
+   "module": "language_model.model.layers.30.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 457,
+   "module": "language_model.model.layers.30.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 458,
+   "module": "language_model.model.layers.30.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 459,
+   "module": "language_model.model.layers.30.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 460,
+   "module": "language_model.model.layers.30.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 461,
+   "module": "language_model.model.layers.30.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 462,
+   "module": "language_model.model.layers.30.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 463,
+   "module": "language_model.model.layers.30.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 464,
+   "module": "language_model.model.layers.30.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 465,
+   "module": "language_model.model.layers.30",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 466,
+   "module": "language_model.model.layers.31.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 467,
+   "module": "language_model.model.layers.31.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 468,
+   "module": "language_model.model.layers.31.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 469,
+   "module": "language_model.model.layers.31.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 470,
+   "module": "language_model.model.layers.31.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 471,
+   "module": "language_model.model.layers.31.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 472,
+   "module": "language_model.model.layers.31.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 473,
+   "module": "language_model.model.layers.31.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 474,
+   "module": "language_model.model.layers.31.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 475,
+   "module": "language_model.model.layers.31.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 476,
+   "module": "language_model.model.layers.31.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 477,
+   "module": "language_model.model.layers.31.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 478,
+   "module": "language_model.model.layers.31.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 479,
+   "module": "language_model.model.layers.31.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 480,
+   "module": "language_model.model.layers.31",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 481,
+   "module": "language_model.model.layers.32.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 482,
+   "module": "language_model.model.layers.32.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 483,
+   "module": "language_model.model.layers.32.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 484,
+   "module": "language_model.model.layers.32.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 485,
+   "module": "language_model.model.layers.32.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 486,
+   "module": "language_model.model.layers.32.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 487,
+   "module": "language_model.model.layers.32.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 488,
+   "module": "language_model.model.layers.32.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 489,
+   "module": "language_model.model.layers.32.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 490,
+   "module": "language_model.model.layers.32.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 491,
+   "module": "language_model.model.layers.32.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 492,
+   "module": "language_model.model.layers.32.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 493,
+   "module": "language_model.model.layers.32.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 494,
+   "module": "language_model.model.layers.32.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 495,
+   "module": "language_model.model.layers.32",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 496,
+   "module": "language_model.model.layers.33.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 497,
+   "module": "language_model.model.layers.33.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 498,
+   "module": "language_model.model.layers.33.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 499,
+   "module": "language_model.model.layers.33.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 500,
+   "module": "language_model.model.layers.33.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 501,
+   "module": "language_model.model.layers.33.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 502,
+   "module": "language_model.model.layers.33.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 503,
+   "module": "language_model.model.layers.33.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 504,
+   "module": "language_model.model.layers.33.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 505,
+   "module": "language_model.model.layers.33.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 506,
+   "module": "language_model.model.layers.33.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 507,
+   "module": "language_model.model.layers.33.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 508,
+   "module": "language_model.model.layers.33.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 509,
+   "module": "language_model.model.layers.33.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 510,
+   "module": "language_model.model.layers.33",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 511,
+   "module": "language_model.model.layers.34.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 512,
+   "module": "language_model.model.layers.34.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 513,
+   "module": "language_model.model.layers.34.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 514,
+   "module": "language_model.model.layers.34.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 515,
+   "module": "language_model.model.layers.34.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 516,
+   "module": "language_model.model.layers.34.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 517,
+   "module": "language_model.model.layers.34.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 518,
+   "module": "language_model.model.layers.34.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 519,
+   "module": "language_model.model.layers.34.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 520,
+   "module": "language_model.model.layers.34.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 521,
+   "module": "language_model.model.layers.34.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 522,
+   "module": "language_model.model.layers.34.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 523,
+   "module": "language_model.model.layers.34.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 524,
+   "module": "language_model.model.layers.34.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 525,
+   "module": "language_model.model.layers.34",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 526,
+   "module": "language_model.model.layers.35.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 527,
+   "module": "language_model.model.layers.35.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 528,
+   "module": "language_model.model.layers.35.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 529,
+   "module": "language_model.model.layers.35.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 530,
+   "module": "language_model.model.layers.35.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 531,
+   "module": "language_model.model.layers.35.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 532,
+   "module": "language_model.model.layers.35.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 533,
+   "module": "language_model.model.layers.35.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 534,
+   "module": "language_model.model.layers.35.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 535,
+   "module": "language_model.model.layers.35.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 536,
+   "module": "language_model.model.layers.35.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 537,
+   "module": "language_model.model.layers.35.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 538,
+   "module": "language_model.model.layers.35.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 539,
+   "module": "language_model.model.layers.35.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 540,
+   "module": "language_model.model.layers.35",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 541,
+   "module": "language_model.model.layers.36.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 542,
+   "module": "language_model.model.layers.36.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 543,
+   "module": "language_model.model.layers.36.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 544,
+   "module": "language_model.model.layers.36.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 545,
+   "module": "language_model.model.layers.36.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 546,
+   "module": "language_model.model.layers.36.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 547,
+   "module": "language_model.model.layers.36.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 548,
+   "module": "language_model.model.layers.36.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 549,
+   "module": "language_model.model.layers.36.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 550,
+   "module": "language_model.model.layers.36.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 551,
+   "module": "language_model.model.layers.36.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 552,
+   "module": "language_model.model.layers.36.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 553,
+   "module": "language_model.model.layers.36.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 554,
+   "module": "language_model.model.layers.36.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 555,
+   "module": "language_model.model.layers.36",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 556,
+   "module": "language_model.model.layers.37.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 557,
+   "module": "language_model.model.layers.37.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 558,
+   "module": "language_model.model.layers.37.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 559,
+   "module": "language_model.model.layers.37.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 560,
+   "module": "language_model.model.layers.37.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 561,
+   "module": "language_model.model.layers.37.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 562,
+   "module": "language_model.model.layers.37.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 563,
+   "module": "language_model.model.layers.37.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 564,
+   "module": "language_model.model.layers.37.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 565,
+   "module": "language_model.model.layers.37.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 566,
+   "module": "language_model.model.layers.37.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 567,
+   "module": "language_model.model.layers.37.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 568,
+   "module": "language_model.model.layers.37.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 569,
+   "module": "language_model.model.layers.37.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 570,
+   "module": "language_model.model.layers.37",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 571,
+   "module": "language_model.model.layers.38.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 572,
+   "module": "language_model.model.layers.38.linear_attn.in_proj_qkvz",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 573,
+   "module": "language_model.model.layers.38.linear_attn.in_proj_ba",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 574,
+   "module": "language_model.model.layers.38.linear_attn.out_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 575,
+   "module": "language_model.model.layers.38.linear_attn",
+   "type": "QwenGatedDeltaNetAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 576,
+   "module": "language_model.model.layers.38.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 577,
+   "module": "language_model.model.layers.38.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 578,
+   "module": "language_model.model.layers.38.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 579,
+   "module": "language_model.model.layers.38.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 580,
+   "module": "language_model.model.layers.38.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 581,
+   "module": "language_model.model.layers.38.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 582,
+   "module": "language_model.model.layers.38.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 583,
+   "module": "language_model.model.layers.38.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 584,
+   "module": "language_model.model.layers.38.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 585,
+   "module": "language_model.model.layers.38",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 586,
+   "module": "language_model.model.layers.39.input_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 587,
+   "module": "language_model.model.layers.39.self_attn.qkv_proj",
+   "type": "QKVParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 588,
+   "module": "language_model.model.layers.39.self_attn.attn",
+   "type": "Attention",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 589,
+   "module": "language_model.model.layers.39.self_attn.o_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 590,
+   "module": "language_model.model.layers.39.self_attn",
+   "type": "Qwen3NextAttention",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 591,
+   "module": "language_model.model.layers.39.post_attention_layernorm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 592,
+   "module": "language_model.model.layers.39.mlp.gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 593,
+   "module": "language_model.model.layers.39.mlp.shared_expert.gate_up_proj",
+   "type": "MergedColumnParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 594,
+   "module": "language_model.model.layers.39.mlp.shared_expert.act_fn",
+   "type": "SiluAndMul",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 595,
+   "module": "language_model.model.layers.39.mlp.shared_expert.down_proj",
+   "type": "RowParallelLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 596,
+   "module": "language_model.model.layers.39.mlp.shared_expert_gate",
+   "type": "ReplicatedLinear",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 597,
+   "module": "language_model.model.layers.39.mlp.shared_expert",
+   "type": "Qwen2MoeMLP",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 598,
+   "module": "language_model.model.layers.39.mlp.experts",
+   "type": "MoERunner",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 599,
+   "module": "language_model.model.layers.39.mlp",
+   "type": "Qwen3NextSparseMoeBlock",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 600,
+   "module": "language_model.model.layers.39",
+   "type": "Qwen3_5DecoderLayer",
+   "input_equal": null,
+   "input_max_abs": null,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  },
+  {
+   "order": 601,
+   "module": "language_model.model.norm",
+   "type": "GemmaRMSNorm",
+   "input_equal": true,
+   "input_max_abs": 0.0,
+   "output_equal": true,
+   "output_max_abs": 0.0
+  }
+ ],
+ "seconds": 29.5
+}

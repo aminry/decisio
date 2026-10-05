@@ -1,0 +1,40 @@
+{
+ "base": "q",
+ "requests": 272,
+ "four_question_identical_between": 272,
+ "four_question_identical_to_alone": {
+  "sip": 272,
+  "seq": 272
+ },
+ "alone_identical_between": 272,
+ "identity": true,
+ "latency_sip": {
+  "cached_1q_1000": 18.8,
+  "fresh_1q_300": 46.7,
+  "fresh_4q_300": 99.9,
+  "fresh_1q_1000": 47.0,
+  "fresh_4q_1000": 101.0,
+  "fresh_1q_3000": 93.3,
+  "fresh_4q_3000": 154.7
+ },
+ "latency_seq": {
+  "cached_1q_1000": 19.6,
+  "fresh_1q_300": 48.9,
+  "fresh_4q_300": 103.7,
+  "fresh_1q_1000": 48.0,
+  "fresh_4q_1000": 104.85,
+  "fresh_1q_3000": 92.8,
+  "fresh_4q_3000": 162.05
+ },
+ "sip_minus_seq_ms": {
+  "cached_1q_1000": -0.8000000000000007,
+  "fresh_1q_300": -2.1999999999999957,
+  "fresh_4q_300": -3.799999999999997,
+  "fresh_1q_1000": -1.0,
+  "fresh_4q_1000": -3.8499999999999943,
+  "fresh_1q_3000": 0.5,
+  "fresh_4q_3000": -7.350000000000023
+ },
+ "faster": true,
+ "rule_holds": true
+}
