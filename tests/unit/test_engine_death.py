@@ -1,17 +1,23 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""A dead engine is reported, refused fast and ends the server (decisio.serve.engine_health).
+"""A dead engine is reported, refused fast and ends the server; a failed request on a live engine does not
+(decisio.serve.engine_health).
 
-H1  an engine call's exception marks the engine dead unless the request caused it (decisio's input errors, vLLM's
-    VLLMClientError); once dead every call is refused without touching the engine; the death is recorded once and
-    the process is ended with code 70 after the grace period; the watch thread marks it from a probe
+H1  the rule: a request error passes through without a probe; vLLM's word that the engine is dead (EngineDeadError by
+    name, the engine_dead flag, an errored flag) kills at once without a probe; any other exception is raised as it is
+    while the engine answers its probe, and kills when the probe fails or hangs past the timeout; a poisoned request
+    repeated ten times on a healthy engine never kills; once dead every call is refused without touching the engine;
+    the death is recorded once and the process ended with code 70 after the grace period; the watch thread reads the
+    flags
 H2  the server, end to end on the CPU stand-in (tests/unit/dying_engine.py), in both arrangements:
-    in        a forward pass raises: that request and every later one get 503 at once (without the fix every later
-              request hung), and so does a request waiting on the engine's lock when it dies
-    separate  the engine-core process is killed between requests or under one: /health turns 503 without a request,
-              the request in flight and every later one get 503 at once (without the fix: 500 forever)
-    and in each, /health answers 503 with the reason and the server exits with code 70, its engine core gone too;
-    a request error (400) leaves the engine alive
+    in        a forward pass raises and leaves the engine hanging: the probe times out, that request and every later
+              one get 503, a request waiting on the engine's lock too, and the server exits within the probe's timeout
+              plus the grace period (without the fix every later request hung)
+    separate  the engine-core process dies, by a failing forward pass or killed between requests or under one:
+              503 at once, and /health turns 503 without a request (without the fix: 500 forever)
+    and in each: /health answers 503 with the reason and the server exits with code 70, its engine core gone too;
+    a poisoned request (a bug on decisio's side) sent ten times to a healthy server gets 500 each time and the server
+    stays up and answers; the same request on a dead engine ends it; a request error (400) leaves the engine alive
 H3  the container: the Dockerfile's HEALTHCHECK command fails on the dead engine's 503 (and passes on 200), and
     compose's restart policy restarts a container whose process exits non-zero
 
@@ -27,6 +33,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 import urllib.error
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -35,26 +42,52 @@ from pathlib import Path
 import psutil
 import pytest
 
-from decisio.serve.engine_health import EXIT_ENGINE_DEAD, EngineDead, EngineHealth, is_request_error
+from decisio.serve.engine_health import (
+    EXIT_ENGINE_DEAD,
+    PROBE_TIMEOUT_S,
+    EngineDead,
+    EngineHealth,
+    is_engine_dead_error,
+    is_request_error,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 FAST_S = 5.0  # a refused request answers in milliseconds; a hanging one never does
+GRACE_S = 2.0  # EngineHealth's default, as the server runs it
 
 
-# ---- H1 the engine's state -------------------------------------------------------------------------------------------
+# ---- H1 the rule -----------------------------------------------------------------------------------------------------
 
 
 class VLLMClientError(Exception):  # vLLM's class for errors the request caused, matched by name
     pass
 
 
-class EngineDeadError(Exception):  # vLLM's VLLMServerError for an engine-core process that is gone
+class EngineDeadError(Exception):  # vLLM's error for an engine that is gone, matched by name
     pass
 
 
-def health(exits):
-    return EngineHealth(grace_s=0.05, exit_fn=exits.append)
+class Engine:
+    """A fake engine: its probe answers, fails or hangs; `llm.llm_engine` carries vLLM's flags."""
+
+    def __init__(self, probe="answers", engine_dead=False, errored=None):
+        self.mode, self.probes = probe, 0
+        ns = types.SimpleNamespace
+        self.llm = ns(llm_engine=ns(engine_core=ns(resources=ns(engine_dead=engine_dead))))
+        if errored is not None:
+            self.llm.llm_engine.errored = errored
+
+    def probe(self):
+        self.probes += 1
+        if self.mode == "fails":
+            raise RuntimeError("CUDA error: an illegal memory access was encountered")
+        if self.mode == "hangs":
+            threading.Event().wait()
+
+
+def health(exits, probe_timeout_s=0.2):
+    return EngineHealth(grace_s=0.05, probe_timeout_s=probe_timeout_s, exit_fn=exits.append)
 
 
 def raising(e):
@@ -64,23 +97,74 @@ def raising(e):
     return fn
 
 
-def test_h1_request_errors_pass_and_engine_errors_kill():
+def test_h1_request_errors_pass_without_a_probe():
     for e in (ValueError("bad"), TypeError("bad"), KeyError("k"), VLLMClientError("too long")):
         assert is_request_error(e)
-        exits = []
+        exits, eng = [], Engine(probe="fails")
         h = health(exits)
         with pytest.raises(type(e)):
-            h.call(raising(e))
-        assert not h.dead and h.call(lambda: 7) == 7
-    for e in (RuntimeError("CUDA error: an illegal memory access"), EngineDeadError("EngineCore"), MemoryError()):
-        assert not is_request_error(e)
-        exits = []
-        h = health(exits)
-        with pytest.raises(EngineDead, match=type(e).__name__) as raised:
-            h.call(raising(e))
-        assert raised.value.__cause__ is e and h.dead and h.reason.startswith(type(e).__name__)
-        time.sleep(0.3)
-        assert exits == [EXIT_ENGINE_DEAD]
+            h.call(eng, raising(e))
+        assert not h.dead and eng.probes == 0 and h.call(eng, lambda: 7) == 7
+
+
+def test_h1_an_unexpected_error_on_a_live_engine_fails_only_its_request():
+    exits, eng = [], Engine()
+    h = health(exits)
+    e = IndexError("list index out of range")
+    with pytest.raises(IndexError) as raised:
+        h.call(eng, raising(e))
+    assert raised.value is e and not h.dead and eng.probes == 1
+    assert h.call(eng, lambda: 7) == 7
+    no_probe = types.SimpleNamespace()  # an engine without a probe is never declared dead on a guess
+    with pytest.raises(IndexError):
+        h.call(no_probe, raising(e))
+    time.sleep(0.2)
+    assert not h.dead and exits == []
+
+
+def test_h1_a_poisoned_request_ten_times_never_kills_a_healthy_engine():
+    exits, eng = [], Engine()
+    h = health(exits)
+    for _ in range(10):
+        with pytest.raises(AssertionError):
+            h.call(eng, raising(AssertionError("an invariant of decisio's broke")))
+    time.sleep(0.2)
+    assert not h.dead and exits == [] and eng.probes == 10 and h.call(eng, lambda: 7) == 7
+
+
+@pytest.mark.parametrize(("probe", "why"), [("fails", "failed a probe (RuntimeError"), ("hangs", "within 0.2 s")])
+def test_h1_an_unexpected_error_on_a_dead_engine_kills(probe, why):
+    exits, eng = [], Engine(probe=probe)
+    h = health(exits)
+    e = RuntimeError("CUDA error: an illegal memory access was encountered")
+    t0 = time.perf_counter()
+    with pytest.raises(EngineDead, match="RuntimeError: CUDA error") as raised:
+        h.call(eng, raising(e))
+    took = time.perf_counter() - t0
+    assert raised.value.__cause__ is e and h.dead and why in h.reason and eng.probes == 1
+    assert took < 1.0  # a hanging probe is given its timeout, no more
+    time.sleep(0.3)
+    assert exits == [EXIT_ENGINE_DEAD]
+
+
+@pytest.mark.parametrize(
+    ("eng", "e", "why"),
+    [
+        (Engine(), EngineDeadError("EngineCore encountered an issue."), "EngineDeadError"),
+        (Engine(engine_dead=True), RuntimeError("zmq"), "engine-core process exited"),
+        (Engine(errored=True), RuntimeError("background loop"), "errored"),
+    ],
+)
+def test_h1_vllm_saying_dead_kills_at_once_without_a_probe(eng, e, why):
+    exits = []
+    h = health(exits)
+    eng.mode = "fails"
+    with pytest.raises(EngineDead):
+        h.call(eng, raising(e))
+    assert h.dead and why in h.reason and eng.probes == 0
+    assert is_engine_dead_error(e) == (why == "EngineDeadError")
+    time.sleep(0.3)
+    assert exits == [EXIT_ENGINE_DEAD]
 
 
 def test_h1_dead_refuses_without_calling_and_dies_once():
@@ -89,25 +173,22 @@ def test_h1_dead_refuses_without_calling_and_dies_once():
     h.mark_dead("first")
     h.mark_dead("second")
     with pytest.raises(EngineDead, match="first"):
-        h.call(calls.append, 1)
+        h.call(Engine(), calls.append, 1)
     with pytest.raises(EngineDead):
         h.check()
     time.sleep(0.3)
     assert calls == [] and h.reason == "first" and exits == [EXIT_ENGINE_DEAD]
 
 
-def test_h1_watch_marks_from_a_probe():
-    exits, state = [], {"why": None}
+def test_h1_watch_reads_the_flags():
+    exits = []
     h = health(exits)
-
-    def broken_probe():
-        raise AttributeError("no engine core")
-
-    assert h.watch([None]) is None
-    t = h.watch([broken_probe, lambda: state["why"]], interval_s=0.01)
+    assert h.watch([types.SimpleNamespace(), None]) is None  # no engine with vLLM's flags: nothing to watch
+    eng = Engine()
+    t = h.watch([types.SimpleNamespace(llm=None), eng], interval_s=0.01)
     time.sleep(0.1)
     assert not h.dead
-    state["why"] = "vLLM's engine-core process exited"
+    eng.llm.llm_engine.engine_core.resources.engine_dead = True
     t.join(2)
     assert not t.is_alive() and h.reason == "vLLM's engine-core process exited"
 
@@ -218,18 +299,58 @@ def assert_dead_and_exits(s, why):
         assert not psutil.pid_exists(s.core_pid) or psutil.Process(s.core_pid).status() == psutil.STATUS_ZOMBIE
 
 
+POISONED = {**QUESTION, "questions": {"q1": {**QUESTION["questions"]["q1"], "instructions": "Pick one. xyzzy"}}}
+DIES_WITHIN_S = PROBE_TIMEOUT_S + GRACE_S + 3.0  # the probe's timeout, the grace period, and time to stop
+
+
 @pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
 def test_h2_a_forward_pass_that_raises(server):
+    """in: the engine is left hanging, as vLLM in-process is, so the probe times out and the server exits within the
+    probe's timeout plus the grace period; separate: the core dies with it and vLLM says so, so it is dead at once."""
     status, body, _ = call(server.url, "/v1/systemone", QUESTION)
     assert status == 200 and set(body["answers"]) == {"q1"}
     assert call(server.url, "/v1/answer", {"state": "s", "questions": [{"text": "Which?"}]})[0] == 400
     assert call(server.url, "/health")[0] == 200  # a request error leaves the engine alive
     server.say("raise")
-    status, body, took = call(server.url, "/v1/systemone", QUESTION, timeout=FAST_S)
-    assert status == 503 and took < FAST_S, (status, body, took)
-    why = "RuntimeError: CUDA error" if server.core_pid is None else "EngineDeadError"
-    assert why in body["detail"]
-    assert_dead_and_exits(server, why)
+    t0 = time.monotonic()
+    status, body, took = call(server.url, "/v1/systemone", QUESTION, timeout=PROBE_TIMEOUT_S + FAST_S)
+    assert status == 503, (status, body, took)
+    if server.core_pid is None:
+        assert "RuntimeError: CUDA error" in body["detail"] and "did not answer a probe" in body["detail"]
+        assert PROBE_TIMEOUT_S <= took < PROBE_TIMEOUT_S + FAST_S
+    else:
+        assert "EngineDeadError" in body["detail"] and took < FAST_S
+    assert_dead_and_exits(server, "RuntimeError" if server.core_pid is None else "EngineDeadError")
+    assert time.monotonic() - t0 < DIES_WITHIN_S
+
+
+@pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
+def test_h2_a_poisoned_request_never_takes_a_healthy_server_down(server):
+    """A bug on decisio's side, tripped by one request with the engine healthy: 500 each time, as before the engine's
+    health was watched, and the server stays up and answers."""
+    for _ in range(10):
+        status, body, took = call(server.url, "/v1/systemone", POISONED, timeout=PROBE_TIMEOUT_S + FAST_S)
+        assert status == 500 and took < FAST_S, (status, body, took)
+    status, body, _ = call(server.url, "/v1/systemone", QUESTION)
+    assert status == 200 and set(body["answers"]) == {"q1"}
+    assert call(server.url, "/health")[0] == 200
+    assert server.exit_code(timeout=GRACE_S + 1.0) is None, server.output()
+    assert server.output().count("the engine answered a probe") == 10
+
+
+@pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
+def test_h2_a_poisoned_request_on_a_dead_engine_ends_it(server):
+    """The same request after the engine has died without a word (in: it hangs; separate: the core is killed)."""
+    assert call(server.url, "/v1/systemone", QUESTION)[0] == 200
+    if server.core_pid is None:
+        server.say("break")
+    else:
+        os.kill(server.core_pid, 9)
+    t0 = time.monotonic()
+    status, body, _ = call(server.url, "/v1/systemone", POISONED, timeout=PROBE_TIMEOUT_S + FAST_S)
+    assert status == 503 and "the engine is dead" in body["detail"], (status, body)
+    assert_dead_and_exits(server, "did not answer a probe" if server.core_pid is None else "engine-core process exited")
+    assert time.monotonic() - t0 < DIES_WITHIN_S
 
 
 @pytest.mark.parametrize("server", ["in", "separate"], indirect=True)

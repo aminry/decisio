@@ -45,6 +45,13 @@ class HFLettersEngine(LettersEngine):
         if warm_up:
             self._warm_up()
 
+    def probe(self):
+        """The model over a one-token prompt (engine_health)."""
+        import torch
+
+        with torch.no_grad():
+            self.model(torch.tensor([self.tok.encode("ok", add_special_tokens=False)[:1]]), logits_to_keep=1)
+
     def facts(self):
         import torch
         import transformers

@@ -11,7 +11,11 @@ ARRANGEMENT
             `ENGINE CORE PID <pid>`. Once the child is gone a forward pass raises EngineDeadError (a VLLMServerError,
             as vLLM's client raises it) and vLLM's flag `llm.llm_engine.engine_core.resources.engine_dead` is set;
             a forward pass that raises takes the child down with it
-CONTROL     a file read at each forward pass: absent or empty runs it; `raise` raises; `hold` waits until it changes
+CONTROL     a file read at each forward pass: absent or empty runs it; `raise` raises; `hold` waits until it changes;
+            `break` stops the engine without an error (in: this and every later forward pass hangs; separate: the
+            child is killed)
+POISON      a prompt containing the tokens of " xyzzy" raises IndexError before the forward pass, whatever the engine's
+            state: a bug on decisio's side, tripped by one request while the engine is healthy
 
 The model is the stand-in's own (warm-up runs before the stub goes in); only its forward pass is wrapped.
 """
@@ -54,9 +58,9 @@ class Resources:
 
 
 class DyingModel:
-    def __init__(self, model, arrangement, control, proc=None, conn=None):
+    def __init__(self, model, arrangement, control, poison, proc=None, conn=None):
         self.model, self.arrangement, self.control, self.proc, self.conn = model, arrangement, control, proc, conn
-        self.broken = False
+        self.poison, self.broken = poison, False
 
     def __getattr__(self, name):
         return getattr(self.model, name)
@@ -68,7 +72,14 @@ class DyingModel:
         if self.proc is not None and not self.proc.is_alive():
             raise EngineDeadError("EngineCore encountered an issue. See stack trace (above) for the root cause.")
 
+    def poisoned(self, args, kwargs):
+        x = args[0] if args else kwargs.get("input_ids")
+        ids, n = x[0].tolist(), len(self.poison)
+        return any(ids[i : i + n] == self.poison for i in range(len(ids) - n + 1))
+
     def __call__(self, *args, **kwargs):
+        if self.poisoned(args, kwargs):
+            raise IndexError("list index out of range (an injected bug on decisio's side)")
         if self.broken:
             threading.Event().wait()  # in-process, after a failed forward pass: every later one hangs
         cmd = self.command()
@@ -76,6 +87,13 @@ class DyingModel:
             self.alive_or_raise()
             time.sleep(0.05)
             cmd = self.command()
+        if cmd == "break":
+            if self.proc is not None:
+                self.proc.kill()
+                self.proc.join()
+                self.alive_or_raise()
+            self.broken = True
+            threading.Event().wait()
         if cmd == "raise":
             if self.proc is not None:
                 self.proc.kill()
@@ -110,7 +128,8 @@ def main():
 
     def dying_init(self, *args, **kwargs):
         init(self, *args, **kwargs)
-        self.model = DyingModel(self.model, arrangement, control, proc, conn)
+        poison = self.tok.encode(" xyzzy", add_special_tokens=False)
+        self.model = DyingModel(self.model, arrangement, control, poison, proc, conn)
         if proc is not None:
             ns = types.SimpleNamespace
             self.llm = ns(llm_engine=ns(engine_core=ns(resources=Resources(proc))))

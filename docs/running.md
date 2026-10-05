@@ -108,13 +108,22 @@ uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-
 ## When the engine dies
 
 An engine whose forward pass fails (a CUDA error, an out-of-memory error) or whose engine-core process exits does not serve again, so the server ends itself and leaves the restart to whatever runs it.
-From the moment the engine dies:
+
+A death is confirmed before it is declared, so that a request which trips a bug cannot take a healthy server down:
+- vLLM's own word is enough: its `EngineDeadError`, or its flag for an engine-core process that is gone.
+- Any other unexpected error fails that request with 500, as it always has, and the server then sends the engine one probe: a forward pass over a one-token prompt, given 5 seconds.
+- If the probe answers, the engine is alive and the server stays up; the server log says so (`the engine answered a probe in ... ms`).
+- If the probe fails or does not answer in 5 seconds, the engine is dead. An in-process engine that has failed hangs rather than answering, so this is how its death shows.
+- An error caused by the request (a malformed question, a state longer than the context) is answered with a 4xx and the engine is not probed.
+
+From the moment the engine is dead:
 - every request, including those already waiting for the engine, is answered at once with 503 and the reason, and the engine is not called again;
 - `/health` answers 503 with `{"ok": false, "engine": "dead", "reason": "...", "exit_code": 70}`;
 - after 2 seconds the server stops its engine processes and exits with code 70.
 
-An error caused by the request (a malformed question, a state longer than the context) is answered with a 4xx and leaves the engine running.
-In the separate arrangement (`--engine-process separate`, the default) the server also watches vLLM's engine-core process, so a death between requests turns `/health` to 503 within a second, before any request arrives.
+The in-process arrangement therefore exits about 7 seconds after the failing request (the probe's 5 seconds, then the grace period's 2).
+In the separate arrangement (`--engine-process separate`, the default) vLLM reports the death itself, so the server exits about 2 seconds after it.
+The server also watches vLLM's flag between requests, so a death between requests turns `/health` to 503 within a second, before any request arrives.
 
 Run the server under a restart policy, so that the exit brings up a new one:
 - compose: `restart: unless-stopped`, as `compose.yaml` has it;
@@ -124,5 +133,5 @@ Run the server under a restart policy, so that the exit brings up a new one:
 Docker restarts a container when its process exits, not when its `HEALTHCHECK` reports it unhealthy, so it is the exit that brings the server back; the image's check reports the dying container unhealthy in the meantime.
 The new server loads the engine again (the start times above), and requests sent until it is healthy are refused.
 
-decisio 0.1.0 to 0.7.1 do neither: after the engine dies `/health` keeps answering 200 and the process keeps running, so no restart policy acts.
+In decisio 0.1.0 to 0.7.1 none of this happens: after the engine dies `/health` keeps answering 200 and the process keeps running, so no restart policy acts.
 In the separate arrangement every request then fails with 500; with `--engine-process in` (0.7.0 and 0.7.1) every request after the failing one hangs.

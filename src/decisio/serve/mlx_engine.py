@@ -335,6 +335,10 @@ class MLXLettersEngine(LettersEngine):
     def _answer_packed(self, requests):
         raise ValueError("the MLX engine serves separate mode only")
 
+    def probe(self):
+        """The backbone over a one-token prompt into a new cache (engine_health)."""
+        self._feed(self.tok.encode("ok", add_special_tokens=False)[:1], self.model.make_cache())
+
     def facts(self):
         import json
         import platform
@@ -391,6 +395,10 @@ class MLXHiddenReadout:
             scored, _, _ = guarded(self.engine, self.engine._score, rows, P)
             self.last_ms = (time.perf_counter() - t0) * 1000
         return scored
+
+    def probe(self):
+        """The serving engine's probe: this reader is that engine (engine_health)."""
+        self.engine.probe()
 
     def facts(self):
         return {"mode": self.mode, "requests_per_question": 0}

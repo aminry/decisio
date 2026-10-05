@@ -332,15 +332,22 @@ class LettersEngine:
                     [[(f"{state}\n\n{question_text(self.tok, q[0])[0]}", label_token_ids(self.tok, [" yes", " no"]))]]
                 )
 
-    def dead_reason(self):
-        """Why the engine is dead, or None: vLLM's flag for an exited engine-core process (`--engine-process
-        separate`; vllm.v1.engine.core_client.MPClient sets it from its monitor thread). In-process there is no process
-        to watch, and a failing forward pass is caught where it is called."""
-        llm_engine = getattr(getattr(self, "llm", None), "llm_engine", None)  # None on the CPU stand-in and MLX
-        resources = getattr(getattr(llm_engine, "engine_core", None), "resources", None)
-        if resources is not None and getattr(resources, "engine_dead", False):
-            return "vLLM's engine-core process exited"
-        return None
+    def probe_ids(self):
+        """The probe's prompt (decisio.serve.engine_health): one token."""
+        return self.tok.encode("ok", add_special_tokens=False)[:1]
+
+    def probe(self):
+        """The smallest call this engine serves, to tell a failed request from a dead engine (engine_health): one
+        forward pass over a one-token prompt, as the warm-up's call (a pooling request in packed mode). Prompts shorter
+        than a cache block leave the prefix cache as it was."""
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+
+        prompt = [TokensPrompt(prompt_token_ids=self.probe_ids())]
+        if self.mode == "packed":
+            self.llm.encode(prompt, pooling_task="token_classify", use_tqdm=False)
+        else:
+            self.llm.generate(prompt, SamplingParams(max_tokens=1, temperature=0.0, detokenize=False), use_tqdm=False)
 
     def facts(self):
         import torch
@@ -1489,7 +1496,7 @@ def main():
     engines = [e for e in dict.fromkeys([engine, image_engine, hidden_engine]) if e is not None]
     for e in engines:
         e.health = health
-    health.watch([getattr(e, "dead_reason", None) for e in engines])
+    health.watch(engines)
     uvicorn.run(make_app(engine, so), host=args.host, port=args.port, log_level="warning")
 
 
