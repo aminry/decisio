@@ -1,0 +1,77 @@
+[
+ {
+  "path": "board_jev.json",
+  "bytes": 654,
+  "sha256": "34fbd78454cc22334593718a6b30e99d13a12e3f940528457e61ab35f3afbb28"
+ },
+ {
+  "path": "checkpoint_v060_31b.json",
+  "bytes": 164,
+  "sha256": "c93b2e251e0cd621d4162a4461c02dddb3a919165ec55a24b6f492c0a013ba20"
+ },
+ {
+  "path": "checkpoints_v040.json",
+  "bytes": 352,
+  "sha256": "a07a68e4cf3aaf25b6bd6289a618d3d47e908847bac49110ba48796ab80829da"
+ },
+ {
+  "path": "decisio-0.4.0-gemma-4-12b/environment.json",
+  "bytes": 994,
+  "sha256": "8bd438fce889aa8654f7853970e5407c2a754aa1e96bda237d6ef975b62301e2"
+ },
+ {
+  "path": "decisio-0.4.0-gemma-4-12b/health.json",
+  "bytes": 1351,
+  "sha256": "a9b5f255fb856b08293b4375c417d6740cf7036643fc203afec056905af74537"
+ },
+ {
+  "path": "decisio-0.4.0-gemma-4-12b/scores.json",
+  "bytes": 33013,
+  "sha256": "f377ad53f9764c41328c54485d539c81e8ea02905b361ef1dfc3d2779bebe7c0"
+ },
+ {
+  "path": "decisio-0.4.0-qwen3.6-35b-a3b/environment.json",
+  "bytes": 997,
+  "sha256": "c5823fe5a8437fa09806143e7a2a6399b703dd24377d034520d72cab4572bee4"
+ },
+ {
+  "path": "decisio-0.4.0-qwen3.6-35b-a3b/health.json",
+  "bytes": 1312,
+  "sha256": "8a552622a3e60dff8b83583e4266e7b6f49f3fbfe702978edecf9076fb7f7e2a"
+ },
+ {
+  "path": "decisio-0.4.0-qwen3.6-35b-a3b/scores.json",
+  "bytes": 33032,
+  "sha256": "12c7fc8f0c3fe5ab74d1fca432b13f636ff609b4b7b73234c138cecf4340bcf8"
+ },
+ {
+  "path": "decisio-0.6.0-gemma-4-31b/environment.json",
+  "bytes": 995,
+  "sha256": "2f78456b7d06a7e98186fbaf2ae24c5bc62151115fcfd30a6feae84c20bf6af1"
+ },
+ {
+  "path": "decisio-0.6.0-gemma-4-31b/health.json",
+  "bytes": 1393,
+  "sha256": "6fe5ec6d40a34a9f6be394a8cd5f802609922ee447807e6dab6a26e2bd842554"
+ },
+ {
+  "path": "decisio-0.6.0-gemma-4-31b/health_resume.json",
+  "bytes": 1393,
+  "sha256": "6fe5ec6d40a34a9f6be394a8cd5f802609922ee447807e6dab6a26e2bd842554"
+ },
+ {
+  "path": "decisio-0.6.0-gemma-4-31b/scores.json",
+  "bytes": 33025,
+  "sha256": "76be2799de04769f4011baaa2648e27fab7199ac8a8f29aec1b57c4fb9a3572d"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 6303,
+  "sha256": "4a44e2a56cab8973bdc277e80895b64cdbde3dadb97c0436bdfca6824983dde3"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 2576,
+  "sha256": "fff7a70097641fda5d441f2a6393252a796a5746cd747b076542d1c2ce83b4a6"
+ }
+]

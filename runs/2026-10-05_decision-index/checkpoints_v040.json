@@ -1,0 +1,12 @@
+{
+ "qwen3.6-35b-a3b": {
+  "model": "Qwen/Qwen3.6-35B-A3B-FP8",
+  "profile_revision": null,
+  "downloaded_commit": "95a723d08a9490559dae23d0cff1d9466213d989"
+ },
+ "gemma-4-12b": {
+  "model": "google/gemma-4-12B-it",
+  "profile_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+  "downloaded_commit": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
+ }
+}
