@@ -72,6 +72,8 @@ class Family:
     noul_rendering: str = "letters-keys"
     # LLM(quantization=...): the precision the checkpoint is quantized to on load (None: as the checkpoint stores it)
     quantization: str | None = None
+    # --multi-question's default when the engine runs in the server's process (vllm_engine.resolve_multi_question)
+    multi_question: str = "sequential"
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -150,6 +152,9 @@ GEMMA4_31B = Family(
     # context; a pinned FP8 checkpoint replaces this when one exists
     quantization="fp8",
     moe=False,
+    # warm: four questions in one batch after the state's prefill, repeating exactly in-process; gated against
+    # sequential (runs/2026-10-05_engine-death-gates: no choice changed, the largest probability difference 0.0073)
+    multi_question="warm",
 )
 
 FAMILIES = (QWEN, GEMMA4, GEMMA4_31B)

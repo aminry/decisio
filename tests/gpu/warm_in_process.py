@@ -30,7 +30,7 @@ def main():
     ap.add_argument("--repeats", type=int, default=5)
     ap.add_argument("--engine", default=json.dumps({"compilation_config": {"max_cudagraph_capture_size": 4096}}))
     a = ap.parse_args()
-    assert sv.engine_process_guard("vllm", "in", os.environ) == "in"
+    assert sv.engine_process_guard("vllm", "in", os.environ)[0] == "in"
     eng = sv.LettersEngine(a.model, mode="separate", pad_to="block", pad_where="front", engine_kw=json.loads(a.engine))
     eng.multi_question = "warm"
     facts = eng.facts()

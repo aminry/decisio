@@ -64,8 +64,8 @@ Where the columns differ, the value is the base's.
 
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
-| `--multi-question` | `sequential` | `sequential` | `sequential` | how a request's questions are scored (below) |
-| `--engine-process` | `separate` | `separate` | `separate` | where vLLM's engine runs: `separate`, a process of its own (vLLM's arrangement); `in`, the server's process (below) |
+| `--multi-question` | `sequential` | `sequential` | `warm` with the engine in the server's process, else `sequential` | how a request's questions are scored (below) |
+| `--engine-process` | `in` (`separate` with a second engine) | `in` (`separate` with a second engine) | `in` | where vLLM's engine runs: `in`, the server's process; `separate`, a process of its own (vLLM's arrangement) (below) |
 | `--pad-policy` | `always` | `always` | `always` | `always`: pad every state; `shared`: pad only requests with more than one question; `row`: pad a single-question request's whole row (below); `none`: never pad (the default with `--backend mlx`) |
 | `--pad-to` | `block` | `none` | `none` | what a state is padded to: the KV cache block, a token count, or nothing |
 | `--pad-where` | `front` | `front` | `front` | where the padding goes: `front`, before the chat template; `user`, at the start of the user turn; `between`, between the state and the question |
@@ -109,8 +109,9 @@ Where the columns differ, the value is the base's.
 
 With `sequential`, the served default, a request with several questions first prefills the state once, then scores each question in its own engine call, reading the state from the prefix cache, so every answer equals the same question sent alone.
 With `warm`, for bulk scoring, the questions are scored in one batch after the same prefill: faster (four questions on a new state take about half the time of `sequential` on the Qwen base and about two thirds on the Gemma bases), but a batched answer differs from the same question sent alone, and when two options are close the choice can change (`EVAL_CARD.md` section 4).
-With the engine in its own process (`--engine-process separate`, the default) a warm answer can also move between repeats, because that process does not always put a request's questions in one engine step (vllm-project/vllm#59764); with `--engine-process in` an identical request repeats exactly.
-`--engine-process in` is refused with a second engine (`--image-model`, `--head-engine`, `--one-engine`), and `/health` reports the arrangement as `engine_process`.
+With the engine in its own process (`--engine-process separate`) a warm answer can also move between repeats, because that process does not always put a request's questions in one engine step (vllm-project/vllm#59764); with the engine in the server's process (`--engine-process in`) an identical request repeats exactly.
+`--engine-process` resolves to `in` for a single-engine server (since 0.8.0) and to `separate` when a second engine is configured (`--image-model`, `--head-engine`, `--one-engine`), with which `in` is refused; an explicit choice is honoured, and the server prints the arrangement and why at start-up and reports it in `/health` as `engine_process`.
+On the Gemma 4 31B base `warm` is the default when the engine runs in the server's process: against `sequential` it changed no choice on the suite, JevBench and the travel requests, by at most 0.0073 in a probability (`runs/2026-10-05_engine-death-gates/`); the other bases keep `sequential`.
 With `batch`, every question goes in one engine call that prefills the state itself, with no warm-up.
 Measurements: `EVAL_CARD.md` section 4, `runs/2026-10-02_multi-question-and-rendering/`, and the README's example request in `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`.
 
