@@ -1369,6 +1369,9 @@ def main():
                 engine_kw=engine_kwargs(args),
                 revision=args.revision,
             )
+        # the second engine builds its rows with the server's prompt format and base, as the single-engine paths do
+        hidden_engine.family = args.family
+        hidden_engine.fmt = fmt
         # the head is fitted and served on the text route's exact token rows: refuse to start if they differ
         probe = (
             "A state to check. " * 30,

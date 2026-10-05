@@ -191,3 +191,33 @@ def test_m3_both_modes_declare_the_same_choice(monkeypatch, task):
     choices = {m: [top_index(options, p) for p in served[m]] for m in served}
     assert choices["single-engine"] == choices["second-engine"]  # every evaluation item
     assert np.abs(served["single-engine"] - served["second-engine"]).max() < 1e-2
+
+
+class FormatRecorder(Recorder):
+    """A recorder whose token rows depend on the prompt format and base it was given, as the real row builder's do."""
+
+    def _prepare_separate(self, state, questions):
+        tag = (repr(getattr(self, "fmt", None)), getattr(getattr(self, "family", None), "key", None))
+        return [([hash(tag) % 997], [4, 5]) for _ in questions], 3
+
+
+def test_m4_the_second_engine_builds_rows_in_the_served_format(monkeypatch):
+    """--head-engine: the second engine is given the server's prompt format and base before the start-up check that
+    its token rows equal the text engine's (under the served spaced layout the defaults differ: start-up refused)."""
+    import decisio.serve.hf_letters as hf
+    import decisio.serve.hidden_engine as he
+
+    for mod, name in ((hf, "HFLettersEngine"), (he, "HFReservedHiddenEngine"), (he, "HFHiddenEngine")):
+        monkeypatch.setattr(mod, name, type(name, (FormatRecorder,), {}))
+    import uvicorn
+
+    from decisio.serve import vllm_engine
+
+    served = {}
+    monkeypatch.setattr(vllm_engine, "make_app", lambda engine, so: served.update(engine=engine, so=so) or object())
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: None)
+    monkeypatch.setattr(sys, "argv", ["decisio", "--backend", "hf", "--model", "stand-in", "--head-engine"])
+    vllm_engine.main()
+    text, hidden = served["engine"], served["so"].hidden_engine
+    assert type(hidden).__name__ == "HFHiddenEngine"
+    assert hidden.fmt == text.fmt and hidden.family == text.family
