@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/aminry/decisio/compare/v0.7.2...v0.8.0) (2026-10-05)
+
+
+### Features
+
+* **serve:** the engine runs in the server's process by default; gemma-4-31b scores several questions warm ([#86](https://github.com/aminry/decisio/issues/86)) ([efd2b83](https://github.com/aminry/decisio/commit/efd2b83943c5dffaf9b692e138f4bffaaa79d1c1))
+
 ## [0.7.2](https://github.com/aminry/decisio/compare/v0.7.1...v0.7.2) (2026-10-05)
 
 
