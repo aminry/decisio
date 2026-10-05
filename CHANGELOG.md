@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/aminry/decisio/compare/v0.6.0...v0.7.0) (2026-10-05)
+
+
+### Features
+
+* **serve:** --engine-process in|separate, where vLLM's engine runs (default separate) ([#74](https://github.com/aminry/decisio/issues/74)) ([bbff50f](https://github.com/aminry/decisio/commit/bbff50f7c686b7c55ea00817705c5229699b3d9f))
+
 ## [0.6.0](https://github.com/aminry/decisio/compare/v0.5.0...v0.6.0) (2026-10-05)
 
 
