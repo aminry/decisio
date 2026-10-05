@@ -199,11 +199,11 @@ What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, e
 | Decision Index accuracy, GPQA Diamond | | | -13.6 [-21.7, -5.6] |
 | Decision Index accuracy, MMLU-Pro | | | -6.4 [-7.2, -5.5] |
 | 1,400-item suite, accuracy | 0.735 | 0.770 | -3.5 [-5.5, -1.6] |
-| One question on a new 3,000-token state, server time | 293.5 ms | 91.1 ms | |
+| One question on a new 3,000-token state, server time (engine in its own process; host CPU not recorded) | 293.5 ms | 91.1 ms | |
 
 The full paired table, the Gemma base's repeatability and its limits are in `EVAL_CARD.md` section 6.
 
-Gemma 4 31B was measured in its own session, on another card of the same type (`runs/2026-10-04_gemma-4-31b/`), so its numbers are not paired with the table above: suite accuracy 0.799 (Qwen 0.770, Gemma 4 12B 0.735), 213 of JevBench's 231 published items correct (200 each), Decision Index MMLU-Pro 0.694 and GPQA Diamond 0.520 (Qwen 0.613 and 0.510), one question on a new 3,000-token state 476 ms (Qwen 91 ms).
+Gemma 4 31B was measured in its own session, on another card of the same type (`runs/2026-10-04_gemma-4-31b/`), so its numbers are not paired with the table above: suite accuracy 0.799 (Qwen 0.770, Gemma 4 12B 0.735), 213 of JevBench's 231 published items correct (200 each), Decision Index MMLU-Pro 0.694 and GPQA Diamond 0.520 (Qwen 0.613 and 0.510), one question on a new 3,000-token state 476 ms (Qwen 91 ms), both with the engine in its own process.
 It went in under the maintainer's decision, past a pre-registered rule it missed by 0.2 to 1.1 points on three of four benchmarks; `EVAL_CARD.md` section 7 states the rule, the numbers and the reason.
 
 On the four demos, run on each base in one session ([docs/demos](docs/demos/README.md)), Gemma 4 31B played Pong best (85% agreement with a perfect paddle, against 60% and 62%), made the fewest driving motion errors and was most accurate on triage (97.0% against 93.8% for Gemma 4 12B and 91.0% for Qwen), but lost one of nine real-time drives.
@@ -224,8 +224,13 @@ Measured privately with the public harnesses (the Decision Index kit 0.2.1); non
 | Decision Index MMLU-Pro, accuracy | 0.613 | 0.549 | 0.694 |
 | Intent heads from 10 labelled examples per intent, BANKING77 / CLINC150 | 0.840 / 0.912 (six draws) | 0.832 / 0.908 (six draws) | 0.844 / 0.970 (three draws) |
 | Image input, ImajevBench v2.0-lite, the 230 answerable items | 0.791 | not measured | not measured |
-| One question on a new 300-token state, server time | 48.4 ms | 39.1 ms | 61.8 ms |
-| One question on a 1,000-token state from the prefix cache, server time | 20.9 ms | 26.7 ms | 40.8 ms |
+| One question on a new 300-token state, server time (engine in its own process; host CPU not recorded) | 48.4 ms | 39.1 ms | 61.8 ms |
+| One question on a 1,000-token state from the prefix cache, server time (same) | 20.9 ms | 26.7 ms | 40.8 ms |
+
+The latency rows were measured with vLLM's engine in a process of its own (`--engine-process separate`, the default until 0.8.0), each on one host whose CPU was not recorded.
+Since 0.8.0 the engine runs in the server's process by default for a single-engine server (`docs/cli.md`).
+Paired on one host (an AMD EPYC 7452 with an RTX PRO 6000 Blackwell), the in-process engine was faster for the Qwen base in every cell: by 3.8 ms on a cached question and by 0.6 to 32.2 ms on new states (`runs/2026-10-05_engine-death-gates/`).
+On that host the Qwen base took 1.4 to 2.1 times the times above in either arrangement, while the Gemma bases did not, so absolute latency depends on the host (`docs/running.md`).
 
 Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions (the public board's figures and their date are in `EVAL_CARD.md` section 8.1) and on intent taxonomies without labelled examples.
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
@@ -249,7 +254,7 @@ curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @exam
 
 The served defaults need no flags; these change behaviour ([`docs/cli.md`](docs/cli.md) has every flag and its default per base):
 - `--pad-policy row`: pads a single-question request so its whole row ends on the block boundary, faster on a new state at a small cost in repeatability.
-- `--multi-question warm`: scores a request's questions in one batch for bulk scoring, faster, but each answer then depends on the batch.
+- `--multi-question warm`: scores a request's questions in one batch for bulk scoring, faster, but each answer then depends on the batch. It is the Gemma 4 31B base's default: with the engine in the server's process a warm request repeats exactly, and on the items measured it chose as `sequential` did every time (`runs/2026-10-05_engine-death-gates/`).
 - `--noul-commit`: reports a yes/no probability inside JevBench v1.5's no-answer band at the band's edge; the answer never changes, its calibration does.
 - `--prompt-tail compact`: the earlier layout, for tasks registered under it.
 - `--image-model`: a second engine on the same card for requests that carry images.

@@ -792,36 +792,62 @@ def deep_gemm_guard(backend, environ, allow=False):
         )
 
 
-ENGINE_PROCESSES = ("separate", "in")
+ENGINE_PROCESSES = ("in", "separate")
 
 
 def engine_process_guard(backend, choice, environ, second_engines=()):
-    """--engine-process: where vLLM's engine runs. `separate` (the default) is vLLM's own arrangement, the engine in a
-    process of its own, which receives a batch's requests one at a time and starts a step with whatever has arrived,
-    so a batched request's questions do not always share an engine step and --multi-question warm can move between
-    repeats; `in` runs it in the server's process (VLLM_ENABLE_V1_MULTIPROCESSING=0), where every question of a
-    request is added before the first step, so warm repeats exactly (vllm-project/vllm#59764; EVAL_CARD.md section 4).
-    Before vLLM reads it, sets the variable for `in` and refuses `in` with a second engine in the process (untested);
-    refuses `separate` when the variable already says 0, so /health never misreports. Returns the choice (None off
-    vLLM: the CPU stand-in and MLX run in the server's process anyway)."""
+    """--engine-process: where vLLM's engine runs, resolved once. `in` runs it in the server's process
+    (VLLM_ENABLE_V1_MULTIPROCESSING=0), where every question of a request is added before the first engine step, so
+    --multi-question warm repeats exactly (vllm-project/vllm#59764; EVAL_CARD.md section 4); `separate` is vLLM's own
+    arrangement, a process of its own, which starts a step with whatever has arrived, so a batched request's questions
+    do not always share a step and warm can move between repeats.
+
+    The default (choice None) resolves to `in` for a single-engine server and to `separate` when a second engine is
+    configured (`second_engines`: two vLLM engines in one process failed every request on the card, so `in` is refused
+    with one), or when the environment already asks vLLM for its engine process (VLLM_ENABLE_V1_MULTIPROCESSING=1).
+    Gates for the default: runs/2026-10-05_engine-death-gates. Before vLLM reads it, sets the variable for `in`;
+    refuses an explicit `separate` when the variable already says 0, so /health never misreports.
+    Returns (the arrangement, why), the arrangement None off vLLM (the CPU stand-in and MLX run in the server's
+    process anyway)."""
     if backend != "vllm":
         if choice == "in":
             raise SystemExit("--engine-process in is for --backend vllm (the other backends run in the server process)")
-        return None
+        return None, f"--backend {backend} runs in the server's process"
+    if choice is None:
+        if second_engines:
+            choice, why = "separate", f"the default with a second engine ({', '.join(second_engines)})"
+        elif environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "1":
+            choice, why = "separate", "the default with VLLM_ENABLE_V1_MULTIPROCESSING=1"
+        else:
+            choice, why = "in", "the default for a single-engine server"
+    else:
+        why = f"--engine-process {choice}"
     if choice == "in":
         if second_engines:
             raise SystemExit(
                 f"--engine-process in runs one vLLM engine in the server's process; {', '.join(second_engines)} would "
-                "start a second one there, which is not tested: use --engine-process separate"
+                "start a second one there, which fails on the card: use --engine-process separate (the default with "
+                "a second engine)"
             )
         environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
-        return "in"
+        return "in", why
     if environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "0":
         raise SystemExit(
             "VLLM_ENABLE_V1_MULTIPROCESSING=0 runs the engine in the server's process: pass --engine-process in, or "
             "unset it"
         )
-    return "separate"
+    return "separate", why
+
+
+def resolve_multi_question(family, choice, engine_process):
+    """--multi-question's default: the base profile's (gemma-4-31b: warm), when the engine runs in the server's process
+    (engine_process `in`, or None off vLLM), where a warm request repeats exactly; sequential otherwise and on the
+    other bases. The 31B's warm default passed its gate: no choice changed against sequential on the suite, JevBench
+    and travel, the largest probability difference 0.0073 (runs/2026-10-05_engine-death-gates)."""
+    if choice is not None:
+        return choice
+    profile = getattr(family, "multi_question", "sequential")
+    return profile if engine_process in ("in", None) else "sequential"
 
 
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
@@ -907,6 +933,7 @@ def served_profile(engine, systemone) -> dict:
         "checkpoint": getattr(engine, "model_name", None),
         "revision": getattr(engine, "revision", None),
         "quantization_on_load": getattr(fam, "quantization", None),
+        "engine_process": getattr(engine, "engine_process", None),
         "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
         "prompt": {
             **fmt.facts(),
@@ -1015,9 +1042,10 @@ def main():
     )
     ap.add_argument(
         "--multi-question",
-        default="sequential",
+        default=None,
         choices=["sequential", "warm", "batch"],
-        help="sequential (the served default): a request with several questions first prefills the state in a "
+        help="sequential (the served default; gemma-4-31b's is warm with the engine in the server's process): a "
+        "request with several questions first prefills the state in a "
         "warm-up request, then sends each question in its own engine call, reading the state from the prefix cache, "
         "so every answer equals the question sent alone; warm (for bulk scoring): the warm-up, then every question "
         "in one batch, faster but each answer depends on the batch; batch: one engine call with every question, "
@@ -1025,12 +1053,12 @@ def main():
     )
     ap.add_argument(
         "--engine-process",
-        default="separate",
+        default=None,
         choices=ENGINE_PROCESSES,
-        help="where vLLM's engine runs: separate (the default, vLLM's own arrangement: a process of its own) or in "
-        "(the server's process, VLLM_ENABLE_V1_MULTIPROCESSING=0), where a request's questions always share one engine "
-        "step, so --multi-question warm repeats exactly; in is refused with a second engine (--image-model, "
-        "--head-engine, --one-engine)",
+        help="where vLLM's engine runs: in (the server's process, VLLM_ENABLE_V1_MULTIPROCESSING=0), where a request's "
+        "questions always share one engine step, so --multi-question warm repeats exactly; separate (vLLM's own "
+        "arrangement, a process of its own). The default resolves to in for a single-engine server and to separate "
+        "with a second engine (--image-model, --head-engine, --one-engine), with which in is refused",
     )
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
@@ -1301,7 +1329,9 @@ def main():
         )
         if given
     ]
-    args.engine_process = engine_process_guard(args.backend, args.engine_process, os.environ, second)
+    args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
+    args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process)
+    print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
         pad_to = None if args.pad_to == "none" else args.pad_to
         if args.backend == "hf":

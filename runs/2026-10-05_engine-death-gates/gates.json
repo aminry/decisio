@@ -1,0 +1,570 @@
+{
+ "C": {
+  "arms": {
+   "P_sep": {
+    "pass": true,
+    "checks": {
+     "ten_requests_500_within_15s": true,
+     "no_exit": true,
+     "health_200_after": true,
+     "a_probe_for_each": true,
+     "after_identical": true
+    },
+    "exit_code": null,
+    "exit_after_s": null,
+    "first_health_not_200_s": null,
+    "recovered_after_s": null,
+    "after_identical": 200,
+    "items": 200,
+    "probe_ms": [
+     19,
+     18,
+     18,
+     21,
+     18,
+     18,
+     19,
+     19,
+     18,
+     18
+    ],
+    "engine_dead_lines": [],
+    "failing_request": null,
+    "next_requests": null,
+    "requests": [
+     {
+      "status": 500,
+      "client_ms": 31.28643799573183,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 26.27964499697555,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 25.326046998088714,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 27.89555899653351,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 26.4619430017774,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 23.81516199966427,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 23.513642998295836,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 23.90633199684089,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 23.288092997972853,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 23.137204996601213,
+      "error": "HTTP 500: Internal Server Error"
+     }
+    ]
+   },
+   "F1_sep": {
+    "pass": true,
+    "checks": {
+     "failing_503_within_20s": true,
+     "next_503_or_refused_none_hangs": true,
+     "exit_70_within_30s": true,
+     "back_within_15min": true,
+     "after_identical": true
+    },
+    "exit_code": 70,
+    "exit_after_s": 3.2925219535827637,
+    "first_health_not_200_s": 0.042855262756347656,
+    "recovered_after_s": 304.1049485206604,
+    "after_identical": 200,
+    "items": 200,
+    "probe_ms": [],
+    "engine_dead_lines": [
+     "ENGINE DEAD EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.; exiting with code 70 in 2.0 s"
+    ],
+    "failing_request": {
+     "status": 503,
+     "client_ms": 38.34179599652998,
+     "error": "HTTP 503: {\"detail\":\"the engine is dead (EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.); this server is exiting with code 70 so that its restart policy starts a new one\"}"
+    },
+    "next_requests": [
+     {
+      "status": 503,
+      "client_ms": 3.408759002923034,
+      "error": "HTTP 503: {\"detail\":\"the engine is dead (EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.); this server is exiting with code 70 so that its restart policy starts a new one\"}"
+     },
+     {
+      "status": 503,
+      "client_ms": 2.8560309947351925,
+      "error": "HTTP 503: {\"detail\":\"the engine is dead (EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.); this server is exiting with code 70 so that its restart policy starts a new one\"}"
+     }
+    ],
+    "requests": null
+   },
+   "F2_sep": {
+    "pass": true,
+    "checks": {
+     "health_not_200_within_5s": true,
+     "exit_70_within_10s": true,
+     "back_within_15min": true,
+     "after_identical": true
+    },
+    "exit_code": 70,
+    "exit_after_s": 3.5228559970855713,
+    "first_health_not_200_s": 2.0123322010040283,
+    "recovered_after_s": 304.07462763786316,
+    "after_identical": 200,
+    "items": 200,
+    "probe_ms": [],
+    "engine_dead_lines": [
+     "ENGINE DEAD vLLM's engine-core process exited; exiting with code 70 in 2.0 s"
+    ],
+    "failing_request": null,
+    "next_requests": null,
+    "requests": null
+   },
+   "P_in": {
+    "pass": true,
+    "checks": {
+     "ten_requests_500_within_15s": true,
+     "no_exit": true,
+     "health_200_after": true,
+     "a_probe_for_each": true,
+     "after_identical": true
+    },
+    "exit_code": null,
+    "exit_after_s": null,
+    "first_health_not_200_s": null,
+    "recovered_after_s": null,
+    "after_identical": 200,
+    "items": 200,
+    "probe_ms": [
+     23,
+     20,
+     19,
+     23,
+     19,
+     20,
+     22,
+     20,
+     20,
+     23
+    ],
+    "engine_dead_lines": [],
+    "failing_request": null,
+    "next_requests": null,
+    "requests": [
+     {
+      "status": 500,
+      "client_ms": 34.301808998861816,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 26.61494000494713,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 25.608470998122357,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 29.635882005095482,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 26.45358000154374,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 27.75199600000633,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 29.20432200335199,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 26.99916800338542,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 27.366046997485682,
+      "error": "HTTP 500: Internal Server Error"
+     },
+     {
+      "status": 500,
+      "client_ms": 29.68989100190811,
+      "error": "HTTP 500: Internal Server Error"
+     }
+    ]
+   },
+   "F1_in": {
+    "pass": true,
+    "checks": {
+     "failing_503_within_20s": true,
+     "next_503_or_refused_none_hangs": true,
+     "exit_70_within_30s": true,
+     "back_within_15min": true,
+     "after_identical": true
+    },
+    "exit_code": 70,
+    "exit_after_s": 8.178114175796509,
+    "first_health_not_200_s": 5.045831918716431,
+    "recovered_after_s": 284.10813188552856,
+    "after_identical": 200,
+    "items": 200,
+    "probe_ms": [],
+    "engine_dead_lines": [
+     "ENGINE DEAD RuntimeError: decisio session: injected engine fault; the engine did not answer a probe within 5 s; exiting with code 70 in 2.0 s"
+    ],
+    "failing_request": {
+     "status": 503,
+     "client_ms": 5037.399948996608,
+     "error": "HTTP 503: {\"detail\":\"the engine is dead (RuntimeError: decisio session: injected engine fault; the engine did not answer a probe within 5 s); this server is exiting with code 70 so that its restart policy starts a new one\"}"
+    },
+    "next_requests": [
+     {
+      "status": 503,
+      "client_ms": 7.030491004115902,
+      "error": "HTTP 503: {\"detail\":\"the engine is dead (RuntimeError: decisio session: injected engine fault; the engine did not answer a probe within 5 s); this server is exiting with code 70 so that its restart policy starts a new one\"}"
+     },
+     {
+      "status": 503,
+      "client_ms": 6.28397300170036,
+      "error": "HTTP 503: {\"detail\":\"the engine is dead (RuntimeError: decisio session: injected engine fault; the engine did not answer a probe within 5 s); this server is exiting with code 70 so that its restart policy starts a new one\"}"
+     }
+    ],
+    "requests": null
+   }
+  },
+  "probe_cost": {
+   "P_sep": {
+    "n": 10,
+    "median_ms": 18.0,
+    "max_ms": 21,
+    "all_ms": [
+     19,
+     18,
+     18,
+     21,
+     18,
+     18,
+     19,
+     19,
+     18,
+     18
+    ]
+   },
+   "P_in": {
+    "n": 10,
+    "median_ms": 20.0,
+    "max_ms": 23,
+    "all_ms": [
+     23,
+     20,
+     19,
+     23,
+     19,
+     20,
+     22,
+     20,
+     20,
+     23
+    ]
+   }
+  },
+  "pass": true
+ },
+ "D": {
+  "sets": {
+   "suite4": {
+    "items": 1400,
+    "choice_changes": 0,
+    "max_abs_dp": 0.0,
+    "median_abs_dp": 0.0,
+    "accuracy_warm": 0.8035714285714286,
+    "accuracy_sequential": 0.8035714285714286,
+    "pass": true
+   },
+   "jev4": {
+    "items": 231,
+    "choice_changes": 0,
+    "max_abs_dp": 0.0,
+    "median_abs_dp": 0.0,
+    "accuracy_warm": 0.9134199134199135,
+    "accuracy_sequential": 0.9134199134199135,
+    "pass": true
+   },
+   "travel": {
+    "items": 272,
+    "choice_changes": 0,
+    "max_abs_dp": 0.007338261461887763,
+    "median_abs_dp": 0.0,
+    "warm_repeats_exact": "272 of 272",
+    "repeats_ok": true,
+    "pass": true
+   }
+  },
+  "bound": 0.01,
+  "pass": true
+ },
+ "latency": {
+  "lat_qwen_separate": {
+   "cached_1q_1000": {
+    "server_ms_p50": 43.25,
+    "client_ms_p50": 44.88575999857858,
+    "n": 20
+   },
+   "fresh_1q_300": {
+    "server_ms_p50": 69.35,
+    "client_ms_p50": 70.94758799576084,
+    "n": 20
+   },
+   "fresh_4q_300": {
+    "server_ms_p50": 197.85000000000002,
+    "client_ms_p50": 199.9233219976304,
+    "n": 20
+   },
+   "fresh_1q_1000": {
+    "server_ms_p50": 77.6,
+    "client_ms_p50": 79.20970499981195,
+    "n": 20
+   },
+   "fresh_4q_1000": {
+    "server_ms_p50": 197.85,
+    "client_ms_p50": 199.62426549682277,
+    "n": 20
+   },
+   "fresh_1q_3000": {
+    "server_ms_p50": 111.25,
+    "client_ms_p50": 113.14814900106285,
+    "n": 20
+   },
+   "fresh_4q_3000": {
+    "server_ms_p50": 247.25,
+    "client_ms_p50": 249.2484630056424,
+    "n": 20
+   }
+  },
+  "lat_qwen_in": {
+   "cached_1q_1000": {
+    "server_ms_p50": 39.4,
+    "client_ms_p50": 41.00531099902582,
+    "n": 20
+   },
+   "fresh_1q_300": {
+    "server_ms_p50": 68.7,
+    "client_ms_p50": 70.28252700183657,
+    "n": 20
+   },
+   "fresh_4q_300": {
+    "server_ms_p50": 179.39999999999998,
+    "client_ms_p50": 181.5242960001342,
+    "n": 20
+   },
+   "fresh_1q_1000": {
+    "server_ms_p50": 71.15,
+    "client_ms_p50": 72.77596600033576,
+    "n": 20
+   },
+   "fresh_4q_1000": {
+    "server_ms_p50": 185.2,
+    "client_ms_p50": 187.10055100382306,
+    "n": 20
+   },
+   "fresh_1q_3000": {
+    "server_ms_p50": 94.35,
+    "client_ms_p50": 96.27427849773085,
+    "n": 20
+   },
+   "fresh_4q_3000": {
+    "server_ms_p50": 215.0,
+    "client_ms_p50": 217.02233200267074,
+    "n": 20
+   }
+  },
+  "lat_g31_warm_in": {
+   "cached_1q_1000": {
+    "server_ms_p50": 34.55,
+    "client_ms_p50": 36.13253349612933,
+    "n": 20
+   },
+   "fresh_1q_300": {
+    "server_ms_p50": 55.45,
+    "client_ms_p50": 57.07964099565288,
+    "n": 20
+   },
+   "fresh_4q_300": {
+    "server_ms_p50": 105.55,
+    "client_ms_p50": 107.3909620026825,
+    "n": 20
+   },
+   "fresh_1q_1000": {
+    "server_ms_p50": 162.1,
+    "client_ms_p50": 163.87190550085506,
+    "n": 20
+   },
+   "fresh_4q_1000": {
+    "server_ms_p50": 200.89999999999998,
+    "client_ms_p50": 202.5499365045107,
+    "n": 20
+   },
+   "fresh_1q_3000": {
+    "server_ms_p50": 450.9,
+    "client_ms_p50": 452.75475249945885,
+    "n": 20
+   },
+   "fresh_4q_3000": {
+    "server_ms_p50": 508.1,
+    "client_ms_p50": 510.0456085019687,
+    "n": 20
+   }
+  },
+  "lat_g12_in": {
+   "cached_1q_1000": {
+    "server_ms_p50": 28.0,
+    "client_ms_p50": 29.60269850154873,
+    "n": 20
+   },
+   "fresh_1q_300": {
+    "server_ms_p50": 35.1,
+    "client_ms_p50": 36.73971449461533,
+    "n": 20
+   },
+   "fresh_4q_300": {
+    "server_ms_p50": 123.55,
+    "client_ms_p50": 125.42667999878176,
+    "n": 20
+   },
+   "fresh_1q_1000": {
+    "server_ms_p50": 97.35,
+    "client_ms_p50": 99.11021300285938,
+    "n": 20
+   },
+   "fresh_4q_1000": {
+    "server_ms_p50": 184.55,
+    "client_ms_p50": 186.4817715031677,
+    "n": 20
+   },
+   "fresh_1q_3000": {
+    "server_ms_p50": 263.79999999999995,
+    "client_ms_p50": 265.7729400016251,
+    "n": 20
+   },
+   "fresh_4q_3000": {
+    "server_ms_p50": 361.45,
+    "client_ms_p50": 363.3959074977611,
+    "n": 20
+   }
+  }
+ },
+ "decision": {
+  "gate_B": "carried over: passed on 993db22 (experiments/2026-10-05_t3_engine_process_gates)",
+  "flip_pr": true,
+  "C": true,
+  "D": true
+ },
+ "B_carried_over": {
+  "from": "the engine-process gates session of 2026-10-05 (decisio 993db22)",
+  "levels": {
+   "32": {
+    "separate": {
+     "clients": 32,
+     "requests": 1672,
+     "seconds": 105.79228629358113,
+     "throughput_rps": 15.804554930971818,
+     "p50_ms": 2007.0708701387048,
+     "p95_ms": 2343.937317840755,
+     "errors": 0,
+     "health_probes": 106,
+     "health_max_ms": 341.24148171395063,
+     "health_not_200": 0
+    },
+    "in": {
+     "clients": 32,
+     "requests": 1672,
+     "seconds": 104.78610284812748,
+     "throughput_rps": 15.956314382865498,
+     "p50_ms": 1988.1561510264874,
+     "p95_ms": 2311.340283602476,
+     "errors": 0,
+     "health_probes": 105,
+     "health_max_ms": 461.3836854696274,
+     "health_not_200": 0
+    },
+    "identical_to_single_client": 1672,
+    "checks": {
+     "zero_errors": true,
+     "throughput_at_least_95pct": true,
+     "p95_at_most_110pct": true,
+     "health_within_2s": true,
+     "answers_identical_to_single_client": true
+    }
+   },
+   "64": {
+    "separate": {
+     "clients": 64,
+     "requests": 1672,
+     "seconds": 105.6314746728167,
+     "throughput_rps": 15.828615525617328,
+     "p50_ms": 3994.107241742313,
+     "p95_ms": 4427.3297768086195,
+     "errors": 0,
+     "health_probes": 69,
+     "health_max_ms": 1897.2439682111144,
+     "health_not_200": 0
+    },
+    "in": {
+     "clients": 64,
+     "requests": 1672,
+     "seconds": 105.26690213661641,
+     "throughput_rps": 15.883435021485312,
+     "p50_ms": 3967.0773399993777,
+     "p95_ms": 4440.578158013523,
+     "errors": 0,
+     "health_probes": 70,
+     "health_max_ms": 1947.6943286135793,
+     "health_not_200": 0
+    },
+    "identical_to_single_client": 1672,
+    "checks": {
+     "zero_errors": true,
+     "throughput_at_least_95pct": true,
+     "p95_at_most_110pct": true,
+     "health_within_2s": true,
+     "answers_identical_to_single_client": true
+    }
+   }
+  },
+  "pass": true
+ }
+}

@@ -26,6 +26,12 @@ uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
 - The server refuses to start when `VLLM_USE_DEEP_GEMM` is set to anything other than `0`, unless `--allow-deep-gemm` is given.
 - It listens on `127.0.0.1:8000` (`--host`, `--port`); put a reverse proxy in front of it to expose it.
 - `--image-model` adds a second engine on the same card for requests that carry images; `EVAL_CARD.md` section 1 has the memory shares it was measured with.
+- vLLM's engine runs in the server's process by default; with a second engine (`--image-model`, `--head-engine`, `--one-engine`) it runs in a process of its own (`--engine-process`, `docs/cli.md`).
+
+Per-request latency depends on the host as well as the card.
+On one host with an AMD EPYC 7452 (Zen 2) and an RTX PRO 6000 Blackwell, a Qwen question on a cached state took 43.2 ms of server time with the engine in its own process, against 20.9 ms in the README's record on the same card type; decisio 0.7.1 and 0.7.2 measured the same there, and the Gemma bases were not slower on that host (`runs/2026-10-05_engine-death-gates/`).
+The card, vLLM and the settings matched the record's, which points to the host's single-thread CPU speed; the record host's CPU was not captured, so that is the likely cause rather than a measured one.
+Quote latency with the host's CPU model beside it.
 
 ## Docker
 
@@ -122,7 +128,7 @@ From the moment the engine is dead:
 - after 2 seconds the server stops its engine processes and exits with code 70.
 
 The in-process arrangement therefore exits about 7 seconds after the failing request (the probe's 5 seconds, then the grace period's 2).
-In the separate arrangement (`--engine-process separate`, the default) vLLM reports the death itself, so the server exits about 2 seconds after it.
+In the separate arrangement (`--engine-process separate`, the default with a second engine) vLLM reports the death itself, so the server exits about 2 seconds after it.
 The server also watches vLLM's flag between requests, so a death between requests turns `/health` to 503 within a second, before any request arrives.
 
 Run the server under a restart policy, so that the exit brings up a new one:

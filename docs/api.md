@@ -124,7 +124,7 @@ The threshold is kept only when the examples justify it.
 What the server is serving, in one object a run record can quote:
 - `ok`, and the engine's facts: the vLLM version, the GPU, the mode, the padding (`pad_unit`, `pad_where`), the quantization and the cache data types.
 - `block_size` and `match_unit`, the KV cache's block and the unit a prefix match is counted in; `cache_hit_unit`, the step prefix-cache hits come in, and `hash_unit`, the step prefixes are hashed at (on the Gemma base, whose cache keeps groups of 16- and 64-token blocks, hits come in 64-token steps).
-- `base` and `profile`: the base, the checkpoint and its revision, the temperature for each question type, and the prompt (layout, answer position, label forms, system turn, yes/no and option rendering, multi-question scoring, padding).
+- `base` and `profile`: the base, the checkpoint and its revision, where vLLM's engine runs (`engine_process`), the temperature for each question type, and the prompt (layout, answer position, label forms, system turn, yes/no and option rendering, multi-question scoring, padding).
 - `prompt_format`: the prompt's layout settings.
 - `systemone`: the System One route's settings (rendering rules, `noul_commit`, abstention and its tasks, `orders`, tasks and which are applied, the temperatures).
 - `head_engine`, the intent head's hidden-state reader (the serving engine by default, a second engine with `--head-engine`), and `image_engine` when one is running.
