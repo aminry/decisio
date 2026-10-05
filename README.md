@@ -11,6 +11,9 @@ Decisio is a serving layer for decisions: typed questions about a piece of text 
 The base model is yours to choose, and every base is served with the same calibration, task registration, shared state and prefix cache.
 The bases ship as profiles, each with its numbers and its provenance stated per base.
 
+On the Gemma 4 31B base, decisio scores 57.58 on the Decision Index 0.2.1 at a median of 56.0 ms per request, in a self-run of all 150,759 requests that is submitted to the board and pending the maintainers' validation ([results](https://huggingface.co/datasets/aminry/decisio-decision-index), [submission](https://github.com/apolinario/decision-index/pull/62)).
+Decisio is an independent project, not affiliated with or endorsed by TypeSafe; it implements TypeSafe's published System One wire format.
+
 ## Contents
 
 - [What it does](#what-it-does)
