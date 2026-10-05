@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The two bases decisio serves, chosen with `--base`, and what differs between them.
+"""The bases decisio serves, chosen with `--base`, and what differs between them.
 
   qwen3.6-35b-a3b  Qwen/Qwen3.6-35B-A3B-FP8 at a pinned revision, the default: a hybrid MoE (Gated DeltaNet plus
                    attention). Its defaults are the served defaults as they were before bases existed, so a Qwen
@@ -12,8 +12,14 @@
                    every single-token form of a label summed, yes/no as a two-option letter choice, and its own
                    temperature, all measured as one configuration (EVAL_CARD.md).
 
-Without `--base`, the base is detected from the checkpoint's config.json (`model_type`); anything unknown is served as
-the Qwen base, as before (the CPU stand-in's small models included).
+  gemma-4-31b      google/gemma-4-31B-it at a pinned revision: dense attention, read through vLLM's text class of the
+                   multimodal checkpoint with the vision tower left out at load, quantized to FP8 on load; the 12B's
+                   prompt (system turn, spaced layout at the template's answer slot, summed label forms, yes/no as
+                   letters) with its own temperatures (EVAL_CARD.md).
+
+Without `--base`, the base is detected from the checkpoint's config.json (`model_type`, and for `gemma4` checkpoints the
+mixture-of-experts flag: only the dense one is the 31B base); anything unknown is served as the Qwen base, as before
+(the CPU stand-in's small models included).
 
 Standard library only.
 """
@@ -64,6 +70,11 @@ class Family:
     answer_slot: str = "prefill"
     label_variants: str = "single"
     noul_rendering: str = "letters-keys"
+    # LLM(quantization=...): the precision the checkpoint is quantized to on load (None: as the checkpoint stores it)
+    quantization: str | None = None
+    # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
+    # equal this (None: either)
+    moe: bool | None = None
 
 
 QWEN = Family(
@@ -113,7 +124,35 @@ GEMMA4 = Family(
     noul_rendering="letters",
 )
 
-FAMILIES = (QWEN, GEMMA4)
+GEMMA4_31B = Family(
+    key="gemma-4-31b",
+    model_types=("gemma4",),
+    model="google/gemma-4-31B-it",
+    revision="842da3794eaa0b77d5f08bae87a17459d91ff475",
+    served_name="decisio-gemma-4-31b-it-letters",
+    pad_to="none",
+    limit_mm={"image": 0, "video": 0},
+    # vLLM's text class of the Gemma4ForConditionalGeneration checkpoint, the vision tower left out at load
+    classes={"text-only": "DecisioGemma4TextOnly", "hidden-readout": "DecisioGemma4HiddenReadout"},
+    head_rows=GEMMA4.head_rows,
+    softcap=30.0,
+    head_label_logprobs="engine",
+    # 210,000 to 215,376: the 12B's 170,000 would put a label form (174,960) inside 5,376 dimensions
+    hidden_start=210_000,
+    temperature=5.252,
+    choice_temperature=4.672,
+    system_prompt=True,
+    prompt_tail="spaced",
+    answer_slot="template",
+    label_variants="summed",
+    noul_rendering="letters",
+    # FP8 on load (vLLM 0.30.0's online FP8): at bf16 the weights leave too little of one 96 GB card for a 32,768-token
+    # context; a pinned FP8 checkpoint replaces this when one exists
+    quantization="fp8",
+    moe=False,
+)
+
+FAMILIES = (QWEN, GEMMA4, GEMMA4_31B)
 BASES = {f.key: f for f in FAMILIES}
 
 
@@ -153,5 +192,7 @@ def family_of(model: str | None, revision: str | None = None) -> Family:
         return BASES[forced]
     if model is None:
         return QWEN
-    mt = read_config(model, revision).get("model_type")
-    return next((f for f in FAMILIES if mt in f.model_types), QWEN)
+    cfg = read_config(model, revision)
+    mt = cfg.get("model_type")
+    moe = bool((cfg.get("text_config") or cfg).get("enable_moe_block"))
+    return next((f for f in FAMILIES if mt in f.model_types and (f.moe is None or f.moe == moe)), QWEN)

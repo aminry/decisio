@@ -23,10 +23,14 @@ SUPPORTED_VLLM = "0.30.0"
 TEXT_ONLY = "DecisioQwen3_5MoeTextOnly"
 HIDDEN_READOUT = "DecisioQwen3_5MoeHiddenReadout"
 GEMMA4_HIDDEN_READOUT = "DecisioGemma4UnifiedHiddenReadout"
+GEMMA4_MM_TEXT_ONLY = "DecisioGemma4TextOnly"
+GEMMA4_MM_HIDDEN_READOUT = "DecisioGemma4HiddenReadout"
 MODELS: dict[str, str] = {
     TEXT_ONLY: "decisio.vllm_plugin.models:DecisioQwen3_5MoeTextOnly",
     HIDDEN_READOUT: "decisio.vllm_plugin.models:DecisioQwen3_5MoeHiddenReadout",
     GEMMA4_HIDDEN_READOUT: "decisio.vllm_plugin.gemma:DecisioGemma4UnifiedHiddenReadout",
+    GEMMA4_MM_TEXT_ONLY: "decisio.vllm_plugin.gemma:DecisioGemma4TextOnly",
+    GEMMA4_MM_HIDDEN_READOUT: "decisio.vllm_plugin.gemma:DecisioGemma4HiddenReadout",
 }
 BASE_ARCH = "Qwen3_5MoeForCausalLM"  # vLLM's class the Qwen classes subclass; its config hook is reused
 # the vLLM architecture each class subclasses, whose config hook (vLLM's MODELS_CONFIG_MAP) it reuses
@@ -36,6 +40,10 @@ BASE_ARCHS: dict[str, str] = {
     # Gemma4Config picks one attention backend for Gemma 4's two head sizes (256 sliding, 512 full); without the hook
     # under this name the layers would mix kernels
     GEMMA4_HIDDEN_READOUT: "Gemma4UnifiedForConditionalGeneration",
+    # the text classes of Gemma4ForConditionalGeneration checkpoints (the 31B) subclass Gemma4ForCausalLM, whose hook
+    # is the same Gemma4Config
+    GEMMA4_MM_TEXT_ONLY: "Gemma4ForCausalLM",
+    GEMMA4_MM_HIDDEN_READOUT: "Gemma4ForCausalLM",
 }
 ENTRY_POINT_GROUP, ENTRY_POINT_NAME = "vllm.general_plugins", "decisio"
 

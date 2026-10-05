@@ -1,0 +1,39 @@
+{
+ "id": "2026-10-04_gemma-4-31b",
+ "title": "Gemma 4 31B as a base (--base gemma-4-31b): google/gemma-4-31B-it quantized to FP8 on load, every gate measure, on one card in one session",
+ "date": "2026-10-04",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (97,887 MiB, driver 610.43.02), a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0",
+  "checkpoint": "google/gemma-4-31B-it at revision 842da3794eaa0b77d5f08bae87a17459d91ff475, official, quantized to FP8 by vLLM when it loads (quantization=\"fp8\")",
+  "decisio": "249b56d (branch gemma4-mm-bases: the plugin pair DecisioGemma4TextOnly and DecisioGemma4HiddenReadout, and the base's prompt as this record's profile), with the temperature served at 1 and fitted offline",
+  "server": "--base gemma-4-31b --debug-readout, with --engine '{\"quantization\": \"fp8\"}' at the time; the profile now carries FP8 on load",
+  "harnesses": {
+   "jevbench": "published items, 231, bundle bb05a33; the v1.5 open-set reading by decisio.bench.jevbench_v15",
+   "decision_index": "0.2.1 rows for BANKING77, CLINC150+OOS, GPQA Diamond and MMLU-Pro (decisio.bench.di_rows)"
+  }
+ },
+ "results": {
+  "summary": "summary.md",
+  "temperatures": {"global": 5.252, "choice": 4.672, "interval": "T in [0.2, 50], 5-fold cross-validation stratified by task"},
+  "decision_index": {"BANKING77_macro_f1": 0.7845, "CLINC150+OOS_macro_f1": 0.9015, "GPQA_Diamond_accuracy": 0.5204, "MMLU-Pro_accuracy": 0.6939},
+  "jevbench_correct": 213,
+  "suite_accuracy": 0.7993,
+  "one_question_300_tokens_server_ms": 61.85,
+  "memory_fp8": "weights 30.61 GiB, KV cache 48.6 GiB (57,882 tokens) at the 0.90 share",
+  "memory_bf16": "did not start at a 32,768-token context: 20.24 GiB left for the KV cache, 27.51 GiB needed, 24,096 tokens the most that fits (bf16_start.txt)"
+ },
+ "deviations": [
+  "the session's pre-registered rule did not pass the 31B (BANKING77, CLINC150+OOS and MMLU-Pro below the thresholds, the board's Decider chat Gemma-4-31B row, by 0.2 to 1.1 points); the maintainer's decision made it a base, with the reason stated in EVAL_CARD.md section 7",
+  "the pre-registered precision was bf16; the 31B does not start at bf16 at a 32,768-token context on this card, so the session measured it in FP8 on load under a dated amendment written before the run",
+  "the temperature search interval was widened from [0.2, 5] to [0.2, 50] after the first FP8 fit landed on 5.0; the fit is interior"
+ ],
+ "excluded": [
+  "item text (ids and readouts kept)",
+  "the Decision Index per-item results (request ids, payload sha256 and responses are in the private record)",
+  "JevBench raw requests and responses",
+  "server logs (vLLM's memory lines are in memory_*.txt and bf16_start.txt)"
+ ]
+}

@@ -1,0 +1,21 @@
+{
+  "adapter": "typesafe",
+  "charged_usd": 0.0,
+  "cost_basis": "internal_self_hosted",
+  "dataset_hash": "914276022fa5f0ea70e4231f2af98e68c67b274b61bea8c440b33890401cd2f9",
+  "delay_s": 0.0,
+  "endpoint": "http://127.0.0.1:18000",
+  "finished_utc": "2026-10-04T21:40:23.048966+00:00",
+  "key_env_used": false,
+  "n_attempted": 72,
+  "n_planned": 72,
+  "price_input_per_m": null,
+  "price_output_per_m": null,
+  "request_options": {},
+  "requested_model": "decisio-gemma-4-31b-it-letters",
+  "resolved_models": [
+    "decisio-gemma-4-31b-it-letters"
+  ],
+  "run_label": "decisio-original",
+  "started_utc": "2026-10-04T21:40:20.209382+00:00"
+}

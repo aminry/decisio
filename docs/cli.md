@@ -9,84 +9,85 @@ uv run python -m decisio.serve.vllm_engine [flags]
 
 `--base` chooses the base model and brings its checkpoint at a pinned revision and its value for every setting marked "the base's" below; a flag given explicitly overrides it.
 Without `--base`, the base is detected from `--model`'s `config.json`; with neither, the server refuses to start.
-The served defaults need no other flag: every default below is what was measured, base by base (`EVAL_CARD.md` sections 1 and 6.1).
+The served defaults need no other flag: every default below is what was measured, base by base (`EVAL_CARD.md` sections 1, 6.1 and 7.1).
+`gemma-4-31b` is quantized to FP8 when it loads (vLLM 0.30.0's FP8 on load), a setting of its profile; `--engine '{"quantization": null}'` loads it at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
 `--help` prints the same list with each flag's description.
 
 ## Every flag
 
-Where the two columns differ, the value is the base's.
+Where the columns differ, the value is the base's.
 
 ### Model and engine
 
-| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | What it does |
-| --- | --- | --- | --- |
+| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
+| --- | --- | --- | --- | --- |
 | `--base` | | | the base; without it, detected from `--model` |
-| `--model` | `Qwen/Qwen3.6-35B-A3B-FP8` | `google/gemma-4-12B-it` | the checkpoint, a local directory or a Hugging Face repository id |
-| `--revision` | `95a723d08a9490559dae23d0cff1d9466213d989` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` | the checkpoint's revision on the Hub; the pin applies whenever `--model` is the base's own repository |
-| `--backend` | `vllm` | `vllm` | `vllm`; `mlx` for Apple silicon (the Qwen base only, `docs/running.md`); `hf` for the CPU stand-in, not for measurement |
-| `--model-class` | `hidden-readout` | `hidden-readout` | `hidden-readout`: decisio's text class that also returns the hidden state at the answer position, for the intent head; `text-only`: the same without it (the default with `--head-engine`); `view`: a directory built by `decisio.serve.make_text_only`, loaded as it is, needing no plugin |
-| `--mode` | `separate` | `separate` | `separate`: one prompt per question, the state shared through the prefix cache; `packed`: questions packed into one pooling request (the compact layout only) |
-| `--pack` | 16 | 16 | questions per pack in packed mode |
-| `--engine` | `{"compilation_config": {"max_cudagraph_capture_size": 4096}}` | the same | extra `LLM(...)` keyword arguments, as JSON |
-| `--adapter` | none | none | `name=path` of a vLLM-format LoRA adapter; repeatable |
-| `--gpu-memory-utilization` | 0.9 | 0.9 | the text engine's share of the card |
-| `--allow-deep-gemm` | off | off | start even when `VLLM_USE_DEEP_GEMM` is set to something other than 0 |
-| `--served-name` | `decisio-qwen3.6-35b-a3b-letters` | `decisio-gemma-4-12b-it-letters` | the name `GET /v1/models` lists |
-| `--host`, `--port` | `127.0.0.1`, 8000 | the same | the listen address; put a reverse proxy in front to expose it |
+| `--model` | `Qwen/Qwen3.6-35B-A3B-FP8` | `google/gemma-4-12B-it` | `google/gemma-4-31B-it` | the checkpoint, a local directory or a Hugging Face repository id |
+| `--revision` | `95a723d08a9490559dae23d0cff1d9466213d989` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` | `842da3794eaa0b77d5f08bae87a17459d91ff475` | the checkpoint's revision on the Hub; the pin applies whenever `--model` is the base's own repository |
+| `--backend` | `vllm` | `vllm` | `vllm` | `vllm`; `mlx` for Apple silicon (the Qwen base and `gemma-4-12b`, `docs/running.md`; not `gemma-4-31b`); `hf` for the CPU stand-in, not for measurement |
+| `--model-class` | `hidden-readout` | `hidden-readout` | `hidden-readout` | `hidden-readout`: decisio's text class that also returns the hidden state at the answer position, for the intent head; `text-only`: the same without it (the default with `--head-engine`); `view`: a directory built by `decisio.serve.make_text_only`, loaded as it is, needing no plugin |
+| `--mode` | `separate` | `separate` | `separate` | `separate`: one prompt per question, the state shared through the prefix cache; `packed`: questions packed into one pooling request (the compact layout only) |
+| `--pack` | 16 | 16 | 16 | questions per pack in packed mode |
+| `--engine` | `{"compilation_config": {"max_cudagraph_capture_size": 4096}}` | the same | the same | extra `LLM(...)` keyword arguments, as JSON |
+| `--adapter` | none | none | none | `name=path` of a vLLM-format LoRA adapter; repeatable |
+| `--gpu-memory-utilization` | 0.9 | 0.9 | 0.9 | the text engine's share of the card |
+| `--allow-deep-gemm` | off | off | off | start even when `VLLM_USE_DEEP_GEMM` is set to something other than 0 |
+| `--served-name` | `decisio-qwen3.6-35b-a3b-letters` | `decisio-gemma-4-12b-it-letters` | `decisio-gemma-4-31b-it-letters` | the name `GET /v1/models` lists |
+| `--host`, `--port` | `127.0.0.1`, 8000 | the same | the same | the listen address; put a reverse proxy in front to expose it |
 
 ### The prompt
 
-| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | What it does |
-| --- | --- | --- | --- |
-| `--prompt-tail` | `spaced` | `spaced` | `spaced`: a blank line before and after the lettered options, then one line asking for the chosen option's letter alone; `compact`: the earlier layout, for tasks registered under it |
-| `--answer-slot` | `prefill` | `template` | where the label is read: after "Answer:" prefilled in the assistant turn, or at the chat template's own first assistant position |
-| `--label-variants` | `single` | `summed` | the tokens read per label: the one form the slot reads, or every single-token form summed |
-| `--system-prompt` | off | on | a system turn before each question |
-| `--noul-rendering` | `letters-keys` | `letters` | how a yes/no question is asked: `letters-keys`, a two-option letter choice, the false side first, the sides named; `letters`, the same with each side shown as its description; `words`, the earlier rendering, read from the yes and no tokens |
-| `--describe-options` | on | on | show an option that has a description as its description alone; `--no-describe-options` shows `key: description` |
-| `--hide-index-keys` | on | on | never show enumerated keys (`option_0`, `option_1`, ...) |
-| `--desnake-labels` | on | on | show bare snake_case labels as words |
+| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
+| --- | --- | --- | --- | --- |
+| `--prompt-tail` | `spaced` | `spaced` | `spaced` | `spaced`: a blank line before and after the lettered options, then one line asking for the chosen option's letter alone; `compact`: the earlier layout, for tasks registered under it |
+| `--answer-slot` | `prefill` | `template` | `template` | where the label is read: after "Answer:" prefilled in the assistant turn, or at the chat template's own first assistant position |
+| `--label-variants` | `single` | `summed` | `summed` | the tokens read per label: the one form the slot reads, or every single-token form summed |
+| `--system-prompt` | off | on | on | a system turn before each question |
+| `--noul-rendering` | `letters-keys` | `letters` | `letters` | how a yes/no question is asked: `letters-keys`, a two-option letter choice, the false side first, the sides named; `letters`, the same with each side shown as its description; `words`, the earlier rendering, read from the yes and no tokens |
+| `--describe-options` | on | on | on | show an option that has a description as its description alone; `--no-describe-options` shows `key: description` |
+| `--hide-index-keys` | on | on | on | never show enumerated keys (`option_0`, `option_1`, ...) |
+| `--desnake-labels` | on | on | on | show bare snake_case labels as words |
 
 ### Temperatures and outputs
 
-| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | What it does |
-| --- | --- | --- | --- |
-| `--temperature` | 1.506 | 3.592 | the temperature on the text route's plain readout, `softmax(log p / T)`; 1 switches it off; never changes the most probable option |
-| `--temperature-choice` | 1.370 | the global one | the temperature for choice questions |
-| `--temperature-noul` | the global one | the global one | the temperature for yes/no questions |
-| `--temperature-score` | the global one | the global one | the temperature for score questions |
-| `--noul-commit` | off | off | report an uncommitted yes/no probability at the band's edge (below) |
-| `--orders` | 1 | 1 | 2: two-order averaging, each question also read in a second option order |
-| `--branch-log` | none | none | a JSONL file for the two orders' disagreement per question |
+| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
+| --- | --- | --- | --- | --- |
+| `--temperature` | 1.506 | 3.592 | 5.252 | the temperature on the text route's plain readout, `softmax(log p / T)`; 1 switches it off; never changes the most probable option |
+| `--temperature-choice` | 1.370 | the global one | 4.672 | the temperature for choice questions |
+| `--temperature-noul` | the global one | the global one | the global one | the temperature for yes/no questions |
+| `--temperature-score` | the global one | the global one | the global one | the temperature for score questions |
+| `--noul-commit` | off | off | off | report an uncommitted yes/no probability at the band's edge (below) |
+| `--orders` | 1 | 1 | 1 | 2: two-order averaging, each question also read in a second option order |
+| `--branch-log` | none | none | none | a JSONL file for the two orders' disagreement per question |
 
 ### Several questions and padding
 
-| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | What it does |
-| --- | --- | --- | --- |
-| `--multi-question` | `sequential` | `sequential` | how a request's questions are scored (below) |
-| `--pad-policy` | `always` | `always` | `always`: pad every state; `shared`: pad only requests with more than one question; `row`: pad a single-question request's whole row (below); `none`: never pad (the default with `--backend mlx`) |
-| `--pad-to` | `block` | `none` | what a state is padded to: the KV cache block, a token count, or nothing |
-| `--pad-where` | `front` | `front` | where the padding goes: `front`, before the chat template; `user`, at the start of the user turn; `between`, between the state and the question |
+| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
+| --- | --- | --- | --- | --- |
+| `--multi-question` | `sequential` | `sequential` | `sequential` | how a request's questions are scored (below) |
+| `--pad-policy` | `always` | `always` | `always` | `always`: pad every state; `shared`: pad only requests with more than one question; `row`: pad a single-question request's whole row (below); `none`: never pad (the default with `--backend mlx`) |
+| `--pad-to` | `block` | `none` | `none` | what a state is padded to: the KV cache block, a token count, or nothing |
+| `--pad-where` | `front` | `front` | `front` | where the padding goes: `front`, before the chat template; `user`, at the start of the user turn; `between`, between the state and the question |
 
 ### Tasks and abstention
 
-| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | What it does |
-| --- | --- | --- | --- |
-| `--tasks` | on | on | apply registered per-task calibration and intent heads (`POST /v1/tasks`) |
-| `--tasks-file` | none | none | a JSON list of tasks to load at start, as `GET /v1/tasks?full=1` returns them |
-| `--head-engine` | off | off | read the intent head's hidden state from a second copy of the model in vLLM's pooling mode instead of from the serving engine: faster head questions, at a second weight copy; not with `--image-model` |
-| `--head-gpu-memory-utilization` | 0.47 | 0.47 | the second engine's share of the card |
-| `--abstention` | on | on | apply registered abstention thresholds (`POST /v1/abstention/tasks`) |
-| `--abstention-tasks` | none | none | a JSON list of abstention tasks to load at start |
-| `--abstain-option` | none | none | offer this extra option (for example "can't tell") on requests that use imajev's extension, reported as `unknown_probability` and `abstained`; untrained |
+| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
+| --- | --- | --- | --- | --- |
+| `--tasks` | on | on | on | apply registered per-task calibration and intent heads (`POST /v1/tasks`) |
+| `--tasks-file` | none | none | none | a JSON list of tasks to load at start, as `GET /v1/tasks?full=1` returns them |
+| `--head-engine` | off | off | off | read the intent head's hidden state from a second copy of the model in vLLM's pooling mode instead of from the serving engine: faster head questions, at a second weight copy; not with `--image-model` |
+| `--head-gpu-memory-utilization` | 0.47 | 0.47 | 0.47 | the second engine's share of the card |
+| `--abstention` | on | on | on | apply registered abstention thresholds (`POST /v1/abstention/tasks`) |
+| `--abstention-tasks` | none | none | none | a JSON list of abstention tasks to load at start |
+| `--abstain-option` | none | none | none | offer this extra option (for example "can't tell") on requests that use imajev's extension, reported as `unknown_probability` and `abstained`; untrained |
 
 ### Images
 
-| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | What it does |
-| --- | --- | --- | --- |
-| `--image-model` | none | none | the full multimodal checkpoint, as a second engine serving only requests that carry images; measured with the Qwen base only |
-| `--image-gpu-memory-utilization` | 0.5 | 0.5 | the image engine's share of the card |
-| `--one-engine` | off | off | load only the image engine and serve text requests on it too, for a card that cannot hold both; changes the text route's class |
+| Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
+| --- | --- | --- | --- | --- |
+| `--image-model` | none | none | none | the full multimodal checkpoint, as a second engine serving only requests that carry images; measured with the Qwen base only |
+| `--image-gpu-memory-utilization` | 0.5 | 0.5 | 0.5 | the image engine's share of the card |
+| `--one-engine` | off | off | off | load only the image engine and serve text requests on it too, for a card that cannot hold both; changes the text route's class |
 
 ### The Mac (`--backend mlx`)
 

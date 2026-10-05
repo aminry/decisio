@@ -230,8 +230,10 @@ def test_official_tokenizer_by_base():
     from decisio.families import FAMILIES, GEMMA4, QWEN
     from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, TOKENIZER_SHA256, split_revision
 
-    # every base has its tokenizer's sha256; the tokenizer is the base's own checkpoint at its revision
-    assert sorted(TOKENIZER_SHA256) == sorted(f.key for f in FAMILIES) and OFFICIAL_TOKENIZER == QWEN.model
+    # every base MLX serves has its tokenizer's sha256 (not gemma-4-31b, served on vLLM only); the tokenizer is the
+    # base's own checkpoint at its revision
+    served = sorted(f.key for f in FAMILIES if f.key != "gemma-4-31b")
+    assert sorted(TOKENIZER_SHA256) == served and OFFICIAL_TOKENIZER == QWEN.model
     assert (GEMMA4.model, GEMMA4.revision) == ("google/gemma-4-12B-it", "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7")
     assert split_revision("google/gemma-4-12B-it@707f0a3b") == ("google/gemma-4-12B-it", "707f0a3b")
     assert split_revision("Qwen/Qwen3.6-35B-A3B-FP8") == ("Qwen/Qwen3.6-35B-A3B-FP8", None)

@@ -1,0 +1,41 @@
+{
+ "temperatures": {
+  "global": 5.252,
+  "choice": 4.672
+ },
+ "fit": {
+  "global_all_1400": 5.252282074419844,
+  "choice_800": 4.671853872913493,
+  "choice_oof_logloss_diff": [
+   -0.01154581995213333,
+   -0.021131067398358724,
+   -0.0015001847274209899
+  ],
+  "separate_choice_T_kept": true,
+  "global_at_bound": false,
+  "choice_at_bound": false
+ },
+ "suite": {
+  "n": 1400,
+  "acc": 0.7992857142857143,
+  "ece_tie": 0.05401107876642856
+ },
+ "jevbench": {
+  "correct": 213,
+  "tiers": {
+   "easy": "48/48",
+   "original": "72/72",
+   "hard": "93/111"
+  },
+  "choice_ece": 0.043073570873778735,
+  "v15": {
+   "I_open_A": 81.26428766119147,
+   "I_open_B": 82.5287628583556,
+   "choice": 86.32218844984801,
+   "noul": 85.58897243107769,
+   "score": 71.88170210264873,
+   "noul_abstention": 0.013513513513513514
+  },
+  "latency_ms": {}
+ }
+}

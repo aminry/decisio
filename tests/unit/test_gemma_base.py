@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from decisio.families import BASES, FAMILIES, GEMMA4, QWEN, family_of
+from decisio.families import BASES, FAMILIES, GEMMA4, GEMMA4_31B, QWEN, family_of
 from decisio.readout.letters import (
     PromptFormat,
     allowed_ids,
@@ -167,16 +167,43 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     assert fam.key == "gemma-4-12b" and fmt.system_prompt and (a.temperature, a.noul_rendering) == (3.592, "letters")
     with pytest.raises(ValueError, match="--model or --base"):
         sv.resolve_base(_args())
-    assert sorted(BASES) == ["gemma-4-12b", "qwen3.6-35b-a3b"]
+    assert sorted(BASES) == ["gemma-4-12b", "gemma-4-31b", "qwen3.6-35b-a3b"]
 
 
-@pytest.mark.parametrize("base", ["gemma-4-12b", "qwen3.6-35b-a3b"])
-def test_b5_reserved_range_clear_of_labels(base, gemma, qwen):
+def _gemma4_checkpoint(tmp_path, name, moe):
+    import json
+
+    d = tmp_path / name
+    d.mkdir(exist_ok=True)
+    cfg = {"model_type": "gemma4", "text_config": {"model_type": "gemma4_text", "enable_moe_block": moe}}
+    (d / "config.json").write_text(json.dumps(cfg))
+    return str(d)
+
+
+def test_b4_the_31b_base(tmp_path, monkeypatch):
+    """The 31B: a dense gemma4 checkpoint is detected as it (a MoE one is not), --base brings its checkpoint at the pin,
+    the 12B's prompt, its own temperatures and FP8 on load; MLX does not serve it."""
+    monkeypatch.delenv("DECISIO_BASE", raising=False)
+    assert family_of(_gemma4_checkpoint(tmp_path, "dense", False)) is GEMMA4_31B
+    assert family_of(_gemma4_checkpoint(tmp_path, "moe", True)) is QWEN  # not a base: the old default
+    a = _args(base="gemma-4-31b")
+    fam, fmt = sv.resolve_base(a)
+    assert fam is GEMMA4_31B and fmt == GEMMA_FORMAT and (a.model, a.revision) == (fam.model, fam.revision)
+    assert (a.pad_to, a.noul_rendering) == ("none", "letters")
+    assert (a.temperature, a.temperature_choice) == (fam.temperature, fam.choice_temperature)
+    assert fam.quantization == "fp8" and fam.classes["hidden-readout"] == "DecisioGemma4HiddenReadout"
+    with pytest.raises(ValueError, match="vLLM only"):
+        sv.resolve_base(_args(base="gemma-4-31b", backend="mlx", model="some/mlx-conversion"))
+
+
+@pytest.mark.parametrize("base,hidden", [("gemma-4-12b", 3840), ("qwen3.6-35b-a3b", 2048), ("gemma-4-31b", 5376)])
+def test_b5_reserved_range_clear_of_labels(base, hidden, gemma, qwen):
+    """No label form of any prompt format is among a base's reserved ids (the 12B and the 31B share one tokenizer)."""
     from decisio.readout.letters import MAX_LABELS
     from decisio.vllm_plugin.hidden import check_reserved
 
     fam = BASES[base]
-    tok, hidden = (gemma, 3840) if fam is GEMMA4 else (qwen, 2048)
+    tok = qwen if fam is QWEN else gemma
     labels = set()
     for variants in ("single", "summed"):
         for slot in ("prefill", "template"):
@@ -238,11 +265,12 @@ def test_b8_every_family_pins_a_revision(fam):
 def _config_reader(monkeypatch):
     """read_config without the network: the model type each family's checkpoint declares; records what it was asked."""
     calls = []
-    types_ = {QWEN.model: "qwen3_5_moe", GEMMA4.model: "gemma4_unified"}
+    types_ = {f.model: f.model_types[0] for f in FAMILIES}
 
     def read(model, revision=None):
         calls.append((model, revision))
-        return {"model_type": "qwen3" if Path(model).exists() else types_.get(model, "qwen3")}  # a local one: unknown
+        mt = "qwen3" if Path(model).exists() else types_.get(model, "qwen3")  # a local one: unknown
+        return {"model_type": mt, "text_config": {"enable_moe_block": False}}
 
     monkeypatch.setattr("decisio.families.read_config", read)
     return calls
