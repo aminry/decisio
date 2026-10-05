@@ -57,6 +57,8 @@ USER decisio
 WORKDIR /data
 
 # /health answers once the engine is loaded, which on the first start follows the checkpoint download (about 36 GB).
+# It answers 503 once the engine has died; the server then exits with code 70, and the exit, not this check, is what a
+# restart policy acts on (docs/running.md, "When the engine dies").
 HEALTHCHECK --interval=30s --timeout=10s --start-period=45m --retries=3 \
     CMD ["python3", "-c", "import os, urllib.request; urllib.request.urlopen('http://127.0.0.1:%s/health' % os.environ['DECISIO_PORT'], timeout=5)"]
 

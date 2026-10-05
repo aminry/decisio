@@ -30,7 +30,7 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-    restart: unless-stopped
+    restart: unless-stopped           # also after a dead engine: the server exits with code 70 (docs/running.md)
 
 volumes:
   decisio-data:
