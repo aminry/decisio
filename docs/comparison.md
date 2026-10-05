@@ -25,7 +25,7 @@ Only our cells are marked; the other entries' columns are shown as the board has
 | Tools & Automation | 68.43 ▼ | 71.62 ▼ | 75.04 = | 75.09 | 71.22 | 75.57 | 79.35 |
 | Arts & Human Taste | 31.57 ▼ | 32.59 ▼ | 37.43 = | 37.66 | 41.90 | 38.34 | 39.39 |
 | **JevBench, 231 published questions,** correct | 200 = | 200 = | 213 ▲ | 200 | not on JevBench's board | not on JevBench's board | not on JevBench's board |
-| JevBench hard tier, correct | 82 of 111 | 82 of 111 | 93 of 111 | 0.741 of 220, not compared (a) | | | |
+| JevBench hard tier, correct | 82 of 111 | 82 of 111 | 93 of 111 | 0.741 of 220, not compared (a) | not on JevBench's board | not on JevBench's board | not on JevBench's board |
 | Latency, median per request | 70.5 ms (b) | 37.8 ms (b) | 56.0 ms (b) | 524.1 ms, round trip over the internet (c) | 120.5 ms (d) | 108.5 ms (d) | 101.4 ms (d) |
 | Price or self-hosting cost, one pass over the 38 index benchmarks | $6.98 est. (e) | $6.92 est. (e) | $10.28 est. (e) | $6.05 at its public tariff (f) | $16.53 est. (e) | $22.18 est. (e) | $24.94 est. (e) |
 | Context length | 32,768 tokens per prompt, the state plus one question | 32,768 tokens per prompt | 32,768 tokens per prompt | 64k tokens per request; 32k tokens for the state plus the longest question (g) | not on the board | not on the board | not on the board |
