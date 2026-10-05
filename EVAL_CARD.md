@@ -4,7 +4,7 @@
 # Evaluation card
 
 What the served default is, what it can do, how it measures, and what was fitted on what.
-Sections 1 to 5 are the served default, the Qwen base; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`).
+Sections 1 to 5 are the served default, the Qwen base; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`); section 8 is the Decision Index's whole suite on all three, self-run and submitted.
 Every number is on the current served default and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
 ## 1. The system measured
@@ -62,8 +62,9 @@ The prompt changed on 2026-10-03; the rows above give both, and the latency rows
 The image route keeps the compact layout, so its row is unchanged.
 The 2026-09-30 JevBench and Decision Index numbers were measured with the text-only view of the checkpoint, the 2026-10-02 ones with the served hidden-readout class; the two answer the 1,400-item suite bit-identically (`runs/2026-09-30_plugin-verification/suite_compare_H.txt`), and the served default of 2026-10-02 reproduced the 2026-09-30 JevBench answers exactly before the description rule was switched on (`runs/2026-10-02_multi-question-and-rendering/jevbench_default/`).
 With `--temperature 1` every choice and every accuracy is the same; calibration changes, and with it the v1.5 yes/no and score values, which depend on the probabilities (`runs/2026-09-30_served-default`, arm `temperature_1`); T = 1 is a bit-exact no-op, so that arm's JevBench responses are byte for byte those of the untempered run recorded in `runs/2026-09-27_boards-baseline`.
-None of these is a board number: JevBench's official score needs its sealed set, and a Decision Index value needs all 38 of its benchmarks.
-Nothing was submitted, and no output of Jev (TypeSafe's hosted model behind the System One API, which JevBench is named after) is in this repository.
+None of these is a board number: JevBench's official score needs its sealed set, and a Decision Index value needs all 38 of its benchmarks, which section 8 runs.
+Nothing was submitted to JevBench's board; the Decision Index runs of section 8 were self-run and submitted for review.
+No output of Jev (TypeSafe's hosted model behind the System One API, which JevBench is named after) is in this repository; section 8 quotes two of its values from the Decision Index's public board.
 The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, the served name `rlcd-qwen3.6-35b-a3b-letters`); decisio reads both spellings (`decisio.names`).
 
 ## 4. What was fitted on what
@@ -107,7 +108,8 @@ Every harness in `runs/` sends one single-question request at a time, the servin
 
 - One card per run and one run per configuration.
 - JevBench's v1.5 reading covers 231 of the board's 904 open items, with no judge tier and no sealed half; its published items have been public since v1.2 and may be in any model's pretraining data.
-- The Decision Index rows were rebuilt with the kit for four benchmarks; their counts and the rows' sha256 match (`decisio.bench.di_rows`), but a partial rebuild cannot be checked against the whole suite's hash.
+- The Decision Index rows of sections 3, 6 and 7 were rebuilt with the kit for four benchmarks; their counts and the rows' sha256 match (`decisio.bench.di_rows`), but a partial rebuild cannot be checked against the whole suite's hash.
+  Section 8's runs used the whole suite, rebuilt with the kit and matched against the lab's hashes.
 - The ImajevBench record was made without the rendering rules and the key-order tie-break; 2 of its 254 items ended in exact ties that the harness rejected and are counted wrong.
 - The second-engine head mode with the registered text-only class is unmeasured for latency.
 - Latency is server-side on the card's localhost; cost is the card-hour price divided by measured throughput, with nothing else counted.
@@ -193,7 +195,7 @@ With the questions batched (`--multi-question warm`) and the engine in the serve
   Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
   Its path to 32 GB machines is an MLX build, in preparation.
 - The image route and `--pad-policy row` were not measured on this base; `--multi-question warm` only on the 272 travel requests of section 6.5.
-- The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted.
+- The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 7. The Gemma 4 31B base
 
@@ -271,4 +273,35 @@ The disclosures of section 4 hold here too, with one more: the go rule this base
 - Slower than both served bases on states it has not seen before, the more so the longer the state (one question on a new 3,000-token state: 476 ms, against 91 ms on the Qwen base).
 - One card and one session; the intent heads over three draws, the other bases' over six.
 - Not served on a Mac; the image route was not measured.
-- The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted.
+- The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
+
+## 8. The Decision Index's whole suite, self-run
+
+The kit's whole 0.2.1 suite, 150,759 requests of which 150,317 are scored, was run once per base on one RTX PRO 6000 Blackwell Workstation Edition (`runs/2026-10-05_decision-index/`).
+Each base was served by its tag with `--base` alone, and the kit's `http` engine at `87d4650` sent one request at a time.
+These are self-run scores, submitted in [apolinario/decision-index#62](https://github.com/apolinario/decision-index/pull/62) on 2026-10-05 and pending the maintainers' validation; they are not board numbers until the maintainers add them.
+
+| Base | Tag | Decision Index 0.2.1 | Raw index | Breadth | Scored requests answered | Request latency, median / p95 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Qwen3.6-35B-A3B (FP8) | v0.4.0 | 48.06 | 60.45 | 46.55 | 150,317 of 150,317 | 70.5 / 261.2 ms |
+| Gemma 4 12B (bf16) | v0.4.0 | 49.43 | 61.47 | 47.57 | 150,317 of 150,317 | 37.8 / 275.9 ms |
+| Gemma 4 31B (FP8 on load) | v0.6.0 | 57.58 | 67.33 | 56.50 | 150,317 of 150,317 | 56.0 / 439.3 ms |
+
+The suite was rebuilt with the kit and matches the lab's hashes; no request was unsupported or in error.
+Request latency is the kit's HTTP wall time per request on this card, one at a time, not the maintainers' measurement.
+The four benchmarks of sections 3, 6 and 7 reproduce in these runs: exactly on the Qwen and 31B bases, and within 0.001 on the 12B except GPQA Diamond (two of 196 items), as its bf16 logits allow.
+The 31B run was resumed once after a container restart: the same server was started again from v0.6.0 with an identical `/health`, and the kit sent only the requests not yet answered.
+The per-request results, without item text, are in [aminry/decisio-decision-index](https://huggingface.co/datasets/aminry/decisio-decision-index); the area and per-benchmark values are in each run's `scores.json`.
+What was chosen with the Decision Index in view is stated in sections 4, 6.4 and 7.4.
+
+### 8.1 Where Jev leads
+
+The public board's Jev row, read from its data file `data/index-v0.2.1.json` at space commit `cdbd1ca` ([multimodalart/jev-decision-index](https://huggingface.co/spaces/multimodalart/jev-decision-index), generated 2026-09-28), beside the three bases, accuracy:
+
+| Benchmark | Jev (board, jev-1.13.0) | Qwen3.6-35B-A3B | Gemma 4 12B | Gemma 4 31B |
+| --- | ---: | ---: | ---: | ---: |
+| GPQA Diamond | 0.786 | 0.510 | 0.388 | 0.520 |
+| MMLU-Pro | 0.827 | 0.613 | 0.550 | 0.694 |
+
+Jev's values are quoted from the board, not measured by us (`runs/2026-10-05_decision-index/board_jev.json`).
+On these two knowledge benchmarks Jev is ahead of every base served here.

@@ -1,0 +1,14 @@
+{
+ "source": "https://huggingface.co/spaces/multimodalart/jev-decision-index",
+ "data_file": "https://huggingface.co/spaces/multimodalart/jev-decision-index/blob/cdbd1cab3b6eb1811ebd82d2686ad563a4d0fc0d/data/index-v0.2.1.json",
+ "space_commit": "cdbd1cab3b6eb1811ebd82d2686ad563a4d0fc0d",
+ "generated_utc": "2026-09-28T00:39:36+00:00",
+ "read_utc": "2026-10-05",
+ "jev": {
+  "name": "Jev",
+  "version": "jev-1.13.0",
+  "gpqa_diamond_accuracy": 0.7857,
+  "mmlu_pro_accuracy": 0.827
+ },
+ "note": "the board's own Jev row, raw accuracy, read from the data file by key (jev.benchmarks['25'].raw, jev.benchmarks['57'].raw); quoted here, not measured by us"
+}

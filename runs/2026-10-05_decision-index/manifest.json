@@ -1,0 +1,174 @@
+{
+ "id": "2026-10-05_decision-index",
+ "title": "Decision Index 0.2.1, the full suite, self-run on the three bases at their tags' served defaults, one request at a time on one card",
+ "date": "2026-10-05",
+ "submitted": true,
+ "submission": {
+  "pull_request": "https://github.com/apolinario/decision-index/pull/62",
+  "status": "open, pending the maintainers' validation (2026-10-05)",
+  "results_dataset": "https://huggingface.co/datasets/aminry/decisio-decision-index",
+  "dataset_commits": {
+   "decisio-0.4.0-qwen3.6-35b-a3b": "204542f7b31e7b2d452a396ce57be559c0c390a6",
+   "decisio-0.4.0-gemma-4-12b": "204542f7b31e7b2d452a396ce57be559c0c390a6",
+   "decisio-0.6.0-gemma-4-31b": "cb538a7f021364885c3de6481d911f2f1c4e73db"
+  },
+  "engine_request": "https://github.com/apolinario/decision-index/issues/38"
+ },
+ "typesafe_api_calls": 0,
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (97,887 MiB, driver 610.43.02), a container on a rented GPU host",
+ "software": {
+  "vllm": "0.30.0",
+  "kit": "apolinario/decision-index at 87d4650b42b377c0291a89c1f1a879f9b31082bf (edition 0.2.1), unmodified runner and scorer",
+  "suite": "rebuilt with the kit's suite rebuild and staged with suite import; verified against the lab's hashes (suite verify): base rows b2b56d6fb636837ca469e689087bdbf373dda8de7638aa2da6793e6eda0792d5, added rows 7429f3c9cdddb772c1cfc42bb2a45e8516b0032152b746e6929f1c8b52f4ce89, exclusions 331df32d4b719c7db43214d0e5d85859d39c3b2eb7d0b3812214cce150155e81 (uncompressed sha256)",
+  "servers": "python -m decisio.serve.vllm_engine --base <base> --port 18000 from each tag's source, nothing else; the kit: python -m decision_index pipeline --engine http --option base_url=http://127.0.0.1:18000 --option model=<served name> --edition 0.2.1 --compact, one runner process, one request at a time"
+ },
+ "results": {
+  "decisio-0.4.0-qwen3.6-35b-a3b": {
+   "base": "qwen3.6-35b-a3b",
+   "decisio": "v0.4.0 (493bf734fd47ebf71f7cd935406d355b80c84eb5)",
+   "checkpoint": "Qwen/Qwen3.6-35B-A3B-FP8 at 95a723d08a9490559dae23d0cff1d9466213d989",
+   "precision": "FP8 (the checkpoint's own)",
+   "decision_index": 48.06,
+   "raw_index": 60.45,
+   "breadth": 46.55,
+   "areas": {
+    "knowledge": 32.45,
+    "language": 51.39,
+    "retrieval": 53.56,
+    "tools": 68.43,
+    "arts": 31.57
+   },
+   "complete": true,
+   "scoreable_ok": 150317,
+   "unsupported": 0,
+   "errors": 0,
+   "request_wall_ms": {
+    "median": 70.5,
+    "p95": 261.2,
+    "mean": 112.9
+   },
+   "gpqa_diamond_accuracy": 0.5102,
+   "mmlu_pro_accuracy": 0.6126,
+   "banking77_macro_f1": 0.7461,
+   "clinc150_oos_macro_f1": 0.8223,
+   "health_profile": {
+    "base": "qwen3.6-35b-a3b",
+    "temperatures": {
+     "choice": 1.37,
+     "noul": 1.506,
+     "score": 1.506
+    },
+    "prompt": {
+     "tail": "spaced",
+     "slot": "prefill",
+     "variants": "single",
+     "system_prompt": false,
+     "noul_rendering": "letters-keys"
+    }
+   }
+  },
+  "decisio-0.4.0-gemma-4-12b": {
+   "base": "gemma-4-12b",
+   "decisio": "v0.4.0 (493bf734fd47ebf71f7cd935406d355b80c84eb5)",
+   "checkpoint": "google/gemma-4-12B-it at 707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+   "precision": "bf16",
+   "decision_index": 49.43,
+   "raw_index": 61.47,
+   "breadth": 47.57,
+   "areas": {
+    "knowledge": 31.37,
+    "language": 51.66,
+    "retrieval": 58.0,
+    "tools": 71.62,
+    "arts": 32.59
+   },
+   "complete": true,
+   "scoreable_ok": 150317,
+   "unsupported": 0,
+   "errors": 0,
+   "request_wall_ms": {
+    "median": 37.8,
+    "p95": 275.9,
+    "mean": 111.9
+   },
+   "gpqa_diamond_accuracy": 0.3878,
+   "mmlu_pro_accuracy": 0.5497,
+   "banking77_macro_f1": 0.7294,
+   "clinc150_oos_macro_f1": 0.8716,
+   "health_profile": {
+    "base": "gemma-4-12b",
+    "temperatures": {
+     "choice": 3.592,
+     "noul": 3.592,
+     "score": 3.592
+    },
+    "prompt": {
+     "tail": "spaced",
+     "slot": "template",
+     "variants": "summed",
+     "system_prompt": true,
+     "noul_rendering": "letters"
+    }
+   }
+  },
+  "decisio-0.6.0-gemma-4-31b": {
+   "base": "gemma-4-31b",
+   "decisio": "v0.6.0 (0ae97cae8990d2a0ac876db34b8d80bfd4b53849)",
+   "checkpoint": "google/gemma-4-31B-it at 842da3794eaa0b77d5f08bae87a17459d91ff475",
+   "precision": "FP8 on load (vLLM online FP8)",
+   "decision_index": 57.58,
+   "raw_index": 67.33,
+   "breadth": 56.5,
+   "areas": {
+    "knowledge": 45.57,
+    "language": 61.02,
+    "retrieval": 62.75,
+    "tools": 75.04,
+    "arts": 37.43
+   },
+   "complete": true,
+   "scoreable_ok": 150317,
+   "unsupported": 0,
+   "errors": 0,
+   "request_wall_ms": {
+    "median": 56.0,
+    "p95": 439.3,
+    "mean": 166.2
+   },
+   "gpqa_diamond_accuracy": 0.5204,
+   "mmlu_pro_accuracy": 0.6939,
+   "banking77_macro_f1": 0.7845,
+   "clinc150_oos_macro_f1": 0.9015,
+   "health_profile": {
+    "base": "gemma-4-31b",
+    "temperatures": {
+     "choice": 4.672,
+     "noul": 5.252,
+     "score": 5.252
+    },
+    "prompt": {
+     "tail": "spaced",
+     "slot": "template",
+     "variants": "summed",
+     "system_prompt": true,
+     "noul_rendering": "letters"
+    }
+   }
+  }
+ },
+ "requests": {
+  "sent": 150759,
+  "scoreable": 150317,
+  "note": "the kit's runner sends every row of the 0.2.1 edition, the 442 excluded rows included; they are dropped at scoring"
+ },
+ "deviations": [
+  "the 31B run was interrupted once: the container restarted after 104,530 requests (2026-10-05, about 06:50 UTC); the same server was started again from v0.6.0 with --base gemma-4-31b and its /health was identical to the first start's (health.json, health_resume.json); the kit resumed the same run directory and sent only the unanswered requests (part 1 00:55 to 06:49, part 2 07:07 to 08:12 UTC); nothing answered was re-sent or edited",
+  "v0.4.0 does not pin the Qwen checkpoint's revision; the commit downloaded was 95a723d08a9490559dae23d0cff1d9466213d989 (checkpoints_v040.json), the revision of every Qwen record, which later tags pin",
+  "the servers ran at their served temperatures; nothing was fitted or changed for this suite"
+ ],
+ "excluded": [
+  "the per-request results (results.jsonl.gz, one row per request with each response and the payload's sha256, no item text) are in the results dataset, not here",
+  "the suite's rows (their sources' terms forbid republishing)",
+  "server and harness logs"
+ ]
+}
