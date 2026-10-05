@@ -87,20 +87,6 @@ def clip(text: str, size: int, width: int) -> str:
     return text[:lo].rstrip() + "…"
 
 
-def wrap_parts(text: str, size: int, width: int, sep: str = " · ") -> tuple[str, ...]:
-    """Wrap a caption at its separators, so a line never breaks inside a part ("median 1783 ms per decision"); a part
-    wider than a line is word-wrapped."""
-    f = rc.font(size)
-    lines: list[str] = []
-    for part in text.split(sep):
-        trial = f"{lines[-1]}{sep}{part}" if lines else part
-        if lines and f.getlength(trial) <= width:
-            lines[-1] = trial
-        else:
-            lines.extend(wrap(part, size, width, 99))
-    return tuple(lines)
-
-
 def fit_size(text: str, size: int, width: int, smallest: int = 11) -> int:
     while size > smallest and rc.font(size).getlength(text) > width:
         size -= 1
@@ -359,25 +345,27 @@ def compare_header(summary: dict | None, feeds: list[Feed]) -> Image.Image:
 
 
 def caption_layout(captions: list[str], width: int) -> tuple[int, list[list[str]]]:
-    """One text size for every lane's caption, so strips side by side read alike: the largest size (18 down to 14) at
-    which every caption fits on one line, else the largest (15 down to 11) at which each fits on two lines. Nothing is
-    cut: the caption's end ("tasks registered") is the part a viewer most needs."""
+    """One text size for every lane's caption, so strips side by side read alike: the largest size (18 down to 14)
+    at which every caption fits on one line, else the largest (15 down to 12) at which each wraps onto two lines,
+    else three, else four (render_common.wrap_caption). Nothing is cut: the caption's end ("tasks registered") is the
+    part a viewer most needs."""
     for size in range(18, 13, -1):
         if all(rc.font(size).getlength(c) <= width for c in captions):
             return size, [[c] for c in captions]
-    for size in range(15, 10, -1):
-        lines = [wrap_parts(c, size, width) for c in captions]
-        if all(len(x) <= 2 for x in lines):
-            return size, lines
-    return 11, [wrap(c, 11, width, 2) for c in captions]
+    for rows in (2, 3, 4):
+        for size in range(15, 11, -1):
+            lines = [rc.wrap_caption(c, width + 32, size) for c in captions]
+            if all(len(x) <= rows for x in lines):
+                return size, lines
+    return 11, [rc.wrap_caption(c, width + 32, 11) for c in captions]
 
 
-def with_caption(img: Image.Image, lines: list[str], size: int) -> Image.Image:
-    """render_common's caption strip with the text laid out by caption_layout."""
-    out = rc.with_caption(img, "")  # the picture, the strip and its rule
+def with_caption(img: Image.Image, lines: list[str], size: int, rows: int) -> Image.Image:
+    """render_common's caption strip, `rows` lines tall, with the text laid out by caption_layout."""
+    out = rc.with_caption(img, "", size, rows)  # the picture, the strip and its rule
     d = ImageDraw.Draw(out)
-    step = size + 5
-    y0 = img.height + rc.STRIP_H // 2 - step * (len(lines) - 1) / 2
+    step = size + 6
+    y0 = img.height + (out.height - img.height) // 2 - step * (rows - 1) / 2
     for k, line in enumerate(lines):
         d.text((16, y0 + k * step), line, fill=rc.FG, font=rc.font(size), anchor="lm")
     return out
@@ -412,7 +400,8 @@ class Renderer:
         cached = self._lanes[k]
         if cached is None or cached[0] != state:
             pic = draw_lane(f, t) if self.compare else draw_single(f, t)
-            cached = (state, with_caption(pic, self.captions[k], self.caption_size))
+            rows = max(len(c) for c in self.captions)
+            cached = (state, with_caption(pic, self.captions[k], self.caption_size, rows))
             self._lanes[k] = cached
         return cached[1]
 

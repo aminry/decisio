@@ -109,35 +109,62 @@ def caption_text(player: dict, ticks: list[dict], extra: str = "") -> str:
     return " · ".join(parts)
 
 
+def wrap_caption(text: str, width: int, size: int) -> list[str]:
+    """The caption wrapped to `width` at `size` px, breaking at its " · " separators first and at spaces inside a part
+    only when the part alone is too wide: it is never cut off."""
+    room, f = width - 32, font(size)
+    pieces = []  # the separator-delimited parts, each split at spaces only if it is wider than a line
+    for part in text.split(" · "):
+        if f.getlength(part) <= room:
+            pieces.append(part)
+            continue
+        line = ""
+        for w in part.split(" "):
+            if line and f.getlength(f"{line} {w}") > room:
+                pieces.append(line)
+                line = w
+            else:
+                line = f"{line} {w}".strip()
+        pieces.append(line)
+    lines = [""]
+    for piece in pieces:
+        trial = f"{lines[-1]} · {piece}" if lines[-1] else piece
+        if f.getlength(trial) <= room or not lines[-1]:
+            lines[-1] = trial
+        else:
+            lines.append(piece)
+    return lines
+
+
 def caption_lines(text: str, width: int) -> tuple[list[str], int]:
-    """The caption as one line at the largest size from 18 px down to 13 px that fits `width`, or else as two lines
-    split at the " · " nearest the middle (down to 11 px): it is never cut off."""
-    room = width - 32
+    """The caption as one line at the largest size from 18 px down to 13 px that fits `width`, or else wrapped onto at
+    most five lines at the largest size from 16 px down to 11 px (wrap_caption)."""
     for size in range(18, 12, -1):
-        if font(size).getlength(text) <= room:
+        if font(size).getlength(text) <= width - 32:
             return [text], size
-    parts = text.split(" · ")
-    if len(parts) > 1:
-        best = min(range(1, len(parts)), key=lambda k: abs(len(" · ".join(parts[:k])) - len(text) / 2))
-        lines = [" · ".join(parts[:best]), " · ".join(parts[best:])]
+    for size in range(16, 10, -1):
+        lines = wrap_caption(text, width, size)
+        if len(lines) <= 5:
+            return lines, size
+    return lines, 11
+
+
+def with_caption(img: Image.Image, text: str, size: int | None = None, rows: int | None = None) -> Image.Image:
+    """The picture with a caption strip under it (caption_lines). Side-by-side lanes pass one `size` and one strip
+    height in `rows` (lines), so their captions match."""
+    if size:
+        lines = wrap_caption(text, img.width, size)
     else:
-        lines = [text]
-    size = 16
-    while size > 11 and max(font(size).getlength(line) for line in lines) > room:
-        size -= 1
-    return lines, size
-
-
-def with_caption(img: Image.Image, text: str) -> Image.Image:
-    """The picture with a caption strip under it (one or two lines, see caption_lines)."""
-    lines, size = caption_lines(text, img.width)
-    strip = STRIP_H if len(lines) == 1 else STRIP_H + size + 6
+        lines, size = caption_lines(text, img.width)
+    n = max(len(lines), rows or 0)
+    strip = STRIP_H + (n - 1) * (size + 6)
     out = Image.new("RGB", (img.width, img.height + strip), BG)
     out.paste(img, (0, 0))
     d = ImageDraw.Draw(out)
     d.line([(0, img.height), (img.width, img.height)], fill=RULE)
     step = size + 6
-    top = img.height + strip // 2 - step * (len(lines) - 1) / 2
+    # with `rows`, the first line sits where it would in a full strip, so the lanes' captions start level
+    top = img.height + strip // 2 - step * (n - 1) / 2
     for k, line in enumerate(lines):
         d.text((16, top + k * step), line, fill=FG, font=font(size), anchor="lm")
     return out
@@ -280,7 +307,10 @@ def scoreboard(
     step = size + 26
     block = 80 + head_h + 26 + step * len(rows)
     y = max(30, (height - block) // 2 - 20)
-    d.text((40, y + 20), title, fill=FG, font=font(30), anchor="lm")
+    ts = 30
+    while ts > 16 and font(ts).getlength(title) > width - 80:
+        ts -= 1
+    d.text((40, y + 20), title, fill=FG, font=font(ts), anchor="lm")
     y += 70
     x = 40
     for k, lines in enumerate(heads):
