@@ -57,3 +57,9 @@ The capabilities table states what each side's documentation states; it carries 
 
 There are 38 benchmarks per base, each at 95%: if a base were truly level with Jev on all of them, about two cells would still be marked ahead or behind by chance.
 The counts are reported as they fall, with no correction.
+
+## Amendment 1 (2026-10-05 21:48 UTC, before any comparison was computed)
+
+- **n also takes Jev's own case count when it is smaller** (`jev.results[id].cases` on the board).
+  Reason: a benchmark whose value is one headline track is scored on that track's cases only; iSarcasmEval's value is its track A, English (1,400 cases), while the board's `cases` (4,600) and our scored requests (4,600) count all four tracks.
+  Checked by comparing the three counts for all 38 benchmarks, which reads no score: they differ only for GPQA Diamond (198, 198, 196 scored), GSM8K (1,319 cases, two tracks over 2,638 requests), ACOS (400 reviews, 1,565 requests), BPoMP (811 cases, 5,000 requests) and iSarcasmEval (Jev 1,400); the smallest count is used in each.
