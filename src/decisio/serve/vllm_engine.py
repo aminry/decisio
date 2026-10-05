@@ -43,11 +43,13 @@ packed: questions are packed into one prompt as consecutive chat turns, each tur
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import sys
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 
 import numpy as np
@@ -363,6 +365,8 @@ class LettersEngine:
             "match_unit": self.match_unit,
             "cache_hit_unit": self.cache_hit_unit,
             "hash_unit": self.hash_unit,
+            # a single question registers its state's boundary for the next question (decisio.families)
+            "registers_state_boundary": bool(self.family.register_state_boundary),
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
             "quantization": str(c.model_config.quantization),
@@ -567,9 +571,22 @@ class LettersEngine:
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
+    # the states whose boundary this engine registered with a warm-up (register_state_boundary), most recent last
+    BOUNDARIES_KEPT = 4096
+
+    def _boundary_key(self, ids, adapter):
+        data = np.asarray(ids, dtype=np.int64).tobytes() + str(adapter).encode()
+        return hashlib.blake2b(data, digest_size=16).digest()
+
     def _answer_separate(self, requests, adapter):
         rows, warm, spans, shared = [], [], [], []
         unit = min(self.match_unit, self.pad_unit or self.match_unit)
+        # a single question registers its state's boundary too, on a base whose requests would not keep it otherwise
+        # (decisio.families, register_state_boundary); the hit unit tells whether a later request found it
+        family = getattr(self, "family", None)
+        hit = getattr(self, "cache_hit_unit", None)
+        register = bool(getattr(family, "register_state_boundary", False) and hit)
+        registering, checking = [], []  # (key) for the warm-ups sent; (key, row, whole hit units) for the others
         t = time.perf_counter()
         for state, questions in requests:
             r, P = self._prepare_separate(state, questions)
@@ -577,6 +594,16 @@ class LettersEngine:
             # sends the questions without it, each prefilling the state itself, in one engine call
             if len(r) > 1 and P >= unit and self.multi_question != "batch":
                 warm.append(r[0][0][: P + 1])
+            elif register and len(r) == 1 and P >= unit and self.multi_question != "batch":
+                # one question: the warm-up only when this engine has not registered the state's boundary, or a
+                # request since found it gone (evicted), so a repeated question costs no extra engine call
+                key = self._boundary_key(r[0][0][:P], adapter)
+                if key in self._boundaries:
+                    self._boundaries.move_to_end(key)
+                    checking.append((key, len(rows), (P // hit) * hit))
+                else:
+                    warm.append(r[0][0][: P + 1])
+                    registering.append(key)
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
@@ -585,9 +612,25 @@ class LettersEngine:
             probs, info = self._score_one_at_a_time(rows, adapter, warm)
         else:
             probs, info = self.score_prompts(rows, adapter, warm)
+        if register:
+            cached = info.get("cached_tokens") or []
+            for key, row, whole in checking:
+                if row < len(cached) and cached[row] < whole:
+                    self._boundaries.pop(key, None)  # evicted: the next request on this state registers it again
+            for key in registering:
+                self._boundaries[key] = True
+            while len(self._boundaries) > self.BOUNDARIES_KEPT:
+                self._boundaries.popitem(last=False)
+            info["state_boundary"] = {"registered": len(registering), "found": len(checking)}
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
         info["prepare_ms"] = prepare_ms
         return [probs[a:b] for a, b in spans], info
+
+    @property
+    def _boundaries(self):
+        if not hasattr(self, "_boundary_lru"):
+            self._boundary_lru = OrderedDict()
+        return self._boundary_lru
 
     def _score_one_at_a_time(self, rows, adapter, warm):
         """--multi-question sequential: the warm-up, then each question in its own engine call, so no question shares
