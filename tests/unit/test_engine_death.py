@@ -370,8 +370,22 @@ def assert_dead_and_exits(s, why):
 
 
 POISONED = {**QUESTION, "questions": {"q1": {**QUESTION["questions"]["q1"], "instructions": "Pick one. xyzzy"}}}
-# the probe's timeout (longer with the stand-in's lag), the grace period, and time to stop
-DIES_WITHIN_S = PROBE_TIMEOUT_S + GRACE_S + 3.0 + (PROBE_SLOWEST_FACTOR + 1) * LAG_S
+# a request that waits on a probe: the server's probe timeout follows the host (3 times its slowest recent call), so
+# on a loaded runner it is longer than PROBE_TIMEOUT_S (the nightly loop, 2026-10-05); the bounds below take the
+# timeout the server reports in its 503 instead of assuming it
+WAIT_S = 120.0
+SLACK_S = 5.0 + LAG_S  # the exit's own steps and the test's checks, on a loaded host
+
+
+def probe_deadline(detail):
+    """The probe's timeout the server used, from its 503 ("did not answer a probe within X s"); 0 when it used none."""
+    m = re.search(r"did not answer a probe within ([0-9.]+) s", detail)
+    return float(m.group(1)) if m else 0.0
+
+
+def dies_within(detail):
+    """From the failing request to the exit: the probe's timeout, the grace period, and time to stop."""
+    return probe_deadline(detail) + GRACE_S + SLACK_S
 
 
 @pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
@@ -384,15 +398,16 @@ def test_h2_a_forward_pass_that_raises(server):
     assert call(server.url, "/health")[0] == 200  # a request error leaves the engine alive
     server.say("raise")
     t0 = time.monotonic()
-    status, body, took = call(server.url, "/v1/systemone", QUESTION, timeout=PROBE_TIMEOUT_S + FAST_S)
+    status, body, took = call(server.url, "/v1/systemone", QUESTION, timeout=WAIT_S)
     assert status == 503, (status, body, took)
+    deadline = probe_deadline(body["detail"])
     if server.core_pid is None:
-        assert "RuntimeError: CUDA error" in body["detail"] and "did not answer a probe" in body["detail"]
-        assert PROBE_TIMEOUT_S <= took < PROBE_TIMEOUT_S + FAST_S
+        assert "RuntimeError: CUDA error" in body["detail"] and deadline >= PROBE_TIMEOUT_S, body
+        assert deadline <= took < deadline + FAST_S, (deadline, took)
     else:
         assert "EngineDeadError" in body["detail"] and took < FAST_S
     assert_dead_and_exits(server, "RuntimeError" if server.core_pid is None else "EngineDeadError")
-    assert time.monotonic() - t0 < DIES_WITHIN_S
+    assert time.monotonic() - t0 < dies_within(body["detail"])
 
 
 @pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
@@ -400,7 +415,7 @@ def test_h2_a_poisoned_request_never_takes_a_healthy_server_down(server):
     """A bug on decisio's side, tripped by one request with the engine healthy: 500 each time, as before the engine's
     health was watched, and the server stays up and answers."""
     for _ in range(10):
-        status, body, took = call(server.url, "/v1/systemone", POISONED, timeout=PROBE_TIMEOUT_S + FAST_S)
+        status, body, took = call(server.url, "/v1/systemone", POISONED, timeout=WAIT_S)
         assert status == 500 and took < FAST_S, (status, body, took)
     status, body, _ = call(server.url, "/v1/systemone", QUESTION)
     assert status == 200 and set(body["answers"]) == {"q1"}
@@ -418,13 +433,13 @@ def test_h2_a_poisoned_request_on_a_dead_engine_ends_it(server):
     else:
         os.kill(server.core_pid, 9)
     t0 = time.monotonic()
-    status, body, _ = call(server.url, "/v1/systemone", POISONED, timeout=PROBE_TIMEOUT_S + FAST_S)
+    status, body, _ = call(server.url, "/v1/systemone", POISONED, timeout=WAIT_S)
     assert status == 503 and "the engine is dead" in body["detail"], (status, body)
     # separate: vLLM's flag, or the probe through the gone engine core when the request is confirmed before the flag
     # has seen the kill (both say the core is gone; seen on a card box's set-up, 2026-10-05)
     gone = ("engine-core process exited", "failed a probe (EngineDeadError")
     assert_dead_and_exits(server, "did not answer a probe" if server.core_pid is None else gone)
-    assert time.monotonic() - t0 < DIES_WITHIN_S
+    assert time.monotonic() - t0 < dies_within(body["detail"])
 
 
 @pytest.mark.parametrize("server", ["in", "separate"], indirect=True)
