@@ -290,9 +290,11 @@ def server(tmp_path, request):
 
 
 def assert_dead_and_exits(s, why):
-    """/health reports the death, a new request is refused at once, and the process ends with code 70."""
+    """/health reports the death (its reason holds `why`, or one of `why` when a tuple), a new request is refused at
+    once, and the process ends with code 70."""
     status, body, _ = call(s.url, "/health", timeout=FAST_S)
-    assert status == 503 and body["engine"] == "dead" and why in body["reason"], (status, body)
+    whys = why if isinstance(why, tuple) else (why,)
+    assert status == 503 and body["engine"] == "dead" and any(w in body["reason"] for w in whys), (status, body)
     assert body["exit_code"] == EXIT_ENGINE_DEAD
     status, body, took = call(s.url, "/v1/systemone", QUESTION, timeout=FAST_S)
     assert status == 503 and "the engine is dead" in body["detail"] and took < FAST_S, (status, body, took)
@@ -353,7 +355,10 @@ def test_h2_a_poisoned_request_on_a_dead_engine_ends_it(server):
     t0 = time.monotonic()
     status, body, _ = call(server.url, "/v1/systemone", POISONED, timeout=PROBE_TIMEOUT_S + FAST_S)
     assert status == 503 and "the engine is dead" in body["detail"], (status, body)
-    assert_dead_and_exits(server, "did not answer a probe" if server.core_pid is None else "engine-core process exited")
+    # separate: vLLM's flag, or the probe through the gone engine core when the request is confirmed before the flag
+    # has seen the kill (both say the core is gone; seen on a card box's set-up, 2026-10-05)
+    gone = ("engine-core process exited", "failed a probe (EngineDeadError")
+    assert_dead_and_exits(server, "did not answer a probe" if server.core_pid is None else gone)
     assert time.monotonic() - t0 < DIES_WITHIN_S
 
 
