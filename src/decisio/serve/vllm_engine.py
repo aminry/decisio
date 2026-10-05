@@ -237,6 +237,8 @@ class LettersEngine:
 
         from decisio.families import family_of
 
+        # where the engine runs (--engine-process), as vLLM will read it when the LLM below is built
+        self.engine_process = "in" if os.environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "0" else "separate"
         self.family = family or family_of(model, revision)
         self.model_name, self.revision = model, revision
         self.fmt = fmt or DEFAULT_FORMAT
@@ -335,6 +337,7 @@ class LettersEngine:
         return {
             "vllm": vllm.__version__,
             "gpu": torch.cuda.get_device_name(0),
+            "engine_process": self.engine_process,
             "mode": self.mode,
             "block_size": self.block_size,
             "match_unit": self.match_unit,
@@ -739,6 +742,38 @@ def deep_gemm_guard(backend, environ, allow=False):
         )
 
 
+ENGINE_PROCESSES = ("separate", "in")
+
+
+def engine_process_guard(backend, choice, environ, second_engines=()):
+    """--engine-process: where vLLM's engine runs. `separate` (the default) is vLLM's own arrangement, the engine in a
+    process of its own, which receives a batch's requests one at a time and starts a step with whatever has arrived,
+    so a batched request's questions do not always share an engine step and --multi-question warm can move between
+    repeats; `in` runs it in the server's process (VLLM_ENABLE_V1_MULTIPROCESSING=0), where every question of a
+    request is added before the first step, so warm repeats exactly (vllm-project/vllm#59764; EVAL_CARD.md section 4).
+    Before vLLM reads it, sets the variable for `in` and refuses `in` with a second engine in the process (untested);
+    refuses `separate` when the variable already says 0, so /health never misreports. Returns the choice (None off
+    vLLM: the CPU stand-in and MLX run in the server's process anyway)."""
+    if backend != "vllm":
+        if choice == "in":
+            raise SystemExit("--engine-process in is for --backend vllm (the other backends run in the server process)")
+        return None
+    if choice == "in":
+        if second_engines:
+            raise SystemExit(
+                f"--engine-process in runs one vLLM engine in the server's process; {', '.join(second_engines)} would "
+                "start a second one there, which is not tested: use --engine-process separate"
+            )
+        environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
+        return "in"
+    if environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "0":
+        raise SystemExit(
+            "VLLM_ENABLE_V1_MULTIPROCESSING=0 runs the engine in the server's process: pass --engine-process in, or "
+            "unset it"
+        )
+    return "separate"
+
+
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
 
 
@@ -937,6 +972,15 @@ def main():
         "so every answer equals the question sent alone; warm (for bulk scoring): the warm-up, then every question "
         "in one batch, faster but each answer depends on the batch; batch: one engine call with every question, "
         "each prefilling the state itself, no warm-up",
+    )
+    ap.add_argument(
+        "--engine-process",
+        default="separate",
+        choices=ENGINE_PROCESSES,
+        help="where vLLM's engine runs: separate (the default, vLLM's own arrangement: a process of its own) or in "
+        "(the server's process, VLLM_ENABLE_V1_MULTIPROCESSING=0), where a request's questions always share one engine "
+        "step, so --multi-question warm repeats exactly; in is refused with a second engine (--image-model, "
+        "--head-engine, --one-engine)",
     )
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
@@ -1198,6 +1242,16 @@ def main():
             "--head-engine: the second weight copy leaves no room for --image-model on one card; serve images "
             "from another server, or use the default single-engine head"
         )
+    second = [
+        f
+        for f, given in (
+            ("--image-model", args.image_model),
+            ("--head-engine", head_mode == "second-engine"),
+            ("--one-engine", one),
+        )
+        if given
+    ]
+    args.engine_process = engine_process_guard(args.backend, args.engine_process, os.environ, second)
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
         pad_to = None if args.pad_to == "none" else args.pad_to
         if args.backend == "hf":
