@@ -227,7 +227,7 @@ Measured privately with the public harnesses (the Decision Index kit 0.2.1); non
 | One question on a new 300-token state, server time | 48.4 ms | 39.1 ms | 61.8 ms |
 | One question on a 1,000-token state from the prefix cache, server time | 20.9 ms | 26.7 ms | 40.8 ms |
 
-Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
+Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions (the public board's figures and their date are in `EVAL_CARD.md` section 8.1) and on intent taxonomies without labelled examples.
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
