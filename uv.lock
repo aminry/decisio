@@ -466,6 +466,7 @@ bench = [
 ]
 dev = [
     { name = "httpx" },
+    { name = "httpx2" },
     { name = "pytest" },
     { name = "ruff" },
 ]
@@ -482,6 +483,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.133" },
     { name = "httpx", marker = "extra == 'bench'", specifier = ">=0.28" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.28" },
+    { name = "httpx2", marker = "extra == 'dev'", specifier = ">=2.13" },
     { name = "mlx", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'mlx'", specifier = "==0.32.3" },
     { name = "mlx-lm", marker = "platform_machine == 'arm64' and sys_platform == 'darwin' and extra == 'mlx'", specifier = "==0.32.0" },
     { name = "numpy", specifier = ">=2.2" },

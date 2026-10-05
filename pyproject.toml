@@ -41,7 +41,8 @@ serve = ["vllm==0.30.0; sys_platform == 'linux'"]
 # the benchmark stage (benchmarks/): the conformance client and the HTTP drivers; the JevBench harness and the
 # Decision Index kit are fetched at pinned commits by benchmarks/fetch_harnesses.sh
 bench = ["httpx>=0.28", "typesafe-sdk==0.7.0"]
-dev = ["httpx>=0.28", "pytest==9.1.1", "ruff==0.14.0"]
+# httpx2: the client Starlette's TestClient runs on (with httpx alone it warns that httpx is deprecated there)
+dev = ["httpx>=0.28", "httpx2>=2.13", "pytest==9.1.1", "ruff==0.14.0"]
 # Apple silicon: the MLX engine (decisio.serve.mlx_engine, `--backend mlx`), the text route on a Mac
 mlx = [
     "mlx==0.32.3; sys_platform == 'darwin' and platform_machine == 'arm64'",
@@ -65,6 +66,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers -m 'not gpu and not slow and not mlx_model'"
+# a deprecation in the web framework fails the suite, so the server is never left on an API that is going away
+filterwarnings = ["error::starlette.exceptions.StarletteDeprecationWarning"]
 markers = [
     "gpu: needs a CUDA card, vLLM 0.30.0 and a local checkpoint (tests/gpu; run with -m gpu)",
     "slow: loads a small Hugging Face model on the CPU",
