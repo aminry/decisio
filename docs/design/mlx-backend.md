@@ -19,6 +19,10 @@ The image route, packed mode, LoRA adapters and the second-engine head are refus
 
 The Mac default is the 6-bit conversion; the 4-bit one is the documented option for 32 GB machines; the 8-bit one is not shipped (Gates below).
 
+**Two prompt eras.** The Qwen figures in the sections on padding, the prefix cache and the gates were measured under the earlier served prompt (the compact layout, yes/no as words, T 1.307; `runs/2026-10-02_mlx-backend`).
+The served prompt changed in #54 (the spaced layout, yes/no as named letters, T 1.506 with choice T 1.370), and the 6-bit gates were run again under it (`runs/2026-10-03_mlx-regate`).
+Those are the current figures, in [Under the current served default](#under-the-current-served-default), and the ones `docs/running.md` quotes.
+
 ## What is replaced, and what is not
 
 `MLXLettersEngine` (`decisio.serve.mlx_engine`) subclasses `vllm_engine.LettersEngine`, as the CPU stand-in does, and replaces only model loading and the forward pass.
@@ -52,7 +56,7 @@ With the vLLM engine's newer flags:
 
 ## The MLX default: no padding (`--pad-policy none`)
 
-Gated at 6 bits against the FP8 records with the backend's full gate set (`runs/2026-10-02_mlx-backend`: `6bit`, `6bit_shared`, `6bit_none`; pre-registered).
+Gated at 6 bits against the FP8 records with the backend's full gate set, under the earlier served prompt (`runs/2026-10-02_mlx-backend`: `6bit`, `6bit_shared`, `6bit_none`; pre-registered).
 
 | | Padded (`always`) | `shared` | `none` (the default) |
 | --- | --- | --- | --- |
@@ -90,7 +94,7 @@ The evaluated cache of each state prefix is kept across requests (`PrefixCache`)
 - it is never written into, since every question continues from a copy;
 - the forward is deterministic.
 
-**Measured** on 6 bits with the defaults (no padding; `runs/2026-10-02_mlx-backend`, `6bit_prefix_cache`):
+**Measured** on 6 bits with the defaults, under the earlier served prompt (no padding; `runs/2026-10-02_mlx-backend`, `6bit_prefix_cache`):
 - the 1,400 suite answers with the cache on are bit-identical to those without it;
 - on 30 repeated states every hit's answers equal its miss's.
 
@@ -113,7 +117,7 @@ The MLX engine always serves the prefix path, so it never serves the other one; 
 
 ## Gates
 
-Measured on an Apple M5 Pro (64 GB) against the FP8 served default's records (`runs/2026-09-30_plugin-verification`), pre-registered before any measurement.
+Measured on an Apple M5 Pro (64 GB) under the earlier served prompt, against that default's FP8 records (`runs/2026-09-30_plugin-verification`), pre-registered before any measurement.
 The record is `runs/2026-10-02_mlx-backend` (`manifest.json`, `summary.md`).
 FP8 reference: `runs/2026-09-30_plugin-verification`.
 Intervals are paired 95% bootstrap intervals over items.
@@ -141,6 +145,21 @@ Intervals are paired 95% bootstrap intervals over items.
 - **Calibration:** the FP8 ECE is in-sample for the served temperature (fitted on the FP8 readouts of this suite), and nothing was refitted for MLX.
 - **Speed:** the per-question time does not track the weight size, so it is not bandwidth. Batching a request's questions over the shared prefix and reading only the label rows of the output layer are the next steps (not done here).
 - **Registration** of an intent task (770 to 1,500 examples) takes 18 to 50 minutes on the M5 Pro.
+
+## Under the current served default
+
+The 6-bit gates run again on the same Mac under #54's served prompt, against the FP8 record of that default (`runs/2026-10-03_mlx-regate`, pre-registered; its `summary.md` has the intervals and the files).
+
+| Gate | MLX 6-bit | FP8 | Verdict |
+| --- | --- | --- | --- |
+| Suite accuracy (1,400) | 0.7721 | 0.7700 | pass: +0.2 [-1.0, +1.4] points |
+| Top-answer flips | 102 of 1,400 | | counted |
+| Pooled ECE (gate: within 0.01) | 0.0451 | 0.0327 | fails: +0.0125 |
+| Intent heads, six draws, BANKING77 / CLINC150 | 0.841 / 0.912 | 0.840 / 0.912 | pass / pass |
+| Conformance C2 to C4 | pass | | pass |
+
+- **The ECE fail changes no setting.** The FP8 figure is in-sample for the served temperatures. An MLX-specific refit, judged on JevBench's 231 held-out items, made log loss worse, and at the served temperatures MLX is as well calibrated as FP8 there.
+- **Server time, median:** 266 ms for one question on a new state, 111 ms on a state seen before, and 130 ms per question when 100 share a state. The Mac was not idle by the driver's rule.
 
 ## The Gemma base
 
