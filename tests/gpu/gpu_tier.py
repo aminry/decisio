@@ -6,7 +6,8 @@ checkpoint.
     DECISIO_MODEL=<checkpoint dir> DECISIO_VIEW=<text-only view dir> uv run pytest -m gpu tests/gpu
 
 DECISIO_MODEL is the official checkpoint (decisio's model classes load it); DECISIO_VIEW is the text-only view built by
-`python -m decisio.serve.make_text_only` (the gates' engine); DECISIO_ADAPTER=name=/path adds the LoRA gate G4. vLLM
+`python -m decisio.serve.make_text_only` (the gates' engine); DECISIO_ADAPTER=name=/path adds the LoRA gate G4;
+DECISIO_GEMMA_12B and DECISIO_GEMMA_31B (checkpoint dirs) add the Gemma bases to test_second_question_cached.py. vLLM
 does not reliably release a card between engines in one process, so each test runs its engine in a child process.
 """
 
