@@ -34,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import LettersEngine
 
 
@@ -175,8 +176,12 @@ class HiddenEngine(HiddenReadout, LettersEngine):
     def hidden_rows(self, token_lists):
         from vllm.inputs import TokensPrompt
 
-        outs = self.llm.encode(
-            [TokensPrompt(prompt_token_ids=ids) for ids in token_lists], pooling_task="embed", use_tqdm=False
+        outs = guarded(
+            self,
+            self.llm.encode,
+            [TokensPrompt(prompt_token_ids=ids) for ids in token_lists],
+            pooling_task="embed",
+            use_tqdm=False,
         )
         return [o.outputs.data.float().cpu().numpy() for o in outs]
 
@@ -226,7 +231,7 @@ class HFHiddenEngine(HiddenReadout):
 
         with torch.no_grad():
             return [
-                self.model.model(input_ids=torch.tensor([ids])).last_hidden_state[0, -1].float().numpy()
+                guarded(self, self.model.model, input_ids=torch.tensor([ids])).last_hidden_state[0, -1].float().numpy()
                 for ids in token_lists
             ]
 
@@ -323,7 +328,9 @@ class SingleEngineHidden(HiddenReadout):
                 sp = SamplingParams(
                     max_tokens=1, temperature=0.0, logprobs=len(chunk), allowed_token_ids=chunk, detokenize=False
                 )
-                o = self.llm.generate([TokensPrompt(prompt_token_ids=ids)], [sp], use_tqdm=False)[0]
+                (o,) = guarded(
+                    self.engine, self.llm.generate, [TokensPrompt(prompt_token_ids=ids)], [sp], use_tqdm=False
+                )
                 d = o.outputs[0].logprobs[0]
                 lps.append([d[t].logprob for t in chunk])  # KeyError = a reserved column went missing
             rows.append(recover_hidden_chunks(lps).astype(np.float32))

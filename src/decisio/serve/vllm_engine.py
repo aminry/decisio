@@ -75,6 +75,7 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
+from decisio.serve.engine_health import EngineDead, EngineHealth, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
@@ -212,6 +213,8 @@ class LettersEngine:
     # the served defaults (--pad-policy, --multi-question); the server sets both from its flags
     pad_policy = "always"
     multi_question = "sequential"
+    # the server's EngineHealth (decisio.serve.engine_health), shared with the other engines; None in library use
+    health = None
     fmt = DEFAULT_FORMAT  # the prompt format (decisio.readout.letters.PromptFormat); the server sets it from its flags
 
     def __init__(
@@ -329,6 +332,16 @@ class LettersEngine:
                     [[(f"{state}\n\n{question_text(self.tok, q[0])[0]}", label_token_ids(self.tok, [" yes", " no"]))]]
                 )
 
+    def dead_reason(self):
+        """Why the engine is dead, or None: vLLM's flag for an exited engine-core process (`--engine-process
+        separate`; vllm.v1.engine.core_client.MPClient sets it from its monitor thread). In-process there is no process
+        to watch, and a failing forward pass is caught where it is called."""
+        llm_engine = getattr(getattr(self, "llm", None), "llm_engine", None)  # None on the CPU stand-in and MLX
+        resources = getattr(getattr(llm_engine, "engine_core", None), "resources", None)
+        if resources is not None and getattr(resources, "engine_dead", False):
+            return "vLLM's engine-core process exited"
+        return None
+
     def facts(self):
         import torch
         import vllm
@@ -374,6 +387,8 @@ class LettersEngine:
         for _, questions in requests:
             derived.append({i: q["derive"] for i, q in enumerate(questions) if q.get("derive")})
             todo.append([i for i in range(len(questions)) if i not in derived[-1]])
+        if self.health is not None:
+            self.health.check()  # refused at once when the engine is dead, before any work or the lock
         with self._lock:
             t0 = time.perf_counter()
             reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
@@ -478,7 +493,9 @@ class LettersEngine:
         warm_ms = 0.0
         if warm:
             t = time.perf_counter()
-            self.llm.generate(
+            guarded(
+                self,
+                self.llm.generate,
                 [TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
                 SamplingParams(max_tokens=1, temperature=0.0),
                 lora_request=lora,
@@ -500,8 +517,13 @@ class LettersEngine:
             for _, lab in rows
         ]
         t = time.perf_counter()
-        outs = self.llm.generate(
-            [TokensPrompt(prompt_token_ids=ids, **extra) for ids, _ in rows], sps, lora_request=lora, use_tqdm=False
+        outs = guarded(
+            self,
+            self.llm.generate,
+            [TokensPrompt(prompt_token_ids=ids, **extra) for ids, _ in rows],
+            sps,
+            lora_request=lora,
+            use_tqdm=False,
         )
         questions_ms = (time.perf_counter() - t) * 1000
         t = time.perf_counter()
@@ -595,7 +617,7 @@ class LettersEngine:
                 pos.append(len(ids) - 1)
             prompts.append(TokensPrompt(prompt_token_ids=ids))
             reads.append(pos)
-        outs = self.llm.encode(prompts, pooling_task="token_classify", use_tqdm=False)
+        outs = guarded(self, self.llm.encode, prompts, pooling_task="token_classify", use_tqdm=False)
         result = []
         for turns, pos, o in zip(packs, reads, outs):
             logits = o.outputs.data  # [prompt length, K classifier tokens]
@@ -639,11 +661,15 @@ class LettersEngine:
 # ---- HTTP endpoint ------------------------------------------------------------------------------
 
 
-def make_app(engine, systemone=None):
+def make_app(engine, systemone=None, health=None):
     """`/health` and `/v1/answer`; with `systemone` (decisio.serve.systemone.SystemOne) also TypeSafe's wire format,
-    `POST /v1/systemone` and `GET /v1/models`, on the same engine."""
+    `POST /v1/systemone` and `GET /v1/models`, on the same engine. With `health` (decisio.serve.engine_health; by
+    default the engine's own), a dead engine makes `/health` answer 503 and every request 503 with the reason."""
     from fastapi import FastAPI, HTTPException
+    from fastapi.responses import JSONResponse
     from pydantic import BaseModel
+
+    health = health if health is not None else getattr(engine, "health", None)
 
     class Request(BaseModel):
         state: str | dict
@@ -652,8 +678,25 @@ def make_app(engine, systemone=None):
 
     app = FastAPI(title="letters readout")
 
+    @app.exception_handler(EngineDead)
+    def engine_dead(request, exc):
+        code = health.exit_code if health is not None else None
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": f"the engine is dead ({exc}); this server is exiting"
+                + (f" with code {code}" if code is not None else "")
+                + " so that its restart policy starts a new one"
+            },
+        )
+
     @app.get("/health")
-    def health():
+    def health_route():
+        if health is not None and health.dead:
+            return JSONResponse(
+                status_code=503,
+                content={"ok": False, "engine": "dead", "reason": health.reason, "exit_code": health.exit_code},
+            )
         image = getattr(systemone, "image_engine", None) if systemone is not None else None
         so = (
             {
@@ -1440,6 +1483,13 @@ def main():
             "score": args.temperature_score,
         },
     )
+    # one engine state for every engine of this server: a dead engine refuses requests, turns /health to 503 and ends
+    # the process with code 70, so that a restart policy starts a new server (decisio.serve.engine_health)
+    health = EngineHealth()
+    engines = [e for e in dict.fromkeys([engine, image_engine, hidden_engine]) if e is not None]
+    for e in engines:
+        e.health = health
+    health.watch([getattr(e, "dead_reason", None) for e in engines])
     uvicorn.run(make_app(engine, so), host=args.host, port=args.port, log_level="warning")
 
 

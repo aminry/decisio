@@ -57,6 +57,7 @@ import numpy as np
 
 from decisio.families import QWEN, family_of
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
+from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 # sha256 of each base's official tokenizer.json (the base's checkpoint at its revision, decisio.families). Qwen:
@@ -294,7 +295,7 @@ class MLXLettersEngine(LettersEngine):
                 first = rows[0][0]
                 while all(len(ids) > prefix + 1 and ids[prefix] == first[prefix] for ids, _ in rows):
                     prefix += 1
-        scored, prefix_ms, hit = self._score(rows, prefix)
+        scored, prefix_ms, hit = guarded(self, self._score, rows, prefix)
         probs = [np.exp(lp) / np.exp(lp).sum() for lp, _ in scored]
         return probs, {
             "warm_ms": 0.0,
@@ -387,7 +388,7 @@ class MLXHiddenReadout:
         with self._lock:
             t0 = time.perf_counter()
             rows, P = self._prepare_separate(state, questions)
-            scored, _, _ = self.engine._score(rows, P)
+            scored, _, _ = guarded(self.engine, self.engine._score, rows, P)
             self.last_ms = (time.perf_counter() - t0) * 1000
         return scored
 

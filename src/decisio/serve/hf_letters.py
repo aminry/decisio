@@ -20,6 +20,7 @@ import time
 import numpy as np
 
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
+from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 
@@ -73,7 +74,7 @@ class HFLettersEngine(LettersEngine):
             for ids, lab in rows:
                 self.scored_rows.append((list(ids), list(lab)))
                 # the last position's logits only: the output layer over every position dominated the stand-in's time
-                logits = self.model(torch.tensor([ids]), logits_to_keep=1).logits[0, -1].double()
+                logits = guarded(self, self.model, torch.tensor([ids]), logits_to_keep=1).logits[0, -1].double()
                 if is_grouped(lab):  # several forms per label: their probabilities summed (label_log_softmax)
                     flat = allowed_ids(lab)
                     lp = torch.log_softmax(logits[flat], -1).numpy()
@@ -146,7 +147,9 @@ class HFImageLettersEngine:
                         self.scored_rows.append((list(ids), list(lab)))
                         # 1 on image tokens, 0 elsewhere: what the processor returns beside input_ids (M-RoPE needs it)
                         types = torch.tensor([[int(t == self.image_pad_id) for t in exp]])
-                        out = self.model(
+                        out = guarded(
+                            self,
+                            self.model,
                             input_ids=torch.tensor([exp]),
                             attention_mask=torch.ones(1, len(exp), dtype=torch.long),
                             mm_token_type_ids=types,

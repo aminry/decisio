@@ -104,3 +104,25 @@ uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-
 
 `curl http://127.0.0.1:8000/health` returns what the server is serving: the engine, the base, the checkpoint and its revision, the temperature for each question type and the prompt.
 `docs/api.md` describes every field.
+
+## When the engine dies
+
+An engine whose forward pass fails (a CUDA error, an out-of-memory error) or whose engine-core process exits does not serve again, so the server ends itself and leaves the restart to whatever runs it.
+From the moment the engine dies:
+- every request, including those already waiting for the engine, is answered at once with 503 and the reason, and the engine is not called again;
+- `/health` answers 503 with `{"ok": false, "engine": "dead", "reason": "...", "exit_code": 70}`;
+- after 2 seconds the server stops its engine processes and exits with code 70.
+
+An error caused by the request (a malformed question, a state longer than the context) is answered with a 4xx and leaves the engine running.
+In the separate arrangement (`--engine-process separate`, the default) the server also watches vLLM's engine-core process, so a death between requests turns `/health` to 503 within a second, before any request arrives.
+
+Run the server under a restart policy, so that the exit brings up a new one:
+- compose: `restart: unless-stopped`, as `compose.yaml` has it;
+- systemd: `Restart=on-failure`;
+- Kubernetes: the default `restartPolicy: Always`, with a liveness probe on `/health`.
+
+Docker restarts a container when its process exits, not when its `HEALTHCHECK` reports it unhealthy, so it is the exit that brings the server back; the image's check reports the dying container unhealthy in the meantime.
+The new server loads the engine again (the start times above), and requests sent until it is healthy are refused.
+
+decisio 0.1.0 to 0.7.1 do neither: after the engine dies `/health` keeps answering 200 and the process keeps running, so no restart policy acts.
+In the separate arrangement every request then fails with 500; with `--engine-process in` (0.7.0 and 0.7.1) every request after the failing one hangs.
