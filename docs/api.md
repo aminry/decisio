@@ -53,7 +53,7 @@ The earlier `x-rlcd-route` and `x-rlcd-debug` headers are still honoured.
 
 ### Response
 
-```
+```json
 {"model": "decisio-qwen3.6-35b-a3b-letters",
  "answers": {
    "urgent":   {"type": "noul", "noul": ...},
@@ -88,7 +88,7 @@ The served model in System One's format; the name is the base's served name unle
 
 `POST /v1/tasks` registers one recurring question from labelled examples:
 
-```
+```json
 {"id": "ticket-routing",
  "examples": [{"request": <a /v1/systemone request with exactly one question, text only>, "answer": <the option key>}, ...]}
 ```
@@ -108,7 +108,7 @@ Every later question with the same option list is answered with the task applied
 
 `POST /v1/abstention/tasks` registers a threshold on an abstain option's probability, fitted from labelled examples that include unanswerable ones:
 
-```
+```json
 {"id": "...",
  "option": {"key": "<the request's own abstain key>"} or {"append": "<text of an option the server adds>"},
  "match": "option_set" or "imajev_extension",

@@ -11,6 +11,9 @@ Decisio is a serving layer for decisions: typed questions about a piece of text 
 The base model is yours to choose, and every base is served with the same calibration, task registration, shared state and prefix cache.
 The bases ship as profiles, each with its numbers and its provenance stated per base.
 
+On the Gemma 4 31B base, decisio scores 57.58 on the Decision Index 0.2.1 at a median of 56.0 ms per request, in a self-run of all 150,759 requests that is submitted to the board and pending the maintainers' validation ([results](https://huggingface.co/datasets/aminry/decisio-decision-index), [submission](https://github.com/apolinario/decision-index/pull/62)).
+Decisio is an independent project, not affiliated with or endorsed by TypeSafe; it implements TypeSafe's published System One wire format.
+
 ## Contents
 
 - [What it does](#what-it-does)
@@ -66,7 +69,7 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 
 Linux, one NVIDIA card, a driver that supports CUDA 13.0, Python 3.12 and [uv](https://docs.astral.sh/uv/):
 
-```
+```bash
 git clone https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
@@ -77,7 +80,7 @@ The first start downloads the checkpoint and warms the engine; the server then l
 
 ### Docker
 
-```
+```bash
 uv build --wheel                   # the image installs this wheel
 docker compose up --build          # needs the NVIDIA Container Toolkit
 curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
@@ -87,7 +90,7 @@ Release images are published to `ghcr.io/aminry/decisio`, with their digest in t
 
 ### Mac with MLX
 
-```
+```bash
 uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
@@ -98,7 +101,7 @@ The Gemma base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every fe
 
 ### Ollama
 
-```
+```bash
 ollama pull aminroudaki/decisio
 ```
 
@@ -107,7 +110,7 @@ Ollama builds its own prompt and applies no calibration, so its numbers are the 
 
 ### CPU stand-in for development
 
-```
+```bash
 uv sync --extra dev --frozen
 uv run pytest
 uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
@@ -117,7 +120,7 @@ The stand-in serves the routes from a small model on the CPU for development; it
 
 ## Ask a question
 
-```
+```bash
 curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '{
   "state": "Hi, since this morning none of our 40 staff can log in to the dashboard. We get \"session expired\" right after entering the password. Payroll is due today.",
   "questions": {
@@ -132,7 +135,7 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 
 Response, abridged and rounded, as recorded under the served defaults of 2026-10-02 (the same in 30 of 30 repeats on one server, `runs/2026-10-02_readme-example/`):
 
-```
+```json
 {"answers": {
   "urgent":   {"type": "noul",   "noul": 0.90},
   "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.01, "access": 0.97, "bug": 0.01, "other": 0.00}},
@@ -150,7 +153,7 @@ The routes ([`docs/api.md`](docs/api.md) has every field):
 
 Three base models are served behind the same routes, wire format and features, one per server, chosen with `--base`:
 
-```
+```bash
 uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b   # the default
 uv run python -m decisio.serve.vllm_engine --base gemma-4-12b
 uv run python -m decisio.serve.vllm_engine --base gemma-4-31b
@@ -224,7 +227,7 @@ Measured privately with the public harnesses (the Decision Index kit 0.2.1); non
 | One question on a new 300-token state, server time | 48.4 ms | 39.1 ms | 61.8 ms |
 | One question on a 1,000-token state from the prefix cache, server time | 20.9 ms | 26.7 ms | 40.8 ms |
 
-Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
+Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions (the public board's figures and their date are in `EVAL_CARD.md` section 8.1) and on intent taxonomies without labelled examples.
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
@@ -236,7 +239,7 @@ It fits a per-task calibration and, for questions with many options, a small hea
 The intent-head rows of the Benchmarks table show what it does with a few labelled examples per intent.
 Tasks registered under the earlier compact layout are not applied by the current default and need registering again.
 
-```
+```bash
 curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @examples/tasks/examples.json
 ```
 
@@ -261,7 +264,7 @@ The design notes: [`docs/design/vllm-plugin.md`](docs/design/vllm-plugin.md), [`
 
 ## Repository layout
 
-```
+```text
 src/decisio/serve/      the server: /v1/systemone, tasks, abstention, temperature, image route, conformance
 src/decisio/readout/    the letters readout, calibration and the intent head (reference implementations)
 src/decisio/vllm_plugin/  the vLLM entry point and the two model classes

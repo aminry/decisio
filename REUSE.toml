@@ -62,3 +62,10 @@ path = ["docs/demos/media/browser_*"]
 precedence = "override"
 SPDX-FileCopyrightText = ["Copyright contributors to the decisio project", "Copyright (c) 2026 Browser Use"]
 SPDX-License-Identifier = "Apache-2.0 AND MIT"
+
+# The social preview image (docs/media/social-preview.png), drawn for this repository.
+[[annotations]]
+path = ["docs/media/**"]
+precedence = "override"
+SPDX-FileCopyrightText = "Copyright contributors to the decisio project"
+SPDX-License-Identifier = "Apache-2.0"

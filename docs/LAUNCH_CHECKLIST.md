@@ -140,7 +140,7 @@ These are gates, not settings.
 
 ## 1. Make it public [API]
 
-```
+```bash
 gh repo edit aminry/decisio --visibility public --accept-visibility-change-consequences
 ```
 
@@ -158,13 +158,13 @@ Nothing is configured on the maintainer's machine yet (2026-09-30: `gpg.format`,
 
 1. [local] Generate a dedicated signing key, or select an existing one.
    The machine has `~/.ssh/id_ed25519.pub`; a separate key keeps signing apart from logging in, and GitHub lists the two kinds separately.
-   ```
+   ```bash
    ssh-keygen -t ed25519 -C "roudaky@gmail.com" -f ~/.ssh/decisio_signing     # set a passphrase
    ssh-add --apple-use-keychain ~/.ssh/decisio_signing                        # macOS: unlock once per login
    ```
 2. [local] Configure git.
    `--global` signs every repository on the machine, including work that automated agents do in the maintainer's checkout under the maintainer's identity; use `--local` inside the clone to limit it to decisio, and decide that on purpose, because a signature says the holder of the key made the commit.
-   ```
+   ```bash
    git config --global gpg.format ssh
    git config --global user.signingkey ~/.ssh/decisio_signing.pub
    git config --global commit.gpgsign true
@@ -177,14 +177,14 @@ Nothing is configured on the maintainer's machine yet (2026-09-30: `gpg.format`,
 4. [CLICK or API] Add the public key to GitHub as a signing key.
    Settings page: <https://github.com/settings/ssh/new>, Key type "Signing Key", paste `~/.ssh/decisio_signing.pub`.
    Or from `gh`, after granting it the scope in a browser once:
-   ```
+   ```bash
    gh auth refresh -h github.com -s admin:ssh_signing_key
    gh ssh-key add ~/.ssh/decisio_signing.pub --type signing --title "decisio signing"
    ```
 5. Verify, before the flip.
    Locally: `git commit --allow-empty -m "test: signing probe"` in a scratch clone, then `git log -1 --show-signature`; expect `Good "git" signature for roudaky@gmail.com with ED25519 key SHA256:...`.
    On GitHub: push that commit to a throwaway branch (not `main`) and read the verdict, then delete the branch:
-   ```
+   ```bash
    git push origin HEAD:refs/heads/signing-probe
    gh api repos/aminry/decisio/commits/signing-probe --jq .commit.verification
    #   verified true, reason "valid"
@@ -198,7 +198,7 @@ Nothing is configured on the maintainer's machine yet (2026-09-30: `gpg.format`,
 Squash merges only, with the pull request title as the commit title (the changelog is generated from Conventional Commit titles) and the individual commit messages in the body (this keeps each author's `Signed-off-by` line in the history).
 A squash merge made on github.com is signed by GitHub, which is what the signed-commit rule in 2.4 accepts.
 
-```
+```bash
 gh api -X PATCH repos/aminry/decisio --input - <<'JSON'
 {
   "allow_squash_merge": true,
@@ -239,7 +239,7 @@ The pull requests merged before this date (#1, #2, #4, #5, #8, #9) were merged w
 Allowed actions are GitHub's own and verified creators, plus an explicit list of the third-party actions the workflows use, so that a creator's verification status cannot break a workflow.
 `sha_pinning_required` rejects any workflow that uses an action by tag; every workflow in the repository is already pinned by commit hash.
 
-```
+```bash
 gh api -X PUT repos/aminry/decisio/actions/permissions --input - <<'JSON'
 { "enabled": true, "allowed_actions": "selected", "sha_pinning_required": true }
 JSON
@@ -266,7 +266,7 @@ JSON
 Workflows from outside contributors need approval for every outside contributor, not only first-timers (the default), so no fork code runs on a runner without a maintainer's click.
 The default token is read-only and Actions cannot approve pull requests; both are already the values today and are set again so that the policy is explicit.
 
-```
+```bash
 gh api -X PUT repos/aminry/decisio/actions/permissions/fork-pr-contributor-approval \
   -f approval_policy=all_external_contributors
 
@@ -283,7 +283,7 @@ If a GitHub-run workflow (code scanning, Dependabot) is rejected after this step
 2. Repository access: only select repositories, `aminry/decisio`.
 3. Optional, recommended for outside contributors: add `.github/dco.yml` on `main` (through a pull request) so that a contributor can fix a missing sign-off with a remediation commit instead of rewriting history:
 
-```
+```yaml
 allowRemediationCommits:
   individual: true
 ```
@@ -300,7 +300,7 @@ The required CI check is named after the job, `lint, unit tests, build`; the `ci
 The entry is pinned to the GitHub Actions app (`integration_id` 15368), so no other app can report a check of that name.
 `strict_required_status_checks_policy` makes a pull request pass against the current `main`, which `allow_update_branch` makes one click.
 
-```
+```bash
 gh api -X POST repos/aminry/decisio/rulesets --input - <<'JSON'
 {
   "name": "main",
@@ -348,7 +348,7 @@ If it shows another role, delete the entry and add the bypass in the page (Setti
 
 Release tags cannot be moved or deleted once created:
 
-```
+```bash
 gh api -X POST repos/aminry/decisio/rulesets --input - <<'JSON'
 {
   "name": "release tags",
@@ -369,7 +369,7 @@ Renaming the CI job later changes the name of the required check: change the nam
 
 Secret scanning and push protection (both default to on for a public repository; this makes it explicit), private vulnerability reporting (the path `SECURITY.md` and the issue template point to), CodeQL default setup for Python and for the workflow files, and Dependabot alerts and security updates (version updates are already in `.github/dependabot.yml`).
 
-```
+```bash
 gh api -X PATCH repos/aminry/decisio --input - <<'JSON'
 { "security_and_analysis": {
     "secret_scanning": { "status": "enabled" },
@@ -401,14 +401,14 @@ Its tokens last an hour, it is not tied to a person, and its commits are a bot's
 4. [API] Store both, then delete the local `.pem`.
    The variable is the app's numeric **App ID** (shown on its settings page), not its name; the key goes in through standard input (`<`), not as an argument:
 
-```
+```bash
 gh variable set RELEASE_PLEASE_APP_ID --repo aminry/decisio --body <app id>
 gh secret set RELEASE_PLEASE_APP_PRIVATE_KEY --repo aminry/decisio < decisio-release.private-key.pem
 ```
 
 5. [pull request] In `.github/workflows/release-please.yml` mint the token in a step before release-please (the job's `if:` stays as it is) and add `workflow_dispatch:` under `on:` so the workflow can be started by hand:
 
-```
+```yaml
       - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: app-token
         with:
@@ -430,7 +430,7 @@ The first release pull request shows whether the DCO check is skipped and whethe
 Only the nightly GPU job uses these (`.github/workflows/gpu.yml`), and it is skipped until a runner labelled `gpu` exists and `GPU_RUNNER_READY` is `true`.
 The values are paths on the runner's disk, not secrets, so they are variables.
 
-```
+```bash
 gh variable set DECISIO_MODEL --repo aminry/decisio --body /path/to/Qwen3.6-35B-A3B-FP8
 gh variable set DECISIO_VIEW  --repo aminry/decisio --body /path/to/text-only-view
 gh variable set GPU_RUNNER_READY --repo aminry/decisio --body true     # last, after the runner is registered
@@ -442,7 +442,7 @@ Without either, a GPU test skips, so the job fails on an empty variable instead 
 A runner on a public repository is reachable from workflow code, so it must be ephemeral (one job, then gone), hold no standing credentials, and run only what the maintainer reviewed; the workflow is triggered only by `schedule` and `workflow_dispatch`, and 2.2's "approve all outside contributors" is what keeps a pull request from pointing a workflow at it.
 A just-in-time runner configuration comes from the API (not tested here, no runner exists yet):
 
-```
+```bash
 gh api -X POST repos/aminry/decisio/actions/runners/generate-jitconfig \
   -f name=gpu-1 -F runner_group_id=1 -f 'labels[]=gpu' --jq .encoded_jit_config
 ```
@@ -454,7 +454,7 @@ and starts with `./run.sh --jitconfig <value>` on the box.
 The bug and feature issue forms use GitHub's default labels; the benchmark-claim form uses `benchmark`, which does not exist, and GitHub drops unknown labels silently.
 Dependabot and release-please create their own labels; check that they did after their first pull requests.
 
-```
+```bash
 gh label create benchmark --repo aminry/decisio --color 5319E7 --description "A benchmark claim with its record"
 ```
 
@@ -478,20 +478,20 @@ Before renting anything:
 Steps (`R` is the run folder, named for the day of the run):
 
 1. Check the machine and fetch the exact commit that will be tagged (a read-only deploy key or `gh auth login` is enough while the repository is private).
-   ```
+   ```bash
    nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
    git clone https://github.com/aminry/decisio && cd decisio && git checkout <the commit to be tagged>
    R=runs/$(date +%F)_docker-first-gpu-start && mkdir -p "$R"
    ```
 2. Build the image on the machine, and check that the toolkit passes the card through.
    No image is on `ghcr.io` before the first tag (the release workflow pushes it), so the gate builds it from the same `Dockerfile`.
-   ```
+   ```bash
    uv build --wheel
    t0=$(date +%s); docker compose build 2>&1 | tee "$R/build.log"; echo "build: $(( $(date +%s) - t0 )) s" | tee "$R/time_build.txt"
    docker run --rm --gpus all --entrypoint nvidia-smi decisio:local -L | tee "$R/gpu_in_container.txt"
    ```
 3. First start, and the time to healthy.
-   ```
+   ```bash
    t0=$(date +%s); docker compose up -d
    until curl -sf http://127.0.0.1:8000/health > "$R/health.json"; do sleep 10; done
    echo "time to healthy, first start (checkpoint download included): $(( $(date +%s) - t0 )) s" | tee "$R/time_first_start.txt"
@@ -502,7 +502,7 @@ Steps (`R` is the run folder, named for the day of the run):
 4. The image, the wheel and the checkpoint, by digest.
    The image of a local build has an ID, not a registry digest; the base image's digest is the `FROM` line of the `Dockerfile`.
    The checkpoint's snapshot directory is its commit revision, and each weight file links to a blob named by its sha256.
-   ```
+   ```bash
    docker image inspect decisio:local > "$R/image_inspect.json"
    sha256sum dist/decisio-*.whl | tee "$R/wheel.sha256"
    docker compose exec -T decisio id | tee "$R/container_user.txt"                  # uid 10001 (decisio), not root
@@ -511,7 +511,7 @@ Steps (`R` is the run folder, named for the day of the run):
    nvidia-smi > "$R/nvidia_smi.txt"; docker version > "$R/docker_version.txt"; nvidia-ctk --version > "$R/nvidia_ctk_version.txt"
    ```
 5. The README's example request, exactly as the README prints it.
-   ```
+   ```bash
    python3 - <<'PY' > "$R/example_request.json"
    import json, re
    s = open("README.md").read()
@@ -523,7 +523,7 @@ Steps (`R` is the run folder, named for the day of the run):
    ```
    Expect `200` and answers `urgent` (noul), `category` (choice) and `score` in the shapes the README shows; read the values, they are the README's illustration and are not required to match it.
 6. Conformance C2-C4 from the machine that runs the container (its host), against the container.
-   ```
+   ```bash
    uv sync --extra bench --frozen
    uv run python -m decisio.serve.systemone_conformance --url http://127.0.0.1:8000 --items conformance_items.json \
      --tokenizer Qwen/Qwen3.6-35B-A3B-FP8 --block-size 1056 --n 200 --out "$R/conformance.json" 2>&1 | tee "$R/conformance.log"
@@ -531,7 +531,7 @@ Steps (`R` is the run folder, named for the day of the run):
    Expect `CONFORMANCE PASS`, with C4's `max_abs_delta_p` exactly `0.0`.
    Gzip a JSON file of 100 KB or more, as the other runs do.
 7. Second start, with the checkpoint already in the volume.
-   ```
+   ```bash
    docker compose down                      # keeps the decisio-data volume
    t0=$(date +%s); docker compose up -d
    until curl -sf http://127.0.0.1:8000/health > /dev/null; do sleep 5; done
@@ -541,7 +541,7 @@ Steps (`R` is the run folder, named for the day of the run):
    ```
    The chosen options must be the same as in step 5; the probabilities may differ in the last bits (the request history differs, `EVAL_CARD.md` section 4).
 8. Write the run record in `runs/<date>_docker-first-gpu-start/`: a `manifest.json` with the fields of the earlier runs (see `runs/2026-09-30_plugin-verification/manifest.json`: `id`, `title`, `date`, `hardware`, `software` with the image ID, the base image digest, the wheel's sha256, the checkpoint revision, the driver and the Docker and toolkit versions, `code` with the commit, `servers` with the compose command, `gates` with health, the example and C2-C4, `results` with the three times, `files`), and a `files.json` with every file's sha256:
-   ```
+   ```bash
    python3 - <<'PY'
    import hashlib, json, pathlib, sys
    root = pathlib.Path(sys.argv[1])
@@ -583,7 +583,7 @@ No PyPI token is ever stored in GitHub.
 The environment must exist, with its reviewer, before the workflow in 3.3 is merged: a job that names a missing environment creates it, unprotected.
 The reviewer is the owner (user id 6414758, from `gh api user --jq .id`); the environment accepts deployments only from release tags.
 
-```
+```bash
 gh api -X PUT repos/aminry/decisio/environments/pypi --input - <<'JSON'
 {
   "wait_timer": 0,
@@ -606,7 +606,7 @@ Three jobs: `build` has a read-only token and no publishing rights; `provenance`
 `pypa/gh-action-pypi-publish` also uploads PEP 740 attestations when it publishes through a trusted publisher.
 Every action is pinned by commit hash, each checked against its release tag and each the latest release on 2026-09-30.
 
-```
+```yaml
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # Publishes a release to PyPI when release-please tags it. Trusted publishing (OIDC): no PyPI token is stored.
@@ -727,7 +727,7 @@ It needs nothing beyond 2.2's allowed actions (the Docker and Anchore ones are l
 2. Check that the repository has write access to the package (Package settings, Manage Actions access); a package created by the workflow gets it automatically.
 3. Verify the release: pull by digest from the release notes, then verify the attestations.
 
-```
+```bash
 docker pull ghcr.io/aminry/decisio@sha256:<digest in the release notes>
 gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio
 gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio --predicate-type https://cyclonedx.org/bom
@@ -742,7 +742,7 @@ The image has not been run on a GPU; 3.0 is the gate that must pass before the t
 
 Run after each step; the expected value is in the comment.
 
-```
+```bash
 gh api repos/aminry/decisio --jq '{private, allow_squash_merge, allow_merge_commit, allow_rebase_merge, delete_branch_on_merge, web_commit_signoff_required}'
 #   private false, squash true, merge false, rebase false, delete_branch_on_merge true, web_commit_signoff_required true
 
@@ -778,7 +778,7 @@ gh api repos/aminry/decisio/environments/pypi --jq '{protection_rules, deploymen
 
 Behaviour, in a scratch clone (none of these should succeed):
 
-```
+```bash
 git commit --allow-empty -s -m "test: ruleset probe" && git push origin HEAD:main   # rejected: changes must be made through a pull request
 git push --force origin HEAD:main                                                    # rejected
 git push origin :main                                                                # rejected: deletion restricted

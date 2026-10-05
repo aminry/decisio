@@ -3,7 +3,7 @@
 
 # The command line
 
-```
+```bash
 uv run python -m decisio.serve.vllm_engine [flags]
 ```
 
