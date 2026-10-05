@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/aminry/decisio/compare/v0.5.0...v0.6.0) (2026-10-05)
+
+
+### Features
+
+* **serve:** Gemma 4 31B as a third base (--base gemma-4-31b), FP8 on load ([#71](https://github.com/aminry/decisio/issues/71)) ([73f0eff](https://github.com/aminry/decisio/commit/73f0eff184d44529a47726a4fc2e98045dca849f))
+
 ## [0.5.0](https://github.com/aminry/decisio/compare/v0.4.1...v0.5.0) (2026-10-04)
 
 
