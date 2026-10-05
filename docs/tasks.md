@@ -41,7 +41,7 @@ Each is kept only if cross-validation on your own examples shows that it helps; 
 The commands below use the example task in `examples/tasks/`, a synthetic ticket-routing question with 12 queues, and run from the repository root.
 Install the package and start a server in one terminal:
 
-```
+```bash
 uv sync --extra dev --frozen
 uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
 ```
@@ -54,7 +54,7 @@ The server is ready when `curl -s http://127.0.0.1:8000/health` answers; run the
 Registration is one `POST /v1/tasks` whose body names the task and lists the examples.
 Each example is an ordinary `/v1/systemone` request with exactly one question, plus the answer you want:
 
-```
+```json
 {"id": "ticket-routing",
  "examples": [
    {"request": {"state": "My card keeps getting declined when I renew.",
@@ -71,13 +71,13 @@ Each example is an ordinary `/v1/systemone` request with exactly one question, p
 
 ### 2. Register
 
-```
+```bash
 uv run python examples/tasks/register.py --id ticket-routing --data examples/tasks/train.csv
 ```
 
 or, with the prepared body:
 
-```
+```bash
 curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @examples/tasks/examples.json
 ```
 
@@ -107,7 +107,7 @@ Look at the reason:
 
 Ask the question exactly as registered:
 
-```
+```bash
 uv run python examples/tasks/ask.py "My card keeps getting declined when I renew."
 ```
 
@@ -117,7 +117,7 @@ If the task kept neither correction, the header still names it and the answer is
 
 ### 5. List, export, reload, delete
 
-```
+```bash
 curl -s http://127.0.0.1:8000/v1/tasks                        # registered tasks and each fit's summary
 curl -s 'http://127.0.0.1:8000/v1/tasks?full=1' > tasks.json  # export, head parameters included
 curl -s http://127.0.0.1:8000/v1/tasks/import -H 'Content-Type: application/json' -d @tasks.json

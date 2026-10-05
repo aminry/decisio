@@ -51,6 +51,11 @@ jobs:
       - name: REUSE compliance
         run: uvx --from "reuse[charset-normalizer]==6.2.0" reuse lint
 
+      # The website renders README.md, docs/*.md and examples/tasks/README.md and guesses a fence's highlighting
+      # when it names no language: every opening fence must name one.
+      - name: Code fences name a language
+        run: python3 scripts/check_code_fences.py
+
       # The patch tests apply each series to the tagged vLLM source; without the tree they skip.
       - name: Fetch the vLLM source the patches are checked against
         run: bash scripts/fetch_vllm_source.sh

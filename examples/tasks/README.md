@@ -28,7 +28,7 @@ The numbers in `docs/tasks.md` come from the served model on a GPU (`EVAL_CARD.m
 
 From the repository root, with the package installed (`uv sync --extra dev --frozen`), start the stand-in in one terminal:
 
-```
+```bash
 uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
 ```
 
@@ -37,11 +37,11 @@ On a GPU the same steps run against the served model: `uv run python -m decisio.
 
 In another terminal, register the question from the training tickets:
 
-```
+```bash
 uv run python examples/tasks/register.py --id ticket-routing --data examples/tasks/train.csv
 ```
 
-```
+```text
 120 examples, 12 labels, 10 to 10 per label
 task 'ticket-routing': 120 examples, 12 options, at least 10 per option, registered in 62 s
   calibration: applied (cross-validated gain); cross-validated log loss 2.37021 -> 2.2986, accuracy 0.1667 -> 0.2083
@@ -51,17 +51,17 @@ task 'ticket-routing': 120 examples, 12 options, at least 10 per option, registe
 (Stand-in output, abridged.)
 The same registration with curl, from the prepared body:
 
-```
+```bash
 curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @examples/tasks/examples.json
 ```
 
 Ask it about new tickets:
 
-```
+```bash
 uv run python examples/tasks/ask.py "My card keeps getting declined when I renew."
 ```
 
-```
+```text
 My card keeps getting declined when I renew.
   choice payment_failed; x-decisio-tasks: ticket-routing; route text, 224.7 ms
   payment_failed 0.998, account_closure 0.001, billing 0.000
@@ -71,11 +71,11 @@ My card keeps getting declined when I renew.
 
 Measure the change on the held-out tickets (this removes the task, asks every held-out ticket, registers again, asks again):
 
-```
+```bash
 uv run python examples/tasks/evaluate.py --id ticket-routing --train examples/tasks/train.csv --heldout examples/tasks/heldout.csv
 ```
 
-```
+```text
 held-out tickets: 48; matched task: ticket-routing
 accuracy before 0.083, after 0.833; difference +75.0 points, 95% interval [+60.4, +87.5]
 changed answers: 45 of 48 (37 fixed, 1 broken)
@@ -87,7 +87,7 @@ The stand-in's 0.6B model barely reads this question without help, so the change
 
 A registration lives in the server's memory; a restart forgets it unless it is exported and loaded back.
 
-```
+```bash
 curl -s http://127.0.0.1:8000/v1/tasks                        # what is registered, with each fit's summary
 curl -s 'http://127.0.0.1:8000/v1/tasks?full=1' > tasks.json  # the export, head parameters included
 curl -s -X DELETE http://127.0.0.1:8000/v1/tasks/ticket-routing
@@ -96,7 +96,7 @@ curl -s http://127.0.0.1:8000/v1/tasks/import -H 'Content-Type: application/json
 
 Or load the export when the server starts:
 
-```
+```bash
 uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base --tasks-file tasks.json
 ```
 

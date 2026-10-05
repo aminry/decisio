@@ -11,7 +11,7 @@ Every number names the record it comes from.
 
 Requirements: Linux, one NVIDIA card (measured on an RTX PRO 6000 Blackwell with 96 GB), a driver that supports CUDA 13.0 (the runtime `uv.lock` pins), Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
-```
+```bash
 git clone https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
@@ -29,7 +29,7 @@ uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
 
 ## Docker
 
-```
+```bash
 uv build --wheel                   # the image installs this wheel
 docker compose up --build          # needs the NVIDIA Container Toolkit and a GPU host
 curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
@@ -49,7 +49,7 @@ The image has been started on a GPU with the Qwen base only.
 
 ## Mac with MLX
 
-```
+```bash
 uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
@@ -79,7 +79,7 @@ The Gemma base (`--base gemma-4-12b`):
 
 ## Ollama
 
-```
+```bash
 ollama pull aminroudaki/decisio
 ```
 
@@ -89,7 +89,7 @@ Ollama builds its own prompt and applies no calibration, so its numbers are the 
 
 ## CPU stand-in for development
 
-```
+```bash
 uv sync --extra dev --frozen
 uv run pytest
 uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
