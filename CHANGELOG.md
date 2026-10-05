@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.2](https://github.com/aminry/decisio/compare/v0.7.1...v0.7.2) (2026-10-05)
+
+
+### Bug Fixes
+
+* **serve:** a dead engine turns /health to 503, is refused fast and ends the server with code 70 ([#78](https://github.com/aminry/decisio/issues/78)) ([8b367d9](https://github.com/aminry/decisio/commit/8b367d92c39244385069571f59f1d2dbb1f51cf9))
+
 ## [0.7.1](https://github.com/aminry/decisio/compare/v0.7.0...v0.7.1) (2026-10-05)
 
 
