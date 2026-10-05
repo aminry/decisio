@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/aminry/decisio/compare/v0.7.0...v0.7.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **serve:** --head-engine gives the second engine the server's prompt format and base ([#76](https://github.com/aminry/decisio/issues/76)) ([993db22](https://github.com/aminry/decisio/commit/993db2200153c1db91854f525b96182a0577fbbb))
+
 ## [0.7.0](https://github.com/aminry/decisio/compare/v0.6.0...v0.7.0) (2026-10-05)
 
 
