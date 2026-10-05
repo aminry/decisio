@@ -43,10 +43,10 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 
 | | |
 | --- | --- |
-| ![Pong](docs/demos/media/pong_decisio_cygnet.gif) | ![Driving](docs/demos/media/driving_decisio_s1-1.gif) |
-| Pong ([MP4](docs/demos/media/pong_decisio_cygnet.mp4)) | A driving simulator, in real time ([MP4](docs/demos/media/driving_decisio_s1-1.mp4)) |
-| ![Browser agent](docs/demos/media/browser_decisio_travel.gif) | ![Triage](docs/demos/media/triage_plain_vs_taught.gif) |
-| A browser agent's travel task ([MP4](docs/demos/media/browser_decisio_travel.mp4)) | Support-ticket triage before and after registering labelled tickets ([MP4](docs/demos/media/triage_plain_vs_taught.mp4)) |
+| ![Pong](docs/demos/media/pong_three_bases.gif) | ![Driving](docs/demos/media/driving_gemma-4-31b.gif) |
+| Pong, the three bases on the same serve ([MP4](docs/demos/media/pong_three_bases.mp4)) | A driving simulator in real time, on Gemma 4 31B ([MP4](docs/demos/media/driving_gemma-4-31b.mp4)) |
+| ![Browser agent](docs/demos/media/browser_travel_gemma-4-12b.gif) | ![Triage](docs/demos/media/triage_gemma-4-12b.gif) |
+| A browser agent's travel task, on Gemma 4 12B ([MP4](docs/demos/media/browser_travel_gemma-4-12b.mp4)) | Support-ticket triage before and after registering labelled tickets, on Gemma 4 12B ([MP4](docs/demos/media/triage_gemma-4-12b.mp4)) |
 
 [`docs/demos/README.md`](docs/demos/README.md) has every player, every clip and the result tables.
 
@@ -202,6 +202,10 @@ The full paired table, the Gemma base's repeatability and its limits are in `EVA
 
 Gemma 4 31B was measured in its own session, on another card of the same type (`runs/2026-10-04_gemma-4-31b/`), so its numbers are not paired with the table above: suite accuracy 0.799 (Qwen 0.770, Gemma 4 12B 0.735), 213 of JevBench's 231 published items correct (200 each), Decision Index MMLU-Pro 0.694 and GPQA Diamond 0.520 (Qwen 0.613 and 0.510), one question on a new 3,000-token state 476 ms (Qwen 91 ms).
 It went in under the maintainer's decision, past a pre-registered rule it missed by 0.2 to 1.1 points on three of four benchmarks; `EVAL_CARD.md` section 7 states the rule, the numbers and the reason.
+
+On the four demos, run on each base in one session ([docs/demos](docs/demos/README.md)), Gemma 4 31B played Pong best (85% agreement with a perfect paddle, against 60% and 62%), made the fewest driving motion errors and was most accurate on triage (97.0% against 93.8% for Gemma 4 12B and 91.0% for Qwen), but lost one of nine real-time drives.
+Gemma 4 12B was the most accurate browser agent (269 of 272 labelled steps, against 248 and 243) and took the shortest path in every run.
+Qwen3.6-35B-A3B answered fastest in Pong, driving and triage (Pong 44 ms per decision, against 48 and 68 ms; level with Gemma 4 12B in the browser agent), but made the most browser-agent errors.
 
 ## Benchmarks
 

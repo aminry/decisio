@@ -115,11 +115,17 @@ class PongTrajectory:
         d.text((ox, 22), title, fill=rc.FG, font=rc.font(size), anchor="lm")
         run = self.head["run"]
         variant = run.get("prompt_variant", "default")
+        sub = f"seed {run.get('seed')} · {variant} prompt · the model plays the right paddle"
+        sub_size = 13
+        if rc.font(sub_size).getlength(sub) > width - 32:
+            sub = f"seed {run.get('seed')} · {variant} prompt · model on the right"
+            while sub_size > 10 and rc.font(sub_size).getlength(sub) > width - 32:
+                sub_size -= 1
         d.text(
             (ox, 46),
-            f"seed {run.get('seed')} · {variant} prompt · the model plays the right paddle",
+            sub,
             fill=rc.MUTED,
-            font=rc.font(13),
+            font=rc.font(sub_size),
             anchor="lm",
         )
         cw, ch = c["w"] * s, c["h"] * s
@@ -148,7 +154,13 @@ class PongTrajectory:
     def panel(self, d: ImageDraw.ImageDraw, t: float, x: int, y: int, w: int, compact: bool = False) -> None:
         dec = self.decision_at(t)
         n = sum(1 for k in self.decided if self.times[k] <= t)
-        d.text((x, y + 4), "the model's last answer", fill=rc.MUTED, font=rc.font(14), anchor="lm")
+        d.text(
+            (x, y + 4),
+            "the model's last move" if rc.MOVES_ONLY else "the model's last answer",
+            fill=rc.MUTED,
+            font=rc.font(14),
+            anchor="lm",
+        )
         if not dec:
             d.text((x, y + 34), "waiting for the first answer", fill=rc.FG, font=rc.font(14), anchor="lm")
             return
@@ -158,14 +170,30 @@ class PongTrajectory:
             rc.bar(d, x, y + 24 + k * 34, bar_w, 26, float(probs.get(m, 0.0)), m, m == dec["chosen"])
         tx, ty = (x + bar_w + 20, y + 30) if compact else (x, y + 136)
         d.text((tx, ty), f"{dec['latency_ms']:.0f} ms", fill=rc.FG, font=rc.font(28), anchor="lm")
-        d.text((tx, ty + 28), "this decision, round trip", fill=rc.MUTED, font=rc.font(12), anchor="lm")
-        d.text((tx, ty + 60), f"{n} decisions · {t - self.t0:.1f} s", fill=rc.FG, font=rc.font(15), anchor="lm")
+        d.text(
+            (tx, ty + 28),
+            "round trip" if compact else "this decision, round trip",
+            fill=rc.MUTED,
+            font=rc.font(12),
+            anchor="lm",
+        )
+        if compact:  # a narrow lane: one fact per line
+            d.text((tx, ty + 58), f"{n} decisions", fill=rc.FG, font=rc.font(14), anchor="lm")
+            d.text((tx, ty + 78), f"{t - self.t0:.1f} s", fill=rc.MUTED, font=rc.font(14), anchor="lm")
+        else:
+            d.text((tx, ty + 60), f"{n} decisions · {t - self.t0:.1f} s", fill=rc.FG, font=rc.font(15), anchor="lm")
 
 
 def lane_images(lanes: list[PongTrajectory], rel: float, width: int, height: int) -> list[Image.Image]:
+    texts = [rc.caption_text(lane.head["player"], lane.ticks) for lane in lanes]
+    if len(lanes) == 1:
+        return [rc.with_caption(lanes[0].frame(lanes[0].t0 + rel, width, height), texts[0])]
+    # every lane's caption at the size of the one that needs the smallest, in strips of one height
+    size = min(rc.caption_lines(t, width)[1] for t in texts)
+    rows = max(len(rc.wrap_caption(t, width, size)) for t in texts)
     return [
-        rc.with_caption(lane.frame(lane.t0 + rel, width, height), rc.caption_text(lane.head["player"], lane.ticks))
-        for lane in lanes
+        rc.with_caption(lane.frame(lane.t0 + rel, width, height), t, size, rows)
+        for lane, t in zip(lanes, texts, strict=True)
     ]
 
 
@@ -186,14 +214,16 @@ def main() -> None:
     ap.add_argument("--gif", default=None)
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--seconds", type=float, default=None)
+    rc.add_clip_options(ap)
     a = ap.parse_args()
+    rc.apply_clip_options(a)
     lanes = [PongTrajectory(p) for p in a.trajectories]
     mp4 = rc.encode(frames(lanes, a.start, a.seconds), a.out)
     if a.gif:
         from demo_recorder import to_gif
 
         to_gif(mp4, a.gif)
-    print(mp4)
+    print(rc.finish_clip(mp4, a))
 
 
 if __name__ == "__main__":

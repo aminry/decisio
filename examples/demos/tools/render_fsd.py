@@ -439,6 +439,8 @@ class FsdRenderer:
         y += 12
         options = len(((dec or {}).get("answer") or {}).get("vector", {}).get("probabilities", {}))
         head = f"MANOEUVRE  top {min(options, TOP_OPTIONS)} of {options}" if options else "MANOEUVRE"
+        if rc.MOVES_ONLY and options:
+            head = f"MANOEUVRE  chosen from {options}"
         d.text((x0, y), head, fill=rc.MUTED, font=rc.font(13), anchor="lm")
         y += 18
         y = self.draw_question(d, x0, y, w, dec, "vector", TOP_OPTIONS)
@@ -516,6 +518,8 @@ class FsdRenderer:
             return y + 32 * top
         chosen = (dec.get("chosen") or {}).get("motion" if q == "motion" else "maneuver")
         probs = sorted(answer["probabilities"].items(), key=lambda kv: (-kv[1], kv[0]))[:top]
+        if rc.MOVES_ONLY:  # no ranking: the motion's two options in a fixed order, the manoeuvre's chosen one alone
+            probs = [(k, 0.0) for k in (("drive", "stop") if q == "motion" else (chosen,)) if k]
         for key, p in probs:
             label = self.fit(key, 14, w - 70)
             rc.bar(d, x0, y, w, 26, p, label, key == chosen, size=14)
@@ -546,7 +550,9 @@ def main() -> None:
     ap.add_argument("--gif", default=None, help="also a GIF (kept small by demo_recorder.to_gif)")
     ap.add_argument("--start", type=float, default=0.0, help="seconds after the first tick")
     ap.add_argument("--seconds", type=float, default=None, help="clip length (default: to the last tick)")
+    rc.add_clip_options(ap)
     a = ap.parse_args()
+    rc.apply_clip_options(a)
     r = FsdRenderer(a.trajectory)
     t0 = r.t0 + a.start
     t1 = r.t1 if a.seconds is None else min(r.t1, t0 + a.seconds)
@@ -554,10 +560,11 @@ def main() -> None:
         raise SystemExit(f"nothing to draw: the trajectory spans {r.t1 - r.t0:.1f} s of wall clock")
     mp4 = rc.encode(rc.render(r.frame, rc.frame_times(t0, t1), r.caption()), a.out)
     print(f"{mp4}: {t1 - t0:.1f} s at {rc.FPS} fps")
-    if a.gif:
+    if a.gif:  # the GIF is the drive alone; the scoreboard card closes the MP4
         from demo_recorder import to_gif
 
         print(to_gif(mp4, a.gif, max_s=t1 - t0))
+    rc.finish_clip(mp4, a)
 
 
 if __name__ == "__main__":

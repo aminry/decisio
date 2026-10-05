@@ -45,6 +45,8 @@ Every run writes trajectories (`tools/trajectory.py`, format `decisio-demo-traje
 All video is rendered afterwards from trajectory files only (`tools/render_*.py`, `tools/render_common.py`): Pong and driving are drawn from the recorded states, the browser clip is its recorded frames with the decision overlaid, and side-by-side lanes are composed from separate trajectories, each on its own clock.
 Nothing is re-simulated and no page is driven again.
 Frames run at the recorded speed, so a slow model looks slow; the caption under every clip names the model, the card, the median latency of the recorded run and the padding.
+A hosted player's caption names instead the exact model ID, the date, the route and serving provider, the median latency with the requests that had no answer in time, and says "model output" and "AI-generated", rendered by the decisio project.
+The Pong, driving and browser renderers take `--moves-only`, which shows each option as chosen or not with no probability, and `--end-card scoreboard.json` (title, columns, rows, note, highlight), which closes the clip on a scoreboard card (`render_common.scoreboard`, `render_common.append_card`).
 Rendering a trajectory twice gives identical frames, and a Pong frame drawn at a tick shows that tick's recorded state (`tests/unit/test_demo_*_trajectory.py`).
 
 Every record also carries `decisions.jsonl.gz`: one line per model decision with the request body the server received and the full answer, written where the request is made (`tools/decision_log.py`).
