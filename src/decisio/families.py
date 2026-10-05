@@ -74,6 +74,10 @@ class Family:
     quantization: str | None = None
     # --multi-question's default when the engine runs in the server's process (vllm_engine.resolve_multi_question)
     multi_question: str = "sequential"
+    # register a state's boundary in the prefix cache for a request with one question too, with the warm-up the
+    # multi-question path sends (vllm_engine.LettersEngine._answer_separate): vLLM keeps only the latest sliding-window
+    # checkpoint of a finished request, so without it a later, different question about the state reads it again
+    register_state_boundary: bool = False
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -94,6 +98,9 @@ QWEN = Family(
     },
     temperature=1.506,
     choice_temperature=1.370,
+    # not needed: the state is padded to end on the 1,056-token block, also the cache's hit unit, and a question is
+    # shorter than a block, so the state's end is already the latest checkpoint of a request with one question
+    register_state_boundary=False,
 )
 
 GEMMA4 = Family(
@@ -124,6 +131,10 @@ GEMMA4 = Family(
     answer_slot="template",
     label_variants="summed",
     noul_rendering="letters",
+    # a request's latest checkpoint lies inside its question (hit unit 64), so a second, different question about a
+    # state read it again (RLCD experiments/2026-10-05_t7_card_e2_e3_e4, on the 31B: 531 ms instead of 47 at 3,000
+    # tokens); vLLM's retention interval would keep it too, but evicts states sooner (the same record)
+    register_state_boundary=True,
 )
 
 GEMMA4_31B = Family(
@@ -152,6 +163,8 @@ GEMMA4_31B = Family(
     # context; a pinned FP8 checkpoint replaces this when one exists
     quantization="fp8",
     moe=False,
+    # as the 12B (hit unit 32): RLCD experiments/2026-10-05_t7_card_e2_e3_e4, arms R0 and amendment 1
+    register_state_boundary=True,
     # warm: four questions in one batch after the state's prefill, repeating exactly in-process; gated against
     # sequential (runs/2026-10-05_engine-death-gates: no choice changed, the largest probability difference 0.0073)
     multi_question="warm",
