@@ -5,7 +5,8 @@
 `stub_vllm(version)` is a context manager that puts fake `vllm` modules into `sys.modules`: the package with its
 `__version__`, a `ModelRegistry` that records registrations (and resolves the lazy `<module>:<class>` form on
 request), and `vllm.model_executor.models.qwen3_5` with a minimal `Qwen3_5MoeForCausalLM` (a torch module with an
-`lm_head`, `compute_logits` and a `load_weights` that records the names it is given), plus `SamplingParams` and
+`lm_head`, `compute_logits` and a `load_weights` that records the names it is given), Gemma 4's unified and text
+classes in the same spirit, plus `SamplingParams` and
 `vllm.inputs.TokensPrompt` as plain records. Only what decisio's plugin and the server's head path touch is modelled;
 anything that loads a real model needs a card.
 """
@@ -93,6 +94,35 @@ def _gemma4_unified_module(vocab=64, hidden=8, softcap=30.0):
     return mod
 
 
+def _gemma4_module(vocab=64, hidden=8, softcap=30.0):
+    import torch
+    from torch import nn
+
+    class Gemma4ForCausalLM(nn.Module):
+        """The slice of vLLM's Gemma 4 text class the plugin subclasses: compute_logits with the final soft cap, and a
+        load_weights that leaves the multimodal towers out (as vLLM's does) and records the names it kept."""
+
+        def __init__(self, *, vllm_config=None, prefix: str = ""):
+            super().__init__()
+            self.config = types.SimpleNamespace(vocab_size=vocab, hidden_size=hidden)
+            torch.manual_seed(0)
+            self.lm_head = nn.Linear(hidden, vocab, bias=False)
+            self.loaded: list[str] = []
+
+        def compute_logits(self, hidden_states):
+            z = self.lm_head(hidden_states)
+            return torch.tanh(z / softcap) * softcap
+
+        def load_weights(self, weights):
+            towers = ("vision_tower.", "embed_vision.", "audio_tower.", "embed_audio.")
+            self.loaded = [n.replace("language_model.", "") for n, _ in weights if not any(t in n for t in towers)]
+            return set(self.loaded)
+
+    mod = types.ModuleType("vllm.model_executor.models.gemma4")
+    mod.Gemma4ForCausalLM = Gemma4ForCausalLM
+    return mod
+
+
 @contextlib.contextmanager
 def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=False, config_map=None):
     names = [
@@ -103,6 +133,7 @@ def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=
         "vllm.model_executor.models.config",
         "vllm.model_executor.models.qwen3_5",
         "vllm.model_executor.models.gemma4_unified",
+        "vllm.model_executor.models.gemma4",
     ]
     saved = {n: sys.modules.get(n) for n in names}
     ours = [n for n in list(sys.modules) if n.startswith("decisio.vllm_plugin")]
@@ -125,6 +156,7 @@ def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=
             "Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig",
             "Qwen3ForCausalLM": "other",
             "Gemma4UnifiedForConditionalGeneration": "Gemma4Config",
+            "Gemma4ForCausalLM": "Gemma4Config",
         }
     )
     registry.config_map = config.MODELS_CONFIG_MAP
@@ -133,6 +165,7 @@ def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=
     if with_models:
         sys.modules["vllm.model_executor.models.qwen3_5"] = _qwen3_5_module(vocab, hidden, zero_head)
         sys.modules["vllm.model_executor.models.gemma4_unified"] = _gemma4_unified_module(vocab, hidden)
+        sys.modules["vllm.model_executor.models.gemma4"] = _gemma4_module(vocab, hidden)
     try:
         yield registry
     finally:

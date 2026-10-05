@@ -7,6 +7,8 @@ P2  re-entrancy: vLLM calls the entry point in every process and may call it aga
 P3  version guard: on any other vLLM version (and without vLLM) nothing is registered, and it says so once
 P4  the entry point is declared in pyproject.toml under `vllm.general_plugins` and resolves to `register`
 P5  no name a decisio class defines shadows an attribute of torch.nn.Module instances or of the vLLM base class
+G2  the text classes of Gemma4ForConditionalGeneration checkpoints: the text-only class is vLLM's Gemma4ForCausalLM
+    unchanged (the towers left out at load), the hidden-readout class writes [0, h] after the soft cap
 W1  the worker extension reports vLLM's own (hit unit, hash step) for the engine's KV cache groups, None where vLLM
     cannot say; its qualified name resolves the way vLLM resolves `worker_extension_cls`
 
@@ -211,6 +213,45 @@ def test_g1_gemma_hidden_readout_writes_after_the_soft_cap(monkeypatch):
         assert abs(recover_hidden(lp) - h.double().numpy()).max() < 1e-6
         dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
         assert set(vars(cls)) - dunder == {"compute_logits"}
+
+
+def test_g2_gemma4_text_classes(monkeypatch):
+    """DecisioGemma4TextOnly is vLLM's Gemma4ForCausalLM with nothing overridden, registered under that class's config
+    hook; DecisioGemma4HiddenReadout adds [0, h] in the reserved columns after the soft cap, every other column the
+    stock class's, bit for bit."""
+    import torch
+
+    from decisio.vllm_plugin.hidden import ENV_START, recover_hidden
+
+    monkeypatch.setenv(ENV_START, "40")
+    with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
+        p = plugin()
+        assert p.register()
+        base = sys.modules["vllm.model_executor.models.gemma4"].Gemma4ForCausalLM
+        text, hidden = registry.resolve(p.GEMMA4_MM_TEXT_ONLY), registry.resolve(p.GEMMA4_MM_HIDDEN_READOUT)
+        assert issubclass(text, base) and issubclass(hidden, text)
+        assert registry.config_map[p.GEMMA4_MM_TEXT_ONLY] == registry.config_map["Gemma4ForCausalLM"]
+        assert registry.config_map[p.GEMMA4_MM_HIDDEN_READOUT] == "Gemma4Config"
+        dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
+        assert set(vars(text)) - dunder == set()
+        assert set(vars(hidden)) - dunder == {"compute_logits"}
+        m = text(vllm_config=None)
+        kept = m.load_weights(
+            [
+                ("model.language_model.layers.0.self_attn.q_proj.weight", None),
+                ("model.vision_tower.encoder.weight", None),
+                ("model.embed_vision.weight", None),
+            ]
+        )
+        assert kept == {"model.layers.0.self_attn.q_proj.weight"}
+        mh = hidden(vllm_config=None)
+        h = torch.randn(3, 8)
+        with torch.no_grad():
+            got, stock = mh.compute_logits(h), base.compute_logits(mh, h)
+        keep = [i for i in range(64) if not 40 <= i <= 48]
+        assert torch.equal(got[:, keep], stock[:, keep])
+        lp = torch.log_softmax(got[:, 40:49].double(), -1).numpy()
+        assert abs(recover_hidden(lp) - h.double().numpy()).max() < 1e-6
 
 
 def test_w1_worker_extension_reports_vllms_block_sizes(monkeypatch):

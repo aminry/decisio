@@ -4,7 +4,7 @@
 # Evaluation card
 
 What the served default is, what it can do, how it measures, and what was fitted on what.
-Sections 1 to 5 are the served default, the Qwen base; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`).
+Sections 1 to 5 are the served default, the Qwen base; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`).
 Every number is on the current served default and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
 ## 1. The system measured
@@ -190,4 +190,82 @@ Several questions in one request stay within the same bound (0.035, 6.3).
   Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
   Its path to 32 GB machines is an MLX build, in preparation.
 - The image route, `--multi-question warm` and `--pad-policy row` were not measured on this base.
+- The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted.
+
+## 7. The Gemma 4 31B base
+
+`--base gemma-4-31b` serves Gemma 4 31B behind the same routes and wire format.
+Every number in this section comes from one session on one card (2026-10-04, `runs/2026-10-04_gemma-4-31b/`), a different session and card from sections 3 and 6, so its comparisons with the other bases are not paired.
+
+### 7.1 The system measured
+
+| Part | The Gemma 4 31B base |
+| --- | --- |
+| Checkpoint | `google/gemma-4-31B-it` at revision `842da3794eaa0b77d5f08bae87a17459d91ff475`, the official weights, untrained by us |
+| Precision | Quantized to FP8 by vLLM 0.30.0 when it loads (`quantization="fp8"`, part of the base's profile); a pinned FP8 checkpoint replaces this when one exists |
+| Engine | vLLM 0.30.0 with decisio's plugin: vLLM's `Gemma4ForCausalLM`, the text class of the `Gemma4ForConditionalGeneration` checkpoint, which loads the language model and leaves the vision tower out (`DecisioGemma4TextOnly`), and the same class returning the hidden state after the final-logit soft cap of 30 (`DecisioGemma4HiddenReadout`); no padding; `--multi-question sequential` |
+| Prompt and readout | As the Gemma 4 12B base (section 6.1): a system turn, the spaced layout read at the chat template's own answer position, every single-token form of each option letter summed, yes/no as a two-option letter choice with each side shown as its description |
+| Temperature | T = 4.672 for choice questions, T = 5.252 for yes/no and score questions, on the plain readout |
+| Intent head | Single engine; the head takes its label log-probabilities from the engine's own readout of the question, as on the 12B; its reserved ids start at 210,000 |
+| Hardware | One NVIDIA RTX PRO 6000 Blackwell (96 GB); the FP8 weights take 30.61 GiB, leaving 48.6 GiB for the KV cache at vLLM's 0.90 share (57,882 tokens) |
+| `/health` | The `profile` block, with `quantization_on_load` "fp8"; `cache_hit_unit` 32 and `hash_unit` 16 |
+
+The capabilities of section 2 apply; the image route was not measured with this base, and it is not served on a Mac (`--backend mlx` refuses it).
+
+### 7.2 Numbers
+
+| Measure | Result | Record |
+| --- | --- | --- |
+| JevBench, 231 published items, accuracy | easy 1.000 (48), standard 1.000 (72), hard 0.838 (111): 213 correct | `capture_g31.json.gz`, `jevbench_g31/` |
+| JevBench, ECE per file (10 equal-width bins, at the served temperatures) | easy 0.020, standard 0.035, hard 0.091 | `capture_g31.json.gz` |
+| JevBench v1.5 open-set reading | choice 86.3; yes/no 85.6, 1.4% of yes/no answers between 0.20 and 0.80; score 71.9; I_open 81.3 (equal types) | same |
+| Decision Index 0.2.1, BANKING77 (3,080) | macro-F1 0.785, accuracy 0.792 | `di_g31/di_report.json` |
+| Decision Index 0.2.1, CLINC150+OOS (5,500) | macro-F1 0.902, accuracy 0.901 | same |
+| Decision Index 0.2.1, GPQA Diamond (196 scored) | accuracy 0.520 | same |
+| Decision Index 0.2.1, MMLU-Pro (12,032) | accuracy 0.694 | same |
+| 1,400-item suite, accuracy / ECE | BoolQ 0.887 / 0.096, BANKING77 0.787 / 0.078, ToxicChat 0.973 / 0.036, MMLU 0.887 / 0.064, SciFact 0.827 / 0.140, SciFact clarified 0.840 / 0.134, MMLU-Pro 0.627 / 0.095 (150) and 0.700 / 0.058 (350); pooled 0.799 / 0.054 | `capture_g31.json.gz`, `temps_g31.json` |
+| Intent heads from 10 labelled examples per intent | BANKING77 0.844 (plain readout 0.787), CLINC150 0.970 (0.940), means of three draws; registration 308 s and 699 s | `intents_g31.json.gz` |
+| Latency, one question, state from the cache | 40.8 ms server time (median of 20) | `latency_g31.json` |
+| Latency, one question, a state never seen | 61.8 ms at 300 tokens, 170.1 at 1,000, 476.1 at 3,000 | same |
+| Latency, four questions, a state never seen | 182.2 ms at 300 tokens, 282.3 at 1,000, 614.5 at 3,000 | same |
+
+ECE is as in section 3; the suite's is the tie-robust version over 10 equal-mass bins.
+
+### 7.3 Gates, and the decision
+
+Measured in the session: conformance C2, C3 and C4 pass on the 1,400 items; on the 250 intent items the head's label log-probabilities equal the log of the plain readout's probabilities bit for bit (250 of 250); each of JevBench's 231 items sent twice in a row moved by at most 5.6e-8, and no choice changed (`repeat_g31.json.gz`).
+
+The session's pre-registered go rule compared the four Decision Index values with the board's "Decider chat · Gemma-4-31B" row (BANKING77 macro-F1 0.791, CLINC150+OOS macro-F1 0.912, GPQA Diamond 0.490, MMLU-Pro 0.696) and one question on a new 300-token state with 108 ms.
+The 31B passed GPQA Diamond (0.520) and the latency (61.8 ms), and missed BANKING77 by 0.0065, CLINC150+OOS by 0.0105 and MMLU-Pro by 0.0021.
+**It is a base by the maintainer's decision, overriding that rule.**
+The reason: the thresholds were one board row taken as a proxy for the top of the open board; the three misses, 0.2 to 1.1 points, lie within each benchmark's sampling noise; and against the two served bases it is stronger on every accuracy measure:
+
+| Measure | Gemma 4 31B | Qwen3.6-35B-A3B | Gemma 4 12B |
+| --- | ---: | ---: | ---: |
+| Suite accuracy | 0.799 | 0.770 | 0.735 |
+| JevBench correct; hard tier | 213; 93 | 200; 82 | 200; 82 |
+| Decision Index BANKING77 / CLINC150+OOS, macro-F1 | 0.785 / 0.902 | 0.746 / 0.822 | 0.729 / 0.871 |
+| Decision Index GPQA Diamond / MMLU-Pro, accuracy | 0.520 / 0.694 | 0.510 / 0.613 | 0.378 / 0.549 |
+| One question, a new 300 / 3,000-token state | 61.8 / 476.1 ms | 48.4 / 91.1 ms | 39.1 / 293.5 ms |
+
+The Qwen and 12B columns are section 3's and section 6's records, from another session on another card of the same type; nothing in this table is paired.
+
+### 7.4 What was fitted on what
+
+| Component | Fitted or chosen on |
+| --- | --- |
+| Model weights | Nothing by us |
+| Temperatures T = 5.252 and choice T = 4.672 | Minimum log loss on this base's plain readouts of the private 1,400-item suite of section 3 (the choice T on its 800 choice items, kept because out of fold it lowers their log loss: −0.0115 [−0.0211, −0.0015]), each with 5-fold cross-validation stratified by task, T searched in [0.2, 50]; never on JevBench or the Decision Index |
+| The prompt | The 12B base's, unchanged (section 6.4) |
+| FP8 on load | Chosen because at bf16 the checkpoint does not start at a 32,768-token context on one 96 GB card (7.5) |
+
+The disclosures of section 4 hold here too, with one more: the go rule this base was measured against was set before the session, and the decision to serve it was taken after seeing its numbers (7.3).
+
+### 7.5 Limits
+
+- At bf16 the checkpoint does not serve a 32,768-token context on one 96 GB card: its weights (57.91 GiB) leave 20.24 GiB for the KV cache at vLLM's 0.90 share, while one 32,768-token request needs 27.51 GiB; vLLM estimates 24,096 tokens as the most that fits (`bf16_start.txt`), hence FP8 on load.
+- Several questions in one request were not measured against the same questions sent alone on this base, where each is scored in its own engine call, as on the other bases.
+- Slower than both served bases on states it has not seen before, the more so the longer the state (one question on a new 3,000-token state: 476 ms, against 91 ms on the Qwen base).
+- One card and one session; the intent heads over three draws, the other bases' over six.
+- Not served on a Mac; the image route was not measured.
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted.

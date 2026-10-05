@@ -254,6 +254,8 @@ class LettersEngine:
             gpu_memory_utilization=gpu_memory_utilization,
             limit_mm_per_prompt=dict(self.family.limit_mm),
             worker_extension_cls=WORKER_EXTENSION,
+            # the base's precision on load (the 31B: FP8); --engine's own "quantization" overrides it
+            **({"quantization": self.family.quantization} if self.family.quantization else {}),
             **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
         )
         if mode == "separate":
@@ -819,6 +821,7 @@ def served_profile(engine, systemone) -> dict:
         "base": fam.key if fam is not None else None,
         "checkpoint": getattr(engine, "model_name", None),
         "revision": getattr(engine, "revision", None),
+        "quantization_on_load": getattr(fam, "quantization", None),
         "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
         "prompt": {
             **fmt.facts(),
@@ -841,6 +844,8 @@ def resolve_base(args):
 
     if args.backend == "mlx" and args.model is None:
         raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
+    if args.backend == "mlx" and args.base == "gemma-4-31b":
+        raise ValueError("--backend mlx serves the Qwen base and gemma-4-12b; gemma-4-31b is served on vLLM only")
     if args.base is not None:
         fam = BASES[args.base]
         given = args.model is not None
@@ -883,9 +888,10 @@ def main():
     ap.add_argument(
         "--base",
         default=None,
-        choices=["qwen3.6-35b-a3b", "gemma-4-12b"],
+        choices=["qwen3.6-35b-a3b", "gemma-4-12b", "gemma-4-31b"],
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): qwen3.6-35b-a3b "
-        "(Qwen/Qwen3.6-35B-A3B-FP8, the default) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision. "
+        "(Qwen/Qwen3.6-35B-A3B-FP8, the default), gemma-4-12b (google/gemma-4-12B-it) or gemma-4-31b "
+        "(google/gemma-4-31B-it, quantized to FP8 on load), each at a pinned revision. "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",
     )

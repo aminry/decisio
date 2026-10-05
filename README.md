@@ -148,11 +148,12 @@ The routes ([`docs/api.md`](docs/api.md) has every field):
 
 ## Choosing a base
 
-Two base models are served behind the same routes, wire format and features, one per server, chosen with `--base`:
+Three base models are served behind the same routes, wire format and features, one per server, chosen with `--base`:
 
 ```
 uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b   # the default
 uv run python -m decisio.serve.vllm_engine --base gemma-4-12b
+uv run python -m decisio.serve.vllm_engine --base gemma-4-31b
 ```
 
 `--base` brings its checkpoint at a pinned revision and every setting below; a flag given explicitly overrides the base's value.
@@ -162,22 +163,25 @@ Each base's settings were measured as one configuration.
 | --- | --- | --- |
 | `qwen3.6-35b-a3b` (default) | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
 | `gemma-4-12b` | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-31b` | `google/gemma-4-31B-it` at `842da379`, quantized to FP8 when it loads (vLLM 0.30.0), 30.6 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us; FP8 on load, which a pinned FP8 checkpoint replaces when one exists |
 
 A base that is a third-party fine-tune names its publisher in the provenance column and states what it was trained on.
 
-| Setting | `qwen3.6-35b-a3b` (default) | `gemma-4-12b` |
-| --- | --- | --- |
-| Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type |
-| Prompt | no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, read at the chat template's own answer position, every single-token form of each letter summed |
-| Yes/no | a two-option letter choice with its sides named | a two-option letter choice, each side shown as its description |
-| Padding | the state padded to the 1,056-token block | none |
-| Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 |
+| Setting | `qwen3.6-35b-a3b` (default) | `gemma-4-12b` | `gemma-4-31b` |
+| --- | --- | --- | --- |
+| Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type | 4.672 for choice questions, 5.252 for yes/no and score |
+| Prompt | no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, read at the chat template's own answer position, every single-token form of each letter summed | as `gemma-4-12b` |
+| Yes/no | a two-option letter choice with its sides named | a two-option letter choice, each side shown as its description | as `gemma-4-12b` |
+| Padding | the state padded to the 1,056-token block | none | none |
+| Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 | each question scored in its own engine call, as on the other bases; not measured against the question sent alone |
+| Precision | FP8, as the checkpoint stores it | bf16 | FP8 on load (at bf16 it leaves too little of a 96 GB card for a 32,768-token context) |
 
 In plain words:
 - Choose Gemma 4 12B for committed yes/no answers, scores and intent routing on taxonomies like CLINC150.
 - Choose Qwen3.6-35B-A3B for knowledge questions, long states seen for the first time, and answers that repeat bit for bit.
 - On JevBench's published items they are level.
 - Gemma 4 12B does not fit a 32 GB card on vLLM; on a Mac it runs from its MLX conversion ([Mac with MLX](#mac-with-mlx)).
+- Choose Gemma 4 31B for knowledge questions and the strongest suite and JevBench readings: it is stronger than both served bases on every accuracy measure we have, and slower on states it has not seen before, the more so the longer the state; its weights take 31 GB, and it needs a 96 GB card on vLLM (no Mac build).
 
 What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, each base with its own defaults, paired over the same items (95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):
 
@@ -196,27 +200,30 @@ What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, e
 
 The full paired table, the Gemma base's repeatability and its limits are in `EVAL_CARD.md` section 6.
 
+Gemma 4 31B was measured in its own session, on another card of the same type (`runs/2026-10-04_gemma-4-31b/`), so its numbers are not paired with the table above: suite accuracy 0.799 (Qwen 0.770, Gemma 4 12B 0.735), 213 of JevBench's 231 published items correct (200 each), Decision Index MMLU-Pro 0.694 and GPQA Diamond 0.520 (Qwen 0.613 and 0.510), one question on a new 3,000-token state 476 ms (Qwen 91 ms).
+It went in under the maintainer's decision, past a pre-registered rule it missed by 0.2 to 1.1 points on three of four benchmarks; `EVAL_CARD.md` section 7 states the rule, the numbers and the reason.
+
 ## Benchmarks
 
-Both bases with their own defaults, on one RTX PRO 6000 Blackwell in one session (`runs/2026-10-04_gemma-base/`), except image input (`runs/2026-09-27_image-input/`).
+Each base with its own defaults on one RTX PRO 6000 Blackwell: the Qwen and Gemma 4 12B bases in one session (`runs/2026-10-04_gemma-base/`), Gemma 4 31B in its own (`runs/2026-10-04_gemma-4-31b/`), image input in another (`runs/2026-09-27_image-input/`).
 Measured privately with the public harnesses (the Decision Index kit 0.2.1); none is a board score.
 
-| Measure | Qwen3.6-35B-A3B (default) | Gemma 4 12B |
-| --- | ---: | ---: |
-| JevBench, 231 published items, accuracy: easy / standard / hard | 1.000 / 0.972 / 0.739 | 1.000 / 0.972 / 0.739 |
-| Decision Index BANKING77, macro-F1 | 0.746 | 0.729 |
-| Decision Index CLINC150+OOS, macro-F1 | 0.822 | 0.871 |
-| Decision Index GPQA Diamond (196 scored), accuracy | 0.510 | 0.378 |
-| Decision Index MMLU-Pro, accuracy | 0.613 | 0.549 |
-| Intent heads from 10 labelled examples per intent, BANKING77 / CLINC150 (six draws) | 0.840 / 0.912 | 0.832 / 0.908 |
-| Image input, ImajevBench v2.0-lite, the 230 answerable items | 0.791 | not measured |
-| One question on a new 300-token state, server time | 48.4 ms | 39.1 ms |
-| One question on a 1,000-token state from the prefix cache, server time | 20.9 ms | 26.7 ms |
+| Measure | Qwen3.6-35B-A3B (default) | Gemma 4 12B | Gemma 4 31B |
+| --- | ---: | ---: | ---: |
+| JevBench, 231 published items, accuracy: easy / standard / hard | 1.000 / 0.972 / 0.739 | 1.000 / 0.972 / 0.739 | 1.000 / 1.000 / 0.838 |
+| Decision Index BANKING77, macro-F1 | 0.746 | 0.729 | 0.785 |
+| Decision Index CLINC150+OOS, macro-F1 | 0.822 | 0.871 | 0.902 |
+| Decision Index GPQA Diamond (196 scored), accuracy | 0.510 | 0.378 | 0.520 |
+| Decision Index MMLU-Pro, accuracy | 0.613 | 0.549 | 0.694 |
+| Intent heads from 10 labelled examples per intent, BANKING77 / CLINC150 | 0.840 / 0.912 (six draws) | 0.832 / 0.908 (six draws) | 0.844 / 0.970 (three draws) |
+| Image input, ImajevBench v2.0-lite, the 230 answerable items | 0.791 | not measured | not measured |
+| One question on a new 300-token state, server time | 48.4 ms | 39.1 ms | 61.8 ms |
+| One question on a 1,000-token state from the prefix cache, server time | 20.9 ms | 26.7 ms | 40.8 ms |
 
 Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions by several points and on intent taxonomies without labelled examples.
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
-Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma base.
-`EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4 and 6.4).
+Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
+`EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
 
 ## Teach it your question
 
@@ -276,5 +283,5 @@ Security issues go through GitHub's private vulnerability reporting, as describe
 ## Licence
 
 Apache-2.0 (`LICENSE`, `NOTICE`).
-The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the second base, Google's Gemma 4 12B under Apache-2.0 with Google's Gemma Prohibited Use Policy; both are downloaded, not redistributed.
+The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0 with Google's Gemma Prohibited Use Policy; all are downloaded, not redistributed.
 `THIRD-PARTY.md` lists everything else this project builds on.
