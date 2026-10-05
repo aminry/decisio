@@ -33,13 +33,13 @@ uv run pytest
 ```
 
 The unit tests, the lint and the patch checks run on any machine without a GPU.
-`pytest` runs the fast tier, which includes a short smoke of the task-registration walk-through on a small stand-in model; `pytest -m slow` runs the tests that load small models on the CPU at length (among them the full walk-through and the two head-mode tests on the stored intent readouts), which take a few minutes and peak at about 20 GB of RAM.
-Pull request CI runs the fast tier; the slow tier runs nightly and on demand.
+`pytest` runs the fast tier, which includes a short smoke of the task-registration walk-through on a small stand-in model; `pytest -m slow` runs the tests that load small models on the CPU at length (among them the full walk-through and the two head-mode tests on the stored intent readouts), which take a few minutes and peak at about 20 GB of RAM in one process (about 11 GB with one process per file).
+Pull request CI runs the fast tier. The nightly workflow (`.github/workflows/gpu.yml`) runs the slow tier, one file per process, on a hosted runner, and then `scripts/engine_death_loop.sh`: the engine-death tests 30 times beside a busy loop on every core, so a timing race in them shows there first.
 `uv.lock` is authoritative; do not upgrade a dependency in a pull request that does anything else.
 
 GPU tests (`tests/gpu`, `pytest -m gpu`) need vLLM 0.30.0, a CUDA card and a local checkpoint.
 They do not run on pull requests.
-A maintainer runs them on a trusted runner after review, and nightly on `main`.
+A maintainer runs them on a card after review. The nightly workflow's GPU job runs them on `main` once a trusted self-hosted runner is registered; none is yet, so they run only when a maintainer runs them by hand.
 If your change touches the served path, say so in the pull request so the maintainer runs them before merge.
 
 ## What a pull request must have

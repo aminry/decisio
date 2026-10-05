@@ -60,8 +60,8 @@ jobs:
       - name: Fetch the vLLM source the patches are checked against
         run: bash scripts/fetch_vllm_source.sh
 
-      # The slow tier (tests that load small models on the CPU) peaks at about 20 GB of RAM and is killed on
-      # a 16 GB hosted runner; it runs in the nightly job (.github/workflows/gpu.yml) and locally with -m slow.
+      # The slow tier (tests that load small models on the CPU) peaks at about 20 GB of RAM in one process and is
+      # killed on a 16 GB hosted runner; the nightly workflow (.github/workflows/gpu.yml) runs it one file per process.
       # The task-registration walk-through (tests/unit/test_tasks_walkthrough.py) starts servers on a small stand-in model.
       # It is fetched at this exact revision into a cache, and the test is pointed at the local copy, so a run neither
       # downloads 1.1 GB nor follows a moving branch (other tests fetch small configs from the Hub, so the run is not offline). Change the revision here when the stand-in changes.

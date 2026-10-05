@@ -278,7 +278,7 @@ src/decisio/bench/      benchmark scoring (JevBench v1.5 open-set reading, Decis
 benchmarks/             scripts that run the public harnesses against a server
 patches/                optional vLLM patch series, off by default
 Dockerfile  compose.yaml  docker/   the server image (vLLM 0.30.0 release image plus the wheel)
-tests/unit/  tests/gpu/ CPU tests run on every pull request; GPU tests run nightly (pytest -m gpu)
+tests/unit/  tests/gpu/ CPU tests: the fast tier on every pull request, the slow tier nightly; GPU tests (pytest -m gpu) by hand on a card
 runs/                   evaluation records: a manifest, per-item results and hashes per run
 docs/                   running, the API, the command line, task registration, design notes
 docs/demos/             the demos judged decision by decision, and their clips

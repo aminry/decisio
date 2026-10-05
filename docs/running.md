@@ -101,7 +101,7 @@ uv run pytest
 uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
 ```
 
-- `uv run pytest` runs the unit tests on any machine; the GPU tests (`pytest -m gpu`) need a card and run nightly.
+- `uv run pytest` runs the unit tests on any machine; the GPU tests (`pytest -m gpu`) need a card, and run by hand until a nightly GPU runner is registered.
 - `--backend hf` serves every route from a small Hugging Face model on the CPU, for developing and testing the routes; it is not the measured system and its answers are not for measurement.
 - CI runs the stand-in on `Qwen/Qwen3-0.6B-Base` at a pinned revision (`STAND_IN_REVISION` in `.github/workflows/ci.yml`).
 - `examples/tasks/` walks through task registration against it.
@@ -117,15 +117,16 @@ An engine whose forward pass fails (a CUDA error, an out-of-memory error) or who
 
 A death is confirmed before it is declared, so that a request which trips a bug cannot take a healthy server down:
 - vLLM's own word is enough: its `EngineDeadError`, or its flag for an engine-core process that is gone.
-- Any other unexpected error fails that request with 500, as it always has, and the server then sends the engine one probe: a forward pass over a one-token prompt, given 5 seconds.
+- Any other unexpected error fails that request with 500, as it always has, and the server then sends the engine one probe: a forward pass over a one-token prompt, given 5 seconds, or three times the engine's slowest recent call when that is longer, so that a slow engine is not taken for a dead one (the server times one probe per engine at start-up, so its first request already allows for a slow engine).
 - If the probe answers, the engine is alive and the server stays up; the server log says so (`the engine answered a probe in ... ms`).
-- If the probe fails or does not answer in 5 seconds, the engine is dead. An in-process engine that has failed hangs rather than answering, so this is how its death shows.
+- If the probe fails or does not answer in that time, the engine is dead. An in-process engine that has failed hangs rather than answering, so this is how its death shows.
+- A probe still waiting when the engine is declared dead another way (vLLM's flag, another request) stops at once, and its request gets its 503.
 - An error caused by the request (a malformed question, a state longer than the context) is answered with a 4xx and the engine is not probed.
 
 From the moment the engine is dead:
 - every request, including those already waiting for the engine, is answered at once with 503 and the reason, and the engine is not called again;
 - `/health` answers 503 with `{"ok": false, "engine": "dead", "reason": "...", "exit_code": 70}`;
-- after 2 seconds the server stops its engine processes and exits with code 70.
+- after 2 seconds, once every request in flight has its answer (waiting at most 8 seconds more), the server stops its engine processes and exits with code 70; a request the dead engine never returns has its connection closed by the exit.
 
 The in-process arrangement therefore exits about 7 seconds after the failing request (the probe's 5 seconds, then the grace period's 2).
 In the separate arrangement (`--engine-process separate`, the default with a second engine) vLLM reports the death itself, so the server exits about 2 seconds after it.
