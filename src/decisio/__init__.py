@@ -10,4 +10,4 @@
 Importing `decisio` pulls in nothing beyond the standard library.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.8.1"
