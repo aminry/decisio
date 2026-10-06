@@ -57,6 +57,21 @@ def test_mlx_backend_refuses_what_it_does_not_serve(monkeypatch, flags, capsys):
     assert "--backend mlx serves the text route" in capsys.readouterr().err
 
 
+def test_mlx_backend_refuses_the_31b_however_it_is_named(tmp_path):
+    # gemma-4-31b has no gated MLX build: refused by --base, and by a conversion whose config names it (a dense gemma4)
+    from types import SimpleNamespace
+
+    from decisio.serve.vllm_engine import resolve_base
+
+    d = tmp_path / "gemma-4-31b-it-6bit"
+    d.mkdir()
+    (d / "config.json").write_text(json.dumps({"model_type": "gemma4", "text_config": {"model_type": "gemma4_text"}}))
+    for base, model in (("gemma-4-31b", str(d)), (None, str(d))):
+        args = SimpleNamespace(backend="mlx", base=base, model=model, revision=None)
+        with pytest.raises(ValueError, match="gemma-4-31b is served on vLLM only"):
+            resolve_base(args)
+
+
 def test_pad_policy_defaults_by_backend():
     from decisio.serve.vllm_engine import resolve_pad_policy
 

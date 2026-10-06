@@ -1001,8 +1001,6 @@ def resolve_base(args):
 
     if args.backend == "mlx" and args.model is None:
         raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
-    if args.backend == "mlx" and args.base == "gemma-4-31b":
-        raise ValueError("--backend mlx serves the Qwen base and gemma-4-12b; gemma-4-31b is served on vLLM only")
     if args.base is not None:
         fam = BASES[args.base]
         given = args.model is not None
@@ -1019,6 +1017,9 @@ def resolve_base(args):
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision)
+    # checked on the resolved base, so a conversion whose config names the 31B is refused without --base as well
+    if args.backend == "mlx" and fam.key == "gemma-4-31b":
+        raise ValueError("--backend mlx serves the Qwen base and gemma-4-12b; gemma-4-31b is served on vLLM only")
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
