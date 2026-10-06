@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.1](https://github.com/aminry/decisio/compare/v0.8.0...v0.8.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **serve:** a single question registers its state's boundary on the Gemma bases, so the next question reads the state from the cache ([#93](https://github.com/aminry/decisio/issues/93)) ([573d7d6](https://github.com/aminry/decisio/commit/573d7d698c830890f8624b4b69261c31dda278c2))
+* **serve:** close the engine-death races; loop those tests under load nightly with the slow tier on a hosted runner ([#91](https://github.com/aminry/decisio/issues/91)) ([3c51e79](https://github.com/aminry/decisio/commit/3c51e795edd650760ba5c49ee65e55b561dec4c7))
+
 ## [0.8.0](https://github.com/aminry/decisio/compare/v0.7.2...v0.8.0) (2026-10-05)
 
 
