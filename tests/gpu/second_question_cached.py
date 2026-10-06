@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Run by test_second_question_cached.py on a card: on a base's served profile, a later, different question about a
-state reads the state from the prefix cache, also with the cache filled past its pool.
+state reads the state from the prefix cache, also with the cache filled near or past its pool (part B).
 
 The server is built as `decisio-serve --base <base> --model <checkpoint>` builds it (uvicorn left out). On the Gemma
 bases a single question registers its state's boundary with a warm-up (decisio.families register_state_boundary);
@@ -9,12 +9,17 @@ without it a second question read the whole state again (on the 31B, 531 ms inst
 experiments/2026-10-05_t7_card_e2_e3_e4), and vLLM's retention interval, the other way to keep it, lost even repeated
 questions on the earliest states at 1.3 times the cache's pool (same record).
 
-    python tests/gpu/second_question_cached.py <checkpoint> --base <base> [--tokens 3000] [--fill 1.3] [--revisit 8]
+    python tests/gpu/second_question_cached.py <checkpoint> --base <base> [--tokens 3000] [--fill F] [--revisit 8]
 
 PART A  a first question on a new state, the same question again (the answers equal: a first read goes through the
         cache too), then a different question, which reads the state's whole hit units from the cache
-PART B  distinct states filling `fill` times the pool vLLM reports, one question each; then the `revisit` earliest
-        states again, a different question and the same one, each reading the state's whole hit units from the cache
+PART B  distinct states filling `fill` times the pool vLLM reports (`cache_config.kv_cache_size_tokens`), one
+        question each; then the `revisit` earliest states again, the same question first and then a different one,
+        each reading the state's whole hit units from the cache (the repeat first: a miss on the different question
+        would read the state again and let the repeat hit). The fill defaults to 1.3 on a base that registers its
+        state boundaries (the Gemma bases, whose reported pool understates what their sliding-window cache holds) and
+        to 0.9 on one that does not (the Qwen base, whose reported pool is its capacity, so above it the earliest
+        states are evicted, as any cache evicts under overload)
 """
 
 import argparse
@@ -69,13 +74,16 @@ def main():
     ap.add_argument("model")
     ap.add_argument("--base", required=True)
     ap.add_argument("--tokens", type=int, default=3000)
-    ap.add_argument("--fill", type=float, default=1.3)
+    ap.add_argument("--fill", type=float, default=None)
     ap.add_argument("--revisit", type=int, default=8)
     a = ap.parse_args()
     eng = served(a.base, a.model)
     facts = eng.facts()
     cfg = eng.llm.llm_engine.vllm_config.cache_config
-    pool = cfg.num_gpu_blocks * cfg.block_size
+    # the pool vLLM reports ("GPU KV cache size"); num_gpu_blocks x block_size counts every cache group's blocks, 5.25
+    # times the reported pool on Gemma 4 12B (944,704 against 179,859 tokens), so part B once filled 6.8 times the pool
+    pool = cfg.kv_cache_size_tokens
+    fill = a.fill if a.fill is not None else (1.3 if facts.get("registers_state_boundary") else 0.9)
     keys = (
         "base",
         "engine_process",
@@ -100,19 +108,19 @@ def main():
         flush=True,
     )
 
-    n = math.ceil(a.fill * pool / a.tokens)
+    n = math.ceil(fill * pool / a.tokens)
     states = [ticket(eng.tok, a.tokens, 1000 + k) for k in range(n)]
     for s in states:
         ask(eng, s, FIRST)
     hits_other = hits_same = 0
     for s in states[: a.revisit]:
-        _, c, w, _ = ask(eng, s, SECOND)
-        hits_other += c >= w
         _, c, w, _ = ask(eng, s, FIRST)
         hits_same += c >= w
+        _, c, w, _ = ask(eng, s, SECOND)
+        hits_other += c >= w
     b_ok = hits_other == hits_same == a.revisit
     print(
-        f"PART B {'PASS' if b_ok else 'FAIL'}: {n} states of {a.tokens} tokens ({n * a.tokens} tokens, {a.fill} times "
+        f"PART B {'PASS' if b_ok else 'FAIL'}: {n} states of {a.tokens} tokens ({n * a.tokens} tokens, {fill} times "
         f"the pool of {pool}); of the {a.revisit} earliest, a different question read the state from the cache on "
         f"{hits_other}, the same question on {hits_same}",
         flush=True,
