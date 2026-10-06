@@ -68,6 +68,19 @@ class HFLettersEngine(LettersEngine):
             "adapters": [],
         }
 
+    def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
+        """The forward passes a warm-up costs, one prompt at a time; with no prefix cache, nothing is kept (a
+        registration deferred until after its response runs through here, decisio.serve.boundary)."""
+        import torch
+
+        if adapter:
+            raise ValueError("the CPU stand-in serves no adapters")
+        t0 = time.perf_counter()
+        with torch.no_grad():
+            for ids in warm:
+                guarded(self, self.model, torch.tensor([list(ids)]), logits_to_keep=1)
+        return (time.perf_counter() - t0) * 1000
+
     def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
         import torch
 
