@@ -1,0 +1,227 @@
+FFF                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_a_later_question_reads_the_state_from_the_cache[DECISIO_MODEL-qwen3.6-35b-a3b] _
+
+variable = 'DECISIO_MODEL', base = 'qwen3.6-35b-a3b'
+
+    @pytest.mark.parametrize(
+        ("variable", "base"),
+        [("DECISIO_MODEL", "qwen3.6-35b-a3b"), ("DECISIO_GEMMA_12B", "gemma-4-12b"), ("DECISIO_GEMMA_31B", "gemma-4-31b")],
+    )
+    def test_a_later_question_reads_the_state_from_the_cache(variable, base):
+>       out = run_child(HERE / "second_question_cached.py", env_path(variable), "--base", base, "--tokens", "3000")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/gpu/test_second_question_cached.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+timeout = 3600
+argv = (PosixPath('/workspace/t3v/decisio/tests/gpu/second_question_cached.py'), '/workspace/t3v/hf/hub/models--Qwen--Qwen3.6-35B-A3B-FP8/snapshots/95a723d08a9490559dae23d0cff1d9466213d989', '--base', 'qwen3.6-35b-a3b', '--tokens', '3000')
+
+    def run_child(*argv, timeout=3600):
+        """Run a script of this directory in a child process with DeepGEMM off; return its output (failing on exit != 0)."""
+        env = {**os.environ, "VLLM_USE_DEEP_GEMM": "0"}
+        r = subprocess.run([sys.executable, *map(str, argv)], capture_output=True, text=True, env=env, timeout=timeout)
+        out = r.stdout + r.stderr
+>       assert r.returncode == 0, out[-4000:]
+               ^^^^^^^^^^^^^^^^^
+E       AssertionError: 84%|████████▍ | 232/275 [00:59<00:07,  5.48it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▍ | 233/275 [00:59<00:07,  5.68it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▌ | 234/275 [00:59<00:06,  5.98it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▌ | 235/275 [01:00<00:06,  6.33it/s]
+E       Capturing CUDA graphs (PIECEWISE):  86%|████████▌ | 236/275 [01:00<00:05,  6.72it/s]
+E       Capturing CUDA graphs (PIECEWISE):  86%|████████▌ | 237/275 [01:00<00:05,  7.10it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 238/275 [01:00<00:04,  7.49it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 239/275 [01:00<00:04,  7.82it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 240/275 [01:00<00:04,  8.20it/s]
+E       Capturing CUDA graphs (PIECEWISE):  88%|████████▊ | 242/275 [01:00<00:03,  9.54it/s]
+E       Capturing CUDA graphs (PIECEWISE):  89%|████████▊ | 244/275 [01:01<00:02, 10.37it/s]
+E       Capturing CUDA graphs (PIECEWISE):  89%|████████▉ | 246/275 [01:01<00:02, 10.85it/s]
+E       Capturing CUDA graphs (PIECEWISE):  90%|█████████ | 248/275 [01:01<00:02, 11.18it/s]
+E       Capturing CUDA graphs (PIECEWISE):  91%|█████████ | 250/275 [01:01<00:02, 11.40it/s]
+E       Capturing CUDA graphs (PIECEWISE):  92%|█████████▏| 252/275 [01:01<00:01, 11.53it/s]
+E       Capturing CUDA graphs (PIECEWISE):  92%|█████████▏| 254/275 [01:01<00:01, 11.62it/s]
+E       Capturing CUDA graphs (PIECEWISE):  93%|█████████▎| 256/275 [01:02<00:01, 11.70it/s]
+E       Capturing CUDA graphs (PIECEWISE):  94%|█████████▍| 258/275 [01:02<00:01, 11.94it/s]
+E       Capturing CUDA graphs (PIECEWISE):  95%|█████████▍| 260/275 [01:02<00:01, 12.14it/s]
+E       Capturing CUDA graphs (PIECEWISE):  95%|█████████▌| 262/275 [01:02<00:01, 12.29it/s]
+E       Capturing CUDA graphs (PIECEWISE):  96%|█████████▌| 264/275 [01:02<00:00, 12.35it/s]
+E       Capturing CUDA graphs (PIECEWISE):  97%|█████████▋| 266/275 [01:02<00:00, 12.43it/s]
+E       Capturing CUDA graphs (PIECEWISE):  97%|█████████▋| 268/275 [01:03<00:00, 12.44it/s]
+E       Capturing CUDA graphs (PIECEWISE):  98%|█████████▊| 270/275 [01:03<00:00, 12.46it/s]
+E       Capturing CUDA graphs (PIECEWISE):  99%|█████████▉| 272/275 [01:03<00:00, 12.49it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|█████████▉| 274/275 [01:03<00:00, 12.50it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|██████████| 275/275 [01:03<00:00,  4.33it/s]
+E       
+E       Capturing CUDA graphs (FULL):   0%|          | 0/35 [00:00<?, ?it/s]
+E       Capturing CUDA graphs (FULL):   6%|▌         | 2/35 [00:00<00:01, 16.82it/s]
+E       Capturing CUDA graphs (FULL):  11%|█▏        | 4/35 [00:00<00:01, 16.45it/s]
+E       Capturing CUDA graphs (FULL):  17%|█▋        | 6/35 [00:00<00:01, 16.60it/s]
+E       Capturing CUDA graphs (FULL):  23%|██▎       | 8/35 [00:00<00:01, 16.68it/s]
+E       Capturing CUDA graphs (FULL):  29%|██▊       | 10/35 [00:00<00:01, 16.60it/s]
+E       Capturing CUDA graphs (FULL):  34%|███▍      | 12/35 [00:00<00:01, 16.71it/s]
+E       Capturing CUDA graphs (FULL):  40%|████      | 14/35 [00:00<00:01, 16.81it/s]
+E       Capturing CUDA graphs (FULL):  46%|████▌     | 16/35 [00:00<00:01, 16.72it/s]
+E       Capturing CUDA graphs (FULL):  51%|█████▏    | 18/35 [00:01<00:01, 16.76it/s]
+E       Capturing CUDA graphs (FULL):  57%|█████▋    | 20/35 [00:01<00:00, 16.85it/s]
+E       Capturing CUDA graphs (FULL):  63%|██████▎   | 22/35 [00:01<00:00, 16.83it/s]
+E       Capturing CUDA graphs (FULL):  69%|██████▊   | 24/35 [00:01<00:00, 16.88it/s]
+E       Capturing CUDA graphs (FULL):  74%|███████▍  | 26/35 [00:01<00:00, 17.00it/s]
+E       Capturing CUDA graphs (FULL):  80%|████████  | 28/35 [00:01<00:00, 16.95it/s]
+E       Capturing CUDA graphs (FULL):  86%|████████▌ | 30/35 [00:01<00:00, 17.14it/s]
+E       Capturing CUDA graphs (FULL):  91%|█████████▏| 32/35 [00:01<00:00, 17.19it/s]
+E       Capturing CUDA graphs (FULL):  97%|█████████▋| 34/35 [00:02<00:00, 17.35it/s]
+E       Capturing CUDA graphs (FULL): 100%|██████████| 35/35 [00:02<00:00, 16.97it/s]
+E       [rank0]:[W1006 05:09:37.477002511 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+
+tests/gpu/gpu_tier.py:36: AssertionError
+_ test_a_later_question_reads_the_state_from_the_cache[DECISIO_GEMMA_12B-gemma-4-12b] _
+
+variable = 'DECISIO_GEMMA_12B', base = 'gemma-4-12b'
+
+    @pytest.mark.parametrize(
+        ("variable", "base"),
+        [("DECISIO_MODEL", "qwen3.6-35b-a3b"), ("DECISIO_GEMMA_12B", "gemma-4-12b"), ("DECISIO_GEMMA_31B", "gemma-4-31b")],
+    )
+    def test_a_later_question_reads_the_state_from_the_cache(variable, base):
+>       out = run_child(HERE / "second_question_cached.py", env_path(variable), "--base", base, "--tokens", "3000")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/gpu/test_second_question_cached.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+timeout = 3600
+argv = (PosixPath('/workspace/t3v/decisio/tests/gpu/second_question_cached.py'), '/workspace/t3v/hf/hub/models--google--gemma-4-12B-it/snapshots/707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7', '--base', 'gemma-4-12b', '--tokens', '3000')
+
+    def run_child(*argv, timeout=3600):
+        """Run a script of this directory in a child process with DeepGEMM off; return its output (failing on exit != 0)."""
+        env = {**os.environ, "VLLM_USE_DEEP_GEMM": "0"}
+        r = subprocess.run([sys.executable, *map(str, argv)], capture_output=True, text=True, env=env, timeout=timeout)
+        out = r.stdout + r.stderr
+>       assert r.returncode == 0, out[-4000:]
+               ^^^^^^^^^^^^^^^^^
+E       AssertionError: raphs (PIECEWISE):  73%|███████▎  | 202/275 [00:52<00:08,  8.83it/s]
+E       Capturing CUDA graphs (PIECEWISE):  74%|███████▍  | 203/275 [00:52<00:07,  9.04it/s]
+E       Capturing CUDA graphs (PIECEWISE):  74%|███████▍  | 204/275 [00:52<00:07,  9.18it/s]
+E       Capturing CUDA graphs (PIECEWISE):  75%|███████▍  | 205/275 [00:52<00:07,  9.27it/s]
+E       Capturing CUDA graphs (PIECEWISE):  75%|███████▍  | 206/275 [00:52<00:07,  9.38it/s]
+E       Capturing CUDA graphs (PIECEWISE):  75%|███████▌  | 207/275 [00:52<00:07,  9.45it/s]
+E       Capturing CUDA graphs (PIECEWISE):  76%|███████▌  | 208/275 [00:52<00:07,  9.49it/s]
+E       Capturing CUDA graphs (PIECEWISE):  76%|███████▋  | 210/275 [00:52<00:06, 10.08it/s]
+E       Capturing CUDA graphs (PIECEWISE):  77%|███████▋  | 212/275 [00:53<00:06, 10.41it/s]
+E       Capturing CUDA graphs (PIECEWISE):  78%|███████▊  | 214/275 [00:53<00:05, 10.63it/s]
+E       Capturing CUDA graphs (PIECEWISE):  79%|███████▊  | 216/275 [00:53<00:05, 10.79it/s]
+E       Capturing CUDA graphs (PIECEWISE):  79%|███████▉  | 218/275 [00:53<00:05, 11.19it/s]
+E       Capturing CUDA graphs (PIECEWISE):  80%|████████  | 220/275 [00:53<00:04, 11.51it/s]
+E       Capturing CUDA graphs (PIECEWISE):  81%|████████  | 222/275 [00:53<00:04, 11.82it/s]
+E       Capturing CUDA graphs (PIECEWISE):  81%|████████▏ | 224/275 [00:54<00:04, 11.99it/s]
+E       Capturing CUDA graphs (PIECEWISE):  82%|████████▏ | 226/275 [00:54<00:03, 12.68it/s]
+E       Capturing CUDA graphs (PIECEWISE):  83%|████████▎ | 228/275 [00:54<00:03, 13.35it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▎ | 230/275 [00:54<00:03, 13.75it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▍ | 232/275 [00:54<00:03, 14.09it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▌ | 234/275 [00:54<00:02, 15.02it/s]
+E       Capturing CUDA graphs (PIECEWISE):  86%|████████▌ | 236/275 [00:54<00:02, 15.80it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 238/275 [00:54<00:02, 16.48it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 240/275 [00:55<00:02, 17.14it/s]
+E       Capturing CUDA graphs (PIECEWISE):  88%|████████▊ | 243/275 [00:55<00:01, 18.53it/s]
+E       Capturing CUDA graphs (PIECEWISE):  89%|████████▉ | 246/275 [00:55<00:01, 19.65it/s]
+E       Capturing CUDA graphs (PIECEWISE):  91%|█████████ | 249/275 [00:55<00:01, 20.49it/s]
+E       Capturing CUDA graphs (PIECEWISE):  92%|█████████▏| 252/275 [00:55<00:01, 21.18it/s]
+E       Capturing CUDA graphs (PIECEWISE):  93%|█████████▎| 255/275 [00:55<00:00, 21.57it/s]
+E       Capturing CUDA graphs (PIECEWISE):  94%|█████████▍| 258/275 [00:55<00:00, 22.18it/s]
+E       Capturing CUDA graphs (PIECEWISE):  95%|█████████▍| 261/275 [00:56<00:00, 22.70it/s]
+E       Capturing CUDA graphs (PIECEWISE):  96%|█████████▌| 264/275 [00:56<00:00, 23.07it/s]
+E       Capturing CUDA graphs (PIECEWISE):  97%|█████████▋| 267/275 [00:56<00:00, 23.40it/s]
+E       Capturing CUDA graphs (PIECEWISE):  98%|█████████▊| 270/275 [00:56<00:00, 23.84it/s]
+E       Capturing CUDA graphs (PIECEWISE):  99%|█████████▉| 273/275 [00:56<00:00, 24.03it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|██████████| 275/275 [00:56<00:00,  4.86it/s]
+E       
+E       Capturing CUDA graphs (FULL):   0%|          | 0/35 [00:00<?, ?it/s]
+E       Capturing CUDA graphs (FULL):  11%|█▏        | 4/35 [00:00<00:00, 31.45it/s]
+E       Capturing CUDA graphs (FULL):  23%|██▎       | 8/35 [00:00<00:00, 29.81it/s]
+E       Capturing CUDA graphs (FULL):  31%|███▏      | 11/35 [00:00<00:00, 29.37it/s]
+E       Capturing CUDA graphs (FULL):  40%|████      | 14/35 [00:00<00:00, 29.45it/s]
+E       Capturing CUDA graphs (FULL):  51%|█████▏    | 18/35 [00:00<00:00, 30.62it/s]
+E       Capturing CUDA graphs (FULL):  63%|██████▎   | 22/35 [00:00<00:00, 32.81it/s]
+E       Capturing CUDA graphs (FULL):  74%|███████▍  | 26/35 [00:00<00:00, 34.59it/s]
+E       Capturing CUDA graphs (FULL):  89%|████████▊ | 31/35 [00:00<00:00, 36.64it/s]
+E       Capturing CUDA graphs (FULL): 100%|██████████| 35/35 [00:01<00:00, 34.05it/s]
+E       [rank0]:[W1006 05:15:37.461494541 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+
+tests/gpu/gpu_tier.py:36: AssertionError
+_ test_a_later_question_reads_the_state_from_the_cache[DECISIO_GEMMA_31B-gemma-4-31b] _
+
+variable = 'DECISIO_GEMMA_31B', base = 'gemma-4-31b'
+
+    @pytest.mark.parametrize(
+        ("variable", "base"),
+        [("DECISIO_MODEL", "qwen3.6-35b-a3b"), ("DECISIO_GEMMA_12B", "gemma-4-12b"), ("DECISIO_GEMMA_31B", "gemma-4-31b")],
+    )
+    def test_a_later_question_reads_the_state_from_the_cache(variable, base):
+>       out = run_child(HERE / "second_question_cached.py", env_path(variable), "--base", base, "--tokens", "3000")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/gpu/test_second_question_cached.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+timeout = 3600
+argv = (PosixPath('/workspace/t3v/decisio/tests/gpu/second_question_cached.py'), '/workspace/t3v/hf/hub/models--google--gemma-4-31B-it/snapshots/842da3794eaa0b77d5f08bae87a17459d91ff475', '--base', 'gemma-4-31b', '--tokens', '3000')
+
+    def run_child(*argv, timeout=3600):
+        """Run a script of this directory in a child process with DeepGEMM off; return its output (failing on exit != 0)."""
+        env = {**os.environ, "VLLM_USE_DEEP_GEMM": "0"}
+        r = subprocess.run([sys.executable, *map(str, argv)], capture_output=True, text=True, env=env, timeout=timeout)
+        out = r.stdout + r.stderr
+>       assert r.returncode == 0, out[-4000:]
+               ^^^^^^^^^^^^^^^^^
+E       AssertionError: 25<00:06,  7.79it/s]
+E       Capturing CUDA graphs (PIECEWISE):  82%|████████▏ | 225/275 [01:25<00:06,  8.23it/s]
+E       Capturing CUDA graphs (PIECEWISE):  82%|████████▏ | 226/275 [01:25<00:05,  8.57it/s]
+E       Capturing CUDA graphs (PIECEWISE):  83%|████████▎ | 227/275 [01:25<00:05,  8.91it/s]
+E       Capturing CUDA graphs (PIECEWISE):  83%|████████▎ | 228/275 [01:25<00:05,  9.14it/s]
+E       Capturing CUDA graphs (PIECEWISE):  83%|████████▎ | 229/275 [01:25<00:04,  9.29it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▎ | 230/275 [01:25<00:04,  9.46it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▍ | 231/275 [01:25<00:04,  9.54it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▍ | 232/275 [01:25<00:04,  9.67it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▌ | 234/275 [01:26<00:03, 10.37it/s]
+E       Capturing CUDA graphs (PIECEWISE):  86%|████████▌ | 236/275 [01:26<00:03, 10.84it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 238/275 [01:26<00:03, 11.18it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 240/275 [01:26<00:03, 11.38it/s]
+E       Capturing CUDA graphs (PIECEWISE):  88%|████████▊ | 242/275 [01:26<00:02, 11.72it/s]
+E       Capturing CUDA graphs (PIECEWISE):  89%|████████▊ | 244/275 [01:26<00:02, 11.98it/s]
+E       Capturing CUDA graphs (PIECEWISE):  89%|████████▉ | 246/275 [01:27<00:02, 12.19it/s]
+E       Capturing CUDA graphs (PIECEWISE):  90%|█████████ | 248/275 [01:27<00:02, 12.37it/s]
+E       Capturing CUDA graphs (PIECEWISE):  91%|█████████ | 250/275 [01:27<00:01, 13.06it/s]
+E       Capturing CUDA graphs (PIECEWISE):  92%|█████████▏| 252/275 [01:27<00:01, 13.58it/s]
+E       Capturing CUDA graphs (PIECEWISE):  92%|█████████▏| 254/275 [01:27<00:01, 14.02it/s]
+E       Capturing CUDA graphs (PIECEWISE):  93%|█████████▎| 256/275 [01:27<00:01, 14.38it/s]
+E       Capturing CUDA graphs (PIECEWISE):  94%|█████████▍| 258/275 [01:27<00:01, 15.17it/s]
+E       Capturing CUDA graphs (PIECEWISE):  95%|█████████▍| 260/275 [01:27<00:00, 15.86it/s]
+E       Capturing CUDA graphs (PIECEWISE):  95%|█████████▌| 262/275 [01:28<00:00, 16.34it/s]
+E       Capturing CUDA graphs (PIECEWISE):  96%|█████████▌| 264/275 [01:28<00:00, 16.67it/s]
+E       Capturing CUDA graphs (PIECEWISE):  97%|█████████▋| 266/275 [01:28<00:00, 16.95it/s]
+E       Capturing CUDA graphs (PIECEWISE):  97%|█████████▋| 268/275 [01:28<00:00, 17.16it/s]
+E       Capturing CUDA graphs (PIECEWISE):  98%|█████████▊| 270/275 [01:28<00:00, 17.37it/s]
+E       Capturing CUDA graphs (PIECEWISE):  99%|█████████▉| 272/275 [01:28<00:00, 17.58it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|█████████▉| 274/275 [01:28<00:00, 17.64it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|██████████| 275/275 [01:28<00:00,  3.10it/s]
+E       
+E       Capturing CUDA graphs (FULL):   0%|          | 0/35 [00:00<?, ?it/s]
+E       Capturing CUDA graphs (FULL):   6%|▌         | 2/35 [00:00<00:01, 17.95it/s]
+E       Capturing CUDA graphs (FULL):  11%|█▏        | 4/35 [00:00<00:01, 16.28it/s]
+E       Capturing CUDA graphs (FULL):  17%|█▋        | 6/35 [00:00<00:01, 15.69it/s]
+E       Capturing CUDA graphs (FULL):  23%|██▎       | 8/35 [00:00<00:01, 15.32it/s]
+E       Capturing CUDA graphs (FULL):  29%|██▊       | 10/35 [00:00<00:01, 16.31it/s]
+E       Capturing CUDA graphs (FULL):  34%|███▍      | 12/35 [00:00<00:01, 16.93it/s]
+E       Capturing CUDA graphs (FULL):  40%|████      | 14/35 [00:00<00:01, 17.41it/s]
+E       Capturing CUDA graphs (FULL):  46%|████▌     | 16/35 [00:00<00:01, 17.86it/s]
+E       Capturing CUDA graphs (FULL):  54%|█████▍    | 19/35 [00:01<00:00, 20.13it/s]
+E       Capturing CUDA graphs (FULL):  63%|██████▎   | 22/35 [00:01<00:00, 21.93it/s]
+E       Capturing CUDA graphs (FULL):  71%|███████▏  | 25/35 [00:01<00:00, 23.39it/s]
+E       Capturing CUDA graphs (FULL):  83%|████████▎ | 29/35 [00:01<00:00, 25.60it/s]
+E       Capturing CUDA graphs (FULL):  94%|█████████▍| 33/35 [00:01<00:00, 27.26it/s]
+E       Capturing CUDA graphs (FULL): 100%|██████████| 35/35 [00:01<00:00, 21.57it/s]
+E       [rank0]:[W1006 05:21:03.111351388 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+
+tests/gpu/gpu_tier.py:36: AssertionError
+3 failed in 1131.37s (0:18:51)
