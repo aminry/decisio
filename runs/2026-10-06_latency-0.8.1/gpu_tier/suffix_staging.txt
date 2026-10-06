@@ -1,0 +1,4 @@
+s                                                                        [100%]
+=========================== short test summary info ============================
+SKIPPED [1] tests/gpu/test_suffix_staging.py:21: vLLM without the series (bash patches/apply.sh)
+1 skipped in 1.63s
