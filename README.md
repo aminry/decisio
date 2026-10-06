@@ -255,7 +255,7 @@ curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @exam
 
 The served defaults need no flags; these change behaviour ([`docs/cli.md`](docs/cli.md) has every flag and its default per base):
 - `--pad-policy row`: pads a single-question request so its whole row ends on the block boundary, faster on a new state at a small cost in repeatability.
-- `--multi-question warm`: scores a request's questions in one batch for bulk scoring, faster, but each answer then depends on the batch. It is the Gemma 4 31B base's default: with the engine in the server's process a warm request repeats exactly, and on the items measured it chose as `sequential` did every time (`runs/2026-10-05_engine-death-gates/`).
+- `--multi-question warm`: scores a request's questions in one batch for bulk scoring, faster, but each answer then depends on the batch. It is the Gemma 4 31B base's default: with the engine in the server's process a warm request repeats exactly within one session on one machine (not across sessions, `EVAL_CARD.md` section 7.5), and on the items measured it chose as `sequential` did every time (`runs/2026-10-05_engine-death-gates/`).
 - `--noul-commit`: reports a yes/no probability inside JevBench v1.5's no-answer band at the band's edge; the answer never changes, its calibration does.
 - `--prompt-tail compact`: the earlier layout, for tasks registered under it.
 - `--image-model`: a second engine on the same card for requests that carry images.

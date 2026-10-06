@@ -243,7 +243,7 @@ ECE is as in section 3; the suite's is the tie-robust version over 10 equal-mass
 
 ### 7.3 Gates, and the decision
 
-Measured in the session: conformance C2, C3 and C4 pass on the 1,400 items; on the 250 intent items the head's label log-probabilities equal the log of the plain readout's probabilities bit for bit (250 of 250); each of JevBench's 231 items sent twice in a row moved by at most 5.6e-8, and no choice changed (`repeat_g31.json.gz`).
+Measured in the session: conformance C2, C3 and C4 pass on the 1,400 items; on the 250 intent items the head's label log-probabilities equal the log of the plain readout's probabilities bit for bit (250 of 250); each of JevBench's 231 items sent twice in a row moved by at most 5.6e-8, and no choice changed (`repeat_g31.json.gz`); that bound holds within one session on one machine, not across sessions (7.5).
 
 The session's pre-registered go rule compared the four Decision Index values with the board's "Decider chat · Gemma-4-31B" row (BANKING77 macro-F1 0.791, CLINC150+OOS macro-F1 0.912, GPQA Diamond 0.490, MMLU-Pro 0.696) and one question on a new 300-token state with 108 ms.
 The 31B passed GPQA Diamond (0.520) and the latency (61.8 ms), and missed BANKING77 by 0.0065, CLINC150+OOS by 0.0105 and MMLU-Pro by 0.0021.
@@ -277,6 +277,10 @@ The disclosures of section 4 hold here too, with one more: the go rule this base
 - Several questions in one request, scored one engine call each as on the other bases, equalled each question sent alone on all 272 travel requests; batched (`--multi-question warm`, engine in the server's process) they repeated exactly and matched each question alone except 6 of 1,088 answers, by at most 0.005, with no choice changed (`runs/2026-10-05_engine-process/`). Against each question in its own engine call, batched answers changed no choice on the suite's 1,400 items, JevBench's 231 or the travel requests, by at most 0.0073 (`runs/2026-10-05_engine-death-gates/`); the suite and JevBench were not measured against each question sent alone.
 - Slower than both served bases on states it has not seen before, the more so the longer the state (one question on a new 3,000-token state: 476 ms, against 91 ms on the Qwen base).
 - One card and one session; the intent heads over three draws, the other bases' over six.
+- **Repeatability is within one session on one machine.**
+  On 2026-10-06 the served FP8 profile at v0.8.0, with identical prompts and profile, did not reproduce this section's record: over 1,631 suite and JevBench items every readout differed (median |dp| per task 1e-9 to 3e-6), and near-tied items moved by up to 0.98, changing 28 top answers (1.7%).
+  The engine arrangement (in the server's process, 0.8.0's default) and the driver (590.48.01, against the record's 610.43.02) differed; section 8's run of 2026-10-05, at v0.6.0 with the engine in its own process and the record's driver, had reproduced its four Decision Index values exactly.
+  A comparison of this base with an earlier record must therefore be paired in the same session (Track 7's stage C, recorded in the private RLCD repository at `experiments/2026-10-05_t7_nvfp4_stage_c/RESULTS.md`).
 - Not served on a Mac; the image route was not measured.
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
