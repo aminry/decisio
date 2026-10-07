@@ -148,7 +148,7 @@ Where a row says the documentation does not state something, that is about the p
 | Calibration | fitted temperatures per base; JevBench ECE on the standard and hard tiers: Qwen 0.121 and 0.043, Gemma 4 12B 0.033 and 0.085, Gemma 4 31B 0.035 and 0.091 | "System One models are trained for calibrated decisions: their probabilities are optimized against outcomes to reflect uncertainty." ([System One](https://docs.typesafe.ai/concepts/system-one)) |
 | Where data goes | to the machine that runs the server, and nowhere else | "Jev is not trained on customer requests or responses."; zero data retention is offered "for enterprise customers" ([models](https://docs.typesafe.ai/models), [legal](https://docs.typesafe.ai/legal)) |
 | Mac and Ollama | Qwen and Gemma 4 12B on Apple silicon with MLX (not the 31B); the Qwen base on Ollama (`aminroudaki/decisio`), with Ollama's own prompt and no calibration | the pages read describe the hosted API only |
-| Licence | Apache-2.0; the weights are Qwen's under Apache-2.0 and Google's Gemma 4 under Apache-2.0 with Google's Gemma Prohibited Use Policy | a hosted service under TypeSafe's customer agreements, which "govern your use of TypeSafe" ([legal](https://docs.typesafe.ai/legal)) |
+| Licence | Apache-2.0; the weights are Qwen's under Apache-2.0 and Google's Gemma 4 under Apache-2.0 | a hosted service under TypeSafe's customer agreements, which "govern your use of TypeSafe" ([legal](https://docs.typesafe.ai/legal)) |
 | Price | no per-call price; the card's cost (section 1, e) | "$42 / $0.042" per billion / million tokens, "Charged per input token. Output tokens are free." ([models](https://docs.typesafe.ai/models)) |
 
 ## 4. Summary
