@@ -25,8 +25,16 @@ PART B  distinct states filling `fill` times the pool vLLM reports (`cache_confi
         state's whole hit units from the cache (the repeat first: a miss on the different question
         would read the state again and let the repeat hit). The fill defaults to 1.3 on a base that registers its
         state boundaries (the Gemma bases, whose reported pool understates what their sliding-window cache holds) and
-        to 0.9 on one that does not (the Qwen base, whose reported pool is its capacity, so above it the earliest
-        states are evicted, as any cache evicts under overload)
+        to 0.9 on one that does not (the Qwen base)
+        The fill is counted in tokens by default (--fill-by tokens), which holds for the Gemma bases. It does not for
+        the Qwen base: the reported pool is the number of 32,768-token requests that fit times 32,768, and on a hybrid
+        model a short padded state costs far more blocks per token than a long one, because each recurrent group keeps
+        a state block besides the attention blocks. From the logged figures of Lab 2's card (RLCD
+        experiments/2026-10-07_lab2_after_gpu_cases): 2,330 blocks in all, a 32,768-token request needing 38 (32
+        attention and 2 for each of three recurrent groups), so a cached 3,168-token state keeping at least 3 attention
+        and 3 recurrent blocks holds at most 388 states, where the test sent 429 and none of the 8 earliest was left.
+        --fill-by blocks (the Qwen base's) measures the blocks a state keeps in the cache, reading vLLM's block pool in
+        this process, and fills `fill` times the pool's blocks divided by that
         With --part-b report the verdict is printed and not gated: under --register-boundary after the Gemma 4 31B kept
         none of its 8 earliest states at 1.3 times its pool, where before kept all 8 (Lab 2's session of 2026-10-07; why
         its default is before); the 12B kept all 8 under both orders
@@ -78,6 +86,25 @@ def ticket(tok, n, seed):
     return text
 
 
+def block_pool(eng):
+    """vLLM's scheduler block pool, which the engine runs next to when it runs in this process (--engine-process in, the
+    default for a single-engine server); None when it cannot be reached."""
+    try:
+        return eng.llm.llm_engine.engine_core.engine_core.scheduler.kv_cache_manager.block_pool
+    except AttributeError:
+        return None
+
+
+def blocks_kept_per_state(eng, pool, tokens, k=4):
+    """The blocks of the prefix cache that a state keeps once its request has finished, over every cache group: the
+    growth of the pool's cached blocks over `k` new states, asked one question each (a spare 100 + i seeds; the cache
+    holds only a few states then, so nothing is evicted meanwhile)."""
+    before = len(pool.cached_block_hashes_by_block)
+    for i in range(k):
+        ask(eng, ticket(eng.tok, tokens, 100 + i), FIRST)
+    return (len(pool.cached_block_hashes_by_block) - before) / k
+
+
 def ask(eng, state, question):
     """(probabilities, cached tokens, whole hit units of the shared prefix, forward ms)."""
     probs, info = eng.answer(state, [question])
@@ -91,6 +118,7 @@ def main():
     ap.add_argument("--base", required=True)
     ap.add_argument("--tokens", type=int, default=3000)
     ap.add_argument("--fill", type=float, default=None)
+    ap.add_argument("--fill-by", default="tokens", choices=["tokens", "blocks"])
     ap.add_argument("--revisit", type=int, default=8)
     ap.add_argument("--register-boundary", default="after", choices=["after", "before"])
     ap.add_argument("--follow", type=int, default=5)
@@ -174,7 +202,21 @@ def main():
     block = facts.get("block_size") or 1
     prompt = (i1.get("engine_prompt_tokens") or [round(i1["prompt_tokens_mean"])])[0]  # vLLM reports the first
     per_state = math.ceil(prompt / block) * block  # the blocks one request occupies
-    n = math.ceil(fill * pool / per_state)
+    pool_blocks = None
+    if a.fill_by == "blocks":
+        bp = block_pool(eng)
+        if bp is None:
+            sys.exit("FILL: --fill-by blocks needs the engine in this process (vLLM's block pool was not reachable)")
+        kept = blocks_kept_per_state(eng, bp, a.tokens)
+        pool_blocks = bp.num_gpu_blocks - 1  # the null block is never free
+        n = math.floor(fill * pool_blocks / kept)
+        print(
+            f"FILL blocks: the pool has {pool_blocks} blocks and a state keeps {kept:g} cached blocks over all cache "
+            f"groups, so {fill} times the pool is {n} states",
+            flush=True,
+        )
+    else:
+        n = math.ceil(fill * pool / per_state)
     states = [ticket(eng.tok, a.tokens, 1000 + k) for k in range(n)]
     for s in states:
         ask(eng, s, FIRST)
@@ -185,11 +227,12 @@ def main():
         _, c, w, _ = ask(eng, s, SECOND)
         hits_other += c >= w
     b_ok = hits_other == hits_same == a.revisit
+    filled = f"pool of {pool_blocks} blocks" if pool_blocks else f"pool of {pool} tokens at {per_state} tokens each"
+    gated = " (reported, not gated)" if a.part_b == "report" else ""
     print(
-        f"PART B {'PASS' if b_ok else 'FAIL'}{' (reported, not gated)' if a.part_b == 'report' else ''}: {n} states of "
-        f"{a.tokens} tokens, {per_state} tokens of blocks each ({n * per_state}, {fill} times the pool of {pool}); of "
-        f"the {a.revisit} earliest, a different question read the state from the cache on {hits_other}, the same "
-        f"question on {hits_same}",
+        f"PART B {'PASS' if b_ok else 'FAIL'}{gated}: {n} states of {a.tokens} tokens, filling {fill} times the "
+        f"{filled}; of the {a.revisit} earliest, a different question read the state from the cache on {hits_other}, "
+        f"the same question on {hits_same}",
         flush=True,
     )
     if a.part_b == "report":
