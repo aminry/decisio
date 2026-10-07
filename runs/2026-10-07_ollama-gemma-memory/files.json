@@ -1,0 +1,27 @@
+[
+ {
+  "path": "api_ps_q4_k_m.json",
+  "bytes": 427,
+  "sha256": "d446f72e52a7d22f0fabc901489bd981343467b25d54dbfa0e5e43239bef6824"
+ },
+ {
+  "path": "api_ps_q8_0.json",
+  "bytes": 423,
+  "sha256": "f5ea9bff0cc048c49b5503971a801012495dd736bb9d23e560f9c3df83459f78"
+ },
+ {
+  "path": "host.txt",
+  "bytes": 78,
+  "sha256": "2111627903da7e38007b62595c72d07285f0c32ced0f606a7736a6dd93730abe"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 532,
+  "sha256": "bd8946ce60275782e85d511b457bd3eaf9fd9ed5c968fd7a9526fa03e34bd153"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 1036,
+  "sha256": "aa9e0427693e6bad28a1269d46f93e3d1ee314d5281efc444e2419e3fd3807e5"
+ }
+]

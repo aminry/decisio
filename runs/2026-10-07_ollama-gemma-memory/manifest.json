@@ -1,0 +1,22 @@
+{
+ "id": "2026-10-07_ollama-gemma-memory",
+ "title": "The Gemma Ollama listing's loaded size per tag at its 8,192-token context",
+ "date": "2026-10-07",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2",
+ "software": {
+  "ollama": "0.35.1"
+ },
+ "listing": "ollama.com/aminroudaki/decisio-gemma",
+ "results": {
+  "q4_k_m": {
+   "size_bytes": 8574740725,
+   "context_length": 8192
+  },
+  "q8_0": {
+   "size_bytes": 13581858897,
+   "context_length": 8192
+  }
+ }
+}
