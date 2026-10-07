@@ -304,5 +304,5 @@ Security issues go through GitHub's private vulnerability reporting, as describe
 ## Licence
 
 Apache-2.0 (`LICENSE`, `NOTICE`).
-The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0 with Google's Gemma Prohibited Use Policy; all are downloaded, not redistributed.
+The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0, which is all the Gemma 4 licence page and model cards state; all are downloaded, not redistributed.
 `THIRD-PARTY.md` lists everything else this project builds on.
