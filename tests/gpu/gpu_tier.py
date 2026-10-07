@@ -12,6 +12,7 @@ does not reliably release a card between engines in one process, so each test ru
 """
 
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -28,10 +29,23 @@ def env_path(name):
     return value
 
 
+VERDICT = re.compile(r"PASS|FAIL|^\s*ok\b|^[A-Z][A-Z ]+[:(]")
+
+
+def failure_report(r):
+    """What a failed child said: its exit code (a negative one is the signal), the script's verdict lines, and the tails
+    of stdout and stderr apart. The engine's start-up output fills both streams, so one tail of the two joined showed
+    only CUDA graph capture on the first card run, hiding the verdicts (Lab 2, 2026-10-07)."""
+    verdicts = [line for line in r.stdout.splitlines() if VERDICT.search(line)]
+    return "\n".join(
+        [f"exit code {r.returncode}", "verdicts:", *verdicts[-40:], "stdout tail:", r.stdout[-1500:], "stderr tail:"]
+        + [r.stderr[-1500:]]
+    )
+
+
 def run_child(*argv, timeout=3600):
     """Run a script of this directory in a child process with DeepGEMM off; return its output (failing on exit != 0)."""
     env = {**os.environ, "VLLM_USE_DEEP_GEMM": "0"}
     r = subprocess.run([sys.executable, *map(str, argv)], capture_output=True, text=True, env=env, timeout=timeout)
-    out = r.stdout + r.stderr
-    assert r.returncode == 0, out[-4000:]
-    return out
+    assert r.returncode == 0, failure_report(r)
+    return r.stdout + r.stderr
