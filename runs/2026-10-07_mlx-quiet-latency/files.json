@@ -1,0 +1,122 @@
+[
+ {
+  "path": "gemma/health_C.json",
+  "bytes": 1680,
+  "sha256": "c52f04cb6daece39e02d04e0f9589d29e6bfeee3a2650a74902a483952482de7"
+ },
+ {
+  "path": "gemma/health_L.json",
+  "bytes": 1734,
+  "sha256": "cee29ad27656c393b2a83aecc81fd3889ae8f6b7aedaeecdf487866342cdec6d"
+ },
+ {
+  "path": "gemma/host.txt",
+  "bytes": 705,
+  "sha256": "13bb643528bad284021a3e63fd8acff671ecd6e467d0194f11132706bad00958"
+ },
+ {
+  "path": "gemma/host_end.txt",
+  "bytes": 706,
+  "sha256": "2fda30481a6da88a0ed9c84fd5c633e96fcb1c60ef2a712b5b308a96194709d2"
+ },
+ {
+  "path": "gemma/latency.json",
+  "bytes": 10197,
+  "sha256": "6f48dafa8fbfc4e3a90877da4f8643c3028adc058ea847a86f002c6d015e1357"
+ },
+ {
+  "path": "gemma/latency.log",
+  "bytes": 590,
+  "sha256": "87b99a832b38605260ab487035ee642870124643c2fae83f4671b4eafb26d450"
+ },
+ {
+  "path": "gemma/latency_t7.json",
+  "bytes": 7581,
+  "sha256": "aa474ce5ef47364acce722ea31615ac49fd4231595738f45c4453adc45c83dff"
+ },
+ {
+  "path": "gemma/latency_t7.log",
+  "bytes": 518,
+  "sha256": "2401d5f4294348c0b6b81e956855f418af3ce76c2c42a3053cc9babfa80313ee"
+ },
+ {
+  "path": "gemma/prefix_cache_latency.json",
+  "bytes": 567,
+  "sha256": "9bcaa15f6b59e1243d542f5e2fadd80da2b1dad117fcf088332539c04a265a8c"
+ },
+ {
+  "path": "gemma/prefix_cache_latency.log",
+  "bytes": 303,
+  "sha256": "d6fb3251ea5020d464cf4e2d97ee3dfb1ea7397d768828d12f01b672a3c584c6"
+ },
+ {
+  "path": "gemma/wait_quiet.log",
+  "bytes": 7021,
+  "sha256": "0a66968deff20de5b7d2252e346817b0722977a63d578fc8883c98c7380918b2"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 2443,
+  "sha256": "5cfddc55cb2c59c6b79ac0fadfb41f0135ac87241e77eb240656be4a95b39221"
+ },
+ {
+  "path": "qwen/health_C.json",
+  "bytes": 1750,
+  "sha256": "08b51133e661bee606a5a608a60958ad7aefc4f7b3a113311601db818aedd0d6"
+ },
+ {
+  "path": "qwen/health_L.json",
+  "bytes": 1804,
+  "sha256": "9a543d62b00ee6abc73f6a9c5ecad03dd807e6bc527b66f22ee093cdd264f409"
+ },
+ {
+  "path": "qwen/host.txt",
+  "bytes": 705,
+  "sha256": "9623b357511f821a44b612119513bccbaa65a96449ab07a83686da8229b303cc"
+ },
+ {
+  "path": "qwen/host_end.txt",
+  "bytes": 705,
+  "sha256": "7aea9fa97bf9c7fe7319e3a6a473e12397c13525c50a729be62b44c0c201e359"
+ },
+ {
+  "path": "qwen/latency.json",
+  "bytes": 10159,
+  "sha256": "ae128c4bc2e5da80cb4e4b148db5b5ee9461eece4666bdf994423a0d0314bd80"
+ },
+ {
+  "path": "qwen/latency.log",
+  "bytes": 664,
+  "sha256": "a44968dcdf16b5149804ecfa5a6fb9d8252ce37a02e2dc8a8c2e5de54591ac21"
+ },
+ {
+  "path": "qwen/latency_t7.json",
+  "bytes": 7484,
+  "sha256": "7d09353d0eb7dbb26eaa1aec1ff1c68cb19575d6833813e0b5c2d14dc0ace526"
+ },
+ {
+  "path": "qwen/latency_t7.log",
+  "bytes": 509,
+  "sha256": "1db2bf96616a574ef69100ab7a48fd4eac5a307559919cf99901ce9b7c39ebb6"
+ },
+ {
+  "path": "qwen/prefix_cache_latency.json",
+  "bytes": 594,
+  "sha256": "5e812e69adbbe33c207c06e9e19dd84f3bc49411ae94f84a782ff20c94a3cd51"
+ },
+ {
+  "path": "qwen/prefix_cache_latency.log",
+  "bytes": 330,
+  "sha256": "ee6b1b8ffcd11a3bc7db6b1fd3781735b5ef6dfa4fd93a1dc4858dbb4a397b5c"
+ },
+ {
+  "path": "qwen/wait_quiet.log",
+  "bytes": 650,
+  "sha256": "5ec6777be2168eb6e959986d371f6e1f79291246d8faa556e6a817336fe259bc"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 2782,
+  "sha256": "09a8c0a15c079cf7ee871670b4b059f4ede6819762bee4bab5e8bc6f9f69f0eb"
+ }
+]

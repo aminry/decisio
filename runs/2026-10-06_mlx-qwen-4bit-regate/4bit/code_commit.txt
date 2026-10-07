@@ -1,0 +1,1 @@
+83e461d test: the second-question GPU test reads vLLM's pool, asks the repeat first, and fills the Qwen base under its capacity (#98)

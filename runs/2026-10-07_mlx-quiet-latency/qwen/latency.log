@@ -1,0 +1,4 @@
+pass 1: 1q p50 260 ms (259.6/q); 10q p50 1233 ms (123.3/q); 100q p50 12482 ms (124.8/q); 100q_8k p50 17261 ms (172.6/q); max foreign CPU 146% (meworks/Metadata.framework/Versions/A/Support/corespotlightd), idle False
+pass 2: 1q p50 265 ms (264.6/q); 10q p50 1258 ms (125.8/q); 100q p50 12682 ms (126.8/q); 100q_8k p50 17114 ms (171.1/q); max foreign CPU 127% (meworks/Metadata.framework/Versions/A/Support/corespotlightd), idle False
+pass 3: 1q p50 258 ms (258.5/q); 10q p50 1230 ms (123.0/q); 100q p50 12342 ms (123.4/q); 100q_8k p50 17626 ms (176.3/q); max foreign CPU 150% (/Frameworks/Metadata.framework/Versions/A/Support/mds_stores), idle False
+LATENCY DONE

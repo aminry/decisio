@@ -1,0 +1,27 @@
+{
+ "cells": {
+  "1q": {
+   "requests": 30,
+   "questions": 1,
+   "hit_answers_equal_miss": "30 of 30",
+   "miss_ms_p50": 392.75,
+   "miss_ms_p95": 455.72999999999985,
+   "hit_ms_p50": 156.1,
+   "hit_ms_p95": 157.21,
+   "miss_per_q_p50": 392.75,
+   "hit_per_q_p50": 156.1
+  }
+ },
+ "E3_exact": true,
+ "prefix_cache": {
+  "max_mb": 2048.0,
+  "entries": 31,
+  "mb": 2031.7,
+  "hits": 31,
+  "misses": 31
+ },
+ "max_foreign_cpu": 12.2,
+ "max_foreign_process": "/PrivateFrameworks/SkyLight.framework/Resources/WindowServer",
+ "idle": true,
+ "started": "2026-10-07 05:27:19"
+}
