@@ -76,7 +76,7 @@ def options_listing(tok, options):
     return "Options:\n" + "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
 
 
-from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
+from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
@@ -374,6 +374,7 @@ class LettersEngine:
             # a single question registers its state's boundary for the next question (decisio.families)
             "registers_state_boundary": facts_register_boundary(self) in ("after", "before"),
             "register_boundary": facts_register_boundary(self),
+            **({"repository": self.repository} if getattr(self, "repository", None) else {}),
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
             "quantization": str(c.model_config.quantization),
@@ -1073,8 +1074,21 @@ def resolve_base(args):
     names; the base's checkpoint when --model is not given; its pinned revision whenever the checkpoint is the base's
     own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
+    from decisio import hub
     from decisio.families import BASES, FAMILIES, family_of, pinned_revision, read_config
 
+    repo = None
+    if args.base is not None and args.base not in BASES:
+        # a decisio repository (decisio.hub): its weights are the checkpoint, its file names the base
+        if not hub.is_repository(args.base):
+            raise ValueError(
+                f"--base {args.base!r} is neither a base ({', '.join(sorted(BASES))}) nor a repository "
+                "(owner/name[@revision], or a directory holding decision_config.json)"
+            )
+        if args.model is not None:
+            raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
+        repo = hub.open_repository(args.base, args.revision)
+        args.base, args.model, args.revision = repo.base, repo.model, repo.revision
     if args.backend == "mlx" and args.model is None:
         raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
     if args.base is not None:
@@ -1096,6 +1110,13 @@ def resolve_base(args):
     # checked on the resolved base, so a conversion whose config names the 31B is refused without --base as well
     if args.backend == "mlx" and fam.key == "gemma-4-31b":
         raise ValueError("--backend mlx serves the Qwen base and gemma-4-12b; gemma-4-31b is served on vLLM only")
+    args.repository = None
+    if repo is not None:
+        hub.verify(repo, fam)
+        fam = hub.serve_family(fam, repo)
+        # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
+        args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
+        args.repository = repo.facts()
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
@@ -1122,10 +1143,10 @@ def main():
     ap.add_argument(
         "--base",
         default=None,
-        choices=["qwen3.6-35b-a3b", "gemma-4-12b", "gemma-4-31b"],
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): qwen3.6-35b-a3b "
         "(Qwen/Qwen3.6-35B-A3B-FP8, the default), gemma-4-12b (google/gemma-4-12B-it) or gemma-4-31b "
-        "(google/gemma-4-31B-it, quantized to FP8 on load), each at a pinned revision. "
+        "(google/gemma-4-31B-it, quantized to FP8 on load), each at a pinned revision; or a decisio repository, "
+        "owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",
     )
@@ -1518,6 +1539,7 @@ def main():
     engine.fmt = fmt
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
+    engine.repository = args.repository
     print(
         "ENGINE",
         json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),
@@ -1603,23 +1625,18 @@ def main():
 
     # a task is valid only for the model and the rendering it was fitted under
     store = TaskStore(
-        fingerprint=json.dumps(
-            {
-                "served_name": args.served_name,
-                "model": os.path.basename(os.path.normpath(args.model)),
-                "pad_to": args.pad_to,
-                "pad_where": args.pad_where,
-                "hide_index_keys": args.hide_index_keys,
-                "desnake_labels": args.desnake_labels,
-                # only when not the default, so the fingerprints of tasks registered under the default are unchanged
-                **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
-                # likewise: only a non-default prompt format enters, so tasks fitted under the default keep matching
-                **({"prompt_format": fmt.facts()} if not fmt.is_default() else {}),
-                # and only a base other than Qwen (whose fingerprints predate bases)
-                **({"base": args.family.key} if args.family.key != "qwen3.6-35b-a3b" else {}),
-                # --describe-options is not here: it enters the task key of the questions it changes (tasks.task_key)
-            },
-            sort_keys=True,
+        fingerprint=task_fingerprint(
+            served_name=args.served_name,
+            # a decisio repository's copy of a checkpoint is named by its source: tasks fitted on one serve on both
+            model=getattr(args, "model_identity", None) or os.path.basename(os.path.normpath(args.model)),
+            pad_to=args.pad_to,
+            pad_where=args.pad_where,
+            hide_index_keys=args.hide_index_keys,
+            desnake_labels=args.desnake_labels,
+            pad_policy=args.pad_policy,
+            prompt_format=None if fmt.is_default() else fmt.facts(),
+            # a base other than Qwen (whose fingerprints predate bases)
+            base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
         )
     )
     if args.tasks_file:

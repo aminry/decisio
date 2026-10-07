@@ -67,5 +67,39 @@ def canonical_fingerprint(fingerprint):
     return json.dumps(d, sort_keys=True)
 
 
+def task_fingerprint(
+    *,
+    served_name,
+    model,
+    pad_to,
+    pad_where,
+    hide_index_keys,
+    desnake_labels,
+    pad_policy="always",
+    prompt_format=None,
+    base=None,
+) -> str:
+    """The task store's fingerprint: a registered task is valid only for the model and the rendering it was fitted
+    under. `model` is the checkpoint's name (its source's, when a decisio repository serves a copy of it: decisio.hub).
+    A key enters only when it is not the default (`pad_policy` other than always, `prompt_format` facts of a
+    non-default format, `base` for a base other than Qwen), so the fingerprints of tasks registered under the defaults
+    are unchanged. --describe-options is not here: it enters the task key of the questions it changes
+    (decisio.serve.tasks.task_key)."""
+    return json.dumps(
+        {
+            "served_name": served_name,
+            "model": model,
+            "pad_to": pad_to,
+            "pad_where": pad_where,
+            "hide_index_keys": hide_index_keys,
+            "desnake_labels": desnake_labels,
+            **({"pad_policy": pad_policy} if pad_policy != "always" else {}),
+            **({"prompt_format": prompt_format} if prompt_format else {}),
+            **({"base": base} if base else {}),
+        },
+        sort_keys=True,
+    )
+
+
 def same_fingerprint(a, b) -> bool:
     return a == b or canonical_fingerprint(a) == canonical_fingerprint(b)

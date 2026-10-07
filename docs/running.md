@@ -70,6 +70,23 @@ What `after` guarantees, and its limits:
   On Gemma 4 31B the two reads were identical.
 - Each request's `timing.state_boundary` shows what it did: `registered` (warm-ups sent ahead of its question), `found` (states already registered), `deferred` (warm-ups sent after its response), and `ran_before` and `ran_before_ms` (other requests' due warm-ups it sent first, and their time).
 
+## Model repositories
+
+A decisio model repository on Hugging Face holds one base's weights, its licence and notice files, a card and `decision_config.json`: the base's profile as the decisio release it was made for serves it (`decisio.hub`).
+```bash
+uv run python -m decisio.serve.vllm_engine --base aminry/decisio-gemma-4-31b            # its current commit, printed
+uv run python -m decisio.serve.vllm_engine --base aminry/decisio-gemma-4-31b@<commit>   # a pinned commit
+```
+- The repository's file names the base, and the repository's weights are the checkpoint, so `--model` is not given with it.
+- The server compares the file's profile (prompt, readout, temperatures, serving defaults, the classes, the vLLM version the plugin supports) with the installed one, and refuses to start on a difference, naming the keys and the decisio release the file was made for.
+  A profile change therefore reaches a repository only as a new revision of it, made for the release that changed it.
+- A stored FP8 checkpoint is not quantized again on load (the Gemma 4 31B profile quantizes Google's bf16 weights to FP8 when it loads them; a repository holds the FP8 tensors).
+- Tasks are named for the checkpoint a repository copies, not for the repository, so a task registered under `google/gemma-4-12B-it` serves from the copy, and the other way round.
+- `/health` reports the repository, its revision, the decisio release its file was made for and what its weights are (`weights.modified` is false for a byte-for-byte copy).
+- `python -m decisio.hub export --base <base>` prints the file for a base, and `python -m decisio.hub check <file>` compares a file with the installed profile; the files for this release are in `hub/`, and a test fails when a profile no longer exports them.
+- No repository is published yet.
+  The plan is one per base: `aminry/decisio-gemma-4-31b`, `aminry/decisio-gemma-4-12b` and `aminry/decisio-qwen3.6-35b-a3b`.
+
 ## Docker
 
 ```bash

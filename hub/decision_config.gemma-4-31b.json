@@ -1,0 +1,75 @@
+{
+  "schema": "decisio.decision_config/1",
+  "decisio": "0.9.0",
+  "base": "gemma-4-31b",
+  "source": {
+    "repository": "google/gemma-4-31B-it",
+    "revision": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+    "license": "apache-2.0"
+  },
+  "weights": {
+    "modified": true,
+    "dtype": "fp8_e4m3",
+    "quantization": "compressed-tensors",
+    "method": "quantized to FP8 exactly as vLLM 0.30.0 does on load (online per-tensor weight scales, activations quantized per token at run time); every other tensor, the vision tower included, is the source's; nothing was trained",
+    "quantized_on_load": false
+  },
+  "model_types": [
+    "gemma4"
+  ],
+  "moe": false,
+  "classes": {
+    "text-only": "DecisioGemma4TextOnly",
+    "hidden-readout": "DecisioGemma4HiddenReadout"
+  },
+  "prompt": {
+    "format": {
+      "tail": "spaced",
+      "slot": "template",
+      "variants": "summed",
+      "system_prompt": true
+    },
+    "label_form": "spaced",
+    "noul_rendering": "letters",
+    "fingerprint": {
+      "base": "gemma-4-31b",
+      "desnake_labels": true,
+      "hide_index_keys": true,
+      "model": "gemma-4-31B-it",
+      "pad_to": "none",
+      "pad_where": "front",
+      "prompt_format": {
+        "slot": "template",
+        "system_prompt": true,
+        "tail": "spaced",
+        "variants": "summed"
+      },
+      "served_name": "decisio-gemma-4-31b-it-letters"
+    }
+  },
+  "readout": {
+    "softcap": 30.0,
+    "head_rows": [
+      "lm_head.weight",
+      "model.language_model.embed_tokens.weight",
+      "language_model.model.embed_tokens.weight",
+      "model.embed_tokens.weight"
+    ],
+    "head_label_logprobs": "engine",
+    "hidden_start": 210000
+  },
+  "temperatures": {
+    "global": 5.252,
+    "choice": 4.672
+  },
+  "serving": {
+    "served_name": "decisio-gemma-4-31b-it-letters",
+    "pad_to": "none",
+    "multi_question": "warm",
+    "register_state_boundary": true,
+    "register_boundary": "before"
+  },
+  "engine": {
+    "vllm": "0.30.0"
+  }
+}
