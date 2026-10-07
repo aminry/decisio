@@ -45,22 +45,28 @@ The server remembers the last 4,096 states it registered and sends the warm-up a
 Several questions in one request are not affected, and the Qwen base needs no registration (its padded state already ends on a single question's latest checkpoint).
 
 `--register-boundary` sets when a single question on a new state registers it:
-- `after` (the default): the question is answered first, reading the state fresh, and the warm-up is sent once the response has been handed to the server (in library use, once `answer()` returns). The caller does not wait for it.
-- `before`: the warm-up goes ahead of the question, in the caller's request, as in 0.8.1. On one card at 400 W with an AMD Ryzen 9 9950X that added +11, +37 and +59 ms to a first read at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and +23, +43 and +72 ms on Gemma 4 31B (`runs/2026-10-06_latency-0.8.1/`).
+- `after` (Gemma 4 12B's default): the question is answered first, reading the state fresh, and the warm-up is sent once the response has been handed to the server (in library use, once `answer()` returns). The caller does not wait for it.
+- `before` (Gemma 4 31B's default): the warm-up goes ahead of the question, in the caller's request, as in 0.8.1. On one card at 585 W with an AMD Ryzen Threadripper 9960X that added +16, +25 and +28 ms to a first read at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and +21, +34 and +34 ms on Gemma 4 31B (`runs/2026-10-06_latency-585w/`, as every figure below).
 - `off`: never; a later, different question about a state reads it again, as before 0.8.1. For traffic that asks one question per state, where a registration would only cost throughput.
+
+Why the defaults differ: on the same card, with the queue idle, `after` took the registration off the caller's first read on both bases (12B 33.3, 90.3 and 237.1 ms against 56.7, 107.7 and 261.9 at 300, 1,000 and 3,000 tokens; 31B 52.0, 149.2 and 415.5 against 78.6, 157.2 and 435.4).
+Under load, with 32 and 64 clients sending first and follow-up questions about new 1,000-token states, the 12B kept 0.99 and 0.98 of the throughput it had with `before`, but the 31B kept only 0.61 and 0.74, with p95 1.69 and 1.62 times; so the 31B registers before the question.
 
 What `after` guarantees, and its limits:
 - A follow-up question sent after the first answer reads the state from the cache.
   A registration that is due goes before every later request's questions: a background thread sends it as soon as the engine is free, and a request that takes the engine first sends it ahead of its own questions.
 - The bound on that follow-up: it may wait, at most for the engine call already in progress and then the warm-up, which reads the whole state again, since vLLM kept no checkpoint at the boundary.
-  The warm-up costs about one first read of the state: on the same 400 W card, 60, 120 and 335 ms at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and 92, 214 and 595 ms on Gemma 4 31B (the reads without registration in `runs/2026-10-06_latency-0.8.1/`).
+  The warm-up costs about one first read of the state: 34, 88 and 238 ms at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and 52, 146 and 407 ms on Gemma 4 31B (the reads without registration).
+  Measured on 3,000-token states, a follow-up read the state from the cache on 20 of 20 at 0, 50, 200 and 1,000 ms after the answer, and took 267, 222, 70 and 50 ms on the 12B (441, 392, 244 and 46 ms on the 31B), against 34 to 46 ms with `before`.
 - A second question sent before the first answer is out sends the warm-up itself, ahead of its question, as `before` does.
 - A follow-up reads the state again only when its registration was dropped (more than 256 pending, the oldest dropped first), when its warm-up failed, or when the state was evicted from the cache since.
   `/health` reports `state_boundary`: the registrations pending, and how many were deferred, registered, dropped and failed.
 - The cost moves from latency to throughput: a new state is read twice on the card, once for the answer and once for the warm-up, where `before` read it once plus one token.
-  A request about another state that arrives during a warm-up waits for it.
+  A request about another state that arrives during a warm-up waits for it, so one client sending new states back to back pays the previous state's warm-up: on the 12B it saved 4.9 and 22.1 ms at 300 and 1,000 tokens and lost 36.5 ms at 3,000.
+- The cache can hold fewer states under `after`: on the 31B, with states filling 1.3 times its reported pool, the 8 earliest were evicted under `after` and kept under `before`, and at 32 clients 82 of 96 follow-ups found their state against 96 of 96; the 12B kept the 8 earliest under both orders.
+- When the process ends (a library caller returning, or the server stopping), the warm-up in progress is waited for, at most 60 s, and the pending ones are dropped: an interpreter that shut down under a warm-up aborted the process on a card.
 - The first answer about a new state is a fresh read again.
-  On Gemma 4 12B a fresh read and a cached read of the same question can differ, by up to 0.066 on 60 new ticket states of 300 to 3,000 tokens with no choice changed (`EVAL_CARD.md` 6.5), so with `after` a question asked again can differ from its first answer by that much; with `before` the two are equal.
+  On Gemma 4 12B a fresh read and a cached read of the same question can differ, by up to 0.113, and one near-tied choice of 60 new states changed (`EVAL_CARD.md` 6.5), so with `after` a question asked again can differ from its first answer by that much; with `before` the two are equal.
   On Gemma 4 31B the two reads were identical.
 - Each request's `timing.state_boundary` shows what it did: `registered` (warm-ups sent ahead of its question), `found` (states already registered), `deferred` (warm-ups sent after its response), and `ran_before` and `ran_before_ms` (other requests' due warm-ups it sent first, and their time).
 

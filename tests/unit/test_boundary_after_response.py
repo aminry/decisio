@@ -13,13 +13,18 @@ H4  an injected failure of the warm-up (the engine still answers its probe) is c
     next question on that state reads it again and defers its warm-up again
 H5  an engine that dies during the warm-up is declared dead: /health turns 503, the exit is called, nothing is pending
 H6  --register-boundary before (0.8.1): the warm-up goes ahead of the question, in the caller's request
+H7  a process that exits right after its answer waits for the warm-up in progress, and exits cleanly (on a card the
+    interpreter aborted with signal 6 when it shut down under a warm-up on the registrar's thread)
 
     uv run pytest -q tests/unit/test_boundary_after_response.py
 """
 
 import os
+import subprocess
+import sys
 import threading
 import time
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -198,3 +203,36 @@ def test_h6_before_sends_the_warm_up_ahead_of_the_question(served):
     assert t["state_boundary"] == {"registered": 1, "found": 0, "deferred": 0}
     assert t["cached_tokens"] == [whole(eng, ticket(7), Q1)]
     assert [k for k, _ in eng.events] == ["warm", "question"]
+
+
+EXIT_SCRIPT = """
+import sys, time
+sys.path.insert(0, {here!r})
+from test_boundary_after_response import Cached, MODEL, ticket
+from decisio.serve.hf_letters import HFLettersEngine
+
+class Slow(Cached, HFLettersEngine):
+    def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
+        print("WARM START", flush=True)
+        time.sleep(1.5)
+        ms = super().send_warm(warm, adapter, mm, mm_uuids)
+        print("WARM END", flush=True)
+        return ms
+
+eng = Slow(MODEL, warm_up=False)
+eng.setup()
+eng.register_boundary = "after"
+eng.answer(ticket(8), [{{"kind": "noul", "instructions": "Is the customer reporting an outage?"}}])
+assert eng.warm_started.wait(30)
+print("EXIT", flush=True)
+sys.exit(0)
+"""
+
+
+@pytest.mark.slow
+def test_h7_an_exit_waits_for_the_warm_up_in_progress():
+    script = EXIT_SCRIPT.format(here=str(Path(__file__).parent))
+    r = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=300)
+    lines = [x for x in r.stdout.splitlines() if x in ("WARM START", "EXIT", "WARM END")]
+    assert r.returncode == 0, r.stderr[-2000:]
+    assert lines == ["WARM START", "EXIT", "WARM END"], r.stdout[-2000:]

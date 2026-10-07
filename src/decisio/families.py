@@ -78,6 +78,9 @@ class Family:
     # multi-question path sends (vllm_engine.LettersEngine._answer_separate): vLLM keeps only the latest sliding-window
     # checkpoint of a finished request, so without it a later, different question about the state reads it again
     register_state_boundary: bool = False
+    # --register-boundary's default where register_state_boundary is set (vllm_engine.resolve_register_boundary): after,
+    # once the response is out (decisio.serve.boundary), or before, ahead of the question
+    register_boundary: str = "after"
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -165,6 +168,10 @@ GEMMA4_31B = Family(
     moe=False,
     # as the 12B (hit unit 32): RLCD experiments/2026-10-05_t7_card_e2_e3_e4, arms R0 and amendment 1
     register_state_boundary=True,
+    # before: registering after the response cost the 31B 39% and 26% of its throughput at 32 and 64 clients on new
+    # 1,000-token states (p95 1.69 and 1.62 times), past the rule's 95% and 110%; on the 12B it held (0.99 and 0.98)
+    # (runs/2026-10-06_latency-585w)
+    register_boundary="before",
     # warm: four questions in one batch after the state's prefill, repeating exactly in-process; gated against
     # sequential (runs/2026-10-05_engine-death-gates: no choice changed, the largest probability difference 0.0073)
     multi_question="warm",

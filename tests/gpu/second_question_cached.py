@@ -16,14 +16,20 @@ PART A  a first question on a new state, the same question again, then a differe
         whole hit units from the cache. With --register-boundary before (0.8.1) the first two answers are equal (a
         first read goes through the cache too); with after (the default) the first read is fresh and the warm-up follows
         the answer, so the first answer and its repeat may differ (reported as FRESH VS CACHED, not gated: on the Gemma
-        4 12B up to 0.066, on the 31B 0.0, EVAL_CARD 6.5), and the repeat and a third ask are equal
+        4 12B up to 0.113, on the 31B 0.0, EVAL_CARD 6.5), and the repeat and a third ask are equal
 PART B  distinct states filling `fill` times the pool vLLM reports (`cache_config.kv_cache_size_tokens`), one
-        question each; then the `revisit` earliest states again, the same question first and then a different one,
-        each reading the state's whole hit units from the cache (the repeat first: a miss on the different question
+        question each, each counted by the blocks its request occupies (its prompt rounded up to the cache block: on
+        the Qwen base a 3,000-token state is padded to 3,168 and its question takes a fourth block of 1,056, so counting
+        3,000 filled more than the pool and evicted the earliest states on the first card run of the 0.9 fill); then
+        the `revisit` earliest states again, the same question first and then a different one, each reading the
+        state's whole hit units from the cache (the repeat first: a miss on the different question
         would read the state again and let the repeat hit). The fill defaults to 1.3 on a base that registers its
         state boundaries (the Gemma bases, whose reported pool understates what their sliding-window cache holds) and
         to 0.9 on one that does not (the Qwen base, whose reported pool is its capacity, so above it the earliest
         states are evicted, as any cache evicts under overload)
+        With --part-b report the verdict is printed and not gated: under --register-boundary after the Gemma 4 31B kept
+        none of its 8 earliest states at 1.3 times its pool, where before kept all 8 (Lab 2's session of 2026-10-07; why
+        its default is before); the 12B kept all 8 under both orders
 PART C  (--register-boundary after) on `follow` new states each, a first question and then a different one at once
         (the registration still pending or running: the follow-up waits for it) and after a pause of a second (the
         registrar's thread has sent it): every follow-up reads the state's whole hit units from the cache, and its first
@@ -88,6 +94,7 @@ def main():
     ap.add_argument("--revisit", type=int, default=8)
     ap.add_argument("--register-boundary", default="after", choices=["after", "before"])
     ap.add_argument("--follow", type=int, default=5)
+    ap.add_argument("--part-b", default="gate", choices=["gate", "report"])
     a = ap.parse_args()
     eng = served(a.base, a.model, a.register_boundary)
     facts = eng.facts()
@@ -164,7 +171,10 @@ def main():
             flush=True,
         )
 
-    n = math.ceil(fill * pool / a.tokens)
+    block = facts.get("block_size") or 1
+    prompt = (i1.get("engine_prompt_tokens") or [round(i1["prompt_tokens_mean"])])[0]  # vLLM reports the first
+    per_state = math.ceil(prompt / block) * block  # the blocks one request occupies
+    n = math.ceil(fill * pool / per_state)
     states = [ticket(eng.tok, a.tokens, 1000 + k) for k in range(n)]
     for s in states:
         ask(eng, s, FIRST)
@@ -176,11 +186,14 @@ def main():
         hits_other += c >= w
     b_ok = hits_other == hits_same == a.revisit
     print(
-        f"PART B {'PASS' if b_ok else 'FAIL'}: {n} states of {a.tokens} tokens ({n * a.tokens} tokens, {fill} times "
-        f"the pool of {pool}); of the {a.revisit} earliest, a different question read the state from the cache on "
-        f"{hits_other}, the same question on {hits_same}",
+        f"PART B {'PASS' if b_ok else 'FAIL'}{' (reported, not gated)' if a.part_b == 'report' else ''}: {n} states of "
+        f"{a.tokens} tokens, {per_state} tokens of blocks each ({n * per_state}, {fill} times the pool of {pool}); of "
+        f"the {a.revisit} earliest, a different question read the state from the cache on {hits_other}, the same "
+        f"question on {hits_same}",
         flush=True,
     )
+    if a.part_b == "report":
+        b_ok = True
     passed = a_ok and b_ok and c_ok
     print(f"SECOND QUESTION {'CACHED PASS' if passed else 'FAIL'}: {a.base} {a.register_boundary}", flush=True)
     sys.exit(0 if passed else 1)

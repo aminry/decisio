@@ -250,6 +250,7 @@ class LettersEngine:
         # where the engine runs (--engine-process), as vLLM will read it when the LLM below is built
         self.engine_process = "in" if os.environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "0" else "separate"
         self.family = family or family_of(model, revision)
+        self.register_boundary = resolve_register_boundary(self.family, None)
         self.model_name, self.revision = model, revision
         self.fmt = fmt or DEFAULT_FORMAT
         if mode == "packed" and not self.fmt.is_default():
@@ -955,6 +956,14 @@ def resolve_multi_question(family, choice, engine_process):
     return profile if engine_process in ("in", None) else "sequential"
 
 
+def resolve_register_boundary(family, choice):
+    """--register-boundary's default: the base profile's (gemma-4-12b: after; gemma-4-31b: before, where registering
+    after the response cost it a third of its throughput under load; runs/2026-10-06_latency-585w)."""
+    if choice is not None:
+        return choice
+    return getattr(family, "register_boundary", "after")
+
+
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
 
 
@@ -1166,13 +1175,13 @@ def main():
     )
     ap.add_argument(
         "--register-boundary",
-        default="after",
+        default=None,
         choices=["after", "before", "off"],
         help="on a base that registers a state's boundary for the next question (the Gemma bases; /health "
-        "registers_state_boundary), where a single question on a new state registers it: after (the default), once the "
-        "response is out, so the caller does not wait for it and a question sent after the answer reads the state from "
-        "the cache; before, ahead of the question, as 0.8.1 did; off, never, so a later question about the state reads "
-        "it again (docs/running.md)",
+        "registers_state_boundary), where a single question on a new state registers it: after (gemma-4-12b's "
+        "default), once the response is out, so the caller does not wait for it and a question sent after the answer "
+        "reads the state from the cache; before (gemma-4-31b's default), ahead of the question, as 0.8.1 did; off, "
+        "never, so a later question about the state reads it again (docs/running.md)",
     )
     ap.add_argument(
         "--engine-process",
@@ -1508,7 +1517,7 @@ def main():
         )
     engine.fmt = fmt
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
-    engine.register_boundary = args.register_boundary
+    engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     print(
         "ENGINE",
         json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),

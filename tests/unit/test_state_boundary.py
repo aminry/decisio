@@ -28,6 +28,8 @@ A4  at most PENDING_KEPT registrations wait, the oldest dropped first and counte
 A5  a warm-up that fails is counted and dropped; the request that sent it is answered, and the state is deferred again
 A6  a registered boundary found gone (evicted) is registered again after the next response, as in S2
 O1  --register-boundary off: no warm-up, before or after, and nothing pending
+D1  the default per base: after on gemma-4-12b, before on gemma-4-31b (its throughput under load), the flag overriding
+X1  at exit the registrar waits for the warm-up in progress, drops and counts the pending ones, and starts none after
 
 The GPU tier checks the effect on a card (tests/gpu/test_second_question_cached.py): a second, different question on a
 3,000-token state reads it from the cache, and revisited states still do with the cache filled past its pool.
@@ -60,7 +62,8 @@ class Recording(sv.LettersEngine):
         fam = BASES[base]
         self.register_boundary = register
         self._registrar = boundary.Registrar(self, background=background)
-        self.warmed = threading.Event()
+        self.warmed, self.warm_started, self.gate = threading.Event(), threading.Event(), threading.Event()
+        self.gate.set()
         self.tok, self.family, self.pad_token, self.pad_where = tok, fam, sv.PAD_TOKEN, "front"
         self.pad_unit = 1056 if fam.pad_to == "block" else None
         self.mode, self.adapters = "separate", {}
@@ -77,7 +80,10 @@ class Recording(sv.LettersEngine):
         return [np.ones(len(lab)) / len(lab) for _, lab in rows], {"cached_tokens": list(cached)}
 
     def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
-        """A deferred registration's own engine call (decisio.serve.boundary.Registrar.run_due)."""
+        """A deferred registration's own engine call (decisio.serve.boundary.Registrar.run_due); held while `gate` is
+        clear."""
+        self.warm_started.set()
+        assert self.gate.wait(30)
         self.sent.append({"rows": [], "warm": list(warm)})
         self.warmed.set()
         return 0.0
@@ -250,3 +256,34 @@ def test_o1_off_never_registers(tok):
         _, info = eng.answer(STATE, q)
         assert "state_boundary" not in info
     assert all(e["warm"] == [] for e in eng.sent) and eng.registrar.facts()["pending"] == 0
+
+
+def test_d1_the_default_order_per_base():
+    from decisio.serve.vllm_engine import resolve_register_boundary
+
+    g12, g31 = BASES["gemma-4-12b"], BASES["gemma-4-31b"]
+    assert resolve_register_boundary(g12, None) == "after" and resolve_register_boundary(g31, None) == "before"
+    for choice in ("after", "before", "off"):
+        assert resolve_register_boundary(g12, choice) == resolve_register_boundary(g31, choice) == choice
+
+
+def test_x1_at_exit_the_registrar_waits_for_the_warm_up_in_progress(tok):
+    eng = Recording(tok, "gemma-4-31b", register="after", background=True)
+    ticket, token = boundary.open_ticket()  # a registration pending behind a response not yet out
+    try:
+        eng.answer(OTHER, Q1)
+    finally:
+        boundary._TICKET.reset(token)
+    eng.gate.clear()
+    eng.answer(STATE, Q1)  # its warm-up starts on the registrar's thread and is held
+    assert eng.warm_started.wait(10)
+    closed = threading.Event()
+    closer = threading.Thread(target=lambda: (eng.registrar.close(), closed.set()))
+    closer.start()
+    assert not closed.wait(0.5)  # waits for the warm-up in progress
+    eng.gate.set()
+    assert closed.wait(10)
+    n = len(eng.sent)
+    ticket.release()  # due after close: never sent
+    assert eng.registrar.facts()["dropped"] == 1 and eng.registrar.facts()["registered"] == 1
+    assert len(eng.sent) == n and not eng.registrar._thread

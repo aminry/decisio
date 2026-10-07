@@ -24,6 +24,7 @@ or was evicted; `/health` counts the first two.
 
 from __future__ import annotations
 
+import atexit
 import contextvars
 import logging
 import threading
@@ -109,6 +110,7 @@ class Registrar:
     """One engine's pending boundary registrations: (state key) -> (warm-up token ids, adapter, due), oldest first."""
 
     PENDING_KEPT = 256  # beyond this many pending, the oldest is dropped: a later question on its state reads it again
+    CLOSE_WAIT_S = 60.0  # at exit, the wait for a warm-up in progress (a 31,000-token state took 9.2 s on the 31B)
 
     def __init__(self, engine, background: bool = True):
         self.engine, self.background = engine, background
@@ -116,6 +118,7 @@ class Registrar:
         self._pending: OrderedDict[bytes, list] = OrderedDict()
         self._due = 0
         self._thread: threading.Thread | None = None
+        self._closed = False
         self.counts = {"deferred": 0, "registered": 0, "dropped": 0, "failed": 0}
 
     def facts(self) -> dict:
@@ -156,11 +159,12 @@ class Registrar:
                 if item is not None and not item[2]:
                     item[2] = True
                     self._due += 1
-            if self._due:
+            if self._due and not self._closed:
                 self._cond.notify_all()
                 if self.background and self._thread is None:
                     self._thread = threading.Thread(target=self._run, daemon=True, name="decisio-boundary-registrar")
                     self._thread.start()
+                    atexit.register(self.close)
 
     def run_due(self) -> tuple[int, float]:
         """Send every due warm-up, in one engine call per adapter; the engine's lock must be held. (states registered,
@@ -200,11 +204,33 @@ class Registrar:
             self.counts["registered"] += done
         return done, (time.perf_counter() - t) * 1000
 
+    def close(self) -> None:
+        """At exit (registered with atexit when the thread starts): no warm-up starts any more, the pending ones are
+        dropped and counted, and a warm-up in progress is waited for, at most CLOSE_WAIT_S. The registrar's thread is a
+        daemon, and an interpreter that shuts down while it is inside vLLM's engine aborts the process (on a card: exit
+        by signal 6, "terminate called without an active exception", seen with the 31B)."""
+        with self._cond:
+            if self._closed:
+                return
+            self._closed = True
+            self.counts["dropped"] += len(self._pending)
+            self._pending.clear()
+            self._due = 0
+            self._cond.notify_all()
+            thread = self._thread
+        if thread is not None and self.engine._lock.acquire(timeout=self.CLOSE_WAIT_S):
+            self.engine._lock.release()  # the warm-up in progress, if any, has ended; none starts after it
+        if thread is not None:
+            thread.join(timeout=1.0)
+
     def _run(self) -> None:
         while True:
             with self._cond:
-                while not self._due:
+                while not self._due and not self._closed:
                     self._cond.wait()
+                if self._closed:
+                    self._thread = None
+                    return
             health = getattr(self.engine, "health", None)
             if health is not None and health.dead:
                 with self._cond:
@@ -214,4 +240,6 @@ class Registrar:
                     self._thread = None
                 return
             with self.engine._lock:
+                if self._closed:
+                    return
                 self.run_due()
