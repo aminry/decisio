@@ -171,7 +171,7 @@ The 4-bit conversion was gated the same way (`runs/2026-10-06_mlx-qwen-4bit-rega
 | Intent heads, six draws, BANKING77 / CLINC150 | 0.834 / 0.928 | 0.840 / 0.912 | pass / pass |
 | Conformance C2 to C4 | pass | | pass |
 
-- **Memory:** the weights take 19.5 GB, and a request peaks at 21.6 to 22.7 GB from 8k to 32k tokens of state, above two thirds of 32 GB at every length. It is documented for Macs with more than 32 GB, or 32 GB with the GPU memory limit raised; a 32 GB Mac at its default limit runs the Gemma base.
+- **Memory:** GB are 1e9 bytes (the driver divides MLX's bytes by 1e9). The weights take 19.5 GB, and a request peaks at 21.6, 22.0 and 22.7 GB at about 8k, 16k and 32k tokens of state. Two thirds of a 32 GB Mac's memory (32 GiB, 34.4 GB) is 22.9 GB, a conservative stand-in for its default GPU limit, which was not measured on a 32 GB Mac; every peak is under it, by 1.3, 0.9 and 0.2 GB. At 32k that is 0.9% of the line, almost nothing for the system and other apps, so the conversion is documented for Macs with more than 32 GB, or 32 GB with the GPU memory limit raised; a 32 GB Mac runs the Gemma base (15.1 GB at 32k, 7.8 GB under the line).
 
 ## The Gemma base
 

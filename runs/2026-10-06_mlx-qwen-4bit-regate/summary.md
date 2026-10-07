@@ -25,8 +25,10 @@ Pre-registered before any measurement (the RLCD repository, `experiments/2026-10
 | 32,761 | 22.70 GB | 21.73 GB |
 
 The weights take 19.5 GB; no cell grew swap.
-Every cell peaks above two thirds of 32 GB, so a 32 GB Mac runs this conversion only if its GPU memory limit allows about 23 GB.
-That limit was not measured on a 32 GB Mac.
+GB are 1e9 bytes: the memory driver divides MLX's bytes by 1e9.
+Two thirds of a 32 GB Mac's memory (32 GiB, 34.36e9 bytes) is 22.9 GB, a conservative stand-in for its default GPU memory limit, which was not measured on a 32 GB Mac.
+Every peak is under that line: with one question by 1.33 GB at 8k, 0.93 GB at 16k and 0.21 GB (0.9% of the line) at 32k tokens, and with ten questions by 2.85, 2.26 and 1.17 GB.
+At 32k a 32 GB Mac would have about 0.2 GB left under that line for the system and other apps, so the conversion is documented for Macs with more than 32 GB, or 32 GB with the GPU memory limit raised.
 
 ## Files
 
