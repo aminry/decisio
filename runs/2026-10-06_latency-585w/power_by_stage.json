@@ -1,0 +1,132 @@
+{
+ "measure_qwen.json": {
+  "samples": 287,
+  "loaded": 141,
+  "loaded_power_capped": 3,
+  "draw_w_p50": 268.73,
+  "draw_w_max": 365.43,
+  "sm_mhz_p50_loaded": 2797.0,
+  "temp_c_max": 60.0,
+  "limit_w_min": 585.0
+ },
+ "measure_g12.json": {
+  "samples": 194,
+  "loaded": 110,
+  "loaded_power_capped": 90,
+  "draw_w_p50": 528.9300000000001,
+  "draw_w_max": 591.32,
+  "sm_mhz_p50_loaded": 2580.0,
+  "temp_c_max": 81.0,
+  "limit_w_min": 585.0
+ },
+ "measure_g31.json": {
+  "samples": 320,
+  "loaded": 219,
+  "loaded_power_capped": 192,
+  "draw_w_p50": 502.19,
+  "draw_w_max": 590.69,
+  "sm_mhz_p50_loaded": 2467.0,
+  "temp_c_max": 86.0,
+  "limit_w_min": 585.0
+ },
+ "pr_g12.json": {
+  "samples": 431,
+  "loaded": 290,
+  "loaded_power_capped": 227,
+  "draw_w_p50": 494.7,
+  "draw_w_max": 590.5,
+  "sm_mhz_p50_loaded": 2625.0,
+  "temp_c_max": 86.0,
+  "limit_w_min": 585.0
+ },
+ "pr_g31.json": {
+  "samples": 696,
+  "loaded": 563,
+  "loaded_power_capped": 518,
+  "draw_w_p50": 542.93,
+  "draw_w_max": 591.19,
+  "sm_mhz_p50_loaded": 2430.0,
+  "temp_c_max": 87.0,
+  "limit_w_min": 585.0
+ },
+ "di_qwen.json": {
+  "samples": 384,
+  "loaded": 263,
+  "loaded_power_capped": 0,
+  "draw_w_p50": 367.74,
+  "draw_w_max": 404.77,
+  "sm_mhz_p50_loaded": 2760.0,
+  "temp_c_max": 73.0,
+  "limit_w_min": 585.0
+ },
+ "di_g12.json": {
+  "samples": 239,
+  "loaded": 149,
+  "loaded_power_capped": 107,
+  "draw_w_p50": 469.12,
+  "draw_w_max": 591.9,
+  "sm_mhz_p50_loaded": 2670.0,
+  "temp_c_max": 82.0,
+  "limit_w_min": 585.0
+ },
+ "di_g31.json": {
+  "samples": 345,
+  "loaded": 230,
+  "loaded_power_capped": 190,
+  "draw_w_p50": 518.21,
+  "draw_w_max": 589.47,
+  "sm_mhz_p50_loaded": 2587.0,
+  "temp_c_max": 86.0,
+  "limit_w_min": 585.0
+ },
+ "gpu_second_question_cached.txt": {
+  "samples": 920,
+  "loaded": 636,
+  "loaded_power_capped": 457,
+  "draw_w_p50": 557.045,
+  "draw_w_max": 594.68,
+  "sm_mhz_p50_loaded": 2520.0,
+  "temp_c_max": 88.0,
+  "limit_w_min": 585.0
+ },
+ "gpu_warm_in_process.txt": {
+  "samples": 186,
+  "loaded": 118,
+  "loaded_power_capped": 0,
+  "draw_w_p50": 278.63,
+  "draw_w_max": 311.05,
+  "sm_mhz_p50_loaded": 2805.0,
+  "temp_c_max": 70.0,
+  "limit_w_min": 585.0
+ },
+ "gpu_model_classes.txt": {
+  "samples": 184,
+  "loaded": 134,
+  "loaded_power_capped": 1,
+  "draw_w_p50": 278.22,
+  "draw_w_max": 363.23,
+  "sm_mhz_p50_loaded": 2805.0,
+  "temp_c_max": 65.0,
+  "limit_w_min": 585.0
+ },
+ "gpu_serving_gates.txt": {
+  "samples": 236,
+  "loaded": 133,
+  "loaded_power_capped": 1,
+  "draw_w_p50": 275.72,
+  "draw_w_max": 314.77,
+  "sm_mhz_p50_loaded": 2805.0,
+  "temp_c_max": 62.0,
+  "limit_w_min": 585.0
+ },
+ "gpu_suffix_staging.txt": {
+  "samples": 3,
+  "loaded": 0,
+  "loaded_power_capped": 0,
+  "draw_w_p50": null,
+  "draw_w_max": 59.1,
+  "sm_mhz_p50_loaded": null,
+  "temp_c_max": 45.0,
+  "limit_w_min": 585.0
+ }
+}

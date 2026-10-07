@@ -1,0 +1,17 @@
+{
+ "cpu": "AMD Ryzen Threadripper 9960X 24-Cores",
+ "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+ "power_limit_w": "585.00",
+ "enforced_power_limit_w": "585.00",
+ "default_power_limit_w": "600.00",
+ "max_power_limit_w": "600.00",
+ "max_sm_clock_mhz": "3435",
+ "max_mem_clock_mhz": "14001",
+ "gpu_memory_used_mib": "1",
+ "gpu_memory_total_mib": "97887",
+ "gpu_count": "1",
+ "disk_free_gb": "181",
+ "driver": "580.126.09",
+ "refused": [],
+ "verdict": "PASS"
+}
