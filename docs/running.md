@@ -89,12 +89,16 @@ The Gemma base (`--base gemma-4-12b`):
 ## Ollama
 
 ```bash
-ollama pull aminroudaki/decisio
+ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base, for 16 GB laptops
+ollama pull aminroudaki/decisio          # the Qwen base
 ```
 
 Requires Ollama 0.35.1 or later.
-The [model page](https://ollama.com/aminroudaki/decisio) packages a laptop version of the Qwen base for Ollama's decision route and lists its tags and their sizes.
-Ollama builds its own prompt and applies no calibration, so its numbers are the ones on that page, not the ones in this repository.
+The model pages, [decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma) and [decisio](https://ollama.com/aminroudaki/decisio), package laptop versions of the two bases for Ollama's decision route and list their tags and their sizes.
+- The Gemma listing is the path for 16 GB laptops: its `q4_k_m` tag (also `latest`) is a 7.7 GB download and takes 8.6 GB in Ollama at the listing's 8,192-token context; its `q8_0` tag takes 13.6 GB (Ollama 0.35.1 on an Apple M5 Pro, `runs/2026-10-07_ollama-gemma-memory/`).
+- The Qwen listing's smallest tag is a 23 GB download, so it needs a machine with more memory.
+
+Ollama builds its own prompt and applies no calibration, so its numbers are the ones on those pages, not the ones in this repository.
 
 ## CPU stand-in for development
 

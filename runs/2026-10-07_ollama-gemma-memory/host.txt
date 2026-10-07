@@ -1,0 +1,5 @@
+2026-10-07T06:37:38Z
+ollama version is 0.35.1
+Apple M5 Pro
+68719476736
+26.6.2
