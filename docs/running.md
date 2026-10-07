@@ -27,14 +27,48 @@ uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
 - It listens on `127.0.0.1:8000` (`--host`, `--port`); put a reverse proxy in front of it to expose it.
 - `--image-model` adds a second engine on the same card for requests that carry images; `EVAL_CARD.md` section 1 has the memory shares it was measured with.
 - vLLM's engine runs in the server's process by default; with a second engine (`--image-model`, `--head-engine`, `--one-engine`) it runs in a process of its own (`--engine-process`, `docs/cli.md`).
-- A later, different question about a state read before, sent in its own request, reads the state from the prefix cache. On the Gemma bases vLLM keeps only a finished request's latest sliding-window checkpoint, which lies inside its question, so a single question first registers its state's boundary with the warm-up that multi-question requests already send (the state and one token). The server remembers which states it registered and sends the warm-up again only when a request finds the boundary gone, so a repeated question costs no extra engine call. 0.8.1 made that second question read the state from the cache: on one card at 400 W with an AMD Ryzen 9 9950X, 29.2 ms on Gemma 4 12B and 37.1 ms on Gemma 4 31B after first reads of 348 and 615 ms on a 3,000-token state, where before it read the whole state again (531 ms instead of 47 at 3,000 tokens and 9.2 s instead of 0.17 at 31,000 on the 31B, on another host). In exchange the registration adds to the first read of a new state: +11, +37 and +59 ms at 300, 1,000 and 3,000 tokens on the 12B, and +23, +43 and +72 ms on the 31B, on the same host (`runs/2026-10-06_latency-0.8.1/`). A repeated question and several questions in one request were not affected.
-- vLLM's `prefix_cache_retention_interval` would also keep the boundary, but it keeps every sliding-window block of each state, and with the cache filled to 1.3 times its pool the earliest states lost even their repeated question, where the default (0) kept them at twice the pool; it stays at the default. The Qwen base needs neither: its state is padded to end on its 1,056-token block, the latest checkpoint of a request with one question. `/health` reports `cache_hit_unit`, `hash_unit` and `registers_state_boundary`.
+- A later, different question about a state read before, sent in its own request, reads the state from the prefix cache; on the Gemma bases that needs the state's boundary registered, and `--register-boundary` sets when (below).
+- vLLM's `prefix_cache_retention_interval` would also keep the boundary, but it keeps every sliding-window block of each state, and with the cache filled to 1.3 times its pool the earliest states lost even their repeated question, where the default (0) kept them at twice the pool; it stays at the default. The Qwen base needs neither: its state is padded to end on its 1,056-token block, the latest checkpoint of a request with one question. `/health` reports `cache_hit_unit`, `hash_unit`, `registers_state_boundary` and `register_boundary`.
 
 Per-request latency depends on the host's CPU and on the card's power limit, as well as the card.
-- The CPU: with the engine in the server's process, a Qwen question on a cached state took 39.4 ms of server time on an AMD EPYC 7452 (Zen 2) host and 18.5 ms on an AMD Ryzen 9 9950X (Zen 5) host, with the same card model and vLLM (`runs/2026-10-05_engine-death-gates/`, `runs/2026-10-06_latency-0.8.1/`). The Gemma bases differed far less between the two hosts (Gemma 4 12B: 28.0 against 23.4 ms).
-- The power limit: first reads are bound by the card. On the Ryzen host the card was limited to 400 W of its 600 W, and its first reads on the Gemma bases were slower than earlier records whose power limit was not captured.
+- The CPU: with the engine in the server's process, a Qwen question on a cached state took 39.4 ms of server time on an AMD EPYC 7452 (Zen 2) host, 18.5 ms on an AMD Ryzen 9 9950X (Zen 5) and 20.2 ms on an AMD Ryzen Threadripper 9960X, with the same card model and vLLM (`runs/2026-10-05_engine-death-gates/`, `runs/2026-10-06_latency-0.8.1/`, `runs/2026-10-06_latency-585w/`). The Gemma bases differed far less between hosts (Gemma 4 12B: 28.0, 23.4 and 24.8 ms).
+- The power limit: first reads on the Gemma bases are bound by the card. With the card's enforced limit at 585 W (default 600 W), the software power cap held the clock back on 72 to 92% of busy samples on the Gemma bases, single requests included, and on 0 to 2% on the Qwen base (`runs/2026-10-06_latency-585w/`); at 400 W their first reads were slower still (`runs/2026-10-06_latency-0.8.1/`). The latency figures in the README and `EVAL_CARD.md` are from the 585 W session.
 
 Quote latency with the host's CPU model and the card's power limit beside it (`nvidia-smi -q -d POWER`).
+
+### A later question about the same state (`--register-boundary`)
+
+On the Gemma bases vLLM keeps only a finished request's latest sliding-window checkpoint, which lies inside its question.
+So the server registers each state's boundary with the warm-up that multi-question requests already send: the state and one token.
+Without it, a later, different question about the state read the whole state again: on the 31B, 531 ms instead of 47 at 3,000 tokens, and 9.2 s instead of 0.17 at 31,000 (before 0.8.1, on another host).
+The server remembers the last 4,096 states it registered and sends the warm-up again only when a request finds the boundary gone, so a repeated question costs no extra engine call.
+Several questions in one request are not affected, and the Qwen base needs no registration (its padded state already ends on a single question's latest checkpoint).
+
+`--register-boundary` sets when a single question on a new state registers it:
+- `after` (Gemma 4 12B's default): the question is answered first, reading the state fresh, and the warm-up is sent once the response has been handed to the server (in library use, once `answer()` returns). The caller does not wait for it.
+- `before` (Gemma 4 31B's default): the warm-up goes ahead of the question, in the caller's request, as in 0.8.1. On one card at 585 W with an AMD Ryzen Threadripper 9960X that added +16, +25 and +28 ms to a first read at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and +21, +34 and +34 ms on Gemma 4 31B (`runs/2026-10-06_latency-585w/`, and `register_boundary.md` there for every figure below).
+- `off`: never; a later, different question about a state reads it again, as before 0.8.1. For traffic that asks one question per state, where a registration would only cost throughput.
+
+Why the defaults differ: on the same card, with the queue idle, `after` took the registration off the caller's first read on both bases (12B 33.3, 90.3 and 237.1 ms against 56.7, 107.7 and 261.9 at 300, 1,000 and 3,000 tokens; 31B 52.0, 149.2 and 415.5 against 78.6, 157.2 and 435.4).
+Under load, with 32 and 64 clients sending first and follow-up questions about new 1,000-token states, the 12B kept 0.99 and 0.98 of the throughput it had with `before`, but the 31B kept only 0.61 and 0.74, with p95 1.69 and 1.62 times; so the 31B registers before the question.
+
+What `after` guarantees, and its limits:
+- A follow-up question sent after the first answer reads the state from the cache.
+  A registration that is due goes before every later request's questions: a background thread sends it as soon as the engine is free, and a request that takes the engine first sends it ahead of its own questions.
+- The bound on that follow-up: it may wait, at most for the engine call already in progress and then the warm-up, which reads the whole state again, since vLLM kept no checkpoint at the boundary.
+  The warm-up costs about one first read of the state: 34, 88 and 238 ms at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and 52, 146 and 407 ms on Gemma 4 31B (the reads without registration).
+  Measured on 3,000-token states, a follow-up read the state from the cache on 20 of 20 at 0, 50, 200 and 1,000 ms after the answer, and took 267, 222, 70 and 50 ms on the 12B (441, 392, 244 and 46 ms on the 31B), against 34 to 46 ms with `before`.
+- A second question sent before the first answer is out sends the warm-up itself, ahead of its question, as `before` does.
+- A follow-up reads the state again only when its registration was dropped (more than 256 pending, the oldest dropped first), when its warm-up failed, or when the state was evicted from the cache since.
+  `/health` reports `state_boundary`: the registrations pending, and how many were deferred, registered, dropped and failed.
+- The cost moves from latency to throughput: a new state is read twice on the card, once for the answer and once for the warm-up, where `before` read it once plus one token.
+  A request about another state that arrives during a warm-up waits for it, so one client sending new states back to back pays the previous state's warm-up: on the 12B it saved 4.9 and 22.1 ms at 300 and 1,000 tokens and lost 36.5 ms at 3,000.
+- The cache can hold fewer states under `after`: on the 31B, with states filling 1.3 times its reported pool, the 8 earliest were evicted under `after` and kept under `before`, and at 32 clients 82 of 96 follow-ups found their state against 96 of 96; the 12B kept the 8 earliest under both orders.
+- When the process ends (a library caller returning, or the server stopping), the warm-up in progress is waited for, at most 60 s, and the pending ones are dropped: an interpreter that shut down under a warm-up aborted the process on a card.
+- The first answer about a new state is a fresh read again.
+  On Gemma 4 12B a fresh read and a cached read of the same question can differ, by up to 0.113, and one near-tied choice of 60 new states changed (`EVAL_CARD.md` 6.5), so with `after` a question asked again can differ from its first answer by that much; with `before` the two are equal.
+  On Gemma 4 31B the two reads were identical.
+- Each request's `timing.state_boundary` shows what it did: `registered` (warm-ups sent ahead of its question), `found` (states already registered), `deferred` (warm-ups sent after its response), and `ran_before` and `ran_before_ms` (other requests' due warm-ups it sent first, and their time).
 
 ## Docker
 
