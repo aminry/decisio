@@ -28,10 +28,11 @@ requests included, goes through the prefix:
 a question's answer does not depend on what else is in its request, bit for bit, and repeats bit for bit.
 
 Across requests, the evaluated cache of each state prefix is kept (`PrefixCache`, least recently used first out,
-bounded by `prefix_cache_mb`, default 2,048 MB; 0 turns it off). A request whose prefix tokens equal a kept entry's
-continues from that entry instead of prefilling it again. Exact by construction: an entry is the cache the engine
-computed for exactly those tokens (compared in full, not by hash alone), and it is never written into, since every
-question continues from a copy; the forward is deterministic, so a hit gives the arrays a miss would compute.
+bounded by `prefix_cache_mb` in MiB, the base's (decisio.families, mlx_prefix_cache_mb); 0 turns it off). A request
+whose prefix tokens equal a kept entry's continues from that entry instead of prefilling it again. Exact by
+construction: an entry is the cache the engine computed for exactly those tokens (compared in full, not by hash
+alone), and it is never written into, since every question continues from a copy; the forward is deterministic, so a
+hit gives the arrays a miss would compute.
 
 The letters are read at the last position: the softmax over the label logits (bf16 out of the output layer, through
 the model's final-logit softcap when it has one, as mlx-lm applies it: Gemma 4's 30; then float64). The final-norm
@@ -70,7 +71,8 @@ TOKENIZER_SHA256 = {
 OFFICIAL_TOKENIZER, OFFICIAL_TOKENIZER_SHA256 = QWEN.model, TOKENIZER_SHA256[QWEN.key]
 SERVED_BLOCK = 1056  # vLLM's block on the served default: --pad-to block pads to it, so the prompts are the same
 PREFILL_STEP = 2048  # tokens per prefill chunk (bounds the attention layers' memory at long states)
-PREFIX_CACHE_MB = 2048  # the cross-request prefix cache's budget (about 25 entries at a 1,056-token prefix, 6-bit)
+# the cross-request prefix cache's budget in MiB when a caller gives none (the server uses the base's)
+PREFIX_CACHE_MB = 2048
 
 
 def split_revision(tokenizer):
