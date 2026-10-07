@@ -1,0 +1,70 @@
+{
+  "schema": "decisio.decision_config/1",
+  "decisio": "0.9.0",
+  "base": "qwen3.6-35b-a3b",
+  "source": {
+    "repository": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "revision": "95a723d08a9490559dae23d0cff1d9466213d989",
+    "license": "apache-2.0"
+  },
+  "weights": {
+    "modified": false,
+    "dtype": "fp8_e4m3",
+    "quantization": "fp8",
+    "method": null,
+    "quantized_on_load": false
+  },
+  "model_types": [
+    "qwen3_5_moe"
+  ],
+  "moe": null,
+  "classes": {
+    "text-only": "DecisioQwen3_5MoeTextOnly",
+    "hidden-readout": "DecisioQwen3_5MoeHiddenReadout"
+  },
+  "prompt": {
+    "format": {
+      "tail": "spaced",
+      "slot": "prefill",
+      "variants": "single",
+      "system_prompt": false
+    },
+    "label_form": "spaced",
+    "noul_rendering": "letters-keys",
+    "fingerprint": {
+      "desnake_labels": true,
+      "hide_index_keys": true,
+      "model": "Qwen3.6-35B-A3B-FP8",
+      "pad_to": "block",
+      "pad_where": "front",
+      "prompt_format": {
+        "slot": "prefill",
+        "tail": "spaced",
+        "variants": "single"
+      },
+      "served_name": "decisio-qwen3.6-35b-a3b-letters"
+    }
+  },
+  "readout": {
+    "softcap": null,
+    "head_rows": [
+      "lm_head.weight"
+    ],
+    "head_label_logprobs": "recompute",
+    "hidden_start": 100000
+  },
+  "temperatures": {
+    "global": 1.506,
+    "choice": 1.37
+  },
+  "serving": {
+    "served_name": "decisio-qwen3.6-35b-a3b-letters",
+    "pad_to": "block",
+    "multi_question": "sequential",
+    "register_state_boundary": false,
+    "register_boundary": null
+  },
+  "engine": {
+    "vllm": "0.30.0"
+  }
+}
