@@ -1,0 +1,92 @@
+F.                                                                       [100%]
+=================================== FAILURES ===================================
+____________________________ test_g1_g2_g4_separate ____________________________
+
+handoff = PosixPath('/workspace/l2l/tmp/pytest-of-root/pytest-0/gates0/separate.json')
+
+    def test_g1_g2_g4_separate(handoff):
+        view = env_path("DECISIO_VIEW")
+        adapter = os.environ.get("DECISIO_ADAPTER")
+>       out = run_child(
+            HERE / "serving_gates.py",
+            "--gpu",
+            view,
+            "--tol-g1",
+            TOL,
+            "--tol-g2",
+            TOL,
+            "--pad-where",
+            "front",
+            "--engine",
+            ENGINE,
+            "--handoff",
+            handoff,
+            *(["--adapter", adapter] if adapter else []),
+        )
+
+tests/gpu/test_serving_gates.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+timeout = 3600
+argv = (PosixPath('/workspace/l2l/decisio_arm/tests/gpu/serving_gates.py'), '--gpu', '/workspace/l2l/models/view', '--tol-g1', '0.0646', '--tol-g2', ...)
+
+    def run_child(*argv, timeout=3600):
+        """Run a script of this directory in a child process with DeepGEMM off; return its output (failing on exit != 0)."""
+        env = {**os.environ, "VLLM_USE_DEEP_GEMM": "0"}
+        r = subprocess.run([sys.executable, *map(str, argv)], capture_output=True, text=True, env=env, timeout=timeout)
+        out = r.stdout + r.stderr
+>       assert r.returncode == 0, out[-4000:]
+               ^^^^^^^^^^^^^^^^^
+E       AssertionError: █████▎ | 230/275 [01:03<00:09,  4.64it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▍ | 231/275 [01:03<00:08,  4.92it/s]
+E       Capturing CUDA graphs (PIECEWISE):  84%|████████▍ | 232/275 [01:03<00:08,  5.22it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▍ | 233/275 [01:03<00:07,  5.37it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▌ | 234/275 [01:03<00:07,  5.65it/s]
+E       Capturing CUDA graphs (PIECEWISE):  85%|████████▌ | 235/275 [01:04<00:06,  5.94it/s]
+E       Capturing CUDA graphs (PIECEWISE):  86%|████████▌ | 236/275 [01:04<00:06,  6.27it/s]
+E       Capturing CUDA graphs (PIECEWISE):  86%|████████▌ | 237/275 [01:04<00:05,  6.63it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 238/275 [01:04<00:05,  6.98it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 239/275 [01:04<00:04,  7.28it/s]
+E       Capturing CUDA graphs (PIECEWISE):  87%|████████▋ | 240/275 [01:04<00:04,  7.50it/s]
+E       Capturing CUDA graphs (PIECEWISE):  88%|████████▊ | 242/275 [01:04<00:03,  8.77it/s]
+E       Capturing CUDA graphs (PIECEWISE):  88%|████████▊ | 243/275 [01:04<00:03,  9.04it/s]
+E       Capturing CUDA graphs (PIECEWISE):  89%|████████▉ | 245/275 [01:05<00:03,  9.74it/s]
+E       Capturing CUDA graphs (PIECEWISE):  90%|████████▉ | 247/275 [01:05<00:02, 10.11it/s]
+E       Capturing CUDA graphs (PIECEWISE):  91%|█████████ | 249/275 [01:05<00:02, 10.38it/s]
+E       Capturing CUDA graphs (PIECEWISE):  91%|█████████▏| 251/275 [01:05<00:02, 10.49it/s]
+E       Capturing CUDA graphs (PIECEWISE):  92%|█████████▏| 253/275 [01:05<00:02, 10.62it/s]
+E       Capturing CUDA graphs (PIECEWISE):  93%|█████████▎| 255/275 [01:06<00:01, 10.64it/s]
+E       Capturing CUDA graphs (PIECEWISE):  93%|█████████▎| 257/275 [01:06<00:01, 10.78it/s]
+E       Capturing CUDA graphs (PIECEWISE):  94%|█████████▍| 259/275 [01:06<00:01, 10.84it/s]
+E       Capturing CUDA graphs (PIECEWISE):  95%|█████████▍| 261/275 [01:06<00:01, 11.02it/s]
+E       Capturing CUDA graphs (PIECEWISE):  96%|█████████▌| 263/275 [01:06<00:01, 11.19it/s]
+E       Capturing CUDA graphs (PIECEWISE):  96%|█████████▋| 265/275 [01:06<00:00, 11.24it/s]
+E       Capturing CUDA graphs (PIECEWISE):  97%|█████████▋| 267/275 [01:07<00:00, 11.23it/s]
+E       Capturing CUDA graphs (PIECEWISE):  98%|█████████▊| 269/275 [01:07<00:00, 11.25it/s]
+E       Capturing CUDA graphs (PIECEWISE):  99%|█████████▊| 271/275 [01:07<00:00, 11.28it/s]
+E       Capturing CUDA graphs (PIECEWISE):  99%|█████████▉| 273/275 [01:07<00:00, 11.36it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|██████████| 275/275 [01:07<00:00, 11.43it/s]
+E       Capturing CUDA graphs (PIECEWISE): 100%|██████████| 275/275 [01:07<00:00,  4.06it/s]
+E       (EngineCore pid=44635) 
+E       Capturing CUDA graphs (FULL):   0%|          | 0/35 [00:00<?, ?it/s]
+E       Capturing CUDA graphs (FULL):   6%|▌         | 2/35 [00:00<00:02, 16.35it/s]
+E       Capturing CUDA graphs (FULL):  11%|█▏        | 4/35 [00:00<00:01, 15.98it/s]
+E       Capturing CUDA graphs (FULL):  17%|█▋        | 6/35 [00:00<00:01, 15.97it/s]
+E       Capturing CUDA graphs (FULL):  23%|██▎       | 8/35 [00:00<00:01, 16.03it/s]
+E       Capturing CUDA graphs (FULL):  29%|██▊       | 10/35 [00:00<00:01, 16.06it/s]
+E       Capturing CUDA graphs (FULL):  34%|███▍      | 12/35 [00:00<00:01, 16.10it/s]
+E       Capturing CUDA graphs (FULL):  40%|████      | 14/35 [00:00<00:01, 16.07it/s]
+E       Capturing CUDA graphs (FULL):  46%|████▌     | 16/35 [00:00<00:01, 16.10it/s]
+E       Capturing CUDA graphs (FULL):  51%|█████▏    | 18/35 [00:01<00:01, 16.03it/s]
+E       Capturing CUDA graphs (FULL):  57%|█████▋    | 20/35 [00:01<00:00, 16.03it/s]
+E       Capturing CUDA graphs (FULL):  63%|██████▎   | 22/35 [00:01<00:00, 15.82it/s]
+E       Capturing CUDA graphs (FULL):  69%|██████▊   | 24/35 [00:01<00:00, 15.04it/s]
+E       Capturing CUDA graphs (FULL):  74%|███████▍  | 26/35 [00:01<00:00, 15.31it/s]
+E       Capturing CUDA graphs (FULL):  80%|████████  | 28/35 [00:01<00:00, 15.56it/s]
+E       Capturing CUDA graphs (FULL):  86%|████████▌ | 30/35 [00:01<00:00, 15.77it/s]
+E       Capturing CUDA graphs (FULL):  91%|█████████▏| 32/35 [00:02<00:00, 16.03it/s]
+E       Capturing CUDA graphs (FULL):  97%|█████████▋| 34/35 [00:02<00:00, 16.29it/s]
+E       Capturing CUDA graphs (FULL): 100%|██████████| 35/35 [00:02<00:00, 15.97it/s]
+
+tests/gpu/gpu_tier.py:36: AssertionError
+1 failed, 1 passed in 246.45s (0:04:06)

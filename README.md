@@ -60,7 +60,7 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 | Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured; each base's weights are in [Choosing a base](#choosing-a-base) |
 | Linux with one NVIDIA card and Docker | [Docker](#docker) | as the GPU server |
 | Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | each base's, in [docs/running.md](docs/running.md#mac-with-mlx) |
-| Mac, Linux or Windows with Ollama | [Ollama](#ollama) | the size of the tag, on the [model page](https://ollama.com/aminroudaki/decisio) |
+| Mac, Linux or Windows with Ollama | [Ollama](#ollama) | 8.6 GB for the Gemma base's smallest tag, so a 16 GB laptop; each tag's size is on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio](https://ollama.com/aminroudaki/decisio)) |
 | Any machine, for development | [CPU stand-in](#cpu-stand-in-for-development) | a small Hugging Face model on the CPU |
 
 [`docs/running.md`](docs/running.md) has the details of every path.
@@ -102,11 +102,13 @@ The Gemma base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every fe
 ### Ollama
 
 ```bash
-ollama pull aminroudaki/decisio
+ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base, for 16 GB laptops
+ollama pull aminroudaki/decisio          # the Qwen base
 ```
 
 Requires Ollama 0.35.1 or later.
-Ollama builds its own prompt and applies no calibration, so its numbers are the ones on its model page, not the ones here.
+The Gemma listing's smallest tag takes 8.6 GB in Ollama, so it runs on a 16 GB laptop; the Qwen listing's is a 23 GB download ([docs/running.md](docs/running.md#ollama)).
+Ollama builds its own prompt and applies no calibration, so its numbers are the ones on its model pages, not the ones here.
 
 ### CPU stand-in for development
 
@@ -178,7 +180,7 @@ A base that is a third-party fine-tune names its publisher in the provenance col
 | Padding | the state padded to the 1,056-token block | none | none |
 | Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 | scored in one batch after the state is read (`--multi-question warm`, its default since 0.8.0): the same choice as one engine call per question on every item measured, probabilities within 0.0073 |
 | Precision | FP8, as the checkpoint stores it | bf16 | FP8 on load (at bf16 it leaves too little of a 96 GB card for a 32,768-token context) |
-| A second, different question on a document already read (since 0.8.1; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | read from the cache, as always: 23.5 ms after an 85 ms first read (3,000 tokens) | read from the cache since 0.8.1: 35.8 ms after a 260 ms first read; the first read of a new document costs +16 to +28 ms more (300 to 3,000 tokens) | read from the cache since 0.8.1: 43.3 ms after a 439 ms first read; the first read costs +21 to +34 ms more |
+| A second, different question on a document already read (since 0.8.1; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | read from the cache, as always: 23.5 ms after an 85 ms first read (3,000 tokens) | read from the cache since 0.8.1: 35.8 ms after a 260 ms first read; since 0.9.0 the document's boundary is registered after the answer, so the first read costs nothing more (+16 to +28 ms at 300 to 3,000 tokens before) | read from the cache since 0.8.1: 43.3 ms after a 439 ms first read; the boundary is registered before the answer, which costs the first read +21 to +34 ms and keeps throughput under load |
 
 In plain words:
 - Choose Gemma 4 12B for committed yes/no answers, scores and intent routing on taxonomies like CLINC150.
@@ -232,7 +234,8 @@ The latency rows were measured in one session on decisio 0.8.1's served defaults
 The card was one RTX PRO 6000 Blackwell Workstation Edition with its power limit at 585 W (default 600 W), on an AMD Ryzen Threadripper 9960X host.
 On the Gemma bases that limit held the clock back during most first reads, so a card at 600 W may read new states faster; on the Qwen base it did not.
 In the same session, the boundary registration added +16 to +28 ms (12B) and +21 to +34 ms (31B) to the first read of a new state of 300 to 3,000 tokens, and a second, different question then read the state from the cache on 20 of 20 states per base.
-An earlier change, paired within its own session:
+Changes paired within one session:
+- **0.9.0, Gemma 4 12B registers a state's boundary after the answer:** in the same session its first reads with the queue idle took 33.3, 90.3 and 237.1 ms at 300, 1,000 and 3,000 tokens, against 56.7, 107.7 and 261.9 with the registration first; Gemma 4 31B keeps registering first, since after the answer cost it a quarter to two fifths of its throughput under load (`runs/2026-10-06_latency-585w/register_boundary.md`, `docs/running.md`).
 - **0.8.0, the engine in the server's process:** on an AMD EPYC 7452 host (power limit not recorded), the Qwen base answered faster in every cell, by 3.8 ms on a cached question and by 0.6 to 32.2 ms on new states (`runs/2026-10-05_engine-death-gates/`). On that host the Qwen base took 1.4 to 2.1 times the records of 2026-10-02 (engine in its own process, host CPU and power limit not recorded) in either arrangement, while the Gemma bases did not.
 
 Absolute latency depends on the host's CPU and on the card's power limit (`docs/running.md`).

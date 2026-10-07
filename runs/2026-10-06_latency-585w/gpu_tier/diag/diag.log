@@ -1,0 +1,15 @@
+00:27:02 qwen start
+00:32:23 qwen rc 1 ()
+    PART A PASS: first read 0 cached; the same question again 3168 of 3168, answers equal; a different question 3168 of 3168; the first question a third time 3168 of 3168, equal to the second; state boundary None, None, None
+    PART B FAIL: 605 states of 3000 tokens (1815000 tokens, 0.9 times the pool of 2013507); of the 8 earliest, a different question read the state from the cache on 8, the same question on 0
+00:32:23 g31 start
+00:35:38 g31 rc 250 (the child died of signal 6)
+    PART A PASS: first read 64 cached; the same question again 3104 of 3072, answers equal; a different question 3072 of 3072; the first question a third time 3104 of 3072, equal to the second; state boundary {'registered': 0, 'found': 0, 'deferred': 1}, {'registered': 0, 'found': 1, 'deferred': 0, 'ran_before': 1, 'ran_before_ms': 390.4363050824031}, {'registered': 0, 'found': 1, 'deferred': 0}
+    PART C PASS: 10 of 10 follow-ups read the state from the cache
+    FRESH VS CACHED: largest |dp| of a first read against its cached repeat 0 over 11 states (reported, not gated)
+    PART B FAIL: 26 states of 3000 tokens (78000 tokens, 1.3 times the pool of 57705); of the 8 earliest, a different question read the state from the cache on 0, the same question on 0
+00:35:38 DIAG DONE
+00:35:52 gates_separate start
+00:38:51 gates_separate rc 0 ()
+    GPU GATES separate PASS
+00:38:51 DIAG GATES DONE

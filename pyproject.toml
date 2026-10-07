@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "decisio"
-version = "0.8.2"
+version = "0.9.0"
 description = "A prefill-only decision server on vLLM: typed questions about a state, a probability distribution per question"
 license = "Apache-2.0"
 license-files = ["LICENSE", "NOTICE"]
@@ -42,7 +42,7 @@ serve = ["vllm==0.30.0; sys_platform == 'linux'"]
 # Decision Index kit are fetched at pinned commits by benchmarks/fetch_harnesses.sh
 bench = ["httpx>=0.28", "typesafe-sdk==0.7.0"]
 # httpx2: the client Starlette's TestClient runs on (with httpx alone it warns that httpx is deprecated there)
-dev = ["httpx>=0.28", "httpx2>=2.13", "pytest==9.1.1", "ruff==0.14.0"]
+dev = ["httpx>=0.28", "httpx2>=2.13", "pytest==9.1.1", "ruff==0.16.10"]
 # Apple silicon: the MLX engine (decisio.serve.mlx_engine, `--backend mlx`), the text route on a Mac
 mlx = [
     "mlx==0.32.3; sys_platform == 'darwin' and platform_machine == 'arm64'",

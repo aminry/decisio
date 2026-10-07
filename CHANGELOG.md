@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/aminry/decisio/compare/v0.8.2...v0.9.0) (2026-10-07)
+
+
+### Features
+
+* **serve:** register a state's boundary after the response on the Gemma bases, so a first question does not wait for it ([#99](https://github.com/aminry/decisio/issues/99)) ([787df0e](https://github.com/aminry/decisio/commit/787df0e6d097e4ea3106f3e2b459661f4f8d81aa))
+
 ## [0.8.2](https://github.com/aminry/decisio/compare/v0.8.1...v0.8.2) (2026-10-07)
 
 

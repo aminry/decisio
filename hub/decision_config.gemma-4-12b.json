@@ -1,0 +1,75 @@
+{
+  "schema": "decisio.decision_config/1",
+  "decisio": "0.9.0",
+  "base": "gemma-4-12b",
+  "source": {
+    "repository": "google/gemma-4-12B-it",
+    "revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+    "license": "apache-2.0"
+  },
+  "weights": {
+    "modified": false,
+    "dtype": "bfloat16",
+    "quantization": null,
+    "method": null,
+    "quantized_on_load": false
+  },
+  "model_types": [
+    "gemma4_unified"
+  ],
+  "moe": null,
+  "classes": {
+    "text-only": null,
+    "hidden-readout": "DecisioGemma4UnifiedHiddenReadout"
+  },
+  "prompt": {
+    "format": {
+      "tail": "spaced",
+      "slot": "template",
+      "variants": "summed",
+      "system_prompt": true
+    },
+    "label_form": "spaced",
+    "noul_rendering": "letters",
+    "fingerprint": {
+      "base": "gemma-4-12b",
+      "desnake_labels": true,
+      "hide_index_keys": true,
+      "model": "gemma-4-12B-it",
+      "pad_to": "none",
+      "pad_where": "front",
+      "prompt_format": {
+        "slot": "template",
+        "system_prompt": true,
+        "tail": "spaced",
+        "variants": "summed"
+      },
+      "served_name": "decisio-gemma-4-12b-it-letters"
+    }
+  },
+  "readout": {
+    "softcap": 30.0,
+    "head_rows": [
+      "lm_head.weight",
+      "model.language_model.embed_tokens.weight",
+      "language_model.model.embed_tokens.weight",
+      "model.embed_tokens.weight"
+    ],
+    "head_label_logprobs": "engine",
+    "hidden_start": 170000
+  },
+  "temperatures": {
+    "global": 3.592,
+    "choice": null
+  },
+  "serving": {
+    "served_name": "decisio-gemma-4-12b-it-letters",
+    "pad_to": "none",
+    "multi_question": "sequential",
+    "register_state_boundary": true,
+    "register_boundary": "after"
+  },
+  "engine": {
+    "vllm": "0.30.0"
+  }
+}

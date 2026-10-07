@@ -76,14 +76,14 @@ The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, 
 | Component | Fitted or chosen on |
 | --- | --- |
 | Model weights | Nothing by us |
-| Temperatures T = 1.506 and choice T = 1.370 | Minimum log loss on the served prompt's plain readouts of the private 1,400-item suite above (eight tasks; the choice T on its 800 choice items), each checked by 5-fold cross-validation; never on JevBench or the Decision Index |
+| Temperatures T = 1.506 and choice T = 1.370 | Minimum log loss on the served prompt's plain readouts of the private 1,400-item suite above (eight tasks; the choice T on its 800 choice items), each checked by 5-fold cross-validation; on no JevBench item, and on no result of a JevBench or Decision Index run (but 650 of the suite's items are also Decision Index questions: first bullet below) |
 | The prompt (the spaced layout, yes/no as named letters) | Chosen after measuring it against the compact layout on the suite, JevBench 231, the four Decision Index benchmarks, conformance, latency and the intent heads, under a pre-registration amended once to retest the heads with six draws |
 | Rendering rules | Index keys and de-snaking: selected, with no parameter fitted, on the Decision Index's BANKING77 and CLINC150+OOS rows; the description rule: chosen on 272 steps of a browser-agent demo (wrong "done" on CLICK steps 63 to 12 of 132) and gated against the earlier rendering on JevBench 231 (−0.43 points [−2.60, +1.30]) and the Decision Index's MMLU-Pro (−0.07 [−0.52, +0.37]) and GPQA Diamond (+3.54 [−1.01, +8.08]); each checked to change nothing on the suite |
 | Tie-break | A rule; nothing fitted |
 | Intent heads and calibration priors | Per task, on 10 labelled training examples per intent (BANKING77, CLINC150), three draws |
 | JevBench v1.5 thresholds and weights | JevBench's published method, as written |
 
-- **The temperature's fit set is the suite in section 3,** so the suite's ECE figures are in-sample; 500 of its MMLU-Pro items and its 150 BANKING77 items are also in the Decision Index's pools (4.2% and 4.9%), in our wording rather than the board's, so T can move ECE on those two benchmarks, never a choice.
+- **The temperature's fit set is the suite in section 3,** so the suite's ECE figures are in-sample; all 500 of its MMLU-Pro items and all 150 of its BANKING77 items (650 of the 1,400) are also questions in the Decision Index's public pools (4.2% of its MMLU-Pro and 4.9% of its BANKING77 questions): the same question text and the same options, with our own instruction sentence in place of the kit's. No JevBench item is in the suite. So the temperatures were fitted on readouts of questions the Decision Index also asks, never on a Decision Index result, and T can move ECE on those two benchmarks, never a choice.
 - **The rendering rules were selected on the Decision Index's intent rows,** so the BANKING77 and CLINC150+OOS scores measure a configuration chosen on them.
 - **The prompt was chosen with JevBench and the Decision Index among its gates,** so those numbers measure a configuration selected partly on them.
 - **The intent heads' test items are also in the Decision Index's pools;** no head was registered during any Decision Index run.
@@ -161,10 +161,11 @@ The capabilities of section 2 apply, with these differences: several questions i
 | 1,400-item suite, accuracy / ECE | BoolQ 0.873 / 0.061, BANKING77 0.747 / 0.059, ToxicChat 0.947 / 0.023, MMLU 0.827 / 0.084, SciFact 0.833 / 0.099, SciFact clarified 0.880 / 0.071, MMLU-Pro 0.547 / 0.101 (150) and 0.517 / 0.070 (350); pooled 0.735 / 0.029 | `capture_gemma.json.gz`, `report.json` |
 | Intent heads from 10 labelled examples per intent | BANKING77 0.832 (plain readout 0.747), CLINC150 0.908 (0.850), means of six draws; registration 195 s and 441 s | `intents_gemma_*.json.gz`, `report.json` |
 | Latency, one question, state from the cache (0.8.1's served defaults, the engine in the server's process; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | 24.8 ms server time (median of 20) | `runs/2026-10-06_latency-585w/` |
-| Latency, one question, a state never seen (same; the boundary registered before the question) | 53.6 ms at 300 tokens, 109.3 at 1,000, 258.6 at 3,000 | same |
+| Latency, one question, a state never seen (same; the boundary registered before the question) | 53.6 ms at 300 tokens, 109.3 at 1,000, 258.6 at 3,000; with `--register-boundary after`, this base's default since 0.9.0, 33.3, 90.3 and 237.1 with the queue idle (below) | same |
 | Latency, four questions, a state never seen (same) | 123.3 ms at 300 tokens, 177.4 at 1,000, 336.8 at 3,000 | same |
 | Latency, a second, different question on a 3,000-token state already read, paired with its first read (same) | 35.8 ms against 260.0 ms for the first read, the state read from the cache on 20 of 20 states (before 0.8.1 it read the state again) | same |
 | The boundary registration's cost on a new state, paired on the same states (same) | +16.1, +24.7 and +28.1 ms at 300, 1,000 and 3,000 tokens; the registered read differs from the fresh one by up to 0.113, and one choice of 60 changed (6.5) | same |
+| The registration after the response (`--register-boundary after`, this base's default since 0.9.0), paired on the same states and card | first reads with the queue idle 33.3, 90.3 and 237.1 ms at 300, 1,000 and 3,000 tokens, against 56.7, 107.7 and 261.9 before the question and 34.4, 88.3 and 237.7 without registration; a different follow-up question on a 3,000-token state read the state from the cache on 20 of 20 at 0, 50, 200 and 1,000 ms after the answer, taking 267.1, 221.7, 69.8 and 49.7 ms (it waits for the warm-up); one client sending new states back to back saves 4.9 and 22.1 ms at 300 and 1,000 tokens and loses 36.5 ms at 3,000; at 32 and 64 clients 0.99 and 0.98 of the throughput before the question, p95 1.02 and 1.01 times; a first read against its repeat up to 0.031, no choice changed | `runs/2026-10-06_latency-585w/register_boundary.md` |
 
 ECE is as in section 3; the suite's is the tie-robust version over 10 equal-mass bins.
 The Qwen base measured in the same session reproduced its record in section 3: 200 correct on JevBench, I_open 49.4, suite 0.770 / 0.033, and its plain readouts chose the record's answer on 1,400 of 1,400 suite items (largest difference 1.1e-16).
@@ -189,16 +190,16 @@ Each claim above was gated before it was written, in a pre-registration fixed be
 | The prompt (the system turn, the answer position, summed forms, yes/no as letters) | Chosen in an earlier session by ablation on the suite and JevBench 231, then tested in this session against the Qwen base's prompt on this model, its temperature fitted the same way (3.396): suite accuracy +0.14 points [-1.21, +1.43], JevBench hard tier +3.6 [-1.8, +9.0], suite ECE 0.041 against 0.029, JevBench choice ECE 0.074 against 0.064; level on accuracy, worse on calibration, so the system turn stays (`gemma_q.json`, `temps_gemma_q.json`) |
 | Intent heads and calibration priors | Per task, on 10 labelled training examples per intent, six draws |
 
-The disclosures of section 4 hold here too: the suite is the temperature's fit set, so its ECE figures are in-sample, and the prompt was chosen with JevBench among its measurements.
+The disclosures of section 4 hold here too: the suite is the temperature's fit set, so its ECE figures are in-sample, the prompt was chosen with JevBench among its measurements, and T = 3.592 was fitted on readouts of the 650 suite questions that are also Decision Index questions (all 500 MMLU-Pro and all 150 BANKING77 items of the suite; section 4).
 
 ### 6.5 Reproducibility
 
 Unlike the Qwen base, this base does not return the same probabilities bit for bit for a repeated question.
 Its final logits are bf16 after the soft cap, so near the top they lie on a grid of 0.0625 to 0.125 (every one of 212 spacings between leading labels in this session's JevBench readouts is a multiple of 1/16), and a state read for the first time and the same state read from the prefix cache can land a step apart.
 On 60 new ticket states of 300 to 3,000 tokens the two reads differed by up to 0.113 at the served temperature, and one choice of the 60 changed (585 W, `runs/2026-10-06_latency-585w/`); in an earlier session on 60 other states they differed by up to 0.066, with no choice changed (400 W, `runs/2026-10-06_latency-0.8.1/`).
-In this section's own session, the JevBench answers read on first contact and asked again later had differed by up to 0.035, on 49 of 231 items. On the Qwen base and on the Gemma 4 31B base the two reads were identical. Since 0.8.1 a single question's first read of a state also goes through the prefix cache (the boundary registration, `docs/running.md`), so a question asked again returns its first answer.
+In this section's own session, the JevBench answers read on first contact and asked again later had differed by up to 0.035, on 49 of 231 items. On the Qwen base and on the Gemma 4 31B base the two reads were identical. In 0.8.1 a single question's first read of a state also went through the prefix cache, so a question asked again returned its first answer; with `--register-boundary after`, this base's default since 0.9.0, the first read is fresh and its boundary is registered after the response, so a question asked again can differ from its first answer by up to that bound (`--register-boundary before` keeps 0.8.1's order; `docs/running.md`).
 Between this session and an earlier one on another card of the same type, with the same prompts and temperature, the answers differed by up to 0.128, on 212 of 231 items; two near-tied choices changed, one of them from right to wrong (`repro.json`).
-Several questions in one request stay within the same bound (0.035, 6.3).
+Several questions in one request stayed within 0.035 in their own measurement (6.3).
 With the questions batched (`--multi-question warm`) and the engine in the server's process, a repeated request moves only as a single question does, between a state's first read and later reads from the prefix cache: on 272 four-question travel requests the first answer differed from the next four, which agreed, on 204, by up to 0.046, with one choice changed (`runs/2026-10-05_engine-process/`).
 
 ### 6.6 Limits
@@ -208,6 +209,7 @@ With the questions batched (`--multi-question warm`) and the engine in the serve
   Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
   Its path to 32 GB machines is an MLX build, in preparation.
 - The image route and `--pad-policy row` were not measured on this base; `--multi-question warm` only on the 272 travel requests of section 6.5.
+- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the out-of-fold log-loss gain was not wholly below zero (its upper end +0.0005); the temperatures of 6.4 stay as served (the private RLCD repository, `experiments/2026-10-07_lab1_option_count_temperature/RESULTS.md`).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 7. The Gemma 4 31B base
@@ -249,6 +251,7 @@ The capabilities of section 2 apply; the image route was not measured with this 
 | Latency, four questions, a state never seen (same; `--multi-question warm`, the default) | 104.8 ms at 300 tokens, 184.9 at 1,000, 466.9 at 3,000; `--multi-question sequential` 170.1, 252.9, 537.6; `--multi-question batch` 84.5, 161.3, 825.5 | same |
 | Latency, a second, different question on a 3,000-token state already read, paired with its first read (same) | 43.3 ms against 439.0 ms for the first read, the state read from the cache on 20 of 20 states (before 0.8.1 it read the state again) | same |
 | The boundary registration's cost on a new state, paired on the same states (same) | +20.6, +34.0 and +33.6 ms at 300, 1,000 and 3,000 tokens; the registered read and the fresh one identical (0.0) | same |
+| The registration after the response (`--register-boundary after`; not this base's default), paired on the same states and card | first reads with the queue idle 52.0, 149.2 and 415.5 ms at 300, 1,000 and 3,000 tokens, against 78.6, 157.2 and 435.4 before the question; follow-ups read the state from the cache on 20 of 20 at every delay; under load, 0.61 and 0.74 of the throughput before the question at 32 and 64 clients, p95 1.69 and 1.62 times, and the cache kept fewer states (with states filling 1.3 times its reported pool, the 8 earliest evicted, where before kept all 8); so the default stays before | `runs/2026-10-06_latency-585w/register_boundary.md` |
 | Several questions, `--multi-question warm` (the default since 0.8.0) against `sequential`, engine in the server's process | no choice changed on the suite's 1,400 items or JevBench's 231 in a four-question form (accuracy 0.804 and 0.913 under both), nor on the 272 travel requests; the largest probability difference 0.0073 (travel), 0.0 on the others; warm repeated 272 of 272 | `runs/2026-10-05_engine-death-gates/` |
 
 ECE is as in section 3; the suite's is the tie-robust version over 10 equal-mass bins.
@@ -277,11 +280,11 @@ The Qwen and 12B columns are section 3's and section 6's records, from another s
 | Component | Fitted or chosen on |
 | --- | --- |
 | Model weights | Nothing by us |
-| Temperatures T = 5.252 and choice T = 4.672 | Minimum log loss on this base's plain readouts of the private 1,400-item suite of section 3 (the choice T on its 800 choice items, kept because out of fold it lowers their log loss: −0.0115 [−0.0211, −0.0015]), each with 5-fold cross-validation stratified by task, T searched in [0.2, 50]; never on JevBench or the Decision Index |
+| Temperatures T = 5.252 and choice T = 4.672 | Minimum log loss on this base's plain readouts of the private 1,400-item suite of section 3 (the choice T on its 800 choice items, kept because out of fold it lowers their log loss: −0.0115 [−0.0211, −0.0015]), each with 5-fold cross-validation stratified by task, T searched in [0.2, 50]; on no JevBench item, and on no result of a JevBench or Decision Index run (but 650 of the suite's items are also Decision Index questions: section 4, first bullet) |
 | The prompt | The 12B base's, unchanged (section 6.4) |
 | FP8 on load | Chosen because at bf16 the checkpoint does not start at a 32,768-token context on one 96 GB card (7.5) |
 
-The disclosures of section 4 hold here too, with one more: the go rule this base was measured against was set before the session, and the decision to serve it was taken after seeing its numbers (7.3).
+The disclosures of section 4 hold here too, with two more: the go rule this base was measured against was set before the session, and the decision to serve it was taken after seeing its numbers (7.3); and T = 5.252 and choice T = 4.672 were fitted on readouts of the 650 suite questions that are also Decision Index questions (all 500 MMLU-Pro and all 150 BANKING77 items of the suite; section 4).
 
 ### 7.5 Limits
 
@@ -294,6 +297,7 @@ The disclosures of section 4 hold here too, with one more: the go rule this base
   The engine arrangement (in the server's process, 0.8.0's default) and the driver (590.48.01, against the record's 610.43.02) differed; section 8's run of 2026-10-05, at v0.6.0 with the engine in its own process and the record's driver, had reproduced its four Decision Index values exactly.
   A comparison of this base with an earlier record must therefore be paired in the same session (Track 7's stage C, recorded in the private RLCD repository at `experiments/2026-10-05_t7_nvfp4_stage_c/RESULTS.md`).
 - Not served on a Mac; the image route was not measured.
+- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the board-style calibration estimate fell 27.0%, where the rule required a third; the temperatures of 7.4 stay as served (the private RLCD repository, `experiments/2026-10-07_lab1_option_count_temperature/RESULTS.md`).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 8. The Decision Index's whole suite, self-run

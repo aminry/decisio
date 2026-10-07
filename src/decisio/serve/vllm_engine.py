@@ -76,7 +76,8 @@ def options_listing(tok, options):
     return "Options:\n" + "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
 
 
-from decisio.names import SERVED_NAME, same_fingerprint  # noqa: E402
+from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
+from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
@@ -215,6 +216,10 @@ class LettersEngine:
     # the served defaults (--pad-policy, --multi-question); the server sets both from its flags
     pad_policy = "always"
     multi_question = "sequential"
+    # where a single question's state boundary is registered on a base that registers it (--register-boundary):
+    # after, once the response is out (decisio.serve.boundary); before, ahead of the question, as 0.8.1 did; off, never
+    # (a later question about the state reads it again, as before 0.8.1)
+    register_boundary = "after"
     # the server's EngineHealth (decisio.serve.engine_health), shared with the other engines; None in library use
     health = None
     fmt = DEFAULT_FORMAT  # the prompt format (decisio.readout.letters.PromptFormat); the server sets it from its flags
@@ -245,6 +250,7 @@ class LettersEngine:
         # where the engine runs (--engine-process), as vLLM will read it when the LLM below is built
         self.engine_process = "in" if os.environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "0" else "separate"
         self.family = family or family_of(model, revision)
+        self.register_boundary = resolve_register_boundary(self.family, None)
         self.model_name, self.revision = model, revision
         self.fmt = fmt or DEFAULT_FORMAT
         if mode == "packed" and not self.fmt.is_default():
@@ -366,7 +372,9 @@ class LettersEngine:
             "cache_hit_unit": self.cache_hit_unit,
             "hash_unit": self.hash_unit,
             # a single question registers its state's boundary for the next question (decisio.families)
-            "registers_state_boundary": bool(self.family.register_state_boundary),
+            "registers_state_boundary": facts_register_boundary(self) in ("after", "before"),
+            "register_boundary": facts_register_boundary(self),
+            **({"repository": self.repository} if getattr(self, "repository", None) else {}),
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
             "quantization": str(c.model_config.quantization),
@@ -400,16 +408,31 @@ class LettersEngine:
             todo.append([i for i in range(len(questions)) if i not in derived[-1]])
         if self.health is not None:
             self.health.check()  # refused at once when the engine is dead, before any work or the lock
-        with self._lock:
-            t0 = time.perf_counter()
-            reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
-            if self.mode == "separate":
-                probs, info = self._answer_separate(reqs, adapter)
-            else:
-                if adapter:
-                    raise ValueError("adapters are served in separate mode")
-                probs, info = self._answer_packed(reqs)
-            info["server_ms"] = (time.perf_counter() - t0) * 1000
+        # the boundary registrations this call defers become due when the server has sent its response, or, without a
+        # server, when this call returns (decisio.serve.boundary)
+        own = current_ticket() is None
+        if own:
+            ticket, token = open_ticket()
+        try:
+            with self._lock:
+                t0 = time.perf_counter()
+                # registrations already due go before this request's questions, so a question sent after an answer
+                # about the same state reads the state from the cache
+                registrar = self.__dict__.get("_registrar")
+                ran, ran_ms = registrar.run_due() if registrar is not None else (0, 0.0)
+                reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
+                if self.mode == "separate":
+                    probs, info = self._answer_separate(reqs, adapter)
+                else:
+                    if adapter:
+                        raise ValueError("adapters are served in separate mode")
+                    probs, info = self._answer_packed(reqs)
+                if ran:
+                    info.setdefault("state_boundary", {}).update(ran_before=ran, ran_before_ms=ran_ms)
+                info["server_ms"] = (time.perf_counter() - t0) * 1000
+        finally:
+            if own:
+                close_ticket(ticket, token)
         results = []
         for (_, questions), td, der, pr in zip(requests, todo, derived, probs):
             out = dict(zip(td, pr))
@@ -501,18 +524,7 @@ class LettersEngine:
 
         lora = self.adapters[adapter] if adapter else None
         extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
-        warm_ms = 0.0
-        if warm:
-            t = time.perf_counter()
-            guarded(
-                self,
-                self.llm.generate,
-                [TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
-                SamplingParams(max_tokens=1, temperature=0.0),
-                lora_request=lora,
-                use_tqdm=False,
-            )
-            warm_ms = (time.perf_counter() - t) * 1000
+        warm_ms = self.send_warm(warm, adapter, mm, mm_uuids) if warm else 0.0
         # SamplingParams defaults leave top-k/top-p/min-p off, so "processed" is the masked logits alone.
         # detokenize=False: labels are read by token id and no text is used; the per-request detokenizer
         # was 73% of the frontend's CPU at an 8,000-token state (profiled)
@@ -571,8 +583,42 @@ class LettersEngine:
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
+    def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
+        """Prefill token lists in one batch, one generated token each, so their states are registered in the prefix
+        cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took."""
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+
+        lora = self.adapters[adapter] if adapter else None
+        extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
+        t = time.perf_counter()
+        guarded(
+            self,
+            self.llm.generate,
+            [TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
+            SamplingParams(max_tokens=1, temperature=0.0),
+            lora_request=lora,
+            use_tqdm=False,
+        )
+        return (time.perf_counter() - t) * 1000
+
     # the states whose boundary this engine registered with a warm-up (register_state_boundary), most recent last
     BOUNDARIES_KEPT = 4096
+
+    def boundaries_registered(self, keys):
+        """Remember states whose boundary a warm-up registered (the engine's lock held)."""
+        for key in keys:
+            self._boundaries[key] = True
+            self._boundaries.move_to_end(key)
+        while len(self._boundaries) > self.BOUNDARIES_KEPT:
+            self._boundaries.popitem(last=False)
+
+    @property
+    def registrar(self):
+        """The boundary registrations deferred until after their responses (decisio.serve.boundary)."""
+        if "_registrar" not in self.__dict__:
+            self._registrar = Registrar(self)
+        return self._registrar
 
     def _boundary_key(self, ids, adapter):
         data = np.asarray(ids, dtype=np.int64).tobytes() + str(adapter).encode()
@@ -585,8 +631,11 @@ class LettersEngine:
         # (decisio.families, register_state_boundary); the hit unit tells whether a later request found it
         family = getattr(self, "family", None)
         hit = getattr(self, "cache_hit_unit", None)
-        register = bool(getattr(family, "register_state_boundary", False) and hit)
-        registering, checking = [], []  # (key) for the warm-ups sent; (key, row, whole hit units) for the others
+        mode = getattr(self, "register_boundary", "after")
+        register = bool(getattr(family, "register_state_boundary", False) and hit and mode != "off")
+        after = mode == "after"
+        # (key) for the warm-ups sent; (key, row, whole hit units) for the others; (key, warm-up) for those deferred
+        registering, checking, deferring = [], [], []
         t = time.perf_counter()
         for state, questions in requests:
             r, P = self._prepare_separate(state, questions)
@@ -601,7 +650,12 @@ class LettersEngine:
                 if key in self._boundaries:
                     self._boundaries.move_to_end(key)
                     checking.append((key, len(rows), (P // hit) * hit))
+                elif after and not self.registrar.take(key):
+                    # --register-boundary after: answered without the warm-up, which is sent once the response is out
+                    deferring.append((key, r[0][0][: P + 1]))
                 else:
+                    # before (0.8.1), or this state's warm-up is still pending behind a response not yet sent (two
+                    # questions about a new state sent together): sent ahead of the question
                     warm.append(r[0][0][: P + 1])
                     registering.append(key)
             spans.append((len(rows), len(rows) + len(r)))
@@ -617,11 +671,14 @@ class LettersEngine:
             for key, row, whole in checking:
                 if row < len(cached) and cached[row] < whole:
                     self._boundaries.pop(key, None)  # evicted: the next request on this state registers it again
-            for key in registering:
-                self._boundaries[key] = True
-            while len(self._boundaries) > self.BOUNDARIES_KEPT:
-                self._boundaries.popitem(last=False)
-            info["state_boundary"] = {"registered": len(registering), "found": len(checking)}
+            self.boundaries_registered(registering)
+            for key, w in deferring:
+                self.registrar.defer(key, w, adapter)
+            info["state_boundary"] = {
+                "registered": len(registering),
+                "found": len(checking),
+                "deferred": len(deferring),
+            }
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
         info["prepare_ms"] = prepare_ms
         return [probs[a:b] for a, b in spans], info
@@ -727,6 +784,8 @@ def make_app(engine, systemone=None, health=None):
         adapter: str | None = None
 
     app = FastAPI(title="letters readout")
+    # boundary registrations deferred by a request wait for its response (decisio.serve.boundary)
+    app.add_middleware(AfterResponse)
     if health is not None:  # the exit after a death waits for the answers in flight (decisio.serve.engine_health)
         app.add_middleware(InFlight, health=health)
 
@@ -782,6 +841,9 @@ def make_app(engine, systemone=None, health=None):
         )
         hidden = getattr(systemone, "hidden_engine", None) if systemone is not None else None
         so.update({"head_engine": hidden.facts()} if hidden is not None else {})
+        # registrations deferred until after their responses: pending, and counted (decisio.serve.boundary)
+        if facts_register_boundary(engine) == "after" and getattr(engine, "cache_hit_unit", None):
+            so["state_boundary"] = engine.registrar.facts()
         return {
             "ok": True,
             **engine.facts(),
@@ -895,6 +957,14 @@ def resolve_multi_question(family, choice, engine_process):
     return profile if engine_process in ("in", None) else "sequential"
 
 
+def resolve_register_boundary(family, choice):
+    """--register-boundary's default: the base profile's (gemma-4-12b: after; gemma-4-31b: before, where registering
+    after the response cost it a third of its throughput under load; runs/2026-10-06_latency-585w)."""
+    if choice is not None:
+        return choice
+    return getattr(family, "register_boundary", "after")
+
+
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
 
 
@@ -967,6 +1037,12 @@ def engine_kwargs(args) -> dict:
     return {**kw, **plugin.engine_kwargs(arch)}
 
 
+def facts_register_boundary(engine):
+    """Where a single question registers its state's boundary (--register-boundary), or None on a base that does not."""
+    fam = getattr(engine, "family", None)
+    return getattr(engine, "register_boundary", None) if getattr(fam, "register_state_boundary", False) else None
+
+
 def served_profile(engine, systemone) -> dict:
     """The base profile in effect and the settings it resolved to: the base, the temperature each question type is
     served at (the global one where a type has none of its own), and the prompt, yes/no rendering, option rendering and
@@ -986,6 +1062,7 @@ def served_profile(engine, systemone) -> dict:
             "noul_rendering": systemone.noul_rendering,
             "describe_options": systemone.describe_options,
             "multi_question": getattr(engine, "multi_question", None),
+            "register_boundary": facts_register_boundary(engine),
             "pad_policy": getattr(engine, "pad_policy", None),
             "pad_unit": getattr(engine, "pad_unit", None),
         },
@@ -997,8 +1074,21 @@ def resolve_base(args):
     names; the base's checkpoint when --model is not given; its pinned revision whenever the checkpoint is the base's
     own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
+    from decisio import hub
     from decisio.families import BASES, FAMILIES, family_of, pinned_revision, read_config
 
+    repo = None
+    if args.base is not None and args.base not in BASES:
+        # a decisio repository (decisio.hub): its weights are the checkpoint, its file names the base
+        if not hub.is_repository(args.base):
+            raise ValueError(
+                f"--base {args.base!r} is neither a base ({', '.join(sorted(BASES))}) nor a repository "
+                "(owner/name[@revision], or a directory holding decision_config.json)"
+            )
+        if args.model is not None:
+            raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
+        repo = hub.open_repository(args.base, args.revision)
+        args.base, args.model, args.revision = repo.base, repo.model, repo.revision
     if args.backend == "mlx" and args.model is None:
         raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
     if args.base is not None:
@@ -1020,6 +1110,13 @@ def resolve_base(args):
     # checked on the resolved base, so a conversion whose config names the 31B is refused without --base as well
     if args.backend == "mlx" and fam.key == "gemma-4-31b":
         raise ValueError("--backend mlx serves the Qwen base and gemma-4-12b; gemma-4-31b is served on vLLM only")
+    args.repository = None
+    if repo is not None:
+        hub.verify(repo, fam)
+        fam = hub.serve_family(fam, repo)
+        # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
+        args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
+        args.repository = repo.facts()
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
@@ -1046,10 +1143,10 @@ def main():
     ap.add_argument(
         "--base",
         default=None,
-        choices=["qwen3.6-35b-a3b", "gemma-4-12b", "gemma-4-31b"],
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): qwen3.6-35b-a3b "
         "(Qwen/Qwen3.6-35B-A3B-FP8, the default), gemma-4-12b (google/gemma-4-12B-it) or gemma-4-31b "
-        "(google/gemma-4-31B-it, quantized to FP8 on load), each at a pinned revision. "
+        "(google/gemma-4-31B-it, quantized to FP8 on load), each at a pinned revision; or a decisio repository, "
+        "owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",
     )
@@ -1096,6 +1193,16 @@ def main():
         "so every answer equals the question sent alone; warm (for bulk scoring): the warm-up, then every question "
         "in one batch, faster but each answer depends on the batch; batch: one engine call with every question, "
         "each prefilling the state itself, no warm-up",
+    )
+    ap.add_argument(
+        "--register-boundary",
+        default=None,
+        choices=["after", "before", "off"],
+        help="on a base that registers a state's boundary for the next question (the Gemma bases; /health "
+        "registers_state_boundary), where a single question on a new state registers it: after (gemma-4-12b's "
+        "default), once the response is out, so the caller does not wait for it and a question sent after the answer "
+        "reads the state from the cache; before (gemma-4-31b's default), ahead of the question, as 0.8.1 did; off, "
+        "never, so a later question about the state reads it again (docs/running.md)",
     )
     ap.add_argument(
         "--engine-process",
@@ -1431,6 +1538,8 @@ def main():
         )
     engine.fmt = fmt
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
+    engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
+    engine.repository = args.repository
     print(
         "ENGINE",
         json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),
@@ -1516,23 +1625,18 @@ def main():
 
     # a task is valid only for the model and the rendering it was fitted under
     store = TaskStore(
-        fingerprint=json.dumps(
-            {
-                "served_name": args.served_name,
-                "model": os.path.basename(os.path.normpath(args.model)),
-                "pad_to": args.pad_to,
-                "pad_where": args.pad_where,
-                "hide_index_keys": args.hide_index_keys,
-                "desnake_labels": args.desnake_labels,
-                # only when not the default, so the fingerprints of tasks registered under the default are unchanged
-                **({"pad_policy": args.pad_policy} if args.pad_policy != "always" else {}),
-                # likewise: only a non-default prompt format enters, so tasks fitted under the default keep matching
-                **({"prompt_format": fmt.facts()} if not fmt.is_default() else {}),
-                # and only a base other than Qwen (whose fingerprints predate bases)
-                **({"base": args.family.key} if args.family.key != "qwen3.6-35b-a3b" else {}),
-                # --describe-options is not here: it enters the task key of the questions it changes (tasks.task_key)
-            },
-            sort_keys=True,
+        fingerprint=task_fingerprint(
+            served_name=args.served_name,
+            # a decisio repository's copy of a checkpoint is named by its source: tasks fitted on one serve on both
+            model=getattr(args, "model_identity", None) or os.path.basename(os.path.normpath(args.model)),
+            pad_to=args.pad_to,
+            pad_where=args.pad_where,
+            hide_index_keys=args.hide_index_keys,
+            desnake_labels=args.desnake_labels,
+            pad_policy=args.pad_policy,
+            prompt_format=None if fmt.is_default() else fmt.facts(),
+            # a base other than Qwen (whose fingerprints predate bases)
+            base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
         )
     )
     if args.tasks_file:
