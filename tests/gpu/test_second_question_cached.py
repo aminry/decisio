@@ -6,9 +6,11 @@ times on the Qwen base (second_question_cached.py; the boundary registration, de
 register_state_boundary). On the Gemma bases both orders run: after the
 response (part C, a follow-up at once and after a pause reads the state from the cache) and before the question
 (0.8.1's order). Part B is reported and not gated for the 31B under after, whose cache keeps fewer states in that order
-(its default is before). On the Qwen base part B is an expected failure: at 0.9 of the pool vLLM reports, none of the 8
-earliest padded states was still cached on a card (Lab 2, 2026-10-07), so that pool figure does not bound the Qwen cache
-(TRACKS item 50: diagnose and fix the fill).
+(its default is before). On the Qwen base part B counts the fill in blocks (--fill-by blocks): at 0.9 of the pool vLLM
+reports, counted in tokens, none of the 8 earliest padded states was still cached on a card (Lab 2, 2026-10-07),
+because that figure counts 32,768-token requests and a short padded state keeps proportionally more blocks (see
+second_question_cached.py). It stays an expected failure (TRACKS item 50) until a card run confirms the block-counted
+fill, and then becomes a gate.
 
     DECISIO_MODEL=<Qwen checkpoint> [DECISIO_GEMMA_12B=<checkpoint>] [DECISIO_GEMMA_31B=<checkpoint>] \\
         uv run pytest -m gpu tests/gpu/test_second_question_cached.py
@@ -22,8 +24,9 @@ from gpu_tier import HERE, env_path, run_child
 pytestmark = pytest.mark.gpu
 
 QWEN_PART_B = (
-    "part B on the Qwen base: at 0.9 of the pool vLLM reports, the 8 earliest padded states were no longer cached "
-    "(RLCD experiments/2026-10-07_lab2_after_gpu_cases); TRACKS item 50"
+    "part B on the Qwen base, filled in blocks: not yet confirmed on a card; counted in tokens at 0.9 of the reported "
+    "pool the 8 earliest padded states were no longer cached (RLCD experiments/2026-10-07_lab2_after_gpu_cases); "
+    "TRACKS item 50"
 )
 
 
@@ -51,6 +54,7 @@ def test_a_later_question_reads_the_state_from_the_cache(variable, base, registe
         register,
         "--part-b",
         part_b,
+        *(["--fill-by", "blocks"] if base == "qwen3.6-35b-a3b" else []),
     )
     assert "PART A PASS" in out, out[-4000:]
     if part_b == "gate":
