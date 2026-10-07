@@ -195,7 +195,7 @@ def _fake_31b_repository(tmp_path, monkeypatch):
 
 def test_b4_the_31b_base(tmp_path, monkeypatch):
     """The 31B: a dense gemma4 checkpoint is detected as it (a MoE one is not), --base brings its pinned FP8
-    repository, the 12B's prompt and its own temperatures; MLX does not serve it."""
+    repository, the 12B's prompt and its own temperatures (on vLLM; MLX from a conversion, test_mlx_engine)."""
     monkeypatch.delenv("DECISIO_BASE", raising=False)
     _fake_31b_repository(tmp_path, monkeypatch)
     assert family_of(_gemma4_checkpoint(tmp_path, "dense", False)) is GEMMA4_31B
@@ -208,8 +208,6 @@ def test_b4_the_31b_base(tmp_path, monkeypatch):
     assert (a.pad_to, a.noul_rendering) == ("none", "letters")
     assert (a.temperature, a.temperature_choice) == (fam.temperature, fam.choice_temperature)
     assert fam.quantization is None and fam.classes["hidden-readout"] == "DecisioGemma4HiddenReadout"
-    with pytest.raises(ValueError, match="vLLM only"):
-        sv.resolve_base(_args(base="gemma-4-31b", backend="mlx", model="some/mlx-conversion"))
 
 
 @pytest.mark.parametrize("base,hidden", [("gemma-4-12b", 3840), ("qwen3.6-35b-a3b", 2048), ("gemma-4-31b", 5376)])
