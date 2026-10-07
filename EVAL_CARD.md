@@ -76,14 +76,14 @@ The records keep the wire names they were written with (`x-rlcd-*`, `rlcd-*/1`, 
 | Component | Fitted or chosen on |
 | --- | --- |
 | Model weights | Nothing by us |
-| Temperatures T = 1.506 and choice T = 1.370 | Minimum log loss on the served prompt's plain readouts of the private 1,400-item suite above (eight tasks; the choice T on its 800 choice items), each checked by 5-fold cross-validation; never on JevBench or the Decision Index |
+| Temperatures T = 1.506 and choice T = 1.370 | Minimum log loss on the served prompt's plain readouts of the private 1,400-item suite above (eight tasks; the choice T on its 800 choice items), each checked by 5-fold cross-validation; on no JevBench item, and on no result of a JevBench or Decision Index run (but 650 of the suite's items are also Decision Index questions: first bullet below) |
 | The prompt (the spaced layout, yes/no as named letters) | Chosen after measuring it against the compact layout on the suite, JevBench 231, the four Decision Index benchmarks, conformance, latency and the intent heads, under a pre-registration amended once to retest the heads with six draws |
 | Rendering rules | Index keys and de-snaking: selected, with no parameter fitted, on the Decision Index's BANKING77 and CLINC150+OOS rows; the description rule: chosen on 272 steps of a browser-agent demo (wrong "done" on CLICK steps 63 to 12 of 132) and gated against the earlier rendering on JevBench 231 (−0.43 points [−2.60, +1.30]) and the Decision Index's MMLU-Pro (−0.07 [−0.52, +0.37]) and GPQA Diamond (+3.54 [−1.01, +8.08]); each checked to change nothing on the suite |
 | Tie-break | A rule; nothing fitted |
 | Intent heads and calibration priors | Per task, on 10 labelled training examples per intent (BANKING77, CLINC150), three draws |
 | JevBench v1.5 thresholds and weights | JevBench's published method, as written |
 
-- **The temperature's fit set is the suite in section 3,** so the suite's ECE figures are in-sample; 500 of its MMLU-Pro items and its 150 BANKING77 items are also in the Decision Index's pools (4.2% and 4.9%), in our wording rather than the board's, so T can move ECE on those two benchmarks, never a choice.
+- **The temperature's fit set is the suite in section 3,** so the suite's ECE figures are in-sample; all 500 of its MMLU-Pro items and all 150 of its BANKING77 items (650 of the 1,400) are also questions in the Decision Index's public pools (4.2% of its MMLU-Pro and 4.9% of its BANKING77 questions): the same question text and the same options, with our own instruction sentence in place of the kit's. No JevBench item is in the suite. So the temperatures were fitted on readouts of questions the Decision Index also asks, never on a Decision Index result, and T can move ECE on those two benchmarks, never a choice.
 - **The rendering rules were selected on the Decision Index's intent rows,** so the BANKING77 and CLINC150+OOS scores measure a configuration chosen on them.
 - **The prompt was chosen with JevBench and the Decision Index among its gates,** so those numbers measure a configuration selected partly on them.
 - **The intent heads' test items are also in the Decision Index's pools;** no head was registered during any Decision Index run.
@@ -189,7 +189,7 @@ Each claim above was gated before it was written, in a pre-registration fixed be
 | The prompt (the system turn, the answer position, summed forms, yes/no as letters) | Chosen in an earlier session by ablation on the suite and JevBench 231, then tested in this session against the Qwen base's prompt on this model, its temperature fitted the same way (3.396): suite accuracy +0.14 points [-1.21, +1.43], JevBench hard tier +3.6 [-1.8, +9.0], suite ECE 0.041 against 0.029, JevBench choice ECE 0.074 against 0.064; level on accuracy, worse on calibration, so the system turn stays (`gemma_q.json`, `temps_gemma_q.json`) |
 | Intent heads and calibration priors | Per task, on 10 labelled training examples per intent, six draws |
 
-The disclosures of section 4 hold here too: the suite is the temperature's fit set, so its ECE figures are in-sample, and the prompt was chosen with JevBench among its measurements.
+The disclosures of section 4 hold here too: the suite is the temperature's fit set, so its ECE figures are in-sample, the prompt was chosen with JevBench among its measurements, and T = 3.592 was fitted on readouts of the 650 suite questions that are also Decision Index questions (all 500 MMLU-Pro and all 150 BANKING77 items of the suite; section 4).
 
 ### 6.5 Reproducibility
 
@@ -208,6 +208,7 @@ With the questions batched (`--multi-question warm`) and the engine in the serve
   Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
   Its path to 32 GB machines is an MLX build, in preparation.
 - The image route and `--pad-policy row` were not measured on this base; `--multi-question warm` only on the 272 travel requests of section 6.5.
+- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the out-of-fold log-loss gain was not wholly below zero (its upper end +0.0005); the temperatures of 6.4 stay as served (the private RLCD repository, `experiments/2026-10-07_lab1_option_count_temperature/RESULTS.md`).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 7. The Gemma 4 31B base
@@ -277,11 +278,11 @@ The Qwen and 12B columns are section 3's and section 6's records, from another s
 | Component | Fitted or chosen on |
 | --- | --- |
 | Model weights | Nothing by us |
-| Temperatures T = 5.252 and choice T = 4.672 | Minimum log loss on this base's plain readouts of the private 1,400-item suite of section 3 (the choice T on its 800 choice items, kept because out of fold it lowers their log loss: −0.0115 [−0.0211, −0.0015]), each with 5-fold cross-validation stratified by task, T searched in [0.2, 50]; never on JevBench or the Decision Index |
+| Temperatures T = 5.252 and choice T = 4.672 | Minimum log loss on this base's plain readouts of the private 1,400-item suite of section 3 (the choice T on its 800 choice items, kept because out of fold it lowers their log loss: −0.0115 [−0.0211, −0.0015]), each with 5-fold cross-validation stratified by task, T searched in [0.2, 50]; on no JevBench item, and on no result of a JevBench or Decision Index run (but 650 of the suite's items are also Decision Index questions: section 4, first bullet) |
 | The prompt | The 12B base's, unchanged (section 6.4) |
 | FP8 on load | Chosen because at bf16 the checkpoint does not start at a 32,768-token context on one 96 GB card (7.5) |
 
-The disclosures of section 4 hold here too, with one more: the go rule this base was measured against was set before the session, and the decision to serve it was taken after seeing its numbers (7.3).
+The disclosures of section 4 hold here too, with two more: the go rule this base was measured against was set before the session, and the decision to serve it was taken after seeing its numbers (7.3); and T = 5.252 and choice T = 4.672 were fitted on readouts of the 650 suite questions that are also Decision Index questions (all 500 MMLU-Pro and all 150 BANKING77 items of the suite; section 4).
 
 ### 7.5 Limits
 
@@ -294,6 +295,7 @@ The disclosures of section 4 hold here too, with one more: the go rule this base
   The engine arrangement (in the server's process, 0.8.0's default) and the driver (590.48.01, against the record's 610.43.02) differed; section 8's run of 2026-10-05, at v0.6.0 with the engine in its own process and the record's driver, had reproduced its four Decision Index values exactly.
   A comparison of this base with an earlier record must therefore be paired in the same session (Track 7's stage C, recorded in the private RLCD repository at `experiments/2026-10-05_t7_nvfp4_stage_c/RESULTS.md`).
 - Not served on a Mac; the image route was not measured.
+- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the board-style calibration estimate fell 27.0%, where the rule required a third; the temperatures of 7.4 stay as served (the private RLCD repository, `experiments/2026-10-07_lab1_option_count_temperature/RESULTS.md`).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 8. The Decision Index's whole suite, self-run
