@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.2](https://github.com/aminry/decisio/compare/v0.8.1...v0.8.2) (2026-10-07)
+
+
+### Bug Fixes
+
+* **serve:** --backend mlx refuses gemma-4-31b by the resolved base, so a 31B conversion without --base is refused too ([#100](https://github.com/aminry/decisio/issues/100)) ([f6cc1e8](https://github.com/aminry/decisio/commit/f6cc1e86d221ebc175c719de6d344084ceb9d5db))
+
 ## [0.8.1](https://github.com/aminry/decisio/compare/v0.8.0...v0.8.1) (2026-10-05)
 
 
