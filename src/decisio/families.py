@@ -81,6 +81,11 @@ class Family:
     # --register-boundary's default where register_state_boundary is set (vllm_engine.resolve_register_boundary): after,
     # once the response is out (decisio.serve.boundary), or before, ahead of the question
     register_boundary: str = "after"
+    # --backend mlx: the prefix cache's budget in MiB when --prefix-cache-mb is not given (vllm_engine.main). Per base,
+    # because an entry holds a state's whole cache and the sliding-window layers keep 1.05 to 1.25 GB of it at long
+    # states; the figure is what stays under two thirds of a 32 GiB Mac's memory beside the base's peak at 32k tokens
+    # (RLCD experiments/2026-10-06_ls_mlx_cache_budget)
+    mlx_prefix_cache_mb: int = 2048
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -138,6 +143,9 @@ GEMMA4 = Family(
     # state read it again (RLCD experiments/2026-10-05_t7_card_e2_e3_e4, on the 31B: 531 ms instead of 47 at 3,000
     # tokens); vLLM's retention interval would keep it too, but evicts states sooner (the same record)
     register_state_boundary=True,
+    # the default 2,048 MiB kept 5 states of 1,000 tokens (Qwen's 25); 7,400 MiB keeps 20 of 1,000, 10 of 3,000 and 7 of
+    # 8,000: two thirds of a 32 GiB Mac (22.906 GB) less the 15.125 GB peak at 32k tokens leaves 7.781 GB = 7,421 MiB
+    mlx_prefix_cache_mb=7400,
 )
 
 GEMMA4_31B = Family(

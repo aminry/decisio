@@ -289,3 +289,57 @@ def test_copy_cache_rotating_leaves_the_original_untouched(steps):
     after = (np.array(base.keys), np.array(base.values), base.offset, base._idx)
     assert all(np.array_equal(a, b) for a, b in zip(before[:2], after[:2])) and before[2:] == after[2:]
     assert outs[0] == outs[1] == (base.offset + sum(steps), outs[0][1])
+
+
+def _served_budget(monkeypatch, tmp_path, base, *argv):
+    """The prefix cache budget (MiB) that `--backend mlx --base <base>` hands the MLX engine (stubbed)."""
+    import uvicorn
+
+    import decisio.serve.mlx_engine as mlx
+    from decisio.families import BASES
+    from decisio.serve import vllm_engine
+
+    got = {}
+
+    class Engine:
+        adapters = {}
+        pad_unit = None
+
+        def __init__(self, model, **kw):
+            got.update(kw)
+
+        def facts(self):
+            return {}
+
+    d = tmp_path / base
+    d.mkdir(exist_ok=True)
+    (d / "config.json").write_text(json.dumps({"model_type": BASES[base].model_types[0]}))
+    monkeypatch.setattr(mlx, "MLXLettersEngine", Engine)
+    monkeypatch.setattr(mlx, "MLXHiddenReadout", lambda engine: type("H", (), {"facts": lambda self: {}})())
+    monkeypatch.setattr(vllm_engine, "make_app", lambda engine, so: object())
+    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: None)
+    monkeypatch.setattr(sys, "argv", ["vllm_engine", "--backend", "mlx", "--base", base, "--model", str(d), *argv])
+    vllm_engine.main()
+    return got["prefix_cache_mb"]
+
+
+def test_prefix_cache_budget_is_the_bases_and_the_flag_overrides_it(monkeypatch, tmp_path):
+    from decisio.families import BASES
+
+    # Qwen's 2,048 MiB keeps 25 states of 1,000 tokens; the 12B's 7,400 keeps 20
+    # (RLCD experiments/2026-10-06_ls_mlx_cache_budget)
+    assert BASES["qwen3.6-35b-a3b"].mlx_prefix_cache_mb == 2048 and BASES["gemma-4-12b"].mlx_prefix_cache_mb == 7400
+    assert _served_budget(monkeypatch, tmp_path, "qwen3.6-35b-a3b") == 2048
+    assert _served_budget(monkeypatch, tmp_path, "gemma-4-12b") == 7400
+    assert _served_budget(monkeypatch, tmp_path, "gemma-4-12b", "--prefix-cache-mb", "1024") == 1024
+    assert _served_budget(monkeypatch, tmp_path, "gemma-4-12b", "--prefix-cache-mb", "0") == 0  # off, not the default
+
+
+def test_the_12b_budget_stays_under_two_thirds_of_a_32_gib_mac():
+    # the arithmetic behind 7,400: 32 GiB x 2/3 = 22.906 GB (decimal), less the 12B's 15.125 GB peak at 32k tokens
+    from decisio.families import BASES
+
+    line_gb = 32 * 2**30 * 2 / 3 / 1e9
+    peak_gb = 15.125
+    budget_gb = BASES["gemma-4-12b"].mlx_prefix_cache_mb * 2**20 / 1e9
+    assert round(line_gb, 3) == 22.906 and budget_gb < line_gb - peak_gb < 7.8

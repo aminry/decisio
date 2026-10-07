@@ -87,7 +87,7 @@ Gated at 6 bits against the FP8 records with the backend's full gate set, under 
 
 ## The cross-request prefix cache
 
-The evaluated cache of each state prefix is kept across requests (`PrefixCache`): least recently used first out, `--prefix-cache-mb`, default 2,048, 0 is off.
+The evaluated cache of each state prefix is kept across requests (`PrefixCache`): least recently used first out, `--prefix-cache-mb` in MiB, the base's default (2,048 for the Qwen base, 7,400 for Gemma 4 12B), 0 is off.
 
 **Exact by construction:**
 - an entry is returned only for exactly the token ids it was computed for (compared in full, not by hash alone);

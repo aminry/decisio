@@ -1245,9 +1245,9 @@ def main():
         "--prefix-cache-mb",
         type=int,
         default=None,
-        help="--backend mlx: the budget of the cross-request prefix cache in MB (default 2048; 0 turns it off): a "
-        "request whose state prefix was seen before continues from its kept cache instead of prefilling it, with the "
-        "same answers bit for bit",
+        help="--backend mlx: the budget of the cross-request prefix cache in MiB (the base's: 2048 for the Qwen base, "
+        "7400 for gemma-4-12b; 0 turns it off): a request whose state prefix was seen before continues from its kept "
+        "cache instead of prefilling it, with the same answers bit for bit",
     )
     ap.add_argument(
         "--tokenizer",
@@ -1512,13 +1512,13 @@ def main():
         )
         engine.fmt, engine.family = fmt, args.family
     elif args.backend == "mlx":
-        from decisio.serve.mlx_engine import PREFIX_CACHE_MB, MLXLettersEngine
+        from decisio.serve.mlx_engine import MLXLettersEngine
 
         engine = MLXLettersEngine(
             args.model,
             tokenizer=args.tokenizer,
             family=args.family,
-            prefix_cache_mb=PREFIX_CACHE_MB if args.prefix_cache_mb is None else args.prefix_cache_mb,
+            prefix_cache_mb=args.family.mlx_prefix_cache_mb if args.prefix_cache_mb is None else args.prefix_cache_mb,
             pad_to=None if args.pad_to == "none" else args.pad_to,
             pad_where=args.pad_where,
         )
