@@ -1,0 +1,95 @@
+{
+ "id": "2026-10-07_mlx-quiet-latency",
+ "title": "MLX server time on a quiet Mac, both bases, with the earlier records' drivers and run counts",
+ "date": "2026-10-07",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2, AC power",
+ "software": {
+  "mlx": "0.32.3",
+  "mlx-lm": "0.32.0",
+  "transformers": "5.18.0"
+ },
+ "models": {
+  "qwen": "mlx-community/Qwen3.6-35B-A3B-6bit at cb7e092; tokenizer Qwen/Qwen3.6-35B-A3B at 995ad96",
+  "gemma": "mlx-community/gemma-4-12B-it-6bit at 2fe53ae"
+ },
+ "code": {
+  "latency": "83e461d"
+ },
+ "servers": {
+  "L": "every flag the default (prefix_cache_latency.py --cells 1, then t7.py latency --repeats 20)",
+  "C": "--prefix-cache-mb 0 (latency.py)"
+ },
+ "preregistration": "RLCD experiments/2026-10-06_ls_mlx_quiet_latency/PREREG.md",
+ "results": {
+  "qwen": {
+   "latency_py_pass": 3,
+   "latency_py_idle": false,
+   "latency_py_max_foreign": [
+    149.7,
+    "/Frameworks/Metadata.framework/Versions/A/Support/mds_stores"
+   ],
+   "server_ms_p50": {
+    "1q": 258.5,
+    "10q": 1230.45,
+    "100q": 12341.65,
+    "100q_8k": 17626.2
+   },
+   "per_question_ms_p50": {
+    "1q": 258.5,
+    "10q": 123.045,
+    "100q": 123.4165,
+    "100q_8k": 176.262
+   },
+   "prefix_cache_1q": {
+    "miss_ms_p50": 259.04999999999995,
+    "hit_ms_p50": 108.15,
+    "hit_answers_equal_miss": "30 of 30"
+   },
+   "t7_server_ms_p50": {
+    "cached_1q_1000": 132.9,
+    "fresh_1q_300": 296.6,
+    "fresh_4q_300": 627.0,
+    "fresh_1q_1000": 515.3,
+    "fresh_4q_1000": 853.2,
+    "fresh_1q_3000": 1214.35,
+    "fresh_4q_3000": 1544.6
+   }
+  },
+  "gemma": {
+   "latency_py_pass": 3,
+   "latency_py_idle": false,
+   "latency_py_max_foreign": [
+    76.8,
+    "/Frameworks/Metadata.framework/Versions/A/Support/mds_stores"
+   ],
+   "server_ms_p50": {
+    "1q": 392.25,
+    "10q": 1786.5,
+    "100q": 16634.949999999997,
+    "100q_8k": 28880.45
+   },
+   "per_question_ms_p50": {
+    "1q": 392.25,
+    "10q": 178.65,
+    "100q": 166.34949999999998,
+    "100q_8k": 288.8045
+   },
+   "prefix_cache_1q": {
+    "miss_ms_p50": 392.75,
+    "hit_ms_p50": 156.1,
+    "hit_answers_equal_miss": "30 of 30"
+   },
+   "t7_server_ms_p50": {
+    "cached_1q_1000": 165.0,
+    "fresh_1q_300": 554.25,
+    "fresh_4q_300": 1029.25,
+    "fresh_1q_1000": 1312.35,
+    "fresh_4q_1000": 1782.6999999999998,
+    "fresh_1q_3000": 3629.7,
+    "fresh_4q_3000": 4206.45
+   }
+  }
+ }
+}

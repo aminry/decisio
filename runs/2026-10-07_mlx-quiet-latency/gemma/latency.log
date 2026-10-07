@@ -1,0 +1,4 @@
+pass 1: 1q p50 393 ms (393.4/q); 10q p50 1903 ms (190.3/q); 100q p50 17270 ms (172.7/q); 100q_8k p50 29028 ms (290.3/q); max foreign CPU 97% (/usr/libexec/duetexpertd), idle False
+pass 2: 1q p50 392 ms (392.1/q); 10q p50 1787 ms (178.7/q); 100q p50 16645 ms (166.5/q); 100q_8k p50 28875 ms (288.8/q); max foreign CPU 35% (/usr/libexec/searchpartyd), idle False
+pass 3: 1q p50 392 ms (392.2/q); 10q p50 1786 ms (178.7/q); 100q p50 16635 ms (166.3/q); 100q_8k p50 28880 ms (288.8/q); max foreign CPU 77% (/Frameworks/Metadata.framework/Versions/A/Support/mds_stores), idle False
+LATENCY DONE

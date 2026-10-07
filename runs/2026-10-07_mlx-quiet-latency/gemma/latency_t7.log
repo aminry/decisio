@@ -1,0 +1,7 @@
+LATENCY cached_1q_1000: client p50 165.7 ms, p95 166.6, server p50 165.0
+LATENCY fresh_1q_300: client p50 555.3 ms, p95 556.5, server p50 554.2
+LATENCY fresh_4q_300: client p50 1030.1 ms, p95 1036.9, server p50 1029.2
+LATENCY fresh_1q_1000: client p50 1313.2 ms, p95 1376.5, server p50 1312.3
+LATENCY fresh_4q_1000: client p50 1783.6 ms, p95 1805.8, server p50 1782.7
+LATENCY fresh_1q_3000: client p50 3630.7 ms, p95 3686.2, server p50 3629.7
+LATENCY fresh_4q_3000: client p50 4207.6 ms, p95 4311.5, server p50 4206.4

@@ -1,0 +1,2 @@
+1 {"requests": 30, "questions": 1, "hit_answers_equal_miss": "30 of 30", "miss_ms_p50": 259.04999999999995, "miss_ms_p95": 335.35999999999996, "hit_ms_p50": 108.15, "hit_ms_p95": 110.145, "miss_per_q_p50": 259.04999999999995, "hit_per_q_p50": 108.15}
+PREFIX_CACHE_LATENCY {"E3_exact": true, "idle": true, "max_foreign_cpu": 18.3}

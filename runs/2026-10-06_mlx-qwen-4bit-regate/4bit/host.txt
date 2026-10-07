@@ -1,0 +1,9 @@
+2026-10-06T19:04:26Z
+Apple M5 Pro
+68719476736
+26.6.2
+Now drawing from 'AC Power'
+ -InternalBattery-0 (id=23068771)	100%; charged; 0:00 remaining present: true
+vm.swapusage: total = 17408.00M  used = 15821.69M  free = 1586.31M  (encrypted)
+/dev/disk3s1s1   926Gi    12Gi    46Gi    21%    459k  478M    0%   /
+12:04  up 15 days, 12:32, 2 users, load averages: 4.16 6.09 5.90

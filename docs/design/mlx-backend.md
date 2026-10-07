@@ -17,7 +17,7 @@ The image route, packed mode, LoRA adapters and the second-engine head are refus
     uv sync --extra mlx
     uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
 
-The Mac default is the 6-bit conversion; the 4-bit one is the documented option for 32 GB machines; the 8-bit one is not shipped (Gates below).
+The Mac default is the 6-bit conversion; the 4-bit one is documented for Macs with more than 32 GB, or 32 GB with the GPU memory limit raised; the 8-bit one is not shipped (Gates below).
 
 **Two prompt eras.** The Qwen figures in the sections on padding, the prefix cache and the gates were measured under the earlier served prompt (the compact layout, yes/no as words, T 1.307; `runs/2026-10-02_mlx-backend`).
 The served prompt changed in #54 (the spaced layout, yes/no as named letters, T 1.506 with choice T 1.370), and the 6-bit gates were run again under it (`runs/2026-10-03_mlx-regate`).
@@ -140,7 +140,7 @@ Intervals are paired 95% bootstrap intervals over items.
 
 - **Shipped:**
   - 6-bit, the Mac default: it passes every gate.
-  - 4-bit, the documented option for 32 GB machines: twice the flips and a Brier score worse by 0.009 [+0.001, +0.017].
+  - 4-bit, documented then as the option for 32 GB machines: twice the flips and a Brier score worse by 0.009 [+0.001, +0.017]. Under the current default it is documented for Macs above 32 GB (below).
 - **Not shipped:** 8-bit, which misses the pre-registered ECE rule (reported as measured) and is no faster or more accurate than 6-bit.
 - **Calibration:** the FP8 ECE is in-sample for the served temperature (fitted on the FP8 readouts of this suite), and nothing was refitted for MLX.
 - **Speed:** the per-question time does not track the weight size, so it is not bandwidth. Batching a request's questions over the shared prefix and reading only the label rows of the output layer are the next steps (not done here).
@@ -159,7 +159,19 @@ The 6-bit gates run again on the same Mac under #54's served prompt, against the
 | Conformance C2 to C4 | pass | | pass |
 
 - **The ECE fail changes no setting.** The FP8 figure is in-sample for the served temperatures. An MLX-specific refit, judged on JevBench's 231 held-out items, made log loss worse, and at the served temperatures MLX is as well calibrated as FP8 there.
-- **Server time, median:** 266 ms for one question on a new state, 111 ms on a state seen before, and 130 ms per question when 100 share a state. The Mac was not idle by the driver's rule.
+- **Server time, median,** with no other job running (`runs/2026-10-07_mlx-quiet-latency`): 258 ms for one question on a new state, 108 ms on a state seen before, and 123 ms per question when 100 share a state. macOS's indexing services ran during the passes, so the driver's idle rule did not hold; the passes agree within 3%.
+
+The 4-bit conversion was gated the same way (`runs/2026-10-06_mlx-qwen-4bit-regate`):
+
+| Gate | MLX 4-bit | FP8 | Verdict |
+| --- | --- | --- | --- |
+| Suite accuracy (1,400) | 0.7643 | 0.7700 | pass: -0.6 [-1.9, +0.8] points |
+| Top-answer flips | 135 of 1,400 | | counted |
+| Pooled ECE (gate: within 0.01) | 0.0297 | 0.0327 | pass |
+| Intent heads, six draws, BANKING77 / CLINC150 | 0.834 / 0.928 | 0.840 / 0.912 | pass / pass |
+| Conformance C2 to C4 | pass | | pass |
+
+- **Memory:** GB are 1e9 bytes (the driver divides MLX's bytes by 1e9). The weights take 19.5 GB, and a request peaks at 21.6, 22.0 and 22.7 GB at about 8k, 16k and 32k tokens of state. Two thirds of a 32 GB Mac's memory (32 GiB, 34.4 GB) is 22.9 GB, a conservative stand-in for its default GPU limit, which was not measured on a 32 GB Mac; every peak is under it, by 1.3, 0.9 and 0.2 GB. At 32k that is 0.9% of the line, almost nothing for the system and other apps, so the conversion is documented for Macs with more than 32 GB, or 32 GB with the GPU memory limit raised; a 32 GB Mac runs the Gemma base (15.1 GB at 32k, 7.8 GB under the line).
 
 ## The Gemma base
 

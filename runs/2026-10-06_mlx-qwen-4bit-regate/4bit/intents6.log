@@ -1,0 +1,8 @@
+15:00:18 intents banking77 draw 0: head True, accuracy 0.827 (plain 0.727), registration 534 s
+15:10:07 intents banking77 draw 1: head True, accuracy 0.833 (plain 0.727), registration 537 s
+15:19:57 intents banking77 draw 2: head True, accuracy 0.847 (plain 0.727), registration 537 s
+15:29:49 intents banking77 draw 3: head True, accuracy 0.840 (plain 0.727), registration 540 s
+15:54:02 intents v3_clinc draw 0: head True, accuracy 0.930 (plain 0.810), registration 1355 s
+16:18:10 intents v3_clinc draw 1: head True, accuracy 0.940 (plain 0.810), registration 1403 s
+16:39:33 intents v3_clinc draw 2: head True, accuracy 0.930 (plain 0.810), registration 1243 s
+INTENTS PASS {'banking77': 0.11, 'v3_clinc': 0.1233}
