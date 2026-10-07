@@ -19,7 +19,7 @@ from typesafe_sdk import TypeSafeClient
 client = TypeSafeClient(
     base_url="http://127.0.0.1:8000",
     api_key="unused",                          # the SDK requires one; decisio ignores it
-    model="decisio-qwen3.6-35b-a3b-letters",   # the name GET /v1/models lists
+    model="decisio-gemma-4-31b-it-letters",    # the name GET /v1/models lists
 )
 answer = client.system_one(
     state="Since this morning none of our staff can log in to the dashboard.",
@@ -33,11 +33,11 @@ Or leave the code as it is and set the SDK's environment variables:
 ```bash
 export TYPESAFE_BASE_URL=http://127.0.0.1:8000
 export TYPESAFE_API_KEY=unused
-export TYPESAFE_DEFAULT_MODEL=decisio-qwen3.6-35b-a3b-letters
+export TYPESAFE_DEFAULT_MODEL=decisio-gemma-4-31b-it-letters
 ```
 
 Any other client sends the same JSON body to `http://<host>:8000/v1/systemone`.
-`client.models.list()`, or `curl http://127.0.0.1:8000/v1/models`, returns the served name: `decisio-qwen3.6-35b-a3b-letters`, `decisio-gemma-4-12b-it-letters` or `decisio-gemma-4-31b-it-letters`, unless the server was started with `--served-name`.
+`client.models.list()`, or `curl http://127.0.0.1:8000/v1/models`, returns the served name: `decisio-gemma-4-31b-it-letters` for the default base, `decisio-qwen3.6-35b-a3b-letters` or `decisio-gemma-4-12b-it-letters` for the others, unless the server was started with `--served-name`.
 
 ## The differences that matter
 

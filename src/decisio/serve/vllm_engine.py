@@ -1075,7 +1075,7 @@ def resolve_base(args):
     own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
     from decisio import hub
-    from decisio.families import BASES, FAMILIES, family_of, pinned_revision, read_config
+    from decisio.families import BASES, DEFAULT_BASE, FAMILIES, family_of, pinned_revision, read_config
 
     repo = None
     if args.base is not None and args.base not in BASES:
@@ -1089,6 +1089,13 @@ def resolve_base(args):
             raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
         repo = hub.open_repository(args.base, args.revision)
         args.base, args.model, args.revision = repo.base, repo.model, repo.revision
+    elif args.base is None and args.model is None and args.backend == "vllm":
+        args.base = DEFAULT_BASE  # neither given: the default base (the CPU stand-in and MLX always name a checkpoint)
+    if repo is None and args.backend == "vllm" and args.base in BASES and args.model is None and args.revision is None:
+        source = hub.default_source(args.base)  # the base's own key, no checkpoint named: its repository, if it has one
+        if source:
+            repo = hub.open_repository(source)
+            args.base, args.model, args.revision = repo.base, repo.model, repo.revision
     if args.backend == "mlx" and args.model is None:
         raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
     if args.base is not None:
@@ -1143,10 +1150,10 @@ def main():
     ap.add_argument(
         "--base",
         default=None,
-        help="the base model and its served settings (decisio.families; README, 'Choosing a base'): qwen3.6-35b-a3b "
-        "(Qwen/Qwen3.6-35B-A3B-FP8, the default), gemma-4-12b (google/gemma-4-12B-it) or gemma-4-31b "
-        "(google/gemma-4-31B-it, quantized to FP8 on load), each at a pinned revision; or a decisio repository, "
-        "owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
+        help="the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b "
+        "(the default; google/gemma-4-31B-it quantized to FP8 on load, or its FP8 repository), qwen3.6-35b-a3b "
+        "(Qwen/Qwen3.6-35B-A3B-FP8) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision; or a decisio "
+        "repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",
     )

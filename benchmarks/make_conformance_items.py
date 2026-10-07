@@ -39,12 +39,13 @@ BANKING77_INSTRUCTIONS = "What is the customer's intent in this banking support 
 
 
 def served_name() -> str:
+    """The default base's served name (decisio.families.DEFAULT_BASE); --served-name names another base's."""
     try:
-        from decisio.names import SERVED_NAME
+        from decisio.families import BASES, DEFAULT_BASE
 
-        return SERVED_NAME
+        return BASES[DEFAULT_BASE].served_name
     except ImportError:  # run from a bare checkout
-        return "decisio-qwen3.6-35b-a3b-letters"
+        return "decisio-gemma-4-31b-it-letters"
 
 
 def fetch(url: str) -> bytes:
@@ -127,13 +128,14 @@ def build(
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", required=True)
+    ap.add_argument("--served-name", default=None, help="the served name in the items (default: the default base's)")
     ap.add_argument("--boolq", type=int, default=100, help="BoolQ items to draw")
     ap.add_argument("--banking77", type=int, default=100, help="BANKING77 items to draw")
     a = ap.parse_args()
     boolq_rows, raw_boolq = fetch_boolq()
     raw_banking = fetch(BANKING77_URL)
     banking_rows = [(r["text"], r["category"]) for r in csv.DictReader(io.StringIO(raw_banking.decode()))]
-    items = build(boolq_rows, banking_rows, a.boolq, a.banking77, served_name())
+    items = build(boolq_rows, banking_rows, a.boolq, a.banking77, a.served_name or served_name())
     Path(a.out).write_text(json.dumps(items, ensure_ascii=False))
     print(f"{len(items)} items -> {a.out}")
     for name, url, raw in (("BoolQ validation", BOOLQ_URL, raw_boolq), ("BANKING77 test", BANKING77_URL, raw_banking)):

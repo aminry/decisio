@@ -187,6 +187,9 @@ GEMMA4_31B = Family(
 
 FAMILIES = (QWEN, GEMMA4, GEMMA4_31B)
 BASES = {f.key: f for f in FAMILIES}
+# the base a vLLM server serves when neither --base nor --model is given (0.10.0; before, the server refused to start
+# and the container served the Qwen base); a --model alone still brings the base its checkpoint declares
+DEFAULT_BASE = "gemma-4-31b"
 
 
 def pinned_revision(model: str, revision: str | None = None) -> str | None:

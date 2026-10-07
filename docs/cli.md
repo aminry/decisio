@@ -8,10 +8,11 @@ uv run python -m decisio.serve.vllm_engine [flags]
 ```
 
 `--base` chooses the base model and brings its checkpoint at a pinned revision and its value for every setting marked "the base's" below; a flag given explicitly overrides it.
-Without `--base`, the base is detected from `--model`'s `config.json`; with neither, the server refuses to start.
+With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`.
+With neither, the vLLM server serves `gemma-4-31b`, the default base since 0.10.0 (the CPU stand-in and the MLX backend always name a checkpoint, and refuse to start without one).
 `--base` also takes a decisio model repository, `owner/name[@revision]` or a directory holding its `decision_config.json`: the repository's weights are the checkpoint, its file names the base, and the server refuses to start if the file differs from the installed profile (`docs/running.md`, "Model repositories").
 The served defaults need no other flag: every default below is what was measured, base by base (`EVAL_CARD.md` sections 1, 6.1 and 7.1).
-`gemma-4-31b` is quantized to FP8 when it loads (vLLM 0.30.0's FP8 on load), a setting of its profile; `--engine '{"quantization": null}'` loads it at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
+`gemma-4-31b` is served from its FP8 repository, `aminry/decisio-gemma-4-31b`, and `--model google/gemma-4-31B-it` serves Google's weights instead, quantized to FP8 when they load (vLLM 0.30.0's FP8 on load), a setting of its profile; `--engine '{"quantization": null}'` loads them at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
 `--help` prints the same list with each flag's description.
 
 ## Every flag
@@ -22,7 +23,7 @@ Where the columns differ, the value is the base's.
 
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
-| `--base` | | | the base, or a decisio model repository (`owner/name[@revision]`, or a directory); without it, detected from `--model` |
+| `--base` | | | the default | the base, or a decisio model repository (`owner/name[@revision]`, or a directory); without it, detected from `--model`, or the default if no `--model` either |
 | `--model` | `Qwen/Qwen3.6-35B-A3B-FP8` | `google/gemma-4-12B-it` | `google/gemma-4-31B-it` | the checkpoint, a local directory or a Hugging Face repository id |
 | `--revision` | `95a723d08a9490559dae23d0cff1d9466213d989` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` | `842da3794eaa0b77d5f08bae87a17459d91ff475` | the checkpoint's revision on the Hub; the pin applies whenever `--model` is the base's own repository |
 | `--backend` | `vllm` | `vllm` | `vllm` | `vllm`; `mlx` for Apple silicon (the Qwen base and `gemma-4-12b`, `docs/running.md`; not `gemma-4-31b`); `hf` for the CPU stand-in, not for measurement |

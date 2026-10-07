@@ -3,13 +3,13 @@
 
 # Evaluation card
 
-What the served default is, what it can do, how it measures, and what was fitted on what.
-Sections 1 to 5 are the served default, the Qwen base; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`); section 8 is the Decision Index's whole suite on all three, self-run and submitted.
-Every number is on the current served default and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
+What each base is, what it can do, how it measures, and what was fitted on what.
+Sections 1 to 5 are the Qwen base (`--base qwen3.6-35b-a3b`), the default until 0.10.0; section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`), the default since 0.10.0; section 8 is the Decision Index's whole suite on all three, self-run and submitted.
+Every number is on the base's served settings as they were when it was measured and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
 ## 1. The system measured
 
-| Part | The served default |
+| Part | The Qwen base's served settings |
 | --- | --- |
 | Checkpoint | `Qwen/Qwen3.6-35B-A3B-FP8`, the official weights, untrained by us: no adapter, no fine-tuning |
 | Provenance | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us (revision `95a723d08a9490559dae23d0cff1d9466213d989`) |
@@ -214,7 +214,8 @@ With the questions batched (`--multi-question warm`) and the engine in the serve
 
 ## 7. The Gemma 4 31B base
 
-`--base gemma-4-31b` serves Gemma 4 31B behind the same routes and wire format.
+`--base gemma-4-31b` serves Gemma 4 31B behind the same routes and wire format, and it is what a vLLM server started with no flag serves (the default since 0.10.0).
+It is served from its FP8 repository, `aminry/decisio-gemma-4-31b`, whose card states the check that its tensors equal the ones made by quantizing Google's weights on load; the numbers below were measured with that quantization on load.
 Every number in this section comes from one session on one card (2026-10-04, `runs/2026-10-04_gemma-4-31b/`), a different session and card from sections 3 and 6, so its comparisons with the other bases are not paired.
 
 ### 7.1 The system measured

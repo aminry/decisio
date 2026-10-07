@@ -165,8 +165,10 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     a = _args(model=gemma_dir, backend="mlx")  # an MLX conversion names the base's model type: its settings follow
     fam, fmt = sv.resolve_base(a)
     assert fam.key == "gemma-4-12b" and fmt.system_prompt and (a.temperature, a.noul_rendering) == (3.592, "letters")
+    # neither flag: the vLLM backend serves the default base (0.10.0: gemma-4-31b); the stand-in must name a checkpoint
+    assert sv.resolve_base(_args())[0].key == "gemma-4-31b"
     with pytest.raises(ValueError, match="--model or --base"):
-        sv.resolve_base(_args())
+        sv.resolve_base(_args(backend="hf"))
     assert sorted(BASES) == ["gemma-4-12b", "gemma-4-31b", "qwen3.6-35b-a3b"]
 
 

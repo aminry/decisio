@@ -15,12 +15,15 @@ Requirements: Linux, one NVIDIA card (measured on an RTX PRO 6000 Blackwell with
 git clone https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
-uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
+uv run python -m decisio.serve.vllm_engine
 ```
 
+- With no flag the server serves Gemma 4 31B (`--base gemma-4-31b`), the default base since 0.10.0, from its FP8 repository `aminry/decisio-gemma-4-31b`; it needs the 96 GB card.
+  `--model google/gemma-4-31B-it` serves Google's weights at the pinned revision instead, quantized to FP8 each time they load (`--revision` does the same, naming a revision of Google's checkpoint).
 - `--base qwen3.6-35b-a3b` serves `Qwen/Qwen3.6-35B-A3B-FP8` and `--base gemma-4-12b` serves `google/gemma-4-12B-it`, each at its pinned revision and with its own settings (the README's "Choosing a base"; `docs/cli.md` lists every setting per base).
-- Without `--base`, the base is detected from `--model`'s `config.json`, so a local copy of either checkpoint brings its own settings; a base's pinned revision applies whenever `--model` names the base's own Hugging Face repository and `--revision` is not given.
-- The first start downloads the checkpoint (about 36 GB for the Qwen base, `runs/2026-10-01_docker-first-gpu-start/`) into the Hugging Face cache and warms the engine; `/health` answers once it is ready.
+- With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`, so a local copy of any base's checkpoint brings its own settings; a base's pinned revision applies whenever `--model` names the base's own Hugging Face repository and `--revision` is not given.
+- The first start downloads the checkpoint into the Hugging Face cache and warms the engine: about 31 GB for the 31B's FP8 repository (62 GB for Google's bf16 weights) and about 36 GB for the Qwen base (`runs/2026-10-01_docker-first-gpu-start/`); `/health` answers once it is ready.
+- Upgrading from a release before 0.10.0, where the container served the Qwen base: `docs/upgrading.md`.
 - The decisio plugin registers its model classes with vLLM through an entry point, so vLLM 0.30.0 loads them without any patch; the package must be installed (as `uv sync` does) for vLLM's engine processes to find it (`docs/design/vllm-plugin.md`).
 - `patches/` holds an optional latency patch series, off by default and not needed for correct answers (`patches/README.md`).
 - The server refuses to start when `VLLM_USE_DEEP_GEMM` is set to anything other than `0`, unless `--allow-deep-gemm` is given.
@@ -84,6 +87,9 @@ uv run python -m decisio.serve.vllm_engine --base aminry/decisio-gemma-4-31b@<co
 - Tasks are named for the checkpoint a repository copies, not for the repository, so a task registered under `google/gemma-4-12B-it` serves from the copy, and the other way round.
 - `/health` reports the repository, its revision, the decisio release its file was made for and what its weights are (`weights.modified` is false for a byte-for-byte copy).
 - `python -m decisio.hub export --base <base>` prints the file for a base, and `python -m decisio.hub check <file>` compares a file with the installed profile; the files for this release are in `hub/`, and a test fails when a profile no longer exports them.
+- With the repository's revision pinned in a release, `--base gemma-4-31b` with no checkpoint named is served from it, and so is the default: the server fetches `decision_config.json` at that revision, checks it against its own profile as above, and does not quantize the stored FP8 weights again.
+  Naming a checkpoint (`--model google/gemma-4-31B-it`) or a `--revision` serves that checkpoint instead.
+  Tasks are named for Google's checkpoint either way, so a task registered under one serves on the other.
 - The Gemma 4 31B repository holds FP8 weights, made from Google's bf16 ones by `python -m decisio.hub_fp8 convert` exactly as the server quantizes them on load: one scale per fused layer, `float32(amax) / 448`, the weight times the fp32 reciprocal of the scale, round to nearest even.
   The conversion also runs vLLM 0.30.0's loader step (it requantizes a layer's shards with the largest of their scales, through float16) and reports how many weights loading would change; zero means the loaded tensors equal the ones made on load.
   `tests/gpu/fp8_fingerprints.py` reads the FP8 weights an engine holds, and `python -m decisio.hub_fp8 expected|compare` predict and compare them.
@@ -101,14 +107,15 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 - The image is vLLM's 0.30.0 release image, pinned by digest, plus the decisio wheel with its `serve` extra; the build argument `APPLY_PATCHES=1` adds the patch series (off by default).
 - The first start downloads the checkpoint into the `decisio-data` volume, mounted at `/data`; it is never part of the image.
 - The container runs as a non-root user, and compose publishes the port on 127.0.0.1 only.
-- The entrypoint starts the server with `--model "${DECISIO_MODEL:-Qwen/Qwen3.6-35B-A3B-FP8}"` and `--model-class hidden-readout`, listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
+- The entrypoint starts the server with `--base "${DECISIO_BASE:-gemma-4-31b}"` and `--model-class hidden-readout`, listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
+  `DECISIO_BASE` names another base (`qwen3.6-35b-a3b`, `gemma-4-12b`) or a decisio repository, and `DECISIO_MODEL` names a checkpoint instead: alone it brings the base its `config.json` declares, so a container configured with `DECISIO_MODEL=Qwen/Qwen3.6-35B-A3B-FP8` keeps serving the Qwen base.
 - It checks for an NVIDIA GPU first and exits with an explanation when the container cannot see one.
 - Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes; to run one instead of building, replace `build:` in `compose.yaml` with `image: ghcr.io/aminry/decisio@sha256:<digest>`.
 - `Dockerfile` and `compose.yaml` explain the rest.
 
 First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, the image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume, and the README's example request and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start/`).
 The image published with v0.1.0 repeated the start from its digest: healthy in 223 s with the checkpoint cached, example and conformance passing (`pushed_image_0.1.0/` in the same record).
-The image has been started on a GPU with the Qwen base only.
+Those starts were with the Qwen base, the container's default then; the 31B, its default since 0.10.0, runs from the same entrypoint and has the same server code, but the container has not yet been started with it on a card.
 
 ## Mac with MLX
 

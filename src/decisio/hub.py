@@ -66,6 +66,17 @@ REPOSITORIES = {
 # the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins);
 # empty until the repositories exist
 PINNED_REVISIONS: dict[str, str] = {}
+# the bases whose own key is served from a decisio repository rather than from the source's weights, once that
+# repository's revision is pinned: the 31B's FP8 checkpoint saves quantizing Google's bf16 weights at every start
+# (Amin, 2026-10-07; the others are byte-for-byte copies and keep their sources). `--model google/gemma-4-31B-it`
+# serves Google's weights, quantized on load, as before.
+DEFAULT_SOURCES = {"gemma-4-31b": REPOSITORIES["gemma-4-31b"]}
+
+
+def default_source(base: str) -> str | None:
+    """The repository `--base <base>` is served from when no checkpoint is named, or None (the source's own weights)."""
+    name = DEFAULT_SOURCES.get(base)
+    return f"{name}@{PINNED_REVISIONS[name]}" if name in PINNED_REVISIONS else None
 
 
 def weights_of(base: str, quantization: str | None = None) -> dict:
