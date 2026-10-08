@@ -1,0 +1,155 @@
+{
+ "id": "2026-10-07_mlx-gemma-31b",
+ "title": "The Gemma 4 31B on MLX at 6 bits: the gates run so far",
+ "date": "2026-10-07",
+ "status": "partial: intent heads, memory reading b and prefix-cache entries pending",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2",
+ "software": {
+  "mlx": "0.32.3",
+  "mlx-lm": "0.32.0",
+  "transformers": "5.18.0"
+ },
+ "model": "mlx-community/gemma-4-31b-it-6bit at 7d13b58; tokenizer google/gemma-4-31B-it at 842da37 (official)",
+ "reference": "runs/2026-10-04_gemma-4-31b (vLLM 0.30.0, FP8 on load)",
+ "code": {
+  "gates": "feat/mlx-gemma-4-31b"
+ },
+ "servers": {
+  "A": "--base gemma-4-31b, every other flag the default, --debug-readout (suite, JevBench capture, conformance)"
+ },
+ "preregistration": "RLCD experiments/2026-10-06_ls_gemma31b_mlx/PREREG_6bit.md (amendments 1 to 4)",
+ "results": {
+  "S": {
+   "n": 1400,
+   "mlx": {
+    "accuracy": 0.8064285714285714,
+    "ece": 0.05352507258942146,
+    "brier": 0.30120237289810403
+   },
+   "ref": {
+    "accuracy": 0.7992857142857143,
+    "ece": 0.05401107878270032,
+    "brier": 0.30116859817841635
+   },
+   "mlx-ref": {
+    "n": 1400,
+    "accuracy": [
+     0.0071428571428571175,
+     0.0,
+     0.015000000000000013
+    ],
+    "brier": [
+     3.377471968768475e-05,
+     -0.004731573958623164,
+     0.005205083192138503
+    ],
+    "ece": [
+     -0.00048600619327885536,
+     -0.011810768691748364,
+     0.008774211219731076
+    ]
+   },
+   "flips": 42,
+   "max_abs_dp": 0.5724613798756075
+  },
+  "F3": {
+   "n": 231,
+   "served_equals_plain_at_T_max_abs_dp": 1.491862189340054e-16,
+   "mlx": {
+    "accuracy": 0.9177489177489178,
+    "ece": 0.04422742559060865,
+    "brier": 0.12626063097585832
+   },
+   "ref": {
+    "accuracy": 0.922077922077922,
+    "ece": 0.034949124296361,
+    "brier": 0.12720116402252887
+   },
+   "ece_diff": 0.00927830129424765,
+   "F3_pass": true
+  },
+  "memory_reading_a": {
+   "rule": "per length: cells completed, peak <= 90% of the GPU memory limit, memory pressure normal from the sampler's start through the length's last cell; swap growth recorded, not gated",
+   "pressure_samples": 94,
+   "pressure_levels_seen": [
+    1,
+    2
+   ],
+   "documented_up_to_tokens": 16383,
+   "lengths": [
+    {
+     "target_tokens": 8192,
+     "prompt_tokens_max": 8056,
+     "completed": true,
+     "peak_gb": 29.615328048,
+     "limit_gb": 55.662788608,
+     "ceiling_gb": 50.0965097472,
+     "margin_of_limit": 0.4679510533228368,
+     "peak_ok": true,
+     "pressure_samples_to_here": 16,
+     "pressure_nonnormal_to_here": 0,
+     "pressure_samples_in_cells": 13,
+     "pressure_nonnormal_in_cells": 0,
+     "pressure_levels_in_cells": [
+      1
+     ],
+     "swap_growth_mb_by_cell": [
+      0.0,
+      -8.0
+     ],
+     "status": "fits",
+     "fits": true
+    },
+    {
+     "target_tokens": 16384,
+     "prompt_tokens_max": 16383,
+     "completed": true,
+     "peak_gb": 31.084890918,
+     "limit_gb": 55.662788608,
+     "ceiling_gb": 50.0965097472,
+     "margin_of_limit": 0.44154988107203097,
+     "peak_ok": true,
+     "pressure_samples_to_here": 40,
+     "pressure_nonnormal_to_here": 0,
+     "pressure_samples_in_cells": 25,
+     "pressure_nonnormal_in_cells": 0,
+     "pressure_levels_in_cells": [
+      1
+     ],
+     "swap_growth_mb_by_cell": [
+      -8.0,
+      -48.0
+     ],
+     "status": "fits",
+     "fits": true
+    },
+    {
+     "target_tokens": 32768,
+     "prompt_tokens_max": 32687,
+     "completed": true,
+     "peak_gb": 33.717521182,
+     "limit_gb": 55.662788608,
+     "ceiling_gb": 50.0965097472,
+     "margin_of_limit": 0.3942538269246174,
+     "peak_ok": true,
+     "pressure_samples_to_here": 94,
+     "pressure_nonnormal_to_here": 1,
+     "pressure_samples_in_cells": 54,
+     "pressure_nonnormal_in_cells": 1,
+     "pressure_levels_in_cells": [
+      1,
+      2
+     ],
+     "swap_growth_mb_by_cell": [
+      77.5600000000004,
+      -8.0
+     ],
+     "status": "runs, with memory pressure",
+     "fits": false
+    }
+   ]
+  }
+ }
+}

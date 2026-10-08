@@ -1,0 +1,107 @@
+[
+ {
+  "path": "6bit/capture_jevbench.json.gz",
+  "bytes": 31515,
+  "sha256": "410213f461d75a62328e4e0cac767bd53d77c0aa799c2ae65bb84b2f9b1ec7b6"
+ },
+ {
+  "path": "6bit/capture_jevbench.log",
+  "bytes": 42,
+  "sha256": "f3714bb79236cb34151272d7b538cbbc3fad880d12bce6ddee68dfb8b6a4a678"
+ },
+ {
+  "path": "6bit/code_commit.txt",
+  "bytes": 112,
+  "sha256": "b5defc5aee83f7b7dcb8788d838c775531be157a4b5af36c30bdea78abeed1a4"
+ },
+ {
+  "path": "6bit/compare.log",
+  "bytes": 228,
+  "sha256": "15dd8c0515fa38ef0fe412942d41e7287043aa145eec2cd52940db05925a01dd"
+ },
+ {
+  "path": "6bit/conformance.json.gz",
+  "bytes": 196689,
+  "sha256": "352f733a526aa2a5774a83c85109908a79bceadc52875f84e775decf2ec25423"
+ },
+ {
+  "path": "6bit/conformance.log",
+  "bytes": 733,
+  "sha256": "de9de10d0d5a9efe8d7cb47f16549a9603607329b63e80fb760b7fc7221f5a0f"
+ },
+ {
+  "path": "6bit/health_A.json",
+  "bytes": 1749,
+  "sha256": "d7d2a9b3070b36b0e698d262dc2b7d8b954270676238ec80a07b36945a50d6f0"
+ },
+ {
+  "path": "6bit/health_A2.json",
+  "bytes": 1749,
+  "sha256": "d7d2a9b3070b36b0e698d262dc2b7d8b954270676238ec80a07b36945a50d6f0"
+ },
+ {
+  "path": "6bit/host.txt",
+  "bytes": 356,
+  "sha256": "f451746ef1509d295e8f6c875d7e88ed7242d0e3e2728582eca34df415958eb9"
+ },
+ {
+  "path": "6bit/memory_a.json",
+  "bytes": 3786,
+  "sha256": "5f4818d7ea65271b487bb47e9a6dd9d6b3d5d15061ae3c4964455278b3a63181"
+ },
+ {
+  "path": "6bit/memory_a.log",
+  "bytes": 2229,
+  "sha256": "b3bbb2f77deb2dff1c1044307749e0d4f201ea74ae663d96827fa8ec597232b4"
+ },
+ {
+  "path": "6bit/memory_load_a.txt",
+  "bytes": 1063,
+  "sha256": "09181789c626a1f9119f7bf5a179ac1ecae9135ff9c28e5413df55621a60bfdf"
+ },
+ {
+  "path": "6bit/memory_pressure_a.log",
+  "bytes": 1692,
+  "sha256": "cb3d12fa0c577f70642c54bb2678e5d38e25aae8df408ae740849564116de5a4"
+ },
+ {
+  "path": "6bit/memory_verdict_a.json",
+  "bytes": 1917,
+  "sha256": "b8592a1e4c0401f1b125fddb9533649f827e1f4de9c5435401980d5549405ce8"
+ },
+ {
+  "path": "6bit/memory_verdict_a.log",
+  "bytes": 753,
+  "sha256": "93c74b701eefbd6d76ec12769650610f221c96091c06ad4d765431aa034f0ae6"
+ },
+ {
+  "path": "6bit/report.json",
+  "bytes": 6462,
+  "sha256": "e38809756d483271ef8864daee261be569852259dc0fd46a69f88c2e353f2329"
+ },
+ {
+  "path": "6bit/server_A.log",
+  "bytes": 1133,
+  "sha256": "4154b33c845ece4d71c0f00fa002a8d992c93f3f86b4ec52f0f3ad3fc7e423e8"
+ },
+ {
+  "path": "6bit/suite.json.gz",
+  "bytes": 279028,
+  "sha256": "edd9a272a454f2baca4510e9e7727c31936c69875a5f70ef808634b35cf286b6"
+ },
+ {
+  "path": "6bit/suite.log",
+  "bytes": 152,
+  "sha256": "968439f8527baff1c60ced6ba42e113480b9e74392fb60eca24a0a692e42fe5e"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 4044,
+  "sha256": "19ab26e2070cb495ad114866e0e75d38de459cd12708a4fa88d9bbb10092bec6"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 4106,
+  "sha256": "47358ef6189595dea6f1bb4ff31581bd57c7ccc1b7a8fd888aa069f344203130"
+ }
+]

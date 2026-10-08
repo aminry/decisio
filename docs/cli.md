@@ -26,7 +26,7 @@ Where the columns differ, the value is the base's.
 | `--base` | | | the default | the base, or a decisio model repository (`owner/name[@revision]`, or a directory); without it, detected from `--model`, or the default if no `--model` either |
 | `--model` | `Qwen/Qwen3.6-35B-A3B-FP8` | `google/gemma-4-12B-it` | `google/gemma-4-31B-it` | the checkpoint, a local directory or a Hugging Face repository id |
 | `--revision` | `95a723d08a9490559dae23d0cff1d9466213d989` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` | `842da3794eaa0b77d5f08bae87a17459d91ff475` | the checkpoint's revision on the Hub; the pin applies whenever `--model` is the base's own repository |
-| `--backend` | `vllm` | `vllm` | `vllm` | `vllm`; `mlx` for Apple silicon (the Qwen base and `gemma-4-12b`, `docs/running.md`; not `gemma-4-31b`); `hf` for the CPU stand-in, not for measurement |
+| `--backend` | `vllm` | `vllm` | `vllm` | `vllm`; `mlx` for Apple silicon (the three bases, `docs/running.md`); `hf` for the CPU stand-in, not for measurement |
 | `--model-class` | `hidden-readout` | `hidden-readout` | `hidden-readout` | `hidden-readout`: decisio's text class that also returns the hidden state at the answer position, for the intent head; `text-only`: the same without it (the default with `--head-engine`); `view`: a directory built by `decisio.serve.make_text_only`, loaded as it is, needing no plugin |
 | `--mode` | `separate` | `separate` | `separate` | `separate`: one prompt per question, the state shared through the prefix cache; `packed`: questions packed into one pooling request (the compact layout only) |
 | `--pack` | 16 | 16 | 16 | questions per pack in packed mode |

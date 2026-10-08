@@ -1,0 +1,2 @@
+S: acc MLX 0.8064 FP8 0.7993 diff [0.0071, 0.0, 0.015] S1 True; ECE MLX 0.0535 FP8 0.0540 S3 True; flips 42; max |dp| 0.572
+F3: ECE MLX 0.0442 FP8 0.0349 diff +0.0093 pass True; acc 0.9177 vs 0.9221; served vs plain max 1.5e-16
