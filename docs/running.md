@@ -93,8 +93,8 @@ uv run python -m decisio.serve.vllm_engine --base aminry/decisio-gemma-4-31b@<co
 - The Gemma 4 31B repository holds FP8 weights, made from Google's bf16 ones by `python -m decisio.hub_fp8 convert` exactly as the server quantizes them on load: one scale per fused layer, `float32(amax) / 448`, the weight times the fp32 reciprocal of the scale, round to nearest even.
   The conversion also runs vLLM 0.30.0's loader step (it requantizes a layer's shards with the largest of their scales, through float16) and reports how many weights loading would change; zero means the loaded tensors equal the ones made on load.
   `tests/gpu/fp8_fingerprints.py` reads the FP8 weights an engine holds, and `python -m decisio.hub_fp8 expected|compare` predict and compare them.
-- The three repositories exist privately at revisions pinned in `decisio.hub.PINNED_REVISIONS`: `aminry/decisio-gemma-4-31b`, `aminry/decisio-gemma-4-12b` and `aminry/decisio-qwen3.6-35b-a3b`.
-  They are not public until the owner changes their visibility.
+- The three repositories are public on the Hub, at revisions pinned in `decisio.hub.PINNED_REVISIONS`: `aminry/decisio-gemma-4-31b`, `aminry/decisio-gemma-4-12b` and `aminry/decisio-qwen3.6-35b-a3b`.
+  Each carries the licence, a card and `SHA256SUMS`; the 12B and Qwen files are byte-for-byte copies of Google's and Qwen's, and the 31B's text model is quantized to FP8 (its card says so).
 
 ## Docker
 

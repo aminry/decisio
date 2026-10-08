@@ -210,8 +210,8 @@ def test_d5_the_benchmark_helpers_name_the_default_base():
 
 def test_d6_the_default_ships_with_its_repository_pinned():
     """The release that makes the 31B the default ships with its FP8 repository, so the default quickstart does not
-    quantize Google's weights at every start (Amin, 2026-10-07). Red until the repository exists and its revision is
-    pinned in decisio.hub.PINNED_REVISIONS: the guard against merging this change before the repositories are live."""
+    quantize Google's weights at every start (Amin, 2026-10-07). Fails until the revision is pinned in
+    decisio.hub.PINNED_REVISIONS: the guard against shipping this change before the repositories are live."""
     assert REPO in hub.PINNED_REVISIONS, f"{REPO} is not pinned: the repository is not live, so this must not merge"
     assert len(hub.PINNED_REVISIONS[REPO]) == 40
     assert hub.default_source("gemma-4-31b") == f"{REPO}@{hub.PINNED_REVISIONS[REPO]}"
