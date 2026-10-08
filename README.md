@@ -139,13 +139,13 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged and rounded, as recorded on the Qwen base (`--base qwen3.6-35b-a3b`) under its served defaults of 2026-10-02 (the same in 30 of 30 repeats on one server, `runs/2026-10-02_readme-example/`); the default 31B answers in the same shape with its own probabilities, and the example has not yet been recorded on it:
+Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (the same in 30 of 30 repeats on one server, RLCD `experiments/2026-10-08_lab2_gate_session/results/box/session_a/readme_example_30/`; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
 
 ```json
 {"answers": {
-  "urgent":   {"type": "noul",   "noul": 0.90},
-  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.01, "access": 0.97, "bug": 0.01, "other": 0.00}},
-  "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.02, "2": 0.94, "3": 0.04}}}}
+  "urgent":   {"type": "noul",   "noul": 0.995},
+  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.005, "access": 0.976, "bug": 0.012, "other": 0.007}},
+  "impact":   {"type": "score",  "score": 1.977, "probabilities": {"0": 0.005, "1": 0.024, "2": 0.961, "3": 0.011}}}}
 ```
 
 The routes ([`docs/api.md`](docs/api.md) has every field):
@@ -315,5 +315,6 @@ Security issues go through GitHub's private vulnerability reporting, as describe
 ## Licence
 
 Apache-2.0 (`LICENSE`, `NOTICE`).
-The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0, which is all the Gemma 4 licence page and model cards state; all are downloaded, not redistributed.
+The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0, which is all the Gemma 4 licence page and model cards state.
+The three `aminry/decisio-*` model repositories redistribute those weights under Apache-2.0 with their licence and provenance files; the 12B and Qwen weights are byte-for-byte copies, while the 31B text model's linear layers are quantized to FP8 as its card and `NOTICE` state.
 `THIRD-PARTY.md` lists everything else this project builds on.

@@ -4,7 +4,7 @@
 served from its FP8 repository once that repository's revision is pinned (decisio.hub.DEFAULT_SOURCES). No model, no
 network.
 
-D1  neither flag on the vLLM backend: the 31B at its pinned revision, quantized on load while no repository is pinned
+D1  neither flag on the vLLM backend: the 31B at its pinned repository revision, stored FP8 not quantized again
 D2  what does not change: the other two bases by key, a checkpoint alone (the base it declares, and Qwen for a model it
     does not know, which the CPU stand-in relies on), and the backends that always name a checkpoint
 D3  with the repository pinned: the 31B's key and the default are served from it, stored FP8 not quantized again, tasks
@@ -52,13 +52,14 @@ def args_for(**kw):
     return SimpleNamespace(**{**a, **kw})
 
 
-def test_d1_the_default_base_is_the_31b():
+def test_d1_the_default_base_is_the_31b(monkeypatch, tmp_path):
+    fake_hub(monkeypatch, tmp_path)
     assert DEFAULT_BASE == "gemma-4-31b" and DEFAULT_BASE in BASES
     a = args_for()
     fam, _ = resolve_base(a)
     assert fam.key == "gemma-4-31b" and a.base == "gemma-4-31b"
-    assert a.model == "google/gemma-4-31B-it" and a.revision == BASES["gemma-4-31b"].revision
-    assert fam.quantization == "fp8" and a.repository is None  # no repository is pinned yet: Google's weights
+    assert a.model == REPO and a.revision == hub.PINNED_REVISIONS[REPO]
+    assert fam.quantization is None and a.repository["name"] == REPO
     assert a.served_name == "decisio-gemma-4-31b-it-letters" and a.temperature == 5.252
     same = args_for(base="gemma-4-31b")
     resolve_base(same)
@@ -214,3 +215,5 @@ def test_d6_the_default_ships_with_its_repository_pinned():
     assert REPO in hub.PINNED_REVISIONS, f"{REPO} is not pinned: the repository is not live, so this must not merge"
     assert len(hub.PINNED_REVISIONS[REPO]) == 40
     assert hub.default_source("gemma-4-31b") == f"{REPO}@{hub.PINNED_REVISIONS[REPO]}"
+    assert set(hub.PINNED_REVISIONS) == set(hub.REPOSITORIES.values())
+    assert all(len(revision) == 40 for revision in hub.PINNED_REVISIONS.values())

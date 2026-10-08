@@ -93,8 +93,8 @@ uv run python -m decisio.serve.vllm_engine --base aminry/decisio-gemma-4-31b@<co
 - The Gemma 4 31B repository holds FP8 weights, made from Google's bf16 ones by `python -m decisio.hub_fp8 convert` exactly as the server quantizes them on load: one scale per fused layer, `float32(amax) / 448`, the weight times the fp32 reciprocal of the scale, round to nearest even.
   The conversion also runs vLLM 0.30.0's loader step (it requantizes a layer's shards with the largest of their scales, through float16) and reports how many weights loading would change; zero means the loaded tensors equal the ones made on load.
   `tests/gpu/fp8_fingerprints.py` reads the FP8 weights an engine holds, and `python -m decisio.hub_fp8 expected|compare` predict and compare them.
-- No repository is published yet.
-  The plan is one per base: `aminry/decisio-gemma-4-31b`, `aminry/decisio-gemma-4-12b` and `aminry/decisio-qwen3.6-35b-a3b`.
+- The three repositories exist privately at revisions pinned in `decisio.hub.PINNED_REVISIONS`: `aminry/decisio-gemma-4-31b`, `aminry/decisio-gemma-4-12b` and `aminry/decisio-qwen3.6-35b-a3b`.
+  They are not public until the owner changes their visibility.
 
 ## Docker
 
@@ -115,7 +115,9 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 
 First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, the image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume, and the README's example request and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start/`).
 The image published with v0.1.0 repeated the start from its digest: healthy in 223 s with the checkpoint cached, example and conformance passing (`pushed_image_0.1.0/` in the same record).
-Those starts were with the Qwen base, the container's default then; the 31B, its default since 0.10.0, runs from the same entrypoint and has the same server code, but the container has not yet been started with it on a card.
+Those starts were with the Qwen base, the container's default then.
+The no-flag vLLM start selected Gemma 4 31B on 2026-10-08 on one RTX PRO 6000 Blackwell at 600 W and AMD EPYC 9654, using decisio 0.9.0 at the PR head; `/health` recorded `base: gemma-4-31b`, and the README request produced one distinct response in 30 repeats (RLCD `experiments/2026-10-08_lab2_gate_session/results/box/session_a/`).
+The same start through a built 0.10.0 container remains to be recorded.
 
 ## Mac with MLX
 
