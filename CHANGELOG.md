@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.0](https://github.com/aminry/decisio/compare/v0.9.0...v0.10.0) (2026-10-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** a vLLM server started with neither `--base` nor `--model`, and the container, now serve gemma-4-31b (a 96 GB card); set `--base qwen3.6-35b-a3b` or `DECISIO_BASE=qwen3.6-35b-a3b` to keep the previous Qwen behaviour (docs/upgrading.md).
+
+### Features
+
+* **hub:** the 31B's FP8 checkpoint is made on a CPU as vLLM quantizes it on load, and the engine's FP8 weights can be fingerprinted ([#113](https://github.com/aminry/decisio/issues/113)) ([94d675c](https://github.com/aminry/decisio/commit/94d675c779ad14da9770926a2fdec21559e1ba79))
+* **serve:** --base takes a decisio model repository; decision_config.json is exported from each base's profile ([#110](https://github.com/aminry/decisio/issues/110)) ([9d352de](https://github.com/aminry/decisio/commit/9d352def278e79e99eacf4eb6fd1c51ddeb3cfba))
+* **serve:** the default base is Gemma 4 31B, served from its FP8 repository ([#114](https://github.com/aminry/decisio/issues/114)) ([389fe13](https://github.com/aminry/decisio/commit/389fe13787ca0831a50b43cdf9e24396c44fab22))
+* **serve:** the MLX prefix cache budget is the base's: 7,400 MiB for gemma-4-12b, 2,048 MiB for the Qwen base ([#112](https://github.com/aminry/decisio/issues/112)) ([71facc7](https://github.com/aminry/decisio/commit/71facc77a0e645b8023fd0a61554ea9175bbb741))
+
 ## [0.9.0](https://github.com/aminry/decisio/compare/v0.8.2...v0.9.0) (2026-10-07)
 
 
