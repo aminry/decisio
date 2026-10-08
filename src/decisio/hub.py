@@ -63,9 +63,23 @@ REPOSITORIES = {
     "gemma-4-12b": "aminry/decisio-gemma-4-12b",
     QWEN: "aminry/decisio-qwen3.6-35b-a3b",
 }
-# the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins);
-# empty until the repositories exist
-PINNED_REVISIONS: dict[str, str] = {}
+# the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins)
+PINNED_REVISIONS: dict[str, str] = {
+    "aminry/decisio-gemma-4-31b": "7ee1660fa97acf9f443105309da69fea3bcbd217",
+    "aminry/decisio-gemma-4-12b": "a12f99cd93fb38e81bc21fc7f6faa72b34fdbb9c",
+    "aminry/decisio-qwen3.6-35b-a3b": "6b44bc3bcb86025e09c1be02d14b0bc8daaf83cb",
+}
+# the bases whose own key is served from a decisio repository rather than from the source's weights, once that
+# repository's revision is pinned: the 31B's FP8 checkpoint saves quantizing Google's bf16 weights at every start
+# (Amin, 2026-10-07; the others are byte-for-byte copies and keep their sources). `--model google/gemma-4-31B-it`
+# serves Google's weights, quantized on load, as before.
+DEFAULT_SOURCES = {"gemma-4-31b": REPOSITORIES["gemma-4-31b"]}
+
+
+def default_source(base: str) -> str | None:
+    """The repository `--base <base>` is served from when no checkpoint is named, or None (the source's own weights)."""
+    name = DEFAULT_SOURCES.get(base)
+    return f"{name}@{PINNED_REVISIONS[name]}" if name in PINNED_REVISIONS else None
 
 
 def weights_of(base: str, quantization: str | None = None) -> dict:

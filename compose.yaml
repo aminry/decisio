@@ -16,7 +16,7 @@ services:
         APPLY_PATCHES: "0"            # "1" applies the optional suffix-staging series (patches/README.md)
     image: decisio:local
     environment:
-      DECISIO_MODEL: Qwen/Qwen3.6-35B-A3B-FP8
+      DECISIO_BASE: gemma-4-31b       # the default (96 GB card); qwen3.6-35b-a3b or gemma-4-12b for the others
       # VLLM_SUFFIX_STAGING: "1"      # switches the patch series on; only with APPLY_PATCHES=1
     ports:
       - "127.0.0.1:8000:8000"

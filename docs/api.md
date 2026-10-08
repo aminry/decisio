@@ -54,7 +54,7 @@ The earlier `x-rlcd-route` and `x-rlcd-debug` headers are still honoured.
 ### Response
 
 ```json
-{"model": "decisio-qwen3.6-35b-a3b-letters",
+{"model": "decisio-gemma-4-31b-it-letters",
  "answers": {
    "urgent":   {"type": "noul", "noul": ...},
    "category": {"type": "choice", "choice": "access", "confidence": ..., "probabilities": {"billing": ..., "access": ..., ...}},

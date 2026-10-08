@@ -7,8 +7,8 @@ B1  label forms: a capital letter has three single tokens (spaced, bare, byte-fa
 B2  the template slot is the position after Gemma 4's empty, closed thought channel; the system turn and the spaced
     layout render as written
 B3  the state prefix is the same for every question mix, with no padding
-B4  the bases resolve: the Qwen base keeps the served defaults; the Gemma base brings its checkpoint, revision and
-    settings; a checkpoint of the other base is refused; MLX takes either base from an MLX conversion (--model)
+B4  the bases resolve: the Qwen base keeps the served defaults; the 31B brings its pinned FP8 repository and settings;
+    a checkpoint of the other base is refused; MLX takes either base from an MLX conversion (--model)
 B5  the hidden-state readout's reserved ids hold no label form, for each base on its own tokenizer
 B6  the head's numbers: vLLM's bf16 soft cap; under the Gemma base the head's label log-probabilities are the
     engine's own readout of the row, not a recomputation
@@ -28,6 +28,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from decisio import hub
 from decisio.families import BASES, FAMILIES, GEMMA4, GEMMA4_31B, QWEN, family_of
 from decisio.readout.letters import (
     PromptFormat,
@@ -165,8 +166,11 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     a = _args(model=gemma_dir, backend="mlx")  # an MLX conversion names the base's model type: its settings follow
     fam, fmt = sv.resolve_base(a)
     assert fam.key == "gemma-4-12b" and fmt.system_prompt and (a.temperature, a.noul_rendering) == (3.592, "letters")
+    # neither flag: the vLLM backend serves the default base (0.10.0: gemma-4-31b); the stand-in must name a checkpoint
+    _fake_31b_repository(tmp_path, monkeypatch)  # no unit test reads the Hub
+    assert sv.resolve_base(_args())[0].key == "gemma-4-31b"
     with pytest.raises(ValueError, match="--model or --base"):
-        sv.resolve_base(_args())
+        sv.resolve_base(_args(backend="hf"))
     assert sorted(BASES) == ["gemma-4-12b", "gemma-4-31b", "qwen3.6-35b-a3b"]
 
 
@@ -180,18 +184,30 @@ def _gemma4_checkpoint(tmp_path, name, moe):
     return str(d)
 
 
+def _fake_31b_repository(tmp_path, monkeypatch):
+    import json
+
+    d = tmp_path / "repo"
+    d.mkdir(exist_ok=True)
+    (d / hub.FILE).write_text(json.dumps(hub.export_decision_config(GEMMA4_31B, "0.10.0")))
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda name, filename, revision=None: str(d / filename))
+
+
 def test_b4_the_31b_base(tmp_path, monkeypatch):
-    """The 31B: a dense gemma4 checkpoint is detected as it (a MoE one is not), --base brings its checkpoint at the pin,
-    the 12B's prompt, its own temperatures and FP8 on load; MLX does not serve it."""
+    """The 31B: a dense gemma4 checkpoint is detected as it (a MoE one is not), --base brings its pinned FP8
+    repository, the 12B's prompt and its own temperatures; MLX does not serve it."""
     monkeypatch.delenv("DECISIO_BASE", raising=False)
+    _fake_31b_repository(tmp_path, monkeypatch)
     assert family_of(_gemma4_checkpoint(tmp_path, "dense", False)) is GEMMA4_31B
     assert family_of(_gemma4_checkpoint(tmp_path, "moe", True)) is QWEN  # not a base: the old default
     a = _args(base="gemma-4-31b")
     fam, fmt = sv.resolve_base(a)
-    assert fam is GEMMA4_31B and fmt == GEMMA_FORMAT and (a.model, a.revision) == (fam.model, fam.revision)
+    repo = hub.REPOSITORIES["gemma-4-31b"]
+    assert fam.key == GEMMA4_31B.key and fmt == GEMMA_FORMAT
+    assert (a.model, a.revision) == (repo, hub.PINNED_REVISIONS[repo]) and a.repository["name"] == repo
     assert (a.pad_to, a.noul_rendering) == ("none", "letters")
     assert (a.temperature, a.temperature_choice) == (fam.temperature, fam.choice_temperature)
-    assert fam.quantization == "fp8" and fam.classes["hidden-readout"] == "DecisioGemma4HiddenReadout"
+    assert fam.quantization is None and fam.classes["hidden-readout"] == "DecisioGemma4HiddenReadout"
     with pytest.raises(ValueError, match="vLLM only"):
         sv.resolve_base(_args(base="gemma-4-31b", backend="mlx", model="some/mlx-conversion"))
 
@@ -250,13 +266,19 @@ def test_b6_head_reads_the_engines_readout():
 
 
 @pytest.mark.parametrize("fam", FAMILIES, ids=lambda f: f.key)
-def test_b8_every_family_pins_a_revision(fam):
+def test_b8_every_family_pins_a_revision(fam, tmp_path, monkeypatch):
     """A run record names the bytes it was measured on: no base serves the repository's head."""
     assert isinstance(fam.revision, str) and re.fullmatch(r"[0-9a-f]{40}", fam.revision), fam.key
     # --base alone serves the checkpoint at the pin; an explicit --revision wins
+    if fam is GEMMA4_31B:
+        _fake_31b_repository(tmp_path, monkeypatch)
     a = _args(base=fam.key)
     sv.resolve_base(a)
-    assert (a.model, a.revision) == (fam.model, fam.revision)
+    if fam is GEMMA4_31B:
+        repo = hub.REPOSITORIES[fam.key]
+        assert (a.model, a.revision) == (repo, hub.PINNED_REVISIONS[repo])
+    else:
+        assert (a.model, a.revision) == (fam.model, fam.revision)
     a = _args(base=fam.key, revision="refs/pr/1")
     sv.resolve_base(a)
     assert (a.model, a.revision) == (fam.model, "refs/pr/1")

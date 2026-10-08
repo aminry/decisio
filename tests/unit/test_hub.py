@@ -200,6 +200,7 @@ def test_r2_a_remote_repository_is_fetched_at_its_revision(tmp_path, monkeypatch
     assert hub.open_repository(f"{name}@abc123").revision == "abc123"
     assert hub.open_repository(name, "from-flag").revision == "from-flag"
     assert hub.open_repository(f"{name}@abc123", "from-flag").revision == "abc123"  # the @ is the more specific
+    monkeypatch.delitem(hub.PINNED_REVISIONS, name)
     assert hub.open_repository(name).revision == "c" * 40  # none given and none pinned: the current commit
     monkeypatch.setitem(hub.PINNED_REVISIONS, name, "d" * 40)
     assert hub.open_repository(name).revision == "d" * 40  # the release's pin
@@ -207,7 +208,7 @@ def test_r2_a_remote_repository_is_fetched_at_its_revision(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize("base", sorted(BASES))
-def test_s1_a_repository_is_served_under_its_base(tmp_path, base):
+def test_s1_a_repository_is_served_under_its_base(tmp_path, monkeypatch, base):
     d = repo_dir(tmp_path, base)
     a = args_for(str(d))
     fam, fmt = resolve_base(a)
@@ -217,6 +218,7 @@ def test_s1_a_repository_is_served_under_its_base(tmp_path, base):
     assert a.repository["name"] == str(d) and a.repository["exported_for_decisio"] == "0.9.0"
     # tasks fitted under the source checkpoint serve on the repository, and the other way round
     assert a.model_identity == os.path.basename(BASES[base].model)
+    monkeypatch.delitem(hub.PINNED_REVISIONS, hub.REPOSITORIES[base], raising=False)
     plain = args_for(base)
     resolve_base(plain)
     assert plain.repository is None and not hasattr(plain, "model_identity")
@@ -254,7 +256,7 @@ def test_s1_refusals(tmp_path):
 
 
 def test_c1_the_command_line(tmp_path, capsys):
-    assert hub.main(["export", "--all", "--out", str(tmp_path), "--decisio-version", "0.9.0"]) == 0
+    assert hub.main(["export", "--all", "--out", str(tmp_path), "--decisio-version", "0.10.0"]) == 0
     for base in BASES:
         assert (tmp_path / f"decision_config.{base}.json").read_text() == (
             HUB / f"decision_config.{base}.json"
@@ -265,7 +267,7 @@ def test_c1_the_command_line(tmp_path, capsys):
     changed["temperatures"]["global"] = 1.0
     Path(good).write_text(json.dumps(changed))
     assert hub.main(["check", good]) == 1 and "temperatures.global" in capsys.readouterr().out
-    assert hub.main(["export", "--base", "gemma-4-12b", "--decisio-version", "0.9.0"]) == 0
+    assert hub.main(["export", "--base", "gemma-4-12b", "--decisio-version", "0.10.0"]) == 0
     assert json.loads(capsys.readouterr().out)["base"] == "gemma-4-12b"
 
 

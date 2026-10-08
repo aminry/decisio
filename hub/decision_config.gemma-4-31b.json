@@ -1,6 +1,6 @@
 {
   "schema": "decisio.decision_config/1",
-  "decisio": "0.9.0",
+  "decisio": "0.10.0",
   "base": "gemma-4-31b",
   "source": {
     "repository": "google/gemma-4-31B-it",

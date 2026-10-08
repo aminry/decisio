@@ -73,10 +73,12 @@ Linux, one NVIDIA card, a driver that supports CUDA 13.0, Python 3.12 and [uv](h
 git clone https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
-uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
+uv run python -m decisio.serve.vllm_engine
 ```
 
-The first start downloads the checkpoint and warms the engine; the server then listens on `http://127.0.0.1:8000`.
+With no flag the server serves Gemma 4 31B, the default base (a 96 GB card; [Choosing a base](#choosing-a-base) says when to pick another).
+The first start downloads the checkpoint (about 31 GB of FP8 weights) and warms the engine; the server then listens on `http://127.0.0.1:8000`.
+Upgrading from a release before 0.10.0, where the container served the Qwen base: [docs/upgrading.md](docs/upgrading.md).
 
 ### Docker
 
@@ -86,6 +88,7 @@ docker compose up --build          # needs the NVIDIA Container Toolkit
 curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
 ```
 
+The container serves the default base, Gemma 4 31B; `DECISIO_BASE=qwen3.6-35b-a3b docker compose up` (or `gemma-4-12b`) serves another.
 Release images are published to `ghcr.io/aminry/decisio`, with their digest in the release notes.
 
 ### Mac with MLX
@@ -97,7 +100,8 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --mo
 ```
 
 The Qwen base runs from its 6-bit MLX conversion, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
-The Gemma base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
+The Gemma 4 12B base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
+The default base, Gemma 4 31B, has no Mac build, so a Mac always names a conversion or `--base gemma-4-12b`.
 
 ### Ollama
 
@@ -135,13 +139,13 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged and rounded, as recorded under the served defaults of 2026-10-02 (the same in 30 of 30 repeats on one server, `runs/2026-10-02_readme-example/`):
+Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (the same in 30 of 30 repeats on one server, RLCD `experiments/2026-10-08_lab2_gate_session/results/box/session_a/readme_example_30/`; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
 
 ```json
 {"answers": {
-  "urgent":   {"type": "noul",   "noul": 0.90},
-  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.01, "access": 0.97, "bug": 0.01, "other": 0.00}},
-  "impact":   {"type": "score",  "score": 2.0, "probabilities": {"0": 0.00, "1": 0.02, "2": 0.94, "3": 0.04}}}}
+  "urgent":   {"type": "noul",   "noul": 0.995},
+  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.005, "access": 0.976, "bug": 0.012, "other": 0.007}},
+  "impact":   {"type": "score",  "score": 1.977, "probabilities": {"0": 0.005, "1": 0.024, "2": 0.961, "3": 0.011}}}}
 ```
 
 The routes ([`docs/api.md`](docs/api.md) has every field):
@@ -153,41 +157,48 @@ The routes ([`docs/api.md`](docs/api.md) has every field):
 
 ## Choosing a base
 
-Three base models are served behind the same routes, wire format and features, one per server, chosen with `--base`:
+Three base models are served behind the same routes, wire format and features, one per server, chosen with `--base`; with no flag the server serves Gemma 4 31B:
 
 ```bash
-uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b   # the default
+uv run python -m decisio.serve.vllm_engine                          # gemma-4-31b, the default
+uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
 uv run python -m decisio.serve.vllm_engine --base gemma-4-12b
-uv run python -m decisio.serve.vllm_engine --base gemma-4-31b
 ```
 
 `--base` brings its checkpoint at a pinned revision and every setting below; a flag given explicitly overrides the base's value.
 Each base's settings were measured as one configuration.
+A checkpoint named with `--model` and no `--base` brings the base its `config.json` declares, as before.
 
 | Base | Checkpoint | Provenance |
 | --- | --- | --- |
-| `qwen3.6-35b-a3b` (default) | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-31b` (default) | `aminry/decisio-gemma-4-31b`: Google's `google/gemma-4-31B-it` at `842da379`, stored as FP8, 30.6 GiB in memory; `--model google/gemma-4-31B-it` serves Google's weights at the same revision instead, quantized to FP8 when they load (vLLM 0.30.0) | Official checkpoint from Google, at a pinned revision, quantized to FP8 once with the arithmetic vLLM uses on load (`python -m decisio.hub_fp8`); no training or fine-tuning by us; the repository's card states the check that its tensors equal the ones made on load |
+| `qwen3.6-35b-a3b` | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
 | `gemma-4-12b` | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
-| `gemma-4-31b` | `google/gemma-4-31B-it` at `842da379`, quantized to FP8 when it loads (vLLM 0.30.0), 30.6 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us; FP8 on load, which a pinned FP8 checkpoint replaces when one exists |
 
 A base that is a third-party fine-tune names its publisher in the provenance column and states what it was trained on.
 
-| Setting | `qwen3.6-35b-a3b` (default) | `gemma-4-12b` | `gemma-4-31b` |
+| Setting | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` (default) |
 | --- | --- | --- | --- |
 | Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type | 4.672 for choice questions, 5.252 for yes/no and score |
 | Prompt | no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, read at the chat template's own answer position, every single-token form of each letter summed | as `gemma-4-12b` |
 | Yes/no | a two-option letter choice with its sides named | a two-option letter choice, each side shown as its description | as `gemma-4-12b` |
 | Padding | the state padded to the 1,056-token block | none | none |
 | Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 | scored in one batch after the state is read (`--multi-question warm`, its default since 0.8.0): the same choice as one engine call per question on every item measured, probabilities within 0.0073 |
-| Precision | FP8, as the checkpoint stores it | bf16 | FP8 on load (at bf16 it leaves too little of a 96 GB card for a 32,768-token context) |
+| Precision | FP8, as the checkpoint stores it | bf16 | FP8, as its repository stores it (on load from Google's bf16 weights with `--model google/gemma-4-31B-it`; at bf16 they leave too little of a 96 GB card for a 32,768-token context) |
 | A second, different question on a document already read (since 0.8.1; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | read from the cache, as always: 23.5 ms after an 85 ms first read (3,000 tokens) | read from the cache since 0.8.1: 35.8 ms after a 260 ms first read; since 0.9.0 the document's boundary is registered after the answer, so the first read costs nothing more (+16 to +28 ms at 300 to 3,000 tokens before) | read from the cache since 0.8.1: 43.3 ms after a 439 ms first read; the boundary is registered before the answer, which costs the first read +21 to +34 ms and keeps throughput under load |
 
 In plain words:
-- Choose Gemma 4 12B for committed yes/no answers, scores and intent routing on taxonomies like CLINC150.
-- Choose Qwen3.6-35B-A3B for knowledge questions, long states seen for the first time, and answers that repeat bit for bit.
-- On JevBench's published items they are level.
-- Gemma 4 12B does not fit a 32 GB card on vLLM; on a Mac it runs from its MLX conversion ([Mac with MLX](#mac-with-mlx)).
-- Choose Gemma 4 31B for knowledge questions and the strongest suite and JevBench readings: it is stronger than both served bases on every accuracy measure we have, and slower on states it has not seen before, the more so the longer the state; its weights take 31 GB, and it needs a 96 GB card on vLLM (no Mac build).
+- **Gemma 4 31B, the default, for accuracy.**
+  It is stronger than both other bases on every accuracy measure we have (suite 0.799 against 0.770 and 0.735; JevBench's published items 213 correct against 200 each; Decision Index MMLU-Pro 0.694 against 0.613 and 0.549).
+  It needs a 96 GB card on vLLM (its weights take 31 GB) and has no Mac build.
+- **Qwen3.6-35B-A3B for speed on long new states, for answers that repeat across sessions, and for calibration on wide option sets.**
+  - A question on a new state reads 3.2 and 5.1 times faster than on the 31B at 1,000 and 3,000 tokens (50.0 and 85.2 ms against 160.1 and 438.1; 1.6 times at 300 tokens, 49.9 against 80.7), measured in one session on one card at 585 W (`runs/2026-10-06_latency-585w/`).
+  - Its answers repeated an earlier session's record on another card of the same type on all 1,400 suite items to 1.1e-16 (`EVAL_CARD.md` 6.2), where the 31B's near-tied answers moved between sessions (7.5).
+  - On the 77-option BANKING77 items of the suite its calibration error is 0.055 against the 31B's 0.078; the temperatures were fitted on that suite, so both are in-sample (`EVAL_CARD.md` 3, 4 and 7.2).
+- **Gemma 4 12B for machines without a 96 GB card.**
+  It runs on a 32 GB Mac from its MLX conversion ([Mac with MLX](#mac-with-mlx)), and its Ollama listing takes 8.6 GB loaded ([Ollama](#ollama)).
+  On vLLM its weights are the smallest of the three (22.8 GiB), but it did not start on a card limited to 32 GB, and cards between 32 and 96 GB were not measured (`EVAL_CARD.md` 6.6).
+- On JevBench's published items the 12B and Qwen are level (200 of 231 each).
 
 What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, each base with its own defaults, paired over the same items (95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):
 
@@ -218,7 +229,7 @@ Qwen3.6-35B-A3B answered fastest in Pong, driving and triage (Pong 44 ms per dec
 Each base with its own defaults on one RTX PRO 6000 Blackwell: the Qwen and Gemma 4 12B bases in one session (`runs/2026-10-04_gemma-base/`), Gemma 4 31B in its own (`runs/2026-10-04_gemma-4-31b/`), image input in another (`runs/2026-09-27_image-input/`).
 Measured by us with the public harnesses (the Decision Index kit 0.2.1) and recorded in `runs/`; none is a board score.
 
-| Measure | Qwen3.6-35B-A3B (default) | Gemma 4 12B | Gemma 4 31B |
+| Measure | Qwen3.6-35B-A3B | Gemma 4 12B | Gemma 4 31B (default) |
 | --- | ---: | ---: | ---: |
 | JevBench, 231 published items, accuracy: easy / standard / hard | 1.000 / 0.972 / 0.739 | 1.000 / 0.972 / 0.739 | 1.000 / 1.000 / 0.838 |
 | Decision Index BANKING77, macro-F1 | 0.746 | 0.729 | 0.785 |
@@ -240,7 +251,7 @@ Changes paired within one session:
 
 Absolute latency depends on the host's CPU and on the card's power limit (`docs/running.md`).
 
-Where it stands: on the public harnesses the Qwen base is behind TypeSafe's Jev on hard knowledge questions (the public board's figures and their date are in `EVAL_CARD.md` section 8.1) and on intent taxonomies without labelled examples.
+Where it stands: on the two public knowledge benchmarks, GPQA Diamond and MMLU-Pro, TypeSafe's Jev is ahead of every base served here, the default 31B included (the public board's figures and their date are in `EVAL_CARD.md` section 8.1).
 [`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every Decision Index benchmark, JevBench's published questions, latency, cost and capabilities, each cell marked ahead, level or behind by a rule written before anything was computed.
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
@@ -304,5 +315,6 @@ Security issues go through GitHub's private vulnerability reporting, as describe
 ## Licence
 
 Apache-2.0 (`LICENSE`, `NOTICE`).
-The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0, which is all the Gemma 4 licence page and model cards state; all are downloaded, not redistributed.
+The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0, which is all the Gemma 4 licence page and model cards state.
+The three `aminry/decisio-*` model repositories redistribute those weights under Apache-2.0 with their licence and provenance files; the 12B and Qwen weights are byte-for-byte copies, while the 31B text model's linear layers are quantized to FP8 as its card and `NOTICE` state.
 `THIRD-PARTY.md` lists everything else this project builds on.
