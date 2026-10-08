@@ -1090,6 +1090,11 @@ def resolve_base(args):
         if args.model is not None:
             raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
         repo = hub.open_repository(args.base, args.revision)
+        if args.backend == "mlx" and repo.config.get("weights", {}).get("dtype") == "fp8_e4m3":
+            raise ValueError(
+                f"--backend mlx cannot load {repo.name}: its weights are FP8, vLLM's format; "
+                f"give --model an MLX conversion of {repo.base} (docs/running.md)"
+            )
         args.base, args.model, args.revision = repo.base, repo.model, repo.revision
     elif args.base is None and args.model is None and args.backend == "vllm":
         args.base = DEFAULT_BASE  # neither given: the default base (the CPU stand-in and MLX always name a checkpoint)
