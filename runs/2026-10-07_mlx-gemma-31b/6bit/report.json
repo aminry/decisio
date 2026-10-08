@@ -318,5 +318,57 @@
   },
   "ece_diff": 0.00927830129424765,
   "F3_pass": true
+ },
+ "H": {
+  "banking77": {
+   "mlx_correct_per_draw": [
+    127,
+    130,
+    125
+   ],
+   "ref_correct_per_draw": [
+    125,
+    130,
+    125
+   ],
+   "n": 150,
+   "mlx_mean": 0.8488888888888888,
+   "ref_mean": 0.8444444444444443,
+   "mlx-ref": [
+    0.004444444444444473,
+    -0.022222222222222365,
+    0.033333333333333215
+   ],
+   "mlx_plain": 120,
+   "ref_plain": 118,
+   "mlx_gain_over_plain": 0.04888888888888887,
+   "ref_gain_over_plain": 0.05777777777777782,
+   "H_pass": true
+  },
+  "v3_clinc": {
+   "mlx_correct_per_draw": [
+    97,
+    97,
+    97
+   ],
+   "ref_correct_per_draw": [
+    97,
+    97,
+    97
+   ],
+   "n": 100,
+   "mlx_mean": 0.97,
+   "ref_mean": 0.97,
+   "mlx-ref": [
+    0.0,
+    0.0,
+    0.0
+   ],
+   "mlx_plain": 93,
+   "ref_plain": 94,
+   "mlx_gain_over_plain": 0.039999999999999925,
+   "ref_gain_over_plain": 0.030000000000000027,
+   "H_pass": true
+  }
  }
 }

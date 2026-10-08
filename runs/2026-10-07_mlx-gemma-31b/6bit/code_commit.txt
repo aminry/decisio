@@ -1,1 +1,1 @@
-8512f27 feat(serve): --backend mlx serves gemma-4-31b from an MLX conversion, scoring every question on its own
+54b6754 fix(serve): --backend mlx refuses a repository whose weights are FP8, naming the reason

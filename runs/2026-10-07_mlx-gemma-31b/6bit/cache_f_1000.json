@@ -1,0 +1,205 @@
+{
+ "part": "F",
+ "rows": [
+  {
+   "k": 0,
+   "length": 1000,
+   "server_ms": 3113.9,
+   "entries": 1,
+   "mb": 935.2,
+   "max_mb": 2048.0,
+   "misses": 1,
+   "hits": 0
+  },
+  {
+   "k": 1,
+   "length": 1000,
+   "server_ms": 3138.0,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 2,
+   "hits": 0
+  },
+  {
+   "k": 2,
+   "length": 1000,
+   "server_ms": 3196.4,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 3,
+   "hits": 0
+  },
+  {
+   "k": 3,
+   "length": 1000,
+   "server_ms": 3289.1,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 4,
+   "hits": 0
+  },
+  {
+   "k": 4,
+   "length": 1000,
+   "server_ms": 3700.1,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 5,
+   "hits": 0
+  },
+  {
+   "k": 5,
+   "length": 1000,
+   "server_ms": 3546.4,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 6,
+   "hits": 0
+  },
+  {
+   "k": 6,
+   "length": 1000,
+   "server_ms": 3578.3,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 7,
+   "hits": 0
+  },
+  {
+   "k": 7,
+   "length": 1000,
+   "server_ms": 3544.8,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 8,
+   "hits": 0
+  },
+  {
+   "k": 8,
+   "length": 1000,
+   "server_ms": 3561.6,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 9,
+   "hits": 0
+  },
+  {
+   "k": 9,
+   "length": 1000,
+   "server_ms": 3571.4,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 10,
+   "hits": 0
+  },
+  {
+   "k": 10,
+   "length": 1000,
+   "server_ms": 3590.1,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 11,
+   "hits": 0
+  },
+  {
+   "k": 11,
+   "length": 1000,
+   "server_ms": 3825.7,
+   "entries": 2,
+   "mb": 1885.9,
+   "max_mb": 2048.0,
+   "misses": 12,
+   "hits": 0
+  },
+  {
+   "k": 12,
+   "length": 1000,
+   "server_ms": 3723.7,
+   "entries": 2,
+   "mb": 1885.9,
+   "max_mb": 2048.0,
+   "misses": 13,
+   "hits": 0
+  },
+  {
+   "k": 13,
+   "length": 1000,
+   "server_ms": 3606.6,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 14,
+   "hits": 0
+  },
+  {
+   "k": 14,
+   "length": 1000,
+   "server_ms": 3781.8,
+   "entries": 2,
+   "mb": 1885.9,
+   "max_mb": 2048.0,
+   "misses": 15,
+   "hits": 0
+  },
+  {
+   "k": 15,
+   "length": 1000,
+   "server_ms": 3636.2,
+   "entries": 2,
+   "mb": 1885.9,
+   "max_mb": 2048.0,
+   "misses": 16,
+   "hits": 0
+  },
+  {
+   "k": 16,
+   "length": 1000,
+   "server_ms": 3634.4,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 17,
+   "hits": 0
+  },
+  {
+   "k": 17,
+   "length": 1000,
+   "server_ms": 3641.9,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 18,
+   "hits": 0
+  },
+  {
+   "k": 18,
+   "length": 1000,
+   "server_ms": 3630.7,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 19,
+   "hits": 0
+  },
+  {
+   "k": 19,
+   "length": 1000,
+   "server_ms": 3662.6,
+   "entries": 2,
+   "mb": 1870.3,
+   "max_mb": 2048.0,
+   "misses": 20,
+   "hits": 0
+  }
+ ]
+}

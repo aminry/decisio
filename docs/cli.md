@@ -97,7 +97,7 @@ Where the columns differ, the value is the base's.
 
 | Flag | Default | What it does |
 | --- | --- | --- |
-| `--prefix-cache-mb` | the base's: 2048 (Qwen), 7400 (`gemma-4-12b`) | the cross-request prefix cache's budget in MiB (2^20 bytes); 0 turns it off |
+| `--prefix-cache-mb` | the base's: 2048 (Qwen and `gemma-4-31b`), 7400 (`gemma-4-12b`) | the cross-request prefix cache's budget in MiB (2^20 bytes); 0 turns it off |
 | `--tokenizer` | `Qwen/Qwen3.6-35B-A3B-FP8` | the tokenizer the prompts are built with, so they are the vLLM path's byte for byte |
 
 ### Verification

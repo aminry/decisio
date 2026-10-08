@@ -1,2 +1,4 @@
 S: acc MLX 0.8064 FP8 0.7993 diff [0.0071, 0.0, 0.015] S1 True; ECE MLX 0.0535 FP8 0.0540 S3 True; flips 42; max |dp| 0.572
 F3: ECE MLX 0.0442 FP8 0.0349 diff +0.0093 pass True; acc 0.9177 vs 0.9221; served vs plain max 1.5e-16
+H banking77: MLX [127, 130, 125] FP8 [125, 130, 125] of 150; mean 0.849 vs 0.844; diff [0.0044, -0.0222, 0.0333] pass True
+H v3_clinc: MLX [97, 97, 97] FP8 [97, 97, 97] of 100; mean 0.970 vs 0.970; diff [0.0, 0.0, 0.0] pass True

@@ -1,0 +1,15 @@
+{
+ "part": "E",
+ "rows": [
+  {
+   "length": 8000,
+   "tokens": 8014,
+   "server_ms": 26709.4,
+   "entries": 1,
+   "mb": 2954.1,
+   "max_mb": 65536.0,
+   "misses": 1,
+   "hits": 0
+  }
+ ]
+}
