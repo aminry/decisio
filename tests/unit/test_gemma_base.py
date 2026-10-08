@@ -167,6 +167,7 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     fam, fmt = sv.resolve_base(a)
     assert fam.key == "gemma-4-12b" and fmt.system_prompt and (a.temperature, a.noul_rendering) == (3.592, "letters")
     # neither flag: the vLLM backend serves the default base (0.10.0: gemma-4-31b); the stand-in must name a checkpoint
+    _fake_31b_repository(tmp_path, monkeypatch)  # no unit test reads the Hub
     assert sv.resolve_base(_args())[0].key == "gemma-4-31b"
     with pytest.raises(ValueError, match="--model or --base"):
         sv.resolve_base(_args(backend="hf"))
