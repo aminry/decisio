@@ -211,7 +211,7 @@ A death is confirmed before it is declared, so that a request which trips a bug 
 - If the probe answers, the engine is alive and the server stays up; the server log says so (`the engine answered a probe in ... ms`).
 - If the probe fails or does not answer in that time, the engine is dead. An in-process engine that has failed hangs rather than answering, so this is how its death shows.
 - A probe still waiting when the engine is declared dead another way (vLLM's flag, another request) stops at once, and its request gets its 503.
-- An error caused by the request (a malformed question, a state longer than the context) is answered with a 4xx and the engine is not probed.
+- An error caused by the request (a malformed question, a state longer than the context: 422, `docs/api.md`) is answered with a 4xx and the engine is not probed.
 
 From the moment the engine is dead:
 - every request, including those already waiting for the engine, is answered at once with 503 and the reason, and the engine is not called again;
