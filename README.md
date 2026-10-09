@@ -12,12 +12,21 @@
 > **Second among open-weights systems on JevBench, level with Jev, and the highest-ranked with frozen weights.**
 > ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), decisio on Gemma 4 31B; [how we read the board](#how-we-read-the-board).)
 
+![How Decisio works: your text and your questions go in, a probability for every answer comes out](docs/launch/decisio_article.png)
+*How it works (illustration; the probabilities are examples, real recorded responses are below).*
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_top12_dark.png">
   <img src="docs/launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for the board's ten highest open-weights systems, with Jev 1.13.0 below as a reference row. H2O-Lightning-4B is first and Decisio on Gemma 4 31B is second, 71.69 against 72.52, with Quyet-1.0-Large third. The intervals of the first three overlap, and Jev's overlaps Decisio's.">
 </picture>
 
-<!-- Advocacy's demo reel goes here once it exists. -->
+## Why Decisio
+
+- **Higher than Jev on what the model knows.** Intelligence axis: 70.4 against Jev 1.13.0's 63.6.
+- **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
+- **No training.** Frozen, official weights: "Nothing was trained."
+- **Long prompts, many options.** Prompts up to 32,768 tokens and 255 options per question.
+- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop; the cost is the card, not a bill per token.
 
 | | Gemma 4 31B (the default) |
 | --- | --- |
