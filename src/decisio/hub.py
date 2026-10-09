@@ -59,15 +59,18 @@ PROFILE_KEYS = ("model_types", "moe", "classes", "prompt", "readout", "temperatu
 # make on load. Its stored format is the one the identity gate keeps (compressed-tensors first, vLLM's own serialized
 # FP8 if that fails; `python -m decisio.hub export --quantization`)
 REPOSITORIES = {
-    "gemma-4-31b": "aminry/decisio-gemma-4-31b",
-    "gemma-4-12b": "aminry/decisio-gemma-4-12b",
-    QWEN: "aminry/decisio-qwen3.6-35b-a3b",
+    "gemma-4-31b": "tachara-ai/decisio-gemma-4-31b",
+    "gemma-4-12b": "tachara-ai/decisio-gemma-4-12b",
+    QWEN: "tachara-ai/decisio-qwen3.6-35b-a3b",
 }
+# the repositories were made under aminry/ for 0.10.0 and moved to tachara-ai/ (Tachara AI Lab) for 0.11.0; the Hub
+# redirects the old names, and a server given one serves the repository under its new name, at the new pin
+RENAMED = {f"aminry/{name.split('/')[1]}": name for name in REPOSITORIES.values()}
 # the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins)
 PINNED_REVISIONS: dict[str, str] = {
-    "aminry/decisio-gemma-4-31b": "7ee1660fa97acf9f443105309da69fea3bcbd217",
-    "aminry/decisio-gemma-4-12b": "a12f99cd93fb38e81bc21fc7f6faa72b34fdbb9c",
-    "aminry/decisio-qwen3.6-35b-a3b": "6b44bc3bcb86025e09c1be02d14b0bc8daaf83cb",
+    "tachara-ai/decisio-gemma-4-31b": "47833608b1e40e23433c9866cc019bc8c1ebe6c7",
+    "tachara-ai/decisio-gemma-4-12b": "7cd0a6db6f93df393b805f85fad87f35be6aff2b",
+    "tachara-ai/decisio-qwen3.6-35b-a3b": "877ad40fc2befba529f5887615364449b019c49b",
 }
 # the bases whose own key is served from a decisio repository rather than from the source's weights, once that
 # repository's revision is pinned: the 31B's FP8 checkpoint saves quantizing Google's bf16 weights at every start
@@ -228,6 +231,7 @@ def open_repository(spec: str, revision: str | None = None) -> Repository:
         name, rev, path = spec, None, Path(spec) / FILE
     else:
         name, _, at = spec.partition("@")
+        name = RENAMED.get(name, name)
         rev = at or revision or PINNED_REVISIONS.get(name)
         if not rev:
             from huggingface_hub import HfApi

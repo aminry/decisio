@@ -215,7 +215,7 @@ With the questions batched (`--multi-question warm`) and the engine in the serve
 ## 7. The Gemma 4 31B base
 
 `--base gemma-4-31b` serves Gemma 4 31B behind the same routes and wire format, and it is what a vLLM server started with no flag serves (the default since 0.10.0).
-It is served from its FP8 repository, `aminry/decisio-gemma-4-31b`, whose card states the check that its tensors equal the ones made by quantizing Google's weights on load; the numbers below were measured with that quantization on load.
+It is served from its FP8 repository, `tachara-ai/decisio-gemma-4-31b`, whose card states the check that its tensors equal the ones made by quantizing Google's weights on load; the numbers below were measured with that quantization on load.
 Every number in this section comes from one session on one card (2026-10-04, `runs/2026-10-04_gemma-4-31b/`), a different session and card from sections 3 and 6, so its comparisons with the other bases are not paired.
 
 ### 7.1 The system measured

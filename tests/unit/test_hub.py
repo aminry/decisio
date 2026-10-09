@@ -205,6 +205,13 @@ def test_r2_a_remote_repository_is_fetched_at_its_revision(tmp_path, monkeypatch
     monkeypatch.setitem(hub.PINNED_REVISIONS, name, "d" * 40)
     assert hub.open_repository(name).revision == "d" * 40  # the release's pin
     assert [f[:2] for f in fetched] == [(name, hub.FILE)] * 5 and fetched[-1][2] == "d" * 40
+    # the names of 0.10.0 (aminry/) are the same repositories: served under the new name, at the new pin
+    old = "aminry/" + name.split("/")[1]
+    assert old in hub.RENAMED and hub.RENAMED[old] == name
+    assert hub.open_repository(old).name == name and hub.open_repository(old).revision == "d" * 40
+    assert (
+        hub.open_repository(f"{old}@abc123").revision == "abc123" and hub.open_repository(f"{old}@abc123").name == name
+    )
 
 
 @pytest.mark.parametrize("base", sorted(BASES))
@@ -260,7 +267,7 @@ def test_s1_refusals(tmp_path):
 
 
 def test_c1_the_command_line(tmp_path, capsys):
-    assert hub.main(["export", "--all", "--out", str(tmp_path), "--decisio-version", "0.10.0"]) == 0
+    assert hub.main(["export", "--all", "--out", str(tmp_path), "--decisio-version", "0.11.0"]) == 0
     for base in BASES:
         assert (tmp_path / f"decision_config.{base}.json").read_text() == (
             HUB / f"decision_config.{base}.json"
@@ -271,7 +278,7 @@ def test_c1_the_command_line(tmp_path, capsys):
     changed["temperatures"]["global"] = 1.0
     Path(good).write_text(json.dumps(changed))
     assert hub.main(["check", good]) == 1 and "temperatures.global" in capsys.readouterr().out
-    assert hub.main(["export", "--base", "gemma-4-12b", "--decisio-version", "0.10.0"]) == 0
+    assert hub.main(["export", "--base", "gemma-4-12b", "--decisio-version", "0.11.0"]) == 0
     assert json.loads(capsys.readouterr().out)["base"] == "gemma-4-12b"
 
 
