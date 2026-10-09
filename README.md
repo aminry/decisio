@@ -9,14 +9,16 @@
 
 **Decisio is an open-source server that answers typed questions about any text, with a calibrated probability for every option, from one forward pass and no generated text.**
 
-> **The best model you can run without training anything: first among frozen-weights systems on JevBench, level with Jev.**
-> {{LF:lead_claim_figures}}
-> <!-- Gate: this sentence is Amin's wording. It stays only if launch_facts.json shows decisio's JevBench row first among the board's frozen-weights systems and level with Jev (overlapping intervals), at the board revision named below. -->
+> **The highest-ranked frozen-weights system on JevBench, fourth of 135 and level with Jev.**
+> Decisio on Gemma 4 31B scores 71.69 on JevBench v1.6.1's headline composite (95% interval 69.86 to 72.81); Jev 1.13.0 scores 71.49 (69.14 to 72.40), so the intervals overlap.
 
-![decisio against the board's frozen-weights systems and Jev on JevBench {{LF:jevbench_revision}}](docs/launch/jevbench_chart.png)
-<!-- {{LF:chart}}: Lab 1's chart, docs/launch/jevbench_chart.png -->
+![decisio, the other frozen-weights systems and Jev on JevBench v1.6.1](docs/launch/jevbench_chart.png)
+<!-- {{LF:chart}}: Lab 1's chart, docs/launch/jevbench_chart.png; it was still to come when this was written -->
 
-{{LF:chart_caption}}
+The numbers are the board's, from its published file ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), row `decisio-gemma-4-31b-v080`).
+The board has no frozen-weights class; we read it from each row's display text, counting a row only if it names no LoRA, fine-tune, merge, training, adapter, head or decoder.
+Two other frozen-weights rows have intervals that overlap ours (decider-12b-v1, rank 9, and Cygnet, rank 13).
+The row is decisio v0.8.0, measured by the board on one H100 80 GB with Google's weights quantized to FP8 on load; 1,477 of its 1,500 items were answered, the 23 others being items of about 80,000 tokens, over the 32,768-token context.
 
 ## Try it in a minute
 
@@ -158,7 +160,7 @@ That is what the probability is for: the middle goes to a person.
 }
 ```
 
-Answering directly (0.96) is the best of five options; the next most likely is a calculation (0.02).
+Answering directly (0.96) is the most likely of five options; the next is a calculation (0.02).
 
 ## Why open and self-hosted
 
@@ -193,7 +195,7 @@ Decisio is a serving layer for decisions: typed questions about a piece of text 
 The base model is yours to choose, and every base is served with the same calibration, task registration, shared state and prefix cache.
 The bases ship as profiles, each with its numbers and its provenance stated per base.
 
-On the Gemma 4 31B base, decisio scores 57.58 on the Decision Index 0.2.1 at a median of 56.0 ms per request, in a self-run of all 150,759 requests that is submitted to the board and pending the maintainers' validation ([results](https://huggingface.co/datasets/aminry/decisio-decision-index), [submission](https://github.com/apolinario/decision-index/pull/62)).
+On the Gemma 4 31B base, decisio scored 57.58 on the Decision Index 0.2.1 at a median of 56.0 ms per request, in a self-run of all 150,759 requests; it is our own run, not a board score, and its per-request records are published ([results](https://huggingface.co/datasets/aminry/decisio-decision-index), [submission](https://github.com/apolinario/decision-index/pull/62)).
 
 | | |
 | --- | --- |
