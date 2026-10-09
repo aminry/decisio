@@ -218,6 +218,23 @@ def read_config(model: str, revision: str | None = None) -> dict:
         return {}
 
 
+def declares_fp8(config: dict) -> bool:
+    """Whether a checkpoint's config.json declares FP8 weights: a `quantization_config` (at the top or in `text_config`)
+    whose method is an FP8 one, or compressed-tensors with an 8-bit float scheme. An MLX conversion declares its own
+    `quantization` (bits, group size) instead."""
+    for c in (config, config.get("text_config") or {}):
+        q = c.get("quantization_config") or {}
+        method = str(q.get("quant_method", "")).lower()
+        if "fp8" in method:
+            return True
+        if method == "compressed-tensors":
+            for group in (q.get("config_groups") or {}).values():
+                w = group.get("weights") or {}
+                if w.get("type") == "float" and w.get("num_bits") == 8:
+                    return True
+    return False
+
+
 def family_of(model: str | None, revision: str | None = None) -> Family:
     """The base a checkpoint (a local directory or a hub id) belongs to; Qwen for anything unknown. DECISIO_BASE, when
     set to a base's key, overrides the detection (tokenizer-only tests)."""

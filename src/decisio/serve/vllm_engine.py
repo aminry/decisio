@@ -1077,7 +1077,7 @@ def resolve_base(args):
     own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
     from decisio import hub
-    from decisio.families import BASES, DEFAULT_BASE, FAMILIES, family_of, pinned_revision, read_config
+    from decisio.families import BASES, DEFAULT_BASE, FAMILIES, declares_fp8, family_of, pinned_revision, read_config
 
     repo = None
     if args.base is not None and args.base not in BASES:
@@ -1121,6 +1121,12 @@ def resolve_base(args):
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision)
+    if args.backend == "mlx" and repo is None and declares_fp8(read_config(args.model, args.revision)):
+        # a repository was checked by its decision_config.json above; any other checkpoint, by its own config.json
+        raise ValueError(
+            f"--backend mlx cannot load {args.model}: its config.json declares FP8 quantization, vLLM's format; "
+            f"give --model an MLX conversion of {fam.key} (docs/running.md)"
+        )
     args.repository = None
     if repo is not None:
         hub.verify(repo, fam)

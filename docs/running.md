@@ -132,6 +132,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
 - It refuses the image route, packed mode, LoRA adapters and the second-engine head.
+- It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `aminry/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
 
 The Qwen base:
 - The 6-bit conversion is the Mac default; the 8-bit one is not shipped.
