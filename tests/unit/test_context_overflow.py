@@ -59,24 +59,38 @@ def over_context(n):  # vllm/renderers/params.py, the token check
     )
 
 
-def engine_for(base, raises=None):
-    from decisio.serve.hf_letters import HFLettersEngine
+class Limited:
+    """The CPU stand-in with a context limit, as vLLM's renderer enforces it. One engine serves the whole file: a
+    stand-in holds a 0.6B model in float32 (2.4 GB), and one per test took 14 GB of the CI runner's 16 and got the
+    job cancelled."""
 
-    class Limited(HFLettersEngine):
-        armed = False  # after the start-up warm-up
+    engine = None
 
-        def score_prompts(self, rows, *args, **kwargs):
-            for ids, _ in rows:
-                if self.armed and raises is not None:
-                    raise raises
-                if len(ids) > LIMIT:
-                    raise over_context(len(ids))
-            return super().score_prompts(rows, *args, **kwargs)
+    @classmethod
+    def get(cls):
+        if cls.engine is None:
+            from decisio.serve.hf_letters import HFLettersEngine
 
-    eng = Limited(MODEL, pad_to=None)
-    eng.family = BASES[base]
-    eng.armed = True
-    return eng
+            class Engine(HFLettersEngine):
+                armed, raises = False, None  # armed after the start-up warm-up
+
+                def score_prompts(self, rows, *args, **kwargs):
+                    for ids, _ in rows:
+                        if self.armed and self.raises is not None:
+                            raise self.raises
+                        if len(ids) > LIMIT:
+                            raise over_context(len(ids))
+                    return super().score_prompts(rows, *args, **kwargs)
+
+            cls.engine = Engine(MODEL, pad_to=None)
+            cls.engine.armed = True
+        return cls.engine
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _release_the_engine():
+    yield
+    Limited.engine = None
 
 
 def served(base, raises=None):
@@ -86,7 +100,8 @@ def served(base, raises=None):
     from decisio.serve.tasks import TaskStore
     from decisio.serve.vllm_engine import make_app
 
-    eng = engine_for(base, raises)
+    eng = Limited.get()
+    eng.family, eng.raises = BASES[base], raises
     so = SystemOne(eng, BASES[base].served_name, task_store=TaskStore("fp"))
     return TestClient(make_app(eng, so), raise_server_exceptions=False), eng, so
 
