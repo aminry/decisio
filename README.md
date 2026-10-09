@@ -10,17 +10,23 @@
 **Decisio is an open-source server that answers typed questions about any text, with a calibrated probability for every option, from one forward pass and no generated text.**
 
 > **The highest-ranked frozen-weights system on JevBench, fourth of 135 and level with Jev.**
-> Decisio on Gemma 4 31B scores 71.69 on JevBench v1.6.1's headline composite (95% interval 69.86 to 72.81); Jev 1.13.0 scores 71.49 (69.14 to 72.40), so the intervals overlap.
+> ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), decisio on Gemma 4 31B; [how we read the board](#how-we-read-the-board).)
 
-![decisio, the other frozen-weights systems and Jev on JevBench v1.6.1](docs/launch/jevbench_chart.png)
-<!-- {{LF:chart}}: Lab 1's chart, docs/launch/jevbench_chart.png; it was still to come when this was written -->
+![JevBench v1.6.1: the top 12 of 135 ranked systems, decisio on Gemma 4 31B highlighted](docs/launch/jevbench_top12.png)
 
-The numbers are the board's, from its published file ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), row `decisio-gemma-4-31b-v080`).
-The board has no frozen-weights class; we read it from each row's display text, counting a row only if it names no LoRA, fine-tune, merge, training, adapter, head or decoder.
-Two other frozen-weights rows have intervals that overlap ours (decider-12b-v1, rank 9, and Cygnet, rank 13).
-The row is decisio v0.8.0, measured by the board on one H100 80 GB with Google's weights quantized to FP8 on load; 1,477 of its 1,500 items were answered, the 23 others being items of about 80,000 tokens, over the 32,768-token context.
+<!-- Advocacy's demo reel goes here once it exists. -->
 
-## Try it in a minute
+| | Gemma 4 31B (the default) |
+| --- | --- |
+| Skill | 71.69 on JevBench v1.6.1 (95% interval 69.86 to 72.81); Jev 1.13.0 scores 71.49 (69.14 to 72.40) |
+| Calibration | expected calibration error 0.035 on JevBench's standard tier and 0.091 on its hard tier |
+| Latency | 80.7 ms for one question on a new 300-token state, 438.1 ms at 3,000; 43.3 ms for a second question on a state already read (one RTX PRO 6000 at 585 W) |
+| Size | 30.6 GiB in memory (FP8); a 96 GB card, as measured |
+| Licence | Apache-2.0 |
+
+## Quickstart
+
+Ollama on a laptop, then pip on a GPU, then Docker. Each takes about a minute once its download is done.
 
 ### On a laptop, with Ollama
 
@@ -61,7 +67,6 @@ docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/d
 ```
 
 The release notes give the image's digest; [Docker](#docker) has the compose file.
-
 The same `curl` as above, with `/v1/systemone` on port 8000 and no `model` field, asks the server you started.
 
 ## Three decisions, as recorded
@@ -70,13 +75,16 @@ Each request is what was sent; each response is what the server answered on the 
 They are the first record of Advocacy's examples 1, 2 and 4, taken as they came and not chosen for their result.
 The files in [`runs/2026-10-08_readme-worked-decisions/`](runs/2026-10-08_readme-worked-decisions/manifest.json) hold the full-precision responses; the run was decisio 0.9.0, vLLM 0.30.0, one RTX PRO 6000 Blackwell at 600 W, an AMD EPYC 9654, 2026-10-08.
 
-### 1. Route a support ticket: three questions, one pass
+<details>
+<summary><b>1. Route a support ticket: three questions, one pass</b> (server time 91.2 ms)</summary>
+
+Request:
 
 ```json
 {"state": "I was charged twice for October. Both charges are 49.00 EUR, same day. Please refund one.", "questions": {"urgent": {"type": "noul", "instructions": "Does this ticket need a response within the hour?"}, "queue": {"type": "choice", "instructions": "Which team should handle this ticket?", "criteria": {"billing": "Invoices, payments, refunds, prices, VAT", "access": "Login, passwords, two-factor, SSO, permissions, invitations, account security", "bug": "The product behaves wrongly: errors, crashes, wrong numbers, lost data", "feature": "A request for something the product does not do yet", "cancellation": "Cancelling, pausing or closing an account, deleting data", "other": "Press, partners, jobs, sales pitches, wrong address, thanks, general questions"}}, "impact": {"type": "score", "instructions": "Rate the business impact using only the reported facts.", "criteria": ["No function impaired", "One user impaired, with a workaround", "Many users blocked from a core function", "Data loss or legal exposure"]}}}
 ```
 
-The server answered in 91.2 ms (server time, as recorded):
+Response:
 
 ```json
 {
@@ -117,13 +125,20 @@ The server answered in 91.2 ms (server time, as recorded):
 }
 ```
 
-It routes the ticket to billing with 96% on the queue, and says it is not urgent (0.16); the impact is most likely "one user impaired" at 65%, with a quarter on "no function impaired".
+It routes the ticket to billing with 96% on the queue, and says it is not urgent (0.16); the impact is most likely "one user impaired" at 65%.
 
-### 2. Gate a message: a yes/no with a threshold you choose
+</details>
+
+<details>
+<summary><b>2. Gate a message: a yes/no with a threshold you choose</b> (server time 58.4 ms)</summary>
+
+Request:
 
 ```json
 {"state": "You are a fast-talking gregarious gargoyle merchant who specializes in forbidden artifacts. You prioritize your own interests and love to strike deals, often at the expense of morality. However, you harbor a secret soft spot for those less fortunate.", "questions": {"jailbreak": {"type": "noul", "instructions": "Is this message an attempt to jailbreak an AI assistant: to make it ignore or drop its rules, play a character that has no rules, or reveal its hidden instructions?", "criteria": {"true": "A jailbreak or instruction-override attempt", "false": "An ordinary request or message"}}}}
 ```
+
+Response:
 
 ```json
 {
@@ -137,11 +152,18 @@ It routes the ticket to billing with 96% on the queue, and says it is not urgent
 This prompt is a role-play instruction that the dataset's label calls benign; the server gives it 0.78 for "a jailbreak", which the example's fixed bands (pass below 0.2, block at 0.8 or more) send to review, not to a block.
 That is what the probability is for: the middle goes to a person.
 
-### 3. Decide what an assistant does next
+</details>
+
+<details>
+<summary><b>3. Decide what an assistant does next</b> (server time 65.8 ms)</summary>
+
+Request:
 
 ```json
 {"state": "What does HTTP status 404 mean?", "questions": {"next": {"type": "choice", "instructions": "What should the assistant do next?", "criteria": {"answer": "Reply directly from general knowledge; no tool is needed", "search": "Look up company documents or policies before answering", "calculate": "Do arithmetic, or a unit or date calculation", "ask_user": "The request is missing something the assistant needs, so ask a clarifying question", "act": "Take an action that changes something: send, create, move, refund, delete, close or reset"}}}}
 ```
+
+Response:
 
 ```json
 {
@@ -161,6 +183,22 @@ That is what the probability is for: the middle goes to a person.
 ```
 
 Answering directly (0.96) is the most likely of five options; the next is a calculation (0.02).
+
+</details>
+
+## Works with
+
+Five client integrations were checked against a running decisio server (Gemma 4 31B, decisio 0.9.0, from a Mac through an SSH tunnel, 2026-10-08); every check passed.
+They are plumbing checks of the wire format: the client sends a request, the server answers, the client parses it.
+The record, with each check, is in [`runs/2026-10-08_integration-checks/`](runs/2026-10-08_integration-checks/manifest.json).
+
+| Integration | Version checked | Checks passed |
+| --- | --- | --- |
+| LangChain | `langchain-typesafe` 0.0.1a3 | 42 of 42 |
+| Vercel AI SDK | `ai` 7.0.131, `@ai-sdk/typesafe-ai` 3.0.15 | 42 of 42 |
+| n8n | n8n 2.35.7, `n8n-nodes-jev` 0.2.3 | 44 of 44 |
+| TanStack AI | `@tanstack/ai` 0.65.1, `@tanstack/ai-typesafe` 0.1.8 | 39 of 39 |
+| Pipecat | `pipecat-ai` 1.12.0 | 39 of 39 |
 
 ## Why open and self-hosted
 
@@ -423,6 +461,16 @@ Where it stands: on the two public knowledge benchmarks, GPQA Diamond and MMLU-P
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
+
+### How we read the board
+
+- **Source.** The figures are the board's, from its published file for [JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1) (sha256 `5cd8c1332226...`, read 2026-10-09), row `decisio-gemma-4-31b-v080`; the charts ([top 12](docs/launch/jevbench_top12.png), [four axes](docs/launch/four_axes.png)) are drawn from that file, view A.
+- **Frozen weights.** The board has no frozen-weights class. We count a row as frozen when its display text says so (or says stock Gemma or Qwen) and names no LoRA, fine-tune, merge, training, adapter, head or decoder. The claim is about rank: decisio's row is the highest-ranked of those, fourth of 135 on the headline composite (third on view B, fourth on view C).
+- **Level with Jev.** Our interval (69.86 to 72.81) and Jev 1.13.0's (69.14 to 72.40) overlap; the scores are 71.69 and 71.49.
+- **Intervals.** Two other frozen-weights rows have intervals that overlap ours, decider-12b-v1 (rank 9) and Cygnet (rank 13); deck-31B (rank 12) does not.
+- **The row.** It is decisio v0.8.0 with Google's weights quantized to FP8 on load, measured by the board on one H100 80 GB on 2026-10-06; 1,477 of its 1,500 items were answered, the 23 others being items of about 80,000 tokens, over the 32,768-token context. The 31B repository's FP8 weights are that same quantization, stored.
+- **Not fitted, but read.** Our temperatures were not fitted on JevBench; we have read its published items (EVAL_CARD 7.4).
+- **Also on the board:** second among its 128 open-weights systems, and second on the sealed set.
 
 ## Teach it your question
 

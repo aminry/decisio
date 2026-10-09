@@ -1,0 +1,55 @@
+{
+ "what": "The five integration checks of Advocacy's examples repository run against a decisio server on the Gemma 4 31B base, from a Mac through an SSH tunnel (Lab 2's gate session, session A).",
+ "date": "2026-10-08",
+ "server": "decisio 0.9.0 at bc74193, vLLM 0.30.0, one RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654",
+ "results": {
+  "ai-sdk": {
+   "versions": {
+    "ai": "7.0.131",
+    "@ai-sdk/typesafe-ai": "3.0.15"
+   },
+   "passed": 42,
+   "checks": 42
+  },
+  "langchain": {
+   "versions": {
+    "langchain-typesafe": "0.0.1a3"
+   },
+   "passed": 42,
+   "checks": 42
+  },
+  "n8n": {
+   "versions": {
+    "n8n": "2.35.7",
+    "n8n-nodes-jev": "0.2.3",
+    "n8n-workflow": "2.35.3"
+   },
+   "passed": 44,
+   "checks": 44
+  },
+  "pipecat": {
+   "versions": {
+    "pipecat-ai": "1.12.0"
+   },
+   "passed": 39,
+   "checks": 39
+  },
+  "tanstack": {
+   "versions": {
+    "@tanstack/ai": "0.65.1",
+    "@tanstack/ai-typesafe": "0.1.8"
+   },
+   "passed": 39,
+   "checks": 39
+  }
+ },
+ "files": {
+  "ai-sdk_results.json": "9a691e83734fd4d34411ac5e66528a0ee33398bed4026f4272a90bfd7ea73e7a",
+  "health_through_tunnel.json": "84de3739e2184636816a937240f3ca7bc80e2ac10e0eaf0dc9df37054b317a22",
+  "langchain_results.json": "4a83883df5f7fb50301f4e7bedf7eedbc9428b2af966eac655117f42f677f51b",
+  "n8n_results.json": "c22d76b22bd142b4c270b60636e8450fc1961c539abeda28b2cbe57a53211f39",
+  "pipecat_results.json": "1d882deb0cd34f152f1c035f5a599053398f7e84cc7368a7a5f0a6a9f333f0f0",
+  "run_all.out": "0922e8e4779be1b3cb8325c61f9474000c5b32c592ee6a7d084bcf2955c216c1",
+  "tanstack_results.json": "500fd8070d261b06e5d0b43f7c1553d5a1a0dc73487c658d5960d91052ed20e2"
+ }
+}

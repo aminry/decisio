@@ -1,0 +1,795 @@
+{
+  "integration": "langchain",
+  "versions": {
+    "langchain-typesafe": "0.0.1a3"
+  },
+  "date": "2026-10-08",
+  "client_python": "3.12.13",
+  "client_host": "macOS-26.6.2-arm64-arm-64bit",
+  "decisio_url_given": "http://127.0.0.1:18090",
+  "server_health": {
+    "ok": true,
+    "engine": null,
+    "model": null,
+    "base": "gemma-4-31b"
+  },
+  "checks": [
+    {
+      "id": "pinned version installed",
+      "passed": true,
+      "detail": "0.0.1a3"
+    },
+    {
+      "id": "default timeout is 30 s",
+      "passed": true,
+      "detail": "timeout=30.0"
+    },
+    {
+      "id": "noul: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "noul: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "noul: parsed type",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "noul: probability identical to raw",
+      "passed": true,
+      "detail": "0.9950546016807681"
+    },
+    {
+      "id": "noul: model echoed",
+      "passed": true,
+      "detail": "jev-latest"
+    },
+    {
+      "id": "noul: usage parsed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "choice: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: parsed type",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: label identical to raw",
+      "passed": true,
+      "detail": "technical"
+    },
+    {
+      "id": "choice: probabilities identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: confidence identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: model echoed",
+      "passed": true,
+      "detail": "jev-latest"
+    },
+    {
+      "id": "choice: usage parsed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "score: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: parsed type",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: value identical to raw",
+      "passed": true,
+      "detail": "1.5583267062451711"
+    },
+    {
+      "id": "score: probabilities identical to raw (int keys vs string keys)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: legend identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: confidence identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: model echoed",
+      "passed": true,
+      "detail": "jev-latest"
+    },
+    {
+      "id": "score: usage parsed",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "combined: status 200 and three answers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "combined: all three identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "ainvoke: same path, identical probability",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "messages: sent as role/content list and accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "env TYPESAFE_BASE_URL is honoured",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "trailing slash on base_url is stripped",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "no API key: ValueError at construction, before any request",
+      "passed": true,
+      "detail": "ValueError: 1 validation error for TypeSafeClassifier\napi_key\n  Value error, TypeSafe API key is required. Pass `api_key` or set `TYPESAFE_API_KEY`. [type=value_error, input_value=SecretStr(''), input_type=SecretStr]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error"
+    },
+    {
+      "id": "422 (empty questions): raised",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "422: typed TypeSafeUnprocessableEntityError",
+      "passed": true,
+      "detail": "TypeSafeUnprocessableEntityError"
+    },
+    {
+      "id": "422: status attribute",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "422: Decisio's detail is on .body",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "422: str() does not carry the server's detail",
+      "passed": true,
+      "detail": "POST http://127.0.0.1:56072/v1/systemone: 422 Unprocessable Entity"
+    },
+    {
+      "id": "422 (choice without criteria): raised as TypeSafeAPIError",
+      "passed": true,
+      "detail": "TypeSafeUnprocessableEntityError"
+    },
+    {
+      "id": "emulated answered: request still parses",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated answered: unknown_probability and abstained are dropped",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated abstained: request still parses",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated abstained: unknown_probability and abstained are dropped",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "observations": {
+    "default_timeout_s": 30.0,
+    "client_timeout": "Timeout(timeout=30.0)",
+    "default_model": "jev-latest",
+    "request_body_fields": [
+      "model",
+      "questions",
+      "state"
+    ],
+    "model_sent": "jev-latest",
+    "request_headers_sent": {
+      "accept": "*/*",
+      "accept-encoding": "gzip, deflate",
+      "connection": "keep-alive",
+      "authorization": "Bearer <redacted, 31 chars>",
+      "content-type": "application/json",
+      "user-agent": "langchain-typesafe/0.0.1a3",
+      "content-length": "338"
+    },
+    "auth_header": "Authorization: Bearer <key> (also User-Agent langchain-typesafe/<version>)",
+    "noul_criteria_sent": {
+      "true": "The customer needs help right now.",
+      "false": "The message can wait."
+    },
+    "messages_state_sent": [
+      {
+        "role": "user",
+        "content": "Stripe has failed to connect for three days."
+      },
+      {
+        "role": "assistant",
+        "content": "Looking."
+      }
+    ],
+    "no_api_key": "ValueError: 1 validation error for TypeSafeClassifier\napi_key\n  Value error, TypeSafe API key is required. Pass `api_key` or set `TYPESAFE_API_KEY`. [type=value_error, input_value=SecretStr(''), input_type=SecretStr]\n    For further information visit https://errors.pydantic.dev/2.13/v/value_error",
+    "client_side_validation": {
+      "choice with empty criteria": "rejected before any request: ValidationError",
+      "score with one level": "rejected before any request: ValidationError"
+    },
+    "422_str": "POST http://127.0.0.1:56072/v1/systemone: 422 Unprocessable Entity",
+    "choice_without_criteria_sent": {
+      "department": {
+        "type": "choice",
+        "instructions": "Which team?"
+      }
+    },
+    "raw_answer_fields": [
+      "choice",
+      "confidence",
+      "legend",
+      "probabilities",
+      "score",
+      "type"
+    ],
+    "answer_fields_parsed": {
+      "noul": [
+        "noul",
+        "type"
+      ],
+      "choice": [
+        "choice",
+        "confidence",
+        "probabilities",
+        "type"
+      ],
+      "score": [
+        "confidence",
+        "legend",
+        "probabilities",
+        "score",
+        "type"
+      ]
+    },
+    "usage_parsed": {
+      "input_tokens": 70,
+      "output_tokens": 1
+    },
+    "request_id": null,
+    "model_note": "Decisio echoes the request's `model` (jev-latest by default) as the response model."
+  },
+  "findings": [
+    "The classifier refuses to be built without an API key (api_key or TYPESAFE_API_KEY) even though Decisio ignores keys: a self-hosted setup still has to pass a dummy key.",
+    "The classes validate before sending: a Choice with no criteria and a Score with one level raise a pydantic ValidationError in the client and never reach the server, so the 422 check below uses a request the classes do not validate (an empty questions mapping, and a Choice built with model_construct).",
+    "Decisio's `unknown_probability` and `abstained` (documented for --abstain-option) are silently dropped by the answer models: a caller using this package cannot tell that the server abstained. They are emulated here (the stand-in has no abstain option): the proxy adds them to a real answer.",
+    "x-decisio-* response headers (server time, tasks, stages) are not surfaced; request_id is None because the package reads x-typesafe-request-id, which Decisio does not send."
+  ],
+  "requests": [
+    {
+      "label": "noul alone (base_url argument)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.9950546016807681
+          }
+        },
+        "usage": {
+          "input_tokens": 64,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice alone (base_url argument)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            },
+            "instructions": "Which team should handle this request?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "score alone (base_url argument)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "frustration": {
+            "type": "score",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ],
+            "instructions": "How frustrated does the customer appear?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 63,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "noul + choice + score in one request",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          },
+          "department": {
+            "type": "choice",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            },
+            "instructions": "Which team should handle this request?"
+          },
+          "frustration": {
+            "type": "score",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ],
+            "instructions": "How frustrated does the customer appear?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.9950546016807681
+          },
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 155,
+          "output_tokens": 3
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "LangChain messages as state",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": [
+          {
+            "role": "user",
+            "content": "Stripe has failed to connect for three days."
+          },
+          {
+            "role": "assistant",
+            "content": "Looking."
+          }
+        ],
+        "model": "jev-latest",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.988429835636892
+          }
+        },
+        "usage": {
+          "input_tokens": 78,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "empty questions (server 422)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {}
+      },
+      "status": 422,
+      "response": {
+        "detail": [
+          {
+            "type": "too_short",
+            "msg": "Dictionary should have at least 1 item after validation, not 0",
+            "input": {},
+            "ctx": {
+              "field_type": "Dictionary",
+              "min_length": 1,
+              "actual_length": 0
+            },
+            "loc": [
+              "body",
+              "questions"
+            ]
+          }
+        ]
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice without criteria via model_construct (server 422)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team?"
+          }
+        }
+      },
+      "status": 422,
+      "response": {
+        "detail": [
+          {
+            "type": "missing",
+            "msg": "Field required",
+            "input": {
+              "type": "choice",
+              "instructions": "Which team?"
+            },
+            "loc": [
+              "body",
+              "questions",
+              "department",
+              "choice",
+              "criteria"
+            ]
+          }
+        ]
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice with emulated abstention fields (answered)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            },
+            "instructions": "Which team should handle this request?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.0123,
+            "abstained": false
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": "answered"
+    },
+    {
+      "label": "choice with emulated abstention fields (abstained)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "langchain-typesafe/0.0.1a3"
+      },
+      "body": {
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "model": "jev-latest",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            },
+            "instructions": "Which team should handle this request?"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.0123,
+            "abstained": true
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": "abstained"
+    }
+  ],
+  "summary": {
+    "passed": 42,
+    "failed": 0,
+    "result": "pass"
+  }
+}
