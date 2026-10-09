@@ -232,7 +232,7 @@ Every number in this section comes from one session on one card (2026-10-04, `ru
 | Hardware | One NVIDIA RTX PRO 6000 Blackwell (96 GB); the FP8 weights take 30.61 GiB, leaving 48.6 GiB for the KV cache at vLLM's 0.90 share (57,882 tokens) |
 | `/health` | The `profile` block, with `quantization_on_load` "fp8"; `cache_hit_unit` 32 and `hash_unit` 16 |
 
-The capabilities of section 2 apply; the image route was not measured with this base, and it is not served on a Mac (`--backend mlx` refuses it).
+The capabilities of section 2 apply; the image route was not measured with this base, and `--backend mlx` refuses it (the 31B's text route runs on a 64 GB Mac from its 6-bit MLX conversion for states up to 16,383 tokens, a different engine with its own gates: `docs/running.md`, `runs/2026-10-07_mlx-gemma-31b/`).
 
 ### 7.2 Numbers
 
@@ -297,7 +297,7 @@ The disclosures of section 4 hold here too, with two more: the go rule this base
   On 2026-10-06 the served FP8 profile at v0.8.0, with identical prompts and profile, did not reproduce this section's record: over 1,631 suite and JevBench items every readout differed (median |dp| per task 1e-9 to 3e-6), and near-tied items moved by up to 0.98, changing 28 top answers (1.7%).
   The engine arrangement (in the server's process, 0.8.0's default) and the driver (590.48.01, against the record's 610.43.02) differed; section 8's run of 2026-10-05, at v0.6.0 with the engine in its own process and the record's driver, had reproduced its four Decision Index values exactly.
   A comparison of this base with an earlier record must therefore be paired in the same session (Track 7's stage C, recorded in the private RLCD repository at `experiments/2026-10-05_t7_nvfp4_stage_c/RESULTS.md`).
-- Not served on a Mac; the image route was not measured.
+- The figures in this section are the vLLM FP8 path's; the MLX path is another engine, gated against them (`runs/2026-10-07_mlx-gemma-31b/`) and documented for states up to 16,383 tokens; the image route was not measured and is not served on a Mac.
 - An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the board-style calibration estimate fell 27.0%, where the rule required a third; the temperatures of 7.4 stay as served (the private RLCD repository, `experiments/2026-10-07_lab1_option_count_temperature/RESULTS.md`).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 

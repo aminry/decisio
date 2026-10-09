@@ -87,7 +87,7 @@ Gated at 6 bits against the FP8 records with the backend's full gate set, under 
 
 ## The cross-request prefix cache
 
-The evaluated cache of each state prefix is kept across requests (`PrefixCache`): least recently used first out, `--prefix-cache-mb` in MiB, the base's default (2,048 for the Qwen base, 7,400 for Gemma 4 12B), 0 is off.
+The evaluated cache of each state prefix is kept across requests (`PrefixCache`): least recently used first out, `--prefix-cache-mb` in MiB, the base's default (2,048 for the Qwen base and Gemma 4 31B, 7,400 for Gemma 4 12B), 0 is off.
 
 **Exact by construction:**
 - an entry is returned only for exactly the token ids it was computed for (compared in full, not by hash alone);
@@ -184,3 +184,32 @@ The engine serves the Gemma base from an MLX conversion of `google/gemma-4-12B-i
 
 The base and its settings (the system turn, the template's answer slot, summed label forms, the temperature, the yes/no rendering) come from `decisio.families`, as on vLLM.
 The 6-bit conversion is the default; the 4-bit one fails the suite-accuracy gate, and the 8-bit one adds nothing over 6-bit on the suite.
+
+## The Gemma 31B base
+
+The engine serves `--base gemma-4-31b` from `mlx-community/gemma-4-31b-it-6bit` (`7d13b58`) with no change to the Gemma 12B's additions (the sliding-window cache, the softcap, the base's tokenizer); mlx-lm 0.32.0 already implements this model's attention.
+- **Layers:** 50 of the 60 layers are sliding-window (1,024-token ring buffers) and 10 are full attention with keys equal to values and 4 KV heads of 512; the hidden size is 5,376. The mlx_model tests check the layer counts and the head's hidden size (`tests/mlx/test_gemma_conversions.py`).
+- **Tokenizer:** the 31B's `tokenizer.json` is the 12B's file (the same sha256), built at the base's pin `google/gemma-4-31B-it@842da37`, not the conversion's.
+- **Multi-question mode:** the base's vLLM default is `warm`; the MLX engine continues every question from a copy of the shared prefix, so `--multi-question` resolves to `sequential` on MLX and an explicit `warm` or `batch` is refused there.
+- **Prefix cache:** it keeps the default budget (`mlx_prefix_cache_mb` 2,048 MiB). Its entries are large (935 MiB at 1,000 tokens, 1,869 at 3,000, 2,954 at 8,000, 4,386 at 32,000), so the default keeps two 1,000-token states or one 3,000-token state and never stores a state of 8,000 tokens or more; a budget for the 31B is not set (`runs/2026-10-07_mlx-gemma-31b/`).
+
+Gated on the Mac against the base's vLLM FP8 record (`runs/2026-10-04_gemma-4-31b`), pre-registered with four dated amendments; the record is `runs/2026-10-07_mlx-gemma-31b` (Apple M5 Pro, 64 GB):
+
+| Gate | MLX 6-bit | FP8 | Verdict |
+| --- | --- | --- | --- |
+| Suite accuracy (1,400) | 0.8064 | 0.7993 | pass: +0.7 [0.0, +1.5] points |
+| Top-answer flips | 42 of 1,400 (largest probability difference 0.572) | | counted |
+| Pooled ECE (gate: within 0.01) | 0.0535 | 0.0540 | pass |
+| JevBench 231, ECE at the served temperatures (reported) | 0.0442 | 0.0349 | +0.0093 |
+| Conformance C2 to C4 | pass; 0 of 1,400 prompts differ; largest and mean probability difference 0.0 | | pass |
+| Intent heads, three draws, BANKING77 / CLINC150 | 0.849 / 0.970 | 0.844 / 0.970 | pass / pass (+0.4 [-2.2, +3.3], 0.0 [0.0, 0.0] points) |
+
+**Memory, per length.** A length fits if its cells completed, every peak was at most 90% of the Mac's GPU memory limit (55.7 GB here), and macOS memory pressure (`kern.memorystatus_vm_pressure_level`) stayed normal in every sample from before the model loaded through the length's last cell. Swap growth is recorded, not gated, because it measures the other applications on the Mac. The build is documented for states up to the longest fitting length. GB are 1e9 bytes.
+
+| State tokens | Peak | GPU limit free | Reading a (quiet): samples not normal in the cells; swap growth, 1 and 10 questions | Reading b (working-day): samples not normal; swap growth | Verdict |
+| ---: | ---: | ---: | --- | --- | --- |
+| 8,056 | 29.6 GB | 46.8% | 0 of 13; 0, -8 MB | 0 of 12; 0, 0 MB | fits |
+| 16,383 | 31.1 GB | 44.2% | 0 of 25; -8, -48 MB | 0 of 25; 0, 0 MB | fits |
+| 32,687 | 33.7 GB | 39.4% | 1 of 54 (warning level); +78, -8 MB | 9 of 61 (warning level, none critical); +3,688, +1,905 MB | runs, with memory pressure |
+
+The weights take 24.9 GB. Reading a is the quiet reading, taken at night with nothing else large running (the eight largest resident processes at its start and end are in the record); it governs the verdict. Reading b, the pre-registered working-day reading, was taken after the head draws with the Mac's usual desktop applications open (the largest resident process was 0.5 GB); it is recorded and not gated. Both readings are of a cache that was empty: at the default budget no entry of 8,000 tokens or more is stored.

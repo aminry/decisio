@@ -27,7 +27,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | The image with `DECISIO_MODEL` set | Nothing: a checkpoint alone names its own base, so the container serves what it served | Nothing |
 | A derived image that relied on `ENV DECISIO_MODEL` coming from this image | It no longer comes from it, so the default base is served | Set `DECISIO_MODEL` or `DECISIO_BASE` in your image |
 | `uv run python -m decisio.serve.vllm_engine --base ...` or `--model ...` | Nothing | Nothing |
-| A Mac with `--backend mlx`, or Ollama | Nothing: they always named a base or a conversion, and the 31B has no Mac build | Nothing |
+| A Mac with `--backend mlx`, or Ollama | Nothing: they always named a base or a conversion (`--backend mlx` needs `--model`), so the default base changes nothing for them | Nothing |
 | A client that reads the served name from `GET /v1/models`, or matches `decisio-qwen3.6-35b-a3b-letters` | A server on the default base lists `decisio-gemma-4-31b-it-letters` | Read the name from `/v1/models`, or start the server with `--served-name` |
 | Registered tasks (`POST /v1/tasks`, or a `--tasks-file`) fitted on the Qwen base | A server on another base does not apply them: it prints `WARNING: tasks fitted under another model or rendering are not applied` at start, and `POST /v1/tasks/import` refuses them | Register them again from their examples (`docs/tasks.md`), or keep serving the Qwen base |
 
@@ -37,7 +37,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - The probabilities are another model's, calibrated with its own temperatures and prompt (`docs/cli.md`), so some choices differ from the Qwen base's.
   `EVAL_CARD.md` section 7 has the 31B's measurements and section 3 the Qwen base's; the README's "Choosing a base" says when each is the better choice.
 - It reads a new state more slowly: 1.6, 3.2 and 5.1 times the Qwen base's time at 300, 1,000 and 3,000 tokens (80.7, 160.1 and 438.1 ms against 49.9, 50.0 and 85.2, one card at 585 W; `runs/2026-10-06_latency-585w/`).
-- It needs a 96 GB card on vLLM and has no Mac build.
+- It needs a 96 GB card on vLLM; on a Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens (`docs/running.md`).
 - Its probabilities repeat exactly within a session, not across sessions: near-tied answers moved between two sessions in our measurements (`EVAL_CARD.md` 7.5).
 
 ### Keeping the previous behaviour

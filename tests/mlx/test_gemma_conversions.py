@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The MLX engine on Gemma 4 12B: the mlx-community 4-bit and 6-bit conversions, loaded from the local Hugging Face
-cache at pinned revisions (skipped where they are not there; nothing is downloaded). What Gemma adds to the engine:
+"""The MLX engine on the Gemma 4 bases: the mlx-community 4-bit and 6-bit conversions of the 12B and the 6-bit one of
+the 31B, loaded from the local Hugging Face cache at pinned revisions (skipped where they are not there; nothing is
+downloaded). What Gemma adds to the engine:
 
-  - the family's official tokenizer (google/gemma-4-12B-it at 707f0a3b), not the conversion's;
-  - the sliding-window layers' cache (40 of 48 layers, a 1,024-token window), copied for every question;
+  - the base's official tokenizer (google/gemma-4-12B-it at 707f0a3b, google/gemma-4-31B-it at 842da37), not the
+    conversion's;
+  - the sliding-window layers' cache (12B: 40 of 48 layers; 31B: 50 of 60; a 1,024-token window), copied for every
+    question;
   - the final-logit softcap (30) on the label logits, and so on the intent head's base readout.
 
-The prompts are the Gemma base's served rows (decisio.families.GEMMA4: the system turn, the spaced layout, the
-template's answer slot, every single-token form of a label summed).
+The prompts are each base's served rows (decisio.families: the system turn, the spaced layout, the template's answer
+slot, every single-token form of a label summed).
 
     uv run pytest -q -m mlx_model tests/mlx/test_gemma_conversions.py
 """
@@ -23,9 +26,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "unit"))
 
 pytestmark = pytest.mark.mlx_model
 
+# (base, bits): the conversion at its pin, the sliding and full attention layer counts, the hidden size
 CONVERSIONS = {
-    4: ("mlx-community/gemma-4-12B-it-4bit", "73bcf09092aa277861d5a191b989b666f7f32e8f"),
-    6: ("mlx-community/gemma-4-12B-it-6bit", "2fe53aeb9b8686eefa543a60d6aa364c5b219aac"),
+    ("gemma-4-12b", 4): ("mlx-community/gemma-4-12B-it-4bit", "73bcf09092aa277861d5a191b989b666f7f32e8f", 40, 8, 3840),
+    ("gemma-4-12b", 6): ("mlx-community/gemma-4-12B-it-6bit", "2fe53aeb9b8686eefa543a60d6aa364c5b219aac", 40, 8, 3840),
+    ("gemma-4-31b", 6): ("mlx-community/gemma-4-31b-it-6bit", "7d13b589b7260ba361377b41693a6fdb82b1e06f", 50, 10, 5376),
 }
 STATE = (
     "Order 4471 shipped on Monday. The customer writes: 'My parcel arrived with the box crushed and the lamp inside "
@@ -46,37 +51,35 @@ LONG_STATE = " ".join(f"Line {i}: the order was scanned at depot {i % 7}." for i
 LABEL_BF16_STEPS = 0.25
 
 
-@pytest.fixture(scope="module", params=sorted(CONVERSIONS))
+@pytest.fixture(scope="module", params=sorted(CONVERSIONS), ids=lambda k: f"{k[0]}-{k[1]}bit")
 def engine(request):
     pytest.importorskip("mlx.core")
     pytest.importorskip("mlx_lm")
     from huggingface_hub import snapshot_download
 
+    from decisio.families import BASES
+    from decisio.readout.letters import PromptFormat
     from decisio.serve.mlx_engine import MLXLettersEngine
 
-    repo, rev = CONVERSIONS[request.param]
+    base, _ = request.param
+    repo, rev, sliding, full, hidden = CONVERSIONS[request.param]
+    fam = BASES[base]
     try:
         path = snapshot_download(repo, revision=rev, local_files_only=True)
-        snapshot_download(
-            "google/gemma-4-12B-it",
-            revision="707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
-            allow_patterns=["*.json", "*.jinja"],
-            local_files_only=True,
-        )
+        snapshot_download(fam.model, revision=fam.revision, allow_patterns=["*.json", "*.jinja"], local_files_only=True)
     except Exception:  # noqa: BLE001
         pytest.skip(f"{repo}@{rev[:8]} or the official tokenizer is not in the local Hugging Face cache")
-    from decisio.families import GEMMA4
-    from decisio.readout.letters import PromptFormat
 
     eng = MLXLettersEngine(path, pad_to=None, prefix_cache_mb=0, warm_up=False)
     eng.fmt = PromptFormat(
-        tail=GEMMA4.prompt_tail,
-        slot=GEMMA4.answer_slot,
-        variants=GEMMA4.label_variants,
-        system_prompt=GEMMA4.system_prompt,
+        tail=fam.prompt_tail,
+        slot=fam.answer_slot,
+        variants=fam.label_variants,
+        system_prompt=fam.system_prompt,
     )
     eng.pad_policy = "none"
-    assert eng.family is GEMMA4
+    assert eng.family is fam
+    eng.expected = {"sliding": sliding, "full": full, "hidden": hidden}
     return eng
 
 
@@ -97,11 +100,11 @@ def _whole(engine, ids, lab):
 
 def test_family_tokenizer_and_softcap(engine):
     f = engine.facts()
-    assert f["tokenizer"] == "google/gemma-4-12B-it"
-    assert f["tokenizer_revision"] == "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7"
+    assert (f["tokenizer"], f["tokenizer_revision"]) == (engine.family.model, engine.family.revision)
     assert f["official_tokenizer"] and f["final_logit_softcap"] == 30.0
     kinds = [type(c).__name__ for c in engine.model.make_cache()]
-    assert kinds.count("RotatingKVCache") == 40 and kinds.count("KVCache") == 8
+    assert kinds.count("RotatingKVCache") == engine.expected["sliding"]
+    assert kinds.count("KVCache") == engine.expected["full"]
 
 
 @pytest.mark.parametrize("state", [STATE, LONG_STATE], ids=["short", "past_the_window"])
@@ -137,7 +140,8 @@ def test_the_head_reads_the_capped_readout(engine):
 
     ((lp, h),) = MLXHiddenReadout(engine).readout(STATE, [QUESTION])
     p = engine.answer(STATE, [QUESTION])[0][0]
-    assert np.array_equal(np.exp(lp) / np.exp(lp).sum(), p) and h.shape == (3840,) and h.dtype == np.float32
+    assert np.array_equal(np.exp(lp) / np.exp(lp).sum(), p)
+    assert h.shape == (engine.expected["hidden"],) and h.dtype == np.float32
 
 
 def test_answers_are_isolated_and_repeat_bit_for_bit(engine):

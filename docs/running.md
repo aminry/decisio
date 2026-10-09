@@ -126,9 +126,10 @@ The same start through a built 0.10.0 container remains to be recorded.
 uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --model mlx-community/gemma-4-31b-it-6bit
 ```
 
-- `--backend mlx` serves the text route on Apple silicon from an MLX conversion of either base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
+- `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
 - It refuses the image route, packed mode, LoRA adapters and the second-engine head.
 
@@ -137,7 +138,7 @@ The Qwen base:
 - The 4-bit conversion is for Macs with more than 32 GB of memory, or 32 GB with the GPU memory limit raised (`sysctl iogpu.wired_limit_mb`): its weights take 19.5 GB and it peaks at 21.6, 22.0 and 22.7 GB at about 8k, 16k and 32k tokens of state (GB are 1e9 bytes; `runs/2026-10-06_mlx-qwen-4bit-regate/`). Two thirds of a 32 GB Mac's memory (34.4 GB) is 22.9 GB, taken here as a conservative stand-in for its default GPU limit, which was not measured on a 32 GB Mac: the peaks are under it, by 0.2 GB at 32k tokens, which leaves almost nothing for the system and other apps. A 32 GB Mac runs the Gemma base's 6-bit conversion below (7.8 GB under that line at 32k) or the [Ollama listings](#ollama).
 - Peak memory at 32,761 tokens of state at 6 and 8 bits: 30.7 GB and 39.4 GB (`runs/2026-10-02_mlx-backend/`).
 - It does not pad a state (`--pad-policy none`, the MLX default; its cache needs no padding), so its prompts are the served ones without the padding, and a question asked alone and inside a request is one prompt.
-- A cross-request prefix cache (`--prefix-cache-mb`, in MiB: the base's default, 2,048 for the Qwen base and 7,400 for Gemma 4 12B; 0 turns it off) lets a request whose state was seen before continue from the kept cache, with the same answers bit for bit.
+- A cross-request prefix cache (`--prefix-cache-mb`, in MiB: the base's default, 2,048 for the Qwen base and Gemma 4 31B and 7,400 for Gemma 4 12B; 0 turns it off) lets a request whose state was seen before continue from the kept cache, with the same answers bit for bit.
 - The prompts are built with the official tokenizer by default (`--tokenizer`), so they are the vLLM path's byte for byte.
 - At 6 bits, under the current served default, it passes the gates against the FP8 records except the pooled-ECE gate, which changes no setting (`runs/2026-10-03_mlx-regate/summary.md` explains why).
 - At 4 bits, under the current served default, it passes every gate against the same records: suite accuracy and ECE, the intent heads over six draws and conformance (`runs/2026-10-06_mlx-qwen-4bit-regate/summary.md`).
@@ -149,6 +150,18 @@ The Gemma base (`--base gemma-4-12b`):
 - The prompts are built with the base's own tokenizer and chat template, `google/gemma-4-12B-it` at its pinned revision, not the conversion's, whose chat template is older.
 - At 6 bits it passes every gate against the base's vLLM bf16 record: suite accuracy and ECE, the intent heads over six draws, conformance, and answers bit for bit on a fresh server (`runs/2026-10-05_mlx-gemma/summary.md`).
 - It reads a new state more slowly than the Qwen base on the same Mac: one question on a new 1,000-token state takes 1,312 ms, against 515 ms for the Qwen base (server medians on an Apple M5 Pro with no other job running; `runs/2026-10-07_mlx-quiet-latency/`).
+
+The Gemma 31B base (`--base gemma-4-31b`):
+- The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the one measured; the 4-bit and 8-bit conversions are not.
+- Measured on one Apple M5 Pro with 64 GB; no smaller Mac was measured. GB are 1e9 bytes.
+- It peaks at 29.6, 31.1 and 33.7 GB at about 8k, 16k and 32k tokens of state, against the Mac's GPU memory limit of 55.7 GB.
+- **It is documented for states up to 16,383 tokens.** In the quiet reading (nothing else large running), macOS memory pressure stayed normal from the model's load through the 16k cells.
+- **At 32,687 tokens it runs, with memory pressure:** in the quiet reading one of 54 samples in its cells was at the warning level, swap stayed flat (4.9 to 5.0 GB), and 39% of the GPU memory limit was still free. A second reading, taken after the head draws with the Mac's usual desktop applications open (the largest resident process was 0.5 GB), had 9 of 61 samples at the warning level, none critical, and swap up 3.7 and 1.9 GB; 8k and 16k were clean in both (`runs/2026-10-07_mlx-gemma-31b/`).
+- It scores each question as its own continuation of the shared prefix, so `--multi-question` is `sequential` on MLX; the base's vLLM default, `warm`, is refused there.
+- The prompts are built with the base's own tokenizer and chat template, `google/gemma-4-31B-it` at its pinned revision, not the conversion's.
+- Against the base's vLLM FP8 record it passes the suite accuracy and ECE gates, conformance with answers equal to the served path's, and the intent heads over three draws per set (BANKING77 0.849 against 0.844, CLINC150 0.970 against 0.970; `runs/2026-10-07_mlx-gemma-31b/`). Server times are not measured.
+- A registration is slow: about an hour for a BANKING77 draw and about 2.6 hours for a CLINC150 draw.
+- Its prefix-cache entries are large: 935 MiB at 1,000 tokens, 1,869 MiB at 3,000, 2,954 MiB at 8,000 and 4,386 MiB at 32,000. At the default budget (2,048 MiB, as for the Qwen base) the cache keeps two 1,000-token states or one 3,000-token state and never stores a state of 8,000 tokens or more, so a repeat question on a long state reads it again (27 s at 8,000 tokens, 126 s at 32,000). `--prefix-cache-mb` raises the budget; each stored state takes memory beside the peaks above, and the peaks were measured with the cache empty.
 
 `docs/design/mlx-backend.md` has the design, the gates of each conversion and the padding decision.
 

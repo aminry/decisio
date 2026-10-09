@@ -946,11 +946,13 @@ def engine_process_guard(backend, choice, environ, second_engines=()):
     return "separate", why
 
 
-def resolve_multi_question(family, choice, engine_process):
+def resolve_multi_question(family, choice, engine_process, backend=None):
     """--multi-question's default: the base profile's (gemma-4-31b: warm), when the engine runs in the server's process
     (engine_process `in`, or None off vLLM), where a warm request repeats exactly; sequential otherwise and on the
     other bases. The 31B's warm default passed its gate: no choice changed against sequential on the suite, JevBench
     and travel, the largest probability difference 0.0073 (runs/2026-10-05_engine-death-gates)."""
+    if backend == "mlx":  # the MLX engine continues each question from a copy of the shared prefix (mlx_engine)
+        return "sequential"
     if choice is not None:
         return choice
     profile = getattr(family, "multi_question", "sequential")
@@ -1088,6 +1090,11 @@ def resolve_base(args):
         if args.model is not None:
             raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
         repo = hub.open_repository(args.base, args.revision)
+        if args.backend == "mlx" and repo.config.get("weights", {}).get("dtype") == "fp8_e4m3":
+            raise ValueError(
+                f"--backend mlx cannot load {repo.name}: its weights are FP8, vLLM's format; "
+                f"give --model an MLX conversion of {repo.base} (docs/running.md)"
+            )
         args.base, args.model, args.revision = repo.base, repo.model, repo.revision
     elif args.base is None and args.model is None and args.backend == "vllm":
         args.base = DEFAULT_BASE  # neither given: the default base (the CPU stand-in and MLX always name a checkpoint)
@@ -1114,9 +1121,6 @@ def resolve_base(args):
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision)
-    # checked on the resolved base, so a conversion whose config names the 31B is refused without --base as well
-    if args.backend == "mlx" and fam.key == "gemma-4-31b":
-        raise ValueError("--backend mlx serves the Qwen base and gemma-4-12b; gemma-4-31b is served on vLLM only")
     args.repository = None
     if repo is not None:
         hub.verify(repo, fam)
@@ -1454,6 +1458,7 @@ def main():
                 ("--head-engine", args.head_engine),
                 ("--adapter", args.adapter),
                 ("--mode packed", args.mode == "packed"),
+                (f"--multi-question {args.multi_question}", args.multi_question not in (None, "sequential")),
             )
             if given
         ]
@@ -1490,7 +1495,7 @@ def main():
         if given
     ]
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
-    args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process)
+    args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
         pad_to = None if args.pad_to == "none" else args.pad_to

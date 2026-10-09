@@ -97,11 +97,12 @@ Release images are published to `ghcr.io/aminry/decisio`, with their digest in t
 uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --model mlx-community/gemma-4-31b-it-6bit
 ```
 
 The Qwen base runs from its 6-bit MLX conversion, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
 The Gemma 4 12B base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
-The default base, Gemma 4 31B, has no Mac build, so a Mac always names a conversion or `--base gemma-4-12b`.
+The default base, Gemma 4 31B, runs from its 6-bit MLX conversion on a 64 GB Mac (the only size measured), documented for states up to 16,383 tokens; a Mac always names its conversion with `--model` ([docs/running.md](docs/running.md#mac-with-mlx)).
 
 ### Ollama
 
@@ -190,7 +191,7 @@ A base that is a third-party fine-tune names its publisher in the provenance col
 In plain words:
 - **Gemma 4 31B, the default, for accuracy.**
   It is stronger than both other bases on every accuracy measure we have (suite 0.799 against 0.770 and 0.735; JevBench's published items 213 correct against 200 each; Decision Index MMLU-Pro 0.694 against 0.613 and 0.549).
-  It needs a 96 GB card on vLLM (its weights take 31 GB) and has no Mac build.
+  It needs a 96 GB card on vLLM (its weights take 31 GB); on a 64 GB Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens ([Mac with MLX](#mac-with-mlx)).
 - **Qwen3.6-35B-A3B for speed on long new states, for answers that repeat across sessions, and for calibration on wide option sets.**
   - A question on a new state reads 3.2 and 5.1 times faster than on the 31B at 1,000 and 3,000 tokens (50.0 and 85.2 ms against 160.1 and 438.1; 1.6 times at 300 tokens, 49.9 against 80.7), measured in one session on one card at 585 W (`runs/2026-10-06_latency-585w/`).
   - Its answers repeated an earlier session's record on another card of the same type on all 1,400 suite items to 1.1e-16 (`EVAL_CARD.md` 6.2), where the 31B's near-tied answers moved between sessions (7.5).
