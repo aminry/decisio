@@ -55,16 +55,29 @@ Registration is one `POST /v1/tasks` whose body names the task and lists the exa
 Each example is an ordinary `/v1/systemone` request with exactly one question, plus the answer you want:
 
 ```json
-{"id": "ticket-routing",
- "examples": [
-   {"request": {"state": "My card keeps getting declined when I renew.",
-                "questions": {"route": {"type": "choice",
-                                        "instructions": "Which support queue should handle this ticket?",
-                                        "criteria": {"billing": "Invoices, charges on the account, plan prices",
-                                                     "payment_failed": "A card or bank payment was declined or failed",
-                                                     "...": "..."}}}},
-    "answer": "payment_failed"},
-   ...]}
+{
+  "id": "ticket-routing",
+  "examples": [
+    {
+      "request": {
+        "state": "My card keeps getting declined when I renew.",
+        "questions": {
+          "route": {
+            "type": "choice",
+            "instructions": "Which support queue should handle this ticket?",
+            "criteria": {
+              "billing": "Invoices, charges on the account, plan prices",
+              "payment_failed": "A card or bank payment was declined or failed",
+              "...": "..."
+            }
+          }
+        }
+      },
+      "answer": "payment_failed"
+    },
+    ...
+  ]
+}
 ```
 
 `examples/tasks/register.py` builds this body from a CSV with `text` and `label` columns and the question in `question.json`; `examples/tasks/examples.json` is the result for the example's 120 tickets.
