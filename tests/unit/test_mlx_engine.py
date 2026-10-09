@@ -87,6 +87,78 @@ def test_mlx_backend_serves_the_31b_however_it_is_named(tmp_path):
         assert (args.temperature, args.temperature_choice, args.noul_rendering) == (5.252, 4.672, "letters")
 
 
+def _checkpoint_with(tmp_path, name, **config):
+    d = tmp_path / name
+    d.mkdir()
+    (d / "config.json").write_text(
+        json.dumps({"model_type": "gemma4", "text_config": {"model_type": "gemma4_text"}, **config})
+    )
+    return str(d)
+
+
+def _mlx_args(model, base=None, backend="mlx"):
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        backend=backend,
+        base=base,
+        model=model,
+        revision=None,
+        prompt_tail=None,
+        answer_slot=None,
+        label_variants=None,
+        system_prompt=None,
+        pad_to=None,
+        served_name=None,
+        noul_rendering=None,
+        temperature=None,
+        temperature_choice=None,
+    )
+
+
+FP8_CONFIGS = {
+    "qwen-fp8": {"quantization_config": {"quant_method": "fp8", "fmt": "e4m3", "activation_scheme": "dynamic"}},
+    "compressed-tensors-fp8": {
+        "quantization_config": {
+            "quant_method": "compressed-tensors",
+            "config_groups": {"group_0": {"targets": ["Linear"], "weights": {"num_bits": 8, "type": "float"}}},
+        }
+    },
+    "in-text-config": {"text_config": {"model_type": "gemma4_text", "quantization_config": {"quant_method": "fp8"}}},
+}
+
+
+@pytest.mark.parametrize("name", sorted(FP8_CONFIGS))
+def test_mlx_backend_refuses_a_checkpoint_that_declares_fp8(tmp_path, name):
+    from decisio.serve.vllm_engine import resolve_base
+
+    model = _checkpoint_with(tmp_path, name, **FP8_CONFIGS[name])
+    for base in (None, "gemma-4-31b"):  # --model alone, and --model with --base
+        with pytest.raises(ValueError, match="declares FP8 quantization"):
+            resolve_base(_mlx_args(model, base))
+    resolve_base(_mlx_args(model, "gemma-4-31b", backend="vllm"))  # vLLM is where FP8 is served
+
+
+def test_mlx_backend_takes_what_does_not_declare_fp8(tmp_path):
+    from decisio.families import declares_fp8
+    from decisio.serve.vllm_engine import resolve_base
+
+    mlx = _checkpoint_with(tmp_path, "mlx-6bit", quantization={"group_size": 64, "bits": 6})  # an MLX conversion
+    _checkpoint_with(
+        tmp_path,
+        "int4",
+        quantization_config={
+            "quant_method": "compressed-tensors",
+            "config_groups": {"group_0": {"weights": {"num_bits": 4, "type": "int"}}},
+        },
+    )
+    for model in (mlx, _checkpoint_with(tmp_path, "bf16")):
+        assert resolve_base(_mlx_args(model))[0].key == "gemma-4-31b"  # a dense gemma4 checkpoint
+    assert not declares_fp8(json.loads((tmp_path / "int4" / "config.json").read_text()))  # int4 is not FP8
+    assert declares_fp8({"quantization_config": {"quant_method": "fbgemm_fp8"}})
+    assert not declares_fp8({})
+
+
 def test_mlx_backend_scores_every_question_on_its_own(monkeypatch, capsys):
     # the MLX engine continues each question from a copy of the shared prefix, so its multi-question mode is
     # sequential whatever the base's profile says (gemma-4-31b's is warm), and a flag asking for another is refused
