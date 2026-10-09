@@ -12,7 +12,10 @@
 > **The highest-ranked frozen-weights system on JevBench, fourth of 135 and level with Jev.**
 > ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), decisio on Gemma 4 31B; [how we read the board](#how-we-read-the-board).)
 
-![JevBench v1.6.1: the top 12 of 135 ranked systems, decisio on Gemma 4 31B highlighted](docs/launch/jevbench_top12.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_top12_dark.png">
+  <img src="docs/launch/jevbench_top12.png" alt="JevBench v1.6.1: the top 12 of 135 ranked systems; decisio on Gemma 4 31B is the highest-ranked frozen-weights system, fourth, level with Jev">
+</picture>
 
 <!-- Advocacy's demo reel goes here once it exists. -->
 
@@ -26,11 +29,11 @@
 
 ## Quickstart
 
-Ollama on a laptop, then pip on a GPU, then Docker. Each takes about a minute once its download is done.
+Ollama on a laptop, then pip on a GPU, then Docker.
 
 ### On a laptop, with Ollama
 
-A 16 GB laptop is enough ([docs/running.md](docs/running.md#ollama)):
+The Gemma listing's smallest tag takes 8.6 GB in Ollama (measured on a 64 GB Mac), so it should fit a 16 GB laptop ([docs/running.md](docs/running.md#ollama)):
 
 ```bash
 ollama pull aminroudaki/decisio-gemma      # Gemma 4 12B, 8.6 GB in Ollama at its smallest tag
@@ -464,7 +467,19 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 
 ### How we read the board
 
-- **Source.** The figures are the board's, from its published file for [JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1) (sha256 `5cd8c1332226...`, read 2026-10-09), row `decisio-gemma-4-31b-v080`; the charts ([top 12](docs/launch/jevbench_top12.png), [four axes](docs/launch/four_axes.png)) are drawn from that file, view A.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/four_axes_dark.png">
+  <img src="docs/launch/four_axes.png" alt="JevBench v1.6.1: the four axes, decisio on Gemma 4 31B against Jev 1.13.0, H2O-Lightning-4B and Quyet-1.0-Large">
+</picture>
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
+  <img src="docs/launch/sealed_vs_open.png" alt="decisio's JevBench score on the sealed items and on the open ones">
+</picture>
+
+Decisio scores higher on the sealed items than on the open ones.
+
+- **Source.** The figures are the board's, from its published file for [JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1) (sha256 `5cd8c1332226...`, read 2026-10-09), row `decisio-gemma-4-31b-v080`; the charts are drawn from that file, view A.
 - **Frozen weights.** The board has no frozen-weights class. We count a row as frozen when its display text says so (or says stock Gemma or Qwen) and names no LoRA, fine-tune, merge, training, adapter, head or decoder. The claim is about rank: decisio's row is the highest-ranked of those, fourth of 135 on the headline composite (third on view B, fourth on view C).
 - **Level with Jev.** Our interval (69.86 to 72.81) and Jev 1.13.0's (69.14 to 72.40) overlap; the scores are 71.69 and 71.49.
 - **Intervals.** Two other frozen-weights rows have intervals that overlap ours, decider-12b-v1 (rank 9) and Cygnet (rank 13); deck-31B (rank 12) does not.
