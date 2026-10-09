@@ -37,6 +37,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.serve.engine_health import client_error
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
@@ -843,6 +844,12 @@ def add_routes(app, systemone: SystemOne):
     from fastapi.responses import JSONResponse
     from pydantic import ValidationError
 
+    def raise_client_error(e):
+        """An error vLLM says the request caused (a prompt over the context) is a 4xx, not a 500 (engine_health)."""
+        hit = client_error(e)
+        if hit is not None:
+            raise HTTPException(*hit) from e
+
     @app.get("/v1/models")
     def models():
         return systemone.models()
@@ -918,6 +925,9 @@ def add_routes(app, systemone: SystemOne):
             out = await run_in_threadpool(systemone.answer, req, None, images, ext, route, debug)
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
+        except Exception as e:
+            raise_client_error(e)
+            raise
         timing = out.pop("_timing")
         headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
         if timing.get("tasks"):
@@ -980,6 +990,9 @@ def add_routes(app, systemone: SystemOne):
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
+        except Exception as e:
+            raise_client_error(e)
+            raise
         return task
 
     register.__annotations__["request"] = Request
@@ -1021,6 +1034,9 @@ def add_routes(app, systemone: SystemOne):
             task, fitted = await run_in_threadpool(systemone.register_readout_task, str(body["id"]), examples)
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
+        except Exception as e:
+            raise_client_error(e)
+            raise
         out = TaskStore.public(task)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
