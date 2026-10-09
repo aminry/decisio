@@ -14,7 +14,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_top12_dark.png">
-  <img src="docs/launch/jevbench_top12.png" alt="JevBench v1.6.1: the top 12 of 135 ranked systems; decisio on Gemma 4 31B is second among open-weights systems, level with Jev, and the highest-ranked with frozen weights">
+  <img src="docs/launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for the board's ten highest open-weights systems, with Jev 1.13.0 below as a reference row. H2O-Lightning-4B is first and Decisio on Gemma 4 31B is second, 71.69 against 72.52, with Quyet-1.0-Large third. The intervals of the first three overlap, and Jev's overlaps Decisio's.">
 </picture>
 
 <!-- Advocacy's demo reel goes here once it exists. -->
@@ -465,6 +465,75 @@ The intent heads use labelled examples, so their figures are not comparable with
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
 
+### Against H2O-Lightning-4B and Quyet-1.0-Large
+
+JevBench v1.6.1, the board's own values, 0 to 100, higher is better.
+The four axes have no published intervals, so these are the board's numbers and nothing more is claimed.
+Every row is shown, theirs included where they lead.
+The composite's 95% intervals overlap for both, so neither side is said to lead on it.
+
+#### Against H2O-Lightning-4B
+
+| Measure | decisio 31B | H2O-Lightning-4B | Difference (decisio 31B minus them) | Higher |
+| --- | ---: | ---: | ---: | --- |
+| Composite score | 71.69 | 72.52 | -0.83 | intervals overlap |
+| Intelligence axis | 70.4 | 60.0 | +10.4 | decisio 31B |
+| Sealed-set intelligence | 73.3 | 59.0 | +14.3 | decisio 31B |
+| Open-set intelligence | 67.6 | 61.1 | +6.5 | decisio 31B |
+| Calibration axis | 88.7 | 90.0 | -1.3 | H2O-Lightning-4B |
+| Speed axis | 91.2 | 92.6 | -1.4 | H2O-Lightning-4B |
+| Cost axis | 51.7 | 60.3 | -8.6 | H2O-Lightning-4B |
+| Training, as the card states it | Nothing was trained. | decision adapter as a LoRA for the base model | | |
+| Longest input, as the card states it | Context up to 32,768 tokens per prompt. | --max-model-len 40960 | | |
+| Options per question, as the card states it | Up to 255 options per question | Decides best with up to about 16 options; up to 255 are accepted. | | |
+
+#### Against Quyet-1.0-Large
+
+| Measure | decisio 31B | Quyet-1.0-Large | Difference (decisio 31B minus them) | Higher |
+| --- | ---: | ---: | ---: | --- |
+| Composite score | 71.69 | 71.39 | +0.30 | intervals overlap |
+| Intelligence axis | 70.4 | 73.4 | -3.0 | Quyet-1.0-Large |
+| Sealed-set intelligence | 73.3 | 71.6 | +1.7 | decisio 31B |
+| Open-set intelligence | 67.6 | 75.2 | -7.6 | Quyet-1.0-Large |
+| Calibration axis | 88.7 | 90.0 | -1.3 | Quyet-1.0-Large |
+| Speed axis | 91.2 | 86.9 | +4.3 | decisio 31B |
+| Cost axis | 51.7 | 50.5 | +1.2 | decisio 31B |
+| Prompt length, as the cards state it | 32,768 tokens | 8,000 tokens | 4.1 times | |
+| Training, as the card states it | Nothing was trained. | Gemma-4-31B-it with a merged LoRA fine-tune (rank 16) | | |
+| Longest input, as the card states it | Context up to 32,768 tokens per prompt. | state up to 6,000 tokens inside an 8,000-token prompt | | |
+| Options per question, as the card states it | Up to 255 options per question | At most 10 options per question. | | |
+
+In one line each:
+
+- H2O-Lightning-4B: Higher on what the model knows (Intelligence axis: 70.4 against 60.0). H2O is built on a smaller base (Qwen/Qwen3.5-4B, its card) and is cheaper by the board's cost axis (Cost axis: 51.7 against 60.3).
+- Quyet-1.0-Large: Higher on the sealed questions (Sealed-set intelligence: 73.3 against 71.6) and on the speed axis (Speed axis: 91.2 against 86.9). Prompt length: 32,768 tokens against 8,000 tokens (4.1 times), each card's own words as quoted in the table. Training, as each card states it: 'Nothing was trained.' against 'Gemma-4-31B-it with a merged LoRA fine-tune (rank 16)'. Quyet is higher on intelligence axis (70.4 against 73.4) and on open-set intelligence (67.6 against 75.2).
+
+#### Card statements, as recorded
+
+| Card | Statement | Quoted line | Where |
+| --- | --- | --- | --- |
+| decisio 31B | training | Nothing was trained. | [line 23, revision 47833608](https://huggingface.co/tachara-ai/decisio-gemma-4-31b) |
+| decisio 31B | longest state | Context up to 32,768 tokens per prompt. | [line 37, revision c23ae405](https://github.com/aminry/decisio/blob/c23ae4055b75fe1d8ca3cad0c337d204a8a2110a/EVAL_CARD.md) |
+| decisio 31B | option limit | Up to 255 options per question | [line 30, revision c23ae405](https://github.com/aminry/decisio/blob/c23ae4055b75fe1d8ca3cad0c337d204a8a2110a/EVAL_CARD.md) |
+| H2O-Lightning-4B | training | decision adapter as a LoRA for the base model | [line 338, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | longest state | --max-model-len 40960 | [line 195, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | option limit | Decides best with up to about 16 options; up to 255 are accepted. | [line 404, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | training data | No benchmark test items in training | [line 52, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | base model | base_model: Qwen/Qwen3.5-4B | [line 3, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | state limit 422 | Inputs over the context limit get HTTP 422 | [line 190, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| Quyet-1.0-Large | training | Gemma-4-31B-it with a merged LoRA fine-tune (rank 16) | [line 20, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | longest state | state up to 6,000 tokens inside an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | option limit | At most 10 options per question. | [line 52, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | base model | base_model: google/gemma-4-31B-it | [line 4, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | prompt limit | an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+
+Board values with their paths and each card's quoted lines are in Lab 1's `launch_facts.json`, `head_to_head`.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/head_to_head_dark.png">
+  <img src="docs/launch/head_to_head.png" alt="Two panels of horizontal diverging bars, Decisio on Gemma 4 31B minus each competitor in board points, for seven JevBench v1.6.1 measures sorted from Decisio's largest lead to its largest shortfall, with the two values beside each row. Against H2O-Lightning-4B, Decisio is higher on Sealed-set intelligence: 73.3 against 59.0; Intelligence axis: 70.4 against 60.0; Open-set intelligence: 67.6 against 61.1, and lower on Cost axis: 51.7 against 60.3; Speed axis: 91.2 against 92.6; Calibration axis: 88.7 against 90.0. Composite score: 71.69 against 72.52, and the composite's intervals overlap. Against Quyet-1.0-Large, Decisio is higher on Speed axis: 91.2 against 86.9; Sealed-set intelligence: 73.3 against 71.6; Cost axis: 51.7 against 50.5, and lower on Open-set intelligence: 67.6 against 75.2; Intelligence axis: 70.4 against 73.4; Calibration axis: 88.7 against 90.0. Composite score: 71.69 against 71.39, and the composite's intervals overlap.">
+</picture>
+
 ### How we read the board
 
 <picture>
@@ -474,7 +543,7 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
-  <img src="docs/launch/sealed_vs_open.png" alt="decisio's JevBench score on the sealed items and on the open ones">
+  <img src="docs/launch/sealed_vs_open.png" alt="A dot plot of the intelligence axis of JevBench v1.6.1 for eleven systems, sorted by sealed-set score, each with its open-set score beside it. deck-31B is first and Decisio on Gemma 4 31B is second on the sealed set, and Decisio scores higher on the sealed items than on the open ones.">
 </picture>
 
 Decisio scores higher on the sealed items than on the open ones.
