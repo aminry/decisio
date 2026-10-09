@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0](https://github.com/aminry/decisio/compare/v0.10.0...v0.11.0) (2026-10-09)
+
+
+### Features
+
+* **hub:** the model repositories are under tachara-ai (Tachara AI Lab), pinned at their 0.11.0 revisions ([#121](https://github.com/aminry/decisio/issues/121)) ([852cce4](https://github.com/aminry/decisio/commit/852cce401a78aeb547e4016c6129adb86c2c8792))
+* **serve:** --backend mlx serves gemma-4-31b from an MLX conversion, documented for states up to 16,383 tokens ([#116](https://github.com/aminry/decisio/issues/116)) ([a801341](https://github.com/aminry/decisio/commit/a801341211649def233529359d21d78c43fbe25f))
+
+
+### Bug Fixes
+
+* **serve:** --backend mlx refuses any checkpoint whose config.json declares FP8 quantization ([#120](https://github.com/aminry/decisio/issues/120)) ([18229d2](https://github.com/aminry/decisio/commit/18229d25dddf8c19aca6c5c3263bd91fd21947a5))
+* **serve:** a prompt over the context is a 422 with a clear detail, not a bare 500 ([#124](https://github.com/aminry/decisio/issues/124)) ([a51be6d](https://github.com/aminry/decisio/commit/a51be6d9e96d84f8cd4dd31b8e3b7fb3a5c01046))
+
 ## [0.10.0](https://github.com/aminry/decisio/compare/v0.9.0...v0.10.0) (2026-10-08)
 
 

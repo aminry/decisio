@@ -78,7 +78,7 @@ def options_listing(tok, options):
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
-from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, guarded  # noqa: E402
+from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
@@ -863,6 +863,11 @@ def make_app(engine, systemone=None, health=None):
             probs, info = engine.answer(req.state, req.questions, req.adapter)
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
+        except Exception as e:  # an error vLLM says the request caused (a prompt over the context): a 4xx
+            hit = client_error(e)
+            if hit is None:
+                raise
+            raise HTTPException(*hit) from e
         answers = []
         for q, p in zip(req.questions, probs):
             opts = ["yes", "no"] if q.get("kind", "choice") == "noul" else list(q["options"])
