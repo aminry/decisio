@@ -1,0 +1,34 @@
+{
+ "request": {
+  "state": "What does HTTP status 404 mean?",
+  "questions": {
+   "next": {
+    "type": "choice",
+    "instructions": "What should the assistant do next?",
+    "criteria": {
+     "answer": "Reply directly from general knowledge; no tool is needed",
+     "search": "Look up company documents or policies before answering",
+     "calculate": "Do arithmetic, or a unit or date calculation",
+     "ask_user": "The request is missing something the assistant needs, so ask a clarifying question",
+     "act": "Take an action that changes something: send, create, move, refund, delete, close or reset"
+    }
+   }
+  }
+ },
+ "response": {
+  "next": {
+   "type": "choice",
+   "choice": "answer",
+   "confidence": 0.9446494735898711,
+   "probabilities": {
+    "answer": 0.955719578871897,
+    "search": 0.013898969453165157,
+    "calculate": 0.020692926688485696,
+    "ask_user": 0.0041569559534760546,
+    "act": 0.005531569032976202
+   }
+  }
+ },
+ "server_ms": 65.8,
+ "source": "04-tool-decision__2026-10-08_gemma-4-31b/decisions.jsonl.gz line 1"
+}
