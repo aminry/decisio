@@ -1,0 +1,4 @@
+MEMORY 8056 tokens: peak 29.62 GB of a 55.66 GB limit (46.8% free, needs 10%); pressure non-normal 0 of 12 samples in its cells (levels [1]), 0 of 16 since the start; swap growth [0.0, 0.0] MB (recorded); fits
+MEMORY 16383 tokens: peak 31.08 GB of a 55.66 GB limit (44.2% free, needs 10%); pressure non-normal 0 of 25 samples in its cells (levels [1]), 0 of 41 since the start; swap growth [0.0, 0.0] MB (recorded); fits
+MEMORY 32687 tokens: peak 33.72 GB of a 55.66 GB limit (39.4% free, needs 10%); pressure non-normal 9 of 61 samples in its cells (levels [1, 2]), 9 of 102 since the start; swap growth [3688.4399999999996, 1905.0] MB (recorded); runs, with memory pressure
+MEMORY documented for states up to 16383 tokens (pressure levels seen [1, 2])

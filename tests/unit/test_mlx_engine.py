@@ -57,8 +57,8 @@ def test_mlx_backend_refuses_what_it_does_not_serve(monkeypatch, flags, capsys):
     assert "--backend mlx serves the text route" in capsys.readouterr().err
 
 
-def test_mlx_backend_refuses_the_31b_however_it_is_named(tmp_path):
-    # gemma-4-31b has no gated MLX build: refused by --base, and by a conversion whose config names it (a dense gemma4)
+def test_mlx_backend_serves_the_31b_however_it_is_named(tmp_path):
+    # gemma-4-31b on MLX: by --base, and by a conversion whose config names it (a dense gemma4), with its own settings
     from types import SimpleNamespace
 
     from decisio.serve.vllm_engine import resolve_base
@@ -66,10 +66,38 @@ def test_mlx_backend_refuses_the_31b_however_it_is_named(tmp_path):
     d = tmp_path / "gemma-4-31b-it-6bit"
     d.mkdir()
     (d / "config.json").write_text(json.dumps({"model_type": "gemma4", "text_config": {"model_type": "gemma4_text"}}))
-    for base, model in (("gemma-4-31b", str(d)), (None, str(d))):
-        args = SimpleNamespace(backend="mlx", base=base, model=model, revision=None)
-        with pytest.raises(ValueError, match="gemma-4-31b is served on vLLM only"):
-            resolve_base(args)
+    for base in ("gemma-4-31b", None):
+        args = SimpleNamespace(
+            backend="mlx",
+            base=base,
+            model=str(d),
+            revision=None,
+            prompt_tail=None,
+            answer_slot=None,
+            label_variants=None,
+            system_prompt=None,
+            pad_to=None,
+            served_name=None,
+            noul_rendering=None,
+            temperature=None,
+            temperature_choice=None,
+        )
+        fam, fmt = resolve_base(args)
+        assert fam.key == "gemma-4-31b" and fmt.system_prompt
+        assert (args.temperature, args.temperature_choice, args.noul_rendering) == (5.252, 4.672, "letters")
+
+
+def test_mlx_backend_scores_every_question_on_its_own(monkeypatch, capsys):
+    # the MLX engine continues each question from a copy of the shared prefix, so its multi-question mode is
+    # sequential whatever the base's profile says (gemma-4-31b's is warm), and a flag asking for another is refused
+    from decisio.families import BASES
+    from decisio.serve.vllm_engine import resolve_multi_question
+
+    assert resolve_multi_question(BASES["gemma-4-31b"], None, None, backend="mlx") == "sequential"
+    assert resolve_multi_question(BASES["gemma-4-31b"], "sequential", None, backend="mlx") == "sequential"
+    for mode in ("warm", "batch"):
+        assert _main(monkeypatch, "--backend", "mlx", "--multi-question", mode) == 2
+        assert "--multi-question" in capsys.readouterr().err
 
 
 def test_pad_policy_defaults_by_backend():
@@ -255,9 +283,9 @@ def test_official_tokenizer_by_base():
     from decisio.families import FAMILIES, GEMMA4, QWEN
     from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, TOKENIZER_SHA256, split_revision
 
-    # every base MLX serves has its tokenizer's sha256 (not gemma-4-31b, served on vLLM only); the tokenizer is the
-    # base's own checkpoint at its revision
-    served = sorted(f.key for f in FAMILIES if f.key != "gemma-4-31b")
+    # every base has its tokenizer's sha256 (the two Gemma 4 bases' files are identical); the tokenizer is the base's
+    # own checkpoint at its revision
+    served = sorted(f.key for f in FAMILIES)
     assert sorted(TOKENIZER_SHA256) == served and OFFICIAL_TOKENIZER == QWEN.model
     assert (GEMMA4.model, GEMMA4.revision) == ("google/gemma-4-12B-it", "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7")
     assert split_revision("google/gemma-4-12B-it@707f0a3b") == ("google/gemma-4-12B-it", "707f0a3b")

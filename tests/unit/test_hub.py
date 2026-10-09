@@ -250,9 +250,13 @@ def test_s1_refusals(tmp_path):
     (wrong / "config.json").write_text(json.dumps({"model_type": "qwen3_5_moe"}))  # a checkpoint of another base
     with pytest.raises(ValueError, match="is a qwen3.6-35b-a3b checkpoint"):
         resolve_base(args_for(str(wrong)))
-    mlx = repo_dir(tmp_path, "gemma-4-31b", name="m")
-    with pytest.raises(ValueError, match="gemma-4-31b is served on vLLM only"):
-        resolve_base(args_for(str(mlx), backend="mlx"))
+    # MLX takes a conversion, not a repository whose weights are FP8 (vLLM's format): the 31B's and Qwen's are
+    for base in ("gemma-4-31b", "qwen3.6-35b-a3b"):
+        fp8 = repo_dir(tmp_path, base, name=f"m-{base}")
+        with pytest.raises(ValueError, match="its weights are FP8"):
+            resolve_base(args_for(str(fp8), backend="mlx"))
+    bf16 = repo_dir(tmp_path, "gemma-4-12b", name="m-12b")  # bfloat16 weights: not refused on that ground
+    assert resolve_base(args_for(str(bf16), backend="mlx"))[0].key == "gemma-4-12b"
 
 
 def test_c1_the_command_line(tmp_path, capsys):

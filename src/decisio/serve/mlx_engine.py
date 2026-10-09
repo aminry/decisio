@@ -62,11 +62,13 @@ from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 # sha256 of each base's official tokenizer.json (the base's checkpoint at its revision, decisio.families). Qwen:
-# Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B have identical files. Gemma 4: unchanged since the first upload; the
-# revision pins the chat template (the mlx-community conversions ship the one from before Google's 2026-07-15 fix).
+# Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B have identical files. Gemma 4: unchanged since the first upload, and
+# the same file for the 12B and the 31B; the revision pins the chat template (the mlx-community conversions ship the one
+# from before Google's 2026-07-15 fix).
 TOKENIZER_SHA256 = {
     "qwen3.6-35b-a3b": "5f9e4d4901a92b997e463c1f46055088b6cca5ca61a6522d1b9f64c4bb81cb42",
     "gemma-4-12b": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+    "gemma-4-31b": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
 }
 OFFICIAL_TOKENIZER, OFFICIAL_TOKENIZER_SHA256 = QWEN.model, TOKENIZER_SHA256[QWEN.key]
 SERVED_BLOCK = 1056  # vLLM's block on the served default: --pad-to block pads to it, so the prompts are the same

@@ -1,0 +1,81 @@
+{
+ "rule": "per length: cells completed, peak <= 90% of the GPU memory limit, memory pressure normal from the sampler's start through the length's last cell; swap growth recorded, not gated",
+ "pressure_samples": 94,
+ "pressure_levels_seen": [
+  1,
+  2
+ ],
+ "documented_up_to_tokens": 16383,
+ "lengths": [
+  {
+   "target_tokens": 8192,
+   "prompt_tokens_max": 8056,
+   "completed": true,
+   "peak_gb": 29.615328048,
+   "limit_gb": 55.662788608,
+   "ceiling_gb": 50.0965097472,
+   "margin_of_limit": 0.4679510533228368,
+   "peak_ok": true,
+   "pressure_samples_to_here": 16,
+   "pressure_nonnormal_to_here": 0,
+   "pressure_samples_in_cells": 13,
+   "pressure_nonnormal_in_cells": 0,
+   "pressure_levels_in_cells": [
+    1
+   ],
+   "swap_growth_mb_by_cell": [
+    0.0,
+    -8.0
+   ],
+   "status": "fits",
+   "fits": true
+  },
+  {
+   "target_tokens": 16384,
+   "prompt_tokens_max": 16383,
+   "completed": true,
+   "peak_gb": 31.084890918,
+   "limit_gb": 55.662788608,
+   "ceiling_gb": 50.0965097472,
+   "margin_of_limit": 0.44154988107203097,
+   "peak_ok": true,
+   "pressure_samples_to_here": 40,
+   "pressure_nonnormal_to_here": 0,
+   "pressure_samples_in_cells": 25,
+   "pressure_nonnormal_in_cells": 0,
+   "pressure_levels_in_cells": [
+    1
+   ],
+   "swap_growth_mb_by_cell": [
+    -8.0,
+    -48.0
+   ],
+   "status": "fits",
+   "fits": true
+  },
+  {
+   "target_tokens": 32768,
+   "prompt_tokens_max": 32687,
+   "completed": true,
+   "peak_gb": 33.717521182,
+   "limit_gb": 55.662788608,
+   "ceiling_gb": 50.0965097472,
+   "margin_of_limit": 0.3942538269246174,
+   "peak_ok": true,
+   "pressure_samples_to_here": 94,
+   "pressure_nonnormal_to_here": 1,
+   "pressure_samples_in_cells": 54,
+   "pressure_nonnormal_in_cells": 1,
+   "pressure_levels_in_cells": [
+    1,
+    2
+   ],
+   "swap_growth_mb_by_cell": [
+    77.5600000000004,
+    -8.0
+   ],
+   "status": "runs, with memory pressure",
+   "fits": false
+  }
+ ]
+}

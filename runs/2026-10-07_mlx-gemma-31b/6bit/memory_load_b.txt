@@ -1,0 +1,20 @@
+# largest resident processes at the start of reading b (by PID)
+13:24:16
+12571 0.5 GB /Applications/Paseo.app/Contents/Frameworks/Paseo Helper
+3309 0.4 GB /System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualM
+51625 0.4 GB /Applications/Google Chrome.app/Contents/Frameworks/Google
+82905 0.3 GB /System/Library/Frameworks/WebKit.framework/Versions/A/XPCServices/com.apple.WebKit.WebContent.xpc/Contents
+12586 0.3 GB Paseo Daemon
+4818 0.2 GB /Users/amin/.local/bin/claude --output-format
+51515 0.2 GB /Applications/Google Chrome.app/Contents/MacOS/Google
+4653 0.2 GB /Users/amin/.local/bin/claude --output-format
+# ... and at its end
+13:32:43
+12571 0.5 GB /Applications/Paseo.app/Contents/Frameworks/Paseo Helper
+83592 0.5 GB /Users/amin/.local/bin/codebase-memory-mcp 
+3309 0.4 GB /System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualM
+51625 0.4 GB /Applications/Google Chrome.app/Contents/Frameworks/Google
+12586 0.3 GB Paseo Daemon
+85283 0.3 GB /Users/amin/.local/bin/codebase-memory-mcp 
+67688 0.2 GB /Users/amin/.local/bin/claude --output-format
+51515 0.2 GB /Applications/Google Chrome.app/Contents/MacOS/Google

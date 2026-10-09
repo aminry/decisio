@@ -1,0 +1,20 @@
+# largest resident processes at the start of reading a (by PID)
+23:14:16
+12571 0.6 GB /Applications/Paseo.app/Contents/Frameworks/Paseo Helper
+67688 0.3 GB /Users/amin/.local/bin/claude --output-format
+4653 0.3 GB /Users/amin/.local/bin/claude --output-format
+28826 0.3 GB /Users/amin/.local/bin/claude --output-format
+15488 0.2 GB /Users/amin/.local/bin/claude --output-format
+3309 0.2 GB /System/Library/Frameworks/Virtualization.framework/Versions/A/XPCServices/com.apple.Virtualization.VirtualM
+12586 0.2 GB Paseo Daemon
+66947 0.2 GB /Users/amin/.local/bin/claude --output-format
+# ... and at its end
+23:22:04
+12571 0.6 GB /Applications/Paseo.app/Contents/Frameworks/Paseo Helper
+67688 0.3 GB /Users/amin/.local/bin/claude --output-format
+12586 0.3 GB Paseo Daemon
+4653 0.3 GB /Users/amin/.local/bin/claude --output-format
+15488 0.2 GB /Users/amin/.local/bin/claude --output-format
+28826 0.2 GB /Users/amin/.local/bin/claude --output-format
+17359 0.2 GB /Users/amin/.local/bin/claude --output-format
+98667 0.2 GB /Users/amin/.local/bin/claude --output-format
