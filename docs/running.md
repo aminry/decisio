@@ -43,7 +43,8 @@ Quote latency with the host's CPU model and the card's power limit beside it (`n
 
 On the Gemma bases vLLM keeps only a finished request's latest sliding-window checkpoint, which lies inside its question.
 So the server registers each state's boundary with the warm-up that multi-question requests already send: the state and one token.
-Without it, a later, different question about the state read the whole state again: on the 31B, 531 ms instead of 47 at 3,000 tokens, and 9.2 s instead of 0.17 at 31,000 (before 0.8.1, on another host).
+Without it, a later, different question about the state read the whole state again, which costs about a first read of it: on the 31B at 3,000 tokens, 439.0 ms for the first read against 43.3 ms for a different question read from the cache (one card at 585 W, an AMD Ryzen Threadripper 9960X; `runs/2026-10-06_latency-585w/`).
+The one measurement of the old behaviour at 31,000 tokens is from before 0.8.1, on another host: 9.2 s instead of 0.17 (531 ms instead of 47 at 3,000 tokens there).
 The server remembers the last 4,096 states it registered and sends the warm-up again only when a request finds the boundary gone, so a repeated question costs no extra engine call.
 Several questions in one request are not affected, and the Qwen base needs no registration (its padded state already ends on a single question's latest checkpoint).
 
