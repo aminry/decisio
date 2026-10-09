@@ -135,7 +135,7 @@ def test_t2_a_changed_profile_is_named_by_path():
     config = hub.export_decision_config(BASES["gemma-4-12b"], "0.9.0")
     assert hub.check_profile(config, BASES["gemma-4-12b"]) == []
     config["temperatures"]["choice"] = 1.0
-    config["serving"]["register_boundary"] = "before"
+    config["serving"]["register_boundary"] = "after"
     config["classes"]["hidden-readout"] = "Other"
     config["prompt"]["format"]["tail"] = "compact"
     assert hub.check_profile(config, BASES["gemma-4-12b"]) == [
