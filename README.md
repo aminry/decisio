@@ -24,11 +24,15 @@
 
 ## Why Decisio
 
+The usual way to get a decision out of a model is to let it write text and parse the result.
+Decisio skips the text.
+It reads your document once and reads the probability of each option straight off the model's output.
+
 - **Higher than Jev on what the model knows.** Intelligence axis: 70.4 against Jev 1.13.0's 63.6.
 - **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
 - **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
 - **Long prompts, many options.** Prompts up to 32,768 tokens and 255 options per question.
-- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop; the cost is the card, not a bill per token.
+- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on the board's cost axis Decisio is 9th of the 11 rows shown (51.7; H2O-Lightning-4B's 60.3 is highest).
 
 | | Gemma 4 31B (the default) |
 | --- | --- |
@@ -43,8 +47,8 @@ One RTX PRO 6000 at 585 W; intervals and the rest of the figures are under Bench
 
 ## Benchmarks
 
-Each base with its own defaults on one RTX PRO 6000 Blackwell: the Qwen and Gemma 4 12B bases in one session (`runs/2026-10-04_gemma-base/`), Gemma 4 31B in its own (`runs/2026-10-04_gemma-4-31b/`), image input in another (`runs/2026-09-27_image-input/`).
-Measured by us with the public harnesses (the Decision Index kit 0.2.1) and recorded in `runs/`; none is a board score.
+Each base with its own defaults on one RTX PRO 6000 Blackwell, measured by us with the public harnesses (the Decision Index kit 0.2.1) and recorded in `runs/`.
+None is a board score.
 
 | Measure | Qwen3.6-35B-A3B | Gemma 4 12B | Gemma 4 31B (default) |
 | --- | ---: | ---: | ---: |
@@ -58,22 +62,14 @@ Measured by us with the public harnesses (the Decision Index kit 0.2.1) and reco
 | New 300-token state | 49.9 ms | 53.6 ms | 80.7 ms |
 | 1,000-token state, cached | 20.2 ms | 24.8 ms | 31.7 ms |
 
-Notes: Decision Index figures are 0.2.1; the JevBench row is the 231 published items; intent heads are six draws (Qwen, 12B) and three (31B); image input is ImajevBench v2.0-lite, the 230 answerable items; n/m is not measured; the latency rows are server time on 0.8.1's served defaults with the engine in the server's process.
+The JevBench row is the 231 published items.
+Intent heads use labelled examples, so they are not comparable with zero-shot systems.
+n/m is not measured.
+Latency is server time on decisio 0.8.1's served defaults, at a 585 W power limit (default 600 W), so a card at 600 W may read new states faster (`runs/2026-10-06_latency-585w/`, `docs/running.md`).
 
-The latency rows were measured in one session on decisio 0.8.1's served defaults: the engine in the server's process, and on the Gemma bases a single question on a new state registering its boundary first (`runs/2026-10-06_latency-585w/`).
-The card was one RTX PRO 6000 Blackwell Workstation Edition with its power limit at 585 W (default 600 W), on an AMD Ryzen Threadripper 9960X host.
-On the Gemma bases that limit held the clock back during most first reads, so a card at 600 W may read new states faster; on the Qwen base it did not.
-In the same session, the boundary registration added +16 to +28 ms (12B) and +21 to +34 ms (31B) to the first read of a new state of 300 to 3,000 tokens, and a second, different question then read the state from the cache on 20 of 20 states per base.
-Changes paired within one session:
-- **0.9.0 to 0.11.0, Gemma 4 12B registered a state's boundary after the answer (`before` again since 0.11.1, because requests sent back to back waited behind the previous registration):** in the same session its first reads with the queue idle took 33.3, 90.3 and 237.1 ms at 300, 1,000 and 3,000 tokens, against 56.7, 107.7 and 261.9 with the registration first; Gemma 4 31B keeps registering first, since after the answer cost it a quarter to two fifths of its throughput under load (`runs/2026-10-06_latency-585w/register_boundary.md`, `docs/running.md`).
-- **0.8.0, the engine in the server's process:** on an AMD EPYC 7452 host (power limit not recorded), the Qwen base answered faster in every cell, by 3.8 ms on a cached question and by 0.6 to 32.2 ms on new states (`runs/2026-10-05_engine-death-gates/`). On that host the Qwen base took 1.4 to 2.1 times the records of 2026-10-02 (engine in its own process, host CPU and power limit not recorded) in either arrangement, while the Gemma bases did not.
-
-Absolute latency depends on the host's CPU and on the card's power limit (`docs/running.md`).
-
-[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every Decision Index benchmark, JevBench's published questions, latency, cost and capabilities (the public board's figures and their date are in `EVAL_CARD.md` section 8.1).
-The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
+[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every benchmark (the board's figures and their date are in `EVAL_CARD.md` section 8.1).
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
-`EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
+`EVAL_CARD.md` has the full tables and what was fitted on what.
 
 ### JevBench, axis by axis
 
@@ -84,12 +80,13 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 
 - Among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
 - Within 2 points of the highest on calibration (88.7; Jev 90.6) and on speed (91.2; H2O-Lightning-4B 92.6).
-- 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest). On your own hardware you pay for the card, not per token.
+- 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest).
 
 <details>
 <summary>All the numbers: the ten highest open-weights systems and Jev, by axis</summary>
 
-JevBench v1.6.1, 0 to 100, higher is better on every axis, sorted by overall score. The four axes have no published intervals; the composite has its 95% interval, shown in small text. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.
+JevBench v1.6.1, 0 to 100, higher is better on every axis, sorted by overall score; only the composite has a published 95% interval.
+The Decisio rows are the board's v0.8.0 entries; the board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.
 
 | System | Overall | Intelligence | Sealed questions | Calibration | Speed | Cost |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -119,12 +116,9 @@ What the compared systems' cards state, quoted as recorded with their revisions,
 Fifty questions about a 3,000-token document in 1.50 s on one RTX PRO 6000; the large open decision models that re-read the document for every question take 45.7 to 67.9 s.
 At 50 questions it is also faster than the two systems that share the document through the prefix cache: 1.50 s against 2.35 s for Blink v0.3 and 2.39 s for H2O-Lightning-4B.
 
-How it was measured, by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell at 600 W, each system on its own published server:
-- decisio v0.10.0 with vLLM 0.30.0 in its default mode (31B warm); Blink on stock vLLM 0.30.0.
-- Synthetic support tickets of exactly 3,000 and 6,000 tokens (Gemma 4 tokenizer), the same documents for every system; one fixed pool of 50 questions (20 choice with 4 options, 20 yes/no, 10 score with 4 levels).
-- Medians of the wall time of everything asked about one document, over 10 documents for decisio, Blink and H2O-Lightning-4B and 5 for the others; this compares time, not accuracy.
-- Blink v0.3 is a 26B-A4B model (4B active parameters, 17.5 GB), not a 4B model; H2O-Lightning-4B is a 4B. Both take one question per request and share the document through vLLM's prefix cache. At 3,000 tokens only; at 6,000 tokens the 31B is also lower than both (2.39 s against 3.48 s for Blink and 3.07 s for H2O).
-- Quyet-1.0-Large has no 6,000-token cells: they were not reached within its 15-minute cap.
+Measured by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell at 600 W, each system on its own published server (decisio v0.10.0 with vLLM 0.30.0, the 31B warm; Blink on stock vLLM 0.30.0):
+- Synthetic support tickets of 3,000 and 6,000 tokens, the same for every system, and one pool of 50 questions (20 choice, 20 yes/no, 10 score). Medians of the wall time of everything asked about one document, over 10 documents for decisio, Blink and H2O-Lightning-4B and 5 for the others. This compares time, not accuracy.
+- Blink v0.3 is a 26B-A4B model (4B active parameters), not a 4B; H2O-Lightning-4B is a 4B. Both share the document through vLLM's prefix cache, and at 6,000 tokens the 31B is also lower than both (2.39 s against 3.48 s for Blink and 3.07 s for H2O). Quyet-1.0-Large has no 6,000-token cells: they were not reached within its 15-minute cap.
 
 ### How we read the board
 
@@ -135,14 +129,15 @@ How it was measured, by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell at 6
 
 Decisio scores higher on the sealed items than on the open ones.
 
-- **Source.** The figures are the board's, from its published file for [JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1) (sha256 `5cd8c1332226...`, read 2026-10-09), row `decisio-gemma-4-31b-v080`; the charts are drawn from that file, view A.
-- **Open weights.** Second among the board's 128 open-weights systems: the board's own `open_board_rank` is 2, and H2O-Lightning-4B ranks above us (72.52, interval 69.79 to 73.79) with an interval that overlaps ours (69.86 to 72.81). Overall the row is fourth of 135 on the headline composite (third on view B, fourth on view C).
-- **Frozen weights.** The board has no frozen-weights class. We count a row as frozen when its display text says so (or says stock Gemma or Qwen) and names no LoRA, fine-tune, merge, training, adapter, head or decoder. The claim is about rank: decisio's row is the highest-ranked of those.
-- **Level with Jev.** Our interval (69.86 to 72.81) and Jev 1.13.0's (69.14 to 72.40) overlap; the scores are 71.69 and 71.49.
-- **Intervals.** Two other frozen-weights rows have intervals that overlap ours, decider-12b-v1 (rank 9) and Cygnet (rank 13); deck-31B (rank 12) does not.
-- **The row.** It is decisio v0.8.0 with Google's weights quantized to FP8 on load, measured by the board on one H100 80 GB on 2026-10-06; 1,477 of its 1,500 items were answered, the 23 others being items of about 80,000 tokens, over the 32,768-token context. The 31B repository's FP8 weights are that same quantization, stored.
-- **Not fitted, but read.** Our temperatures were not fitted on JevBench; we have read its published items (EVAL_CARD 7.4).
-- **Also on the board:** second on the sealed set.
+The headline claim rests on the board's own ranks and on interval overlap, not on separation.
+In short:
+
+- **Open weights.** Second among the board's 128 open-weights systems. H2O-Lightning-4B ranks above us (72.52, interval 69.79 to 73.79) and its interval overlaps ours (69.86 to 72.81).
+- **Level with Jev.** Our interval and Jev 1.13.0's (69.14 to 72.40) overlap. The scores are 71.69 and 71.49.
+- **Frozen weights.** The board has no such class. We count a row as frozen by its display text, and decisio's row is the highest-ranked of those.
+- **Not fitted, but read.** Our temperatures were not fitted on JevBench, but we have read its published items (EVAL_CARD 7.4).
+
+[`docs/board-reading.md`](docs/board-reading.md) has the source file, the ranks, the frozen-weights rule, the overlapping intervals and what the board's row ran on.
 
 ## Quickstart
 
