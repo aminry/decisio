@@ -1,4 +1,4 @@
-From 5baf31153bad91cec6d3583cd778697e0a3b9ed1 Mon Sep 17 00:00:00 2001
+From 002a18b7e5de07bbc4d76f4acc1942024627f8c6 Mon Sep 17 00:00:00 2001
 From: Amin <roudaky@gmail.com>
 Date: Fri, 25 Sep 2026 16:25:50 -0700
 Subject: [PATCH 2/2] [Perf][MRv2] Batch per-request slot resets in
@@ -22,7 +22,7 @@ value per slot, matching the sequential fill_ semantics.
  1 file changed, 33 insertions(+)
 
 diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
-index 596ffc8a78..a28d4fadca 100644
+index c553ef8..651cf03 100644
 --- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 +++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 @@ -7,10 +7,12 @@ import numpy as np
@@ -38,7 +38,7 @@ index 596ffc8a78..a28d4fadca 100644
  from vllm.v1.attention.backends.gdn_attn import GDNAttentionMetadataBuilder
  from vllm.v1.attention.backends.mamba2_attn import Mamba2AttentionMetadataBuilder
  from vllm.v1.attention.backends.short_conv_attn import (
-@@ -107,11 +109,23 @@ class MambaHybridModelState(DefaultModelState):
+@@ -111,11 +113,23 @@ class MambaHybridModelState(DefaultModelState):
              self._mamba_group_ids: list[int] = []
              self._mamba_spec: MambaSpec | None = None
              self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
@@ -62,7 +62,7 @@ index 596ffc8a78..a28d4fadca 100644
          # Must reset the speculative acceptance count in this idx which could be stale.
          self.num_accepted_tokens_gpu[req_index].fill_(1)
          if self._align_mode:
-@@ -120,6 +134,25 @@ class MambaHybridModelState(DefaultModelState):
+@@ -124,6 +138,25 @@ class MambaHybridModelState(DefaultModelState):
                  (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size
              )
  

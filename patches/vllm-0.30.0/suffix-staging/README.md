@@ -1,13 +1,13 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- SPDX-FileCopyrightText: Copyright contributors to the decisio project -->
 
-# vLLM v0.31.0 patch: suffix-only prompt staging
+# vLLM v0.30.0 patch: suffix-only prompt staging
 
 ## Base
 
-- Upstream tag: `v0.31.0` = `db9527a46873454610df6dbedf79a36d6bf1a7f6` (vllm-project/vllm).
+- Upstream tag: `v0.30.0` = `ced6857afa0ea7b2e3f0846a62e1394e90f15607` (vllm-project/vllm).
 - Files here:
-  - `0001-*.patch`, `0002-*.patch`: `git format-patch v0.31.0..HEAD` (includes the test file).
+  - `0001-*.patch`, `0002-*.patch`: `git format-patch v0.30.0..HEAD` (includes the test file).
   - `pkg/0001-*.patch`, `pkg/0002-*.patch`: the same commits restricted to `vllm/`, for `patch -p1` inside site-packages.
 
 ## Commits
@@ -77,7 +77,7 @@ Claim: for a slot staged with start `S`, no allowed reader ever reads a column `
    No lazy re-staging or CPU copy of the prompt is needed.
 6. Async scheduling does not change any of this: the staged writes are applied on the main stream in `add_requests`, before `prepare_inputs` of the same step, as before.
 7. A tripwire in `update_requests` logs a warning once if the scheduler ever reports a live request's `num_computed_tokens` below its first staged column.
-   In v0.31.0 that cannot happen through the paths above (a sync KV-load failure with the recompute policy lowers it in the scheduler, but MRv2 does not rewind its GPU `nct` in that case either, before or after this patch).
+   In v0.30.0 that cannot happen through the paths above (a sync KV-load failure with the recompute policy lowers it in the scheduler, but MRv2 does not rewind its GPU `nct` in that case either, before or after this patch).
 
 ### Every reader of the staged prompt ids or M-RoPE prefill positions
 
@@ -104,14 +104,14 @@ The search covered every `all_token_ids` and `req_states` use under `vllm/` (inc
 
 ## How to apply
 
-Into an installed vLLM 0.31.0 (the `.py` files must match the tag; the dry run checks that):
+Into an installed vLLM 0.30.0 (the `.py` files must match the tag; the dry run checks that):
 
 ```bash
 bash patches/apply.sh "$(which python)"
 ```
 
 To revert, run `patch -p1 -R` with the patches in reverse order inside the site-packages directory.
-Into a git checkout of `v0.31.0`, use `git am patches/vllm-0.31.0/suffix-staging/0*.patch`.
+Into a git checkout of `v0.30.0`, use `git am patches/vllm-0.30.0/suffix-staging/0*.patch`.
 
 ## How to verify
 
@@ -120,7 +120,7 @@ Into a git checkout of `v0.31.0`, use `git am patches/vllm-0.31.0/suffix-staging
 
    ```bash
    cd "$(mktemp -d)"
-   git apply --include='tests/*' "$DECISIO/patches/vllm-0.31.0/suffix-staging/0001-"*.patch
+   git apply --include='tests/*' "$DECISIO/patches/vllm-0.30.0/suffix-staging/0001-"*.patch
    python -m pytest -q tests/v1/worker/test_gpu_suffix_staging.py
    ```
 
@@ -131,10 +131,9 @@ Into a git checkout of `v0.31.0`, use `git am patches/vllm-0.31.0/suffix-staging
 
 ## Measured effect
 
-Not yet measured on vLLM 0.31.0.
-This series is the v0.30.0 series ported to v0.31.0: `git am -3` of both commits, one hunk resolved by hand (`GPUModelRunner.__init__`, where v0.31.0 changed the `num_prefill_lookahead` lines beside the new fields).
-On v0.30.0, on one RTX PRO 6000 Blackwell Max-Q, against stock, at 8,000-token states with front padding to 1,056-token blocks (`runs/2026-09-30_plugin-verification`, `bench_*.json`): 3 to 8% less time per question with the flag on, nothing measurable on a 100-question throughput cell, and with the flag off the patched build matched stock within about 2% (3 repeats, no separate noise measurement); the patch's own CUDA test passed on that card.
-None of that carries over until it is run again on v0.31.0 (steps 2 to 5 under "How to verify").
+On one RTX PRO 6000 Blackwell Max-Q, against stock vLLM 0.30.0 in its own environment, at 8,000-token states with front padding to 1,056-token blocks (`runs/2026-09-30_plugin-verification`, `bench_*.json`): 3 to 8% less time per question with the flag on, nothing measurable on a 100-question throughput cell.
+With the flag off the patched build matched stock within about 2%, which is within the variation between repeats (3 repeats, no separate noise measurement).
+The patch's own CUDA test passed on that card.
 
 ## Expected effect
 
@@ -147,6 +146,6 @@ Still proportional to the full prompt per request: the block table staging (need
 
 ## Risks and limits
 
-- The correctness relies on the GPU `num_computed_tokens` of a slot never going below its add-time value, and on the reader list above being complete for v0.31.0 (rechecked by diffing the readers of `all_token_ids` between v0.30.0 and v0.31.0: the one new reader is the custom logits processors' interface, which the runner-wide predicate already excludes); a future reader of prompt columns, an out-of-tree plugin that reads `req_states.all_token_ids`, or a new rewind path would break it silently (the tripwire only covers scheduler rewinds).
+- The correctness relies on the GPU `num_computed_tokens` of a slot never going below its add-time value, and on the reader list above being complete for v0.30.0; a future reader of prompt columns, an out-of-tree plugin that reads `req_states.all_token_ids`, or a new rewind path would break it silently (the tripwire only covers scheduler rewinds).
 - Model-provided model states, EVS, watermarking and spec decode fall back to full staging, so they gain nothing.
-- On v0.31.0 this series has been checked to apply and its readers rechecked by diff, nothing more: the CUDA test, output equality with the flag on and off, and the latency effect were verified on v0.30.0 only, on one card (the RTX PRO 6000 Blackwell Max-Q above).
+- Verified on one card only (the RTX PRO 6000 Blackwell Max-Q above): the CUDA test, output equality with the flag on and off, and the latency effect.
