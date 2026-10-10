@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""decisio's model classes for vLLM 0.31.0, registered by `decisio.vllm_plugin.register` in the lazy form, so this
+"""decisio's model classes for vLLM 0.30.0, registered by `decisio.vllm_plugin.register` in the lazy form, so this
 module is imported only inside vLLM, when it builds a model of one of these architectures.
 
   DecisioQwen3_5MoeTextOnly   the text model of the official Qwen3.6-35B-A3B checkpoint, loaded without the vision

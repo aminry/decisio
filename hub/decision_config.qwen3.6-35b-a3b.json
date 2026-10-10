@@ -65,6 +65,6 @@
     "register_boundary": null
   },
   "engine": {
-    "vllm": "0.31.0"
+    "vllm": "0.30.0"
   }
 }

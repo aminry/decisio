@@ -8,7 +8,7 @@ It bundles no third-party code except two prompt texts from the Cygnet recipe (M
 
 | What | How decisio uses it | Licence | Source |
 | --- | --- | --- | --- |
-| vLLM 0.31.0 | The serving engine (the `serve` extra); `patches/vllm-0.31.0` modifies it at image build; the plugin subclasses its `Qwen3_5MoeForCausalLM` | Apache-2.0 | github.com/vllm-project/vllm |
+| vLLM 0.30.0 | The serving engine (the `serve` extra); `patches/vllm-0.30.0` modifies it at image build; the plugin subclasses its `Qwen3_5MoeForCausalLM` | Apache-2.0 | github.com/vllm-project/vllm |
 | Qwen3.6-35B-A3B (FP8) | The Qwen base's weights, redistributed byte for byte in `tachara-ai/decisio-qwen3.6-35b-a3b` with the source licence | Apache-2.0 (model card) | huggingface.co/Qwen/Qwen3.6-35B-A3B-FP8 |
 | Gemma 4 12B (google/gemma-4-12B-it at revision 707f0a3b) | The second base's weights (`--base gemma-4-12b`), redistributed byte for byte in `tachara-ai/decisio-gemma-4-12b` with `LICENSE` and `NOTICE`; the plugin subclasses vLLM's `Gemma4UnifiedForConditionalGeneration` | Apache-2.0 (model card and the Gemma 4 licence page, ai.google.dev/gemma/docs/gemma_4_license, which names no use policy) | huggingface.co/google/gemma-4-12B-it |
 | Gemma 4 31B (google/gemma-4-31B-it at revision 842da379) | The default base's weights (`--base gemma-4-31b`), with the text model's linear layers quantized to FP8 and redistributed in `tachara-ai/decisio-gemma-4-31b` with `LICENSE` and `NOTICE`; the vision tower and every other tensor are unchanged; the plugin subclasses vLLM's `Gemma4ForCausalLM`, its text class | Apache-2.0 (model card and the Gemma 4 licence page, ai.google.dev/gemma/docs/gemma_4_license, which names no use policy) | huggingface.co/google/gemma-4-31B-it |

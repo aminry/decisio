@@ -173,7 +173,7 @@ python -m decisio.serve.vllm_engine          # serves Gemma 4 31B; the first sta
 curl -s http://127.0.0.1:8000/health         # answers once it is ready
 ```
 
-The measured environment is the lockfile's (`uv sync --extra serve --frozen`, [GPU server](#gpu-server)); pip resolves its own versions around vLLM 0.31.0.
+The measured environment is the lockfile's (`uv sync --extra serve --frozen`, [GPU server](#gpu-server)); pip resolves its own versions around vLLM 0.30.0.
 Measured by Lab 2 on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwell at 600 W and an AMD EPYC 9534: `pip install "decisio[serve]"` took 124 s; the first start of the no-flag 31B was ready after 7 min 54 s, including the download of its weights, and a start with the weights already on disk after 4 min 3 s; the first start of `--base gemma-4-12b` after 4 min 12 s, including its download (these are one session's times, with the network that session had).
 
 ### With Docker
@@ -612,7 +612,7 @@ src/decisio/vllm_plugin/  the vLLM entry point and the two model classes
 src/decisio/bench/      benchmark scoring (JevBench v1.5 open-set reading, Decision Index reports)
 benchmarks/             scripts that run the public harnesses against a server
 patches/                optional vLLM patch series, off by default
-Dockerfile  compose.yaml  docker/   the server image (vLLM 0.31.0 release image plus the wheel)
+Dockerfile  compose.yaml  docker/   the server image (vLLM 0.30.0 release image plus the wheel)
 tests/unit/  tests/gpu/ CPU tests: the fast tier on every pull request, the slow tier nightly; GPU tests (pytest -m gpu) by hand on a card
 runs/                   evaluation records: a manifest, per-item results and hashes per run
 docs/                   running, the API, the command line, task registration, design notes
