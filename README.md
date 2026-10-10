@@ -81,7 +81,7 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 </picture>
 
 - Among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
-- Close to the top on calibration (88.7, 5th; Jev 90.6 is highest) and on speed (91.2, 5th; H2O-Lightning-4B 92.6 is highest).
+- Within 2 points of the highest on calibration (88.7; Jev 90.6) and on speed (91.2; H2O-Lightning-4B 92.6).
 - 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest). On your own hardware you pay for the card, not per token.
 
 <details>
