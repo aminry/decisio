@@ -115,13 +115,13 @@ What the compared systems' cards state, quoted as recorded with their revisions,
 </picture>
 
 Fifty questions about a 3,000-token document in 1.50 s on one RTX PRO 6000; the large open decision models that re-read the document for every question take 45.7 to 67.9 s.
-At 50 questions it is also faster than the 4B models that share the document through the prefix cache (1.50 s against 2.35 and 2.39 s).
+At 50 questions it is also faster than the two systems that share the document through the prefix cache: 1.50 s against 2.35 s for Blink v0.3 and 2.39 s for H2O-Lightning-4B.
 
 How it was measured, by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell at 600 W, each system on its own published server:
 - decisio v0.10.0 with vLLM 0.30.0 in its default mode (31B warm); Blink on stock vLLM 0.30.0.
 - Synthetic support tickets of exactly 3,000 and 6,000 tokens (Gemma 4 tokenizer), the same documents for every system; one fixed pool of 50 questions (20 choice with 4 options, 20 yes/no, 10 score with 4 levels).
 - Medians of the wall time of everything asked about one document, over 10 documents for decisio, Blink and H2O-Lightning-4B and 5 for the others; this compares time, not accuracy.
-- Blink v0.3 is a 26B-A4B model (4B active parameters, 17.5 GB): '4B models' means H2O-Lightning-4B and Blink's 4B active parameters; both take one question per request and share the document through vLLM's prefix cache. At 3,000 tokens only; at 6,000 tokens the 31B is also lower than both (2.39 s against 3.48 and 3.07 s).
+- Blink v0.3 is a 26B-A4B model (4B active parameters, 17.5 GB), not a 4B model; H2O-Lightning-4B is a 4B. Both take one question per request and share the document through vLLM's prefix cache. At 3,000 tokens only; at 6,000 tokens the 31B is also lower than both (2.39 s against 3.48 s for Blink and 3.07 s for H2O).
 - Quyet-1.0-Large has no 6,000-token cells: they were not reached within its 15-minute cap.
 
 ### How we read the board
