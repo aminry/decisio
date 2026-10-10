@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The checks of the vLLM packaging that need no GPU and no vLLM (docs/design/vllm-plugin.md, "Tests without a GPU");
-vLLM 0.30.0 has no macOS wheels, so the real package is never imported here. The plugin's registration, version guard
+vLLM 0.31.0 has no macOS wheels, so the real package is never imported here. The plugin's registration, version guard
 and re-entrancy are in test_vllm_plugin.py, the model classes in test_vllm_plugin.py and test_hidden_readout.py, the
 patch series in test_patches.py, the head modes in test_head_modes.py.
 
@@ -100,17 +100,17 @@ print(json.dumps({"eps": {e.name: e.value for e in eps}, "registered": fn(), "ag
 
 def test_v1_serve_extra_pins_vllm():
     proj = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-    assert [d.split(";")[0].strip() for d in proj["optional-dependencies"]["serve"]] == ["vllm==0.30.0"]
+    assert [d.split(";")[0].strip() for d in proj["optional-dependencies"]["serve"]] == ["vllm==0.31.0"]
     assert not any(d.startswith("vllm") for d in proj["dependencies"])  # vLLM stays optional (Linux, GPU)
     import decisio.vllm_plugin as p
 
-    assert p.SUPPORTED_VLLM == "0.30.0"
+    assert p.SUPPORTED_VLLM == "0.31.0"
 
 
 def test_v2_registration_is_lazy():
     code = """
 import sys, types
-vllm = types.ModuleType("vllm"); vllm.__version__ = "0.30.0"
+vllm = types.ModuleType("vllm"); vllm.__version__ = "0.31.0"
 calls = []
 models = types.ModuleType("vllm.model_executor.models")
 models.ModelRegistry = types.SimpleNamespace(register_model=lambda a, c: calls.append((a, c)))
@@ -156,7 +156,7 @@ def test_v4_engine_arguments(monkeypatch):
     base = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
     assert vllm_engine.engine_kwargs(args("view")) == base  # the fallback: no plugin involved
     monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
-    with stub_vllm("0.30.0"):
+    with stub_vllm("0.31.0"):
         import decisio.vllm_plugin as p
 
         monkeypatch.setattr(p, "installed_entry_point", lambda: False)
@@ -171,11 +171,11 @@ def test_v4_engine_arguments(monkeypatch):
         assert kw == {**base, "max_logprobs": 1024, "hf_overrides": {"architectures": [p.HIDDEN_READOUT]}}
         assert os.environ["DECISIO_HIDDEN_READOUT_START"] == "100000"
         monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START")
-    with stub_vllm("0.31.0"):
+    with stub_vllm("0.30.0"):
         import decisio.vllm_plugin as p
 
         monkeypatch.setattr(p, "installed_entry_point", lambda: True)
-        with pytest.raises(SystemExit, match="vllm==0.30.0"):
+        with pytest.raises(SystemExit, match="vllm==0.31.0"):
             vllm_engine.engine_kwargs(args("text-only"))
 
 

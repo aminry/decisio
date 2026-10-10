@@ -1,4 +1,4 @@
-From 0e643ab3a1ba500932083df1235d0cff863ddd7d Mon Sep 17 00:00:00 2001
+From 6c58e1f46f0746891804f136f49035484c3eefb3 Mon Sep 17 00:00:00 2001
 From: Amin <roudaky@gmail.com>
 Date: Fri, 25 Sep 2026 16:25:31 -0700
 Subject: [PATCH 1/2] [Perf][MRv2] Stage only the uncached prompt suffix of
@@ -41,246 +41,21 @@ slot holding stale data from a previous occupant, runs the real
 prepare_prefill_inputs kernel over a chunked prefill, and checks the
 gathered input ids and lookahead tokens equal those of full staging.
 ---
- tests/v1/worker/test_gpu_suffix_staging.py    | 217 ++++++++++++++++++
- vllm/envs.py                                  |   8 +
- vllm/v1/worker/gpu/mm/rope.py                 |  14 +-
- vllm/v1/worker/gpu/model_runner.py            |  88 ++++++-
- vllm/v1/worker/gpu/model_states/default.py    |   8 +-
- .../worker/gpu/model_states/mamba_hybrid.py   |   6 +-
- vllm/v1/worker/gpu/states.py                  |  19 +-
- vllm/v1/worker/gpu/suffix_staging.py          |  82 +++++++
- 8 files changed, 435 insertions(+), 7 deletions(-)
- create mode 100644 tests/v1/worker/test_gpu_suffix_staging.py
+ vllm/envs.py                                  |  8 ++
+ vllm/v1/worker/gpu/mm/rope.py                 | 14 ++-
+ vllm/v1/worker/gpu/model_runner.py            | 88 ++++++++++++++++++-
+ vllm/v1/worker/gpu/model_states/default.py    |  8 +-
+ .../worker/gpu/model_states/mamba_hybrid.py   |  6 +-
+ vllm/v1/worker/gpu/states.py                  | 19 +++-
+ vllm/v1/worker/gpu/suffix_staging.py          | 82 +++++++++++++++++
+ 7 files changed, 218 insertions(+), 7 deletions(-)
  create mode 100644 vllm/v1/worker/gpu/suffix_staging.py
 
-diff --git a/tests/v1/worker/test_gpu_suffix_staging.py b/tests/v1/worker/test_gpu_suffix_staging.py
-new file mode 100644
-index 0000000..4c0cb72
---- /dev/null
-+++ b/tests/v1/worker/test_gpu_suffix_staging.py
-@@ -0,0 +1,217 @@
-+# SPDX-License-Identifier: Apache-2.0
-+# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
-+"""Tests for Model Runner V2 suffix-only prompt staging (VLLM_SUFFIX_STAGING).
-+
-+The predicate and the row-offset simulation are pure Python. The last test
-+runs the real RequestState staging and prefill gather kernel on CUDA and is
-+skipped elsewhere.
-+"""
-+
-+from types import SimpleNamespace
-+
-+import pytest
-+
-+from vllm.v1.worker.gpu.suffix_staging import (
-+    get_prompt_stage_start,
-+    request_needs_full_prompt,
-+)
-+
-+
-+def _params(**overrides) -> SimpleNamespace:
-+    """Stand-in for SamplingParams with the defaults of the audited fields."""
-+    fields = dict(
-+        prompt_logprobs=None,
-+        repetition_penalty=1.0,
-+        frequency_penalty=0.0,
-+        presence_penalty=0.0,
-+        bad_words_token_ids=None,
-+        structured_outputs=None,
-+        thinking_token_budget=None,
-+    )
-+    fields.update(overrides)
-+    return SimpleNamespace(**fields)
-+
-+
-+def test_default_request_does_not_need_full_prompt():
-+    assert not request_needs_full_prompt(_params())
-+    # Empty bad words list is the post-tokenization default.
-+    assert not request_needs_full_prompt(_params(bad_words_token_ids=[]))
-+
-+
-+@pytest.mark.parametrize(
-+    "overrides",
-+    [
-+        dict(prompt_logprobs=0),
-+        dict(prompt_logprobs=5),
-+        dict(repetition_penalty=1.1),
-+        dict(frequency_penalty=0.5),
-+        dict(presence_penalty=-0.5),
-+        dict(bad_words_token_ids=[[1, 2]]),
-+        dict(structured_outputs=object()),
-+        dict(thinking_token_budget=0),
-+        dict(thinking_token_budget=128),
-+    ],
-+)
-+def test_prompt_reading_features_need_full_prompt(overrides):
-+    assert request_needs_full_prompt(_params(**overrides))
-+
-+
-+def test_pooling_request_needs_full_prompt():
-+    assert request_needs_full_prompt(None)
-+
-+
-+def test_real_sampling_params_defaults():
-+    sampling_params = pytest.importorskip("vllm.sampling_params")
-+    sp = sampling_params.SamplingParams(
-+        max_tokens=1, temperature=0.0, logprobs=5, allowed_token_ids=[3, 4]
-+    )
-+    assert not request_needs_full_prompt(sp)
-+    assert request_needs_full_prompt(
-+        sampling_params.SamplingParams(max_tokens=1, presence_penalty=0.1)
-+    )
-+    assert request_needs_full_prompt(
-+        sampling_params.SamplingParams(max_tokens=1, prompt_logprobs=1)
-+    )
-+    assert request_needs_full_prompt(
-+        sampling_params.SamplingParams(max_tokens=1, _bad_words_token_ids=[[1]])
-+    )
-+
-+
-+@pytest.mark.parametrize(
-+    "enabled,params,num_computed,prefill_len,expected",
-+    [
-+        (False, _params(), 8000, 8300, 0),  # disabled
-+        (True, _params(), 0, 8300, 0),  # no prefix-cache hit
-+        (True, _params(), 8000, 8300, 8000),  # prefix-cache hit
-+        (True, _params(), 8299, 8300, 8299),  # only the last token uncached
-+        (True, _params(), 9000, 8300, 8300),  # clamped to the prefill
-+        (True, _params(presence_penalty=1.0), 8000, 8300, 0),  # needs prompt
-+        (True, None, 8000, 8300, 0),  # pooling
-+    ],
-+)
-+def test_get_prompt_stage_start(enabled, params, num_computed, prefill_len, expected):
-+    assert (
-+        get_prompt_stage_start(enabled, params, num_computed, prefill_len) == expected
-+    )
-+
-+
-+def _simulate_prefill_reads(
-+    prefill: list[int],
-+    num_computed: int,
-+    stage_start: int,
-+    chunk: int,
-+    lookahead: int,
-+    max_model_len: int,
-+) -> list[tuple[list[int], list[int]]]:
-+    """Pure-Python model of RequestState.add_request (staged row write at column
-+    stage_start of a row with stale contents) followed by chunked
-+    _prepare_prefill_inputs_kernel reads (query tokens from column
-+    num_computed plus lookahead tokens below prefill_len)."""
-+    row = [-7] * max_model_len  # stale data from a previous occupant
-+    row[stage_start : len(prefill)] = prefill[stage_start:]
-+    reads = []
-+    pos = num_computed
-+    while pos < len(prefill):
-+        q = min(chunk, len(prefill) - pos)
-+        tokens = row[pos : pos + q]
-+        nxt = [
-+            row[p] if p < len(prefill) else 0
-+            for p in range(pos + q, pos + q + lookahead)
-+        ]
-+        reads.append((tokens, nxt))
-+        pos += q
-+    return reads
-+
-+
-+@pytest.mark.parametrize("num_computed", [0, 1, 255, 256, 500, 7999, 8000, 8299])
-+@pytest.mark.parametrize("chunk", [1, 64, 8192])
-+def test_suffix_row_offsets_preserve_every_read(num_computed, chunk):
-+    prefill = [1000 + i for i in range(8300)]
-+    stage_start = get_prompt_stage_start(True, _params(), num_computed, len(prefill))
-+    full = _simulate_prefill_reads(prefill, num_computed, 0, chunk, 2, 8448)
-+    suffix = _simulate_prefill_reads(prefill, num_computed, stage_start, chunk, 2, 8448)
-+    assert suffix == full
-+    # And the model sees exactly the uncached prompt suffix, in order.
-+    assert [t for tokens, _ in suffix for t in tokens] == prefill[num_computed:]
-+
-+
-+@pytest.mark.parametrize("num_computed", [0, 1, 17, 1023, 1024, 1500, 1599])
-+def test_cuda_suffix_staging_prefill_gather_matches_full(num_computed):
-+    torch = pytest.importorskip("torch")
-+    pytest.importorskip("triton")
-+    if not torch.cuda.is_available():
-+        pytest.skip("CUDA required for the Model Runner V2 gather kernel")
-+    from vllm.v1.worker.gpu.input_batch import prepare_prefill_inputs
-+    from vllm.v1.worker.gpu.states import RequestState
-+
-+    device = torch.device("cuda")
-+    prefill_len = 1600
-+    prefill = [1000 + i for i in range(prefill_len)]
-+    chunk = 256
-+
-+    def run(stage_start: int) -> list[tuple[list[int], list[int]]]:
-+        req_states = RequestState(
-+            max_num_reqs=2,
-+            max_model_len=2048,
-+            max_num_batched_tokens=chunk,
-+            num_speculative_steps=0,
-+            vocab_size=4096,
-+            device=device,
-+            num_prefill_lookahead=2,
-+        )
-+        # Leave stale token ids in the slot the request will reuse.
-+        req_states.add_request(
-+            req_id="old",
-+            prompt_len=prefill_len,
-+            all_token_ids=[7] * prefill_len,
-+            num_computed_tokens=0,
-+            max_tokens=1,
-+        )
-+        req_states.apply_staged_writes()
-+        old_idx = req_states.remove_request("old")
-+
-+        req_states.add_request(
-+            req_id="req",
-+            prompt_len=prefill_len,
-+            all_token_ids=prefill,
-+            num_computed_tokens=num_computed,
-+            max_tokens=1,
-+            stage_start=stage_start,
-+        )
-+        req_states.apply_staged_writes()
-+        req_idx = req_states.req_id_to_index["req"]
-+        assert req_idx == old_idx
-+
-+        idx_mapping = torch.tensor([req_idx], dtype=torch.int32, device=device)
-+        reads = []
-+        pos = num_computed
-+        while pos < prefill_len:
-+            q = min(chunk, prefill_len - pos)
-+            input_ids = torch.zeros(q, dtype=torch.int32, device=device)
-+            query_start_loc = torch.tensor([0, q], dtype=torch.int32, device=device)
-+            prepare_prefill_inputs(
-+                input_ids,
-+                req_states.next_prefill_tokens,
-+                idx_mapping,
-+                query_start_loc,
-+                req_states.all_token_ids.gpu,
-+                req_states.prefill_len.gpu,
-+                req_states.num_computed_tokens.gpu,
-+            )
-+            reads.append(
-+                (
-+                    input_ids.cpu().tolist(),
-+                    req_states.next_prefill_tokens[:, req_idx].cpu().tolist(),
-+                )
-+            )
-+            # Advance the GPU num_computed_tokens as post_update() would.
-+            req_states.num_computed_tokens.gpu[req_idx] += q
-+            pos += q
-+        return reads
-+
-+    stage_start = get_prompt_stage_start(True, _params(), num_computed, prefill_len)
-+    assert stage_start == num_computed
-+    full = run(0)
-+    suffix = run(stage_start)
-+    assert suffix == full
-+    assert [t for tokens, _ in suffix for t in tokens] == prefill[num_computed:]
 diff --git a/vllm/envs.py b/vllm/envs.py
-index 6158f86..662560c 100755
+index 64b5ca2c4e..0aba56043b 100755
 --- a/vllm/envs.py
 +++ b/vllm/envs.py
-@@ -208,6 +208,7 @@ if TYPE_CHECKING:
+@@ -213,6 +213,7 @@ if TYPE_CHECKING:
      ] = "relax"
      VLLM_USE_FUSED_MOE_GROUPED_TOPK: bool = True
      VLLM_MOE_SKIP_PADDING: bool = True
@@ -288,7 +63,7 @@ index 6158f86..662560c 100755
      VLLM_KIMI_K3_SHARD_SP_SHARED_EXPERT: bool = False
      VLLM_KIMI_K3_AUX_ATTN_RES_STREAM: bool = False
      VLLM_KIMI_K3_GEMM_AR: bool = True
-@@ -1577,6 +1578,11 @@ environment_variables: dict[str, Callable[[], Any]] = {
+@@ -1625,6 +1626,11 @@ environment_variables: dict[str, Callable[[], Any]] = {
      # ids to -1 so the dispatch and experts drop them. Requires a MoE kernel that
      # treats topk_id == -1 as a skip sentinel
      "VLLM_MOE_SKIP_PADDING": lambda: bool(int(os.getenv("VLLM_MOE_SKIP_PADDING", "1"))),
@@ -300,7 +75,7 @@ index 6158f86..662560c 100755
      # Kimi-K3 only. Under sequence-parallel MoE the dense and shared-expert MLPs
      # are replicated on every rank, so each rank streams the whole weight to
      # serve its own token shard. Shard them across TP instead: the MLP then
-@@ -2328,6 +2334,8 @@ def compile_factors() -> dict[str, object]:
+@@ -2369,6 +2375,8 @@ def compile_factors() -> dict[str, object]:
          "VLLM_WORKER_MULTIPROC_METHOD",
          "VLLM_ENABLE_V1_MULTIPROCESSING",
          "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE",
@@ -310,7 +85,7 @@ index 6158f86..662560c 100755
          "VLLM_CPU_MOE_PREPACK",
          "VLLM_ZENTORCH_WEIGHT_PREPACK",
 diff --git a/vllm/v1/worker/gpu/mm/rope.py b/vllm/v1/worker/gpu/mm/rope.py
-index 637ad41..6884350 100644
+index 637ad41400..68843509bd 100644
 --- a/vllm/v1/worker/gpu/mm/rope.py
 +++ b/vllm/v1/worker/gpu/mm/rope.py
 @@ -61,7 +61,15 @@ class RopeState:
@@ -343,10 +118,10 @@ index 637ad41..6884350 100644
      def apply_staged_writes(self) -> None:
          self.prefill_positions.apply_write()
 diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
-index b66d552..ba70ce1 100644
+index c2f29972a2..198c1d4c30 100644
 --- a/vllm/v1/worker/gpu/model_runner.py
 +++ b/vllm/v1/worker/gpu/model_runner.py
-@@ -167,6 +167,7 @@ from vllm.v1.worker.gpu.spec_decode.speculator import DraftModelSpeculator
+@@ -164,6 +164,7 @@ from vllm.v1.worker.gpu.spec_decode.speculator import DraftModelSpeculator
  from vllm.v1.worker.gpu.spec_decode.utils import DraftTokensHandler
  from vllm.v1.worker.gpu.states import RequestState
  from vllm.v1.worker.gpu.structured_outputs import StructuredOutputsWorker
@@ -354,7 +129,7 @@ index b66d552..ba70ce1 100644
  from vllm.v1.worker.gpu.ubatch_utils import (
      UBatchRunner,
      UBatchState,
-@@ -296,6 +297,12 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+@@ -291,6 +292,12 @@ class GPUModelRunner(LoRAModelRunnerMixin):
          self.is_pooling_model = self.model_config.runner_type == "pooling"
          self.pooling_runner: PoolingRunner | None = None
  
@@ -364,10 +139,10 @@ index b66d552..ba70ce1 100644
 +        self._suffix_staging_requested = envs.VLLM_SUFFIX_STAGING
 +        self.suffix_staging = False
 +
-         # Multi-module MTP feeds its modules the next num_speculative_steps prefill
-         # tokens during chunked prefill. Other speculators only read the immediate
-         # next one.
-@@ -532,6 +539,55 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+         num_prefill_lookahead = max(1, vllm_config.num_prefill_lookahead_tokens)
+ 
+         self.step_timing = StepTimingCollector()
+@@ -525,6 +532,55 @@ class GPUModelRunner(LoRAModelRunnerMixin):
              )
  
          get_offloader().post_init()
@@ -423,7 +198,7 @@ index b66d552..ba70ce1 100644
  
      def get_model(self) -> nn.Module:
          return self.model
-@@ -1129,12 +1185,22 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+@@ -1150,12 +1206,22 @@ class GPUModelRunner(LoRAModelRunnerMixin):
  
              prompt_len = new_req_data.prompt_len
              sampling_params = new_req_data.sampling_params
@@ -446,7 +221,7 @@ index b66d552..ba70ce1 100644
              )
              req_index = self.req_states.req_id_to_index[req_id]
              if self.adaptive_verification is not None:
-@@ -1152,7 +1218,14 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+@@ -1173,7 +1239,14 @@ class GPUModelRunner(LoRAModelRunnerMixin):
              if self.encoder_cache is not None:
                  self.encoder_cache.add_request(req_id, new_req_data.mm_features)
  
@@ -462,7 +237,7 @@ index b66d552..ba70ce1 100644
              self.block_tables.append_block_ids(
                  req_index, new_req_data.block_ids, overwrite=True
              )
-@@ -1192,6 +1265,19 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+@@ -1211,6 +1284,19 @@ class GPUModelRunner(LoRAModelRunnerMixin):
                      req_index, req_new_block_ids, overwrite=False
                  )
  
@@ -483,10 +258,10 @@ index b66d552..ba70ce1 100644
          np.minimum(
              self.req_states.num_computed_tokens_np,
 diff --git a/vllm/v1/worker/gpu/model_states/default.py b/vllm/v1/worker/gpu/model_states/default.py
-index 27a9591..0b89552 100644
+index 35ca9ccba1..9179e00fae 100644
 --- a/vllm/v1/worker/gpu/model_states/default.py
 +++ b/vllm/v1/worker/gpu/model_states/default.py
-@@ -61,7 +61,12 @@ class DefaultModelState(ModelState):
+@@ -64,7 +64,12 @@ class DefaultModelState(ModelState):
              self.model_config, model, self.rope_state, encoder_cache
          )
  
@@ -500,7 +275,7 @@ index 27a9591..0b89552 100644
          if self.rope_state is not None:
              assert new_req_data.prefill_token_ids is not None
              # `prompt_embeds` is a passthrough modality with no grid info, but
-@@ -74,6 +79,7 @@ class DefaultModelState(ModelState):
+@@ -77,6 +82,7 @@ class DefaultModelState(ModelState):
                  self.model,
                  new_req_data.prefill_token_ids,
                  mm_features=mm_features,
@@ -509,10 +284,10 @@ index 27a9591..0b89552 100644
          if self.prompt_embeds_state is not None:
              self.prompt_embeds_state.add_request(req_index, new_req_data)
 diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
-index 0ac3f2f..c553ef8 100644
+index 32924555b1..596ffc8a78 100644
 --- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
 +++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
-@@ -112,8 +112,10 @@ class MambaHybridModelState(DefaultModelState):
+@@ -108,8 +108,10 @@ class MambaHybridModelState(DefaultModelState):
              self._mamba_spec: MambaSpec | None = None
              self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
  
@@ -526,7 +301,7 @@ index 0ac3f2f..c553ef8 100644
          self.num_accepted_tokens_gpu[req_index].fill_(1)
          if self._align_mode:
 diff --git a/vllm/v1/worker/gpu/states.py b/vllm/v1/worker/gpu/states.py
-index 025c830..e973e97 100644
+index db27bf013f..2cd430ab51 100644
 --- a/vllm/v1/worker/gpu/states.py
 +++ b/vllm/v1/worker/gpu/states.py
 @@ -60,6 +60,10 @@ class RequestState:
@@ -540,7 +315,7 @@ index 025c830..e973e97 100644
  
          # Last sampled tokens.
          self.last_sampled_tokens = torch.zeros(
-@@ -95,6 +99,7 @@ class RequestState:
+@@ -92,6 +96,7 @@ class RequestState:
          all_token_ids: list[int],
          num_computed_tokens: int,
          max_tokens: int,
@@ -548,7 +323,7 @@ index 025c830..e973e97 100644
      ) -> None:
          assert len(self.free_indices) > 0, "No free indices"
          req_idx = self.free_indices.pop()
-@@ -109,7 +114,19 @@ class RequestState:
+@@ -106,7 +111,19 @@ class RequestState:
          )
          self.prefill_len.np[req_idx] = prefill_len
          self.total_len.stage_write_elem(req_idx, prefill_len)
@@ -571,7 +346,7 @@ index 025c830..e973e97 100644
          self.num_computed_tokens.stage_write_elem(req_idx, num_computed_tokens)
 diff --git a/vllm/v1/worker/gpu/suffix_staging.py b/vllm/v1/worker/gpu/suffix_staging.py
 new file mode 100644
-index 0000000..c8ba4b6
+index 0000000000..c8ba4b6978
 --- /dev/null
 +++ b/vllm/v1/worker/gpu/suffix_staging.py
 @@ -0,0 +1,82 @@

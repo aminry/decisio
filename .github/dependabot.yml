@@ -27,7 +27,7 @@ updates:
     commit-message:
       prefix: "chore(docker)"
     ignore:
-      # a vLLM tag bump is a measured change (the plugin targets exactly 0.30.0); only the digest of the pinned tag moves
+      # a vLLM tag bump is a measured change (the plugin targets exactly 0.31.0); only the digest of the pinned tag moves
       - dependency-name: vllm/vllm-openai
         update-types:
           - version-update:semver-major

@@ -34,7 +34,7 @@ def plugin():
 
 
 def test_p1_registers_the_declared_models():
-    with stub_vllm("0.30.0") as registry:
+    with stub_vllm("0.31.0") as registry:
         p = plugin()
         assert p.register() is True
         assert dict(registry.calls) == p.MODELS and len(registry.calls) == len(p.MODELS)
@@ -46,7 +46,7 @@ def test_p1_registers_the_declared_models():
 def test_p1_config_hook_registered_for_every_class():
     """vLLM looks up its per-architecture config hook by architecture name; every decisio class must get the hook of
     the class it subclasses (without it a card ran 544-token blocks instead of 1,056, 2026-09-30)."""
-    with stub_vllm("0.30.0") as registry:
+    with stub_vllm("0.31.0") as registry:
         p = plugin()
         before = dict(registry.config_map)
         assert p.register()
@@ -54,24 +54,24 @@ def test_p1_config_hook_registered_for_every_class():
             assert registry.config_map[arch] == before[p.BASE_ARCHS[arch]]
         assert registry.config_map[p.GEMMA4_HIDDEN_READOUT] == "Gemma4Config"
         assert {k: v for k, v in registry.config_map.items() if k not in p.MODELS} == before  # nothing else touched
-    with stub_vllm("0.30.0", config_map={"Qwen3ForCausalLM": "other"}) as registry:  # no hook to reuse
+    with stub_vllm("0.31.0", config_map={"Qwen3ForCausalLM": "other"}) as registry:  # no hook to reuse
         p = plugin()
         assert p.register() is False and registry.calls == []
     # a vLLM without Gemma 4's hook: the Qwen classes register, the Gemma class does not
-    with stub_vllm("0.30.0", config_map={"Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig"}) as registry:
+    with stub_vllm("0.31.0", config_map={"Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig"}) as registry:
         p = plugin()
         assert p.register() is True
         assert sorted(a for a, _ in registry.calls) == sorted([p.TEXT_ONLY, p.HIDDEN_READOUT])
 
 
 def test_p2_reentrant():
-    with stub_vllm("0.30.0") as registry:
+    with stub_vllm("0.31.0") as registry:
         p = plugin()
         assert p.register() and p.register() and p.register()
         assert len(registry.calls) == len(p.MODELS)
 
 
-@pytest.mark.parametrize("version", ["0.29.2", "0.30.1", "0.31.0", "dev"])
+@pytest.mark.parametrize("version", ["0.29.2", "0.30.0", "0.31.1", "dev"])
 def test_p3_version_guard(version, caplog):
     with stub_vllm(version) as registry, caplog.at_level(logging.WARNING, logger="decisio.vllm_plugin"):
         p = plugin()
@@ -80,7 +80,7 @@ def test_p3_version_guard(version, caplog):
 
 
 def test_p3_without_vllm(monkeypatch):
-    with stub_vllm("0.30.0"):
+    with stub_vllm("0.31.0"):
         p = plugin()
     monkeypatch.setitem(sys.modules, "vllm", None)  # import vllm -> ImportError
     sys.modules.pop("decisio.vllm_plugin", None)
@@ -102,7 +102,7 @@ def test_p5_no_class_shadows_a_torch_or_vllm_attribute():
     import torch.nn as nn
 
     instance_attrs = set(vars(nn.Module()))
-    with stub_vllm("0.30.0") as registry:
+    with stub_vllm("0.31.0") as registry:
         p = plugin()
         assert p.register()
         base = sys.modules["vllm.model_executor.models.qwen3_5"].Qwen3_5MoeForCausalLM
@@ -131,7 +131,7 @@ def test_p5_no_class_shadows_a_torch_or_vllm_attribute():
 def test_m1_text_only_class_skips_the_vision_tower():
     import torch
 
-    with stub_vllm("0.30.0") as registry:
+    with stub_vllm("0.31.0") as registry:
         p = plugin()
         assert p.register()
         cls = registry.resolve(p.TEXT_ONLY)  # what vLLM imports for the architecture
@@ -178,7 +178,7 @@ def test_m1_vision_rule_is_make_text_onlys():
 
 
 def test_m1_engine_kwargs_and_entry_point_check():
-    with stub_vllm("0.30.0"):
+    with stub_vllm("0.31.0"):
         p = plugin()
         assert p.engine_kwargs(p.TEXT_ONLY) == {"hf_overrides": {"architectures": ["DecisioQwen3_5MoeTextOnly"]}}
         with pytest.raises(KeyError):
@@ -197,7 +197,7 @@ def test_g1_gemma_hidden_readout_writes_after_the_soft_cap(monkeypatch):
     from decisio.vllm_plugin.hidden import ENV_START, recover_hidden
 
     monkeypatch.setenv(ENV_START, "40")
-    with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
+    with stub_vllm("0.31.0", vocab=64, hidden=8) as registry:
         p = plugin()
         assert p.register()
         cls = registry.resolve(p.GEMMA4_HIDDEN_READOUT)
@@ -224,7 +224,7 @@ def test_g2_gemma4_text_classes(monkeypatch):
     from decisio.vllm_plugin.hidden import ENV_START, recover_hidden
 
     monkeypatch.setenv(ENV_START, "40")
-    with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
+    with stub_vllm("0.31.0", vocab=64, hidden=8) as registry:
         p = plugin()
         assert p.register()
         base = sys.modules["vllm.model_executor.models.gemma4"].Gemma4ForCausalLM
