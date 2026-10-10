@@ -3,6 +3,8 @@
 
 # Decisio
 
+**Jev-level decisions on your own hardware, open source.**
+
 [![PyPI](https://img.shields.io/pypi/v/decisio)](https://pypi.org/project/decisio/)
 [![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 [![CI](https://github.com/aminry/decisio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aminry/decisio/actions/workflows/ci.yml)
