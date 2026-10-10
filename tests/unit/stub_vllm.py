@@ -124,7 +124,7 @@ def _gemma4_module(vocab=64, hidden=8, softcap=30.0):
 
 
 @contextlib.contextmanager
-def stub_vllm(version="0.30.0", with_models=True, vocab=64, hidden=8, zero_head=False, config_map=None):
+def stub_vllm(version="0.31.0", with_models=True, vocab=64, hidden=8, zero_head=False, config_map=None):
     names = [
         "vllm",
         "vllm.inputs",

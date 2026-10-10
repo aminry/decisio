@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""Helpers of the GPU tier. Every test in tests/gpu needs a CUDA card, vLLM 0.30.0 (the serve extra) and a local
+"""Helpers of the GPU tier. Every test in tests/gpu needs a CUDA card, vLLM 0.31.0 (the serve extra) and a local
 checkpoint.
 
     DECISIO_MODEL=<checkpoint dir> DECISIO_VIEW=<text-only view dir> uv run pytest -m gpu tests/gpu

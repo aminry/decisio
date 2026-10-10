@@ -15,7 +15,7 @@ Verified on a card (`runs/2026-09-30_plugin-verification`); the alternative, a s
 | Serve everything from a pooling engine | none | yes | Rejected: the pooling path has no prefix cache on this hybrid model, and the prefix cache is the latency design |
 | Recover `h` from the label log-probabilities | none | no | Impossible: K label scores do not determine 2,048 numbers |
 | **A registered model class that returns `h` through reserved logit columns** | **none (plugin only)** | to float32 rounding | **Shipped as the default** |
-| A patch that adds the last hidden state to the generate output | several files | bit for bit | The clean end state, for upstream vLLM; not carried here |
+| A patch that adds the last hidden state to the generate output | several files | bit for bit | The clean end state, for upstream vLLM (vllm-project/vllm#59543); carried for 0.31.0 in `patches/vllm-0.31.0/return-last-hidden-states`, not applied by the image and not used by the readout yet |
 
 ## The mechanism
 
@@ -30,7 +30,7 @@ The label log-probabilities of a head question are recomputed from `h` and the o
 
 ## What the card taught (three fixes)
 
-1. **vLLM 0.30.0 allows at most 1,024 ids per request** (`MAX_NUM_ALLOWED_TOKEN_IDS`), and an oversized request kills the engine instead of being refused.
+1. **vLLM 0.30.0 and 0.31.0 allow at most 1,024 ids per request** (`MAX_NUM_ALLOWED_TOKEN_IDS`), and an oversized request kills the engine instead of being refused.
    `h` is read in chunks of at most 1,024 ids, each with the reference column: 2,048 dimensions take three requests (`reserved_chunks`).
 2. **Identical requests in one batch are not the same forward on this FP8 stack.**
    The three chunk requests sent together gave label probabilities that differed across the batch's rows by up to 0.59, so a state stitched from them was no forward's state.

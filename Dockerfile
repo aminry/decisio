@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-# The decisio server on vLLM 0.30.0: the vLLM release image (pinned by digest) plus the decisio wheel.
+# The decisio server on vLLM 0.31.0: the vLLM release image (pinned by digest) plus the decisio wheel.
 #   uv build --wheel && docker build --platform linux/amd64 -t decisio:local .
 # The wheel comes from the build context (dist/). The checkpoint is never part of the image: the first start fetches it
 # into the volume mounted at /data. The optional latency patch series (patches/README.md) is applied only with
 # --build-arg APPLY_PATCHES=1 and switched on at run time with VLLM_SUFFIX_STAGING=1; the default image is stock vLLM.
 # The base is the vLLM tag with its manifest-list digest; Dependabot refreshes the digest (a tag bump is a measured change).
-FROM vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+FROM vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
 
 ARG APPLY_PATCHES=0
 
@@ -30,7 +30,7 @@ RUN python3 /tmp/docker/pin_installed.py > /tmp/pins.txt \
 # The optional patch series, dry-run first; a series that does not apply fails the build.
 COPY patches/ /tmp/patches/
 RUN if [ "$APPLY_PATCHES" = "1" ]; then \
-        bash /tmp/patches/apply.sh python3 /tmp/patches/vllm-0.30.0/suffix-staging; \
+        bash /tmp/patches/apply.sh python3 /tmp/patches/vllm-0.31.0/suffix-staging; \
     fi \
  && rm -rf /tmp/patches
 

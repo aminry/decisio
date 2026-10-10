@@ -51,7 +51,7 @@ def test_h1_model_class_writes_only_the_reserved_columns(monkeypatch):
     import torch
 
     monkeypatch.setenv("DECISIO_HIDDEN_READOUT_START", "20")
-    with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
+    with stub_vllm("0.31.0", vocab=64, hidden=8) as registry:
         import decisio.vllm_plugin as p
 
         assert p.register()
@@ -104,7 +104,7 @@ def test_h2_recovery_on_the_stored_hidden_states():
     for c, got in zip(reserved_chunks(D, 0), reserved_logprobs(H[0])):
         assert np.allclose(got, torch.log_softmax(full[c], -1).numpy(), atol=2e-4, rtol=0)
     # a request without the reserved ids: the class changes nothing it can see
-    with stub_vllm("0.30.0", vocab=64, hidden=8) as registry:
+    with stub_vllm("0.31.0", vocab=64, hidden=8) as registry:
         import decisio.vllm_plugin as p
 
         p.register()
@@ -142,7 +142,7 @@ class EmulatedEngine:
         assert len(sps) == len(prompts)
         for pr, sp in zip(prompts, sps):
             h = torch.from_numpy(self.H[pr.prompt_token_ids[0]])[None]
-            if len(sp.allowed_token_ids) > MAX_ALLOWED:  # vLLM 0.30.0 kills the engine here
+            if len(sp.allowed_token_ids) > MAX_ALLOWED:  # vLLM 0.31.0 kills the engine here
                 raise ValueError(f"Too many allowed token IDs: {len(sp.allowed_token_ids)}. The max size is 1024.")
             lp = masked_logprobs(self.model.compute_logits(h)[0], sp.allowed_token_ids)
             assert sp.logprobs == len(sp.allowed_token_ids) and sp.max_tokens == 1 and sp.detokenize is False
@@ -171,7 +171,7 @@ def test_h3_exact_arithmetic_on_the_stored_readouts(monkeypatch):
     )  # label token ids are 0..K-1 here
     monkeypatch.setattr("decisio.readout.letters.label_token_ids", lambda tok, labels: list(range(K)))
     monkeypatch.setattr("decisio.readout.letters.letter_labels", lambda tok, k: [])
-    with stub_vllm("0.30.0", vocab=START + D + 1, hidden=D, zero_head=True) as registry:
+    with stub_vllm("0.31.0", vocab=START + D + 1, hidden=D, zero_head=True) as registry:
         import decisio.vllm_plugin as p
 
         p.register()
