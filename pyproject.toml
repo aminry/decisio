@@ -16,7 +16,7 @@ authors = [{ name = "Amin Roudaki" }]
 requires-python = ">=3.12,<3.13"
 # The server front, the readout, the tasks and the CPU stand-in; vLLM is the serve extra (Linux, a CUDA card).
 # Lower bounds only: uv.lock pins every version, resolved together with the serve extra, so the CPU tests run the
-# versions vLLM 0.30.0 runs with (it pins torch 2.13.0, torchvision 0.28.0 and fastapi below 0.137).
+# versions vLLM 0.31.0 runs with (it pins torch 2.13.0, torchvision 0.28.0 and fastapi below 0.137).
 # huggingface_hub is imported directly (decisio.serve.hidden_engine) and arrives through transformers; declaring it
 # re-resolves uv.lock beyond that one edge (tilelang loses a never-true setuptools marker), so it is left for a
 # lock refresh.
@@ -37,7 +37,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # the GPU serving stack; the decisio plugin registers its model classes on exactly this vLLM version
-serve = ["vllm==0.30.0; sys_platform == 'linux'"]
+serve = ["vllm==0.31.0; sys_platform == 'linux'"]
 # the benchmark stage (benchmarks/): the conformance client and the HTTP drivers; the JevBench harness and the
 # Decision Index kit are fetched at pinned commits by benchmarks/fetch_harnesses.sh
 bench = ["httpx>=0.28", "typesafe-sdk==0.7.0"]
@@ -53,7 +53,7 @@ mlx = [
 Repository = "https://github.com/aminry/decisio"
 
 # vLLM loads this in every process it starts (docs/design/vllm-plugin.md); it registers decisio's model classes on
-# vllm==0.30.0 and nothing on any other version
+# vllm==0.31.0 and nothing on any other version
 [project.entry-points."vllm.general_plugins"]
 decisio = "decisio.vllm_plugin:register"
 
@@ -69,7 +69,7 @@ addopts = "--strict-markers -m 'not gpu and not slow and not mlx_model'"
 # a deprecation in the web framework fails the suite, so the server is never left on an API that is going away
 filterwarnings = ["error::starlette.exceptions.StarletteDeprecationWarning"]
 markers = [
-    "gpu: needs a CUDA card, vLLM 0.30.0 and a local checkpoint (tests/gpu; run with -m gpu)",
+    "gpu: needs a CUDA card, vLLM 0.31.0 and a local checkpoint (tests/gpu; run with -m gpu)",
     "slow: loads a small Hugging Face model on the CPU",
     "mlx_model: loads an MLX conversion from the local Hugging Face cache (Apple silicon; tests/mlx; run with -m mlx_model)",
 ]

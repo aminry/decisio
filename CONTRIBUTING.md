@@ -37,7 +37,7 @@ The unit tests, the lint and the patch checks run on any machine without a GPU.
 Pull request CI runs the fast tier. The nightly workflow (`.github/workflows/gpu.yml`) runs the slow tier, one file per process, on a hosted runner, and then `scripts/engine_death_loop.sh`: the engine-death tests 30 times beside a busy loop on every core, so a timing race in them shows there first.
 `uv.lock` is authoritative; do not upgrade a dependency in a pull request that does anything else.
 
-GPU tests (`tests/gpu`, `pytest -m gpu`) need vLLM 0.30.0, a CUDA card and a local checkpoint.
+GPU tests (`tests/gpu`, `pytest -m gpu`) need vLLM 0.31.0, a CUDA card and a local checkpoint.
 They do not run on pull requests.
 A maintainer runs them on a card after review. The nightly workflow's GPU job runs them on `main` once a trusted self-hosted runner is registered; none is yet, so they run only when a maintainer runs them by hand.
 If your change touches the served path, say so in the pull request so the maintainer runs them before merge.

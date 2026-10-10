@@ -15,7 +15,7 @@ body:
     id: stack
     attributes:
       label: vLLM version, card, driver
-      placeholder: vLLM 0.30.0, RTX PRO 6000, driver 580.x
+      placeholder: vLLM 0.31.0, RTX PRO 6000, driver 580.x
   - type: textarea
     id: request
     attributes:

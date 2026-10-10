@@ -30,7 +30,7 @@ The label log-probabilities of a head question are recomputed from `h` and the o
 
 ## What the card taught (three fixes)
 
-1. **vLLM 0.30.0 allows at most 1,024 ids per request** (`MAX_NUM_ALLOWED_TOKEN_IDS`), and an oversized request kills the engine instead of being refused.
+1. **vLLM 0.30.0 and 0.31.0 allow at most 1,024 ids per request** (`MAX_NUM_ALLOWED_TOKEN_IDS`), and an oversized request kills the engine instead of being refused.
    `h` is read in chunks of at most 1,024 ids, each with the reference column: 2,048 dimensions take three requests (`reserved_chunks`).
 2. **Identical requests in one batch are not the same forward on this FP8 stack.**
    The three chunk requests sent together gave label probabilities that differed across the batch's rows by up to 0.59, so a state stitched from them was no forward's state.
