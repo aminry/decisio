@@ -338,3 +338,30 @@ For MMLU-Pro both fields are 0.827.
 On these two knowledge benchmarks Jev is ahead of every base served here.
 
 `docs/comparison.md` extends this to every index benchmark, the five areas, JevBench's 231 published questions, latency, cost and capabilities, for the three bases, Jev and the three open-weights entries with the highest index, each of our cells marked ahead, level or behind by a rule written before computing (`runs/2026-10-05_comparison/`).
+
+## 9. JevBench v1.6.1: what the compared systems' cards state
+
+The README compares decisio on Gemma 4 31B with other systems on JevBench v1.6.1's axes.
+This section records what the cards of the compared systems state, quoted as recorded with the card's revision and line (Lab 1's `launch_facts.json`, `head_to_head`; the cards are kept in the private RLCD repository's `experiments/2026-10-09_lab1_launch_facts/records/competitor_cards/`).
+The board's values, with their paths and file hashes, are in the same file.
+Jev 1.13.0 is a hosted API with no card, so none is quoted for it.
+
+| Card | Statement | Quoted line | Where |
+| --- | --- | --- | --- |
+| decisio 31B | training | Nothing was trained. | [line 23, revision 47833608](https://huggingface.co/tachara-ai/decisio-gemma-4-31b) |
+| decisio 31B | longest state | Context up to 32,768 tokens per prompt. | [line 37, revision c23ae405](https://github.com/aminry/decisio/blob/c23ae4055b75fe1d8ca3cad0c337d204a8a2110a/EVAL_CARD.md) |
+| decisio 31B | option limit | Up to 255 options per question | [line 30, revision c23ae405](https://github.com/aminry/decisio/blob/c23ae4055b75fe1d8ca3cad0c337d204a8a2110a/EVAL_CARD.md) |
+| H2O-Lightning-4B | training | decision adapter as a LoRA for the base model | [line 338, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | longest state | --max-model-len 40960 | [line 195, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | option limit | Decides best with up to about 16 options; up to 255 are accepted. | [line 404, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | training data | No benchmark test items in training | [line 52, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | base model | base_model: Qwen/Qwen3.5-4B | [line 3, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| H2O-Lightning-4B | state limit 422 | Inputs over the context limit get HTTP 422 | [line 190, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
+| Quyet-1.0-Large | training | Gemma-4-31B-it with a merged LoRA fine-tune (rank 16) | [line 20, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | longest state | state up to 6,000 tokens inside an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | option limit | At most 10 options per question. | [line 52, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | base model | base_model: google/gemma-4-31B-it | [line 4, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+| Quyet-1.0-Large | prompt limit | an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
+
+Prompt length, each card's own words, prompt against prompt: Prompt length: 32,768 tokens against 8,000 tokens (4.1 times).
+These are the limits the cards state, not measured accuracy at those lengths.
