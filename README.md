@@ -24,17 +24,20 @@
 
 - **Higher than Jev on what the model knows.** Intelligence axis: 70.4 against Jev 1.13.0's 63.6.
 - **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
-- **No training.** Frozen, official weights: "Nothing was trained."
+- **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
 - **Long prompts, many options.** Prompts up to 32,768 tokens and 255 options per question.
 - **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop; the cost is the card, not a bill per token.
 
 | | Gemma 4 31B (the default) |
 | --- | --- |
-| Skill | 71.69 on JevBench v1.6.1 (95% interval 69.86 to 72.81); Jev 1.13.0 scores 71.49 (69.14 to 72.40) |
-| Calibration | expected calibration error 0.035 on JevBench's standard tier and 0.091 on its hard tier |
-| Latency | 80.7 ms for one question on a new 300-token state, 438.1 ms at 3,000; 43.3 ms for a second question on a state already read (one RTX PRO 6000 at 585 W) |
-| Size | 30.6 GiB in memory (FP8); a 96 GB card, as measured |
+| JevBench | 71.69; Jev 71.49, intervals overlap |
+| Calibration | ECE 0.035 standard, 0.091 hard |
+| New 300-token state | 80.7 ms |
+| Second question | 43.3 ms |
+| Memory | 30.6 GiB (FP8) |
 | Licence | Apache-2.0 |
+
+One RTX PRO 6000 at 585 W; intervals and the rest of the figures are under Benchmarks.
 
 ## Benchmarks
 
@@ -43,15 +46,17 @@ Measured by us with the public harnesses (the Decision Index kit 0.2.1) and reco
 
 | Measure | Qwen3.6-35B-A3B | Gemma 4 12B | Gemma 4 31B (default) |
 | --- | ---: | ---: | ---: |
-| JevBench, 231 published items, accuracy: easy / standard / hard | 1.000 / 0.972 / 0.739 | 1.000 / 0.972 / 0.739 | 1.000 / 1.000 / 0.838 |
-| Decision Index BANKING77, macro-F1 | 0.746 | 0.729 | 0.785 |
-| Decision Index CLINC150+OOS, macro-F1 | 0.822 | 0.871 | 0.902 |
-| Decision Index GPQA Diamond (196 scored), accuracy | 0.510 | 0.378 | 0.520 |
-| Decision Index MMLU-Pro, accuracy | 0.613 | 0.549 | 0.694 |
-| Intent heads from 10 labelled examples per intent, BANKING77 / CLINC150 | 0.840 / 0.912 (six draws) | 0.832 / 0.908 (six draws) | 0.844 / 0.970 (three draws) |
-| Image input, ImajevBench v2.0-lite, the 230 answerable items | 0.791 | not measured | not measured |
-| One question on a new 300-token state, server time (0.8.1's served defaults, the engine in the server's process; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | 49.9 ms | 53.6 ms | 80.7 ms |
-| One question on a 1,000-token state from the prefix cache, server time (same) | 20.2 ms | 24.8 ms | 31.7 ms |
+| JevBench published items, easy / standard / hard | 1.000 / 0.972 / 0.739 | 1.000 / 0.972 / 0.739 | 1.000 / 1.000 / 0.838 |
+| BANKING77, macro-F1 | 0.746 | 0.729 | 0.785 |
+| CLINC150+OOS, macro-F1 | 0.822 | 0.871 | 0.902 |
+| GPQA Diamond, accuracy | 0.510 | 0.378 | 0.520 |
+| MMLU-Pro, accuracy | 0.613 | 0.549 | 0.694 |
+| Intent heads, BANKING77 / CLINC150 | 0.840 / 0.912 | 0.832 / 0.908 | 0.844 / 0.970 |
+| Image input, ImajevBench | 0.791 | n/m | n/m |
+| New 300-token state | 49.9 ms | 53.6 ms | 80.7 ms |
+| 1,000-token state, cached | 20.2 ms | 24.8 ms | 31.7 ms |
+
+Notes: Decision Index figures are 0.2.1; the JevBench row is the 231 published items; intent heads are six draws (Qwen, 12B) and three (31B); image input is ImajevBench v2.0-lite, the 230 answerable items; n/m is not measured; the latency rows are server time on 0.8.1's served defaults with the engine in the server's process.
 
 The latency rows were measured in one session on decisio 0.8.1's served defaults: the engine in the server's process, and on the Gemma bases a single question on a new state registering its boundary first (`runs/2026-10-06_latency-585w/`).
 The card was one RTX PRO 6000 Blackwell Workstation Edition with its power limit at 585 W (default 600 W), on an AMD Ryzen Threadripper 9960X host.
@@ -63,115 +68,63 @@ Changes paired within one session:
 
 Absolute latency depends on the host's CPU and on the card's power limit (`docs/running.md`).
 
-Where it stands: on the two public knowledge benchmarks, GPQA Diamond and MMLU-Pro, TypeSafe's Jev is ahead of every base served here, the default 31B included (the public board's figures and their date are in `EVAL_CARD.md` section 8.1).
-[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every Decision Index benchmark, JevBench's published questions, latency, cost and capabilities, each cell marked ahead, level or behind by a rule written before anything was computed.
+[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every Decision Index benchmark, JevBench's published questions, latency, cost and capabilities (the public board's figures and their date are in `EVAL_CARD.md` section 8.1).
 The intent heads use labelled examples, so their figures are not comparable with zero-shot systems.
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables, the calibration figures and the disclosures of what was fitted on what (sections 4, 6.4 and 7.4).
 
-### Against H2O-Lightning-4B, Quyet-1.0-Large and Jev 1.13.0
-
-JevBench v1.6.1, the board's own values, 0 to 100, higher is better.
-The four axes have no published intervals, so these are the board's numbers and nothing more is claimed.
-Every row is shown, theirs included where they lead.
-The composite's 95% intervals overlap for all three, so neither side is said to lead on it.
-
-#### Against H2O-Lightning-4B
-
-| Measure | decisio 31B | H2O-Lightning-4B | Difference (decisio 31B minus them) | Higher |
-| --- | ---: | ---: | ---: | --- |
-| Composite score | 71.69 | 72.52 | -0.83 | intervals overlap |
-| Intelligence axis | 70.4 | 60.0 | +10.4 | decisio 31B |
-| Sealed-set intelligence | 73.3 | 59.0 | +14.3 | decisio 31B |
-| Open-set intelligence | 67.6 | 61.1 | +6.5 | decisio 31B |
-| Calibration axis | 88.7 | 90.0 | -1.3 | H2O-Lightning-4B |
-| Speed axis | 91.2 | 92.6 | -1.4 | H2O-Lightning-4B |
-| Cost axis | 51.7 | 60.3 | -8.6 | H2O-Lightning-4B |
-| Training, as the card states it | Nothing was trained. | decision adapter as a LoRA for the base model | | |
-| Longest input, as the card states it | Context up to 32,768 tokens per prompt. | --max-model-len 40960 | | |
-| Options per question, as the card states it | Up to 255 options per question | Decides best with up to about 16 options; up to 255 are accepted. | | |
-
-#### Against Quyet-1.0-Large
-
-| Measure | decisio 31B | Quyet-1.0-Large | Difference (decisio 31B minus them) | Higher |
-| --- | ---: | ---: | ---: | --- |
-| Composite score | 71.69 | 71.39 | +0.30 | intervals overlap |
-| Intelligence axis | 70.4 | 73.4 | -3.0 | Quyet-1.0-Large |
-| Sealed-set intelligence | 73.3 | 71.6 | +1.7 | decisio 31B |
-| Open-set intelligence | 67.6 | 75.2 | -7.6 | Quyet-1.0-Large |
-| Calibration axis | 88.7 | 90.0 | -1.3 | Quyet-1.0-Large |
-| Speed axis | 91.2 | 86.9 | +4.3 | decisio 31B |
-| Cost axis | 51.7 | 50.5 | +1.2 | decisio 31B |
-| Prompt length, as the cards state it | 32,768 tokens | 8,000 tokens | 4.1 times | |
-| Training, as the card states it | Nothing was trained. | Gemma-4-31B-it with a merged LoRA fine-tune (rank 16) | | |
-| Longest input, as the card states it | Context up to 32,768 tokens per prompt. | state up to 6,000 tokens inside an 8,000-token prompt | | |
-| Options per question, as the card states it | Up to 255 options per question | At most 10 options per question. | | |
-
-#### Against Jev 1.13.0
-
-| Measure | decisio 31B | Jev 1.13.0 | Difference (decisio 31B minus them) | Higher |
-| --- | ---: | ---: | ---: | --- |
-| Composite score | 71.69 | 71.49 | +0.20 | intervals overlap |
-| Intelligence axis | 70.4 | 63.6 | +6.8 | decisio 31B |
-| Sealed-set intelligence | 73.3 | 61.6 | +11.7 | decisio 31B |
-| Open-set intelligence | 67.6 | 65.6 | +2.0 | decisio 31B |
-| Calibration axis | 88.7 | 90.6 | -1.9 | Jev 1.13.0 |
-| Speed axis | 91.2 | 91.5 | -0.3 | Jev 1.13.0 |
-| Cost axis | 51.7 | 54.7 | -3.0 | Jev 1.13.0 |
-
-#### Against Jev 1.13.0
-
-| Measure | decisio 31B | Jev 1.13.0 | Difference (decisio 31B minus them) | Higher |
-| --- | ---: | ---: | ---: | --- |
-| Composite score | 71.69 | 71.49 | +0.20 | intervals overlap |
-| Intelligence axis | 70.4 | 63.6 | +6.8 | decisio 31B |
-| Sealed-set intelligence | 73.3 | 61.6 | +11.7 | decisio 31B |
-| Open-set intelligence | 67.6 | 65.6 | +2.0 | decisio 31B |
-| Calibration axis | 88.7 | 90.6 | -1.9 | Jev 1.13.0 |
-| Speed axis | 91.2 | 91.5 | -0.3 | Jev 1.13.0 |
-| Cost axis | 51.7 | 54.7 | -3.0 | Jev 1.13.0 |
-
-Jev is a hosted API with no card, so no card statement is quoted for it.
-
-In one line each:
-
-- H2O-Lightning-4B: Higher on what the model knows (Intelligence axis: 70.4 against 60.0). H2O is built on a smaller base (Qwen/Qwen3.5-4B, its card) and is cheaper by the board's cost axis (Cost axis: 51.7 against 60.3).
-- Quyet-1.0-Large: Higher on the sealed questions (Sealed-set intelligence: 73.3 against 71.6) and on the speed axis (Speed axis: 91.2 against 86.9). Prompt length: 32,768 tokens against 8,000 tokens (4.1 times), each card's own words as quoted in the table. Training, as each card states it: 'Nothing was trained.' against 'Gemma-4-31B-it with a merged LoRA fine-tune (rank 16)'. Quyet is higher on intelligence axis (70.4 against 73.4) and on open-set intelligence (67.6 against 75.2).
-- Jev 1.13.0: Higher on what the model knows (Intelligence axis: 70.4 against 63.6) and on the sealed questions (Sealed-set intelligence: 73.3 against 61.6). Jev is higher on the calibration axis (90.6 against 88.7), the speed axis (91.5 against 91.2) and the cost axis (54.7 against 51.7).
-- Jev 1.13.0: Higher than Jev on intelligence (70.4 against 63.6) and on the sealed questions (73.3 against 61.6), and on the open questions (67.6 against 65.6). Jev is higher on the calibration axis (88.7 against 90.6), the speed axis (91.2 against 91.5) and the cost axis (51.7 against 54.7). Jev is a hosted API with no public model card, so only the board's row is used and no card statement is quoted.
-
-#### Card statements, as recorded
-
-| Card | Statement | Quoted line | Where |
-| --- | --- | --- | --- |
-| decisio 31B | training | Nothing was trained. | [line 23, revision 47833608](https://huggingface.co/tachara-ai/decisio-gemma-4-31b) |
-| decisio 31B | longest state | Context up to 32,768 tokens per prompt. | [line 37, revision c23ae405](https://github.com/aminry/decisio/blob/c23ae4055b75fe1d8ca3cad0c337d204a8a2110a/EVAL_CARD.md) |
-| decisio 31B | option limit | Up to 255 options per question | [line 30, revision c23ae405](https://github.com/aminry/decisio/blob/c23ae4055b75fe1d8ca3cad0c337d204a8a2110a/EVAL_CARD.md) |
-| H2O-Lightning-4B | training | decision adapter as a LoRA for the base model | [line 338, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
-| H2O-Lightning-4B | longest state | --max-model-len 40960 | [line 195, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
-| H2O-Lightning-4B | option limit | Decides best with up to about 16 options; up to 255 are accepted. | [line 404, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
-| H2O-Lightning-4B | training data | No benchmark test items in training | [line 52, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
-| H2O-Lightning-4B | base model | base_model: Qwen/Qwen3.5-4B | [line 3, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
-| H2O-Lightning-4B | state limit 422 | Inputs over the context limit get HTTP 422 | [line 190, revision acaf0d4e](https://huggingface.co/h2oai/h2o-lightning-4b) |
-| Quyet-1.0-Large | training | Gemma-4-31B-it with a merged LoRA fine-tune (rank 16) | [line 20, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
-| Quyet-1.0-Large | longest state | state up to 6,000 tokens inside an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
-| Quyet-1.0-Large | option limit | At most 10 options per question. | [line 52, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
-| Quyet-1.0-Large | base model | base_model: google/gemma-4-31B-it | [line 4, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
-| Quyet-1.0-Large | prompt limit | an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
-
-Board values with their paths and each card's quoted lines are in Lab 1's `launch_facts.json`, `head_to_head`.
+### JevBench, axis by axis
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/head_to_head_dark.png">
-  <img src="docs/launch/head_to_head.png" alt="Three panels of diverging bars, Decisio on Gemma 4 31B minus H2O-Lightning-4B, Quyet-1.0-Large and Jev 1.13.0 on JevBench v1.6.1, rows sorted from Decisio's largest lead to its largest shortfall, both values beside each row. H2O-Lightning-4B: Decisio higher on sealed 73.3 against 59.0, intelligence 70.4 against 60.0, open-set 67.6 against 61.1; lower on cost 51.7 against 60.3, speed 91.2 against 92.6, calibration 88.7 against 90.0. Quyet-1.0-Large: Decisio higher on speed 91.2 against 86.9, sealed 73.3 against 71.6, cost 51.7 against 50.5; lower on open-set 67.6 against 75.2, intelligence 70.4 against 73.4, calibration 88.7 against 90.0. Jev 1.13.0: Decisio higher on sealed 73.3 against 61.6, intelligence 70.4 against 63.6, open-set 67.6 against 65.6; lower on cost 51.7 against 54.7, calibration 88.7 against 90.6, speed 91.2 against 91.5. Composite score, in that order: 71.69 against 72.52; 71.69 against 71.39; 71.69 against 71.49; every pair of intervals overlaps. Against Jev 1.13.0, Decisio is higher on Sealed-set intelligence: 73.3 against 61.6; Intelligence axis: 70.4 against 63.6; Open-set intelligence: 67.6 against 65.6, and lower on Cost axis: 51.7 against 54.7; Calibration axis: 88.7 against 90.6; Speed axis: 91.2 against 91.5. Composite score: 71.69 against 71.49, and the composite's intervals overlap.">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_axes_dark.png">
+  <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores, 11 rows sorted by composite score: the ten highest open-weights systems and Jev 1.13.0 as a reference row, six columns (overall, intelligence, sealed questions, calibration, speed, cost), each cell shaded by its rank in the column. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. Among the 11 rows shown it is second on overall, third on intelligence, second on sealed questions, fifth on calibration, fifth on speed and ninth on cost. The highest in each column: overall: H2O-Lightning-4B v1.1; intelligence: Quyet-1.0-Large; sealed questions: deck-31B; calibration: Jev 1.13.0; speed: H2O-Lightning-4B v1.1; cost: H2O-Lightning-4B v1.1. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
 </picture>
+
+- Among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
+- Within 2 points of the highest on calibration (88.7; Jev 90.6) and on speed (91.2; H2O-Lightning-4B 92.6).
+- 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest). On your own hardware you pay for the card, not per token.
+
+<details>
+<summary>All the numbers: the ten highest open-weights systems and Jev, by axis</summary>
+
+JevBench v1.6.1, 0 to 100, higher is better on every axis, sorted by overall score. The four axes have no published intervals; the composite has its 95% interval, shown in small text. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.
+
+| System | Overall | Intelligence | Sealed questions | Calibration | Speed | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| H2O-Lightning-4B | 72.52 | 60.0 | 59.0 | 90.0 | 92.6 | 60.3 |
+| Decisio 31B v0.8.0 (ours) | 71.69 | 70.4 | 73.3 | 88.7 | 91.2 | 51.7 |
+| Jev 1.13.0 (reference) | 71.49 | 63.6 | 61.6 | 90.6 | 91.5 | 54.7 |
+| Quyet-1.0-Large | 71.39 | 73.4 | 71.6 | 90.0 | 86.9 | 50.5 |
+| decider-12b v2 | 70.88 | 63.0 | 63.6 | 82.0 | 90.5 | 57.8 |
+| decider-12b v1 | 70.42 | 60.6 | 59.5 | 83.8 | 90.5 | 57.8 |
+| torchcast-decision-12b | 69.91 | 60.5 | 61.1 | 82.9 | 91.7 | 56.4 |
+| Winnow-12B Q8 | 68.89 | 59.5 | 59.2 | 83.0 | 86.7 | 56.6 |
+| deck-31B | 68.68 | 73.0 | 75.8 | 82.2 | 86.7 | 49.7 |
+| Cygnet | 68.55 | 54.8 | 51.3 | 87.0 | 91.8 | 56.4 |
+| Decisio 12B v0.8.0 (ours) | 68.17 | 52.3 | 51.6 | 89.2 | 87.0 | 59.3 |
+
+What the compared systems' cards state, quoted as recorded with their revisions, is in [EVAL_CARD.md](EVAL_CARD.md) section 9.
+
+</details>
+
+### Many questions about one document
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/many_questions_dark.svg">
+  <img src="docs/launch/many_questions_light.svg" alt="Median time to answer 1, 10 or 50 questions about one document of 3,000 or 6,000 tokens, for nine systems, on a log axis. Systems that read the document once take 1.5 to 3.7 seconds for 50 questions. Systems that read it again for every question take 18 to 146 seconds.">
+</picture>
+
+Fifty questions about a 3,000-token document in 1.50 s on one RTX PRO 6000; the large open decision models that re-read the document for every question take 45.7 to 67.9 s.
+At 50 questions it is also faster than the two systems that share the document through the prefix cache: 1.50 s against 2.35 s for Blink v0.3 and 2.39 s for H2O-Lightning-4B.
+
+How it was measured, by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell at 600 W, each system on its own published server:
+- decisio v0.10.0 with vLLM 0.30.0 in its default mode (31B warm); Blink on stock vLLM 0.30.0.
+- Synthetic support tickets of exactly 3,000 and 6,000 tokens (Gemma 4 tokenizer), the same documents for every system; one fixed pool of 50 questions (20 choice with 4 options, 20 yes/no, 10 score with 4 levels).
+- Medians of the wall time of everything asked about one document, over 10 documents for decisio, Blink and H2O-Lightning-4B and 5 for the others; this compares time, not accuracy.
+- Blink v0.3 is a 26B-A4B model (4B active parameters, 17.5 GB), not a 4B model; H2O-Lightning-4B is a 4B. Both take one question per request and share the document through vLLM's prefix cache. At 3,000 tokens only; at 6,000 tokens the 31B is also lower than both (2.39 s against 3.48 s for Blink and 3.07 s for H2O).
+- Quyet-1.0-Large has no 6,000-token cells: they were not reached within its 15-minute cap.
 
 ### How we read the board
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/four_axes_dark.png">
-  <img src="docs/launch/four_axes.png" alt="JevBench v1.6.1: the four axes, decisio on Gemma 4 31B against Jev 1.13.0, H2O-Lightning-4B and Quyet-1.0-Large">
-</picture>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
@@ -396,7 +349,7 @@ The record, with each check, is in [`runs/2026-10-08_integration-checks/`](runs/
 ## Why open and self-hosted
 
 - **Your text goes to the machine that runs the server, and nowhere else.** There is no per-call price, only the card.
-- **Nothing is hidden in the weights or the prompt.** Every base is an official checkpoint at a pinned revision, frozen: no fine-tuning, no adapter, and the prompt, the temperatures and the readout are in the repository and in each base's `decision_config.json`.
+- **Nothing is hidden.** Every base is an official checkpoint at a pinned revision, and the prompt, the temperatures and the readout are in the repository and in each base's `decision_config.json`.
 - **Apache-2.0**: the code, and each of the three bases under its own Apache-2.0 licence.
 - **You can check it.** Every figure here comes from a record in the repository ([EVAL_CARD.md](EVAL_CARD.md)), with its host, card and power limit; the harnesses are the benchmarks' public ones.
 - **It learns your question without changing the model.** Register labelled examples and it fits a per-task calibration, and for long option lists an intent head; the weights stay as they were ([Teach it your question](#teach-it-your-question)).
@@ -649,6 +602,7 @@ The served defaults need no flags; these change behaviour ([`docs/cli.md`](docs/
 
 Each question becomes one prompt, the state followed by the question and its lettered options, and its answer is the model's distribution over the option letters at one position, so every question costs one forward pass and no generated text.
 The state is prefilled once per request and every question reads it from vLLM's prefix cache.
+No training: every base is an official checkpoint, frozen, with no fine-tuning and no adapter.
 decisio's vLLM plugin registers its model classes through an entry point, so vLLM loads them without a patch, and the served class also returns the hidden state at the answer position for the intent head.
 The design notes: [`docs/design/vllm-plugin.md`](docs/design/vllm-plugin.md), [`docs/design/hidden-state-readout.md`](docs/design/hidden-state-readout.md) and [`docs/design/mlx-backend.md`](docs/design/mlx-backend.md).
 
