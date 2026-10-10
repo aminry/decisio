@@ -71,7 +71,7 @@ curl -s http://127.0.0.1:8000/health         # answers once it is ready
 ```
 
 The measured environment is the lockfile's (`uv sync --extra serve --frozen`, [GPU server](#gpu-server)); pip resolves its own versions around vLLM 0.30.0.
-Measured by Lab 2 on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwell at 600 W and an AMD EPYC 9534: `pip install "decisio[serve]"` took 124 s; the first start of the no-flag 31B was ready after 7 min 54 s, including the download of its weights; the first start of `--base gemma-4-12b` after 4 min 12 s, including its download (these are one session's times, with the network that session had).
+Measured by Lab 2 on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwell at 600 W and an AMD EPYC 9534: `pip install "decisio[serve]"` took 124 s; the first start of the no-flag 31B was ready after 7 min 54 s, including the download of its weights, and a start with the weights already on disk after 4 min 3 s; the first start of `--base gemma-4-12b` after 4 min 12 s, including its download (these are one session's times, with the network that session had).
 
 ### With Docker
 
@@ -87,12 +87,12 @@ The same `curl` as above, with `/v1/systemone` on port 8000 and no `model` field
 Each request is what was sent; each response is what the server answered on the Gemma 4 31B base (probabilities rounded to three decimals here).
 They are the three requests of this README's first recordings (the first record of Advocacy's examples 1, 2 and 4, taken as they came and not chosen for their result), sent to a freshly started server on decisio 0.11.0 as the quickstart above starts it.
 Each block says when, on which version and on which card it was recorded; the files in [`runs/2026-10-09_readme-pip-path/`](runs/2026-10-09_readme-pip-path/manifest.json) hold the full-precision responses.
-The first request's probabilities differ from the 2026-10-08 recording on 0.9.0 by up to 0.066, with the same top answers; near-tied probabilities move between sessions ([EVAL_CARD.md](EVAL_CARD.md) section 7.5).
+The probabilities differ from the 2026-10-08 recordings on decisio 0.9.0 by up to 0.066 (decision 1), 0.024 (decision 2) and 0.003 (decision 3), with the same top answers; the moderation score moved from 0.78 to 0.81, across the example's block line at 0.8, so that message is now blocked where it was sent to review. Near-tied probabilities move between sessions ([EVAL_CARD.md](EVAL_CARD.md) section 7.5).
 
 <details>
-<summary><b>1. Route a support ticket: three questions, one pass</b> (server time 172.2 ms on the first send, 56.6 ms on its repeat)</summary>
+<summary><b>1. Route a support ticket: three questions, one pass</b> (server time 107.5 ms on the first send, 58.5 ms on its repeat)</summary>
 
-Recorded 2026-10-09 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+Recorded 2026-10-10 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
 
 Request:
 
@@ -153,9 +153,9 @@ It routes the ticket to billing with 96% on the queue and puts the chance it nee
 </details>
 
 <details>
-<summary><b>2. Gate a message: a yes/no with a threshold you choose</b> (server time 58.4 ms on the first send)</summary>
+<summary><b>2. Gate a message: a yes/no with a threshold you choose</b> (server time 66.8 ms on the first send, 28.2 ms on its repeat)</summary>
 
-Recorded 2026-10-08 on decisio 0.9.0, vLLM 0.30.0, the same repository at its 0.9.0 pin, one RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654 (Lab 2's gate session); not yet re-recorded on 0.11.0.
+Recorded 2026-10-10 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
 
 Request:
 
@@ -167,21 +167,28 @@ Response:
 
 ```json
 {
- "jailbreak": {
-  "type": "noul",
-  "noul": 0.783
+ "model": "decisio-gemma-4-31b-it-letters",
+ "answers": {
+  "jailbreak": {
+   "type": "noul",
+   "noul": 0.807
+  }
+ },
+ "usage": {
+  "input_tokens": 119,
+  "output_tokens": 1
  }
 }
 ```
 
-This prompt is a role-play instruction that the dataset's label calls benign; the server gives it 0.78 for "a jailbreak", which the example's fixed bands (pass below 0.2, block at 0.8 or more) send to review. That is what the probability is for: the middle goes to a person.
+This prompt is a role-play instruction that the dataset's label calls benign; the server gives it 0.81 for "a jailbreak", which the example's fixed bands (pass below 0.2, block at 0.8 or more) send to a block. It is blocked, just past the line (the block band starts at 0.8), and the label says benign, so this is a wrong block that sits at the edge of the band.
 
 </details>
 
 <details>
-<summary><b>3. Decide what an assistant does next</b> (server time 65.8 ms on the first send)</summary>
+<summary><b>3. Decide what an assistant does next</b> (server time 67.2 ms on the first send, 28.1 ms on its repeat)</summary>
 
-Recorded 2026-10-08 on decisio 0.9.0, vLLM 0.30.0, the same repository at its 0.9.0 pin, one RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654 (Lab 2's gate session); not yet re-recorded on 0.11.0.
+Recorded 2026-10-10 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
 
 Request:
 
@@ -193,17 +200,24 @@ Response:
 
 ```json
 {
- "next": {
-  "type": "choice",
-  "choice": "answer",
-  "confidence": 0.945,
-  "probabilities": {
-   "answer": 0.956,
-   "search": 0.014,
-   "calculate": 0.021,
-   "ask_user": 0.004,
-   "act": 0.006
+ "model": "decisio-gemma-4-31b-it-letters",
+ "answers": {
+  "next": {
+   "type": "choice",
+   "choice": "answer",
+   "confidence": 0.948,
+   "probabilities": {
+    "answer": 0.959,
+    "search": 0.013,
+    "calculate": 0.019,
+    "ask_user": 0.004,
+    "act": 0.005
+   }
   }
+ },
+ "usage": {
+  "input_tokens": 110,
+  "output_tokens": 1
  }
 }
 ```
@@ -538,6 +552,18 @@ The composite's 95% intervals overlap for all three, so neither side is said to 
 | Speed axis | 91.2 | 91.5 | -0.3 | Jev 1.13.0 |
 | Cost axis | 51.7 | 54.7 | -3.0 | Jev 1.13.0 |
 
+#### Against Jev 1.13.0
+
+| Measure | decisio 31B | Jev 1.13.0 | Difference (decisio 31B minus them) | Higher |
+| --- | ---: | ---: | ---: | --- |
+| Composite score | 71.69 | 71.49 | +0.20 | intervals overlap |
+| Intelligence axis | 70.4 | 63.6 | +6.8 | decisio 31B |
+| Sealed-set intelligence | 73.3 | 61.6 | +11.7 | decisio 31B |
+| Open-set intelligence | 67.6 | 65.6 | +2.0 | decisio 31B |
+| Calibration axis | 88.7 | 90.6 | -1.9 | Jev 1.13.0 |
+| Speed axis | 91.2 | 91.5 | -0.3 | Jev 1.13.0 |
+| Cost axis | 51.7 | 54.7 | -3.0 | Jev 1.13.0 |
+
 Jev is a hosted API with no card, so no card statement is quoted for it.
 
 In one line each:
@@ -545,6 +571,7 @@ In one line each:
 - H2O-Lightning-4B: Higher on what the model knows (Intelligence axis: 70.4 against 60.0). H2O is built on a smaller base (Qwen/Qwen3.5-4B, its card) and is cheaper by the board's cost axis (Cost axis: 51.7 against 60.3).
 - Quyet-1.0-Large: Higher on the sealed questions (Sealed-set intelligence: 73.3 against 71.6) and on the speed axis (Speed axis: 91.2 against 86.9). Prompt length: 32,768 tokens against 8,000 tokens (4.1 times), each card's own words as quoted in the table. Training, as each card states it: 'Nothing was trained.' against 'Gemma-4-31B-it with a merged LoRA fine-tune (rank 16)'. Quyet is higher on intelligence axis (70.4 against 73.4) and on open-set intelligence (67.6 against 75.2).
 - Jev 1.13.0: Higher on what the model knows (Intelligence axis: 70.4 against 63.6) and on the sealed questions (Sealed-set intelligence: 73.3 against 61.6). Jev is higher on the calibration axis (90.6 against 88.7), the speed axis (91.5 against 91.2) and the cost axis (54.7 against 51.7).
+- Jev 1.13.0: Higher than Jev on intelligence (70.4 against 63.6) and on the sealed questions (73.3 against 61.6), and on the open questions (67.6 against 65.6). Jev is higher on the calibration axis (88.7 against 90.6), the speed axis (91.2 against 91.5) and the cost axis (51.7 against 54.7). Jev is a hosted API with no public model card, so only the board's row is used and no card statement is quoted.
 
 #### Card statements, as recorded
 
@@ -569,7 +596,7 @@ Board values with their paths and each card's quoted lines are in Lab 1's `launc
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/head_to_head_dark.png">
-  <img src="docs/launch/head_to_head.png" alt="Three panels of horizontal diverging bars, Decisio on Gemma 4 31B minus each of the three in board points, for seven JevBench v1.6.1 measures sorted from Decisio's largest lead to its largest shortfall, with the two values beside each row. Against H2O-Lightning-4B, Decisio is higher on Sealed-set intelligence: 73.3 against 59.0; Intelligence axis: 70.4 against 60.0; Open-set intelligence: 67.6 against 61.1, and lower on Cost axis: 51.7 against 60.3; Speed axis: 91.2 against 92.6; Calibration axis: 88.7 against 90.0. Composite score: 71.69 against 72.52, and the composite's intervals overlap. Against Quyet-1.0-Large, Decisio is higher on Speed axis: 91.2 against 86.9; Sealed-set intelligence: 73.3 against 71.6; Cost axis: 51.7 against 50.5, and lower on Open-set intelligence: 67.6 against 75.2; Intelligence axis: 70.4 against 73.4; Calibration axis: 88.7 against 90.0. Composite score: 71.69 against 71.39, and the composite's intervals overlap. Against Jev 1.13.0, Decisio is higher on Sealed-set intelligence: 73.3 against 61.6; Intelligence axis: 70.4 against 63.6; Open-set intelligence: 67.6 against 65.6, and lower on Cost axis: 51.7 against 54.7; Calibration axis: 88.7 against 90.6; Speed axis: 91.2 against 91.5. Composite score: 71.69 against 71.49, and the composite's intervals overlap.">
+  <img src="docs/launch/head_to_head.png" alt="Three panels of diverging bars, Decisio on Gemma 4 31B minus H2O-Lightning-4B, Quyet-1.0-Large and Jev 1.13.0 on JevBench v1.6.1, rows sorted from Decisio's largest lead to its largest shortfall, both values beside each row. H2O-Lightning-4B: Decisio higher on sealed 73.3 against 59.0, intelligence 70.4 against 60.0, open-set 67.6 against 61.1; lower on cost 51.7 against 60.3, speed 91.2 against 92.6, calibration 88.7 against 90.0. Quyet-1.0-Large: Decisio higher on speed 91.2 against 86.9, sealed 73.3 against 71.6, cost 51.7 against 50.5; lower on open-set 67.6 against 75.2, intelligence 70.4 against 73.4, calibration 88.7 against 90.0. Jev 1.13.0: Decisio higher on sealed 73.3 against 61.6, intelligence 70.4 against 63.6, open-set 67.6 against 65.6; lower on cost 51.7 against 54.7, calibration 88.7 against 90.6, speed 91.2 against 91.5. Composite score, in that order: 71.69 against 72.52; 71.69 against 71.39; 71.69 against 71.49; every pair of intervals overlaps. Against Jev 1.13.0, Decisio is higher on Sealed-set intelligence: 73.3 against 61.6; Intelligence axis: 70.4 against 63.6; Open-set intelligence: 67.6 against 65.6, and lower on Cost axis: 51.7 against 54.7; Calibration axis: 88.7 against 90.6; Speed axis: 91.2 against 91.5. Composite score: 71.69 against 71.49, and the composite's intervals overlap.">
 </picture>
 
 ### How we read the board

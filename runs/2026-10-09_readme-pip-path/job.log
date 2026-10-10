@@ -16,3 +16,10 @@ decision 2 (repeat 0): client 35.3 ms, server 34.0 ms, README 58.4 ms, max |dp| 
 decision 2 (repeat 1): client 47.9 ms, server 44.6 ms, README 58.4 ms, max |dp| 0.14624617639936943, same top answers True
 decision 3 (repeat 0): client 132.8 ms, server 131.2 ms, README 65.8 ms, max |dp| 0.026298953521648794, same top answers True
 decision 3 (repeat 1): client 46.5 ms, server 43.5 ms, README 65.8 ms, max |dp| 0.025584009898138138, same top answers True
+00:00:58 g31r server ready after 243.1 s
+decision 1 (repeat 0): client 111.3 ms, server 107.5 ms, README 91.2 ms, max |dp| 0.06584949809783253, same top answers True
+decision 1 (repeat 1): client 60.1 ms, server 58.5 ms, README 91.2 ms, max |dp| 0.06584949809783253, same top answers True
+decision 2 (repeat 0): client 68.2 ms, server 66.8 ms, README 58.4 ms, max |dp| 0.023593884615968563, same top answers True
+decision 2 (repeat 1): client 29.5 ms, server 28.2 ms, README 58.4 ms, max |dp| 0.023593884615968563, same top answers True
+decision 3 (repeat 0): client 68.5 ms, server 67.2 ms, README 65.8 ms, max |dp| 0.0027311808809644678, same top answers True
+decision 3 (repeat 1): client 29.7 ms, server 28.1 ms, README 65.8 ms, max |dp| 0.0027311808809644678, same top answers True
