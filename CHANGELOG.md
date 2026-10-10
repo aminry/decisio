@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.11.1](https://github.com/aminry/decisio/compare/v0.11.0...v0.11.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **serve:** a request records how long it waited for the engine, and whether a registration was running ([#135](https://github.com/aminry/decisio/issues/135)) ([76d484c](https://github.com/aminry/decisio/commit/76d484cfec1213065efdfdcd8fdcad171cc712d3))
+* **serve:** gemma-4-12b registers a state's boundary before the question, as the 31B does ([#128](https://github.com/aminry/decisio/issues/128)) ([b7af9c6](https://github.com/aminry/decisio/commit/b7af9c684d5caead51d7efe093c4a0df0c5d57f4))
+
 ## [0.11.0](https://github.com/aminry/decisio/compare/v0.10.0...v0.11.0) (2026-10-09)
 
 
