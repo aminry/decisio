@@ -4,13 +4,13 @@
 # Design: how decisio changes vLLM
 
 decisio runs on stock vLLM 0.31.0.
-It changes vLLM in exactly two ways, each the least invasive that works: a plugin that registers model classes, and one optional patch series.
+It changes vLLM in exactly two ways, each the least invasive that works: a plugin that registers model classes, and optional patch series (applied by no default image build).
 Checked against vLLM v0.31.0's source (tag `v0.31.0`, commit `db9527a`); the card verification of 0.31.0 is pending.
 The 0.30.0 verification on a card is `runs/2026-09-30_plugin-verification`.
 
 ## Summary
 
-- **Correct answers need no patch.** Every answer comes from stock vLLM 0.31.0 behaviour; the one patch series is a latency optimisation that is inert unless an environment flag is set.
+- **Correct answers need no patch.** Every answer comes from stock vLLM 0.31.0 behaviour; the patch series are a latency optimisation that is inert unless an environment flag is set, and an upstream change that is inert unless the engine option is set.
 - **Our own FastAPI front process** serves the routes (`/v1/systemone`, `/v1/answer`, `/v1/tasks`, `/v1/abstention/tasks`, `/v1/models`, `/health`) and drives vLLM in process through its `LLM` class.
 - **A `vllm.general_plugins` plugin** (`decisio.vllm_plugin`) registers decisio's model classes, two per base family.
 - **Suffix staging** is a patch series applied at image build (`patches/`), and is to be proposed upstream.
@@ -24,6 +24,7 @@ The 0.30.0 verification on a card is `runs/2026-09-30_plugin-verification`.
 | Gemma 4 12B's class that also returns the hidden state, written after the final-logit soft cap | `decisio.vllm_plugin.gemma.DecisioGemma4UnifiedHiddenReadout` | For the intent head only | Plugin |
 | The text model of a `Gemma4ForConditionalGeneration` checkpoint (Gemma 4 31B), its vision tower left out at load, and the same class returning the hidden state after the soft cap | `decisio.vllm_plugin.gemma.DecisioGemma4TextOnly`, `DecisioGemma4HiddenReadout` | The text-only class for the served path; the other for the intent head only | Plugin |
 | A worker extension the server asks, by method name, for vLLM's own prefix-cache units (the hit unit, the least common multiple of the KV cache groups' block sizes, and the hash step), which `/health` reports | `decisio.vllm_plugin.worker.DecisioWorkerExtension` (`worker_extension_cls`) | No: reporting only | Constructor argument |
+| Returning the hidden state each generated token's logits were computed from (vllm-project/vllm#59543) | `patches/vllm-0.31.0/return-last-hidden-states` | No: not used by the readout yet; it would replace the reserved logit columns | Patch series, engine option `--enable-return-last-hidden-states` |
 | Staging only the uncached prompt suffix of prefix-cache hits in Model Runner V2 | `patches/vllm-0.31.0/suffix-staging` | No: 3 to 8% less time per question at 8,000-token states, measured on 0.30.0 | Patch series, flag `VLLM_SUFFIX_STAGING=1` |
 | Engine settings: prefix caching, processed log-probabilities, CUDA graphs to 4,096 tokens, no multimodal inputs on the text engine, warm-ups, front padding to the block | `decisio.serve.vllm_engine` | Configuration of stock vLLM | Constructor arguments |
 | `VLLM_USE_DEEP_GEMM=0` (vLLM's DeepGEMM FP8 path gave wrong results on a Blackwell card) | `vllm_engine.deep_gemm_guard` | Yes, on that card class | The launcher sets it before vLLM is imported and refuses to start otherwise (`--allow-deep-gemm` overrides) |
