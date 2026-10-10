@@ -1,0 +1,907 @@
+{
+  "integration": "pipecat",
+  "versions": {
+    "pipecat-ai": "1.12.0"
+  },
+  "date": "2026-10-08",
+  "client_python": "3.12.13",
+  "client_host": "macOS-26.6.2-arm64-arm-64bit",
+  "decisio_url_given": "http://127.0.0.1:18090",
+  "server_health": {
+    "ok": true,
+    "engine": null,
+    "model": null,
+    "base": "gemma-4-31b"
+  },
+  "checks": [
+    {
+      "id": "pinned version installed",
+      "passed": true,
+      "detail": "1.12.0"
+    },
+    {
+      "id": "defaults: base_url, model, timeout",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "connect(): GET /v1/models answered 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "connect(): Authorization Bearer sent",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "noul: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "noul: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "noul: result type and probability identical to raw",
+      "passed": true,
+      "detail": "0.9950546016807681"
+    },
+    {
+      "id": "noul: is_yes is probability >= 0.5",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "body fields are model, state, questions",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "model sent is the default jev-1.13.0",
+      "passed": true,
+      "detail": "jev-1.13.0"
+    },
+    {
+      "id": "choice: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "choice: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: type, label, probabilities, confidence identical to raw",
+      "passed": true,
+      "detail": "technical"
+    },
+    {
+      "id": "choice: options sent as criteria",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "score: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: type, score, confidence identical to raw",
+      "passed": true,
+      "detail": "1.5583267062451711"
+    },
+    {
+      "id": "score: level probabilities identical to raw, in the question's order",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: levels sent as criteria",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "on_metrics fired with usage after each call",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "combined: status 200, object state sent as an object",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "combined: all three identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "JevClient.ask returns Jev's answers unchanged and usage",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "JevClient counts usage across requests",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "yes/no with only `yes`: sent criteria {true, false: ''} and the server accepts it",
+      "passed": true,
+      "detail": "{'true': 'The customer needs help right now.', 'false': ''}"
+    },
+    {
+      "id": "JevClassifier(api_key, base_url) builds its own client and reaches /v1/systemone",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "an empty API key is refused at construction",
+      "passed": true,
+      "detail": "ValueError: JevClient needs an API key"
+    },
+    {
+      "id": "422 (ChoiceQuestion with no options): raised ClassifierError",
+      "passed": true,
+      "detail": "ClassifierError"
+    },
+    {
+      "id": "422 (ChoiceQuestion with no options): message names the status",
+      "passed": true,
+      "detail": "Jev rejected the request: HTTP 422"
+    },
+    {
+      "id": "422 (ChoiceQuestion with no options): Decisio's detail is NOT in the message",
+      "passed": true,
+      "detail": "Jev rejected the request: HTTP 422"
+    },
+    {
+      "id": "422 (ChoiceQuestion with no options): not retried",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "422 (empty questions): raised ClassifierError",
+      "passed": true,
+      "detail": "ClassifierError"
+    },
+    {
+      "id": "422 (empty questions): message names the status",
+      "passed": true,
+      "detail": "Jev rejected the request: HTTP 422"
+    },
+    {
+      "id": "422 (empty questions): Decisio's detail is NOT in the message",
+      "passed": true,
+      "detail": "Jev rejected the request: HTTP 422"
+    },
+    {
+      "id": "422 (empty questions): not retried",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score with one level is refused in the client",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated answered: parses and does not surface abstained or unknown_probability",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated abstained: parses and does not surface abstained or unknown_probability",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated abstained_not_argmax: parses and does not surface abstained or unknown_probability",
+      "passed": true,
+      "detail": ""
+    }
+  ],
+  "observations": {
+    "default_base_url": "https://api.typesafe.ai",
+    "default_model": "jev-1.13.0",
+    "default_timeout_s": 10.0,
+    "client_timeout": "Timeout(timeout=10.0)",
+    "max_retries": "3 (JevClient.max_retries); only HTTP 429 and 529 are retried",
+    "request_body_fields": [
+      "model",
+      "questions",
+      "state"
+    ],
+    "model_sent": "jev-1.13.0",
+    "request_headers_sent": {
+      "accept": "*/*",
+      "accept-encoding": "gzip, deflate",
+      "connection": "keep-alive",
+      "user-agent": "python-httpx/0.28.1",
+      "authorization": "Bearer <redacted, 31 chars>",
+      "content-length": "338",
+      "content-type": "application/json"
+    },
+    "auth_header": "Authorization: Bearer <api_key>; User-Agent python-httpx/<version>",
+    "http_version_seen_by_server": "HTTP/1.1",
+    "metrics_example": [
+      {
+        "processor": "JevClassifier#0",
+        "model": "jev-1.13.0",
+        "value": 0.5279432497918606
+      },
+      {
+        "processor": "JevClassifier#0",
+        "model": "jev-1.13.0",
+        "value": {
+          "prompt_tokens": 63,
+          "completion_tokens": 1,
+          "total_tokens": 64,
+          "cache_read_input_tokens": null,
+          "cache_creation_input_tokens": null,
+          "reasoning_tokens": null,
+          "input_audio_tokens": null,
+          "output_audio_tokens": null,
+          "cache_read_input_audio_tokens": null
+        }
+      }
+    ],
+    "noul_with_only_yes_sent_criteria": {
+      "true": "The customer needs help right now.",
+      "false": ""
+    },
+    "empty_api_key": "ValueError: JevClient needs an API key",
+    "422_message_ChoiceQuestion_with_no_options": "Jev rejected the request: HTTP 422",
+    "422_message_empty_questions": "Jev rejected the request: HTTP 422",
+    "client_side_validation": {
+      "score_with_one_level": "rejected before any request: ValidationError"
+    }
+  },
+  "findings": [
+    "A YesNoQuestion with only `yes` (or only `no`) sends the other side as an empty string, not as an absent key; Decisio accepts it (200).",
+    "A server 422 surfaces as ClassifierError('Jev rejected the request: HTTP 422') and nothing else: the response body, which in Decisio carries the field path and reason, is discarded, so the caller cannot see what was wrong with the question.",
+    "EMULATED (the stand-in has no abstain option; the proxy adds the documented fields to a real answer): `abstained` and `unknown_probability` are dropped by JevClassifier, so a caller cannot tell the server abstained. JevClient.ask() returns the answer dicts unchanged, so they are visible there.",
+    "`legend` is not in a ScoreResult (the levels are the question's own, with their probabilities); `confidence` is kept on choice and score results; `usage` is summed in JevClient.usage and sent as on_metrics token usage."
+  ],
+  "requests": [
+    {
+      "label": "JevClient.connect()",
+      "method": "GET",
+      "path": "/v1/models",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>"
+      },
+      "body": null,
+      "status": 200,
+      "response": {
+        "models": [
+          {
+            "name": "decisio-gemma-4-31b-it-letters",
+            "description": "letters readout, served default",
+            "release_date": "2026-09-27"
+          }
+        ]
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "noul alone (JevClassifier)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.9950546016807681
+          }
+        },
+        "usage": {
+          "input_tokens": 64,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice alone (JevClassifier)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "score alone (JevClassifier)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 63,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "noul + choice + score in one request, state as an object (JevClassifier.ask)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": {
+          "customer_message": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately."
+        },
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          },
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.9957222243669378
+          },
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.670694658833301,
+            "probabilities": {
+              "billing": 0.1840320595035702,
+              "technical": 0.7804631058888674,
+              "sales": 0.03550483460756251
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "score": 1.567743323375644,
+            "confidence": 0.3516149850634659,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.026950080268158018,
+              "1": 0.37835651608804005,
+              "2": 0.594693403643802
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 159,
+          "output_tokens": 3
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "yes/no with only a yes criterion",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": ""
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.994015184792519
+          }
+        },
+        "usage": {
+          "input_tokens": 60,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "ChoiceQuestion with no options (server 422)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team?",
+            "criteria": {}
+          }
+        }
+      },
+      "status": 422,
+      "response": {
+        "detail": [
+          {
+            "type": "too_short",
+            "msg": "Dictionary should have at least 1 item after validation, not 0",
+            "input": {},
+            "ctx": {
+              "field_type": "Dictionary",
+              "min_length": 1,
+              "actual_length": 0
+            },
+            "loc": [
+              "body",
+              "questions",
+              "department",
+              "choice",
+              "criteria"
+            ]
+          }
+        ]
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "empty questions (server 422)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {}
+      },
+      "status": 422,
+      "response": {
+        "detail": [
+          {
+            "type": "too_short",
+            "msg": "Dictionary should have at least 1 item after validation, not 0",
+            "input": {},
+            "ctx": {
+              "field_type": "Dictionary",
+              "min_length": 1,
+              "actual_length": 0
+            },
+            "loc": [
+              "body",
+              "questions"
+            ]
+          }
+        ]
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice and score with emulated abstention fields (answered)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.0123,
+            "abstained": false
+          },
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            },
+            "unknown_probability": 0.0123,
+            "abstained": false
+          }
+        },
+        "usage": {
+          "input_tokens": 112,
+          "output_tokens": 2
+        }
+      },
+      "emulated_abstention": "answered"
+    },
+    {
+      "label": "choice and score with emulated abstention fields (abstained)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.0123,
+            "abstained": true
+          },
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            },
+            "unknown_probability": 0.0123,
+            "abstained": true
+          }
+        },
+        "usage": {
+          "input_tokens": 112,
+          "output_tokens": 2
+        }
+      },
+      "emulated_abstention": "abstained"
+    },
+    {
+      "label": "choice and score with emulated abstention fields (abstained_not_argmax)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "http_version": "HTTP/1.1",
+      "headers": {
+        "accept": "*/*",
+        "accept-encoding": "gzip, deflate",
+        "connection": "keep-alive",
+        "user-agent": "python-httpx/0.28.1",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json"
+      },
+      "body": {
+        "model": "jev-1.13.0",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "billing",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.8135975424276166,
+            "abstained": true
+          },
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            },
+            "unknown_probability": 0.0123,
+            "abstained": true
+          }
+        },
+        "usage": {
+          "input_tokens": 112,
+          "output_tokens": 2
+        }
+      },
+      "emulated_abstention": "abstained_not_argmax"
+    }
+  ],
+  "summary": {
+    "passed": 39,
+    "failed": 0,
+    "result": "pass"
+  }
+}

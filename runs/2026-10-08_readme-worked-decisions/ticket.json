@@ -1,0 +1,71 @@
+{
+ "request": {
+  "state": "I was charged twice for October. Both charges are 49.00 EUR, same day. Please refund one.",
+  "questions": {
+   "urgent": {
+    "type": "noul",
+    "instructions": "Does this ticket need a response within the hour?"
+   },
+   "queue": {
+    "type": "choice",
+    "instructions": "Which team should handle this ticket?",
+    "criteria": {
+     "billing": "Invoices, payments, refunds, prices, VAT",
+     "access": "Login, passwords, two-factor, SSO, permissions, invitations, account security",
+     "bug": "The product behaves wrongly: errors, crashes, wrong numbers, lost data",
+     "feature": "A request for something the product does not do yet",
+     "cancellation": "Cancelling, pausing or closing an account, deleting data",
+     "other": "Press, partners, jobs, sales pitches, wrong address, thanks, general questions"
+    }
+   },
+   "impact": {
+    "type": "score",
+    "instructions": "Rate the business impact using only the reported facts.",
+    "criteria": [
+     "No function impaired",
+     "One user impaired, with a workaround",
+     "Many users blocked from a core function",
+     "Data loss or legal exposure"
+    ]
+   }
+  }
+ },
+ "response": {
+  "urgent": {
+   "type": "noul",
+   "noul": 0.15895391094984906
+  },
+  "queue": {
+   "type": "choice",
+   "choice": "billing",
+   "confidence": 0.9538967881630751,
+   "probabilities": {
+    "billing": 0.9615806568025626,
+    "access": 0.011010040662283142,
+    "bug": 0.015563773344808959,
+    "feature": 0.0035861095049131136,
+    "cancellation": 0.0052054496778298,
+    "other": 0.0030539700076024742
+   }
+  },
+  "impact": {
+   "type": "score",
+   "score": 0.8820304771809035,
+   "confidence": 0.6056318169572623,
+   "legend": {
+    "0": "No function impaired",
+    "1": "One user impaired, with a workaround",
+    "2": "Many users blocked from a core function",
+    "3": "Data loss or legal exposure"
+   },
+   "probabilities": {
+    "0": 0.25616885293091707,
+    "1": 0.648106249063855,
+    "2": 0.053250465898634934,
+    "3": 0.04247443210659286
+   }
+  }
+ },
+ "server_ms": 91.2,
+ "source": "01-support-routing__2026-10-08_gemma-4-31b/decisions.jsonl.gz line 1"
+}

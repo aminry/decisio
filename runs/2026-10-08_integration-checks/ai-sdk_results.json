@@ -1,0 +1,771 @@
+{
+  "integration": "ai-sdk",
+  "versions": {
+    "ai": "7.0.131",
+    "@ai-sdk/typesafe-ai": "3.0.15"
+  },
+  "date": "2026-10-08",
+  "client_node": "v22.23.1",
+  "client_host": "Darwin 25.6.0 arm64",
+  "decisio_url_given": "http://127.0.0.1:18090",
+  "server_health": {
+    "ok": true,
+    "engine": null,
+    "model": null,
+    "base": "gemma-4-31b"
+  },
+  "checks": [
+    {
+      "id": "pinned ai",
+      "passed": true,
+      "detail": "7.0.131"
+    },
+    {
+      "id": "pinned @ai-sdk/typesafe-ai",
+      "passed": true,
+      "detail": "3.0.15"
+    },
+    {
+      "id": "ai exports experimental_decide",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "experimental_evaluate is only a deprecated alias of experimental_decide",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "default baseURL is the hosted /v1 (read from config, never called)",
+      "passed": true,
+      "detail": "https://api.typesafe.ai/v1"
+    },
+    {
+      "id": "noul: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "noul: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "noul: boolean question sent as type noul",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "noul: result type boolean, probability identical to raw noul",
+      "passed": true,
+      "detail": "0.9950546016807681"
+    },
+    {
+      "id": "noul: response modelId is the server's echoed model",
+      "passed": true,
+      "detail": "jev-latest"
+    },
+    {
+      "id": "noul: usage mapped",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "response headers (x-decisio-*) are exposed on result.response.headers",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "choice: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: label identical to raw",
+      "passed": true,
+      "detail": "technical"
+    },
+    {
+      "id": "choice: probabilities identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: confidence moved to providerMetadata.typesafe.confidence",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "choice: response modelId is the server's echoed model",
+      "passed": true,
+      "detail": "jev-latest"
+    },
+    {
+      "id": "choice: usage mapped",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: POST /v1/systemone hit",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "score: status 200",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: value identical to raw",
+      "passed": true,
+      "detail": "1.5583267062451711"
+    },
+    {
+      "id": "score: probabilities identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: confidence moved to providerMetadata.typesafe.confidence",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "score: legend is not in the result",
+      "passed": true,
+      "detail": "type,score,probabilities"
+    },
+    {
+      "id": "score: response modelId is the server's echoed model",
+      "passed": true,
+      "detail": "jev-latest"
+    },
+    {
+      "id": "score: usage mapped",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "combined: status 200, object state accepted",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "combined: all three identical to raw",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "trailing slash on baseURL is stripped",
+      "passed": true,
+      "detail": "/v1/systemone"
+    },
+    {
+      "id": "baseURL without /v1 posts to /systemone and fails with a 404 error, not silently",
+      "passed": true,
+      "detail": "/systemone AI_APICallError 404"
+    },
+    {
+      "id": "no API key: LoadAPIKeyError before any request",
+      "passed": true,
+      "detail": "AI_LoadAPIKeyError"
+    },
+    {
+      "id": "env TYPESAFE_AI_BASE_URL / TYPESAFE_AI_API_KEY are honoured by the default instance",
+      "passed": true,
+      "detail": "Bearer <redacted, 31 chars>"
+    },
+    {
+      "id": "choice without criteria: rejected by experimental_decide before any request",
+      "passed": true,
+      "detail": "AI_InvalidArgumentError: Invalid argument for parameter questions.department: choice criteria must be a nonempty option map"
+    },
+    {
+      "id": "choice without criteria through doDecide: a TypeError, no request sent",
+      "passed": true,
+      "detail": "TypeError: Cannot convert undefined or null to object"
+    },
+    {
+      "id": "422 surfaces as APICallError with statusCode 422",
+      "passed": true,
+      "detail": "AI_APICallError 422"
+    },
+    {
+      "id": "422: Decisio's detail is in the error message",
+      "passed": true,
+      "detail": "[{\"type\":\"too_short\",\"msg\":\"Dictionary should have at least 1 item after validation, not 0\",\"input\":{},\"ctx\":{\"field_typ"
+    },
+    {
+      "id": "422: not retried (one request seen)",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "422: not retryable",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "id": "emulated answered: parses, abstained and unknown_probability not surfaced",
+      "passed": true,
+      "detail": "type,choice,probabilities"
+    },
+    {
+      "id": "emulated abstained: parses, abstained and unknown_probability not surfaced",
+      "passed": true,
+      "detail": "type,choice,probabilities"
+    },
+    {
+      "id": "emulated abstention with a non-argmax choice is refused by the SDK's answer validation",
+      "passed": true,
+      "detail": "AI_InvalidResponseDataError: Question \"department\" did not select a highest-probability option."
+    }
+  ],
+  "observations": {
+    "exports": {
+      "experimental_decide": "function",
+      "experimental_evaluate": "function",
+      "evaluate_is_alias_of_decide": true
+    },
+    "default_baseURL": "https://api.typesafe.ai/v1",
+    "timeout": "none set by the provider or by experimental_decide (only abortSignal); Node's fetch applies undici's defaults, 300 s to response headers and 300 s between body chunks. maxRetries defaults to 2.",
+    "request_body_fields": [
+      "model",
+      "questions",
+      "state"
+    ],
+    "model_sent": "jev-latest",
+    "request_headers_sent": {
+      "connection": "keep-alive",
+      "authorization": "Bearer <redacted, 31 chars>",
+      "content-type": "application/json",
+      "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+      "accept": "*/*",
+      "accept-language": "*",
+      "sec-fetch-mode": "cors",
+      "accept-encoding": "gzip, deflate",
+      "content-length": "338"
+    },
+    "auth_header": "Authorization: Bearer <key>; User-Agent ai/<version> ai-sdk-provider-utils/<version> node.js/<major> (decide() overrides the provider's own ai-sdk-typesafe-ai suffix)",
+    "rounding_declared": {
+      "probabilityDecimals": 2,
+      "scoreDecimals": 2
+    },
+    "response_headers_exposed": [
+      "content-length",
+      "content-type",
+      "date",
+      "server",
+      "x-decisio-route",
+      "x-decisio-server-ms",
+      "x-decisio-stages"
+    ],
+    "client_side_validation": {
+      "choice_without_criteria": "AI_InvalidArgumentError: Invalid argument for parameter questions.department: choice criteria must be a nonempty option map"
+    },
+    "422_message": "[{\"type\":\"too_short\",\"msg\":\"Dictionary should have at least 1 item after validation, not 0\",\"input\":{},\"ctx\":{\"field_type\":\"Dictionary\",\"min_length\":1,\"actual_length\":0},\"loc\":[\"body\",\"questions\",\"department\",\"choice\",\"criteria\"]}]",
+    "abstention_not_argmax_error": "AI_InvalidResponseDataError: Question \"department\" did not select a highest-probability option."
+  },
+  "findings": [
+    "baseURL must include /v1 (http://host:port/v1): the provider appends only /systemone, so a base URL written the way other integrations take it (no /v1) hits /systemone, which Decisio does not serve, and fails with a 404 APICallError.",
+    "The provider refuses to send without an API key (TYPESAFE_AI_API_KEY or the apiKey option) even though Decisio ignores keys: a self-hosted setup still has to pass a dummy key.",
+    "Calling the model's doDecide directly with a choice question that has no criteria throws a bare TypeError (Object.keys of undefined) in the provider, not an InvalidArgumentError; experimental_decide validates first and gives a proper InvalidArgumentError, so only direct doDecide callers see it.",
+    "EMULATED, not seen on the stand-in: docs/api.md says a server with --abstain-option answers the best of the other options while reporting the probabilities unchanged, so `choice` need not be the most probable key. experimental_decide checks that the selected option has the highest probability and throws InvalidResponseDataError when it does not. A real abstaining Decisio server would therefore make experimental_decide throw on exactly the answers where it abstains. The proxy rewrote a real answer to show the error; no abstaining server was run.",
+    "`legend` is dropped from score answers and `confidence` is moved out of the answer into result.providerMetadata.typesafe.confidence; `unknown_probability` and `abstained` are not surfaced on the answer (they remain in result.response.body). `usage` maps to inputTokens, outputTokens and totalTokens.",
+    "Decisio's x-decisio-* response headers are exposed on result.response.headers."
+  ],
+  "requests": [
+    {
+      "label": "noul alone",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.9950546016807681
+          }
+        },
+        "usage": {
+          "input_tokens": 64,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice alone",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "score alone",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "frustration": {
+            "type": "score",
+            "score": 1.5583267062451711,
+            "confidence": 0.33749005936775645,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.032794660867444564,
+              "1": 0.37608397201993987,
+              "2": 0.5911213671126156
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 63,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "noul + choice + score in one request, state as an object",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": {
+          "customer_message": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately."
+        },
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          },
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "instructions": "How frustrated does the customer appear?",
+            "criteria": [
+              "Calm.",
+              "Concerned but civil.",
+              "Very angry."
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "urgent": {
+            "type": "noul",
+            "noul": 0.9957222243669378
+          },
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.670694658833301,
+            "probabilities": {
+              "billing": 0.1840320595035702,
+              "technical": 0.7804631058888674,
+              "sales": 0.03550483460756251
+            }
+          },
+          "frustration": {
+            "type": "score",
+            "score": 1.567743323375644,
+            "confidence": 0.3516149850634659,
+            "legend": {
+              "0": "Calm.",
+              "1": "Concerned but civil.",
+              "2": "Very angry."
+            },
+            "probabilities": {
+              "0": 0.026950080268158018,
+              "1": 0.37835651608804005,
+              "2": 0.594693403643802
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 159,
+          "output_tokens": 3
+        }
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "baseURL without /v1 (server 404)",
+      "method": "POST",
+      "path": "/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "urgent": {
+            "type": "noul",
+            "instructions": "Does this message require an urgent response?",
+            "criteria": {
+              "true": "The customer needs help right now.",
+              "false": "The message can wait."
+            }
+          }
+        }
+      },
+      "status": 404,
+      "response": {
+        "detail": "Not Found"
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice with empty criteria through doDecide (server 422)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai-sdk-typesafe-ai/3.0.15 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team?",
+            "criteria": {}
+          }
+        }
+      },
+      "status": 422,
+      "response": {
+        "detail": [
+          {
+            "type": "too_short",
+            "msg": "Dictionary should have at least 1 item after validation, not 0",
+            "input": {},
+            "ctx": {
+              "field_type": "Dictionary",
+              "min_length": 1,
+              "actual_length": 0
+            },
+            "loc": [
+              "body",
+              "questions",
+              "department",
+              "choice",
+              "criteria"
+            ]
+          }
+        ]
+      },
+      "emulated_abstention": null
+    },
+    {
+      "label": "choice with emulated abstention fields (answered)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.0123,
+            "abstained": false
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": "answered"
+    },
+    {
+      "label": "choice with emulated abstention fields (abstained)",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "technical",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.0123,
+            "abstained": true
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": "abstained"
+    },
+    {
+      "label": "choice with emulated abstention, answer is not the most probable key",
+      "method": "POST",
+      "path": "/v1/systemone",
+      "headers": {
+        "connection": "keep-alive",
+        "authorization": "Bearer <redacted, 31 chars>",
+        "content-type": "application/json",
+        "user-agent": "ai/7.0.131 ai-sdk-provider-utils/5.0.56 node.js/22",
+        "accept": "*/*",
+        "accept-language": "*",
+        "sec-fetch-mode": "cors",
+        "accept-encoding": "gzip, deflate"
+      },
+      "body": {
+        "model": "jev-latest",
+        "state": "Customer message: Stripe has failed to connect for three days and our invoices are stuck. Please help immediately.",
+        "questions": {
+          "department": {
+            "type": "choice",
+            "instructions": "Which team should handle this request?",
+            "criteria": {
+              "billing": "Payment or subscription issues.",
+              "technical": "Product bugs or integration failures.",
+              "sales": "Pricing or purchasing questions."
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "model": "jev-latest",
+        "answers": {
+          "department": {
+            "type": "choice",
+            "choice": "billing",
+            "confidence": 0.7203963136414249,
+            "probabilities": {
+              "billing": 0.15487948943913193,
+              "technical": 0.8135975424276166,
+              "sales": 0.03152296813325131
+            },
+            "unknown_probability": 0.8135975424276166,
+            "abstained": true
+          }
+        },
+        "usage": {
+          "input_tokens": 70,
+          "output_tokens": 1
+        }
+      },
+      "emulated_abstention": "abstained_not_argmax"
+    }
+  ],
+  "summary": {
+    "passed": 42,
+    "failed": 0,
+    "result": "pass"
+  }
+}
