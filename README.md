@@ -618,6 +618,7 @@ runs/                   evaluation records: a manifest, per-item results and has
 docs/                   running, the API, the command line, task registration, design notes
 docs/demos/             the demos judged decision by decision, and their clips
 examples/tasks/         a runnable task-registration walk-through (CPU stand-in)
+examples/reference/     the plain-transformers reference: one decision per call from a repository's decision_config.json
 examples/demos/         the demos' clients and the tools that render their clips
 EVAL_CARD.md            what was measured, on what, and what was fitted on what
 ```
