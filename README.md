@@ -75,16 +75,39 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 
 ### JevBench, axis by axis
 
-<!-- AXES: Lab 1's jevbench_axes chart and per-column ranks (build_axes.py) -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_axes_dark.png">
+  <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores, 11 rows sorted by composite score: the ten highest open-weights systems and Jev 1.13.0 as a reference row, six columns (overall, intelligence, sealed questions, calibration, speed, cost), each cell shaded by its rank in the column. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. Among the 11 rows shown it is second on overall, third on intelligence, second on sealed questions, fifth on calibration, fifth on speed and ninth on cost. The highest in each column: overall: H2O-Lightning-4B v1.1; intelligence: Quyet-1.0-Large; sealed questions: deck-31B; calibration: Jev 1.13.0; speed: H2O-Lightning-4B v1.1; cost: H2O-Lightning-4B v1.1. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
+</picture>
+
+- Among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
+- Close to the top on calibration (88.7, 5th; Jev 90.6 is highest) and on speed (91.2, 5th; H2O-Lightning-4B 92.6 is highest).
+- 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest). On your own hardware you pay for the card, not per token.
+
+<details>
+<summary>All the numbers: the ten highest open-weights systems and Jev, by axis</summary>
+
+JevBench v1.6.1, 0 to 100, higher is better on every axis, sorted by overall score. The four axes have no published intervals; the composite has its 95% interval, shown in small text. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.
+
+| System | Overall | Intelligence | Sealed questions | Calibration | Speed | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| H2O-Lightning-4B | 72.52 | 60.0 | 59.0 | 90.0 | 92.6 | 60.3 |
+| Decisio 31B v0.8.0 (ours) | 71.69 | 70.4 | 73.3 | 88.7 | 91.2 | 51.7 |
+| Jev 1.13.0 (reference) | 71.49 | 63.6 | 61.6 | 90.6 | 91.5 | 54.7 |
+| Quyet-1.0-Large | 71.39 | 73.4 | 71.6 | 90.0 | 86.9 | 50.5 |
+| decider-12b v2 | 70.88 | 63.0 | 63.6 | 82.0 | 90.5 | 57.8 |
+| decider-12b v1 | 70.42 | 60.6 | 59.5 | 83.8 | 90.5 | 57.8 |
+| torchcast-decision-12b | 69.91 | 60.5 | 61.1 | 82.9 | 91.7 | 56.4 |
+| Winnow-12B Q8 | 68.89 | 59.5 | 59.2 | 83.0 | 86.7 | 56.6 |
+| deck-31B | 68.68 | 73.0 | 75.8 | 82.2 | 86.7 | 49.7 |
+| Cygnet | 68.55 | 54.8 | 51.3 | 87.0 | 91.8 | 56.4 |
+| Decisio 12B v0.8.0 (ours) | 68.17 | 52.3 | 51.6 | 89.2 | 87.0 | 59.3 |
 
 What the compared systems' cards state, quoted as recorded with their revisions, is in [EVAL_CARD.md](EVAL_CARD.md) section 9.
 
-### How we read the board
+</details>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/four_axes_dark.png">
-  <img src="docs/launch/four_axes.png" alt="JevBench v1.6.1: the four axes, decisio on Gemma 4 31B against Jev 1.13.0, H2O-Lightning-4B and Quyet-1.0-Large">
-</picture>
+### How we read the board
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
