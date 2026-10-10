@@ -24,9 +24,9 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SERIES = ROOT / "patches" / "vllm-0.31.0" / "suffix-staging"
-COMMIT = "db9527a46873454610df6dbedf79a36d6bf1a7f6"
-SRC = Path(os.environ.get("VLLM_SRC") or Path.home() / ".cache" / "decisio" / "vllm-v0.31.0")
+SERIES = ROOT / "patches" / "vllm-0.30.0" / "suffix-staging"
+COMMIT = "ced6857afa0ea7b2e3f0846a62e1394e90f15607"
+SRC = Path(os.environ.get("VLLM_SRC") or Path.home() / ".cache" / "decisio" / "vllm-v0.30.0")
 
 
 def git(cwd, *args, check=True):
@@ -37,7 +37,7 @@ def git(cwd, *args, check=True):
 def tree(tmp_path_factory):
     if not (SRC / ".git").exists():
         pytest.skip(f"no vLLM source tree at {SRC} (bash scripts/fetch_vllm_source.sh)")
-    assert git(SRC, "rev-parse", "HEAD").stdout.strip() == COMMIT, "the source tree is not vLLM v0.31.0"
+    assert git(SRC, "rev-parse", "HEAD").stdout.strip() == COMMIT, "the source tree is not vLLM v0.30.0"
     assert git(SRC, "status", "--porcelain").stdout == "", "the source tree has local changes"
     return SRC
 
@@ -59,7 +59,7 @@ def test_s1_series_applies_in_order(tree, tmp_path, form):
     try:
         for p in files(form):
             chk = git(wt, "apply", "--check", str(p), check=False)
-            assert chk.returncode == 0, f"{p.name} does not apply to vLLM v0.31.0: {chk.stderr[:400]}"
+            assert chk.returncode == 0, f"{p.name} does not apply to vLLM v0.30.0: {chk.stderr[:400]}"
             git(wt, "apply", str(p))
         changed = set(git(wt, "status", "--porcelain").stdout.split("\n"))
         assert any("vllm/v1/worker/gpu/suffix_staging.py" in c for c in changed)
@@ -99,7 +99,7 @@ def test_s3_inert_by_default_and_what_apply_applies():
     )
     assert "VLLM_SUFFIX_STAGING" in first
     apply = (ROOT / "patches" / "apply.sh").read_text()
-    assert '"$SERIES"/pkg/0*.patch' in apply and "vllm-0.31.0/suffix-staging" in apply
+    assert '"$SERIES"/pkg/0*.patch' in apply and "vllm-0.30.0/suffix-staging" in apply
     assert apply.index("--dry-run") < apply.index("patch -p1 --forward < ")  # every file dry-run first
 
 
@@ -117,48 +117,15 @@ def test_s4_apply_script(tree, tmp_path):
     site = tmp_path / "site-packages"
     shutil.copytree(tree / "vllm", site / "vllm", ignore=shutil.ignore_patterns("__pycache__"))
     apply = ROOT / "patches" / "apply.sh"
-    r = subprocess.run(["bash", str(apply), str(fake_python(tmp_path, site, "0.31.0"))], capture_output=True, text=True)
+    r = subprocess.run(["bash", str(apply), str(fake_python(tmp_path, site, "0.30.0"))], capture_output=True, text=True)
     assert r.returncode == 0, r.stderr
     assert r.stdout.split() == ["applied", files("pkg")[0].name, "applied", files("pkg")[1].name]
     assert (site / "vllm" / "v1" / "worker" / "gpu" / "suffix_staging.py").exists()
     again = subprocess.run(
-        ["bash", str(apply), str(fake_python(tmp_path, site, "0.31.0"))], capture_output=True, text=True
+        ["bash", str(apply), str(fake_python(tmp_path, site, "0.30.0"))], capture_output=True, text=True
     )
     assert again.returncode != 0 and "does not apply" in again.stderr  # already applied: refused
     other = subprocess.run(
-        ["bash", str(apply), str(fake_python(tmp_path, site, "0.30.0"))], capture_output=True, text=True
+        ["bash", str(apply), str(fake_python(tmp_path, site, "0.31.0"))], capture_output=True, text=True
     )
-    assert other.returncode != 0 and "is for vllm 0.31.0" in other.stderr
-
-
-HIDDEN = ROOT / "patches" / "vllm-0.31.0" / "return-last-hidden-states"
-
-
-@pytest.mark.parametrize("form", ["", "pkg"])
-def test_s5_last_hidden_states_series_applies(tree, tmp_path, form):
-    series = sorted((HIDDEN / form).glob("0*.patch"))
-    assert len(series) == 1
-    wt = scratch(tree, tmp_path, f"wt_hidden_{form or 'full'}")
-    try:
-        for p in series:
-            chk = git(wt, "apply", "--check", str(p), check=False)
-            assert chk.returncode == 0, f"{p.name} does not apply to vLLM v0.31.0: {chk.stderr[:400]}"
-            git(wt, "apply", str(p))
-        changed = {c[3:] for c in git(wt, "status", "--porcelain").stdout.split("\n") if c}
-        assert "vllm/v1/worker/gpu/model_runner.py" in changed and "vllm/sampling_params.py" in changed
-        if form == "pkg":
-            assert all(c.startswith("vllm/") for c in changed)
-    finally:
-        git(tree, "worktree", "remove", "--force", str(wt))
-        shutil.rmtree(wt, ignore_errors=True)
-
-
-def test_s6_last_hidden_states_series_is_off_by_default():
-    """pkg/ is the full series restricted to vllm/, and the engine flag it adds defaults to off."""
-    full, pkg = sorted(HIDDEN.glob("0*.patch"))[0], sorted((HIDDEN / "pkg").glob("0*.patch"))[0]
-    a, b = hunks(full, True), hunks(pkg, False)
-    assert set(a) == set(b)
-    for name in a:
-        assert a[name].rstrip("\n") == b[name].rstrip("\n"), f"{name} differs from the full series"
-    assert "+    enable_return_last_hidden_states: bool = False" in b["vllm/config/model.py"]
-    assert "return_last_hidden_states" in b["vllm/sampling_params.py"]
+    assert other.returncode != 0 and "is for vllm 0.30.0" in other.stderr

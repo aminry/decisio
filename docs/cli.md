@@ -12,7 +12,7 @@ With a `--model` and no `--base`, the base is detected from the checkpoint's `co
 With neither, the vLLM server serves `gemma-4-31b`, the default base since 0.10.0 (the CPU stand-in and the MLX backend always name a checkpoint, and refuse to start without one).
 `--base` also takes a decisio model repository, `owner/name[@revision]` or a directory holding its `decision_config.json`: the repository's weights are the checkpoint, its file names the base, and the server refuses to start if the file differs from the installed profile (`docs/running.md`, "Model repositories").
 The served defaults need no other flag: every default below is what was measured, base by base (`EVAL_CARD.md` sections 1, 6.1 and 7.1).
-`gemma-4-31b` is served from its FP8 repository, `tachara-ai/decisio-gemma-4-31b`, and `--model google/gemma-4-31B-it` serves Google's weights instead, quantized to FP8 when they load (vLLM's `fp8_per_tensor` online quantization, which `quantization="fp8"` redirects to since 0.31.0), a setting of its profile; `--engine '{"quantization": null}'` loads them at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
+`gemma-4-31b` is served from its FP8 repository, `tachara-ai/decisio-gemma-4-31b`, and `--model google/gemma-4-31B-it` serves Google's weights instead, quantized to FP8 when they load (vLLM 0.30.0's FP8 on load), a setting of its profile; `--engine '{"quantization": null}'` loads them at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
 `--help` prints the same list with each flag's description.
 
 ## Every flag

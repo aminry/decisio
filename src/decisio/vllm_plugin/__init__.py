@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 
-SUPPORTED_VLLM = "0.31.0"
+SUPPORTED_VLLM = "0.30.0"
 # architecture name -> "<module>:<class>" (vLLM's lazy registration form)
 TEXT_ONLY = "DecisioQwen3_5MoeTextOnly"
 HIDDEN_READOUT = "DecisioQwen3_5MoeHiddenReadout"
