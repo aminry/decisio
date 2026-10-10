@@ -80,7 +80,8 @@ Response headers:
 - `x-decisio-server-ms`: the server's time for the request.
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
-- `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...`.
+- `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the engine call itself; `wait` is the time before it, from the request reaching the engine until it took the engine's lock, so `engine + wait` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server.
+- `x-decisio-wait-behind`: `registration` when a boundary registration (`--register-boundary after`) was running when the request arrived, so the `wait` was behind it; absent otherwise. On `POST /v1/answer` the same facts are `timing.waited_ms` and `timing.waited_behind_registration`.
 
 ## `GET /v1/models`
 
