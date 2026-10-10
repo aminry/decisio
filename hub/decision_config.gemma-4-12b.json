@@ -1,6 +1,6 @@
 {
   "schema": "decisio.decision_config/1",
-  "decisio": "0.11.0",
+  "decisio": "0.11.1",
   "base": "gemma-4-12b",
   "source": {
     "repository": "google/gemma-4-12B-it",
@@ -67,7 +67,7 @@
     "pad_to": "none",
     "multi_question": "sequential",
     "register_state_boundary": true,
-    "register_boundary": "after"
+    "register_boundary": "before"
   },
   "engine": {
     "vllm": "0.30.0"

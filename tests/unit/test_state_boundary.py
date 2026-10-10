@@ -28,7 +28,9 @@ A4  at most PENDING_KEPT registrations wait, the oldest dropped first and counte
 A5  a warm-up that fails is counted and dropped; the request that sent it is answered, and the state is deferred again
 A6  a registered boundary found gone (evicted) is registered again after the next response, as in S2
 O1  --register-boundary off: no warm-up, before or after, and nothing pending
-D1  the default per base: after on gemma-4-12b, before on gemma-4-31b (its throughput under load), the flag overriding
+D1  the default: before on both Gemma bases (after on the 12B from 0.9.0 to 0.11.0 made a request that follows
+    another wait behind the previous state's registration), the flag overriding
+D2  one-question requests on new states back to back, on the 12B's default: nothing is left pending behind a response
 X1  at exit the registrar waits for the warm-up in progress, drops and counts the pending ones, and starts none after
 
 The GPU tier checks the effect on a card (tests/gpu/test_second_question_cached.py): a second, different question on a
@@ -262,9 +264,33 @@ def test_d1_the_default_order_per_base():
     from decisio.serve.vllm_engine import resolve_register_boundary
 
     g12, g31 = BASES["gemma-4-12b"], BASES["gemma-4-31b"]
-    assert resolve_register_boundary(g12, None) == "after" and resolve_register_boundary(g31, None) == "before"
+    assert resolve_register_boundary(g12, None) == "before" and resolve_register_boundary(g31, None) == "before"
     for choice in ("after", "before", "off"):
         assert resolve_register_boundary(g12, choice) == resolve_register_boundary(g31, choice) == choice
+
+
+def test_d2_back_to_back_one_question_requests_leave_nothing_pending_on_the_12b_default(tok):
+    """Lab 2's grid (12B, `after`, one question on each new 3,000-token state in a row): each later request took about
+    twice a read, because it waited behind the previous state's registration. On the default (`before`) the warm-up is
+    inside the request, so nothing is pending when a response goes out and no request runs another's registration."""
+    from decisio.serve.vllm_engine import resolve_register_boundary
+
+    eng = Recording(tok, "gemma-4-12b", register=resolve_register_boundary(BASES["gemma-4-12b"], None))
+    states = [STATE, OTHER, STATE + " Please answer today.", OTHER + " It is urgent."]
+    for state in states:
+        sent = eng.ask(state, Q1)
+        assert len(sent["warm"]) == 1  # registered in the request, ahead of its question
+        facts = eng.registrar.facts()
+        assert facts["pending"] == 0 and facts["deferred"] == 0
+    # the same sequence on `after` leaves each state's registration pending behind its response (the regression)
+    late = Recording(tok, "gemma-4-12b", register="after")
+    ticket, token = boundary.open_ticket()
+    try:
+        late.answer(STATE, Q1)
+    finally:
+        boundary._TICKET.reset(token)
+    assert late.registrar.facts()["pending"] == 1
+    ticket.release()
 
 
 def test_x1_at_exit_the_registrar_waits_for_the_warm_up_in_progress(tok):

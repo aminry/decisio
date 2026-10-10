@@ -65,6 +65,26 @@ def is_request_error(e: BaseException) -> bool:
     return isinstance(e, REQUEST_ERRORS) or _named(e, "VLLMClientError")
 
 
+def client_error(e: BaseException) -> tuple[int, str] | None:
+    """The HTTP status and detail for an error vLLM says the request caused, or None for any other exception.
+
+    vLLM 0.30.0 raises `VLLMValidationError` (a `VLLMClientError`, not a ValueError) when the rendered prompt is over
+    its context, so the routes' `except ValueError` never saw it and the caller got a bare 500. A validation error, or
+    an unprocessable entity (an image URL that does not load), is a 422, as for any input over capacity; any other
+    client error is a 400, the status for a request the engine cannot answer (docs/api.md)."""
+    if not _named(e, "VLLMClientError"):
+        return None
+    message = str(e)
+    if _named(e, "VLLMValidationError") or _named(e, "VLLMUnprocessableEntityError"):
+        if "maximum context length" in message:
+            return 422, (
+                "the rendered prompt (the state with one question) is longer than the context the server was "
+                f"started with; shorten the state or the question and send it again. vLLM says: {message}"
+            )
+        return 422, f"the engine rejected the request: {message}"
+    return 400, f"the engine cannot answer the request: {message}"
+
+
 def is_engine_dead_error(e: BaseException) -> bool:
     """vLLM's own word that its engine is dead (`vllm.v1.engine.exceptions.EngineDeadError`, "Unrecoverable")."""
     return _named(e, "EngineDeadError")

@@ -236,3 +236,25 @@ def test_h7_an_exit_waits_for_the_warm_up_in_progress():
     lines = [x for x in r.stdout.splitlines() if x in ("WARM START", "EXIT", "WARM END")]
     assert r.returncode == 0, r.stderr[-2000:]
     assert lines == ["WARM START", "EXIT", "WARM END"], r.stdout[-2000:]
+
+
+def test_h8_a_request_records_how_long_it_waited_for_the_engine_and_behind_what(served):
+    """#132: under `after` a follow-up waits for the registrar's warm-up; `ran_before` stays 0 (the request sent nothing
+    itself), and the wait is `waited_ms`, flagged `waited_behind_registration`; an idle server waits 0."""
+    eng, client, _, _ = served
+    idle = ask(client, ticket(8), Q1)  # nothing runs before it
+    assert idle["waited_ms"] < 50 and idle["waited_behind_registration"] is False
+    time.sleep(0.5)  # its registration has finished (the gate is open)
+    eng.gate.clear()
+    ask(client, ticket(9), Q1)  # its warm-up starts and is held
+    assert eng.warm_started.wait(30)
+    out = {}
+    follow = threading.Thread(target=lambda: out.update(t=ask(client, ticket(10), Q1)))
+    follow.start()
+    time.sleep(0.6)
+    assert follow.is_alive()
+    eng.gate.set()
+    follow.join(60)
+    t = out["t"]
+    assert t["waited_ms"] >= 500 and t["waited_behind_registration"] is True
+    assert t["state_boundary"].get("ran_before", 0) == 0  # the field that missed the wait

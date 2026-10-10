@@ -78,7 +78,7 @@ def options_listing(tok, options):
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
-from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, guarded  # noqa: E402
+from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
@@ -413,12 +413,18 @@ class LettersEngine:
         own = current_ticket() is None
         if own:
             ticket, token = open_ticket()
+        registrar = self.__dict__.get("_registrar")
+        # how long this request waits to take the engine, and whether a boundary registration was running when it
+        # arrived: under `after` a request that follows another waits behind the previous state's registration
+        # (decisio #132); ran_before counts only a registration this request sends itself
+        behind = bool(registrar is not None and registrar.running)
+        t_arrived = time.perf_counter()
         try:
             with self._lock:
                 t0 = time.perf_counter()
+                waited_ms = (t0 - t_arrived) * 1000
                 # registrations already due go before this request's questions, so a question sent after an answer
                 # about the same state reads the state from the cache
-                registrar = self.__dict__.get("_registrar")
                 ran, ran_ms = registrar.run_due() if registrar is not None else (0, 0.0)
                 reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
                 if self.mode == "separate":
@@ -430,6 +436,8 @@ class LettersEngine:
                 if ran:
                     info.setdefault("state_boundary", {}).update(ran_before=ran, ran_before_ms=ran_ms)
                 info["server_ms"] = (time.perf_counter() - t0) * 1000
+                info["waited_ms"] = waited_ms
+                info["waited_behind_registration"] = behind
         finally:
             if own:
                 close_ticket(ticket, token)
@@ -863,6 +871,11 @@ def make_app(engine, systemone=None, health=None):
             probs, info = engine.answer(req.state, req.questions, req.adapter)
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
+        except Exception as e:  # an error vLLM says the request caused (a prompt over the context): a 4xx
+            hit = client_error(e)
+            if hit is None:
+                raise
+            raise HTTPException(*hit) from e
         answers = []
         for q, p in zip(req.questions, probs):
             opts = ["yes", "no"] if q.get("kind", "choice") == "noul" else list(q["options"])

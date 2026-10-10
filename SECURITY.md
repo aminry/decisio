@@ -30,3 +30,9 @@ Decisio is a model server, not a hardened public endpoint.
 A decisio server is single-tenant.
 Its prefix cache and registered tasks are shared by every caller, so response timing can reveal whether another caller recently sent the same text, and one caller's registered task answers another's identical question.
 Run one server per trust boundary.
+
+## vLLM advisories
+
+vLLM advisories before 0.31.0 (GHSA-h3rc-6mm3-gc2m, GHSA-p92p-rxj5-7p2x, GHSA-4xqp-c3mv-qff7, GHSA-6cxc-2vcg-w5qc) are not reachable through decisio's routes: decisio uses vLLM as a library, mounts none of its HTTP routes and passes no request field to it as a parameter.
+0.12.0 moves to vLLM 0.31.0, which fixes all four.
+`tests/unit/test_vllm_exposure.py` fails when the source stops matching this.

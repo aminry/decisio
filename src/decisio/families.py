@@ -78,9 +78,11 @@ class Family:
     # multi-question path sends (vllm_engine.LettersEngine._answer_separate): vLLM keeps only the latest sliding-window
     # checkpoint of a finished request, so without it a later, different question about the state reads it again
     register_state_boundary: bool = False
-    # --register-boundary's default where register_state_boundary is set (vllm_engine.resolve_register_boundary): after,
-    # once the response is out (decisio.serve.boundary), or before, ahead of the question
-    register_boundary: str = "after"
+    # --register-boundary's default where register_state_boundary is set (vllm_engine.resolve_register_boundary):
+    # before, ahead of the question, or after, once the response is out (decisio.serve.boundary). The 12B's was after
+    # from 0.9.0 to 0.11.0: a request that follows another then waits behind the previous state's registration (about
+    # one extra read of the state at 3,000 and 6,000 tokens; docs/running.md), so both Gemma bases default to before
+    register_boundary: str = "before"
     # --backend mlx: the prefix cache's budget in MiB when --prefix-cache-mb is not given (vllm_engine.main). Per base,
     # because an entry holds a state's whole cache and the sliding-window layers keep 1.05 to 1.25 GB of it at long
     # states; the figure is what stays under two thirds of a 32 GiB Mac's memory beside the base's peak at 32k tokens

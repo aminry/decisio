@@ -1,0 +1,19 @@
+{
+ "what": "The first recorded decision of Advocacy's examples 1, 2 and 4, each on the Gemma 4 31B base, as the README's 'Three decisions' section shows them (probabilities rounded to three decimals there; the files hold the server's full-precision response).",
+ "rule": "the first record of each run, not chosen for its result",
+ "record": {
+  "base": "gemma-4-31b",
+  "decisio": "0.9.0 at bc74193 (the #114 head the gate ran on)",
+  "card": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "power_limit_w": 600,
+  "cpu": "AMD EPYC 9654",
+  "date": "2026-10-08",
+  "vllm": "0.30.0",
+  "engine_process": "in"
+ },
+ "files": {
+  "ticket.json": "0ef577493de8542c9c42427bcffb6a131704b6fc67f89945c0509585977d9858",
+  "moderation.json": "a8dc6b75607544055bcda08ce84ec42156fb5775d3ef53c54b8f0b69da61269d",
+  "tool.json": "e1354aef93e0e866d8fcb297687a785deaa4bb6e8589bee202470899e598ffc7"
+ }
+}

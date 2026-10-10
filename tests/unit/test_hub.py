@@ -135,7 +135,7 @@ def test_t2_a_changed_profile_is_named_by_path():
     config = hub.export_decision_config(BASES["gemma-4-12b"], "0.9.0")
     assert hub.check_profile(config, BASES["gemma-4-12b"]) == []
     config["temperatures"]["choice"] = 1.0
-    config["serving"]["register_boundary"] = "before"
+    config["serving"]["register_boundary"] = "after"
     config["classes"]["hidden-readout"] = "Other"
     config["prompt"]["format"]["tail"] = "compact"
     assert hub.check_profile(config, BASES["gemma-4-12b"]) == [
@@ -267,8 +267,10 @@ def test_s1_refusals(tmp_path):
 
 
 def test_c1_the_command_line(tmp_path, capsys):
-    assert hub.main(["export", "--all", "--out", str(tmp_path), "--decisio-version", "0.11.0"]) == 0
+    # each golden is exported for the release that made its repository's revision (the 12B's: 0.11.1)
     for base in BASES:
+        version = json.loads((HUB / f"decision_config.{base}.json").read_text())["decisio"]
+        assert hub.main(["export", "--base", base, "--out", str(tmp_path), "--decisio-version", version]) == 0
         assert (tmp_path / f"decision_config.{base}.json").read_text() == (
             HUB / f"decision_config.{base}.json"
         ).read_text()
