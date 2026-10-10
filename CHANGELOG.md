@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.0](https://github.com/aminry/decisio/compare/v0.11.1...v0.12.0) (2026-10-10)
+
+
+### Features
+
+* **serve:** vLLM 0.31.0 ([#137](https://github.com/aminry/decisio/issues/137)) ([3f615a3](https://github.com/aminry/decisio/commit/3f615a30c552cdcdc63e7f4ca78175a36e4e8f7d))
+
 ## [0.11.1](https://github.com/aminry/decisio/compare/v0.11.0...v0.11.1) (2026-10-10)
 
 
