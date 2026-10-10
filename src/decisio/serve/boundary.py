@@ -119,6 +119,7 @@ class Registrar:
         self._due = 0
         self._thread: threading.Thread | None = None
         self._closed = False
+        self.running = False  # the background thread is sending a registration now (the engine's lock held)
         self.counts = {"deferred": 0, "registered": 0, "dropped": 0, "failed": 0}
 
     def facts(self) -> dict:
@@ -242,4 +243,8 @@ class Registrar:
             with self.engine._lock:
                 if self._closed:
                     return
-                self.run_due()
+                self.running = True
+                try:
+                    self.run_due()
+                finally:
+                    self.running = False

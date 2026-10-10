@@ -607,11 +607,15 @@ class SystemOne:
                 "server_ms": (time.perf_counter() - t0) * 1000,
                 "route": "image" if use_image else "text",
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
-                **{k: v for k, v in info.items() if k in ("cached_tokens_mean", "image_tokens")},
+                **{
+                    k: v
+                    for k, v in info.items()
+                    if k in ("cached_tokens_mean", "image_tokens", "waited_behind_registration")
+                },
                 # where the engine's time went, for the x-decisio-stages header (milliseconds)
                 "stages": {
-                    {"server_ms": "engine"}.get(k, k[:-3]): info[k]
-                    for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms")
+                    {"server_ms": "engine", "waited_ms": "wait"}.get(k, k[:-3]): info[k]
+                    for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms", "waited_ms")
                     if isinstance(info.get(k), (int, float))
                 },
             },
@@ -935,6 +939,8 @@ def add_routes(app, systemone: SystemOne):
         # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
         if timing.get("stages"):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
+        if timing.get("waited_behind_registration"):  # the wait in `stages` was behind a boundary registration (#132)
+            headers[header("wait-behind")] = "registration"
         return JSONResponse(out, headers=headers)
 
     def debug_of(request):
