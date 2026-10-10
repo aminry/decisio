@@ -54,6 +54,7 @@ import time
 
 import numpy as np
 import uvicorn
+from pool_blocks import cached_blocks, growth_per_state
 
 from decisio.serve import vllm_engine as sv
 
@@ -99,10 +100,13 @@ def blocks_kept_per_state(eng, pool, tokens, k=4):
     """The blocks of the prefix cache that a state keeps once its request has finished, over every cache group: the
     growth of the pool's cached blocks over `k` new states, asked one question each (a spare 100 + i seeds; the cache
     holds only a few states then, so nothing is evicted meanwhile)."""
-    before = len(pool.cached_block_hashes_by_block)
+    before = cached_blocks(pool)
     for i in range(k):
         ask(eng, ticket(eng.tok, tokens, 100 + i), FIRST)
-    return (len(pool.cached_block_hashes_by_block) - before) / k
+    try:
+        return growth_per_state(before, cached_blocks(pool), k)
+    except ValueError as e:
+        sys.exit(f"FILL: {e}, so the fill cannot be counted in blocks")
 
 
 def ask(eng, state, question):

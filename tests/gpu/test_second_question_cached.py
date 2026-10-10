@@ -24,7 +24,9 @@ from gpu_tier import HERE, env_path, run_child
 pytestmark = pytest.mark.gpu
 
 QWEN_PART_B = (
-    "part B on the Qwen base, filled in blocks: not yet confirmed on a card; counted in tokens at 0.9 of the reported "
+    "part B on the Qwen base, filled in blocks: not yet confirmed on a card (the block counter read an empty map in "
+    "vLLM 0.30.0 and is fixed, tests/gpu/pool_blocks.py, but no card run has passed part B since); "
+    "counted in tokens at 0.9 of the reported "
     "pool the 8 earliest padded states were no longer cached (RLCD experiments/2026-10-07_lab2_after_gpu_cases); "
     "TRACKS item 50"
 )
