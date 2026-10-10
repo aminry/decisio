@@ -1,0 +1,17 @@
+{
+ "what": "Lab 2's run of the README's pip path on decisio 0.11.0 and the README's three worked decisions on the 31B and the 12B (RLCD experiments/2026-10-08_lab2_latency_grid/results/box/readme_job/)",
+ "date": "2026-10-09",
+ "decisio": "0.11.0 from PyPI",
+ "vllm": "0.30.0",
+ "card": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 600 W",
+ "cpu": "AMD EPYC 9534",
+ "files": {
+  "g31_responses.json": "83dba260c7929a6c990cb2b03458d0b53a59a32678aedd15b62562c10abbf2c0",
+  "g12_responses.json": "cef2643674cfff60ce36c75b626f59dc9270c817f5837c1de6d7164f48121949",
+  "job.log": "7b84522ab329ed87ba009e72f0663067a0481380e99fbc82a67212b5aed95e50",
+  "versions.txt": "2c8b130b22012e6c94ed3b696ed0ffa2e0090e5d07c58309e81286120e35a255",
+  "pip_freeze.txt": "53bf1bdea1ad95efae65a40e6c0dacd0eafe272596822d4ed85d840408d0ff94",
+  "start_seconds_g31.txt": "397d1887cf899f0cd46f1627aadd30a2055ebf741bf3c9aa8e102817c4516dd4",
+  "start_seconds_g12.txt": "5c57d367cadac7091ce5a0eca0d665f2b9cedaed1e34199b530839cdd08dff2f"
+ }
+}

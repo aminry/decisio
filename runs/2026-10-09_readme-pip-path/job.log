@@ -1,0 +1,18 @@
+23:21:24 pip install rc 0 in 124 s
+python Python 3.12.3
+decisio 0.11.0
+vllm 0.30.0
+torch 2.13.0+cu130
+595.71.05
+23:47:22 g31 server ready after 474.2 s
+decision 1 (repeat 0): client 175.4 ms, server 172.2 ms, README 91.2 ms, max |dp| 0.06584949809783253, same top answers True
+decision 1 (repeat 1): client 58.0 ms, server 56.6 ms, README 91.2 ms, max |dp| 0.06584949809783253, same top answers True
+health: {'base': 'gemma-4-31b', 'repository': {'name': 'tachara-ai/decisio-gemma-4-31b', 'revision': '47833608b1e40e23433c9866cc019bc8c1ebe6c7', 'exported_for_decisio': '0.11.0', 'source': {'repository': 'google/gemma-4-31B-it', 'revision': '842da3794eaa0b77d5f08bae87a17459d91ff475', 'license': 'apache-2.0'}, 'weights': {'modified': True, 'dtype': 'fp8_e4m3', 'quantization': 'compressed-tensors', 'method': "quantized to FP8 exactly as vLLM 0.30.0 does on load (online per-tensor weight scales, activations quantized per token at run time); every other tensor, the vision tower included, is the source's; nothing was trained", 'quantized_on_load': False}}, 'vllm': '0.30.0'}
+health keys: ['VLLM_USE_DEEP_GEMM', 'adapters', 'attention_backend', 'base', 'block_size', 'cache_hit_unit', 'engine_process', 'gpu', 'hash_unit', 'head_engine', 'kv_cache_dtype', 'mamba_ssm_cache_dtype', 'match_unit', 'mode', 'ok', 'pad_unit', 'pad_where', 'profile', 'prompt_format', 'quantization', 'register_boundary', 'registers_state_boundary', 'repository', 'systemone', 'vllm']
+23:51:55 g12 server ready after 252.2 s
+decision 1 (repeat 0): client 110.9 ms, server 108.8 ms, README 91.2 ms, max |dp| 0.10928245871653203, same top answers True
+decision 1 (repeat 1): client 84.7 ms, server 83.0 ms, README 91.2 ms, max |dp| 0.12436435239822419, same top answers True
+decision 2 (repeat 0): client 35.3 ms, server 34.0 ms, README 58.4 ms, max |dp| 0.14624617648053284, same top answers True
+decision 2 (repeat 1): client 47.9 ms, server 44.6 ms, README 58.4 ms, max |dp| 0.14624617639936943, same top answers True
+decision 3 (repeat 0): client 132.8 ms, server 131.2 ms, README 65.8 ms, max |dp| 0.026298953521648794, same top answers True
+decision 3 (repeat 1): client 46.5 ms, server 43.5 ms, README 65.8 ms, max |dp| 0.025584009898138138, same top answers True

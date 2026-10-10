@@ -1,0 +1,5 @@
+python Python 3.12.3
+decisio 0.11.0
+vllm 0.30.0
+torch 2.13.0+cu130
+595.71.05
