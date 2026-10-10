@@ -15,7 +15,7 @@ Verified on a card (`runs/2026-09-30_plugin-verification`); the alternative, a s
 | Serve everything from a pooling engine | none | yes | Rejected: the pooling path has no prefix cache on this hybrid model, and the prefix cache is the latency design |
 | Recover `h` from the label log-probabilities | none | no | Impossible: K label scores do not determine 2,048 numbers |
 | **A registered model class that returns `h` through reserved logit columns** | **none (plugin only)** | to float32 rounding | **Shipped as the default** |
-| A patch that adds the last hidden state to the generate output | several files | bit for bit | The clean end state, for upstream vLLM; not carried here |
+| A patch that adds the last hidden state to the generate output | several files | bit for bit | The clean end state, for upstream vLLM (vllm-project/vllm#59543); carried for 0.31.0 in `patches/vllm-0.31.0/return-last-hidden-states`, not applied by the image and not used by the readout yet |
 
 ## The mechanism
 
