@@ -1,0 +1,307 @@
+{
+ "health": {
+  "ok": true,
+  "vllm": "0.30.0",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "engine_process": "in",
+  "mode": "separate",
+  "block_size": 16,
+  "match_unit": 16,
+  "cache_hit_unit": 64,
+  "hash_unit": 16,
+  "registers_state_boundary": true,
+  "register_boundary": "after",
+  "pad_unit": null,
+  "pad_where": null,
+  "quantization": "None",
+  "kv_cache_dtype": "auto",
+  "mamba_ssm_cache_dtype": "auto",
+  "adapters": [],
+  "VLLM_USE_DEEP_GEMM": "0",
+  "prompt_format": {
+   "tail": "spaced",
+   "slot": "template",
+   "variants": "summed",
+   "system_prompt": true
+  },
+  "base": "gemma-4-12b",
+  "attention_backend": "AttentionBackendEnum.TRITON_ATTN",
+  "profile": {
+   "base": "gemma-4-12b",
+   "checkpoint": "google/gemma-4-12B-it",
+   "revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+   "quantization_on_load": null,
+   "engine_process": "in",
+   "temperatures": {
+    "choice": 3.592,
+    "noul": 3.592,
+    "score": 3.592
+   },
+   "prompt": {
+    "tail": "spaced",
+    "slot": "template",
+    "variants": "summed",
+    "system_prompt": true,
+    "noul_rendering": "letters",
+    "describe_options": true,
+    "multi_question": "sequential",
+    "register_boundary": "after",
+    "pad_policy": "always",
+    "pad_unit": null
+   }
+  },
+  "systemone": {
+   "hide_index_keys": true,
+   "desnake_labels": true,
+   "describe_options": true,
+   "noul_rendering": "letters",
+   "noul_commit": false,
+   "abstention": true,
+   "abstention_tasks": {},
+   "orders": 1,
+   "abstain_option": null,
+   "tasks": true,
+   "debug_readout": false,
+   "temperature": 3.592,
+   "temperatures": {},
+   "readout_tasks": {}
+  },
+  "head_engine": {
+   "mode": "hidden (serving engine, reserved logit columns)",
+   "reserved_ids": [
+    170000,
+    173840
+   ],
+   "lm_head": [
+    262144,
+    3840
+   ],
+   "label_logprobs": "engine",
+   "requests_per_question": 5
+  },
+  "state_boundary": {
+   "pending": 0,
+   "deferred": 0,
+   "registered": 0,
+   "dropped": 0,
+   "failed": 0
+  }
+ },
+ "sent_at": "2026-10-09T23:51:55Z",
+ "requests": [
+  {
+   "decision": 1,
+   "repeat": 0,
+   "client_ms": 110.94575701281428,
+   "server_ms": "108.8",
+   "stages": "prepare=3.9;warm=22.6;questions=80.8;readout=0.2;engine=107.9",
+   "response": {
+    "model": "decisio-gemma-4-12b-it-letters",
+    "answers": {
+     "urgent": {
+      "type": "noul",
+      "noul": 0.05186941837438625
+     },
+     "queue": {
+      "type": "choice",
+      "choice": "billing",
+      "confidence": 0.9811071519264231,
+      "probabilities": {
+       "billing": 0.9842559599386859,
+       "access": 0.006501619991127232,
+       "bug": 0.003259251486682864,
+       "feature": 0.0021489810967050584,
+       "cancellation": 0.002116503015746968,
+       "other": 0.0017176844710518628
+      }
+     },
+     "impact": {
+      "type": "score",
+      "score": 0.7141520689113439,
+      "confidence": 0.5552830136555922,
+      "legend": {
+       "0": "No function impaired",
+       "1": "One user impaired, with a workaround",
+       "2": "Many users blocked from a core function",
+       "3": "Data loss or legal exposure"
+      },
+      "probabilities": {
+       "0": 0.36528245871653203,
+       "1": 0.5742501676348708,
+       "2": 0.0415002196693187,
+       "3": 0.01896715397927855
+      }
+     }
+    },
+    "usage": {
+     "input_tokens": 240,
+     "output_tokens": 3
+    }
+   },
+   "readme_server_ms": 91.2,
+   "max_abs_dp_vs_readme": 0.10928245871653203,
+   "same_top_answers_as_readme": true
+  },
+  {
+   "decision": 1,
+   "repeat": 1,
+   "client_ms": 84.69606190919876,
+   "server_ms": "83.0",
+   "stages": "prepare=1.0;warm=19.8;questions=60.9;readout=0.2;engine=82.2",
+   "response": {
+    "model": "decisio-gemma-4-12b-it-letters",
+    "answers": {
+     "urgent": {
+      "type": "noul",
+      "noul": 0.053607760110882086
+     },
+     "queue": {
+      "type": "choice",
+      "choice": "billing",
+      "confidence": 0.9815696535576925,
+      "probabilities": {
+       "billing": 0.9846413779647438,
+       "access": 0.006336605735972117,
+       "bug": 0.003162365877823894,
+       "feature": 0.0021081496382142914,
+       "cancellation": 0.002062785113965054,
+       "other": 0.0016887156692807852
+      }
+     },
+     "impact": {
+      "type": "score",
+      "score": 0.7009231449834783,
+      "confidence": 0.5383481502200734,
+      "legend": {
+       "0": "No function impaired",
+       "1": "One user impaired, with a workaround",
+       "2": "Many users blocked from a core function",
+       "3": "Data loss or legal exposure"
+      },
+      "probabilities": {
+       "0": 0.3803643523982242,
+       "1": 0.5577577511291121,
+       "2": 0.04246829556362518,
+       "3": 0.019409600909038614
+      }
+     }
+    },
+    "usage": {
+     "input_tokens": 240,
+     "output_tokens": 3
+    }
+   },
+   "readme_server_ms": 91.2,
+   "max_abs_dp_vs_readme": 0.12436435239822419,
+   "same_top_answers_as_readme": true
+  },
+  {
+   "decision": 2,
+   "repeat": 0,
+   "client_ms": 35.27700714766979,
+   "server_ms": "34.0",
+   "stages": "prepare=0.9;warm=0.0;questions=32.5;readout=0.0;engine=33.5",
+   "response": {
+    "model": "decisio-gemma-4-12b-it-letters",
+    "answers": {
+     "jailbreak": {
+      "type": "noul",
+      "noul": 0.9292461764805329
+     }
+    },
+    "usage": {
+     "input_tokens": 119,
+     "output_tokens": 1
+    }
+   },
+   "readme_server_ms": 58.4,
+   "max_abs_dp_vs_readme": 0.14624617648053284,
+   "same_top_answers_as_readme": true
+  },
+  {
+   "decision": 2,
+   "repeat": 1,
+   "client_ms": 47.883953899145126,
+   "server_ms": "44.6",
+   "stages": "prepare=0.9;warm=0.0;questions=22.0;readout=0.0;engine=23.1",
+   "response": {
+    "model": "decisio-gemma-4-12b-it-letters",
+    "answers": {
+     "jailbreak": {
+      "type": "noul",
+      "noul": 0.9292461763993695
+     }
+    },
+    "usage": {
+     "input_tokens": 119,
+     "output_tokens": 1
+    }
+   },
+   "readme_server_ms": 58.4,
+   "max_abs_dp_vs_readme": 0.14624617639936943,
+   "same_top_answers_as_readme": true
+  },
+  {
+   "decision": 3,
+   "repeat": 0,
+   "client_ms": 132.82534619793296,
+   "server_ms": "131.2",
+   "stages": "prepare=1.2;warm=0.0;questions=129.3;readout=0.1;engine=130.7",
+   "response": {
+    "model": "decisio-gemma-4-12b-it-letters",
+    "answers": {
+     "next": {
+      "type": "choice",
+      "choice": "answer",
+      "confidence": 0.9778736919020609,
+      "probabilities": {
+       "answer": 0.9822989535216488,
+       "search": 0.007654994364078135,
+       "calculate": 0.0037835670332154983,
+       "ask_user": 0.003318876736381151,
+       "act": 0.0029436083446767233
+      }
+     }
+    },
+    "usage": {
+     "input_tokens": 110,
+     "output_tokens": 1
+    }
+   },
+   "readme_server_ms": 65.8,
+   "max_abs_dp_vs_readme": 0.026298953521648794,
+   "same_top_answers_as_readme": true
+  },
+  {
+   "decision": 3,
+   "repeat": 1,
+   "client_ms": 46.49052210152149,
+   "server_ms": "43.5",
+   "stages": "prepare=1.0;warm=0.0;questions=22.7;readout=0.1;engine=23.8",
+   "response": {
+    "model": "decisio-gemma-4-12b-it-letters",
+    "answers": {
+     "next": {
+      "type": "choice",
+      "choice": "answer",
+      "confidence": 0.9769800123726726,
+      "probabilities": {
+       "answer": 0.9815840098981381,
+       "search": 0.00795483367129847,
+       "calculate": 0.003923223870243541,
+       "ask_user": 0.0034507504379011613,
+       "act": 0.0030871821224186034
+      }
+     }
+    },
+    "usage": {
+     "input_tokens": 110,
+     "output_tokens": 1
+    }
+   },
+   "readme_server_ms": 65.8,
+   "max_abs_dp_vs_readme": 0.025584009898138138,
+   "same_top_answers_as_readme": true
+  }
+ ]
+}
