@@ -3,13 +3,14 @@
 
 # Design: how decisio changes vLLM
 
-decisio runs on stock vLLM 0.30.0.
+decisio runs on stock vLLM 0.31.0.
 It changes vLLM in exactly two ways, each the least invasive that works: a plugin that registers model classes, and one optional patch series.
-Checked against vLLM v0.30.0's source (tag `v0.30.0`, commit `ced6857`) and verified on a card (`runs/2026-09-30_plugin-verification`).
+Checked against vLLM v0.31.0's source (tag `v0.31.0`, commit `db9527a`); the card verification of 0.31.0 is pending.
+The 0.30.0 verification on a card is `runs/2026-09-30_plugin-verification`.
 
 ## Summary
 
-- **Correct answers need no patch.** Every answer comes from stock vLLM 0.30.0 behaviour; the one patch series is a latency optimisation that is inert unless an environment flag is set.
+- **Correct answers need no patch.** Every answer comes from stock vLLM 0.31.0 behaviour; the one patch series is a latency optimisation that is inert unless an environment flag is set.
 - **Our own FastAPI front process** serves the routes (`/v1/systemone`, `/v1/answer`, `/v1/tasks`, `/v1/abstention/tasks`, `/v1/models`, `/health`) and drives vLLM in process through its `LLM` class.
 - **A `vllm.general_plugins` plugin** (`decisio.vllm_plugin`) registers decisio's model classes, two per base family.
 - **Suffix staging** is a patch series applied at image build (`patches/`), and is to be proposed upstream.
@@ -23,7 +24,7 @@ Checked against vLLM v0.30.0's source (tag `v0.30.0`, commit `ced6857`) and veri
 | Gemma 4 12B's class that also returns the hidden state, written after the final-logit soft cap | `decisio.vllm_plugin.gemma.DecisioGemma4UnifiedHiddenReadout` | For the intent head only | Plugin |
 | The text model of a `Gemma4ForConditionalGeneration` checkpoint (Gemma 4 31B), its vision tower left out at load, and the same class returning the hidden state after the soft cap | `decisio.vllm_plugin.gemma.DecisioGemma4TextOnly`, `DecisioGemma4HiddenReadout` | The text-only class for the served path; the other for the intent head only | Plugin |
 | A worker extension the server asks, by method name, for vLLM's own prefix-cache units (the hit unit, the least common multiple of the KV cache groups' block sizes, and the hash step), which `/health` reports | `decisio.vllm_plugin.worker.DecisioWorkerExtension` (`worker_extension_cls`) | No: reporting only | Constructor argument |
-| Staging only the uncached prompt suffix of prefix-cache hits in Model Runner V2 | `patches/vllm-0.30.0/suffix-staging` | No: 3 to 8% less time per question at 8,000-token states | Patch series, flag `VLLM_SUFFIX_STAGING=1` |
+| Staging only the uncached prompt suffix of prefix-cache hits in Model Runner V2 | `patches/vllm-0.31.0/suffix-staging` | No: 3 to 8% less time per question at 8,000-token states, measured on 0.30.0 | Patch series, flag `VLLM_SUFFIX_STAGING=1` |
 | Engine settings: prefix caching, processed log-probabilities, CUDA graphs to 4,096 tokens, no multimodal inputs on the text engine, warm-ups, front padding to the block | `decisio.serve.vllm_engine` | Configuration of stock vLLM | Constructor arguments |
 | `VLLM_USE_DEEP_GEMM=0` (vLLM's DeepGEMM FP8 path gave wrong results on a Blackwell card) | `vllm_engine.deep_gemm_guard` | Yes, on that card class | The launcher sets it before vLLM is imported and refuses to start otherwise (`--allow-deep-gemm` overrides) |
 
@@ -58,22 +59,22 @@ With the flag off the patched build is stock behaviour.
 
 ## Why not vLLM's endpoint plugins
 
-vLLM 0.30.0 has a `vllm.endpoint_plugins` group, loaded only in vLLM's own API server and only when named in `VLLM_PLUGINS`.
+vLLM has a `vllm.endpoint_plugins` group, loaded only in vLLM's own API server and only when named in `VLLM_PLUGINS`.
 Our routes drive the engine in process (token prompts, prefix warm-ups, one engine lock, a second engine for images), and every gate in `runs/` was measured on that path; an endpoint plugin would mean porting them to the async `EngineClient` and measuring again, on a surface vLLM documents as liable to change between versions.
 If a deployment needs our routes beside vLLM's OpenAI routes on one port, an endpoint plugin can be added later; nothing here prevents it.
 
 ## Version policy
 
-- The `serve` extra pins `vllm==0.30.0`; the plugin registers nothing on any other version.
+- The `serve` extra pins `vllm==0.31.0`; the plugin registers nothing on any other version.
 - Every run manifest records the vLLM version, whether the patch series was applied and its flag.
 - A version bump is a deliberate change: re-apply or drop the series, run the GPU tier again (`tests/gpu`).
 
 ## Tests without a GPU
 
-vLLM 0.30.0 has no macOS wheels, so the unit tier never imports the real package:
+vLLM 0.31.0 has no macOS wheels, so the unit tier never imports the real package:
 
 - the built wheel, installed alone into a fresh environment, exposes the entry point, and loading it without vLLM does nothing (`test_vllm_stub_suite.py`, V1);
-- `register()` against a stand-in `vllm` (`tests/unit/stub_vllm.py`): the declared classes and their config hooks on 0.30.0, nothing on another version, once per process, lazily (`test_vllm_plugin.py`, V2);
+- `register()` against a stand-in `vllm` (`tests/unit/stub_vllm.py`): the declared classes and their config hooks on 0.31.0, nothing on another version, once per process, lazily (`test_vllm_plugin.py`, V2);
 - the patch series against the tagged source tree (`test_patches.py`, needs `bash scripts/fetch_vllm_source.sh`);
 - the worker extension against a stand-in `vllm.v1.core.kv_cache_utils` (`test_vllm_plugin.py`, W1);
 - the launcher's DeepGEMM guard and engine arguments (V3, V4);
