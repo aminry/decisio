@@ -129,3 +129,36 @@ def test_s4_apply_script(tree, tmp_path):
         ["bash", str(apply), str(fake_python(tmp_path, site, "0.30.0"))], capture_output=True, text=True
     )
     assert other.returncode != 0 and "is for vllm 0.31.0" in other.stderr
+
+
+HIDDEN = ROOT / "patches" / "vllm-0.31.0" / "return-last-hidden-states"
+
+
+@pytest.mark.parametrize("form", ["", "pkg"])
+def test_s5_last_hidden_states_series_applies(tree, tmp_path, form):
+    series = sorted((HIDDEN / form).glob("0*.patch"))
+    assert len(series) == 1
+    wt = scratch(tree, tmp_path, f"wt_hidden_{form or 'full'}")
+    try:
+        for p in series:
+            chk = git(wt, "apply", "--check", str(p), check=False)
+            assert chk.returncode == 0, f"{p.name} does not apply to vLLM v0.31.0: {chk.stderr[:400]}"
+            git(wt, "apply", str(p))
+        changed = {c[3:] for c in git(wt, "status", "--porcelain").stdout.split("\n") if c}
+        assert "vllm/v1/worker/gpu/model_runner.py" in changed and "vllm/sampling_params.py" in changed
+        if form == "pkg":
+            assert all(c.startswith("vllm/") for c in changed)
+    finally:
+        git(tree, "worktree", "remove", "--force", str(wt))
+        shutil.rmtree(wt, ignore_errors=True)
+
+
+def test_s6_last_hidden_states_series_is_off_by_default():
+    """pkg/ is the full series restricted to vllm/, and the engine flag it adds defaults to off."""
+    full, pkg = sorted(HIDDEN.glob("0*.patch"))[0], sorted((HIDDEN / "pkg").glob("0*.patch"))[0]
+    a, b = hunks(full, True), hunks(pkg, False)
+    assert set(a) == set(b)
+    for name in a:
+        assert a[name].rstrip("\n") == b[name].rstrip("\n"), f"{name} differs from the full series"
+    assert "+    enable_return_last_hidden_states: bool = False" in b["vllm/config/model.py"]
+    assert "return_last_hidden_states" in b["vllm/sampling_params.py"]

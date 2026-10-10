@@ -1,0 +1,444 @@
+From 58c9bfaf84ee3ecc938929b7cf0ae07967e31f4a Mon Sep 17 00:00:00 2001
+From: Amin Roudaki <roudaky@gmail.com>
+Date: Wed, 30 Sep 2026 12:16:33 -0700
+Subject: [PATCH] [Core] Opt-in per-request return of the last hidden states in
+ generation (MRV2)
+
+Add `SamplingParams.return_last_hidden_states`. When set, each generated
+token's CompletionOutput row carries the hidden state its logits were computed
+from (the input to the model's `compute_logits`; for most decoder models the
+last layer's output after the final norm), in
+`CompletionOutput.last_hidden_states`, shaped [num_generated_tokens,
+hidden_size] in the model dtype, returned with the final output.
+
+The engine must be started with `enable_return_last_hidden_states=True`
+(`--enable-return-last-hidden-states`); otherwise such requests are rejected
+at validation. With the flag off the runner holds no state and does no work;
+with it on, only requests that ask pay: one gather of their logits rows per
+step and a device-to-host copy on the output copy stream, carried through
+ModelRunnerOutput, EngineCoreOutput (field appended last) and the output
+processor like the existing per-request outputs.
+
+Model Runner V2 only; rejected with speculative decoding, pipeline parallelism
+and context parallelism (not yet validated).
+
+Tests: scheduler routing and truncation to kept tokens; output-processor
+accumulation, aggregation, and returned rows that never alias a received
+transport frame; request validation; config guards; and a GPU end-to-end
+test (rows per token, rows reproduce the engine's raw logits, asking changes
+no other output: equal token ids, logits and rows within four fp16 ULPs).
+Docs: docs/features/last_hidden_states.md. Example:
+examples/generate/last_hidden_states_offline.py.
+
+Assisted-by: Claude Code (Anthropic)
+Signed-off-by: Amin Roudaki <roudaky@gmail.com>
+(cherry picked from commit 4b786f9bd2204354dcb6c0d1ad0fb4d6cd0944e0)
+---
+ vllm/config/model.py               |  5 +++++
+ vllm/config/vllm.py                | 32 ++++++++++++++++++++++++++++
+ vllm/engine/arg_utils.py           |  8 +++++++
+ vllm/outputs.py                    |  9 ++++++++
+ vllm/sampling_params.py            | 21 ++++++++++++++++++
+ vllm/v1/core/sched/scheduler.py    |  8 +++++++
+ vllm/v1/engine/__init__.py         |  5 +++++
+ vllm/v1/engine/output_processor.py | 10 +++++++++
+ vllm/v1/outputs.py                 |  5 +++++
+ vllm/v1/worker/gpu/async_utils.py  |  9 ++++++++
+ vllm/v1/worker/gpu/model_runner.py | 34 ++++++++++++++++++++++++++++++
+ 11 files changed, 146 insertions(+)
+
+diff --git a/vllm/config/model.py b/vllm/config/model.py
+index 15d046de76..21a83539ee 100644
+--- a/vllm/config/model.py
++++ b/vllm/config/model.py
+@@ -251,6 +251,10 @@ class ModelConfig:
+     equivalent to setting `-cc.mode=none -cc.cudagraph_mode=none`."""
+     return_sampling_mask: bool = False
+     """Whether to return the post-processing token support for each sample."""
++    enable_return_last_hidden_states: bool = False
++    """Whether requests may ask for the hidden state each generated token's
++    logits were computed from (`SamplingParams.return_last_hidden_states`).
++    When disabled, such requests are rejected and nothing else changes."""
+     max_logprobs: int = Field(default=20, ge=-1)
+     """Maximum number of log probabilities to return when `logprobs` is
+     specified in `SamplingParams`. The default value comes the default for the
+@@ -443,6 +447,7 @@ class ModelConfig:
+             "spec_target_max_model_len",
+             "enforce_eager",
+             "return_sampling_mask",
++            "enable_return_last_hidden_states",
+             "logprobs_mode",
+             "use_fp64_gumbel",
+             "enable_trace_replay",
+diff --git a/vllm/config/vllm.py b/vllm/config/vllm.py
+index 6c8fb7e2d8..5fbbdf72c0 100644
+--- a/vllm/config/vllm.py
++++ b/vllm/config/vllm.py
+@@ -1284,6 +1284,37 @@ class VllmConfig:
+                 "are normalized over the same nucleus as the sampling mask"
+             )
+ 
++    def _verify_last_hidden_states_config(self) -> None:
++        model_config = self.model_config
++        if model_config is None or not model_config.enable_return_last_hidden_states:
++            return
++        # Only Model Runner V2 gathers the hidden states; the restrictions below
++        # are configurations it has not been validated with yet.
++        if not self.use_v2_model_runner:
++            raise ValueError(
++                "enable_return_last_hidden_states requires Model Runner V2"
++            )
++        if model_config.runner_type != "generate" or model_config.is_diffusion:
++            raise ValueError(
++                "enable_return_last_hidden_states only supports autoregressive "
++                "generation models"
++            )
++        if self.speculative_config is not None:
++            raise ValueError(
++                "enable_return_last_hidden_states does not support speculative decoding"
++            )
++        if self.parallel_config.pipeline_parallel_size > 1:
++            raise ValueError(
++                "enable_return_last_hidden_states does not support pipeline parallelism"
++            )
++        if (
++            self.parallel_config.decode_context_parallel_size > 1
++            or self.parallel_config.prefill_context_parallel_size > 1
++        ):
++            raise ValueError(
++                "enable_return_last_hidden_states does not support context parallelism"
++            )
++
+     def _verify_trace_replay_config(self) -> None:
+         model_config = self.model_config
+         if model_config is None or not model_config.enable_trace_replay:
+@@ -1460,6 +1491,7 @@ class VllmConfig:
+ 
+         self._verify_sampling_replay_config()
+         self._verify_trace_replay_config()
++        self._verify_last_hidden_states_config()
+ 
+         # A NIXL side is either fully replicated or fully DCP-sharded; MLA only.
+         if (
+diff --git a/vllm/engine/arg_utils.py b/vllm/engine/arg_utils.py
+index d641b1fbab..b225eb93df 100644
+--- a/vllm/engine/arg_utils.py
++++ b/vllm/engine/arg_utils.py
+@@ -469,6 +469,9 @@ class EngineArgs:
+     # AuxOutputConfig.
+     enable_return_routed_experts: bool = False
+     return_sampling_mask: bool = ModelConfig.return_sampling_mask
++    enable_return_last_hidden_states: bool = (
++        ModelConfig.enable_return_last_hidden_states
++    )
+     model_weights: str = ModelConfig.model_weights
+     served_model_name: str | list[str] | None = ModelConfig.served_model_name
+     tokenizer: str | None = ModelConfig.tokenizer
+@@ -966,6 +969,10 @@ class EngineArgs:
+             "--return-sampling-mask",
+             **model_kwargs["return_sampling_mask"],
+         )
++        model_group.add_argument(
++            "--enable-return-last-hidden-states",
++            **model_kwargs["enable_return_last_hidden_states"],
++        )
+         model_group.add_argument("--max-logprobs", **model_kwargs["max_logprobs"])
+         model_group.add_argument("--logprobs-mode", **model_kwargs["logprobs_mode"])
+         model_group.add_argument("--use-fp64-gumbel", **model_kwargs["use_fp64_gumbel"])
+@@ -1940,6 +1947,7 @@ class EngineArgs:
+             allow_deprecated_quantization=self.allow_deprecated_quantization,
+             enforce_eager=self.enforce_eager,
+             return_sampling_mask=self.return_sampling_mask,
++            enable_return_last_hidden_states=self.enable_return_last_hidden_states,
+             max_logprobs=self.max_logprobs,
+             logprobs_mode=self.logprobs_mode,
+             use_fp64_gumbel=self.use_fp64_gumbel,
+diff --git a/vllm/outputs.py b/vllm/outputs.py
+index 049d795f78..c1fdd63726 100644
+--- a/vllm/outputs.py
++++ b/vllm/outputs.py
+@@ -43,6 +43,10 @@ class CompletionOutput:
+             position if the logprobs are requested.
+         sampling_mask: The post-processing token support set for each generated
+             token, if requested.
++        last_hidden_states: For each generated token, the hidden state its
++            logits were computed from, shaped [len(token_ids), hidden_size] in
++            the model's dtype, if `SamplingParams.return_last_hidden_states` was
++            set. Returned with the final output.
+         finish_reason: The reason why the sequence is finished.
+         stop_reason: The stop string or token id that caused the completion
+             to stop, None if the completion finished for some other reason
+@@ -67,6 +71,7 @@ class CompletionOutput:
+     lora_request: LoRARequest | None = None
+     sampling_mask: SamplingMask | None = None
+     spec_decode_metrics: RequestSpecDecodeMetrics | None = None
++    last_hidden_states: torch.Tensor | None = None
+ 
+     def finished(self) -> bool:
+         return self.finish_reason is not None
+@@ -204,6 +209,10 @@ class RequestOutput:
+                         # aggregation with earlier chunks that have no R3.
+                         if next_completion.routed_experts is not None:
+                             completion.routed_experts = next_completion.routed_experts
++                        if next_completion.last_hidden_states is not None:
++                            completion.last_hidden_states = (
++                                next_completion.last_hidden_states
++                            )
+                         completion.finish_reason = next_completion.finish_reason
+                         completion.stop_reason = next_completion.stop_reason
+                     else:
+diff --git a/vllm/sampling_params.py b/vllm/sampling_params.py
+index 15657997ab..e7f798ac91 100644
+--- a/vllm/sampling_params.py
++++ b/vllm/sampling_params.py
+@@ -382,6 +382,13 @@ class SamplingParams(
+     token IDs during decoding instead of sampling randomly. Real logprobs are
+     still computed. Conflict checking is performed at the engine level."""
+ 
++    return_last_hidden_states: bool = False
++    """Return, for each generated token, the hidden state its logits were
++    computed from (the input to the model's `compute_logits`, which for most
++    decoder models is the last layer's output after the final norm), in
++    `CompletionOutput.last_hidden_states`. Requires the engine to be started
++    with `enable_return_last_hidden_states=True`."""
++
+     @staticmethod
+     def from_optional(
+         n: int | None = 1,
+@@ -849,6 +856,7 @@ class SamplingParams(
+         self._validate_allowed_token_ids(model_config)
+         self._validate_spec_decode(speculative_config)
+         self._validate_diffusion(model_config)
++        self._validate_last_hidden_states(model_config)
+         self._validate_structured_outputs(
+             model_config, structured_outputs_config, tokenizer
+         )
+@@ -1114,6 +1122,19 @@ class SamplingParams(
+                 "are not yet supported with speculative decoding."
+             )
+ 
++    def _validate_last_hidden_states(self, model_config: ModelConfig) -> None:
++        if (
++            self.return_last_hidden_states
++            and not model_config.enable_return_last_hidden_states
++        ):
++            raise VLLMValidationError(
++                "return_last_hidden_states requires the engine to be started "
++                "with enable_return_last_hidden_states=True "
++                "(--enable-return-last-hidden-states).",
++                parameter="return_last_hidden_states",
++                value=True,
++            )
++
+     def _validate_diffusion(self, model_config: ModelConfig) -> None:
+         if not model_config.is_diffusion:
+             return
+diff --git a/vllm/v1/core/sched/scheduler.py b/vllm/v1/core/sched/scheduler.py
+index 8b188de138..3dcb92a20a 100644
+--- a/vllm/v1/core/sched/scheduler.py
++++ b/vllm/v1/core/sched/scheduler.py
+@@ -1975,6 +1975,7 @@ class Scheduler(SchedulerInterface):
+         prompt_token_id_logprobs_dict = (
+             model_runner_output.prompt_token_id_logprobs_dict
+         )
++        last_hidden_states = model_runner_output.last_hidden_states
+         num_scheduled_tokens = scheduler_output.num_scheduled_tokens
+         pooler_outputs = model_runner_output.pooler_output
+         num_nans_in_logits = model_runner_output.num_nans_in_logits
+@@ -2193,6 +2194,12 @@ class Scheduler(SchedulerInterface):
+                         req_index, len(new_token_ids)
+                     )
+ 
++            new_last_hidden_states = None
++            if last_hidden_states and new_token_ids:
++                hidden = last_hidden_states.get(req_id)
++                if hidden is not None:
++                    new_last_hidden_states = hidden[: len(new_token_ids)]
++
+             if num_nans_in_logits is not None and req_id in num_nans_in_logits:
+                 request.num_nans_in_logits = num_nans_in_logits[req_id]
+ 
+@@ -2224,6 +2231,7 @@ class Scheduler(SchedulerInterface):
+                         trace_headers=request.trace_headers,
+                         routed_experts=routed_experts,
+                         num_nans_in_logits=request.num_nans_in_logits,
++                        new_last_hidden_states=new_last_hidden_states,
+                     )
+                 )
+             else:
+diff --git a/vllm/v1/engine/__init__.py b/vllm/v1/engine/__init__.py
+index effe8d2416..8f295291ef 100644
+--- a/vllm/v1/engine/__init__.py
++++ b/vllm/v1/engine/__init__.py
+@@ -239,6 +239,11 @@ class EngineCoreOutput(
+     # [num_scored_rows, num_token_ids]; appended last for array_like compatibility.
+     prompt_token_id_logprobs: torch.Tensor | None = None
+ 
++    # [num_new_tokens, hidden_size]: the hidden states the new tokens' logits
++    # were computed from (SamplingParams.return_last_hidden_states); appended
++    # last for array_like compatibility.
++    new_last_hidden_states: torch.Tensor | None = None
++
+     @property
+     def finished(self) -> bool:
+         return self.finish_reason is not None
+diff --git a/vllm/v1/engine/output_processor.py b/vllm/v1/engine/output_processor.py
+index 5ab5636f81..763fb1147b 100644
+--- a/vllm/v1/engine/output_processor.py
++++ b/vllm/v1/engine/output_processor.py
+@@ -189,6 +189,7 @@ class RequestState:
+         # Routed experts accumulation (prompt + sample chunks)
+         self.routed_experts_chunks: list[np.ndarray] = []
+         self.sampling_mask_chunks: list[SamplingMaskLists] = []
++        self.last_hidden_states_chunks: list[torch.Tensor] = []
+ 
+         # Stream Interval
+         self.stream_interval = stream_interval
+@@ -449,12 +450,17 @@ class RequestState:
+         if finished and self.routed_experts_chunks:
+             routed_experts = np.concatenate(self.routed_experts_chunks, axis=0)
+ 
++        last_hidden_states = None
++        if finished and self.last_hidden_states_chunks:
++            last_hidden_states = torch.cat(self.last_hidden_states_chunks, dim=0)
++
+         return CompletionOutput(
+             index=self.request_index,
+             text=text,
+             token_ids=token_ids,
+             routed_experts=routed_experts,
+             sampling_mask=sampling_mask,
++            last_hidden_states=last_hidden_states,
+             logprobs=logprobs,
+             cumulative_logprob=self.logprobs_processor.cumulative_logprob,
+             finish_reason=str(finish_reason) if finished else None,
+@@ -716,6 +722,10 @@ class OutputProcessor:
+                     req_state.sampling_mask_chunks.append(
+                         engine_core_output.new_sampling_mask
+                     )
++                if engine_core_output.new_last_hidden_states is not None:
++                    req_state.last_hidden_states_chunks.append(
++                        engine_core_output.new_last_hidden_states
++                    )
+                 # 2) Detokenize the token ids into text and perform stop checks.
+                 stop_string = req_state.detokenizer.update(
+                     new_token_ids, finish_reason == FinishReason.STOP
+diff --git a/vllm/v1/outputs.py b/vllm/v1/outputs.py
+index 1f04c2ccf9..bfc9154749 100644
+--- a/vllm/v1/outputs.py
++++ b/vllm/v1/outputs.py
+@@ -286,6 +286,11 @@ class ModelRunnerOutput:
+     # req_id -> [num_scored_rows, num_token_ids] prompt_logprob_token_ids scores.
+     prompt_token_id_logprobs_dict: dict[str, torch.Tensor] = field(default_factory=dict)
+ 
++    # req_id -> [num_generated_tokens, hidden_size]: the hidden states the
++    # sampled tokens' logits were computed from, for the requests that set
++    # SamplingParams.return_last_hidden_states. None when none did.
++    last_hidden_states: dict[str, torch.Tensor] | None = None
++
+     # [num_reqs, hidden_size]
+     pooler_output: list[torch.Tensor | None] | None = None
+ 
+diff --git a/vllm/v1/worker/gpu/async_utils.py b/vllm/v1/worker/gpu/async_utils.py
+index 3c58433318..70ed185448 100644
+--- a/vllm/v1/worker/gpu/async_utils.py
++++ b/vllm/v1/worker/gpu/async_utils.py
+@@ -160,6 +160,13 @@ class AsyncOutput(AsyncModelRunnerOutput):
+             self.prompt_token_id_logprobs_dict = {
+                 k: v.to("cpu", non_blocking=True) for k, v in token_id_logprobs.items()
+             }
++            last_hidden_states = self.model_runner_output.last_hidden_states
++            self.last_hidden_states: dict[str, torch.Tensor] | None = None
++            if last_hidden_states:
++                self.last_hidden_states = {
++                    k: v.to("cpu", non_blocking=True)
++                    for k, v in last_hidden_states.items()
++                }
+             if self.pending_aux_output is not None:
+                 self.pending_aux_output.enqueue_cpu_copy(
+                     num_sampled=self.num_sampled_tokens_np,
+@@ -201,6 +208,8 @@ class AsyncOutput(AsyncModelRunnerOutput):
+         self.model_runner_output.prompt_token_id_logprobs_dict = (
+             self.prompt_token_id_logprobs_dict
+         )
++        if self.last_hidden_states is not None:
++            self.model_runner_output.last_hidden_states = self.last_hidden_states
+         if self.pending_aux_output is not None:
+             self.model_runner_output.aux_output_connector_output = (
+                 self.pending_aux_output.process_output()
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index c2f29972a2..a45d986c98 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -325,6 +325,12 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+         self.rejection_sampler: RejectionSampler | None = None
+         self.batch_sharder: BatchSharder | None = None
+         self.prompt_logprobs_worker: PromptLogprobsWorker | None = None
++        # Requests that asked for the hidden states their logits are computed
++        # from (SamplingParams.return_last_hidden_states); None when the engine
++        # does not allow it, so the default path does no work at all.
++        self.last_hidden_states_req_ids: set[str] | None = (
++            set() if self.model_config.enable_return_last_hidden_states else None
++        )
+         self.structured_outputs_worker: StructuredOutputsWorker | None = None
+         self.cudagraph_manager: ModelCudaGraphManager | None = None
+ 
+@@ -1106,6 +1112,8 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             self.encoder_cache.remove_request(req_id)
+         if self.prompt_logprobs_worker is not None:
+             self.prompt_logprobs_worker.remove_request(req_id)
++        if self.last_hidden_states_req_ids is not None:
++            self.last_hidden_states_req_ids.discard(req_id)
+         self.lora_state.remove_request(req_id)
+         return True
+ 
+@@ -1186,6 +1194,11 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+                 self.prompt_logprobs_worker.add_request(
+                     req_id, req_index, new_req_data.sampling_params
+                 )
++                if (
++                    self.last_hidden_states_req_ids is not None
++                    and new_req_data.sampling_params.return_last_hidden_states
++                ):
++                    self.last_hidden_states_req_ids.add(req_id)
+ 
+         if scheduler_output.scheduled_new_reqs:
+             self.req_states.apply_staged_writes()
+@@ -1633,6 +1646,23 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+         assert sampler_output is not None
+         return sampler_output, sampler_output.num_sampled, sampler_output.num_rejected
+ 
++    def gather_last_hidden_states(
++        self, hidden_states: torch.Tensor, input_batch: InputBatch
++    ) -> dict[str, torch.Tensor]:
++        """req_id -> [num_logits, hidden_size]: the rows of `hidden_states` that
++        `sample` passed to `compute_logits`, for the requests that asked for
++        them. Exact copies, in the model's dtype; read before the next step can
++        overwrite `hidden_states`."""
++        assert self.last_hidden_states_req_ids is not None
++        cu_num_logits = input_batch.cu_num_logits_np
++        return {
++            req_id: hidden_states[
++                input_batch.logits_indices[cu_num_logits[i] : cu_num_logits[i + 1]]
++            ]
++            for i, req_id in enumerate(input_batch.req_ids)
++            if req_id in self.last_hidden_states_req_ids
++        }
++
+     def postprocess_sampled(
+         self,
+         idx_mapping: torch.Tensor,  # May include -1 for masked entries
+@@ -2135,6 +2165,10 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             prompt_token_id_logprobs_dict=prompt_token_id_logprobs_dict,
+             cudagraph_stats=cudagraph_stats,
+         )
++        if self.last_hidden_states_req_ids:
++            model_runner_output.last_hidden_states = self.gather_last_hidden_states(
++                hidden_states, input_batch
++            )
+         pending_aux_output = None
+         if self.aux_output_connector is not None:
+             pending_aux_output = self.aux_output_connector.prepare_output(input_batch)
+-- 
+2.54.0 (Apple Git-157)
+
