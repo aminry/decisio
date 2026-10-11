@@ -51,8 +51,22 @@ Run it in the dtype the checkpoint was served in: a float32 forward pass differs
 
 On a CUDA device the reference reads with eager attention by default (`--attention safe`); on the CPU it uses transformers' own path.
 Reason: on an RTX PRO 6000 Blackwell (sm_120, torch 2.13.0, CUDA 13.0), transformers' default forward of Gemma 4 12B gave probabilities 0.37 to 0.51 away from the server's on every prompt of 129, 385 or 449 tokens (a length of 1 modulo 64), five of 200 items and all five of that length.
-The same reference on the CPU agreed with the server on them to 0.0013, and on all 200 items the CPU reference differs from the server by at most 0.061 (mean item maximum 0.0068, no change of the top answer beyond a near tie).
+The same reference on the CPU agreed with the server on them to 0.0013.
 Until the defect is pinned down, do not use `--attention default` on CUDA to check a server; `--attention sdpa-math` (SDPA with only its math backend) and `--attention eager` are the paths to compare.
+
+## Measured agreement with the server
+
+Gemma 4 12B (bfloat16, decisio 0.11.1, the repository at `a5a1ac8f`), the reference on the CPU against the server on an RTX PRO 6000 Blackwell, 200 conformance items over six tasks (Lab 2's session of 2026-10-10; the token rows and the answer structure are identical):
+
+- the mean over items of the largest probability difference is 0.0068, about 0.007, and the median item is 0.0027;
+- the largest difference is 0.061, on the long items with many options (banking77, mmlu_pro_text); on boolq it is 0.006;
+- the top answer is the same on all 200 items.
+
+The tolerance set before the run was 0.04 for the largest difference and 0.005 for the mean item maximum, with the check failing above 0.12.
+The agreement does not meet it: the largest difference is 0.061 and the mean 0.0068.
+It was not loosened afterwards, and the check's verdict is a numeric finding: between the tolerance and the failure line, with no change of answer.
+Two bfloat16 engines (vLLM's Triton attention and the CPU) differ by about this much; a cached read against a fresh one in vLLM differs by a similar size (`EVAL_CARD.md` section 6.5).
+The 31B (FP8) has not been checked with the eager path yet; its reference run is in the next card session.
 
 ## Tests
 
