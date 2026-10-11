@@ -17,7 +17,10 @@ updates:
     ignore:
       # the plugin targets exactly this vLLM version; bumps are a deliberate, measured change
       - dependency-name: vllm
-      # vllm 0.30.0 requires setuptools<81 on Linux, so the Linux branch of uv.lock cannot take a newer one; Dependabot's uv
+      # vllm 0.31.0 requires transformers below 5.18.0, and the lock is the environment the cards and the reference
+      # checks run in (token rows, chat templates): a transformers bump comes with the vLLM bump, not alone
+      - dependency-name: transformers
+      # vllm 0.31.0 requires setuptools<81 on Linux, so the Linux branch of uv.lock cannot take a newer one; Dependabot's uv
       # updater then finds no file to change and the job fails on every run (docs/LAUNCH_CHECKLIST.md, flip record)
       - dependency-name: setuptools
   - package-ecosystem: docker
