@@ -69,7 +69,7 @@ What `after` guarantees, and its limits:
   Measured on 3,000-token states, a follow-up read the state from the cache on 20 of 20 at 0, 50, 200 and 1,000 ms after the answer, and took 267, 222, 70 and 50 ms on the 12B (441, 392, 244 and 46 ms on the 31B), against 34 to 46 ms with `before`.
 - A second question sent before the first answer is out sends the warm-up itself, ahead of its question, as `before` does.
 - A follow-up reads the state again only when its registration was dropped (more than 256 pending, the oldest dropped first), when its warm-up failed, or when the state was evicted from the cache since.
-  `/health` reports `state_boundary`: the registrations pending, and how many were deferred, registered, dropped and failed.
+  `/health` reports `state_boundary`: the registrations pending, whether one is `running` (being sent: it is no longer pending then, so the registrar is idle when `pending` is 0 and `running` is false), and how many were deferred, registered, dropped and failed.
 - The cost moves from latency to throughput: a new state is read twice on the card, once for the answer and once for the warm-up, where `before` read it once plus one token.
   A request about another state that arrives during a warm-up waits for it, so one client sending new states back to back pays the previous state's warm-up: on the 12B it saved 4.9 and 22.1 ms at 300 and 1,000 tokens and lost 36.5 ms at 3,000.
 - The cache can hold fewer states under `after`: on the 31B, with states filling 1.3 times its reported pool, the 8 earliest were evicted under `after` and kept under `before`, and at 32 clients 82 of 96 follow-ups found their state against 96 of 96; the 12B kept the 8 earliest under both orders.

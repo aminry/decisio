@@ -162,7 +162,14 @@ def test_h3_health_reports_the_registration(served):
     ask(client, ticket(4), Q1)
     ask(client, ticket(4), Q2)  # due by now: sent first, if the registrar's thread has not
     h = client.get("/health").json()
-    assert h["state_boundary"] == {"pending": 0, "deferred": 1, "registered": 1, "dropped": 0, "failed": 0}
+    assert h["state_boundary"] == {
+        "pending": 0,
+        "running": False,
+        "deferred": 1,
+        "registered": 1,
+        "dropped": 0,
+        "failed": 0,
+    }
 
 
 def test_h4_a_failed_warm_up_is_counted_and_the_server_stays_up(served):
@@ -258,3 +265,23 @@ def test_h8_a_request_records_how_long_it_waited_for_the_engine_and_behind_what(
     t = out["t"]
     assert t["waited_ms"] >= 500 and t["waited_behind_registration"] is True
     assert t["state_boundary"].get("ran_before", 0) == 0  # the field that missed the wait
+
+
+def test_h9_health_shows_a_registration_in_progress_as_running_with_nothing_pending(served):
+    """Lab 2, 2026-10-10 (12B, `after`, 6,000 tokens): a series that waited for `state_boundary.pending` to clear before
+    each request still waited 544 ms behind the registration, because a registration leaves `pending` when it is taken
+    to be sent. `running` is true while it is sent, so the registrar is idle only when pending is 0 and not running."""
+    eng, client, _, _ = served
+    time.sleep(0.5)  # an earlier test's registration has finished
+    eng.gate.clear()
+    ask(client, ticket(11), Q1)  # its warm-up starts and is held
+    assert eng.warm_started.wait(30)
+    held = client.get("/health").json()["state_boundary"]
+    assert held["pending"] == 0 and held["running"] is True
+    eng.gate.set()
+    for _ in range(100):
+        done = client.get("/health").json()["state_boundary"]
+        if not done["running"] and not done["pending"]:
+            break
+        time.sleep(0.1)
+    assert done["running"] is False and done["pending"] == 0
