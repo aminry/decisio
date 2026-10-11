@@ -206,7 +206,14 @@ def test_a3_the_registrar_thread_sends_it_without_another_request(tok):
     assert eng.warmed.wait(10)
     assert eng.sent[-1] == {"rows": [], "warm": [rows[0][0][: P + 1]]}
     with eng._lock:  # the registrar records it under the engine's lock
-        assert eng.registrar.facts() == {"pending": 0, "deferred": 1, "registered": 1, "dropped": 0, "failed": 0}
+        assert eng.registrar.facts() == {
+            "pending": 0,
+            "running": False,
+            "deferred": 1,
+            "registered": 1,
+            "dropped": 0,
+            "failed": 0,
+        }
 
 
 def test_a4_the_pending_registrations_are_bounded(tok, monkeypatch):
