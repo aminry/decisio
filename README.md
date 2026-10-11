@@ -109,16 +109,21 @@ What the compared systems' cards state, quoted as recorded with their revisions,
 ### Many questions about one document
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/many_questions_dark.svg">
-  <img src="docs/launch/many_questions_light.svg" alt="Median time to answer 1, 10 or 50 questions about one document of 3,000 or 6,000 tokens, for nine systems, on a log axis. Systems that read the document once take 1.5 to 3.7 seconds for 50 questions. Systems that read it again for every question take 18 to 146 seconds.">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/speed_50q_dark.svg">
+  <img src="docs/launch/speed_50q_light.svg" alt="Bar chart of the median time to answer 50 questions about one document, five systems measured in one session on one box. For a 3,000-token document: decisio Gemma 4 31B 1.08 seconds, decisio Gemma 4 12B 1.57, H2O-Lightning-4B 2.05, Jeff-1.0-Large 47.1, Quyet-1.0-Large 48.9. For a 6,000-token document: 1.73, 1.97, 2.82, 114.6 and 114.8 seconds. For a 32,000-token document only decisio Gemma 4 12B (6.76 s), H2O-Lightning-4B (9.05 s) and decisio Gemma 4 31B (10.1 s) answer; Jeff-1.0-Large and Quyet-1.0-Large are marked not supported.">
 </picture>
 
-Fifty questions about a 3,000-token document in 1.50 s on one RTX PRO 6000; the large open decision models that re-read the document for every question take 45.7 to 67.9 s.
-At 50 questions it is also faster than the two systems that share the document through the prefix cache: 1.50 s against 2.35 s for Blink v0.3 and 2.39 s for H2O-Lightning-4B.
+Five systems, one box, one session: the median time to answer 50 questions about one document.
+On one box, Decisio 31B answers 50 questions about one 3,000-token document in 1.08 s and about one 6,000-token document in 1.73 s; Decisio 12B takes 1.57 s and 1.97 s, and H2O-Lightning-4B 2.05 s and 2.82 s.
+On one box, Jeff-1.0-Large and Quyet-1.0-Large, the two systems ranked above Decisio on JevBench's capability score, take about 44 times (3,000 tokens) and 66 times (6,000 tokens) as long as Decisio 31B to answer 50 questions about one document, and neither accepts a 32,000-token document.
+On one box, the first question about a new 3,000-token document takes a median of 112 ms on H2O-Lightning-4B, 295 ms on Decisio 12B, 490 ms on Decisio 31B, and 895 ms on Jeff-1.0-Large and 895 ms on Quyet-1.0-Large.
+At 32,000 tokens, Decisio 31B answers 50 questions about one document in 10.1 s, Decisio 12B in 6.76 s and H2O-Lightning-4B in 9.05 s; Jeff-1.0-Large accepts documents of up to 8,192 tokens and Quyet-1.0-Large up to 6,000, so neither accepts a 32,000-token document.
 
-Measured by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell at 600 W, each system on its own published server (decisio v0.10.0 with vLLM 0.30.0, the 31B warm; Blink on stock vLLM 0.30.0):
-- Synthetic support tickets of 3,000 and 6,000 tokens, the same for every system, and one pool of 50 questions (20 choice, 20 yes/no, 10 score). Medians of the wall time of everything asked about one document, over 10 documents for decisio, Blink and H2O-Lightning-4B and 5 for the others. This compares time, not accuracy.
-- Blink v0.3 is a 26B-A4B model (4B active parameters), not a 4B; H2O-Lightning-4B is a 4B. Both share the document through vLLM's prefix cache, and at 6,000 tokens the 31B is also lower than both (2.39 s against 3.48 s for Blink and 3.07 s for H2O). Quyet-1.0-Large has no 6,000-token cells: they were not reached within its 15-minute cap.
+Measured by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W (enforced), each system on its own published server, in one session:
+- decisio v0.11.1 on vLLM 0.30.0 (the 31B and the 12B at their repositories' pins); H2O-Lightning-4B on its own `serve.sh` (stock vLLM 0.30.0); Jeff-1.0-Large and Quyet-1.0-Large on their own published code, bf16.
+- Synthetic support tickets of 3,000, 6,000 and 32,000 tokens by the Gemma 4 tokenizer, the same for every system, and one pool of 50 questions (20 choice with 4 options, 20 yes/no, 10 score with 4 levels). Medians over 10 documents for decisio and H2O-Lightning-4B at 3,000 and 6,000 tokens, and over 5 for Jeff, Quyet and the 32,000-token cells. This compares time, not accuracy.
+- Decisio reads the document once, and each question adds tens of milliseconds. H2O-Lightning-4B takes one question per request and shares the document through the prefix cache. Jeff and Quyet read the document again for every question; both are Gemma 4 31B based, and they are within 4 percent of each other at 3,000 tokens.
+- The SM clock ran at a median of 2,220 to 2,610 MHz and the power at 304 to 600 W across the five runs (`docs/comparison.md` links the log-axis chart that adds five systems from an earlier box).
 
 ### How we read the board
 
