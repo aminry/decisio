@@ -32,7 +32,7 @@ It reads your document once and reads the probability of each option straight of
 - **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
 - **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
 - **Long prompts, many options.** Prompts up to 32,768 tokens and 255 options per question.
-- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on the board's cost axis Decisio is 9th of the 11 rows shown (51.7; H2O-Lightning-4B's 60.3 is highest).
+- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on JevBench v1.6.1 Decisio is 9th of the 11 rows shown on the board's cost axis (51.7; H2O-Lightning-4B's 60.3 is highest).
 
 | | Gemma 4 31B (the default) |
 | --- | --- |
@@ -78,9 +78,9 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
   <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores, 11 rows sorted by composite score: the ten highest open-weights systems and Jev 1.13.0 as a reference row, six columns (overall, intelligence, sealed questions, calibration, speed, cost), each cell shaded by its rank in the column. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. Among the 11 rows shown it is second on overall, third on intelligence, second on sealed questions, fifth on calibration, fifth on speed and ninth on cost. The highest in each column: overall: H2O-Lightning-4B v1.1; intelligence: Quyet-1.0-Large; sealed questions: deck-31B; calibration: Jev 1.13.0; speed: H2O-Lightning-4B v1.1; cost: H2O-Lightning-4B v1.1. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
 </picture>
 
-- Among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
-- Within 2 points of the highest on calibration (88.7; Jev 90.6) and on speed (91.2; H2O-Lightning-4B 92.6).
-- 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest).
+- On JevBench v1.6.1, among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
+- On JevBench v1.6.1, within 2 points of the highest on calibration (88.7; Jev 90.6) and on speed (91.2; H2O-Lightning-4B 92.6).
+- On JevBench v1.6.1, 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest).
 
 <details>
 <summary>All the numbers: the ten highest open-weights systems and Jev, by axis</summary>
