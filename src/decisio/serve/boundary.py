@@ -124,7 +124,9 @@ class Registrar:
 
     def facts(self) -> dict:
         with self._cond:
-            return {"pending": len(self._pending), **self.counts}
+            # a registration leaves `pending` when it is taken to be sent, so while one is being sent `pending` is 0:
+            # a caller that waits for the registrar to be idle waits for pending == 0 and not running
+            return {"pending": len(self._pending), "running": self.running, **self.counts}
 
     def defer(self, key: bytes, warm, adapter) -> None:
         """Keep the warm-up of a state answered without it (the engine's lock held); due when the request's ticket is
