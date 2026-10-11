@@ -47,6 +47,13 @@ A request to a server that uses a registered task is answered by the task, and t
 `Qwen` pads the state to the vLLM engine's 1,056-token block (`--block-size` changes it), and the Gemma bases do not pad.
 Run it in the dtype the checkpoint was served in: a float32 forward pass differs from a bfloat16 or FP8 engine in the last digits.
 
+## Attention on CUDA
+
+On a CUDA device the reference reads with eager attention by default (`--attention safe`); on the CPU it uses transformers' own path.
+Reason: on an RTX PRO 6000 Blackwell (sm_120, torch 2.13.0, CUDA 13.0), transformers' default forward of Gemma 4 12B gave probabilities 0.37 to 0.51 away from the server's on every prompt of 129, 385 or 449 tokens (a length of 1 modulo 64), five of 200 items and all five of that length.
+The same reference on the CPU agreed with the server on them to 0.0013, and on all 200 items the CPU reference differs from the server by at most 0.061 (mean item maximum 0.0068, no change of the top answer beyond a near tie).
+Until the defect is pinned down, do not use `--attention default` on CUDA to check a server; `--attention sdpa-math` (SDPA with only its math backend) and `--attention eager` are the paths to compare.
+
 ## Tests
 
 `tests/unit/test_reference.py` runs the reference and the server's own code path (`SystemOne` on the CPU stand-in engine) on the same stand-in model, for four prompt profiles and 14 questions each.

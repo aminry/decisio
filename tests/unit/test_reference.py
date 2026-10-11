@@ -372,3 +372,40 @@ def test_r6_the_command_line_takes_a_state_and_a_question(ref_module, served, ca
     )
     same(answer, expected)
     assert copy.deepcopy(answer)["type"] == "noul"
+
+
+# ---- R7: the attention path on CUDA (RTX PRO 6000 Blackwell, 2026-10-10) ------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "attention, device, chosen",
+    [
+        (None, "cuda", "eager"),
+        ("safe", "cuda:0", "eager"),
+        ("safe", None, "default"),
+        ("safe", "cpu", "default"),
+        ("default", "cuda:0", "default"),
+        ("sdpa-math", "cuda:0", "sdpa-math"),
+        ("eager", None, "eager"),
+    ],
+)
+def test_r7_the_default_attention_is_eager_on_cuda_and_transformers_own_elsewhere(
+    ref_module, attention, device, chosen
+):
+    assert ref_module.resolve_attention(attention, device) == chosen
+
+
+def test_r7_an_unknown_attention_is_refused(ref_module):
+    with pytest.raises(ValueError, match="attention"):
+        ref_module.resolve_attention("flash", "cuda")
+
+
+@pytest.mark.parametrize("attention", ["eager", "sdpa-math"])
+def test_r7_every_attention_path_gives_the_same_answer_on_the_cpu(ref_module, served, attention):
+    engine, repos = served
+    state, question = CASES["noul-criteria"]
+    base = ref_module.Reference.load(repos["gemma"], dtype="float32")
+    other = ref_module.Reference.load(repos["gemma"], dtype="float32", attention=attention)
+    assert base.attention == "default" and other.attention == attention
+    a, b = other.decide(state, question), base.decide(state, question)
+    assert a["type"] == b["type"] and abs(a["noul"] - b["noul"]) <= 1e-5  # float32 sums in another order: 4e-7

@@ -26,11 +26,21 @@ the state to end on the engine's 1,056-token block (`block_size`), the Gemma bas
 Run it in the dtype the checkpoint was served in: the server's numbers come from a bfloat16 or FP8 engine, and a
 float32 forward pass differs from them in the last digits. `tests/unit/test_reference.py` pins the reference to the
 server's own path.
+
+Attention on a CUDA device: by default (`attention="safe"`) the reference reads with eager attention there, and with
+transformers' own choice (SDPA) on the CPU. On an RTX PRO 6000 Blackwell (sm_120, torch 2.13.0, CUDA 13.0), the
+default forward of Gemma 4 12B in transformers gave probabilities 0.37 to 0.51 away from the server's and the CPU's on
+every prompt whose length was 1 modulo 64 (129, 385 and 449 tokens: 5 of 200 items, and all 5 of the items of such a
+length; the CPU reference agreed with the server to 0.0013 on them). Until that is pinned down, a reference that
+checks a server must not use the default path on CUDA.
+`attention` can also be "sdpa-math" (SDPA with only its math backend allowed) or "default" (transformers' own, to
+reproduce the defect).
 """
 
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
 import re
@@ -454,7 +464,22 @@ class Prepared:
     prefix_tokens: int
 
 
+ATTENTIONS = ("safe", "eager", "sdpa-math", "default")
+
+
+def resolve_attention(attention: str | None, device) -> str:
+    """The attention path a load uses: "safe" (the default) is eager on CUDA and transformers' own elsewhere."""
+    attention = attention or "safe"
+    if attention not in ATTENTIONS:
+        raise ValueError(f"attention is {attention!r}; this reference reads {ATTENTIONS}")
+    if attention == "safe":
+        return "eager" if str(device or "").startswith("cuda") else "default"
+    return attention
+
+
 class Reference:
+    attention = "default"  # the path the model was loaded with (`load` sets it); a model passed in is read as it is
+
     def __init__(self, model, tokenizer, config: dict, block_size: int | None = None):
         """`model` and `tokenizer` of the repository's weights, `config` its decision_config.json (a dict)."""
         self.model, self.tok, self.config = model, tokenizer, config
@@ -491,20 +516,26 @@ class Reference:
             raise ValueError(f"readout.softcap is {self.softcap!r} but the model applies {have!r}")
 
     @classmethod
-    def load(cls, repository, revision=None, dtype=None, device=None, block_size=None) -> Reference:
+    def load(cls, repository, revision=None, dtype=None, device=None, block_size=None, attention=None) -> Reference:
         """The model, tokenizer and decision_config.json of a repository: a directory, or `owner/name[@revision]`.
-        `dtype`: "float32", "bfloat16", "float16", or None for the checkpoint's own."""
+        `dtype`: "float32", "bfloat16", "float16", or None for the checkpoint's own. `attention`: see the module's
+        docstring ("safe", "eager", "sdpa-math", "default")."""
         config = read_config(repository, revision)
         name, at = str(repository), revision
         if not Path(name).is_dir():
             name, _, pinned = name.partition("@")
             at = pinned or revision
         kw = {"dtype": getattr(torch, dtype) if isinstance(dtype, str) and dtype != "auto" else (dtype or "auto")}
+        chosen = resolve_attention(attention, device)
+        if chosen in ("eager", "sdpa-math"):
+            kw["attn_implementation"] = "eager" if chosen == "eager" else "sdpa"
         tok = AutoTokenizer.from_pretrained(name, revision=at)
         model = AutoModelForCausalLM.from_pretrained(name, revision=at, **kw).eval()
         if device:
             model = model.to(device)
-        return cls(model, tok, config, block_size=block_size)
+        ref = cls(model, tok, config, block_size=block_size)
+        ref.attention = chosen
+        return ref
 
     def temperature_of(self, qtype: str) -> float:
         """The temperature a question of this type is served at: its own, or the global one."""
@@ -553,10 +584,18 @@ class Reference:
         ids = pad_prompt(full, n, k, PAD_TOKEN, self.pad_where, len(enc(USER_HEAD)))
         return Prepared(ids, label_groups(self.tok, cands, self.fmt), keys, swapped, n + k)
 
+    def attention_context(self):
+        """SDPA with only its math backend allowed when the reference was loaded with "sdpa-math"; else nothing."""
+        if self.attention != "sdpa-math":
+            return contextlib.nullcontext()
+        from torch.nn.attention import SDPBackend, sdpa_kernel
+
+        return sdpa_kernel(SDPBackend.MATH)
+
     def readout(self, prepared: Prepared) -> list:
         """The label distribution, in the order of `prepared.labels`: one forward pass, the last position's logits."""
         ids = torch.tensor([prepared.ids], device=self.model.device)
-        with torch.no_grad():
+        with torch.no_grad(), self.attention_context():
             logits = self.model(ids, logits_to_keep=1).logits[0, -1].double().cpu()
         return label_probabilities(logits, prepared.labels, self.fmt.variants)
 
@@ -583,12 +622,18 @@ def main(argv=None) -> int:
     ap.add_argument("--dtype", default=None, help="float32, bfloat16 or float16 (default: the checkpoint's own)")
     ap.add_argument("--device", default=None, help="where to run the model (default: transformers' own)")
     ap.add_argument(
+        "--attention",
+        default=None,
+        choices=ATTENTIONS,
+        help="safe (default: eager on CUDA, transformers' own elsewhere), eager, sdpa-math or default",
+    )
+    ap.add_argument(
         "--block-size", type=int, default=None, help=f"the engine's block for `pad_to: block` (default {QWEN_BLOCK})"
     )
     args = ap.parse_args(argv)
     if bool(args.request) == bool(args.state is not None and args.question):
         ap.error("give --request, or --state with --question")
-    ref = Reference.load(args.repository, args.revision, args.dtype, args.device, args.block_size)
+    ref = Reference.load(args.repository, args.revision, args.dtype, args.device, args.block_size, args.attention)
     if args.request:
         body = json.loads(Path(args.request).read_text())
         out = {"answers": {name: ref.decide(body["state"], q) for name, q in body["questions"].items()}}
