@@ -47,6 +47,10 @@ One request at a time throughout; a server answering requests concurrently would
 
 (g) From TypeSafe's documentation (section 3).
 
+**Many questions about one document.**
+The README's chart shows five systems measured in one session on one box.
+The same data on a log axis, with five systems from the earlier 2026-10-09 box (about 1,570 MHz) drawn as hollow rings and not comparable with the first five, is [`launch/many_questions_light.svg`](launch/many_questions_light.svg) ([dark](launch/many_questions_dark.svg)).
+
 ## 2. Every index benchmark
 
 One row per benchmark, grouped by area, with the coverage-adjusted value that feeds the index (`raw` on the board); ForecastBench shows its Brier loss, where lower is better.

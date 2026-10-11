@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1120" width="1240" height="1120" role="img" aria-labelledby="t d" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+<title id="t">Time to answer 50 questions about one document</title>
+<desc id="d">Median seconds for five systems on one box, on a linear axis from zero, for documents of 3,000 and 6,000 tokens, and which systems answer at 32,000 tokens; the table in the report has every value.</desc>
+<rect width="1240" height="1120" fill="#fcfcfb"/>
+<text x="28" y="40" font-size="22" font-weight="600" fill="#0b0b0b">Time to answer 50 questions about one document</text>
+<text x="28" y="64" font-size="13" fill="#52514e">Median seconds over 5 to 10 documents; a linear axis from zero. Five systems measured in one session on one box, each on its own server; fastest first.</text>
+<rect x="28" y="88" width="12" height="12" rx="2" fill="#2a78d6"/>
+<text x="48" y="98" font-size="13" fill="#0b0b0b">One request: document read once for all questions</text>
+<rect x="436" y="88" width="12" height="12" rx="2" fill="#eb6834"/>
+<text x="456" y="98" font-size="13" fill="#0b0b0b">One request: document read again for every question</text>
+<rect x="28" y="110" width="12" height="12" rx="2" fill="#1baf7a"/>
+<text x="48" y="120" font-size="13" fill="#0b0b0b">One request per question: document shared by the prefix cache</text>
+<text x="28" y="150" font-size="15" font-weight="600" fill="#0b0b0b">A document of 3,000 tokens</text>
+<line x1="250.0" y1="166" x2="250.0" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="250.0" y="364" font-size="11" text-anchor="middle" fill="#7a7975">0 s</text>
+<line x1="386.7" y1="166" x2="386.7" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="386.7" y="364" font-size="11" text-anchor="middle" fill="#7a7975">10 s</text>
+<line x1="523.3" y1="166" x2="523.3" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="523.3" y="364" font-size="11" text-anchor="middle" fill="#7a7975">20 s</text>
+<line x1="660.0" y1="166" x2="660.0" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="660.0" y="364" font-size="11" text-anchor="middle" fill="#7a7975">30 s</text>
+<line x1="796.7" y1="166" x2="796.7" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="796.7" y="364" font-size="11" text-anchor="middle" fill="#7a7975">40 s</text>
+<line x1="933.3" y1="166" x2="933.3" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="933.3" y="364" font-size="11" text-anchor="middle" fill="#7a7975">50 s</text>
+<line x1="1070.0" y1="166" x2="1070.0" y2="346" stroke="#e6e5e1" stroke-width="1"/>
+<text x="1070.0" y="364" font-size="11" text-anchor="middle" fill="#7a7975">60 s</text>
+<line x1="250" y1="166" x2="250" y2="346" stroke="#bdbcb7" stroke-width="1"/>
+<text x="228" y="188.0" font-size="13" text-anchor="end" fill="#0b0b0b">decisio Gemma 4 31B</text>
+<g><title>decisio Gemma 4 31B: 1.08 s for 50 questions about one 3,000-token document (median of 10 documents)</title><rect x="250" y="174.0" width="14.8" height="20" rx="2" fill="#2a78d6"/></g>
+<text x="272.8" y="188.0" font-size="13" font-weight="600" fill="#0b0b0b">1.08 s</text>
+<text x="228" y="224.0" font-size="13" text-anchor="end" fill="#0b0b0b">decisio Gemma 4 12B</text>
+<g><title>decisio Gemma 4 12B: 1.57 s for 50 questions about one 3,000-token document (median of 10 documents)</title><rect x="250" y="210.0" width="21.4" height="20" rx="2" fill="#2a78d6"/></g>
+<text x="279.4" y="224.0" font-size="13" font-weight="600" fill="#0b0b0b">1.57 s</text>
+<text x="228" y="260.0" font-size="13" text-anchor="end" fill="#0b0b0b">H2O-Lightning-4B v1.1</text>
+<g><title>H2O-Lightning-4B v1.1: 2.05 s for 50 questions about one 3,000-token document (median of 10 documents)</title><rect x="250" y="246.0" width="28.0" height="20" rx="2" fill="#1baf7a"/></g>
+<text x="286.0" y="260.0" font-size="13" font-weight="600" fill="#0b0b0b">2.05 s</text>
+<text x="228" y="296.0" font-size="13" text-anchor="end" fill="#0b0b0b">Jeff-1.0-Large</text>
+<g><title>Jeff-1.0-Large: 47.1 s for 50 questions about one 3,000-token document (median of 5 documents)</title><rect x="250" y="282.0" width="643.6" height="20" rx="2" fill="#eb6834"/></g>
+<text x="901.6" y="296.0" font-size="13" font-weight="600" fill="#0b0b0b">47.1 s</text>
+<text x="228" y="332.0" font-size="13" text-anchor="end" fill="#0b0b0b">Quyet-1.0-Large</text>
+<g><title>Quyet-1.0-Large: 48.9 s for 50 questions about one 3,000-token document (median of 5 documents)</title><rect x="250" y="318.0" width="668.9" height="20" rx="2" fill="#eb6834"/></g>
+<text x="926.9" y="332.0" font-size="13" font-weight="600" fill="#0b0b0b">48.9 s</text>
+<text x="28" y="436" font-size="15" font-weight="600" fill="#0b0b0b">A document of 6,000 tokens</text>
+<line x1="250.0" y1="452" x2="250.0" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="250.0" y="650" font-size="11" text-anchor="middle" fill="#7a7975">0 s</text>
+<line x1="367.1" y1="452" x2="367.1" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="367.1" y="650" font-size="11" text-anchor="middle" fill="#7a7975">20 s</text>
+<line x1="484.3" y1="452" x2="484.3" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="484.3" y="650" font-size="11" text-anchor="middle" fill="#7a7975">40 s</text>
+<line x1="601.4" y1="452" x2="601.4" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="601.4" y="650" font-size="11" text-anchor="middle" fill="#7a7975">60 s</text>
+<line x1="718.6" y1="452" x2="718.6" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="718.6" y="650" font-size="11" text-anchor="middle" fill="#7a7975">80 s</text>
+<line x1="835.7" y1="452" x2="835.7" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="835.7" y="650" font-size="11" text-anchor="middle" fill="#7a7975">100 s</text>
+<line x1="952.9" y1="452" x2="952.9" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="952.9" y="650" font-size="11" text-anchor="middle" fill="#7a7975">120 s</text>
+<line x1="1070.0" y1="452" x2="1070.0" y2="632" stroke="#e6e5e1" stroke-width="1"/>
+<text x="1070.0" y="650" font-size="11" text-anchor="middle" fill="#7a7975">140 s</text>
+<line x1="250" y1="452" x2="250" y2="632" stroke="#bdbcb7" stroke-width="1"/>
+<text x="228" y="474.0" font-size="13" text-anchor="end" fill="#0b0b0b">decisio Gemma 4 31B</text>
+<g><title>decisio Gemma 4 31B: 1.73 s for 50 questions about one 6,000-token document (median of 10 documents)</title><rect x="250" y="460.0" width="10.2" height="20" rx="2" fill="#2a78d6"/></g>
+<text x="268.2" y="474.0" font-size="13" font-weight="600" fill="#0b0b0b">1.73 s</text>
+<text x="228" y="510.0" font-size="13" text-anchor="end" fill="#0b0b0b">decisio Gemma 4 12B</text>
+<g><title>decisio Gemma 4 12B: 1.97 s for 50 questions about one 6,000-token document (median of 10 documents)</title><rect x="250" y="496.0" width="11.6" height="20" rx="2" fill="#2a78d6"/></g>
+<text x="269.6" y="510.0" font-size="13" font-weight="600" fill="#0b0b0b">1.97 s</text>
+<text x="228" y="546.0" font-size="13" text-anchor="end" fill="#0b0b0b">H2O-Lightning-4B v1.1</text>
+<g><title>H2O-Lightning-4B v1.1: 2.82 s for 50 questions about one 6,000-token document (median of 10 documents)</title><rect x="250" y="532.0" width="16.5" height="20" rx="2" fill="#1baf7a"/></g>
+<text x="274.5" y="546.0" font-size="13" font-weight="600" fill="#0b0b0b">2.82 s</text>
+<text x="228" y="582.0" font-size="13" text-anchor="end" fill="#0b0b0b">Jeff-1.0-Large</text>
+<g><title>Jeff-1.0-Large: 114.6 s for 50 questions about one 6,000-token document (median of 5 documents)</title><rect x="250" y="568.0" width="671.0" height="20" rx="2" fill="#eb6834"/></g>
+<text x="929.0" y="582.0" font-size="13" font-weight="600" fill="#0b0b0b">114.6 s</text>
+<text x="228" y="618.0" font-size="13" text-anchor="end" fill="#0b0b0b">Quyet-1.0-Large</text>
+<g><title>Quyet-1.0-Large: 114.8 s for 50 questions about one 6,000-token document (median of 5 documents)</title><rect x="250" y="604.0" width="672.3" height="20" rx="2" fill="#eb6834"/></g>
+<text x="930.3" y="618.0" font-size="13" font-weight="600" fill="#0b0b0b">114.8 s</text>
+<text x="28" y="722" font-size="15" font-weight="600" fill="#0b0b0b">A document of 32,000 tokens: which systems answer</text>
+<line x1="250.0" y1="738" x2="250.0" y2="918" stroke="#e6e5e1" stroke-width="1"/>
+<text x="250.0" y="936" font-size="11" text-anchor="middle" fill="#7a7975">0 s</text>
+<line x1="523.3" y1="738" x2="523.3" y2="918" stroke="#e6e5e1" stroke-width="1"/>
+<text x="523.3" y="936" font-size="11" text-anchor="middle" fill="#7a7975">5 s</text>
+<line x1="796.7" y1="738" x2="796.7" y2="918" stroke="#e6e5e1" stroke-width="1"/>
+<text x="796.7" y="936" font-size="11" text-anchor="middle" fill="#7a7975">10 s</text>
+<line x1="1070.0" y1="738" x2="1070.0" y2="918" stroke="#e6e5e1" stroke-width="1"/>
+<text x="1070.0" y="936" font-size="11" text-anchor="middle" fill="#7a7975">15 s</text>
+<line x1="250" y1="738" x2="250" y2="918" stroke="#bdbcb7" stroke-width="1"/>
+<text x="228" y="760.0" font-size="13" text-anchor="end" fill="#0b0b0b">decisio Gemma 4 12B</text>
+<g><title>decisio Gemma 4 12B: 6.76 s for 50 questions about one 32,000-token document (median of 5 documents)</title><rect x="250" y="746.0" width="369.5" height="20" rx="2" fill="#2a78d6"/></g>
+<text x="627.5" y="760.0" font-size="13" font-weight="600" fill="#0b0b0b">6.76 s</text>
+<text x="228" y="796.0" font-size="13" text-anchor="end" fill="#0b0b0b">H2O-Lightning-4B v1.1</text>
+<g><title>H2O-Lightning-4B v1.1: 9.05 s for 50 questions about one 32,000-token document (median of 5 documents)</title><rect x="250" y="782.0" width="495.0" height="20" rx="2" fill="#1baf7a"/></g>
+<text x="753.0" y="796.0" font-size="13" font-weight="600" fill="#0b0b0b">9.05 s</text>
+<text x="228" y="832.0" font-size="13" text-anchor="end" fill="#0b0b0b">decisio Gemma 4 31B</text>
+<g><title>decisio Gemma 4 31B: 10.1 s for 50 questions about one 32,000-token document (median of 5 documents)</title><rect x="250" y="818.0" width="550.4" height="20" rx="2" fill="#2a78d6"/></g>
+<text x="808.4" y="832.0" font-size="13" font-weight="600" fill="#0b0b0b">10.1 s</text>
+<text x="228" y="868.0" font-size="13" text-anchor="end" fill="#0b0b0b">Jeff-1.0-Large</text>
+<text x="258" y="868.0" font-size="12" font-style="italic" fill="#7a7975">not supported: over its 8,192-token limit</text>
+<text x="228" y="904.0" font-size="13" text-anchor="end" fill="#0b0b0b">Quyet-1.0-Large</text>
+<text x="258" y="904.0" font-size="12" font-style="italic" fill="#7a7975">not supported: over its 6,000-token limit</text>
+<text x="28" y="1002" font-size="12" fill="#52514e">All five ran in one session on one box: an RTX PRO 6000 at 600 W (AMD EPYC 9374F), each on its own server.</text>
+<text x="28" y="1020" font-size="12" fill="#52514e">SM clock p50 and power p50 of each system&#x27;s run: decisio 31B 2,220 MHz at 592 W; decisio 12B 2,374 MHz at 563 W; H2O 2,610 MHz at 304 W; Jeff 2,317 MHz at 600 W; Quyet 2,325 MHz at 600 W.</text>
+<text x="28" y="1038" font-size="12" fill="#52514e">A bar is the median wall time to answer 50 questions about one document: one request that carries them, or, for H2O-Lightning-4B, 50 requests in a row.</text>
+<text x="28" y="1056" font-size="12" fill="#52514e">Medians over 5 or 10 documents per bar. A state is never cut: a system whose limit is below the document is marked not supported.</text>
+</svg>

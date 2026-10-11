@@ -8,7 +8,7 @@ It rests on the board's own ranks and on interval overlap, not on separation.
 This page says how each part is read.
 
 - **Source.** The figures are the board's, from its published file for [JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1) (sha256 `5cd8c1332226...`, read 2026-10-09), row `decisio-gemma-4-31b-v080`; the charts are drawn from that file, view A.
-- **Open weights.** Second among the board's 128 open-weights systems: the board's own `open_board_rank` is 2, and H2O-Lightning-4B ranks above us (72.52, interval 69.79 to 73.79) with an interval that overlaps ours (69.86 to 72.81). Overall the row is fourth of 135 on the headline composite (third on view B, fourth on view C).
+- **Open weights.** Second among the board's 128 open-weights systems: the board's own `open_board_rank` is 2, and H2O-Lightning-4B ranks above us (72.52, interval 69.79 to 73.79) with an interval that overlaps ours (69.86 to 72.81). On the v1.6.1 file, overall the row is fourth of 135 on the headline composite (third on view B, fourth on view C).
 - **Frozen weights.** The board has no frozen-weights class. We count a row as frozen when its display text says so (or says stock Gemma or Qwen) and names no LoRA, fine-tune, merge, training, adapter, head or decoder. The claim is about rank: decisio's row is the highest-ranked of those.
 - **Level with Jev.** Our interval (69.86 to 72.81) and Jev 1.13.0's (69.14 to 72.40) overlap; the scores are 71.69 and 71.49.
 - **Intervals.** Two other frozen-weights rows have intervals that overlap ours, decider-12b-v1 (rank 9) and Cygnet (rank 13); deck-31B (rank 12) does not.
