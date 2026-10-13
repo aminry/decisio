@@ -197,7 +197,7 @@ def test_v4_a_caller_that_names_only_the_model_gets_that_bases_hidden_readout_cl
     (tmp_path / "config.json").write_text(json.dumps({"model_type": model_type, **extra}))
     monkeypatch.delenv("DECISIO_BASE", raising=False)
     monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
-    with stub_vllm("0.30.0"):
+    with stub_vllm("0.31.0"):
         import decisio.vllm_plugin as p
 
         monkeypatch.setattr(p, "installed_entry_point", lambda: True)
