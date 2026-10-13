@@ -68,9 +68,9 @@ REPOSITORIES = {
 RENAMED = {f"aminry/{name.split('/')[1]}": name for name in REPOSITORIES.values()}
 # the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins)
 PINNED_REVISIONS: dict[str, str] = {
-    "tachara-ai/decisio-gemma-4-31b": "931a9dadeb92a3533781606b3355799779c62cf5",
-    "tachara-ai/decisio-gemma-4-12b": "a5a1ac8f2398147d4e5738cac9ab6dc138b13b82",
-    "tachara-ai/decisio-qwen3.6-35b-a3b": "e691e3ae1d257720ecc919e9b988667dd0bd214a",
+    "tachara-ai/decisio-gemma-4-31b": "6673a7f4fb234ba4e52ae339109f54f2aaa1681e",
+    "tachara-ai/decisio-gemma-4-12b": "0507fa660d5259ec736031b496c12e736f71b309",
+    "tachara-ai/decisio-qwen3.6-35b-a3b": "93270ab34c011959ded9a54cb8524d4edcea673f",
 }
 # the bases whose own key is served from a decisio repository rather than from the source's weights, once that
 # repository's revision is pinned: the 31B's FP8 checkpoint saves quantizing Google's bf16 weights at every start
