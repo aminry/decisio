@@ -1037,9 +1037,13 @@ def engine_kwargs(args) -> dict:
         )
     if not plugin.register():
         raise SystemExit(f"--model-class needs vllm=={plugin.SUPPORTED_VLLM}; found {plugin.vllm_version()}")
-    from decisio.families import QWEN
+    from decisio.families import family_of
 
-    family = getattr(args, "family", QWEN)
+    # the server's own arguments carry the resolved family; a caller that builds its own (the GPU tests, the benchmarks)
+    # gives the checkpoint (`model`, `revision`), and the family is read from its config.json (Qwen when none is given)
+    family = getattr(args, "family", None)
+    if family is None:
+        family = family_of(getattr(args, "model", None), getattr(args, "revision", None))
     if args.model_class == "hidden-readout":
         from decisio.vllm_plugin.hidden import ENV_START
 

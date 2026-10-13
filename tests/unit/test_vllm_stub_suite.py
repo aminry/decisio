@@ -179,6 +179,33 @@ def test_v4_engine_arguments(monkeypatch):
             vllm_engine.engine_kwargs(args("text-only"))
 
 
+@pytest.mark.parametrize(
+    "model_type, extra, arch",
+    [
+        ("qwen3_5_moe", {}, "DecisioQwen3_5MoeHiddenReadout"),
+        ("gemma4", {}, "DecisioGemma4HiddenReadout"),  # the 31B: Gemma4ForConditionalGeneration, the text class
+        ("gemma4_unified", {}, "DecisioGemma4UnifiedHiddenReadout"),  # the 12B
+    ],
+)
+def test_v4_a_caller_that_names_only_the_model_gets_that_bases_hidden_readout_class(
+    tmp_path, monkeypatch, model_type, extra, arch
+):
+    """tests/gpu/same_forward.py and decisio.bench.fresh_state build their own arguments (no resolved family): the class
+    follows the checkpoint's config.json and not Qwen's (the 0.31.0 card session found Gemma runs building Qwen's)."""
+    from decisio.serve import vllm_engine
+
+    (tmp_path / "config.json").write_text(json.dumps({"model_type": model_type, **extra}))
+    monkeypatch.delenv("DECISIO_BASE", raising=False)
+    monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
+    with stub_vllm("0.30.0"):
+        import decisio.vllm_plugin as p
+
+        monkeypatch.setattr(p, "installed_entry_point", lambda: True)
+        a = types.SimpleNamespace(model_class="hidden-readout", engine="{}", model=str(tmp_path))
+        assert vllm_engine.engine_kwargs(a)["hf_overrides"] == {"architectures": [arch]}
+        monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
+
+
 def test_v4_the_view_stays_available():
     import decisio.serve.make_text_only as m
     from decisio.vllm_plugin.weights import is_vision_weight

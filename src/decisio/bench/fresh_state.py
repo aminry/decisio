@@ -96,7 +96,7 @@ def engine_floor(a):
     from decisio.serve.vllm_engine import SERVED_ENGINE, deep_gemm_guard, engine_kwargs
 
     deep_gemm_guard("vllm", os.environ)
-    kw = engine_kwargs(argparse.Namespace(engine=json.dumps(SERVED_ENGINE), model_class=a.model_class))
+    kw = engine_kwargs(argparse.Namespace(engine=json.dumps(SERVED_ENGINE), model_class=a.model_class, model=a.model))
     # as LettersEngine builds it: its defaults, then the served engine's keyword arguments on top
     llm = LLM(
         **{

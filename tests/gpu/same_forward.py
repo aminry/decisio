@@ -29,7 +29,7 @@ def main():
     from decisio.serve.hidden_engine import SingleEngineHidden
     from decisio.serve.vllm_engine import SERVED_ENGINE, LettersEngine, engine_kwargs
 
-    args = argparse.Namespace(engine=json.dumps(SERVED_ENGINE), model_class="hidden-readout")
+    args = argparse.Namespace(engine=json.dumps(SERVED_ENGINE), model_class="hidden-readout", model=a.model)
     eng = LettersEngine(a.model, pad_to="block", pad_where="front", engine_kw=engine_kwargs(args))
     hidden = SingleEngineHidden(eng, a.model)
     tok = AutoTokenizer.from_pretrained(a.model)
