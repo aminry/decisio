@@ -76,6 +76,8 @@ The frozen v0.11.1 server (vLLM 0.30.0) against the reference on the 2026-10-10 
 It asks whether the reference agrees with a server as well as it did with the frozen one, and does not claim the two agree to the 12B's tolerance.
 All three paths pass it on the 0.31.0 server; the reasons for each bound are in decisio's pull request #123.
 
+The Qwen base (FP8) has not been compared with its server: no run of the reference against the Qwen server exists yet, so nothing is claimed for it here.
+
 ## Tests
 
 `tests/unit/test_reference.py` runs the reference and the server's own code path (`SystemOne` on the CPU stand-in engine) on the same stand-in model, for four prompt profiles and 14 questions each.
