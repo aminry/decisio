@@ -797,10 +797,14 @@ def make_app(engine, systemone=None, health=None):
         adapter: str | None = None
 
     app = FastAPI(title="letters readout")
+    from decisio.serve.content_type import JsonOnly
+
     # boundary registrations deferred by a request wait for its response (decisio.serve.boundary)
     app.add_middleware(AfterResponse)
     if health is not None:  # the exit after a death waits for the answers in flight (decisio.serve.engine_health)
         app.add_middleware(InFlight, health=health)
+    # the outermost layer: a POST that is not JSON is refused before anything else sees it (decisio.serve.content_type)
+    app.add_middleware(JsonOnly)
 
     @app.exception_handler(EngineDead)
     def engine_dead(request, exc):
