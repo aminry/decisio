@@ -60,8 +60,8 @@ jobs:
       - name: Fetch the vLLM source the patches are checked against
         run: bash scripts/fetch_vllm_source.sh
 
-      # The slow tier (tests that load small models on the CPU) peaks at about 20 GB of RAM in one process and is
-      # killed on a 16 GB hosted runner; the nightly workflow (.github/workflows/gpu.yml) runs it one file per process.
+      # The slow tier (tests that load small models on the CPU) is not run here: it peaks at about 20 GB of RAM in one
+      # process and is killed on a 16 GB hosted runner. The `slow` jobs below run it one file per process.
       # The task-registration walk-through (tests/unit/test_tasks_walkthrough.py) starts servers on a small stand-in model.
       # It is fetched at this exact revision into a cache, and the test is pointed at the local copy, so a run neither
       # downloads 1.1 GB nor follows a moving branch (other tests fetch small configs from the Hub, so the run is not offline). Change the revision here when the stand-in changes.
@@ -89,3 +89,108 @@ jobs:
           name: dist
           path: dist/
           retention-days: 7
+
+  # The slow tier on every pull request that changes code, split over three jobs so that the longest takes about as long
+  # as its slowest file (scripts/shard_slow_tier.py). A pull request that changes only documentation skips the work in
+  # the first step and still reports success, so the check can be required.
+  slow:
+    name: slow CPU tier (shard ${{ matrix.shard }} of 3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      # A pull request is checked out as its merge with the base: HEAD^1 is the base, so the diff is the pull request's.
+      # Anything else (a push to main, a merge group) always runs.
+      - name: Does this change code?
+        id: scope
+        run: |
+          run=true
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            if git diff --name-only HEAD^1 HEAD | grep -Eq '^(src/|tests/|scripts/|pyproject\.toml$|uv\.lock$|\.github/workflows/ci\.yml$)'; then
+              echo "code or CI changed: the slow tier runs"
+            else
+              run=false
+              echo "documentation or other files only: the slow tier is skipped"
+            fi
+          fi
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        if: steps.scope.outputs.run == 'true'
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install (locked)
+        if: steps.scope.outputs.run == 'true'
+        run: uv sync --extra dev --frozen
+
+      # The same stand-in model and cache key as the `checks` job above.
+      - name: Restore the stand-in model
+        if: steps.scope.outputs.run == 'true'
+        id: standin
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/decisio-standin
+          key: standin-qwen3-0.6b-base-${{ env.STAND_IN_REVISION }}
+
+      - name: Fetch the stand-in model
+        if: steps.scope.outputs.run == 'true' && steps.standin.outputs.cache-hit != 'true'
+        run: uv run hf download Qwen/Qwen3-0.6B-Base --revision "$STAND_IN_REVISION" --local-dir "${{ runner.temp }}/decisio-standin/qwen3-0.6b-base"
+
+      # One process per file, as the nightly workflow (.github/workflows/gpu.yml) does: the largest, tests/unit/test_image_route.py,
+      # peaks at about 11 GB; the whole tier in one process kept every file's models loaded, about 20 GB, more than a
+      # 16 GB hosted runner has. Each file's seconds go to the job summary, where the weights of
+      # scripts/shard_slow_tier.py are refreshed from.
+      - name: Slow CPU tier, one file per process
+        if: steps.scope.outputs.run == 'true'
+        env:
+          DECISIO_STAND_IN_MODEL: ${{ runner.temp }}/decisio-standin/qwen3-0.6b-base
+          SHARD: ${{ matrix.shard }}
+        run: |
+          all=$(uv run pytest --collect-only -q -m slow | grep "::" | cut -d: -f1 | sort -u)
+          test -n "$all" || { echo "no slow tests collected"; exit 1; }
+          files=$(echo "$all" | python3 scripts/shard_slow_tier.py 3 "$SHARD")
+          echo "shard $SHARD: $(echo $files)"
+          rc=0
+          echo "| file | seconds |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | ---: |" >> "$GITHUB_STEP_SUMMARY"
+          for f in $files; do
+            echo "::group::$f"
+            start=$SECONDS
+            uv run pytest -q -m slow "$f" || rc=1
+            echo "| $f | $((SECONDS - start)) |" >> "$GITHUB_STEP_SUMMARY"
+            echo "::endgroup::"
+          done
+          exit $rc
+
+  # One check to require, whatever the number of shards.
+  slow-tier:
+    name: slow CPU tier
+    needs: slow
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: The shards passed
+        env:
+          RESULT: ${{ needs.slow.result }}
+        run: |
+          echo "shards: $RESULT"
+          test "$RESULT" = success
