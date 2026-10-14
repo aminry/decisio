@@ -12,7 +12,7 @@ Failures the rest of the documentation explains (a dead engine and exit code 70,
 **What it looks like.** vLLM stops the engine at start-up with a `ValueError` that says how much KV cache it needs and how much it has.
 The record of Gemma 4 31B at bf16 on the 96 GB card (`runs/2026-10-04_gemma-4-31b/bf16_start.txt`; the 57.91 GiB of weights left 20.24 GiB for the cache):
 
-```
+```text
 ValueError: To serve at least one request with the model's max seq len (32768), (27.51 GiB KV cache is needed, which is larger than the available KV cache memory (20.24 GiB). Based on the available memory, the estimated maximum model length is 24096. Try increasing `gpu_memory_utilization` ... or decreasing `max_model_len` when initializing the engine.
 ```
 
@@ -33,7 +33,7 @@ The container prints its own warning first, before it starts the server, when th
 **What it looks like.**
 - In the container, before anything starts, from `docker/entrypoint.sh`:
 
-  ```
+  ```text
   decisio: no NVIDIA GPU is visible to this container (<the exception>).
     Start it with GPU access: `docker run --gpus all ...`, or the GPU reservation in compose.yaml
     (Docker with the NVIDIA Container Toolkit on a Linux host).
@@ -49,7 +49,7 @@ The container prints its own warning first, before it starts the server, when th
 
 **What it looks like.** The server starts, then ends with exit code 1 and uvicorn's line, reproduced on the CPU stand-in on macOS (`--backend hf`, a second server on the port of a first):
 
-```
+```text
 ERROR:    [Errno 48] error while attempting to bind on address ('127.0.0.1', 18555): [errno 48] address already in use
 ```
 
@@ -64,7 +64,7 @@ Some GPU rental templates run a proxy on 8000: check before assuming the port is
 **What it looks like.** The first start downloads the checkpoint from the Hugging Face Hub into its cache (about 31 GB for the 31B's FP8 repository, 62 GB for Google's bf16 weights).
 With the Hub unreachable and the files not in the cache, transformers' loader says so, reproduced here with `HF_HUB_OFFLINE=1` and a model that was never downloaded:
 
-```
+```text
 OSError: We couldn't connect to 'https://huggingface.co' to load the files, and couldn't find them in the cached files.
 Check your internet connection or see how to run the library in offline mode at 'https://huggingface.co/docs/transformers/installation#offline-mode'.
 ```

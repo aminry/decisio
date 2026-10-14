@@ -340,6 +340,7 @@ Answering directly (0.96) is the most likely of five options; the next is calcul
 Five client integrations were checked against a running decisio server (Gemma 4 31B, decisio 0.9.0, from a Mac through an SSH tunnel, 2026-10-08); every check passed.
 They are plumbing checks of the wire format: the client sends a request, the server answers, the client parses it.
 The record, with each check, is in [`runs/2026-10-08_integration-checks/`](runs/2026-10-08_integration-checks/manifest.json).
+A complete short program for each, run against the CPU stand-in, is in [`docs/integrations.md`](docs/integrations.md).
 
 | Integration | Version checked | Checks passed |
 | --- | --- | --- |
