@@ -148,6 +148,10 @@ GEMMA4 = Family(
     # the default 2,048 MiB kept 5 states of 1,000 tokens (Qwen's 25); 7,400 MiB keeps 20 of 1,000, 10 of 3,000 and 7 of
     # 8,000: two thirds of a 32 GiB Mac (22.906 GB) less the 15.125 GB peak at 32k tokens leaves 7.781 GB = 7,421 MiB
     mlx_prefix_cache_mb=7400,
+    # warm: as the 31B, with the engine in the server's process; its pass rule against sequential, measured across fresh
+    # starts because the 12B's own start-to-start difference is larger than the 31B's, is RLCD
+    # experiments/2026-10-14_serve_12b_warm_gate
+    multi_question="warm",
 )
 
 GEMMA4_31B = Family(

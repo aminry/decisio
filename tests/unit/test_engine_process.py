@@ -126,8 +126,9 @@ def test_e3_start_up_refuses_before_any_engine_is_built(monkeypatch, argv, reaso
         (
             ["--base", "gemma-4-12b"],
             "0",
-            "ENGINE PROCESS in (the default for a single-engine server); multi-question sequential",
+            "ENGINE PROCESS in (the default for a single-engine server); multi-question warm",
         ),
+        (["--base", "gemma-4-12b", "--multi-question", "sequential"], "0", "multi-question sequential"),
         (
             ["--base", "gemma-4-31b"],
             "0",
@@ -159,12 +160,15 @@ def test_e3_start_up_applies_the_resolved_default(monkeypatch, capsys, argv, var
 
 def test_e4_multi_question_default_follows_the_profile_and_the_arrangement():
     g31, g12, qwen = BASES["gemma-4-31b"], BASES["gemma-4-12b"], BASES["qwen3.6-35b-a3b"]
-    assert g31.multi_question == "warm" and g12.multi_question == qwen.multi_question == "sequential"
+    assert g31.multi_question == g12.multi_question == "warm" and qwen.multi_question == "sequential"
     assert resolve_multi_question(g31, None, "in") == "warm"
     assert resolve_multi_question(g31, None, None) == "warm"  # off vLLM the engine runs in the server's process
     assert resolve_multi_question(g31, None, "separate") == "sequential"  # warm does not repeat exactly there
     assert resolve_multi_question(g31, "batch", "in") == "batch"
-    for fam in (g12, qwen, None):
+    assert resolve_multi_question(g12, None, "in") == "warm"
+    assert resolve_multi_question(g12, None, "separate") == "sequential"  # warm does not repeat exactly there
+    assert resolve_multi_question(g12, "sequential", "in") == "sequential"
+    for fam in (qwen, None):
         assert resolve_multi_question(fam, None, "in") == "sequential"
     # the 12B takes warm when it is asked for, in either arrangement, and on MLX never (its engine continues each
     # question from a copy of the shared prefix)
