@@ -1,0 +1,1 @@
+the control's two starts are EQUAL (200 of 200): this box repeats the 12B; S10's rows are not run, row 5 is answered: the S9 box's behaviour is not shared by this box

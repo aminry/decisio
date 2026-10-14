@@ -1,0 +1,437 @@
+{
+ "rows": [
+  {
+   "doc": 0,
+   "A": {
+    "client_ms": 1025.2143849938875,
+    "server_ms": 1021.5,
+    "stages": {
+     "prepare": 7.9,
+     "warm": 416.5,
+     "questions": 588.6,
+     "readout": 1.0,
+     "engine": 1014.6,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 758.422986997175,
+    "server_ms": 756.0,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 707.2,
+     "questions": 34.5,
+     "readout": 0.1,
+     "engine": 749.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 1,
+   "A": {
+    "client_ms": 1024.9416879960336,
+    "server_ms": 1020.8,
+    "stages": {
+     "prepare": 8.2,
+     "warm": 418.1,
+     "questions": 586.0,
+     "readout": 1.0,
+     "engine": 1013.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 760.7554429996526,
+    "server_ms": 758.4,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 709.3,
+     "questions": 34.6,
+     "readout": 0.1,
+     "engine": 751.6,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 2,
+   "A": {
+    "client_ms": 1027.858102999744,
+    "server_ms": 1023.7,
+    "stages": {
+     "prepare": 8.1,
+     "warm": 419.0,
+     "questions": 588.2,
+     "readout": 1.0,
+     "engine": 1016.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 761.3000330020441,
+    "server_ms": 759.0,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 709.7,
+     "questions": 34.9,
+     "readout": 0.1,
+     "engine": 752.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 3,
+   "A": {
+    "client_ms": 1049.8175049870042,
+    "server_ms": 1046.1,
+    "stages": {
+     "prepare": 8.5,
+     "warm": 421.2,
+     "questions": 607.8,
+     "readout": 1.0,
+     "engine": 1039.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 762.7053119940683,
+    "server_ms": 760.5,
+    "stages": {
+     "prepare": 7.3,
+     "warm": 711.5,
+     "questions": 34.6,
+     "readout": 0.1,
+     "engine": 753.7,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 4,
+   "A": {
+    "client_ms": 1030.2460639941273,
+    "server_ms": 1026.4,
+    "stages": {
+     "prepare": 8.0,
+     "warm": 420.5,
+     "questions": 589.4,
+     "readout": 1.0,
+     "engine": 1019.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 765.8347760007018,
+    "server_ms": 762.5,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 713.4,
+     "questions": 34.6,
+     "readout": 0.1,
+     "engine": 755.7,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 5,
+   "A": {
+    "client_ms": 1034.6434410021175,
+    "server_ms": 1030.6,
+    "stages": {
+     "prepare": 8.1,
+     "warm": 421.8,
+     "questions": 592.1,
+     "readout": 1.0,
+     "engine": 1023.7,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 767.8668750013458,
+    "server_ms": 765.2,
+    "stages": {
+     "prepare": 7.3,
+     "warm": 716.3,
+     "questions": 34.6,
+     "readout": 0.1,
+     "engine": 758.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 6,
+   "A": {
+    "client_ms": 1037.8502529929392,
+    "server_ms": 1032.3,
+    "stages": {
+     "prepare": 8.1,
+     "warm": 422.8,
+     "questions": 592.9,
+     "readout": 1.0,
+     "engine": 1025.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 778.2796880055685,
+    "server_ms": 774.3,
+    "stages": {
+     "prepare": 7.8,
+     "warm": 720.4,
+     "questions": 36.4,
+     "readout": 0.1,
+     "engine": 764.9,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 7,
+   "A": {
+    "client_ms": 1065.7765910000307,
+    "server_ms": 1060.3,
+    "stages": {
+     "prepare": 11.5,
+     "warm": 426.4,
+     "questions": 613.6,
+     "readout": 1.1,
+     "engine": 1053.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 770.9317389962962,
+    "server_ms": 768.1,
+    "stages": {
+     "prepare": 7.3,
+     "warm": 718.4,
+     "questions": 35.3,
+     "readout": 0.1,
+     "engine": 761.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 8,
+   "A": {
+    "client_ms": 1067.997327001649,
+    "server_ms": 1064.1,
+    "stages": {
+     "prepare": 11.4,
+     "warm": 426.9,
+     "questions": 617.1,
+     "readout": 1.0,
+     "engine": 1057.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 771.6553270001896,
+    "server_ms": 768.9,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 719.6,
+     "questions": 34.9,
+     "readout": 0.1,
+     "engine": 762.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 9,
+   "A": {
+    "client_ms": 1039.6259099943563,
+    "server_ms": 1036.1,
+    "stages": {
+     "prepare": 8.7,
+     "warm": 424.9,
+     "questions": 594.0,
+     "readout": 1.0,
+     "engine": 1029.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 771.0368229891174,
+    "server_ms": 768.1,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 719.0,
+     "questions": 34.7,
+     "readout": 0.1,
+     "engine": 761.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  }
+ ],
+ "median_A_ms": 1036.2468469975283,
+ "median_F_ms": 766.8508255010238,
+ "R": 1.3513017297992658,
+ "tokens_A": 4843.0,
+ "tokens_F": 4843.0,
+ "stages_A_median": {
+  "prepare": 8.149999999999999,
+  "warm": 421.5,
+  "questions": 592.5,
+  "readout": 1.0,
+  "engine": 1024.5,
+  "wait": 0.0
+ },
+ "health": {
+  "ok": true,
+  "vllm": "0.30.0",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "engine_process": "in",
+  "mode": "separate",
+  "block_size": 16,
+  "match_unit": 16,
+  "cache_hit_unit": 32,
+  "hash_unit": 16,
+  "registers_state_boundary": true,
+  "register_boundary": "before",
+  "repository": {
+   "name": "tachara-ai/decisio-gemma-4-31b",
+   "revision": "931a9dadeb92a3533781606b3355799779c62cf5",
+   "exported_for_decisio": "0.11.0",
+   "source": {
+    "repository": "google/gemma-4-31B-it",
+    "revision": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+    "license": "apache-2.0"
+   },
+   "weights": {
+    "modified": true,
+    "dtype": "fp8_e4m3",
+    "quantization": "compressed-tensors",
+    "method": "quantized to FP8 exactly as vLLM 0.30.0 does on load (online per-tensor weight scales, activations quantized per token at run time); every other tensor, the vision tower included, is the source's; nothing was trained",
+    "quantized_on_load": false
+   }
+  },
+  "pad_unit": null,
+  "pad_where": null,
+  "quantization": "compressed-tensors",
+  "kv_cache_dtype": "auto",
+  "mamba_ssm_cache_dtype": "auto",
+  "adapters": [],
+  "VLLM_USE_DEEP_GEMM": "0",
+  "prompt_format": {
+   "tail": "spaced",
+   "slot": "template",
+   "variants": "summed",
+   "system_prompt": true
+  },
+  "base": "gemma-4-31b",
+  "attention_backend": "AttentionBackendEnum.TRITON_ATTN",
+  "profile": {
+   "base": "gemma-4-31b",
+   "checkpoint": "tachara-ai/decisio-gemma-4-31b",
+   "revision": "931a9dadeb92a3533781606b3355799779c62cf5",
+   "quantization_on_load": null,
+   "engine_process": "in",
+   "temperatures": {
+    "choice": 4.672,
+    "noul": 5.252,
+    "score": 5.252
+   },
+   "prompt": {
+    "tail": "spaced",
+    "slot": "template",
+    "variants": "summed",
+    "system_prompt": true,
+    "noul_rendering": "letters",
+    "describe_options": true,
+    "multi_question": "warm",
+    "register_boundary": "before",
+    "pad_policy": "always",
+    "pad_unit": null
+   }
+  },
+  "systemone": {
+   "hide_index_keys": true,
+   "desnake_labels": true,
+   "describe_options": true,
+   "noul_rendering": "letters",
+   "noul_commit": false,
+   "abstention": true,
+   "abstention_tasks": {},
+   "orders": 1,
+   "abstain_option": null,
+   "tasks": true,
+   "debug_readout": false,
+   "temperature": 5.252,
+   "temperatures": {
+    "choice": 4.672
+   },
+   "readout_tasks": {}
+  },
+  "head_engine": {
+   "mode": "hidden (serving engine, reserved logit columns)",
+   "reserved_ids": [
+    210000,
+    215376
+   ],
+   "lm_head": [
+    262144,
+    5376
+   ],
+   "label_logprobs": "engine",
+   "requests_per_question": 7
+  }
+ }
+}

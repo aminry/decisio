@@ -1,0 +1,15 @@
+FIRSTQ T=300: first server p50 47.5 ms, client p50 49.0 ms, second server p50 25.0 ms
+FIRSTQ T=1000: first server p50 48.8 ms, client p50 50.4 ms, second server p50 26.6 ms
+FIRSTQ T=3000: first server p50 86.5 ms, client p50 88.4 ms, second server p50 32.6 ms
+FIRSTQ T=6000: first server p50 153.9 ms, client p50 156.1 ms, second server p50 41.0 ms
+FIRSTQ T=16000: first server p50 452.4 ms, client p50 454.8 ms, second server p50 66.2 ms
+Traceback (most recent call last):
+  File "/workspace/l2c/code/sprobe.py", line 293, in <module>
+    main()
+  File "/workspace/l2c/code/sprobe.py", line 283, in main
+    res, code = {"firstq": firstq, "agree": agree, "confirm": confirm, "pool": poolfill, "usage": usage200, "throughput": throughput}[a.cmd](a, c, states)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/l2c/code/sprobe.py", line 123, in firstq
+    print(f"FIRSTQ T={T}: first server p50 {out['tokens'][str(T)]['first_server_ms_p50']:.1f} ms, client p50 {out['tokens'][str(T)]['first_client_ms_p50']:.1f} ms"
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: unsupported format string passed to NoneType.__format__
