@@ -9,6 +9,8 @@ Every number names the record it comes from.
 
 ## GPU server
 
+If a first start fails (a card too small, a driver, a busy port, a download), [`troubleshooting.md`](troubleshooting.md) has the messages and the fixes.
+
 Requirements: Linux, one NVIDIA card (measured on an RTX PRO 6000 Blackwell with 96 GB), a driver that supports CUDA 13.0 (the runtime `uv.lock` pins), Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
@@ -195,6 +197,7 @@ uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-
 ```
 
 - `uv run pytest` runs the unit tests on any machine; the GPU tests (`pytest -m gpu`) need a card, and run by hand until a nightly GPU runner is registered.
+- Time to a first answer: measured on Apple silicon on 2026-10-14, the stand-in's process takes 4 to 8 seconds from start to `/health` answering with `Qwen/Qwen3-0.6B-Base` already in the Hugging Face cache, and a first question about 0.3 seconds on top. The download of that model (about 1.2 GB, once) and `uv sync` were not timed, and no time to a first answer is recorded for the Ollama path.
 - `--backend hf` serves every route from a small Hugging Face model on the CPU, for developing and testing the routes; it is not the measured system and its answers are not for measurement.
 - CI runs the stand-in on `Qwen/Qwen3-0.6B-Base` at a pinned revision (`STAND_IN_REVISION` in `.github/workflows/ci.yml`).
 - `examples/tasks/` walks through task registration against it.
@@ -229,6 +232,8 @@ Run the server under a restart policy, so that the exit brings up a new one:
 - compose: `restart: unless-stopped`, as `compose.yaml` has it;
 - systemd: `Restart=on-failure`;
 - Kubernetes: the default `restartPolicy: Always`, with a liveness probe on `/health`.
+
+[`operating.md`](operating.md) has a complete file for each of the three.
 
 Docker restarts a container when its process exits, not when its `HEALTHCHECK` reports it unhealthy, so it is the exit that brings the server back; the image's check reports the dying container unhealthy in the meantime.
 The new server loads the engine again (the start times above), and requests sent until it is healthy are refused.
