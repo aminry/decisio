@@ -13,6 +13,8 @@ A malformed request is answered with status 422 and a `detail` naming what is wr
 | `GET /v1/models` | lists the served model's name |
 | `POST /v1/tasks`, `GET /v1/tasks`, `DELETE /v1/tasks/{id}` | registers, lists and removes per-task calibration and intent heads |
 | `POST /v1/tasks/import` | loads tasks exported with `GET /v1/tasks?full=1` |
+| `GET /v1/tasks/{id}`, `POST /v1/tasks/{id}/certify` | one task with its status; makes a certified task's certificate again on new labelled examples |
+| `GET /metrics` | Prometheus text: per certified task its state, answers, certified answers and answer-mix distance |
 | `POST /v1/abstention/tasks`, `GET /v1/abstention/tasks` | registers and lists per-task abstention thresholds |
 | `GET /health` | what the server is serving |
 | `POST /v1/answer` | the engine's own letters route, for the conformance gates and benchmarks |
@@ -104,6 +106,14 @@ Every later question with the same option list is answered with the task applied
 - `GET /v1/tasks?full=1` includes the heads' arrays: the form `--tasks-file` loads at start and `POST /v1/tasks/import` takes.
 - `POST /v1/tasks/import` with `{"tasks": [...]}` loads tasks without fitting them again; tasks fitted under another model or rendering are refused and must be registered again from their examples.
 - `DELETE /v1/tasks/{id}` removes a task (404 when there is none of that id).
+
+**Certified answers.** `POST /v1/tasks` also takes an optional `certify` block, `{"alpha": 0.05, "delta": 0.1, "min_examples": 59, "holdout": 0.5, "examples": [...]}` (every key optional; `examples` are labelled like the task's own and are never fitted on, and without them the server holds out `holdout` of the task's examples, fits on the rest and says so in the stored `certificate.split`).
+It refuses with 422, and registers nothing, when fewer held-out examples than the procedure can use at all are given: 59 at the defaults, whatever the model does.
+The response carries the `certificate` (`threshold`, `alpha`, `delta`, `n`, `certified_share`, the `split`, the serving-stack fingerprint, a `summary` in words) and a `status` (`ok`, `traffic_changed` or `suspended`, with a `text`).
+With no threshold that holds, `certificate.threshold` is `null` and the task works as before with nothing certified.
+Every later answer of a certified task carries `certified` (true or false), `certificate` (its id) and, when false, `certified_reason`: `below_threshold`, `nothing_certified` or `serving_stack_changed`.
+A change of the serving stack suspends the certificate (every answer certified false, status `suspended: serving stack changed`, the differing parts listed in `status.changed`); `POST /v1/tasks/{id}/certify` with `{"examples": [...]}` (and optionally `alpha`, `delta`, `min_examples`) makes it again under the current stack, on examples that share no input with the fit.
+`docs/tasks.md`, "Certified answers", says what the promise is and where it stops.
 
 `docs/tasks.md` walks through registration and states what each number was measured on; `docs/handoffs/tasks.md` is the reference for its rules.
 

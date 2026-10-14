@@ -388,7 +388,7 @@ On the Gemma 4 31B base, decisio scored 57.58 on the Decision Index 0.2.1 at a m
 | Question types | yes/no (`noul`), a choice among up to 255 named options, a score on an ordered scale |
 | Many questions per request | the state is prefilled once and shared; each question is scored on its own, so its answer equals the question sent alone |
 | Probabilities | a distribution per question, tempered by fitted temperatures, with per-task calibration from labelled examples |
-| Task registration | `POST /v1/tasks` learns one recurring question from labelled examples: a calibration and, for long option lists, an intent head |
+| Task registration | `POST /v1/tasks` learns one recurring question from labelled examples: a calibration and, for long option lists, an intent head; with a `certify` block it also certifies answers against your labels (`docs/tasks.md`, "Certified answers") |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
 | Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
 
@@ -505,6 +505,7 @@ The routes ([`docs/api.md`](docs/api.md) has every field):
 - `POST /v1/systemone`: ask questions about a state, as above.
 - `POST /v1/tasks`: register a recurring question from labelled examples; `GET /v1/tasks` lists them.
 - `POST /v1/tasks/import`: load tasks exported with `GET /v1/tasks?full=1`, without fitting again.
+- `GET /v1/tasks/{id}`, `POST /v1/tasks/{id}/certify`, `GET /metrics`: a task's status, certifying again on new labelled examples, and the answer-mix monitor of certified tasks.
 - `POST /v1/abstention/tasks`: register an abstention threshold for a task; `GET` lists them.
 - `GET /health`: the engine, the base, its checkpoint and revision, the temperatures and the prompt being served.
 

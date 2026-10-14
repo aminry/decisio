@@ -26,6 +26,15 @@ The server scores every example exactly as it would serve it and fits, with the 
 
 `GET /v1/tasks` lists the tasks (`?full=1` with the heads' arrays, the form `--tasks-file` and `POST /v1/tasks/import` load); `DELETE /v1/tasks/{id}` removes one.
 
+## Certification and the monitor
+
+A task registered with a `certify` block also stores a **certificate** (`decisio-certificate/1`, `decisio.readout.certify`) and the **baseline of an answer-mix monitor** (`monitor`, `decisio.serve.monitor`); both are in the task's export and load back unchanged.
+
+- **The held-out split.** The certificate is made on examples the fit has not seen: a separate `certify.examples` list, or `holdout` (default 0.5) of `examples`, chosen by a rule that does not depend on their order (examples with the same input stay together; groups are ordered by the sha256 of the task id and the input; the first groups certify). The calibration and the head are fitted on the rest only. The stored `split` names the method, the sizes and the 16-hex-digit digests of the fit examples' inputs; re-certification refuses any example sharing an input with them.
+- **The procedure** is Learn-then-Test with a fixed-sequence arm and a Bonferroni arm, each given half of `delta`, and Clopper-Pearson upper bounds (the shad0w package's `auto` controller, written out in `decisio.readout.certify`). Confidence is the top probability of the answer as served (after the task's correction and `--noul-commit`). Score questions are not certified. The fewest held-out examples that can certify anything is `certify.minimum_examples(alpha, delta)`: 59 at alpha 0.05 and delta 0.1.
+- **The serving-stack fingerprint** (`decisio.serve.stack`): the decisio version, base, repository and revision, the engine and its version, the card or device, quantisation, the attention backend, cache units, a hash of the token rows built for a fixed probe question (tokenizer, chat template, system turn and rendering), the temperatures, the serving flags (orders, multi-question, pad policy, rendering, abstention, `--noul-commit`, head engine) and a digest of the task's own fit. Its sha256 is `certificate.stack_sha256`; a server whose fingerprint differs certifies nothing for the task until `POST /v1/tasks/{id}/certify`.
+- **The answer-mix monitor.** Per certified task the server keeps the index of the option each of the last 500 answers chose (never the question, the state or the option names) and compares the window's mix with the certification examples' every 100 answers once full, by total variation distance, against a line fixed at certification (the 99.9th percentile of the same distance between two independent resamples of the examples, 2,000 draws). The alert (`status.state: traffic_changed`, and `decisio_task_state` in `/metrics`) says the traffic changed; it does not suspend the certificate or change an answer. The counters are in memory and start again with the server.
+
 ## The head's two modes
 
 The head needs the final-norm hidden state at the answer position, which vLLM's generate path does not return.
