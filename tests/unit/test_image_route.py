@@ -69,7 +69,8 @@ def served():
     text = HFLettersEngine(MODEL, pad_to="block", pad_where="front")
     image = HFImageLettersEngine(MODEL, pad_to="block", pad_where="front")
     so = SystemOne(text, "decisio-test", image_engine=image)
-    return TestClient(make_app(text, so)), text, image
+    # multipart is the encoding imajev's image clients send; the server takes it with an X-Decisio-Client header
+    return TestClient(make_app(text, so), headers={"x-decisio-client": "test"}), text, image
 
 
 def probs(body):
