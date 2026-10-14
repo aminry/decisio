@@ -1,0 +1,42 @@
+[
+ {
+  "alpha": 0.02,
+  "delta": 0.05,
+  "minimum_examples": 183
+ },
+ {
+  "alpha": 0.02,
+  "delta": 0.1,
+  "minimum_examples": 149
+ },
+ {
+  "alpha": 0.05,
+  "delta": 0.05,
+  "minimum_examples": 72
+ },
+ {
+  "alpha": 0.05,
+  "delta": 0.1,
+  "minimum_examples": 59
+ },
+ {
+  "alpha": 0.1,
+  "delta": 0.05,
+  "minimum_examples": 36
+ },
+ {
+  "alpha": 0.1,
+  "delta": 0.1,
+  "minimum_examples": 29
+ },
+ {
+  "alpha": 0.2,
+  "delta": 0.05,
+  "minimum_examples": 17
+ },
+ {
+  "alpha": 0.2,
+  "delta": 0.1,
+  "minimum_examples": 14
+ }
+]

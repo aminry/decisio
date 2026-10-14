@@ -1,0 +1,7 @@
+ENGINE PROCESS None (--backend hf runs in the server's process); multi-question sequential
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:   0%|          | 1/310 [00:01<05:12,  1.01s/it]Loading weights: 100%|██████████| 310/310 [00:01<00:00, 295.46it/s]
+ENGINE {"engine": "hf_letters (CPU stand-in, not for measurement)", "transformers": "5.18.0", "torch": "2.13.0", "model": "Qwen/Qwen3-0.6B-Base", "mode": "separate", "block_size": 64, "pad_unit": 64, "pad_where": "front", "adapters": [], "pad_policy": "always", "multi_question": "sequential"}
+Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  43%|████▎     | 132/310 [00:00<00:00, 1300.34it/s]Loading weights:  85%|████████▌ | 265/310 [00:00<00:00, 1287.92it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 1221.55it/s]
+HEAD ENGINE {"engine": "hf hidden (CPU stand-in, not for measurement)", "pad_unit": 64, "route": "reserved logit columns (emulated)"}
+ENGINE PROBE {"ms": {"HFLettersEngine": 30.1, "HFReservedHiddenEngine": 129.0}, "deadline_s": 5.0}
