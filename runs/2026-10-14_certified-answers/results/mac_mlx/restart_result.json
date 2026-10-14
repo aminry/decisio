@@ -1,0 +1,75 @@
+{
+ "backend": "mlx",
+ "model": "mlx-community/gemma-4-12B-it-6bit",
+ "base": "gemma-4-12b",
+ "alpha": 0.15,
+ "delta": 0.1,
+ "examples": 400,
+ "questions": 200,
+ "mixed": 0.5,
+ "decisio_commit": "93c5bc1c29b327e625566ef093d4ac231b5cdf9a",
+ "src_modified_since": false,
+ "certificate_of_the_first_start": {
+  "id": "ticket-queue#c2e4cc6e431b",
+  "alpha": 0.15,
+  "delta": 0.1,
+  "n": 200,
+  "threshold": 0.9863366761679004,
+  "certified_share": 0.845,
+  "certified_n": 169,
+  "errors_at_threshold": 17,
+  "stack_sha256": "4a5c45f62ad875464e0db118d4c0b85cba53707410bfddb21aa1e2b3befa4721"
+ },
+ "certified_share_of_the_questions": 0.845,
+ "errors_among_certified_questions": 19,
+ "accuracy_of_the_questions": 0.83,
+ "A_register_again_vs_the_first_start": [
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  }
+ ],
+ "B_import_the_first_export_vs_the_first_start": [
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  }
+ ],
+ "states_after_import": [
+  "ok",
+  "ok"
+ ],
+ "seconds": {
+  "A": [
+   [
+    14.1,
+    135.1
+   ],
+   [
+    6.0,
+    143.8
+   ]
+  ],
+  "B": [
+   8.1,
+   20.1
+  ]
+ },
+ "answers_sha256": "4c46f9b251f619a0db8e7e10660f58e8f1c7f3cda7e2f49709d09f69e03c95e2"
+}

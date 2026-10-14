@@ -1,0 +1,163 @@
+{
+ "format": "decisio-task/1",
+ "id": "ticket-queue",
+ "key": "66515d32d568eebf604a67945f813dbabc112f955ddee65fcdfa47915889809d",
+ "type": "choice",
+ "options": [
+  "billing",
+  "shipping",
+  "access"
+ ],
+ "fingerprint": "{\"base\": \"gemma-4-12b\", \"desnake_labels\": true, \"hide_index_keys\": true, \"model\": \"gemma-4-12B-it-6bit\", \"pad_policy\": \"none\", \"pad_to\": \"none\", \"pad_where\": \"front\", \"prompt_format\": {\"slot\": \"template\", \"system_prompt\": true, \"tail\": \"spaced\", \"variants\": \"summed\"}, \"served_name\": \"decisio-gemma-4-12b-it-letters\"}",
+ "calibration": {
+  "format": "decisio-task-prior/1",
+  "task_id": "ticket-queue",
+  "fingerprint": "{\"base\": \"gemma-4-12b\", \"desnake_labels\": true, \"hide_index_keys\": true, \"model\": \"gemma-4-12B-it-6bit\", \"pad_policy\": \"none\", \"pad_to\": \"none\", \"pad_where\": \"front\", \"prompt_format\": {\"slot\": \"template\", \"system_prompt\": true, \"tail\": \"spaced\", \"variants\": \"summed\"}, \"served_name\": \"decisio-gemma-4-12b-it-letters\"}",
+  "K": 3,
+  "n_examples": 200,
+  "bias": [
+   0.493197,
+   -0.353503,
+   -0.139693
+  ],
+  "applied": true,
+  "cv_logloss_plain": 1.09371,
+  "cv_logloss_fitted": 1.0192,
+  "cv_acc_plain": 0.79,
+  "cv_acc_fitted": 0.8,
+  "cv_t": -3.871,
+  "lambda": 0.1,
+  "reason": "cross-validated gain"
+ },
+ "head": {
+  "format": "decisio-intent-head/1",
+  "applied": false,
+  "K": 3,
+  "options": [
+   "billing",
+   "shipping",
+   "access"
+  ],
+  "options_sha256": "ed35b5a0562820b4717b3c70c62e06292a06c50834f5038a7b0ee2bdb3e6b68c",
+  "reason": "the head is fitted for questions of at least 10 options (intent sets); this one has 3: calibration only"
+ },
+ "n_examples": 200,
+ "per_option_min": 55,
+ "fit_sha256": "b69bce4d64cc367d83b1eaf844839440d5ca6a4441cec53df428c7d106bf6761",
+ "certificate": {
+  "procedure": "learn-then-test: fixed sequence and Bonferroni arms, each at delta/2, Clopper-Pearson upper bounds",
+  "alpha": 0.15,
+  "delta": 0.1,
+  "n": 200,
+  "accuracy": 0.84,
+  "threshold": 0.9863366761679004,
+  "certified": true,
+  "empirical_share_at_alpha": 0.955,
+  "certified_share": 0.845,
+  "certified_n": 169,
+  "errors_at_threshold": 17,
+  "error_rate_at_threshold": 0.10059171597633136,
+  "upper_bound_at_threshold": 0.14706207894347165,
+  "format": "decisio-certificate/1",
+  "id": "ticket-queue#c2e4cc6e431b",
+  "min_examples": 19,
+  "split": {
+   "method": "holdout",
+   "holdout": 0.5,
+   "fit_examples": 200,
+   "certify_examples": 200,
+   "disjoint": true,
+   "rule": "examples with the same input go to the same side; groups are ordered by the sha256 of the task id and the input and the first ones, up to the held-out share, certify; the fit sees the rest",
+   "fit_digests": 200
+  },
+  "fit_sha256": "b69bce4d64cc367d83b1eaf844839440d5ca6a4441cec53df428c7d106bf6761",
+  "stack": {
+   "decisio": "0.11.1",
+   "base": "gemma-4-12b",
+   "repository": null,
+   "engine": {
+    "engine": "mlx",
+    "mlx": "0.32.3",
+    "mlx_lm": "0.32.0",
+    "device": "Device(gpu, 0)",
+    "machine": "arm64",
+    "model": "mlx-community/gemma-4-12B-it-6bit",
+    "base": "gemma-4-12b",
+    "quantization": null,
+    "mode": "separate",
+    "block_size": 1056,
+    "pad_unit": null,
+    "pad_where": null,
+    "prefill_step": 2048,
+    "tokenizer": "google/gemma-4-12B-it",
+    "tokenizer_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+    "tokenizer_json_sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+    "final_logit_softcap": 30.0,
+    "adapters": []
+   },
+   "prompt": {
+    "probe_sha256": "35a4c26348ba0a77373ef26eceb051d2d394d882463d6b9831deb0f2ec868fee",
+    "format": {
+     "tail": "spaced",
+     "slot": "template",
+     "variants": "summed",
+     "system_prompt": true
+    }
+   },
+   "calibration": {
+    "temperatures": {
+     "global": 3.592
+    },
+    "task_fit": "b69bce4d64cc367d83b1eaf844839440d5ca6a4441cec53df428c7d106bf6761"
+   },
+   "serving": {
+    "orders": 1,
+    "multi_question": "sequential",
+    "pad_policy": "none",
+    "hide_index_keys": true,
+    "desnake_labels": true,
+    "describe_options": true,
+    "noul_rendering": "letters",
+    "noul_commit": false,
+    "abstention": true,
+    "abstain_option": null,
+    "head_engine": true
+   },
+   "task_fingerprint": "{\"base\": \"gemma-4-12b\", \"desnake_labels\": true, \"hide_index_keys\": true, \"model\": \"gemma-4-12B-it-6bit\", \"pad_policy\": \"none\", \"pad_to\": \"none\", \"pad_where\": \"front\", \"prompt_format\": {\"slot\": \"template\", \"system_prompt\": true, \"tail\": \"spaced\", \"variants\": \"summed\"}, \"served_name\": \"decisio-gemma-4-12b-it-letters\"}"
+  },
+  "stack_sha256": "4a5c45f62ad875464e0db118d4c0b85cba53707410bfddb21aa1e2b3befa4721",
+  "summary": "Answers whose top probability is at least 0.9863 are certified: on the 200 held-out examples that is 84% of the answers, 17 of 169 wrong. With probability at least 90% over the draw of such examples, at most 15% of the certified answers are wrong, for traffic like them and on this serving stack."
+ },
+ "monitor": {
+  "window": 500,
+  "step": 100,
+  "line_quantile": 0.999,
+  "draws": 2000,
+  "seed": "ticket-queue#c2e4cc6e431b",
+  "option_counts": [
+   72,
+   65,
+   63
+  ],
+  "line": 0.13400699999999985
+ },
+ "status": {
+  "state": "ok",
+  "text": "ok",
+  "monitor": {
+   "state": "ok",
+   "window_answers": 0,
+   "answers": 0,
+   "certified_answers": 0,
+   "checked_at": null,
+   "distance": null,
+   "line": 0.13400699999999985,
+   "alerts": 0,
+   "option_counts": [
+    0,
+    0,
+    0
+   ]
+  }
+ }
+}

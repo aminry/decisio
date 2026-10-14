@@ -1,0 +1,154 @@
+{
+ "format": "decisio-task/1",
+ "id": "ticket-queue",
+ "key": "66515d32d568eebf604a67945f813dbabc112f955ddee65fcdfa47915889809d",
+ "type": "choice",
+ "options": [
+  "billing",
+  "shipping",
+  "access"
+ ],
+ "fingerprint": "{\"desnake_labels\": true, \"hide_index_keys\": true, \"model\": \"Qwen3-0.6B-Base\", \"pad_to\": \"block\", \"pad_where\": \"front\", \"prompt_format\": {\"slot\": \"prefill\", \"tail\": \"spaced\", \"variants\": \"single\"}, \"served_name\": \"decisio-qwen3.6-35b-a3b-letters\"}",
+ "calibration": {
+  "format": "decisio-task-prior/1",
+  "task_id": "ticket-queue",
+  "fingerprint": "{\"desnake_labels\": true, \"hide_index_keys\": true, \"model\": \"Qwen3-0.6B-Base\", \"pad_to\": \"block\", \"pad_where\": \"front\", \"prompt_format\": {\"slot\": \"prefill\", \"tail\": \"spaced\", \"variants\": \"single\"}, \"served_name\": \"decisio-qwen3.6-35b-a3b-letters\"}",
+  "K": 3,
+  "n_examples": 200,
+  "bias": [
+   -0.074826,
+   0.236765,
+   -0.161939
+  ],
+  "applied": true,
+  "cv_logloss_plain": 0.83407,
+  "cv_logloss_fitted": 0.80617,
+  "cv_acc_plain": 0.515,
+  "cv_acc_fitted": 0.845,
+  "cv_t": -2.736,
+  "lambda": 0.1,
+  "reason": "cross-validated gain"
+ },
+ "head": {
+  "format": "decisio-intent-head/1",
+  "applied": false,
+  "K": 3,
+  "options": [
+   "billing",
+   "shipping",
+   "access"
+  ],
+  "options_sha256": "ed35b5a0562820b4717b3c70c62e06292a06c50834f5038a7b0ee2bdb3e6b68c",
+  "reason": "the head is fitted for questions of at least 10 options (intent sets); this one has 3: calibration only"
+ },
+ "n_examples": 200,
+ "per_option_min": 51,
+ "fit_sha256": "bc95e4d5dd591ee185fe418ae6690cd170dc052f4af25802e0a1e92b53f153c9",
+ "certificate": {
+  "procedure": "learn-then-test: fixed sequence and Bonferroni arms, each at delta/2, Clopper-Pearson upper bounds",
+  "alpha": 0.15,
+  "delta": 0.1,
+  "n": 200,
+  "accuracy": 0.755,
+  "threshold": 0.4267520776959382,
+  "certified": true,
+  "empirical_share_at_alpha": 0.79,
+  "certified_share": 0.63,
+  "certified_n": 126,
+  "errors_at_threshold": 12,
+  "error_rate_at_threshold": 0.09523809523809523,
+  "upper_bound_at_threshold": 0.14973729920896436,
+  "format": "decisio-certificate/1",
+  "id": "ticket-queue#c43788927ea2",
+  "min_examples": 19,
+  "split": {
+   "method": "holdout",
+   "holdout": 0.5,
+   "fit_examples": 200,
+   "certify_examples": 200,
+   "disjoint": true,
+   "rule": "examples with the same input go to the same side; groups are ordered by the sha256 of the task id and the input and the first ones, up to the held-out share, certify; the fit sees the rest",
+   "fit_digests": 200
+  },
+  "fit_sha256": "bc95e4d5dd591ee185fe418ae6690cd170dc052f4af25802e0a1e92b53f153c9",
+  "stack": {
+   "decisio": "0.11.1",
+   "base": null,
+   "repository": null,
+   "engine": {
+    "engine": "hf_letters (CPU stand-in, not for measurement)",
+    "transformers": "5.18.0",
+    "torch": "2.13.0",
+    "model": "Qwen/Qwen3-0.6B-Base",
+    "mode": "separate",
+    "block_size": 64,
+    "pad_unit": 64,
+    "pad_where": "front",
+    "adapters": []
+   },
+   "prompt": {
+    "probe_sha256": "60f809461b7c1daa3354deda491da75cf985d7364996e52d13fe4bdf4e85b7b6",
+    "format": {
+     "tail": "spaced",
+     "slot": "prefill",
+     "variants": "single"
+    }
+   },
+   "calibration": {
+    "temperatures": {
+     "global": 1.506,
+     "choice": 1.37
+    },
+    "task_fit": "bc95e4d5dd591ee185fe418ae6690cd170dc052f4af25802e0a1e92b53f153c9"
+   },
+   "serving": {
+    "orders": 1,
+    "multi_question": "sequential",
+    "pad_policy": "always",
+    "hide_index_keys": true,
+    "desnake_labels": true,
+    "describe_options": true,
+    "noul_rendering": "letters-keys",
+    "noul_commit": false,
+    "abstention": true,
+    "abstain_option": null,
+    "head_engine": true
+   },
+   "task_fingerprint": "{\"desnake_labels\": true, \"hide_index_keys\": true, \"model\": \"Qwen3-0.6B-Base\", \"pad_to\": \"block\", \"pad_where\": \"front\", \"prompt_format\": {\"slot\": \"prefill\", \"tail\": \"spaced\", \"variants\": \"single\"}, \"served_name\": \"decisio-qwen3.6-35b-a3b-letters\"}"
+  },
+  "stack_sha256": "ee169576aeff22d61734f352d08881f14bf6f22ff0f8fee36b5ae6ad9151fb18",
+  "summary": "Answers whose top probability is at least 0.4268 are certified: on the 200 held-out examples that is 63% of the answers, 12 of 126 wrong. With probability at least 90% over the draw of such examples, at most 15% of the certified answers are wrong, for traffic like them and on this serving stack."
+ },
+ "monitor": {
+  "window": 500,
+  "step": 100,
+  "line_quantile": 0.999,
+  "draws": 2000,
+  "seed": "ticket-queue#c43788927ea2",
+  "option_counts": [
+   66,
+   109,
+   25
+  ],
+  "line": 0.13900199999999996
+ },
+ "status": {
+  "state": "ok",
+  "text": "ok",
+  "monitor": {
+   "state": "ok",
+   "window_answers": 0,
+   "answers": 0,
+   "certified_answers": 0,
+   "checked_at": null,
+   "distance": null,
+   "line": 0.13900199999999996,
+   "alerts": 0,
+   "option_counts": [
+    0,
+    0,
+    0
+   ]
+  }
+ }
+}

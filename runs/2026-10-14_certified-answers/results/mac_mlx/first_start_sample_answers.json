@@ -1,0 +1,33 @@
+[
+ {
+  "ticket": "Urgent: the refund has not reached my bank account. Can you check today? (ref 70816)",
+  "answer": {
+   "type": "choice",
+   "choice": "billing",
+   "confidence": 0.9999999773691918,
+   "probabilities": {
+    "billing": 0.9999999849127945,
+    "shipping": 1.369244715049729e-08,
+    "access": 1.3947582920178054e-09
+   },
+   "certified": true,
+   "certificate": "ticket-queue#c2e4cc6e431b"
+  }
+ },
+ {
+  "ticket": "Hey, I need a copy of the invoice for my subscription. Also: the delivery was marked as done but I got nothing. This is the second time I write. (ref 83344)",
+  "answer": {
+   "type": "choice",
+   "choice": "shipping",
+   "confidence": 0.978307298066671,
+   "probabilities": {
+    "billing": 0.014461468539928213,
+    "shipping": 0.985538198711114,
+    "access": 3.3274895771429504e-07
+   },
+   "certified": false,
+   "certificate": "ticket-queue#c2e4cc6e431b",
+   "certified_reason": "below_threshold"
+  }
+ }
+]

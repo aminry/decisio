@@ -1,0 +1,5 @@
+ENGINE PROCESS None (--backend mlx runs in the server's process); multi-question sequential
+Fetching 9 files:   0%|          | 0/9 [00:00<?, ?it/s]Fetching 9 files: 100%|██████████| 9/9 [00:00<00:00, 4359.98it/s]
+ENGINE {"engine": "mlx", "base": "gemma-4-12b", "mlx": "0.32.3", "mlx_lm": "0.32.0", "device": "Device(gpu, 0)", "machine": "arm64", "model": "mlx-community/gemma-4-12B-it-6bit", "quantization": null, "tokenizer": "google/gemma-4-12B-it", "tokenizer_revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7", "tokenizer_json_sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f", "official_tokenizer": true, "final_logit_softcap": 30.0, "mode": "separate", "block_size": 1056, "pad_unit": null, "pad_where": null, "prefill_step": 2048, "prefix_cache": {"max_mb": 7400.0, "entries": 0, "mb": 0.0, "hits": 0, "misses": 0}, "adapters": [], "pad_policy": "none", "multi_question": "sequential"}
+HEAD ENGINE {"mode": "hidden (MLX engine, same forward as the letters)", "requests_per_question": 0}
+ENGINE PROBE {"ms": {"MLXLettersEngine": 41.0, "MLXHiddenReadout": 39.9}, "deadline_s": 5.0}

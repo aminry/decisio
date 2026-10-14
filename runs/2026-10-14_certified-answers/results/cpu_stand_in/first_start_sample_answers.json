@@ -1,0 +1,33 @@
+[
+ {
+  "ticket": "Good morning, when will my shipment leave the warehouse. This is the second time I write. (ref 40455)",
+  "answer": {
+   "type": "choice",
+   "choice": "shipping",
+   "confidence": 0.25722640762170074,
+   "probabilities": {
+    "billing": 0.30400191168097307,
+    "shipping": 0.5048176050811338,
+    "access": 0.1911804832378931
+   },
+   "certified": true,
+   "certificate": "ticket-queue#c43788927ea2"
+  }
+ },
+ {
+  "ticket": "Quick question: I forgot my password and the reset email never comes. Thanks. (ref 90161)",
+  "answer": {
+   "type": "choice",
+   "choice": "access",
+   "confidence": 0.06574377645848402,
+   "probabilities": {
+    "billing": 0.2542911946382852,
+    "shipping": 0.3685462877227254,
+    "access": 0.37716251763898934
+   },
+   "certified": false,
+   "certificate": "ticket-queue#c43788927ea2",
+   "certified_reason": "below_threshold"
+  }
+ }
+]

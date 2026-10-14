@@ -1,0 +1,97 @@
+{
+ "backend": "hf",
+ "model": "Qwen/Qwen3-0.6B-Base",
+ "base": null,
+ "alpha": 0.15,
+ "delta": 0.1,
+ "examples": 400,
+ "questions": 200,
+ "mixed": 0.0,
+ "decisio_commit": "93c5bc1c29b327e625566ef093d4ac231b5cdf9a",
+ "src_modified_since": false,
+ "certificate_of_the_first_start": {
+  "id": "ticket-queue#c43788927ea2",
+  "alpha": 0.15,
+  "delta": 0.1,
+  "n": 200,
+  "threshold": 0.4267520776959382,
+  "certified_share": 0.63,
+  "certified_n": 126,
+  "errors_at_threshold": 12,
+  "stack_sha256": "ee169576aeff22d61734f352d08881f14bf6f22ff0f8fee36b5ae6ad9151fb18"
+ },
+ "certified_share_of_the_questions": 0.655,
+ "errors_among_certified_questions": 6,
+ "accuracy_of_the_questions": 0.82,
+ "A_register_again_vs_the_first_start": [
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  }
+ ],
+ "B_import_the_first_export_vs_the_first_start": [
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  }
+ ],
+ "states_after_import": [
+  "ok",
+  "ok",
+  "ok"
+ ],
+ "seconds": {
+  "A": [
+   [
+    34.1,
+    75.5
+   ],
+   [
+    6.0,
+    65.8
+   ],
+   [
+    8.0,
+    68.6
+   ]
+  ],
+  "B": [
+   8.0,
+   8.0,
+   8.0
+  ]
+ },
+ "answers_sha256": "e78ab74985faedc87eaa13882b1db12abfbd5ef0866550fb4eef6f5e600bae89"
+}

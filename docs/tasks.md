@@ -186,6 +186,156 @@ These numbers use labelled examples, so they compare the registered server with 
   Calibration and questions without a task cost nothing extra.
 - **Second-engine mode** (`--head-engine`) answers head questions without the extra requests (82 ms on a question's first sight, as a plain question took on that run; 42 ms when the same question repeats) but holds a second copy of the model's weights, leaves no room for the image engine on the card, and its pairing with the default text-only class has not been timed yet (`docs/handoffs/tasks.md`).
 
+## Certified answers
+
+A calibrated probability says how sure the model is. It does not say how often the model is right when it is that sure, on your data.
+A certified answer does: it is an answer the server has checked against your own labels, at a confidence level where, on examples it set aside, it was almost always right.
+
+### What certified means
+
+When you register a task with a `certify` block, the server does four things:
+
+1. It **sets aside some of your labelled examples** (half by default) and fits the task's calibration and intent head on the rest. The held-out examples are never used to fit anything.
+2. It reads those held-out examples through the task as the server will serve them, and looks at how often the answer is wrong at each confidence level.
+3. It picks the **lowest confidence threshold** at which it can say, with a stated confidence, that the wrong answers above it are at most `alpha` of them.
+4. It stores the threshold, the numbers behind it and the split, and **from then on every answer for that task says `certified: true` or `certified: false`**: true when the answer's top probability is at or above the threshold, false otherwise, with the reason.
+
+The promise, in full: **with probability at least 1 - `delta` over the draw of your examples (90% by default), at most `alpha` of the answers marked certified are wrong (5% by default), for traffic like your held-out examples, read through the serving stack the certificate was made on.**
+Three things it is not.
+It is a rate over many answers: a single certified answer can still be wrong.
+It is not a statement about other traffic, another task or another server.
+And it is not free: the guarantee is paid for in the share of answers that get certified, and with too few examples that share is zero.
+
+If no threshold holds, the server says so plainly, `certificate.threshold` is `null`, and the task works exactly as before, with every answer marked `certified: false` and `certified_reason: "nothing_certified"`.
+
+### A worked example
+
+The run behind this example is `runs/2026-10-14_certified-answers/results/mac_mlx/`: the Gemma 4 12B (6-bit, MLX) on a Mac, on a three-queue ticket question (billing, shipping, access) with some tickets mentioning a second queue after the first (the label is the first), with 400 labelled tickets the script writes itself.
+Register the task and ask for a certificate at `alpha` 0.15 and `delta` 0.1:
+
+```json
+POST /v1/tasks
+{"id": "ticket-queue",
+ "examples": [{"request": <a /v1/systemone request with one ticket and the three queues>, "answer": "billing"}, ... 400 of them],
+ "certify": {"alpha": 0.15, "delta": 0.1}}
+```
+
+The server holds out half of the tickets, fits on the rest, reads the held-out ones as it would serve them, and answers with the certificate:
+
+```json
+{
+ "certificate": {
+  "id": "ticket-queue#c2e4cc6e431b",
+  "alpha": 0.15,
+  "delta": 0.1,
+  "n": 200,
+  "accuracy": 0.84,
+  "threshold": 0.9863,
+  "certified": true,
+  "certified_share": 0.845,
+  "certified_n": 169,
+  "errors_at_threshold": 17,
+  "split": {
+   "method": "holdout",
+   "holdout": 0.5,
+   "fit_examples": 200,
+   "certify_examples": 200,
+   "disjoint": true
+  },
+  "summary": "Answers whose top probability is at least 0.9863 are certified: on the 200 held-out examples that is 84% of the answers, 17 of 169 wrong. With probability at least 90% over the draw of such examples, at most 15% of the certified answers are wrong, for traffic like them and on this serving stack."
+ },
+ "status": {
+  "state": "ok",
+  "text": "ok"
+ }
+}
+```
+
+On those 200 held-out tickets the threshold 0.986 keeps 169 of them (84%) with 17 wrong.
+The promise is that, with probability at least 90%, at most 15% of the answers above the threshold are wrong.
+From then on each answer for the task says whether it is certified:
+
+```json
+[
+ {
+  "ticket": "Urgent: the refund has not reached my bank account. Can you check toda...",
+  "choice": "billing",
+  "top_probability": 1.0,
+  "certified": true,
+  "certificate": "ticket-queue#c2e4cc6e431b"
+ },
+ {
+  "ticket": "Hey, I need a copy of the invoice for my subscription. Also: the deliv...",
+  "choice": "shipping",
+  "top_probability": 0.9855,
+  "certified": false,
+  "certificate": "ticket-queue#c2e4cc6e431b",
+  "certified_reason": "below_threshold"
+ }
+]
+```
+
+The script then asked 200 further tickets (none of them among the 400): 169 of the answers were certified and 19 of those were wrong (11.2%); 31 were not certified.
+That is one draw of tickets, not a test of the promise: the promise is about a rate over many answers.
+
+
+### How many examples it takes
+
+The server refuses a certification, and registers nothing, below the fewest held-out examples at which the procedure could certify anything at all, which depends only on `alpha` and `delta`:
+
+| `alpha` | `delta` 0.1 (the default) | `delta` 0.05 |
+| ---: | ---: | ---: |
+| 0.02 | 149 | 183 |
+| 0.05 | 59 | 72 |
+| 0.1 | 29 | 36 |
+| 0.2 | 14 | 17 |
+
+That is the floor, for a task whose every answer is right. The number you need is larger, and depends on how accurate the model already is on your question and on how well its confidence tells its right answers from its wrong ones.
+The table below is decisio's own certification run on the recorded answers of the Gemma 4 31B on the 1,400-item suite, task by task, drawing the certification examples 1,000 times (`runs/2026-10-14_certified-answers/`; `delta` 0.1).
+"Promise broken" is the share of draws in which the threshold's true error among that task's items was above `alpha`; "no bound" is the most lenient threshold whose error on the examples themselves is at most `alpha`, which is what a certificate without the statistical bound would give:
+
+| Task (recorded 31B answers) | Items | Accuracy | Certification examples | `alpha` | Median share certified | Draws with nothing certified | Promise broken, with the bound | Promise broken, no bound |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| boolq | 150 | 0.887 | 75 | 0.05 | 0.00 | 100% | 0.0% | 47.0% |
+| boolq | 150 | 0.887 | 75 | 0.1 | 0.00 | 97% | 0.1% | 41.5% |
+| banking77 | 150 | 0.787 | 75 | 0.05 | 0.00 | 100% | 0.0% | 56.8% |
+| banking77 | 150 | 0.787 | 75 | 0.1 | 0.00 | 100% | 0.0% | 48.8% |
+| toxicchat | 150 | 0.973 | 75 | 0.05 | 0.00 | 94% | 0.0% | 0.0% |
+| toxicchat | 150 | 0.973 | 75 | 0.1 | 0.99 | 26% | 0.0% | 0.0% |
+| mmlu | 150 | 0.887 | 75 | 0.05 | 0.00 | 100% | 0.0% | 36.3% |
+| mmlu | 150 | 0.887 | 75 | 0.1 | 0.00 | 97% | 0.0% | 35.1% |
+| mmlu_pro_text_x350 | 350 | 0.700 | 75 | 0.05 | 0.00 | 100% | 0.0% | 78.8% |
+| mmlu_pro_text_x350 | 350 | 0.700 | 75 | 0.1 | 0.00 | 100% | 0.0% | 59.0% |
+| mmlu_pro_text_x350 | 350 | 0.700 | 175 | 0.05 | 0.00 | 100% | 0.0% | 69.0% |
+| mmlu_pro_text_x350 | 350 | 0.700 | 175 | 0.1 | 0.00 | 98% | 0.8% | 49.4% |
+
+Read it as a warning about small example sets.
+With 75 examples the bounded procedure certified nothing on four of the five tasks at `alpha` 0.05 or 0.1, and on ToxicChat (answered 97% right) it certified nearly everything at 0.1 in three draws out of four, and nothing at 0.05 in 94% of the draws.
+The rule without the bound would have certified more and broken its promise on 35 to 79% of the draws on every task but ToxicChat; the bounded procedure broke it at most once in a hundred draws, well inside `delta`.
+With 175 examples the task answered 70% right still certified nothing at either `alpha`.
+How many examples your task needs depends on how accurate the model is on it and on how well its confidence tells its right answers from its wrong ones; the stored `certified_share` tells you what yours gave, and more examples certify more.
+Set `certify.min_examples` above the floor if you want the server to refuse a certification that thin.
+
+### Where it stops
+
+- **Per task.** The certificate belongs to one task, its option list and its question. A threshold from one task means nothing on another.
+- **Per serving stack.** The server stores a fingerprint of the stack it certified on: the decisio version, the base and checkpoint revision, the engine and its version, the card, the quantisation, the attention backend, a hash of the token rows the server builds for a fixed probe question (the tokenizer, chat template and rendering), the temperatures, the serving flags (orders, multi-question mode, padding, `--noul-commit`) and the task's own fit. **If any of it differs when an answer is served, every answer of the task is `certified: false` with the reason `serving_stack_changed`, and the task's status reads `suspended: serving stack changed`**, listing what differs. The calibration still applies; only the certification stops.
+  Re-certify with an explicit call, `POST /v1/tasks/{id}/certify`, on new labelled examples that share no input with the fit.
+  The server cannot know whether a changed stack kept the promise: a new version may leave a certificate as good as it was, and the only way to know is labels.
+- **Same stack is not always the same answers.** A fingerprint cannot see the hardware's own variation. Two fresh servers on the same stack can give slightly different probabilities, which moves answers near the threshold across it; the Gemma 4 12B in particular does not repeat from one fresh server to the next (`EVAL_CARD.md` section 6.5). The rate promise is about the examples as read through one server. `runs/2026-10-14_certified-answers/` has a restart check: on the CPU stand-in and on a Mac, a fresh process certifies the same threshold and marks every answer the same way; the 12B on a card has not been measured yet.
+- **Traffic like the examples.** The held-out examples must look like what the server will see: the same kind of text and the same mix of options. The monitor below says when the traffic moves away.
+- **What is certified.** Choice and yes/no questions, on text requests, in the single-order form the certificate was made on (a request that asks for two orders is not certified). Score questions are not certified: an ordinal answer has no single wrong answer. A question that matches no task, or an image request, carries no certification fields.
+
+### The monitor
+
+A certified task is watched by two checks that need no labels.
+
+- **The serving-stack fingerprint**, above: any change suspends the certificate. `GET /v1/tasks/{id}` shows the status and what changed.
+- **The answer mix.** The server counts, for each certified task, how often each option was chosen in the last 500 answers, as counts only (never the question, the state or the option names), and compares the mix with the certification examples' every 100 answers once the window is full. When the distance is above a line fixed at certification, the task's status reads `traffic_changed`. This says the traffic is no longer like the examples (a new channel, more out-of-scope messages, a launch); **it does not suspend the certificate or change any answer**, because a moved traffic mix does not by itself break the promise. It is a reason to collect new labels and certify again.
+  The state is in `GET /v1/tasks` and `GET /v1/tasks/{id}` (`status`) and in `GET /metrics`, Prometheus text: `decisio_task_state{task,state}`, answers and certified answers, `decisio_task_mix_distance` and `decisio_task_mix_line`. The counters are in memory and start again with the server.
+
+The monitor cannot see a wrong answer, because it has no labels. The only direct check that the promise holds on live traffic is to label some of it and certify again.
+
 ## Limits
 
 - **Option list identity.** A task is found by its question's type and its options, keys and descriptions, in order (plus the instructions for yes/no and score questions). Renaming, adding, removing or reordering an option makes a different task, which needs its own registration.
