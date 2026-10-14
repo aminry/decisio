@@ -47,6 +47,12 @@ Images: up to 2 per request, PNG, JPEG or WebP, up to 20 MB each.
 They can be sent as data URLs in `images`, as `data:image/...` URIs anywhere inside the state, or as a `multipart/form-data` request whose `request` field holds the JSON body and whose `image`, `images` or `image[]` fields hold the files.
 A request with images is served by the image engine; the text route is unchanged.
 
+What an image costs and where it is cut down (the image route runs on the Qwen base, `--image-model Qwen/Qwen3.6-35B-A3B-FP8`; the numbers are that model's processor settings and `smart_resize` from the pinned transformers, computed on 2026-10-14):
+- An image over 20 MiB, or over 20 megapixels (width times height), or in another format, is refused with 422 (`bad image: ...`) before it is read; a third image is refused with 422 as well.
+- The processor then resizes the image, keeping its proportions and rounding both sides to multiples of 32, so that it has between 65,536 pixels (256 by 256) and 16,777,216 (4,096 by 4,096). An image of 200 by 200 is read as 256 by 256; one of 4,000 by 6,000 as 3,328 by 4,992.
+- Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224).
+- The Ollama listings are not this route. `ollama show` (2026-10-14) lists the Qwen listing `aminroudaki/decisio` with the capabilities `decision` and `vision`, and the Gemma listing `aminroudaki/decisio-gemma` (every tag) with `decision` only. Whether the Qwen listing's image answers match this route's was not measured.
+
 Request headers:
 - `x-decisio-route: text` or `image` chooses the route explicitly.
 - `x-decisio-debug: readout` or `hidden` adds the raw readout to the response, on a server started with `--debug-readout` only (verification, never production).
@@ -86,6 +92,28 @@ Response headers:
 ## `GET /v1/models`
 
 The served model in System One's format; the name is the base's served name unless `--served-name` sets another.
+
+## What one request can hold
+
+Decisio sets no limit of its own on the size of a request body, on the number of questions in one request, or on the number of concurrent connections; uvicorn's defaults apply (no body limit, a backlog of 2,048). What bounds a request:
+- **The context.** The state with one question, as rendered, can hold up to 32,768 tokens; over it the answer is 422 (above).
+- **Options per question.** A choice has up to 255 options (the wire format's cap); more is refused with 400 and the detail `letter readout supports 1 to 255 options, got N` (checked on the stand-in with 256).
+- **Questions per request.** No cap: a request with no questions is 422, and any other number is answered. Each question costs its own time: with the default `--multi-question sequential` about 20 ms per further question on a cached state (`EVAL_CARD.md` section 4); with `--multi-question warm` the questions are scored in one batch, 5.4 ms per question at 100 questions and 2.7 ms at 1,000 on an 8,000-token state on the Qwen base (`EVAL_CARD.md` section 3, `runs/2026-09-30_plugin-verification/bench_patched_on.json`; the Gemma 31B's default is `warm`). The response and the batch grow with the question count, so for thousands of questions send several requests about the same state: the second and later read the state from the prefix cache.
+- **Concurrency.** The server runs one engine and its calls are serialized by a lock, so concurrent requests queue behind it and are answered in turn; there is no queue limit. It was measured with 32 and 64 concurrent clients sending first and follow-up questions about new 1,000-token states (`docs/running.md`, "A later question about the same state"); `x-decisio-stages` reports each request's wait (`wait=`), and `x-decisio-wait-behind: registration` says when it waited behind a background boundary registration.
+
+## Calling the server from a browser
+
+The server sets no CORS headers and has no authentication on any route.
+A page on another origin therefore cannot read its answers: a request with a JSON body triggers the browser's preflight `OPTIONS`, which the server answers with 405 (`allow: POST`), so the browser never sends the `POST`. Checked on the CPU stand-in on 2026-10-14 with `curl -X OPTIONS -H 'Origin: http://example.com' -H 'Access-Control-Request-Method: POST'`: `405 Method Not Allowed`, no `access-control-*` header.
+A `POST` that needs no preflight (a `text/plain` body, which the server parses as JSON all the same) is answered with 200, with no `access-control-allow-origin` header: **the page cannot read the answer, but the server did the work.** Do not expose the port to browsers, and do not rely on CORS to protect it.
+To call it from a web page, call it from your own backend, or put a reverse proxy in front that authenticates the caller and adds the CORS headers your page needs (`Access-Control-Allow-Origin`, `Access-Control-Allow-Headers: content-type`, and an answer to `OPTIONS`).
+
+## What to watch
+
+- **`GET /health`.** The HTTP status is the contract: 200 while the server is serving, 503 with `{"ok": false, "engine": "dead", ...}` from the moment the engine is declared dead. Alert on anything but 200. The other fields describe the running server (listed below) and can gain fields between releases; read them for what is being served, not as an alert signal.
+- **The process exit code.** 70 means the engine died and the server ended itself; a restart policy acts on the exit (`docs/running.md`, "When the engine dies"; `docs/operating.md`).
+- **Per request**, in the response headers: `x-decisio-server-ms` (the server's time), `x-decisio-stages` (`prepare`, `warm`, `engine`, `wait`) and `x-decisio-wait-behind` when the request waited behind a registration. A `wait` that grows is requests queueing behind the engine.
+- **No metrics endpoint, and no structured log.** The server does not expose Prometheus metrics for the engine, and its output is the plain text of its start-up lines and uvicorn's warnings. Take latency and queueing from the headers above, in your client or your proxy's log.
 
 ## Tasks
 

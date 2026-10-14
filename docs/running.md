@@ -195,6 +195,7 @@ uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-
 ```
 
 - `uv run pytest` runs the unit tests on any machine; the GPU tests (`pytest -m gpu`) need a card, and run by hand until a nightly GPU runner is registered.
+- Time to a first answer: measured on Apple silicon on 2026-10-14, the stand-in's process takes 4 to 8 seconds from start to `/health` answering with `Qwen/Qwen3-0.6B-Base` already in the Hugging Face cache, and a first question about 0.3 seconds on top. The download of that model (about 1.2 GB, once) and `uv sync` were not timed, and no time to a first answer is recorded for the Ollama path.
 - `--backend hf` serves every route from a small Hugging Face model on the CPU, for developing and testing the routes; it is not the measured system and its answers are not for measurement.
 - CI runs the stand-in on `Qwen/Qwen3-0.6B-Base` at a pinned revision (`STAND_IN_REVISION` in `.github/workflows/ci.yml`).
 - `examples/tasks/` walks through task registration against it.

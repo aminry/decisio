@@ -68,6 +68,7 @@ n/m is not measured.
 Latency is server time on decisio 0.8.1's served defaults, at a 585 W power limit (default 600 W), so a card at 600 W may read new states faster (`runs/2026-10-06_latency-585w/`, `docs/running.md`).
 
 [`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every benchmark (the board's figures and their date are in `EVAL_CARD.md` section 8.1).
+ECE, the expected calibration error, is the average gap between the stated probability and how often the answer was right, over 10 equal-width bins of the probability (JevBench's own measure; the card's other ECEs use 10 equal-mass bins and say so, `EVAL_CARD.md` section 3).
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables and what was fitted on what.
 
