@@ -44,7 +44,9 @@ def test_n1_folded_form_equals_the_fitted_head(fitted):
     fn, _ = fit_linear(H, logp, y, len(opts), offset=True, seed=0)
     Ht, lpt, _, _ = data(seed=1)
     got = np.array([apply_intent_head(lpt[i], Ht[i], rec, opts) for i in range(len(Ht))])
-    assert np.abs(got - softmax(fn(Ht, lpt))).max() < 1e-4  # float32 storage of A and c
+    assert (
+        np.abs(got - softmax(fn(Ht, lpt) / rec["temperature"])).max() < 1e-4
+    )  # float32 storage of A and c, served at T
 
 
 def test_n2_another_option_list_serves_the_plain_readout(fitted):

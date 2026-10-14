@@ -20,7 +20,7 @@ The server scores every example exactly as it would serve it and fits, with the 
 
 - **Calibration** (`decisio.readout.calibration`): one bias per option, kept only if 5-fold cross-validation on the examples shows a clear gain; otherwise the task stores it as off and serves exactly as before.
   At least 10 examples; about 20 recommended.
-- **The intent head** (`decisio.readout.intent_head`): a linear correction from the hidden state at the answer position, for questions of at least 10 options with at least 5 examples of every option; the L2 penalty is cross-validated on the examples, and "no head" is one of the candidates.
+- **The intent head** (`decisio.readout.intent_head`): a linear correction from the hidden state at the answer position, for questions of at least 10 options with at least 5 examples of every option; the L2 penalty is cross-validated on the examples, and "no head" is one of the candidates. A kept head carries a temperature T (`head.temperature`, with `head.temperature_cv`: out-of-fold log loss and ECE without and with it) and is served as `softmax(logits / T)`; T is fitted on the head's out-of-fold logits (five folds, each refitted at the chosen penalty), searched on log T within 0.2 to 20, and never on held-out examples. A record without a temperature serves as T = 1, so tasks stored before this load and answer as they did; the fit digest a certificate names includes T, so a certificate made on a head without one is not carried over to a head with one.
   Where a head applies, calibration is not stacked on it.
   The head is bound to its option order and is refused with two-order averaging.
 

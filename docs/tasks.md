@@ -106,6 +106,7 @@ The response has one record per correction, `calibration` and `head`, each with:
 - **The cross-validation evidence**: the server split your examples into five parts and scored each part with a correction fitted on the other four.
   - For calibration: `cv_logloss_plain` and `cv_logloss_fitted` (lower is better), `cv_acc_plain` and `cv_acc_fitted`, and `cv_t`, the test statistic of the change in log loss (negative means the correction lowered it). Calibration is kept only if log loss falls by at least 0.005 per example, `cv_t` is at most -1.645 (a one-sided 95% test), and accuracy does not fall.
   - For the head: `cv_logloss`, the cross-validated log loss for each penalty strength tried and for no head (`"none"`); the head is kept with the best penalty (`lambda`) if that beats no head.
+  - For a kept head, its **temperature**: `temperature`, and `temperature_cv`, the head's log loss (`log_loss`) and expected calibration error (`ece`, ten bins of equal size on the top probability) on the same out-of-fold examples, `without` the temperature and `with` it, and `n`, how many examples they cover. The head fits its examples tightly and is more confident than it is right; the temperature divides its scores before the softmax to correct that. It is fitted on the examples the head did not see (each of the five folds refitted at the chosen penalty), never on held-out examples. It does not change which option is the top one, so accuracy is the same; it changes the probabilities, and so which answers clear a certified threshold. A temperature near 1 says the head was already calibrated; above 1, it was too sure.
 
 Where the head is kept, calibration is not stacked on top of it: the head already includes what calibration would correct.
 
@@ -196,7 +197,7 @@ A certified answer does: it is an answer the server has checked against your own
 When you register a task with a `certify` block, the server does four things:
 
 1. It **sets aside some of your labelled examples** (half by default) and fits the task's calibration and intent head on the rest. The held-out examples are never used to fit anything.
-2. It reads those held-out examples through the task as the server will serve them, and looks at how often the answer is wrong at each confidence level.
+2. It reads those held-out examples through the task as the server will serve them (with the head's temperature, which is fitted first, on the fit part), and looks at how often the answer is wrong at each confidence level.
 3. It picks the **lowest confidence threshold** at which it can say, with a stated confidence, that the wrong answers above it are at most `alpha` of them.
 4. It stores the threshold, the numbers behind it and the split, and **from then on every answer for that task says `certified: true` or `certified: false`**: true when the answer's top probability is at or above the threshold, false otherwise, with the reason.
 

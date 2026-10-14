@@ -13,6 +13,13 @@ is chosen by 5-fold stratified cross-validated log loss on the customer's own ex
 if "no head" wins, the task stores the head as off and serves exactly as the letter readout. For serving the head
 folds into one d x K matrix and a K-vector: logits = letter log-scores + h @ A + c.
 
+The head is served as softmax(logits / T), with one temperature T per task. The head fits its examples tightly and
+keeps the scale of the letter log-scores, which are overconfident by the factor the served global temperature removes
+from the untaught readout, so without T it is more confident than it is right (on the 31B, ECE 0.12 to 0.19 against
+0.046 for the untaught readout). T is fitted on the head's out-of-fold logits, the five folds of the penalty's
+cross-validation, each fold refitted at the chosen penalty: it never sees an example the head was fitted on, nor any
+held-out evidence. The arg-max does not change. A record without a temperature serves as T = 1.
+
 The head is bound to the option list it was fitted on, in that order: it learns which answer slot to trust, so a
 reordered, extended or shortened list needs a re-fit (under reordered options the head fell below the plain
 readout). For the same reason it is not combined with cyclic-shift averaging.
@@ -59,6 +66,40 @@ def _fit_linear(Z, base, y, K, lam, w0=None):
 
 LAMS = [100.0, 10.0, 1.0, 1e-1, 1e-2, 1e-3, 1e-4]  # strongest first: each fit warm-starts the next
 MAX_DIMS = 512
+T_RANGE = (0.2, 20.0)  # the head's temperature is searched within this range, on log T
+
+
+def _log_loss(S, y):
+    """Mean negative log-likelihood of the gold option under softmax(S), row by row."""
+    S = S - S.max(1, keepdims=True)
+    return float(np.mean(np.log(np.exp(S).sum(1)) - S[np.arange(len(y)), y]))
+
+
+def _ece(S, y, bins=10):
+    """Expected calibration error of softmax(S)'s top probability: `bins` bins of equal item count
+    (decisio.bench.di_cal.ece_equal_mass)."""
+    S = S - S.max(1, keepdims=True)
+    P = np.exp(S) / np.exp(S).sum(1, keepdims=True)
+    conf, ok = P.max(1), (P.argmax(1) == y).astype(float)
+    e = 0.0
+    for chunk in np.array_split(np.argsort(conf), bins):
+        if len(chunk):
+            e += len(chunk) / len(conf) * abs(ok[chunk].mean() - conf[chunk].mean())
+    return float(e)
+
+
+def fit_temperature(S, y):
+    """The T in T_RANGE that minimises the log loss of softmax(S / T) on the rows S (n x K) with gold options y."""
+    from scipy.optimize import minimize_scalar
+
+    S = np.asarray(S, dtype=np.float64)
+    r = minimize_scalar(
+        lambda u: _log_loss(S / np.exp(u), y),
+        bounds=(np.log(T_RANGE[0]), np.log(T_RANGE[1])),
+        method="bounded",
+        options={"xatol": 1e-6},
+    )
+    return float(np.exp(r.x))
 
 
 def _features(H):
@@ -99,6 +140,10 @@ def fit_linear(H, base, y, K, offset, seed=0):
         return float(np.mean(np.log(np.exp(s - s.max(1, keepdims=True)).sum(1)) + s.max(1) - s[np.arange(len(yy)), yy]))
 
     cv = {"none": [], **{lam: [] for lam in LAMS}}
+    oof = (
+        {lam: np.zeros((len(y), K)) for lam in LAMS} if offset else {}
+    )  # each example's score from the folds that did not see it
+    seen = np.zeros(len(y), bool)
     for k in range(5):
         tr, te = folds != k, folds == k
         if not te.any():
@@ -108,11 +153,15 @@ def fit_linear(H, base, y, K, offset, seed=0):
         off_tr = base[tr] if offset else np.zeros((tr.sum(), K))
         off_te = base[te] if offset else np.zeros((te.sum(), K))
         cv["none"].append(ll(base[te], y[te]) * te.sum())
+        seen |= te
         w = None
         for lam in LAMS:
             w = _fit_linear(Ztr, off_tr, y[tr], K, lam, w)
             m = Ztr.shape[1]
-            cv[lam].append(ll(off_te + Zte @ w[: K * m].reshape(K, m).T + w[K * m :], y[te]) * te.sum())
+            s_te = off_te + Zte @ w[: K * m].reshape(K, m).T + w[K * m :]
+            cv[lam].append(ll(s_te, y[te]) * te.sum())
+            if offset:
+                oof[lam][te] = s_te
     scores = {k: float(np.sum(v) / len(y)) for k, v in cv.items()}
     best = min(scores, key=lambda k: scores[k])
     if best == "none":
@@ -128,6 +177,8 @@ def fit_linear(H, base, y, K, offset, seed=0):
         "lambda": best,
         "cv": scores,
         "params": (feat.params, W, b),
+        "oof": oof[best][seen] if offset else None,  # the chosen penalty's out-of-fold scores
+        "oof_y": y[seen],
     }
 
 
@@ -167,6 +218,14 @@ def fit_intent_head(logps, H, labels, options, fingerprint="", task_id="", seed=
     if meta["lambda"] is None:
         return {**rec, "reason": "cross-validation on the labelled examples prefers the plain readout"}
     (mu, sd, V), W, b = meta["params"]
+    S, yo = meta["oof"], meta["oof_y"]
+    T = fit_temperature(S, yo)
+    rec["temperature"] = round(T, 6)
+    rec["temperature_cv"] = {  # the head on its out-of-fold examples, as served (with T) and without T
+        "n": int(len(yo)),
+        "log_loss": {"without": round(_log_loss(S, yo), 5), "with": round(_log_loss(S / T, yo), 5)},
+        "ece": {"without": round(_ece(S, yo), 5), "with": round(_ece(S / T, yo), 5)},
+    }
     VW = V @ W.T  # d x K
     A = VW / sd[:, None]
     c = b - (mu / sd) @ VW
@@ -182,10 +241,12 @@ def fit_intent_head(logps, H, labels, options, fingerprint="", task_id="", seed=
 
 def apply_intent_head(logp, h, rec, options):
     """Serving: probabilities over the options for one question, from the K letter log-scores (option order) and h.
-    Falls back to the plain readout when the head is off or was fitted on a different option list."""
+    Falls back to the plain readout when the head is off or was fitted on a different option list. The head's logits
+    are divided by the record's temperature; a record without one serves as before (T = 1)."""
     logp = np.asarray(logp, dtype=np.float64)
     s = logp
     if rec and rec.get("applied") and rec["options_sha256"] == options_digest(options) and len(logp) == rec["K"]:
         s = logp + np.asarray(h, dtype=np.float64) @ rec["A"].astype(np.float64) + rec["c"].astype(np.float64)
+        s = s / float(rec.get("temperature") or 1.0)
     s = s - s.max()
     return np.exp(s) / np.exp(s).sum()
