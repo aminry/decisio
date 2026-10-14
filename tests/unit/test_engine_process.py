@@ -139,6 +139,12 @@ def test_e3_start_up_refuses_before_any_engine_is_built(monkeypatch, argv, reaso
             "ENGINE PROCESS separate (--engine-process separate); multi-question sequential",
         ),
         (["--base", "gemma-4-31b", "--multi-question", "sequential"], "0", "multi-question sequential"),
+        (["--base", "gemma-4-12b", "--multi-question", "warm"], "0", "multi-question warm"),
+        (
+            ["--base", "gemma-4-12b", "--multi-question", "warm", "--engine-process", "separate"],
+            None,
+            "ENGINE PROCESS separate (--engine-process separate); multi-question warm",
+        ),
         (
             ["--base", "qwen3.6-35b-a3b", "--head-engine"],
             None,
@@ -160,3 +166,8 @@ def test_e4_multi_question_default_follows_the_profile_and_the_arrangement():
     assert resolve_multi_question(g31, "batch", "in") == "batch"
     for fam in (g12, qwen, None):
         assert resolve_multi_question(fam, None, "in") == "sequential"
+    # the 12B takes warm when it is asked for, in either arrangement, and on MLX never (its engine continues each
+    # question from a copy of the shared prefix)
+    assert resolve_multi_question(g12, "warm", "in") == "warm"
+    assert resolve_multi_question(g12, "warm", "separate") == "warm"
+    assert resolve_multi_question(g12, "warm", None, backend="mlx") == "sequential"
