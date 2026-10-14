@@ -104,9 +104,13 @@ Decisio sets no limit of its own on the size of a request body, on the number of
 ## Calling the server from a browser
 
 The server sets no CORS headers and has no authentication on any route.
-A page on another origin therefore cannot read its answers: a request with a JSON body triggers the browser's preflight `OPTIONS`, which the server answers with 405 (`allow: POST`), so the browser never sends the `POST`. Checked on the CPU stand-in on 2026-10-14 with `curl -X OPTIONS -H 'Origin: http://example.com' -H 'Access-Control-Request-Method: POST'`: `405 Method Not Allowed`, no `access-control-*` header.
-A `POST` that needs no preflight (a `text/plain` body, which the server parses as JSON all the same) is answered with 200, with no `access-control-allow-origin` header: **the page cannot read the answer, but the server did the work.** Do not expose the port to browsers, and do not rely on CORS to protect it.
+A page on another origin therefore cannot read its answers, and cannot make it do work either:
+- A request with a JSON body makes the browser send a preflight `OPTIONS` first; the server answers 405 (`allow: POST`), so the browser never sends the `POST`. Checked on the CPU stand-in on 2026-10-14 with `curl -X OPTIONS -H 'Origin: http://example.com' -H 'Access-Control-Request-Method: POST'`: `405 Method Not Allowed`, no `access-control-*` header.
+- A request a browser sends **without** a preflight (a "simple" one: `text/plain`, `application/x-www-form-urlencoded` or `multipart/form-data`) is refused with `415` and `accept-post: application/json` before its body is read, on every route, from 0.12.0 (`SECURITY.md`, "Cross-site requests from a web page"). **Before 0.12.0 such a POST was carried out:** a `text/plain` POST to `/v1/systemone` was answered 200 on 0.11.1 (checked on the stand-in the same day), the page could not read the answer, but the server did the work, and a page could register or replace tasks. The one exception is a server started with `--allow-multipart` (imajev's image clients), where `multipart/form-data` on `/v1/systemone` is carried out again.
+
+Do not expose the port to browsers, and do not rely on CORS to protect it.
 To call it from a web page, call it from your own backend, or put a reverse proxy in front that authenticates the caller and adds the CORS headers your page needs (`Access-Control-Allow-Origin`, `Access-Control-Allow-Headers: content-type`, and an answer to `OPTIONS`).
+A client of this server sends `Content-Type: application/json`; every client the integration checks cover does (`docs/integrations.md`).
 
 ## What to watch
 
