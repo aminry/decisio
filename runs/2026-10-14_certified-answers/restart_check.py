@@ -224,6 +224,31 @@ def commit_of_this_checkout():
         return {}
 
 
+NOISE = (
+    0.06  # the largest start-to-start difference measured on the 12B (S10: 0.060): a flag that moves by less is noise
+)
+
+
+def diff(x, y):
+    """What two starts say differently: the certificate's facts, and for every question the choice, the top probability
+    and whether the answer was certified. A certified flag that moves on a question whose top probability moved by no
+    more than NOISE is reported apart (`flag_flips_within_noise`) from one that moved by more
+    (`flag_flips_beyond_noise`)."""
+    pairs = list(zip(x["answers"], y["answers"]))
+    flips = [(p, q) for p, q in pairs if p["certified"] != q["certified"]]
+    return {
+        "certified_flags_that_differ": len(flips),
+        "flag_flips_within_noise": sum(abs(p["top"] - q["top"]) <= NOISE for p, q in flips),
+        "flag_flips_beyond_noise": sum(abs(p["top"] - q["top"]) > NOISE for p, q in flips),
+        "choices_that_differ": sum(p["choice"] != q["choice"] for p, q in pairs),
+        "certified_choices_that_differ": sum(p["certified"] and p["choice"] != q["choice"] for p, q in pairs),
+        "largest_top_probability_difference": max(abs(p["top"] - q["top"]) for p, q in pairs),
+        "threshold_equal": x["certificate"]["threshold"] == y["certificate"]["threshold"],
+        "certificate_id_equal": x["certificate"]["id"] == y["certificate"]["id"],
+        "stack_digest_equal": x["certificate"]["stack_sha256"] == y["certificate"]["stack_sha256"],
+    }
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--backend", required=True)
@@ -301,20 +326,6 @@ def main():
         finally:
             stop(proc)
     ref = runs["A"][0]
-
-    def diff(x, y):
-        return {
-            "certified_flags_that_differ": sum(
-                p["certified"] != q["certified"] for p, q in zip(x["answers"], y["answers"])
-            ),
-            "choices_that_differ": sum(p["choice"] != q["choice"] for p, q in zip(x["answers"], y["answers"])),
-            "largest_top_probability_difference": max(
-                abs(p["top"] - q["top"]) for p, q in zip(x["answers"], y["answers"])
-            ),
-            "threshold_equal": x["certificate"]["threshold"] == y["certificate"]["threshold"],
-            "certificate_id_equal": x["certificate"]["id"] == y["certificate"]["id"],
-            "stack_digest_equal": x["certificate"]["stack_sha256"] == y["certificate"]["stack_sha256"],
-        }
 
     result = {
         "backend": a.backend,
