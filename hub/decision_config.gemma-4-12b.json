@@ -65,7 +65,7 @@
   "serving": {
     "served_name": "decisio-gemma-4-12b-it-letters",
     "pad_to": "none",
-    "multi_question": "sequential",
+    "multi_question": "warm",
     "register_state_boundary": true,
     "register_boundary": "before"
   },
