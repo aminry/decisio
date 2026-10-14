@@ -200,6 +200,9 @@ class MLXLettersEngine(LettersEngine):
         prefill_step=PREFILL_STEP,
         prefix_cache_mb=PREFIX_CACHE_MB,
         warm_up=True,
+        memory_limit_gb=None,
+        cache_limit_gb=None,
+        prefix_cache_explicit=False,
     ):
         import mlx.core as mx
         from mlx_lm import load
@@ -217,7 +220,20 @@ class MLXLettersEngine(LettersEngine):
             self.tokenizer_name, self.tokenizer_revision = self.family.model, self.family.revision
         else:
             self.tokenizer_name, self.tokenizer_revision = split_revision(tokenizer)
-        self.model, _ = load(str(model))  # its own tokenizer is not used (see the module docstring)
+        # MLX's memory and cache limits, set before the model is loaded (decisio.serve.mlx_memory); the conversion is
+        # fetched first, as `load` would, so that its size is known
+        from mlx_lm.utils import _download
+
+        from decisio.serve import mlx_memory
+
+        model_dir = _download(str(model))
+        self.memory = mlx_memory.setup(
+            mx, model_dir, self.family, prefix_cache_mb, prefix_cache_explicit, memory_limit_gb, cache_limit_gb
+        )
+        prefix_cache_mb = self.memory.prefix_cache_mb  # the budget that fits under the limit
+        print("MLX MEMORY", mlx_memory.describe(self.memory), flush=True)
+        self.model, _ = load(str(model_dir))  # its own tokenizer is not used (see the module docstring)
+        mlx_memory.check_after_load(self.memory, mlx_memory.physical_footprint_bytes())
         lm = getattr(self.model, "language_model", self.model)
         self._backbone = lm.model  # returns the final-norm hidden states
         self._head = lm.lm_head if hasattr(lm, "lm_head") else lm.model.embed_tokens.as_linear
@@ -349,6 +365,8 @@ class MLXLettersEngine(LettersEngine):
         from importlib.metadata import version
 
         mx = self._mx
+        from decisio.serve import mlx_memory
+
         config = Path(self.model_name) / "config.json"
         quant = None
         if config.exists():
@@ -376,6 +394,7 @@ class MLXLettersEngine(LettersEngine):
             "pad_where": self.pad_where if self.pad_unit else None,
             "prefill_step": self.prefill_step,
             "prefix_cache": self.prefix_cache.facts() if self.prefix_cache is not None else None,
+            "memory": mlx_memory.facts(mx, self.memory),
             "adapters": [],
         }
 

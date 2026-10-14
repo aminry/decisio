@@ -92,10 +92,15 @@ def run_or_die(main):
     import os
     import traceback
 
+    from decisio.serve.mlx_memory import MemoryRefused
+
     try:
         return main()
-    except BaseException:
-        traceback.print_exc()
+    except BaseException as e:
+        if isinstance(e, MemoryRefused):  # a refusal to start, with its numbers: no traceback to read through
+            print(f"decisio: {e}", file=sys.stderr)
+        else:
+            traceback.print_exc()
         sys.stdout.flush()
         sys.stderr.flush()
         # os._exit alone orphans vLLM's engine-core child with the GPU held (seen: 88 GB after a crash)
@@ -1284,6 +1289,22 @@ def main():
         "cache instead of prefilling it, with the same answers bit for bit",
     )
     ap.add_argument(
+        "--mlx-memory-limit-gb",
+        type=float,
+        default=None,
+        help="--backend mlx: MLX's memory limit in GiB. Default: what the base needs (its weights, its working set at "
+        "a 32k-token state, the cache limit, the prefix cache and 2 GiB of headroom), never above two thirds of the "
+        "machine's memory; 0 leaves MLX's own, about 80 percent of the memory, which a server that answers many "
+        "states grows into. The server refuses to start when the base does not fit (docs/running.md, 'Memory on a "
+        "Mac')",
+    )
+    ap.add_argument(
+        "--mlx-cache-limit-gb",
+        type=float,
+        default=None,
+        help="--backend mlx: MLX's cache limit in GiB, the freed buffers it keeps for reuse (default 2)",
+    )
+    ap.add_argument(
         "--tokenizer",
         default=None,
         help="--backend mlx: the tokenizer the prompts are built with, a directory, a repository or repo@revision "
@@ -1491,6 +1512,14 @@ def main():
         ap.error("--tokenizer is for --backend mlx (vLLM and the CPU stand-in use the model's own)")
     elif args.prefix_cache_mb is not None:
         ap.error("--prefix-cache-mb is for --backend mlx (vLLM has its own prefix cache)")
+    for flag, value in (
+        ("--mlx-memory-limit-gb", args.mlx_memory_limit_gb),
+        ("--mlx-cache-limit-gb", args.mlx_cache_limit_gb),
+    ):
+        if value is not None and args.backend != "mlx":
+            ap.error(f"{flag} is for --backend mlx")
+        if value is not None and value < 0:
+            ap.error(f"{flag} is a size in GiB, 0 or more")
     if args.mode == "packed" and not fmt.is_default():
         ap.error(
             "--mode packed reads the compact layout only: add --prompt-tail compact (and no --answer-slot or "
@@ -1554,6 +1583,9 @@ def main():
             tokenizer=args.tokenizer,
             family=args.family,
             prefix_cache_mb=args.family.mlx_prefix_cache_mb if args.prefix_cache_mb is None else args.prefix_cache_mb,
+            prefix_cache_explicit=args.prefix_cache_mb is not None,
+            memory_limit_gb=args.mlx_memory_limit_gb,
+            cache_limit_gb=args.mlx_cache_limit_gb,
             pad_to=None if args.pad_to == "none" else args.pad_to,
             pad_where=args.pad_where,
         )

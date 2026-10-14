@@ -98,6 +98,8 @@ Where the columns differ, the value is the base's.
 | Flag | Default | What it does |
 | --- | --- | --- |
 | `--prefix-cache-mb` | the base's: 2048 (Qwen and `gemma-4-31b`), 7400 (`gemma-4-12b`) | the cross-request prefix cache's budget in MiB (2^20 bytes); 0 turns it off |
+| `--mlx-memory-limit-gb` | what the base needs, at most two thirds of the Mac's memory | the MLX memory limit in GiB; 0 leaves MLX's own (about 80 percent of the memory); a base that does not fit is refused ([Memory on a Mac](running.md#memory-on-a-mac)) |
+| `--mlx-cache-limit-gb` | 2 | the MLX cache limit in GiB: freed buffers kept for reuse |
 | `--tokenizer` | `Qwen/Qwen3.6-35B-A3B-FP8` | the tokenizer the prompts are built with, so they are the vLLM path's byte for byte |
 
 ### Verification

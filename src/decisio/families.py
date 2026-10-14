@@ -88,6 +88,10 @@ class Family:
     # states; the figure is what stays under two thirds of a 32 GiB Mac's memory beside the base's peak at 32k tokens
     # (RLCD experiments/2026-10-06_ls_mlx_cache_budget)
     mlx_prefix_cache_mb: int = 2048
+    # --backend mlx: the base's peak memory above its weights at a 32k-token state, in GB (1e9 bytes), as measured
+    # (docs/running.md: Qwen 4-bit 19.5 -> 22.7 GB, Gemma 4 12B 9.7 -> 15.1, Gemma 4 31B 24.9 -> 33.7), rounded up;
+    # decisio.serve.mlx_memory sizes MLX's memory limit from it (0: the default, 6)
+    mlx_working_gb: float = 0
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -111,6 +115,7 @@ QWEN = Family(
     # not needed: the state is padded to end on the 1,056-token block, also the cache's hit unit, and a question is
     # shorter than a block, so the state's end is already the latest checkpoint of a request with one question
     register_state_boundary=False,
+    mlx_working_gb=4,
 )
 
 GEMMA4 = Family(
@@ -148,6 +153,7 @@ GEMMA4 = Family(
     # the default 2,048 MiB kept 5 states of 1,000 tokens (Qwen's 25); 7,400 MiB keeps 20 of 1,000, 10 of 3,000 and 7 of
     # 8,000: two thirds of a 32 GiB Mac (22.906 GB) less the 15.125 GB peak at 32k tokens leaves 7.781 GB = 7,421 MiB
     mlx_prefix_cache_mb=7400,
+    mlx_working_gb=6,
 )
 
 GEMMA4_31B = Family(
@@ -185,6 +191,7 @@ GEMMA4_31B = Family(
     # warm: four questions in one batch after the state's prefill, repeating exactly in-process; gated against
     # sequential (runs/2026-10-05_engine-death-gates: no choice changed, the largest probability difference 0.0073)
     multi_question="warm",
+    mlx_working_gb=9,
 )
 
 FAMILIES = (QWEN, GEMMA4, GEMMA4_31B)

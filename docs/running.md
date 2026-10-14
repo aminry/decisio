@@ -174,6 +174,44 @@ The Gemma 31B base (`--base gemma-4-31b`):
 
 `docs/design/mlx-backend.md` has the design, the gates of each conversion and the padding decision.
 
+### Memory on a Mac
+
+MLX keeps the buffers a computation has freed, up to a cache limit, and allows allocation up to a memory limit.
+Both default to about 80 percent of the Mac's memory (51.8 GiB on a 64 GB Mac).
+A server that answers many different states therefore grows toward that size, not toward the size of its weights: one Gemma 4 12B server reached about 50 GB on a 64 GB Mac, and with a second server froze the machine twice (RLCD `experiments/2026-10-14_lab3_games`).
+
+So the server sets both limits itself, before it loads the model, and prints the line `MLX MEMORY ...` at start-up with the figures.
+
+| Setting | Default | Flag |
+| --- | --- | --- |
+| MLX cache limit (freed buffers kept for reuse) | 2 GiB | `--mlx-cache-limit-gb` |
+| MLX memory limit | what the base needs, rounded up to whole GiB, never above two thirds of the Mac's memory; `0` leaves MLX's own | `--mlx-memory-limit-gb` |
+
+What the base needs is `weights + working set + prefix cache + cache limit + 2 GiB of headroom`.
+The weights are the size of the conversion's safetensors files.
+The working set is the base's measured peak above its weights at a 32k-token state (`mlx_working_gb` in `decisio/families.py`: 4 GB for the Qwen base, 6 GB for Gemma 4 12B, 9 GB for Gemma 4 31B, from the peaks listed above).
+Two thirds of the machine is the figure the 12B's prefix-cache budget was already sized against.
+The defaults on a 64 GB Mac: 26 GiB for the 12B (with its 7,400 MiB prefix cache) and 38 GiB for the 31B (with 2,048 MiB).
+On a 32 GB Mac the 12B gets 21.3 GiB and a prefix cache cut from 7,400 to 2,776 MiB, and says so in the start-up line; a base that does not fit is refused.
+
+**The server refuses to start, with the numbers, when the base cannot fit:**
+
+```text
+decisio: the gemma-4-12b base needs about 16.6 GiB under MLX (9.1 GiB of weights, a working set of 5.6 GiB at a 32k-token state, and the MLX cache limit of 2.0 GiB), which is more than the memory limit of 14.0 GiB (--mlx-memory-limit-gb 14). Raise the limit, lower --mlx-cache-limit-gb, or start a smaller base
+```
+
+- `weights + working set + cache limit` over the limit (the default's ceiling or the flag's) is refused, as above.
+- An explicit `--prefix-cache-mb` that does not fit under the limit is refused; a prefix cache left at the base's default is made smaller to fit.
+- After the model is loaded, a process whose physical footprint is already over the limit is refused.
+
+**`/health` reports the memory** under `memory` (bytes): the limits as set and where they came from, MLX's active, cache and peak memory, and the process's `physical_footprint_bytes` and `resident_bytes`.
+The footprint is macOS's `phys_footprint`, what Activity Monitor calls memory and what the kernel's memory-pressure decisions follow; the check after loading uses it too.
+Resident size leaves out part of MLX's Metal buffers: 10.7 GB resident against 14 GB of footprint for a 12B server.
+Watch the footprint, not the resident size.
+
+Run one model server on a Mac at a time.
+Two servers each stay under their own limit and can still add up to more than the machine has.
+
 ## Ollama
 
 ```bash

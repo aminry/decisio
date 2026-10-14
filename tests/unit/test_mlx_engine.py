@@ -234,6 +234,20 @@ def tiny_no_prefix_cache(tiny):
     return MLXLettersEngine(tiny.model_name, tokenizer=tiny.tokenizer_name, prefix_cache_mb=0)
 
 
+def test_memory_limits_are_set_before_the_load_and_reported(tiny):
+    # decisio.serve.mlx_memory: MLX's cache and memory limits are the plan's, and /health's figures are real
+    import mlx.core as mx
+
+    m = tiny.facts()["memory"]
+    assert mx.get_memory_limit() == m["memory_limit_bytes"] > 0 and m["cache_limit_bytes"] == 2 * 2**30
+    assert m["memory_limit_source"] == "default" and m["weights_bytes"] > 0
+    assert (
+        m["physical_footprint_bytes"] > 0
+        and m["mlx_active_bytes"] >= 0
+        and m["mlx_peak_bytes"] >= m["mlx_active_bytes"]
+    )
+
+
 def test_rows_are_the_served_rows(tiny):
     # the served row builder on the same tokenizer, with the served padding (front, to the 1,056-token block)
     assert tiny._prepare_separate(STATE, QUESTIONS) == _Tokonly(tiny.tok, 1056, "front")._prepare_separate(
