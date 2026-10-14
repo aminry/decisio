@@ -42,6 +42,12 @@ from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
 
+HOLDOUT_RULE = (
+    "examples with the same input go to the same side; groups are ordered by the sha256 of the task id and the input "
+    "and the first ones, up to the held-out share, certify; the fit sees the rest"
+)
+SUPPLIED_RULE = "the certification examples were supplied separately and share no input with the fit examples"
+
 
 # ---- wire schema (TypeSafe's SystemOneRequest and its questions) -----------------------------------------------------
 
@@ -583,6 +589,18 @@ class SystemOne:
             if self.noul_commit and q.type == "noul":
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
+            if t is not None and t.get("certificate") and q.type != "score":
+                answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p)))
+            elif t is None and not use_image and q.type != "score":
+                stale = self.stale_certified_task(q)
+                if stale is not None:  # fitted under another model or rendering: not applied, so not certified
+                    answers[name].update(
+                        {
+                            "certified": False,
+                            "certificate": stale["certificate"]["id"],
+                            "certified_reason": "serving_stack_changed",
+                        }
+                    )
             if imajev_ext:
                 answers[name].update(unknown_probability=0.0, abstained=False)
         if log and self.branch_log:
@@ -662,10 +680,35 @@ class SystemOne:
 
         return self.task_store.lookup(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
 
-    def register_readout_task(self, task_id: str, examples: list[tuple]):
-        """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks)."""
+    def stale_certified_task(self, q):
+        """A stored task of this question that has a certificate but is not applied because the store's fingerprint
+        (the model and rendering it was fitted under) is not this server's: its answers are plain, so not certified."""
+        store = self.task_store
+        if not self.tasks_enabled or store is None or not store.by_key:
+            return None
+        from decisio.serve.tasks import task_key
+
+        t = store.by_key.get(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
+        return t if t is not None and t.get("certificate") and store.lookup(t["key"]) is None else None
+
+    def register_readout_task(
+        self, task_id: str, examples: list[tuple], certify: dict | None = None, certify_examples=None
+    ):
+        """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
+        With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
+        `certify_examples` when given, else a deterministic share of `examples` (`certify["holdout"]`); the fit then
+        uses the rest only.
+        Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
+        from decisio.serve.tasks import task_key
+
+        full = [(q, s, g) for s, q, g in examples]
+        cert_ex, split = [], None
+        if certify is not None:
+            fit_ex, cert_ex, split = self.certification_split(task_id, full, certify, certify_examples)
+        else:
+            fit_ex = full
 
         def score(pairs):
             out = []
@@ -682,15 +725,20 @@ class SystemOne:
                 out.append(self.hidden_engine.readout(state, [eq])[0])
             return out
 
-        from decisio.serve.tasks import task_key
-
-        return self.task_store.register(
+        result = self.task_store.register(
             task_id,
-            [(q, s, g) for s, q, g in examples],
+            fit_ex,
             score,
             hidden if self.hidden_engine is not None else None,
             key_fn=lambda q: task_key(q, render_text, self.described(q), self.noul_rendered(q)),
+            **({"commit": False} if certify is not None else {}),
         )
+        if certify is None:
+            return result
+        task, fitted = result
+        self.attach_certificate(task, cert_ex, certify, split)  # certified: stored only once the certificate is made
+        self.task_store.put(task)
+        return task, fitted
 
     def with_readout_task(self, state, q, eq, p):
         """A text-route question's order-1 distribution as served: its registered task's head or calibration applied to
@@ -709,6 +757,344 @@ class SystemOne:
 
             return apply_task_prior(log_probs(p), t["calibration"])
         return apply_temperature(p, self.temperature_of(q.type))
+
+    # ---- certified answers and their monitor (decisio.readout.certify, decisio.serve.monitor, decisio.serve.stack) --
+
+    @staticmethod
+    def certify_settings(spec: dict | None) -> dict:
+        """The settings of a certification, from the request's `certify` block: alpha (the most wrong answers
+        tolerated among the certified ones, default 0.05), delta (the chance allowed that the promise fails, default
+        0.1), min_examples (at least this many held-out examples, never fewer than the procedure needs at all) and
+        holdout (the share of `examples` held out when no separate list is given, default 0.5)."""
+        from decisio.readout import certify
+
+        spec = dict(spec or {})
+        unknown = sorted(set(spec) - {"alpha", "delta", "min_examples", "holdout", "examples"})
+        if unknown:
+            raise ValueError(
+                f"certify: unknown settings {unknown}; the settings are alpha, delta, min_examples, holdout, examples"
+            )
+        try:
+            alpha, delta = float(spec.get("alpha", 0.05)), float(spec.get("delta", 0.1))
+            holdout = float(spec.get("holdout", 0.5))
+            asked = int(spec.get("min_examples") or 0)
+        except (TypeError, ValueError) as e:
+            raise ValueError(f"certify: {e}")
+        if not 0 < alpha < 1 or not 0 < delta < 1:
+            raise ValueError("certify: alpha and delta are fractions between 0 and 1 (defaults 0.05 and 0.1)")
+        if not 0 < holdout < 1:
+            raise ValueError("certify: holdout is a fraction between 0 and 1 (default 0.5)")
+        floor = certify.minimum_examples(alpha, delta)
+        return {
+            "alpha": alpha,
+            "delta": delta,
+            "holdout": holdout,
+            "min_examples": max(asked, floor),
+            "floor": floor,
+            "asked": asked,
+        }
+
+    def certification_split(self, task_id, examples, settings, certify_examples):
+        """(fit examples, certification examples, the split's evidence); refuses a certification that cannot be made."""
+        from decisio.serve.tasks import example_digest, split_holdout
+
+        q0 = examples[0][0] if examples else None
+        if q0 is not None and q0.type == "score":
+            raise ValueError(
+                "certify: score questions are not certified (an ordinal answer has no single wrong answer)"
+            )
+        if certify_examples is not None:
+            cert_ex = [(q, s, g) for s, q, g in certify_examples]
+            fit_ex = examples
+            fit_keys = {example_digest(s, q) for q, s, _ in fit_ex}
+            overlap = sum(example_digest(s, q) in fit_keys for q, s, _ in cert_ex)
+            if overlap:
+                raise ValueError(
+                    f"certify: {overlap} of the {len(cert_ex)} certification examples are also fit examples (same "
+                    "input); certification runs on examples the fit has not seen"
+                )
+            method = "supplied"
+        else:
+            fit_i, cert_i = split_holdout(task_id, examples, settings["holdout"])
+            fit_ex, cert_ex = [examples[i] for i in fit_i], [examples[i] for i in cert_i]
+            method = "holdout"
+        if len(cert_ex) < settings["min_examples"]:
+            if settings["asked"] > settings["floor"]:
+                why = f"you asked for at least {settings['asked']}"
+            else:
+                why = (
+                    f"with alpha {settings['alpha']} and delta {settings['delta']} even a task answered right every "
+                    f"time needs {settings['floor']}"
+                )
+            share = f", {settings['holdout']:g} of {len(examples)}" if method == "holdout" else ""
+            raise ValueError(
+                f"certify: {len(cert_ex)} held-out labelled examples ({method}{share}), and at least "
+                f"{settings['min_examples']} are needed: {why}. Give more examples, or a separate list in "
+                "certify.examples (docs/tasks.md says how many a task of a given accuracy needs)"
+            )
+        split = {
+            "method": method,
+            "holdout": settings["holdout"] if method == "holdout" else None,
+            "fit_examples": len(fit_ex),
+            "certify_examples": len(cert_ex),
+            "disjoint": True,
+            "rule": HOLDOUT_RULE if method == "holdout" else SUPPLIED_RULE,
+            "fit_digests": sorted({example_digest(s, q)[:16] for q, s, _ in fit_ex}),
+        }
+        return fit_ex, cert_ex, split
+
+    def served_rows(self, t, pairs) -> list[np.ndarray]:
+        """The distribution this server serves for each (state, question), through the task `t`: what a
+        certification is made on and an answer is checked against."""
+        from decisio.readout.calibration import apply_task_prior
+        from decisio.readout.debias import log_probs
+        from decisio.readout.intent_head import apply_intent_head
+
+        out = []
+        for state, q in pairs:
+            eq, _, swapped = self.engine_question(q)
+            probs, _ = self.engine.answer(state, [eq])
+            p = np.asarray(probs[0], dtype=np.float64)
+            if swapped:
+                p = p[::-1].copy()
+            if t["head"].get("applied") and self.hidden_engine is not None:
+                eqh, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
+                lp, h = self.hidden_engine.readout(state, [eqh])[0]
+                p = apply_intent_head(lp, h, t["head"], t["options"])
+            elif t["calibration"].get("applied"):
+                p = apply_task_prior(log_probs(p), t["calibration"])
+            else:
+                p = apply_temperature(p, self.temperature_of(q.type))
+            if self.noul_commit and q.type == "noul":
+                p = commit_noul(p)
+            out.append(np.asarray(p, dtype=np.float64))
+        return out
+
+    def stack_facts(self) -> dict:
+        """The live serving stack's fingerprint (decisio.serve.stack), taken once."""
+        if getattr(self, "_stack", None) is None:
+            from importlib.metadata import PackageNotFoundError, version
+
+            from decisio.serve import stack
+
+            try:
+                ver = version("decisio")
+            except PackageNotFoundError:
+                ver = "unknown"
+            serving = {
+                "orders": self.orders,
+                "multi_question": getattr(self.engine, "multi_question", None),
+                "pad_policy": getattr(self.engine, "pad_policy", None),
+                "hide_index_keys": self.hide_index_keys,
+                "desnake_labels": self.desnake_labels,
+                "describe_options": self.describe_options,
+                "noul_rendering": self.noul_rendering,
+                "noul_commit": self.noul_commit,
+                "abstention": self.abstention,
+                "abstain_option": self.abstain_option,
+                "head_engine": self.hidden_engine is not None,
+            }
+            self._stack = stack.stack_facts(
+                self.engine,
+                decisio_version=ver,
+                serving=serving,
+                temperatures={"global": self.temperature, **self.temperatures},
+                task_fingerprint=self.task_store.fingerprint if self.task_store else None,
+            )
+        return self._stack
+
+    def stack_with_fit(self, t) -> dict:
+        s = self.stack_facts()
+        return {**s, "calibration": {**s["calibration"], "task_fit": t.get("fit_sha256")}}
+
+    def stack_sha(self, t) -> str:
+        """The live stack with the task's fit, hashed; cached per fit."""
+        from decisio.serve import stack
+
+        cache = self.__dict__.setdefault("_stack_sha", {})
+        fit = t.get("fit_sha256")
+        if fit not in cache:
+            cache[fit] = stack.sha256(self.stack_with_fit(t))
+        return cache[fit]
+
+    def attach_certificate(self, t, cert_ex, settings, split) -> None:
+        """Certify task `t` (fitted, not yet stored) on the held-out examples [(question, state, gold)] and attach the
+        certificate and the monitor's baseline to it."""
+        from decisio.readout import certify
+        from decisio.serve import monitor
+        from decisio.serve.stack import sha256
+        from decisio.serve.tasks import CERTIFICATE_FORMAT, answer_keys, fit_digest, gold_index
+
+        t["fit_sha256"] = fit_digest(t)
+        ps = self.served_rows(t, [(s, q) for q, s, _ in cert_ex])
+        keys = answer_keys(cert_ex[0][0])
+        chosen = [top_index(keys, p) for p in ps]
+        correct = np.array([c == gold_index(q, g) for c, (q, _, g) in zip(chosen, cert_ex)])
+        conf = np.array([float(max(p)) for p in ps])
+        cert = certify.certificate(conf, correct, settings["alpha"], settings["delta"])
+        stack = self.stack_with_fit(t)
+        stack_sha = sha256(stack)
+        ident = sha256([t["id"], cert["threshold"], cert["n"], split["fit_digests"], stack_sha, split["method"]])[:12]
+        cert.update(
+            {
+                "format": CERTIFICATE_FORMAT,
+                "id": f"{t['id']}#{ident}",
+                "min_examples": settings["min_examples"],
+                "split": split,
+                "fit_sha256": t["fit_sha256"],
+                "stack": stack,
+                "stack_sha256": stack_sha,
+                "summary": self.certificate_summary(cert),
+            }
+        )
+        t["certificate"] = cert
+        t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"])
+
+    @staticmethod
+    def certificate_summary(c: dict) -> str:
+        """The certificate in words: what is certified and the promise, or that nothing is."""
+        if c["threshold"] is None:
+            return (
+                f"Nothing is certified: on the {c['n']} held-out examples no confidence threshold keeps the wrong "
+                f"answers above it at {c['alpha']:.0%} or fewer with probability {1 - c['delta']:.0%}. "
+                "The task works as before, and every answer carries certified: false. "
+                f"(Without the bound, {c['empirical_share_at_alpha']:.0%} of the examples would have met "
+                f"{c['alpha']:.0%} on these examples themselves; that is not a promise.)"
+            )
+        return (
+            f"Answers whose top probability is at least {c['threshold']:.4f} are certified: on the {c['n']} held-out "
+            f"examples that is {c['certified_share']:.0%} of the answers, {c['errors_at_threshold']} of "
+            f"{c['certified_n']} wrong. With probability at least {1 - c['delta']:.0%} over the draw of such examples, "
+            f"at most {c['alpha']:.0%} of the certified answers are wrong, for traffic like them and on this "
+            "serving stack."
+        )
+
+    def recertify_task(self, task_id: str, examples: list[tuple], spec: dict | None):
+        """Make the certificate of a stored task again, under this server's stack, on new labelled examples (the fit is
+        kept; the examples must not share an input with the fit's)."""
+        store = self.task_store
+        t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
+        if t is None:
+            raise KeyError(task_id)
+        if not t.get("certificate"):
+            raise ValueError(
+                f"task {task_id!r} was registered without certification: register it again with a certify block"
+            )
+        from decisio.serve.tasks import example_digest
+
+        old = t["certificate"]
+        spec = {**{k: old[k] for k in ("alpha", "delta")}, "min_examples": old.get("min_examples"), **(spec or {})}
+        settings = self.certify_settings(spec)
+        cert_ex = [(q, s, g) for s, q, g in examples]
+        fit_digests = set(old["split"]["fit_digests"])
+        overlap = sum(example_digest(s, q)[:16] in fit_digests for q, s, _ in cert_ex)
+        if overlap:
+            raise ValueError(
+                f"certify: {overlap} of the {len(cert_ex)} examples share an input with the fit; use new examples"
+            )
+        if len(cert_ex) < settings["min_examples"]:
+            raise ValueError(
+                f"certify: {len(cert_ex)} labelled examples, and at least {settings['min_examples']} are needed "
+                f"for alpha {settings['alpha']} and delta {settings['delta']}"
+            )
+        split = {
+            **old["split"],
+            "method": "supplied",
+            "holdout": None,
+            "certify_examples": len(cert_ex),
+            "disjoint": True,
+            "rule": "re-certified on new examples that share no input with the fit",
+        }
+        new = {k: v for k, v in t.items() if k not in ("certificate", "monitor")}
+        self.attach_certificate(new, cert_ex, settings, split)
+        store.put(new)
+        return new
+
+    def certified_fields(self, t, q, keys, p, orders: int, chosen: int) -> dict:
+        """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not."""
+        cert = t["certificate"]
+        if self.stack_sha(t) != cert["stack_sha256"]:
+            reason = "serving_stack_changed"
+        elif orders != cert["stack"]["serving"]["orders"]:
+            reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
+        elif cert["threshold"] is None:
+            reason = "nothing_certified"
+        elif float(max(p)) >= cert["threshold"]:
+            reason = None
+        else:
+            reason = "below_threshold"
+        m = self.task_store.monitors.get(t["id"])
+        if m is not None:
+            m.observe(chosen, reason is None)
+        out = {"certified": reason is None, "certificate": cert["id"]}
+        if reason is not None:
+            out["certified_reason"] = reason
+        return out
+
+    def task_status(self, t) -> dict | None:
+        """The state of a certified task: ok, traffic_changed (the answer-mix alert) or suspended (the stack
+        changed)."""
+        cert = t.get("certificate")
+        if not cert:
+            return None
+        from decisio.serve import stack
+
+        if self.stack_sha(t) != cert["stack_sha256"]:
+            return {
+                "state": "suspended",
+                "text": "suspended: serving stack changed",
+                "changed": stack.differences(cert["stack"], self.stack_with_fit(t)),
+                "recertify": f"POST /v1/tasks/{t['id']}/certify with new labelled examples",
+            }
+        m = self.task_store.monitors.get(t["id"])
+        f = m.facts() if m is not None else None
+        state = f["state"] if f else "ok"
+        text = (
+            "traffic changed: the mix of chosen options moved away from the certification examples' (the certificate "
+            "is not "
+            "suspended; this alert says the traffic is not like the examples)"
+            if state == "traffic_changed"
+            else "ok"
+        )
+        return {"state": state, "text": text, **({"monitor": f} if f else {})}
+
+    def metrics_text(self) -> str:
+        """Per certified task, in Prometheus text format: its state, answers, certified answers and the answer-mix
+        distance."""
+        rows = []
+        for t in self.task_store.by_key.values() if self.task_store else []:
+            st = self.task_status(t)
+            if st is None:
+                continue
+            tid = str(t["id"]).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            f = st.get("monitor") or {}
+            for s in ("ok", "traffic_changed", "suspended"):
+                rows.append(("decisio_task_state", f'task="{tid}",state="{s}"', int(st["state"] == s)))
+            rows += [
+                ("decisio_task_answers_total", f'task="{tid}"', f.get("answers", 0)),
+                ("decisio_task_certified_answers_total", f'task="{tid}"', f.get("certified_answers", 0)),
+                ("decisio_task_mix_alerts_total", f'task="{tid}"', f.get("alerts", 0)),
+                ("decisio_task_window_answers", f'task="{tid}"', f.get("window_answers", 0)),
+                ("decisio_task_mix_line", f'task="{tid}"', f.get("line", 0.0)),
+            ]
+            if f.get("distance") is not None:
+                rows.append(("decisio_task_mix_distance", f'task="{tid}"', f["distance"]))
+        helps = {
+            "decisio_task_state": "gauge",
+            "decisio_task_answers_total": "counter",
+            "decisio_task_certified_answers_total": "counter",
+            "decisio_task_mix_alerts_total": "counter",
+            "decisio_task_window_answers": "gauge",
+            "decisio_task_mix_line": "gauge",
+            "decisio_task_mix_distance": "gauge",
+        }
+        out, seen = [], set()
+        for name, labels, value in rows:
+            if name not in seen:
+                seen.add(name)
+                out.append(f"# TYPE {name} {helps[name]}")
+            out.append(f"{name}{{{labels}}} {value}")
+        return "\n".join(out) + ("\n" if out else "")
 
     # ---- per-task abstention -------------------------------------------------------------------------------------
 
@@ -1010,6 +1396,23 @@ def add_routes(app, systemone: SystemOne):
 
     # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): register a task from
     # labelled examples, each a text /v1/systemone request with one question and its answer
+    def parse_examples(items, where="example"):
+        examples = []
+        for n, ex in enumerate(items):
+            if not isinstance(ex, dict):
+                raise HTTPException(422, f"{where} {n}: must be an object {{'request', 'answer'}}")
+            payload = dict(ex.get("request") or {})
+            if "images" in payload or (payload.get("state") is not None and extract_state_images(payload["state"])[1]):
+                raise HTTPException(422, f"{where} {n}: calibration and the intent head serve text requests only")
+            try:
+                req = SystemOneRequest.model_validate(payload)
+            except ValidationError as e:
+                raise HTTPException(422, f"{where} {n}: {e}")
+            if len(req.questions) != 1:
+                raise HTTPException(422, f"{where} {n}: an example carries exactly one question")
+            examples.append((req.state, next(iter(req.questions.values())), ex.get("answer")))
+        return examples
+
     async def register_readout(request: Request):
         from decisio.serve.tasks import TaskStore
 
@@ -1022,28 +1425,31 @@ def add_routes(app, systemone: SystemOne):
                 422, "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, 'answer': <key>}]}"
             )
         debug = debug_of(request)
-        examples = []
-        for n, ex in enumerate(body["examples"]):
-            if not isinstance(ex, dict):
-                raise HTTPException(422, f"example {n}: must be an object {{'request', 'answer'}}")
-            payload = dict(ex.get("request") or {})
-            if "images" in payload or (payload.get("state") is not None and extract_state_images(payload["state"])[1]):
-                raise HTTPException(422, f"example {n}: calibration and the intent head serve text requests only")
+        examples = parse_examples(body["examples"])
+        certify, held_out = None, None
+        if body.get("certify") is not None:
+            if not isinstance(body["certify"], dict):
+                raise HTTPException(422, "certify: an object {'alpha', 'delta', 'min_examples', 'holdout', 'examples'}")
             try:
-                req = SystemOneRequest.model_validate(payload)
-            except ValidationError as e:
-                raise HTTPException(422, f"example {n}: {e}")
-            if len(req.questions) != 1:
-                raise HTTPException(422, f"example {n}: an example carries exactly one question")
-            examples.append((req.state, next(iter(req.questions.values())), ex.get("answer")))
+                certify = systemone.certify_settings(body["certify"])
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+            if body["certify"].get("examples") is not None:
+                if not isinstance(body["certify"]["examples"], list):
+                    raise HTTPException(422, "certify.examples: a list of {'request', 'answer'} like examples")
+                held_out = parse_examples(body["certify"]["examples"], "certify.examples")
         try:
-            task, fitted = await run_in_threadpool(systemone.register_readout_task, str(body["id"]), examples)
+            task, fitted = await run_in_threadpool(
+                systemone.register_readout_task, str(body["id"]), examples, certify, held_out
+            )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
         except Exception as e:
             raise_client_error(e)
             raise
         out = TaskStore.public(task)
+        if task.get("certificate"):
+            out["status"] = systemone.task_status(task)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
@@ -1055,16 +1461,73 @@ def add_routes(app, systemone: SystemOne):
 
     @app.get("/v1/tasks")
     def readout_tasks(full: int = 0):
-        """Every registered task; `?full=1` includes the heads' arrays, the form `--tasks-file` loads."""
+        """Every registered task; `?full=1` includes the heads' arrays, the form `--tasks-file` loads. A certified task
+        also carries its `status` (ok, traffic_changed or suspended)."""
         from decisio.serve.tasks import TaskStore
 
         store = systemone.task_store
+        listed = []
+        for t in store.by_key.values() if store else []:
+            item = TaskStore.public(t, bool(full))
+            if t.get("certificate") and not full:
+                item["status"] = systemone.task_status(t)
+            listed.append(item)
         return {
             "enabled": systemone.tasks_enabled,
             "head_engine": systemone.hidden_engine is not None,
             "fingerprint": store.fingerprint if store else None,
-            "tasks": [TaskStore.public(t, bool(full)) for t in (store.by_key.values() if store else [])],
+            "tasks": listed,
         }
+
+    @app.get("/v1/tasks/{task_id}")
+    def readout_task_one(task_id: str):
+        """One task, with its status and the answer-mix monitor's facts when it is certified."""
+        from decisio.serve.tasks import TaskStore
+
+        store = systemone.task_store
+        t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
+        if t is None:
+            raise HTTPException(404, f"no task {task_id!r}")
+        out = TaskStore.public(t)
+        if t.get("certificate"):
+            out["status"] = systemone.task_status(t)
+        return JSONResponse(json.loads(json.dumps(out, default=float)))
+
+    async def certify_readout(task_id: str, request: Request):
+        from decisio.serve.tasks import TaskStore
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(422, f"request body is not valid JSON: {e}")
+        if not isinstance(body, dict) or not isinstance(body.get("examples"), list):
+            raise HTTPException(
+                422, "body: {'examples': [{'request', 'answer'}], optional 'alpha', 'delta', 'min_examples'}"
+            )
+        examples = parse_examples(body["examples"])
+        spec = {k: body[k] for k in ("alpha", "delta", "min_examples") if k in body}
+        try:
+            task = await run_in_threadpool(systemone.recertify_task, task_id, examples, spec)
+        except KeyError:
+            raise HTTPException(404, f"no task {task_id!r}")
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        except Exception as e:
+            raise_client_error(e)
+            raise
+        out = TaskStore.public(task)
+        out["status"] = systemone.task_status(task)
+        return JSONResponse(json.loads(json.dumps(out, default=float)))
+
+    certify_readout.__annotations__["request"] = Request
+    app.post("/v1/tasks/{task_id}/certify")(certify_readout)
+
+    @app.get("/metrics")
+    def metrics():
+        """Per certified task, in Prometheus text format: state, answers, certified answers, answer-mix distance."""
+        from fastapi.responses import PlainTextResponse
+
+        return PlainTextResponse(systemone.metrics_text(), media_type="text/plain; version=0.0.4")
 
     @app.post("/v1/tasks/import")
     def import_readout_tasks(body: dict):

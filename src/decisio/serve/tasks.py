@@ -18,6 +18,10 @@ to the list is a new task, which is re-registered.
 
     store = TaskStore(fingerprint="...")
     task = store.register(task_id, examples, score_fn, hidden_fn)     # examples: [(question, state, gold key)]
+
+A task may also carry a certificate (decisio.readout.certify, made by `SystemOne.register_readout_task` on examples held
+out of the fit) and the baseline of its answer-mix monitor (decisio.serve.monitor); both are stored with the task and
+travel with its export.
 """
 
 from __future__ import annotations
@@ -31,8 +35,10 @@ import numpy as np
 from decisio.names import check_format, record_format, same_fingerprint
 from decisio.readout import calibration, intent_head
 from decisio.readout.debias import log_probs
+from decisio.serve.monitor import MixMonitor
 
 FORMAT = record_format("task")
+CERTIFICATE_FORMAT = record_format("certificate")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 
 
@@ -78,6 +84,45 @@ def gold_index(q, gold) -> int:
     return keys.index(g)
 
 
+def example_digest(state, q) -> str:
+    """The identity of an example's input, whatever its label: its state and its question."""
+    body = {"state": state, "question": q.model_dump(mode="json")}
+    return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False, default=str).encode()).hexdigest()
+
+
+def split_holdout(task_id: str, examples, fraction: float):
+    """(fit indices, held-out indices) of `examples` [(question, state, gold)], deterministic and independent
+    of their order: examples with the same input go to the same side, groups are ordered by the sha256 of the task id
+    and the input, and the first groups, up to `fraction` of the examples, are held out."""
+    groups: dict[str, list[int]] = {}
+    for i, (q, s, _) in enumerate(examples):
+        groups.setdefault(example_digest(s, q), []).append(i)
+    order = sorted(groups, key=lambda d: hashlib.sha256((task_id + d).encode()).hexdigest())
+    target, held = round(fraction * len(examples)), []
+    for d in order:
+        if len(held) >= target:
+            break
+        held += groups[d]
+    held_set = set(held)
+    return [i for i in range(len(examples)) if i not in held_set], sorted(held)
+
+
+def fit_digest(task) -> str:
+    """A digest of what the task applies to an answer: the calibration prior's record and the head's, arrays
+    included."""
+    h = hashlib.sha256()
+    for part in ("calibration", "head"):
+        for k, v in sorted(task[part].items()):
+            h.update(k.encode())
+            if isinstance(v, np.ndarray):
+                h.update(np.ascontiguousarray(v, dtype=np.float32).tobytes())
+            elif isinstance(v, dict) and "b64" in v:
+                h.update(base64.b64decode(v["b64"]))
+            else:
+                h.update(json.dumps(v, sort_keys=True, default=float).encode())
+    return h.hexdigest()
+
+
 def _pack(a):
     a = np.ascontiguousarray(np.asarray(a, dtype=np.float32))
     return {"dtype": "float32", "shape": list(a.shape), "b64": base64.b64encode(a.tobytes()).decode()}
@@ -93,15 +138,17 @@ class TaskStore:
     def __init__(self, fingerprint: str):
         self.fingerprint = fingerprint
         self.by_key: dict[str, dict] = {}
+        self.monitors: dict[str, MixMonitor] = {}  # the answer-mix window of each certified task, by task id
 
     def lookup(self, key):
         t = self.by_key.get(key)
         return t if t is not None and same_fingerprint(t["fingerprint"], self.fingerprint) else None
 
-    def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None):
+    def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
-        server has none. Returns the stored task."""
+        server has none. Returns the stored task (`commit=False`: the fitted task, not yet stored: the caller adds a
+        certificate and calls `put`, and a failure leaves the previous task in place)."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -170,14 +217,25 @@ class TaskStore:
             "n_examples": len(examples),
             "per_option_min": int(counts.min()),
         }
-        self.remove(task_id)  # a re-registration replaces the task, whatever its list
-        self.by_key[task["key"]] = task
+        if commit:
+            self.put(task)
         return task, {"lps": lps, "labels": labels, "readout": readout}
+
+    def put(self, task) -> None:
+        """Store a task, replacing the task of the same id whatever its list; start its monitor when it has a
+        baseline."""
+        self.remove(task["id"])
+        if task.get("certificate"):  # the certificate names the fit it was made for; recomputed here, never trusted
+            task["fit_sha256"] = fit_digest(task)
+        self.by_key[task["key"]] = task
+        if task.get("monitor"):
+            self.monitors[task["id"]] = MixMonitor(task["monitor"])
 
     def remove(self, task_id) -> bool:
         keys = [k for k, t in self.by_key.items() if t["id"] == task_id]
         for k in keys:
             del self.by_key[k]
+        self.monitors.pop(task_id, None)
         return bool(keys)
 
     # ---- persistence: JSON with the head's arrays as base64 float32 ---------------------------------------------
@@ -188,7 +246,13 @@ class TaskStore:
         for k in ("A", "c"):
             if k in head:
                 head[k] = _pack(head[k]) if full else {"shape": list(np.asarray(head[k]).shape)}
-        return {**task, "head": head}
+        out = {**task, "head": head}
+        cert = task.get("certificate")
+        if cert and not full:  # the held-in digests are for re-certification; the listing says how many there are
+            split = dict(cert["split"])
+            split["fit_digests"] = len(split.get("fit_digests", []))
+            out["certificate"] = {**cert, "split": split}
+        return out
 
     def load(self, tasks):
         """Load task records as `public(task, full=True)` writes them; records written before the rename (the `rlcd-*/1`
@@ -198,6 +262,8 @@ class TaskStore:
             check_format(t, "task", what)
             check_format(t.get("calibration"), "task-prior", f"{what}, calibration")
             check_format(t.get("head"), "intent-head", f"{what}, head")
+            if t.get("certificate") is not None:
+                check_format(t["certificate"], "certificate", f"{what}, certificate")
         for t in tasks:
             head = dict(t["head"])
             for k in ("A", "c"):
@@ -205,8 +271,9 @@ class TaskStore:
                     head[k] = _unpack(head[k])
             if head.get("applied") and not all(isinstance(head.get(k), np.ndarray) for k in ("A", "c")):
                 raise ValueError(f"task {t['id']!r}: an applied head without its arrays (export with ?full=1)")
-            self.remove(t["id"])
-            self.by_key[t["key"]] = {**t, "head": head}
+            task = {**t, "head": head}
+            task.pop("fit_sha256", None)  # recomputed in `put` from what was loaded
+            self.put(task)
 
 
 def _render(x):
