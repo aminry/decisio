@@ -1,16 +1,23 @@
-"""Does a certificate hold across fresh restarts of the server? (decisio.readout.certify, POST /v1/tasks with a certify block)
+"""Does a certificate hold across fresh restarts of the server? (decisio.readout.certify, POST /v1/tasks with a
+certify block)
 
-Starts the server as a new process several times on one backend and model, and each time either (A) registers the task with
-certification again from the same labelled examples, or (B) loads the task exported from the first start. Then it asks the same
-questions and compares what the restarts say: the certificate's threshold and serving-stack digest, and, for every question,
+Starts the server as a new process several times on one backend and model, and each time either (A) registers
+the task with
+certification again from the same labelled examples, or (B) loads the task exported from the first start. Then
+it asks the same
+questions and compares what the restarts say: the certificate's threshold and serving-stack digest, and, for
+every question,
 the choice, the probability and whether the answer was certified.
 
     python restart_check.py --backend hf --model Qwen/Qwen3-0.6B-Base --out results/cpu_stand_in [--restarts 3]
-    python restart_check.py --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit --out results/mac_mlx
-    python restart_check.py --backend vllm --base tachara-ai/decisio-gemma-4-12b@<revision> --out results/card_12b   (on a card)
+    python restart_check.py --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit --out
+    results/mac_mlx
+    python restart_check.py --backend vllm --base tachara-ai/decisio-gemma-4-12b@<revision> --out
+    results/card_12b   (on a card)
 
 The task is a three-queue support-ticket question on tickets the script writes itself from templates (no data file, no
-download; `--mixed` makes a share of them mention a second queue after the first, which the label ignores): by default 400
+download; `--mixed` makes a share of them mention a second queue after the first, which the label ignores): by
+default 400
 labelled examples for registration (half held out of the fit by the server) and 200 questions to ask. Nothing here is a
 measurement of a served model's quality: the stand-in's numbers mean nothing about the models decisio serves.
 Standard library only.
@@ -67,11 +74,19 @@ BODIES = {
         "the login keeps sending me back to the start",
     ],
 }
-TAILS = ["", " Thanks.", " This is the second time I write.", " It is for my company account.", " Can you check today?", " Best regards."]
+TAILS = [
+    "",
+    " Thanks.",
+    " This is the second time I write.",
+    " It is for my company account.",
+    " Can you check today?",
+    " Best regards.",
+]
 
 
 def tickets(n, seed, mixed=0.0):
-    """n distinct tickets with their queue. With `mixed` above 0 that share of tickets also carries a sentence from another
+    """n distinct tickets with their queue. With `mixed` above 0 that share of tickets also carries a sentence
+    from another
     queue after the first one ("Also: ..."); the label is the queue of the first sentence, so a model that weighs both
     topics will sometimes be wrong, which is what a task with a real error rate looks like."""
     rng = random.Random(seed)
@@ -82,7 +97,10 @@ def tickets(n, seed, mixed=0.0):
         if rng.random() < mixed:
             other = rng.choice([q for q in QUEUES if q != queue])
             extra = f" Also: {rng.choice(BODIES[other])}."
-        text = f"{rng.choice(OPENERS)} {rng.choice(BODIES[queue])}.{extra}{rng.choice(TAILS)} (ref {rng.randrange(10**5):05d})"
+        text = (
+            f"{rng.choice(OPENERS)} {rng.choice(BODIES[queue])}.{extra}{rng.choice(TAILS)} "
+            f"(ref {rng.randrange(10**5):05d})"
+        )
         if text not in seen:
             seen.add(text)
             out.append((text, queue))
@@ -121,7 +139,9 @@ def start(a, out, tag, port):
     if a.base:
         cmd += ["--base", a.base]
     log = open(out / f"server_{tag}.log", "w")
-    proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env={**os.environ, "TOKENIZERS_PARALLELISM": "false"})
+    proc = subprocess.Popen(
+        cmd, stdout=log, stderr=subprocess.STDOUT, env={**os.environ, "TOKENIZERS_PARALLELISM": "false"}
+    )
     url = f"http://127.0.0.1:{port}"
     t0 = time.time()
     while time.time() - t0 < 1500:
@@ -137,7 +157,8 @@ def start(a, out, tag, port):
 
 
 def stop(proc):
-    """End the server we started, by its own handle: ask, wait, then insist (an MLX server can take a while to let go)."""
+    """End the server we started, by its own handle: ask, wait, then insist (an MLX server can take a while to
+    let go)."""
     proc.terminate()
     try:
         proc.wait(90)
@@ -173,15 +194,31 @@ def answers_of(url, asked):
 
 def certificate_facts(task):
     c = task["certificate"]
-    keys = ("id", "alpha", "delta", "n", "threshold", "certified_share", "certified_n", "errors_at_threshold", "stack_sha256")
+    keys = (
+        "id",
+        "alpha",
+        "delta",
+        "n",
+        "threshold",
+        "certified_share",
+        "certified_n",
+        "errors_at_threshold",
+        "stack_sha256",
+    )
     return {k: c.get(k) for k in keys}
 
 
 def commit_of_this_checkout():
     try:
         root = Path(__file__).resolve().parents[2]
-        sha = subprocess.run(["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True).stdout.strip()
-        dirty = bool(subprocess.run(["git", "-C", str(root), "status", "--porcelain", "src"], capture_output=True, text=True).stdout.strip())
+        sha = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], capture_output=True, text=True
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "-C", str(root), "status", "--porcelain", "src"], capture_output=True, text=True
+            ).stdout.strip()
+        )
         return {"decisio_commit": sha, "src_modified_since": dirty}
     except Exception:
         return {}
@@ -226,11 +263,22 @@ def main():
                 for want in (True, False):  # one certified and one uncertified answer as the server returned them
                     k = next((n for n, x in enumerate(answers) if x["certified"] is want), None)
                     if k is not None:
-                        samples.append({"ticket": asked[k][0], "answer": call(url, "/v1/systemone", question(asked[k][0]))[1]["answers"]["q"]})
+                        samples.append(
+                            {
+                                "ticket": asked[k][0],
+                                "answer": call(url, "/v1/systemone", question(asked[k][0]))[1]["answers"]["q"],
+                            }
+                        )
                 (out / "first_start_sample_answers.json").write_text(json.dumps(samples, indent=1))
             runs["A"].append(
-                {"restart": i, "start_seconds": up, "register_seconds": took, "certificate": certificate_facts(task),
-                 "status": task["status"]["state"], "answers": answers}
+                {
+                    "restart": i,
+                    "start_seconds": up,
+                    "register_seconds": took,
+                    "certificate": certificate_facts(task),
+                    "status": task["status"]["state"],
+                    "answers": answers,
+                }
             )
         finally:
             stop(proc)
@@ -242,7 +290,13 @@ def main():
             task = call(url, "/v1/tasks/ticket-queue")[1]
             answers = answers_of(url, asked)
             runs["B"].append(
-                {"restart": i, "start_seconds": up, "certificate": certificate_facts(task), "status": task["status"]["state"], "answers": answers}
+                {
+                    "restart": i,
+                    "start_seconds": up,
+                    "certificate": certificate_facts(task),
+                    "status": task["status"]["state"],
+                    "answers": answers,
+                }
             )
         finally:
             stop(proc)
@@ -250,17 +304,28 @@ def main():
 
     def diff(x, y):
         return {
-            "certified_flags_that_differ": sum(p["certified"] != q["certified"] for p, q in zip(x["answers"], y["answers"])),
+            "certified_flags_that_differ": sum(
+                p["certified"] != q["certified"] for p, q in zip(x["answers"], y["answers"])
+            ),
             "choices_that_differ": sum(p["choice"] != q["choice"] for p, q in zip(x["answers"], y["answers"])),
-            "largest_top_probability_difference": max(abs(p["top"] - q["top"]) for p, q in zip(x["answers"], y["answers"])),
+            "largest_top_probability_difference": max(
+                abs(p["top"] - q["top"]) for p, q in zip(x["answers"], y["answers"])
+            ),
             "threshold_equal": x["certificate"]["threshold"] == y["certificate"]["threshold"],
             "certificate_id_equal": x["certificate"]["id"] == y["certificate"]["id"],
             "stack_digest_equal": x["certificate"]["stack_sha256"] == y["certificate"]["stack_sha256"],
         }
 
     result = {
-        "backend": a.backend, "model": a.model, "base": a.base, "alpha": a.alpha, "delta": a.delta,
-        "examples": a.examples, "questions": a.questions, "mixed": a.mixed, **commit_of_this_checkout(),
+        "backend": a.backend,
+        "model": a.model,
+        "base": a.base,
+        "alpha": a.alpha,
+        "delta": a.delta,
+        "examples": a.examples,
+        "questions": a.questions,
+        "mixed": a.mixed,
+        **commit_of_this_checkout(),
         "certificate_of_the_first_start": ref["certificate"],
         "certified_share_of_the_questions": sum(x["certified"] for x in ref["answers"]) / len(ref["answers"]),
         "errors_among_certified_questions": sum(x["certified"] and x["choice"] != x["gold"] for x in ref["answers"]),
@@ -268,7 +333,10 @@ def main():
         "A_register_again_vs_the_first_start": [diff(ref, r) for r in runs["A"][1:]],
         "B_import_the_first_export_vs_the_first_start": [diff(ref, r) for r in runs["B"]],
         "states_after_import": [r["status"] for r in runs["B"]],
-        "seconds": {"A": [(r["start_seconds"], r["register_seconds"]) for r in runs["A"]], "B": [r["start_seconds"] for r in runs["B"]]},
+        "seconds": {
+            "A": [(r["start_seconds"], r["register_seconds"]) for r in runs["A"]],
+            "B": [r["start_seconds"] for r in runs["B"]],
+        },
         "answers_sha256": hashlib.sha256(json.dumps(ref["answers"], sort_keys=True).encode()).hexdigest(),
     }
     (out / "restart_result.json").write_text(json.dumps(result, indent=1))

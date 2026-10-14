@@ -1,17 +1,25 @@
 """What certification gives on recorded answers: decisio's own certification procedure on the 31B suite capture of
 `runs/2026-10-04_gemma-4-31b/capture_g31.json.gz`, task by task, with repeated random splits.
 
-For each suite task and certification-set size n: draw n of the task's items 1,000 times (a seeded permutation each time), certify
-on them at alpha and delta with `decisio.readout.certify.threshold`, and read the true risk of the threshold as the error among
-all the task's items at or above it (the task's items, taken as the population). Reported: the median share of the task's
-items the threshold certifies (0 when nothing is certified), the share of draws in which nothing was certified, and the share of
-draws in which the certificate was broken (true risk above alpha). The same for the empirical threshold with no bound (the most
+For each suite task and certification-set size n: draw n of the task's items 1,000 times (a seeded permutation
+each time), certify
+on them at alpha and delta with `decisio.readout.certify.threshold`, and read the true risk of the threshold as
+the error among
+all the task's items at or above it (the task's items, taken as the population). Reported: the median share of
+the task's
+items the threshold certifies (0 when nothing is certified), the share of draws in which nothing was certified,
+and the share of
+draws in which the certificate was broken (true risk above alpha). The same for the empirical threshold with no
+bound (the most
 lenient one whose error on the n items is at most alpha), which is what a certificate without the bound would give.
 
-The probabilities are the capture's plain readouts at the served temperatures of the same run (`temps_g31.json`: choice 4.672,
-other 5.252, applied as `decisio.serve.temperature.apply_temperature`), the form a task without its own correction serves.
+The probabilities are the capture's plain readouts at the served temperatures of the same run (`temps_g31.json`:
+choice 4.672,
+other 5.252, applied as `decisio.serve.temperature.apply_temperature`), the form a task without its own
+correction serves.
 
-    uv run python runs/2026-10-14_certified-answers/certify_public_records.py --out runs/2026-10-14_certified-answers/results
+    uv run python runs/2026-10-14_certified-answers/certify_public_records.py --out runs/2026-10-14_certified-
+    answers/results
 """
 
 import argparse
@@ -87,14 +95,23 @@ def main():
         for n in SIZES.get(name, DEFAULT_SIZES):
             for alpha, delta in GRID:
                 rows.append(
-                    {"task": name, "items": len(conf), "accuracy": float(ok.mean()), "certification_examples": n,
-                     "alpha": alpha, "delta": delta, "splits": SPLITS, **cell(conf, ok, n, alpha, delta, name)}
+                    {
+                        "task": name,
+                        "items": len(conf),
+                        "accuracy": float(ok.mean()),
+                        "certification_examples": n,
+                        "alpha": alpha,
+                        "delta": delta,
+                        "splits": SPLITS,
+                        **cell(conf, ok, n, alpha, delta, name),
+                    }
                 )
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     (out / "certification_on_the_31b_suite.json").write_text(json.dumps(rows, indent=1))
     lines = [
-        "| Task (31B suite capture) | Items | Accuracy | Certification examples | alpha | Median certified share | Nothing certified | Broken, bounded | Broken, no bound |",
+        "| Task (31B suite capture) | Items | Accuracy | Certification examples | alpha | Median certified share | "
+        "Nothing certified | Broken, bounded | Broken, no bound |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for r in rows:
@@ -104,7 +121,11 @@ def main():
             f"{r['bounded']['certificate_broken']:.3f} | {r['no_bound']['certificate_broken']:.3f} |"
         )
     (out / "certification_on_the_31b_suite.md").write_text("\n".join(lines) + "\n")
-    rows2 = [{"alpha": al, "delta": de, "minimum_examples": certify.minimum_examples(al, de)} for al in (0.02, 0.05, 0.1, 0.2) for de in (0.05, 0.1)]
+    rows2 = [
+        {"alpha": al, "delta": de, "minimum_examples": certify.minimum_examples(al, de)}
+        for al in (0.02, 0.05, 0.1, 0.2)
+        for de in (0.05, 0.1)
+    ]
     (out / "minimum_examples.json").write_text(json.dumps(rows2, indent=1))
     print("\n".join(lines))
 
