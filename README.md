@@ -58,7 +58,7 @@ Registering one question fits four things, in seconds to minutes: a **calibratio
 Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
 Every question you did not register is untouched.
 
-<!-- TEACH-IT PLACEHOLDERS (Lab 1's numbers, keys of launch_facts.json under "teaching"; this section names the default 31B, the 12B reads gemma_4_12b; no Jev figure may appear here):
+<!-- TEACH-IT PLACEHOLDERS (our teaching-study numbers, keys of the private launch facts under "teaching"; this section names the default 31B, the 12B reads gemma_4_12b; no Jev figure may appear here):
      T1 teaching.by_base.gemma_4_31b.gatekeeper.n200.untaught.macro_f1      T2 teaching.by_base.gemma_4_31b.gatekeeper.n200.taught.macro_f1
      T3 teaching.by_base.gemma_4_31b.gatekeeper.n1000.taught.macro_f1       T4 on a public page: teaching.intent_heads.gemma_4_31b.banking77.taught (accuracy; quote its wording, draws and test items)
      T5, T6 post-hoc analysis: not for a public page yet
@@ -231,7 +231,7 @@ curl -s http://127.0.0.1:8000/health         # answers once it is ready
 ```
 
 The measured environment is the lockfile's (`uv sync --extra serve --frozen`, [GPU server](#gpu-server)); pip resolves its own versions around vLLM 0.31.0.
-Measured by Lab 2 on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwell at 600 W and an AMD EPYC 9534: `pip install "decisio[serve]"` took 124 s; the first start of the no-flag 31B was ready after 7 min 54 s, including the download of its weights, and a start with the weights already on disk after 4 min 3 s; the first start of `--base gemma-4-12b` after 4 min 12 s, including its download (these are one session's times, with the network that session had).
+Measured on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwell at 600 W and an AMD EPYC 9534: `pip install "decisio[serve]"` took 124 s; the first start of the no-flag 31B was ready after 7 min 54 s, including the download of its weights, and a start with the weights already on disk after 4 min 3 s; the first start of `--base gemma-4-12b` after 4 min 12 s, including its download (these are one session's times, with the network that session had).
 
 ### With Docker
 
@@ -245,14 +245,14 @@ The same `curl` as above, with `/v1/systemone` on port 8000 and no `model` field
 ## Three decisions, as recorded
 
 Each request is what was sent; each response is what the server answered on the Gemma 4 31B base (probabilities rounded to three decimals here).
-They are the three requests of this README's first recordings (the first record of Advocacy's examples 1, 2 and 4, taken as they came and not chosen for their result), sent to a freshly started server on decisio 0.11.0 as the quickstart above starts it.
+They are the three requests of this README's first recordings (the first record of examples 1, 2 and 4, taken as they came and not chosen for their result), sent to a freshly started server on decisio 0.11.0 as the quickstart above starts it.
 Each block says when, on which version and on which card it was recorded; the files in [`runs/2026-10-09_readme-pip-path/`](runs/2026-10-09_readme-pip-path/manifest.json) hold the full-precision responses.
 The probabilities differ from the 2026-10-08 recordings on decisio 0.9.0 by up to 0.066 (decision 1), 0.024 (decision 2) and 0.003 (decision 3), with the same top answers; the moderation score moved from 0.78 to 0.81, across the example's block line at 0.8, so that message is now blocked where it was sent to review. Near-tied probabilities move between sessions ([EVAL_CARD.md](EVAL_CARD.md) section 7.5).
 
 <details>
 <summary><b>1. Route a support ticket: three questions, one pass</b> (server time 107.5 ms on the first send, 58.5 ms on its repeat)</summary>
 
-Recorded 2026-10-10 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+Recorded 2026-10-10 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
 
 Request:
 
@@ -315,7 +315,7 @@ It routes the ticket to billing with 96% on the queue and puts the chance it nee
 <details>
 <summary><b>2. Gate a message: a yes/no with a threshold you choose</b> (server time 66.8 ms on the first send, 28.2 ms on its repeat)</summary>
 
-Recorded 2026-10-10 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+Recorded 2026-10-10 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
 
 Request:
 
@@ -348,7 +348,7 @@ This prompt is a role-play instruction that the dataset's label calls benign; th
 <details>
 <summary><b>3. Decide what an assistant does next</b> (server time 67.2 ms on the first send, 28.1 ms on its repeat)</summary>
 
-Recorded 2026-10-10 by Lab 2 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+Recorded 2026-10-10 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
 
 Request:
 
@@ -545,7 +545,7 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (the same in 30 of 30 repeats on one server, RLCD `experiments/2026-10-08_lab2_gate_session/results/box/session_a/readme_example_30/`; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
+Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (the same in 30 of 30 repeats on one server, in our private records of 2026-10-08; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
 
 ```json
 {"answers": {
