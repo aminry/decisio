@@ -21,7 +21,7 @@ Item-level files that name a private request set are not here: the 12B control's
 ## F, read tensor by tensor
 
 `F/f_a.fp.json` and `F/f_b.fp.json` are each engine's fingerprint: for every tensor its dtype, shape and sha256.
-`F/analysis_f_analysis.py` reads them and the answers; its output is `F/analysis_f_analysis.json`.
+The script that reads them and the answers (the private RLCD repository's `experiments/2026-10-15_serve_s12_f_analysis/f_analysis.py`) is not copied here; its output is `F/analysis_f_analysis.json`.
 
 - All 1,145 tensors have the same bytes in the two engines, including all 240 FP8 weights and every scale tensor.
 - `compare-fp` lists 420 tensors as different because it compares shapes too: the 240 `weight_scale` tensors are 0-d in the stored engine and one element in the on-load engine, and the 180 attention `_q_scale`, `_k_scale` and `_v_scale` tensors are the other way round.
