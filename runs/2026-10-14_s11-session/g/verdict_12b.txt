@@ -1,0 +1,2 @@
+(MainProcess pid=14605) INFO 10-14 20:07:10 [model.py:699] Resolved architecture: DecisioGemma4UnifiedHiddenReadout
+SAME_FORWARD FAIL: 60 questions, max |dp| 6.77e-02 (tolerance 1e-04), same option on 60 of 60

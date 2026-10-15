@@ -122,6 +122,10 @@ def test_t2_store_fits_with_the_reference():
     task, fitted = store.register("t", ex, lambda pairs: P, lambda pairs: R)
     labels = [i % 10 for i in range(60)]
     ref = calibration.fit_task_prior([log_probs(p) for p in P], labels, fingerprint="fp", task_id="t", K=10)
+    from decisio.serve.tasks import inputs_digest
+
+    digest = task["calibration"].pop("inputs_sha256")  # what registration read, named; the fit is the reference's
+    assert digest == inputs_digest([log_probs(p) for p in P])
     assert task["calibration"] == ref and fitted["labels"] == labels
     head = intent_head.fit_intent_head(
         [lp for lp, _ in R], [h for _, h in R], labels, answer_keys(ex[0][0]), fingerprint="fp", task_id="t"
@@ -299,7 +303,8 @@ def test_t3_head_served_exactly(served):
     ref = intent_head.fit_intent_head(lps, H, labels, list(CRIT10), fingerprint="fp", task_id="intent")
     task = so.task_store.lookup(out["key"])
     assert task["head"]["applied"] == ref["applied"]
-    assert task["calibration"] == calibration.fit_task_prior(
+    stored = {k: v for k, v in task["calibration"].items() if k != "inputs_sha256"}  # the digest names the reading
+    assert stored == calibration.fit_task_prior(
         [np.array(x) for x in dbg["lps"]], labels, fingerprint="fp", task_id="intent", K=10
     )
     if not ref["applied"]:

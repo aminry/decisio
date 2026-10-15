@@ -44,6 +44,24 @@ Per-request latency depends on the host's CPU and on the card's power limit, as 
 
 Quote latency with the host's CPU model and the card's power limit beside it (`nvidia-smi -q -d POWER`).
 
+### First-question latency by state length
+
+One question about a state the server has never seen (**first**), and a different question about the same state asked next (**second**), by the state's length in tokens. Server time (`x-decisio-server-ms`), median of 10 new documents per length, on one RTX PRO 6000 Blackwell Workstation Edition at 600 W (driver 595.104.02) with an AMD EPYC 9534 host, decisio 0.11.1 on vLLM 0.30.0, each base at its repository's pin, the engine in the server's process, the Gemma bases at `--register-boundary before`; the SM clock ran at a median of 2,280 to 2,380 MHz on the 31B with the software power cap active on 66 to 83 percent of busy samples (`runs/2026-10-14_s11-session/L/` and `stage_power_clock.md`).
+
+| State, tokens | 31B first, ms | 31B second | 12B first | 12B second | Qwen first | Qwen second |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 300 | 80.6 | 29.6 | 55.0 | 23.4 | 47.5 | 25.0 |
+| 1,000 | 170.7 | 37.0 | 110.8 | 27.6 | 48.8 | 26.6 |
+| 3,000 | 485.4 | 41.4 | 278.7 | 33.9 | 86.5 | 32.6 |
+| 6,000 | 1,033.9 | 54.0 | 568.4 | 46.6 | 153.9 | 41.0 |
+| 16,000 | 3,370.1 | 93.5 | 1,779.0 | 85.2 | 452.4 | 66.2 |
+| 32,000 | 8,880.3 | 161.6 | 4,382.9 | 150.9 | not measured | not measured |
+
+- The first question grows roughly linearly with the state: about 0.30 ms per token for the 31B and 0.14 for the 12B between 6,000 and 32,000 tokens (the Qwen base reads fastest, 453 ms at 16,000).
+- The second question stays under 165 ms on every length and base.
+- The Qwen base has no 32,000-token value: the run returned none (the probe crashed on the missing figure; the likely cause is that a 32,000-token state plus the 77-option question does not fit the 32,768-token context, which was not confirmed from the server log).
+- This is one box and one session; the README's and `EVAL_CARD.md`'s tables are from the 585 W session of 2026-10-06.
+
 ### A later question about the same state (`--register-boundary`)
 
 On the Gemma bases vLLM keeps only a finished request's latest sliding-window checkpoint, which lies inside its question.

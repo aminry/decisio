@@ -1,0 +1,97 @@
+{
+ "backend": "vllm",
+ "model": null,
+ "base": "tachara-ai/decisio-gemma-4-12b@a5a1ac8f2398147d4e5738cac9ab6dc138b13b82",
+ "alpha": 0.05,
+ "delta": 0.1,
+ "examples": 400,
+ "questions": 200,
+ "mixed": 0.5,
+ "decisio_commit": "8f7867063c5e7867fdd151223b3119b758ee86b1",
+ "src_modified_since": false,
+ "certificate_of_the_first_start": {
+  "id": "ticket-queue#0795fca89aad",
+  "alpha": 0.05,
+  "delta": 0.1,
+  "n": 200,
+  "threshold": null,
+  "certified_share": 0.0,
+  "certified_n": 0,
+  "errors_at_threshold": null,
+  "stack_sha256": "a60c7691af316a9abccc54cab925e6730ea9bac41632fe75df06974d3a0d1af7"
+ },
+ "certified_share_of_the_questions": 0.0,
+ "errors_among_certified_questions": 0,
+ "accuracy_of_the_questions": 0.835,
+ "A_register_again_vs_the_first_start": [
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  }
+ ],
+ "B_import_the_first_export_vs_the_first_start": [
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 1,
+   "largest_top_probability_difference": 0.20048049641226284,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  },
+  {
+   "certified_flags_that_differ": 0,
+   "choices_that_differ": 0,
+   "largest_top_probability_difference": 0.0,
+   "threshold_equal": true,
+   "certificate_id_equal": true,
+   "stack_digest_equal": true
+  }
+ ],
+ "states_after_import": [
+  "ok",
+  "ok",
+  "ok"
+ ],
+ "seconds": {
+  "A": [
+   [
+    140.1,
+    16.7
+   ],
+   [
+    128.1,
+    16.7
+   ],
+   [
+    132.1,
+    16.7
+   ]
+  ],
+  "B": [
+   128.0,
+   130.1,
+   130.1
+  ]
+ },
+ "answers_sha256": "9189adfe913eb16203824c9b8b0ed97dba2388502a205f1fec9b0c1479be8df1"
+}

@@ -290,18 +290,31 @@ def score_confidence(p) -> float:
     return max(0.0, 1.0 - dist / uniform_mad)
 
 
+class NonFiniteReadout(RuntimeError):
+    """An engine returned NaN or infinity as a probability. It is a fault in the model's arithmetic on this server (a
+    dtype or matmul precision the checkpoint does not survive, a checkpoint that does not belong to the base's
+    profile), not in the request, so the route answers 500 with a message that says so (`add_routes`), never 400."""
+
+
+def require_finite(p, what: str = "an engine probability") -> None:
+    if not np.isfinite(np.asarray(p, dtype=np.float64)).all():
+        raise NonFiniteReadout(f"{what} is not finite (NaN or infinity)")
+
+
 def top_index(keys, p, among=None) -> int:
     """The declared choice: the most probable option; among options whose probabilities are exactly equal, the one whose
     key sorts first (Unicode code-point order), so the choice never depends on the order of the keys on the wire (JSON
     objects are unordered, and clients that serialise with sorted keys reorder them; docs/handoffs/tasks.md,
     "Exact ties"). `among`: the candidate indices (default: all)."""
     idx = list(range(len(p))) if among is None else list(among)
+    require_finite([p[i] for i in idx], "a choice question's probability")
     m = max(p[i] for i in idx)
     return min((i for i in idx if p[i] == m), key=lambda i: keys[i])
 
 
 def to_answer(q, keys, p) -> dict:
     p = [float(x) for x in p]
+    require_finite(p, f"a {q.type} question's probability")
     if q.type == "noul":
         return {"type": "noul", "noul": p[0]}
     if q.type == "choice":
@@ -367,6 +380,15 @@ def option_set(q, described: bool = False) -> str:
     question is shown, so a threshold fitted under the other rendering is not applied."""
     crit = sorted([k, render_text(d)] for k, d in q.criteria.items()) if q.type == "choice" else None
     spec = {"type": q.type, "criteria": crit, **({"rendering": "describe_options"} if described else {})}
+    return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
+
+
+def option_keys(q) -> str:
+    """A choice question's task identity by its option keys alone: the set of keys, whatever their descriptions, their
+    order and the question's instructions. For a family of questions that share their labels but not their texts (a
+    multiple-choice exam: the keys A to D and "idk", each item with its own four answers), where `option_set` would see
+    a different question every time."""
+    spec = {"type": q.type, "keys": sorted(q.criteria) if q.type == "choice" else None}
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
 
 
@@ -715,6 +737,7 @@ class SystemOne:
             for state, q in pairs:
                 eq, _, swapped = self.engine_question(q)
                 probs, _ = self.engine.answer(state, [eq])
+                require_finite(probs[0], "a registration example's probability")
                 out.append(probs[0][::-1] if swapped else probs[0])
             return out
 
@@ -722,7 +745,10 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                out.append(self.hidden_engine.readout(state, [eq])[0])
+                lp, h = self.hidden_engine.readout(state, [eq])[0]
+                require_finite(lp, "a registration example's label log-probability")
+                require_finite(h, "a registration example's hidden state")
+                out.append((lp, h))
             return out
 
         result = self.task_store.register(
@@ -1102,9 +1128,13 @@ class SystemOne:
         if not self.abstention or not self.tasks:
             return None
         fp = option_set(q, self.described(q)) if q.type == "choice" else None
-        for t in self.tasks.values():
+        kp = option_keys(q) if q.type == "choice" else None
+        for t in self.tasks.values():  # the exact option set first, then the imajev extension
             m = t["match"]
             if (m.get("option_set") and m["option_set"] == fp) or (m.get("imajev_extension") and imajev_ext):
+                return t
+        for t in self.tasks.values():  # then the key set alone: the most general match, so the last
+            if kp is not None and t["match"].get("option_keys") == kp:
                 return t
         return None
 
@@ -1176,14 +1206,15 @@ class SystemOne:
 
         if bool(option.get("key") is not None) == bool(option.get("append")):
             raise ValueError("option: exactly one of {'key': <declared key>} or {'append': <text>}")
-        if match not in ("option_set", "imajev_extension"):
-            raise ValueError("match: 'option_set' or 'imajev_extension'")
+        if match not in ("option_set", "option_keys", "imajev_extension"):
+            raise ValueError("match: 'option_set', 'option_keys' or 'imajev_extension'")
         if option.get("append") and match != "imajev_extension" and not all(e[2] for e in examples):
             raise ValueError("an appended abstain option is answered only through imajev's extension")
-        p_abs, unans, ok, plain_right, plain_false, fps = [], [], [], [], [], set()
+        p_abs, unans, ok, plain_right, plain_false, fps, kps = [], [], [], [], [], set(), set()
         for req, images, ext, gold in examples:
             q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext)
             fps.add(option_set(q, self.described(q)))
+            kps.add(option_keys(q))
             gold_key = gold_key_of(q, gold)
             _, best = decide(p, idx, None, keys=keys)
             u = gold_key is None
@@ -1198,12 +1229,23 @@ class SystemOne:
                 plain_right.append((not u) and keys0[top_index(keys0, p0)] == gold_key)
                 plain_false.append(False)
         if match == "option_set" and len(fps) != 1:
-            raise ValueError("the examples of an option-set task must share one option set")
+            raise ValueError(
+                "the examples of an option-set task must share one option set (the same keys and the same "
+                "descriptions); examples that share their keys but not their texts take match 'option_keys'"
+            )
+        if match == "option_keys" and len(kps) != 1:
+            raise ValueError("the examples of an option-keys task must share one set of option keys")
         cfg = fit(p_abs, unans, ok, plain_right, plain_false)
         task = {
             "id": task_id,
             "option": option,
-            "match": {"option_set": fps.pop()} if match == "option_set" else {"imajev_extension": True},
+            "match": (
+                {"option_set": fps.pop()}
+                if match == "option_set"
+                else {"option_keys": kps.pop()}
+                if match == "option_keys"
+                else {"imajev_extension": True}
+            ),
             "config": cfg,
             "model": self.name,
         }
@@ -1239,6 +1281,19 @@ def add_routes(app, systemone: SystemOne):
         hit = client_error(e)
         if hit is not None:
             raise HTTPException(*hit) from e
+
+    @app.exception_handler(NonFiniteReadout)
+    async def non_finite_readout(request, exc):
+        facts = systemone.engine.facts()
+        said = {k: facts[k] for k in ("base", "engine", "model", "quantization", "vllm", "mode") if k in facts}
+        return JSONResponse(
+            {
+                "detail": f"{exc}. The request is not at fault: the model's arithmetic on this server produced it. "
+                f"Served model {systemone.name!r}, engine {json.dumps(said, default=str)}. Check the device's dtype "
+                "and matmul precision and that the checkpoint belongs to the base given with --base."
+            },
+            status_code=500,
+        )
 
     @app.get("/v1/models")
     def models():

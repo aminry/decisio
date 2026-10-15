@@ -1,0 +1,58 @@
+{
+ "what": "gate W (12B, --multi-question warm against sequential, two fresh starts each), aggregates only: the item lists of the full verdict name travel items that are not published",
+ "stack": "decisio main with vLLM 0.31.0",
+ "speed": {
+  "sequential_ms": 1550.0256705054198,
+  "warm_ms": 743.8374029952683,
+  "ratio": 0.47988715099971463,
+  "pass": true
+ },
+ "sets": {
+  "suite4": {
+   "items": 1400,
+   "max_ss": 0.15544616247070148,
+   "median_ss": 0.002866094410626574,
+   "max_ws": 0.15172925975256368,
+   "median_ws": 0.002967740743544278,
+   "max_ww": 0.0,
+   "bound": 0.19430770308837686,
+   "pass": null,
+   "why": "12 noise flips: the control is too noisy to read this set",
+   "noise_flips": 12,
+   "choice_changes_by_warm": 4
+  },
+  "jev4": {
+   "items": 231,
+   "max_ss": 0.1043365089585257,
+   "median_ss": 0.001126638695300164,
+   "max_ws": 0.06713719945034796,
+   "median_ws": 0.0009451521116393691,
+   "max_ww": 0.0,
+   "bound": 0.13042063619815714,
+   "pass": null,
+   "why": "3 noise flips: the control is too noisy to read this set",
+   "noise_flips": 3,
+   "choice_changes_by_warm": 0
+  },
+  "travel": {
+   "items": 1088,
+   "max_ss": 0.1715647108617051,
+   "median_ss": 0.0029310230885345456,
+   "max_ws": 0.14860824632998382,
+   "median_ws": 0.0025198824990096402,
+   "max_ww": 0.0,
+   "bound": 0.21445588857713138,
+   "pass": null,
+   "why": "7 noise flips: the control is too noisy to read this set",
+   "noise_flips": 7,
+   "choice_changes_by_warm": 4,
+   "repeats_exact": {
+    "s1": 68,
+    "s2": 68,
+    "w1": 68,
+    "w2": 68
+   }
+  }
+ },
+ "pass": null
+}

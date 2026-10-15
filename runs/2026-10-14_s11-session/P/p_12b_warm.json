@@ -1,0 +1,418 @@
+{
+ "rows": [
+  {
+   "doc": 0,
+   "A": {
+    "client_ms": 740.0770009990083,
+    "server_ms": 735.2,
+    "stages": {
+     "prepare": 8.2,
+     "warm": 245.2,
+     "questions": 473.4,
+     "readout": 1.0,
+     "engine": 728.4,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 461.15962699695956,
+    "server_ms": 458.8,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 416.5,
+     "questions": 27.9,
+     "readout": 0.1,
+     "engine": 452.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 1,
+   "A": {
+    "client_ms": 738.2758489984553,
+    "server_ms": 734.4,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 245.8,
+     "questions": 471.7,
+     "readout": 1.0,
+     "engine": 727.4,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 463.47550200880505,
+    "server_ms": 461.3,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 418.9,
+     "questions": 27.8,
+     "readout": 0.1,
+     "engine": 454.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 2,
+   "A": {
+    "client_ms": 738.1379029975506,
+    "server_ms": 734.5,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 245.7,
+     "questions": 472.1,
+     "readout": 1.0,
+     "engine": 727.6,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 461.4466729981359,
+    "server_ms": 459.3,
+    "stages": {
+     "prepare": 7.6,
+     "warm": 416.8,
+     "questions": 27.8,
+     "readout": 0.1,
+     "engine": 452.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 3,
+   "A": {
+    "client_ms": 740.8148319955217,
+    "server_ms": 736.6,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 246.2,
+     "questions": 473.6,
+     "readout": 1.0,
+     "engine": 729.7,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 462.8923520067474,
+    "server_ms": 460.5,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 418.1,
+     "questions": 27.9,
+     "readout": 0.1,
+     "engine": 453.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 4,
+   "A": {
+    "client_ms": 744.7277830069652,
+    "server_ms": 739.5,
+    "stages": {
+     "prepare": 8.5,
+     "warm": 246.8,
+     "questions": 475.5,
+     "readout": 1.0,
+     "engine": 732.4,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 465.7908690132899,
+    "server_ms": 461.7,
+    "stages": {
+     "prepare": 7.8,
+     "warm": 418.7,
+     "questions": 27.9,
+     "readout": 0.1,
+     "engine": 454.6,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 5,
+   "A": {
+    "client_ms": 743.5532119998243,
+    "server_ms": 739.1,
+    "stages": {
+     "prepare": 8.5,
+     "warm": 247.2,
+     "questions": 474.7,
+     "readout": 1.0,
+     "engine": 732.0,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 465.6870599865215,
+    "server_ms": 462.8,
+    "stages": {
+     "prepare": 7.8,
+     "warm": 419.7,
+     "questions": 27.9,
+     "readout": 0.1,
+     "engine": 455.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 6,
+   "A": {
+    "client_ms": 744.1215939907124,
+    "server_ms": 740.4,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 247.6,
+     "questions": 475.9,
+     "readout": 1.0,
+     "engine": 733.4,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 464.437189992168,
+    "server_ms": 461.8,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 419.5,
+     "questions": 27.8,
+     "readout": 0.1,
+     "engine": 455.0,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 7,
+   "A": {
+    "client_ms": 744.4010699982755,
+    "server_ms": 740.5,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 247.7,
+     "questions": 475.9,
+     "readout": 1.0,
+     "engine": 733.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 468.5832959949039,
+    "server_ms": 464.3,
+    "stages": {
+     "prepare": 7.8,
+     "warm": 421.2,
+     "questions": 27.9,
+     "readout": 0.1,
+     "engine": 457.2,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 8,
+   "A": {
+    "client_ms": 745.7729500019923,
+    "server_ms": 741.9,
+    "stages": {
+     "prepare": 8.5,
+     "warm": 248.0,
+     "questions": 476.3,
+     "readout": 1.2,
+     "engine": 734.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 466.37297100096475,
+    "server_ms": 463.1,
+    "stages": {
+     "prepare": 7.6,
+     "warm": 420.6,
+     "questions": 27.8,
+     "readout": 0.1,
+     "engine": 456.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 9,
+   "A": {
+    "client_ms": 746.7318459966918,
+    "server_ms": 742.5,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 248.4,
+     "questions": 477.2,
+     "readout": 1.0,
+     "engine": 735.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 465.293418004876,
+    "server_ms": 463.0,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 420.7,
+     "questions": 27.8,
+     "readout": 0.1,
+     "engine": 456.2,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  }
+ ],
+ "median_A_ms": 743.8374029952683,
+ "median_F_ms": 464.865303998522,
+ "R": 1.6001138321083075,
+ "tokens_A": 4843.0,
+ "tokens_F": 4843.0,
+ "stages_A_median": {
+  "prepare": 8.3,
+  "warm": 247.0,
+  "questions": 475.1,
+  "readout": 1.0,
+  "engine": 732.2,
+  "wait": 0.0
+ },
+ "health": {
+  "ok": true,
+  "vllm": "0.31.0",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "engine_process": "in",
+  "mode": "separate",
+  "block_size": 16,
+  "match_unit": 16,
+  "cache_hit_unit": 64,
+  "hash_unit": 16,
+  "registers_state_boundary": true,
+  "register_boundary": "before",
+  "pad_unit": null,
+  "pad_where": null,
+  "quantization": "None",
+  "kv_cache_dtype": "auto",
+  "mamba_ssm_cache_dtype": "auto",
+  "adapters": [],
+  "VLLM_USE_DEEP_GEMM": "0",
+  "prompt_format": {
+   "tail": "spaced",
+   "slot": "template",
+   "variants": "summed",
+   "system_prompt": true
+  },
+  "base": "gemma-4-12b",
+  "attention_backend": "AttentionBackendEnum.TRITON_ATTN",
+  "profile": {
+   "base": "gemma-4-12b",
+   "checkpoint": "google/gemma-4-12B-it",
+   "revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+   "quantization_on_load": null,
+   "engine_process": "in",
+   "temperatures": {
+    "choice": 3.592,
+    "noul": 3.592,
+    "score": 3.592
+   },
+   "prompt": {
+    "tail": "spaced",
+    "slot": "template",
+    "variants": "summed",
+    "system_prompt": true,
+    "noul_rendering": "letters",
+    "describe_options": true,
+    "multi_question": "warm",
+    "register_boundary": "before",
+    "pad_policy": "always",
+    "pad_unit": null
+   }
+  },
+  "systemone": {
+   "hide_index_keys": true,
+   "desnake_labels": true,
+   "describe_options": true,
+   "noul_rendering": "letters",
+   "noul_commit": false,
+   "abstention": true,
+   "abstention_tasks": {},
+   "orders": 1,
+   "abstain_option": null,
+   "tasks": true,
+   "debug_readout": false,
+   "temperature": 3.592,
+   "temperatures": {},
+   "readout_tasks": {}
+  },
+  "head_engine": {
+   "mode": "hidden (serving engine, reserved logit columns)",
+   "reserved_ids": [
+    170000,
+    173840
+   ],
+   "lm_head": [
+    262144,
+    3840
+   ],
+   "label_logprobs": "engine",
+   "requests_per_question": 5
+  }
+ }
+}

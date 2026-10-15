@@ -1,0 +1,2081 @@
+{
+ "url": "http://127.0.0.1:18000",
+ "tokens": {
+  "300": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 56.68890599918086,
+      "server_ms": 55.2,
+      "stages": {
+       "prepare": 1.2,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.714664003113285,
+      "server_ms": 23.4,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.5,
+       "readout": 0.1,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 57.63771200145129,
+      "server_ms": 56.2,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 23.1,
+       "readout": 0.1,
+       "engine": 55.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.65531398775056,
+      "server_ms": 23.3,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.5,
+       "readout": 0.0,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 56.35620199609548,
+      "server_ms": 55.0,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.634594999952242,
+      "server_ms": 23.3,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.5,
+       "readout": 0.1,
+       "engine": 22.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 56.406201008940116,
+      "server_ms": 55.0,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.88437200372573,
+      "server_ms": 23.5,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.7,
+       "readout": 0.0,
+       "engine": 22.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 56.508328998461366,
+      "server_ms": 55.1,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.93966999463737,
+      "server_ms": 23.3,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.6,
+       "readout": 0.1,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 56.66321598982904,
+      "server_ms": 55.0,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.95352999540046,
+      "server_ms": 23.4,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.6,
+       "readout": 0.1,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 56.86878399865236,
+      "server_ms": 55.2,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.5,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 25.008109005284496,
+      "server_ms": 23.4,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.6,
+       "readout": 0.0,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 56.677536995266564,
+      "server_ms": 55.0,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.961289993370883,
+      "server_ms": 23.3,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.6,
+       "readout": 0.0,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 56.77439500868786,
+      "server_ms": 55.0,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 25.190346990711987,
+      "server_ms": 23.5,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.8,
+       "readout": 0.0,
+       "engine": 22.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 56.66047699924093,
+      "server_ms": 55.0,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 31.3,
+       "questions": 21.9,
+       "readout": 0.1,
+       "engine": 54.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 343,
+      "error": null
+     },
+     "second": {
+      "client_ms": 24.93367000715807,
+      "server_ms": 23.4,
+      "stages": {
+       "prepare": 1.0,
+       "warm": 0.0,
+       "questions": 21.6,
+       "readout": 0.0,
+       "engine": 22.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 338,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 55.0,
+   "first_client_ms_p50": 56.6703764925478,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 1.0,
+    "warm": 31.3,
+    "questions": 21.9,
+    "readout": 0.1,
+    "engine": 54.4
+   },
+   "second_server_ms_p50": 23.4,
+   "second_client_ms_p50": 24.93667000089772
+  },
+  "1000": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 112.20254100044258,
+      "server_ms": 110.7,
+      "stages": {
+       "prepare": 2.0,
+       "warm": 81.9,
+       "questions": 25.0,
+       "readout": 0.1,
+       "engine": 109.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 28.81244099989999,
+      "server_ms": 27.5,
+      "stages": {
+       "prepare": 2.0,
+       "warm": 0.0,
+       "questions": 23.9,
+       "readout": 0.1,
+       "engine": 26.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 113.85273600171786,
+      "server_ms": 112.4,
+      "stages": {
+       "prepare": 2.1,
+       "warm": 81.9,
+       "questions": 25.2,
+       "readout": 0.1,
+       "engine": 109.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 32.5052240077639,
+      "server_ms": 31.2,
+      "stages": {
+       "prepare": 3.6,
+       "warm": 0.0,
+       "questions": 25.8,
+       "readout": 0.0,
+       "engine": 29.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 112.09580200375058,
+      "server_ms": 110.8,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 82.0,
+       "questions": 25.0,
+       "readout": 0.1,
+       "engine": 109.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.2269950004993,
+      "server_ms": 27.5,
+      "stages": {
+       "prepare": 2.0,
+       "warm": 0.0,
+       "questions": 23.9,
+       "readout": 0.0,
+       "engine": 26.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 112.89226000371855,
+      "server_ms": 111.1,
+      "stages": {
+       "prepare": 2.4,
+       "warm": 82.0,
+       "questions": 24.9,
+       "readout": 0.1,
+       "engine": 109.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.263203003210947,
+      "server_ms": 27.5,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 0.0,
+       "questions": 23.9,
+       "readout": 0.1,
+       "engine": 26.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 112.43388800357934,
+      "server_ms": 110.6,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 81.9,
+       "questions": 25.0,
+       "readout": 0.1,
+       "engine": 109.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.482070996891707,
+      "server_ms": 27.7,
+      "stages": {
+       "prepare": 2.0,
+       "warm": 0.0,
+       "questions": 24.1,
+       "readout": 0.0,
+       "engine": 26.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 112.388148001628,
+      "server_ms": 110.6,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 81.9,
+       "questions": 24.9,
+       "readout": 0.1,
+       "engine": 109.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.190504996222444,
+      "server_ms": 27.5,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 0.0,
+       "questions": 23.9,
+       "readout": 0.0,
+       "engine": 26.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 113.36211299931165,
+      "server_ms": 111.6,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 81.9,
+       "questions": 25.1,
+       "readout": 0.1,
+       "engine": 109.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 32.81716100173071,
+      "server_ms": 31.1,
+      "stages": {
+       "prepare": 3.6,
+       "warm": 0.0,
+       "questions": 25.8,
+       "readout": 0.1,
+       "engine": 29.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 112.50661600206513,
+      "server_ms": 110.7,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 82.1,
+       "questions": 25.0,
+       "readout": 0.1,
+       "engine": 109.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.193065987783484,
+      "server_ms": 27.5,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 0.0,
+       "questions": 23.9,
+       "readout": 0.0,
+       "engine": 26.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 112.36713799007703,
+      "server_ms": 110.6,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 81.9,
+       "questions": 25.0,
+       "readout": 0.1,
+       "engine": 109.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.335393002838828,
+      "server_ms": 27.6,
+      "stages": {
+       "prepare": 2.0,
+       "warm": 0.0,
+       "questions": 23.9,
+       "readout": 0.0,
+       "engine": 26.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 112.69259300024714,
+      "server_ms": 110.8,
+      "stages": {
+       "prepare": 2.0,
+       "warm": 82.0,
+       "questions": 25.0,
+       "readout": 0.1,
+       "engine": 109.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 29.42906199314166,
+      "server_ms": 27.7,
+      "stages": {
+       "prepare": 1.9,
+       "warm": 0.0,
+       "questions": 24.1,
+       "readout": 0.1,
+       "engine": 26.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 1038,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 110.75,
+   "first_client_ms_p50": 112.47025200282224,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 1.9,
+    "warm": 81.9,
+    "questions": 25.0,
+    "readout": 0.1,
+    "engine": 109.1
+   },
+   "second_server_ms_p50": 27.55,
+   "second_client_ms_p50": 29.299298003024887
+  },
+  "3000": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 280.62391599814873,
+      "server_ms": 278.7,
+      "stages": {
+       "prepare": 4.9,
+       "warm": 243.1,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 274.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.812743997666985,
+      "server_ms": 34.1,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 0.0,
+       "questions": 24.8,
+       "readout": 0.0,
+       "engine": 29.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 280.7572540041292,
+      "server_ms": 278.9,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 243.4,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 274.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.692737001227215,
+      "server_ms": 33.9,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 0.0,
+       "questions": 24.6,
+       "readout": 0.1,
+       "engine": 29.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 280.1355730043724,
+      "server_ms": 278.4,
+      "stages": {
+       "prepare": 4.7,
+       "warm": 243.1,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 274.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.346672011655755,
+      "server_ms": 33.9,
+      "stages": {
+       "prepare": 4.9,
+       "warm": 0.0,
+       "questions": 24.6,
+       "readout": 0.1,
+       "engine": 29.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 284.53245700802654,
+      "server_ms": 282.9,
+      "stages": {
+       "prepare": 4.9,
+       "warm": 242.9,
+       "questions": 26.3,
+       "readout": 0.1,
+       "engine": 274.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 42.775939000421204,
+      "server_ms": 40.9,
+      "stages": {
+       "prepare": 9.2,
+       "warm": 0.0,
+       "questions": 27.0,
+       "readout": 0.1,
+       "engine": 36.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 280.1980509975692,
+      "server_ms": 278.3,
+      "stages": {
+       "prepare": 4.7,
+       "warm": 243.0,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 274.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.77738501189742,
+      "server_ms": 33.9,
+      "stages": {
+       "prepare": 4.9,
+       "warm": 0.0,
+       "questions": 24.6,
+       "readout": 0.1,
+       "engine": 29.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 280.27782100252807,
+      "server_ms": 278.7,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 243.2,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 274.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 34.89361899846699,
+      "server_ms": 33.9,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 0.0,
+       "questions": 24.6,
+       "readout": 0.0,
+       "engine": 29.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 280.6774249911541,
+      "server_ms": 279.2,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 243.8,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 274.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.9160629886901,
+      "server_ms": 34.1,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 0.0,
+       "questions": 24.7,
+       "readout": 0.1,
+       "engine": 29.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 280.2146920002997,
+      "server_ms": 278.2,
+      "stages": {
+       "prepare": 4.7,
+       "warm": 242.9,
+       "questions": 26.1,
+       "readout": 0.1,
+       "engine": 273.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.63256699999329,
+      "server_ms": 33.8,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 0.0,
+       "questions": 24.6,
+       "readout": 0.1,
+       "engine": 29.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 280.42901800654363,
+      "server_ms": 278.5,
+      "stages": {
+       "prepare": 4.7,
+       "warm": 243.0,
+       "questions": 26.2,
+       "readout": 0.1,
+       "engine": 274.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 35.83441399678122,
+      "server_ms": 33.9,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 0.0,
+       "questions": 24.6,
+       "readout": 0.1,
+       "engine": 29.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 286.9732399994973,
+      "server_ms": 285.0,
+      "stages": {
+       "prepare": 4.8,
+       "warm": 244.0,
+       "questions": 26.2,
+       "readout": 0.1,
+       "engine": 275.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 45.13269299059175,
+      "server_ms": 43.2,
+      "stages": {
+       "prepare": 11.5,
+       "warm": 0.0,
+       "questions": 27.1,
+       "readout": 0.1,
+       "engine": 38.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3038,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 278.7,
+   "first_client_ms_p50": 280.5264670023462,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 4.8,
+    "warm": 243.1,
+    "questions": 26.1,
+    "readout": 0.1,
+    "engine": 274.3
+   },
+   "second_server_ms_p50": 33.9,
+   "second_client_ms_p50": 35.795064504782204
+  },
+  "6000": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 568.8314170110971,
+      "server_ms": 566.7,
+      "stages": {
+       "prepare": 10.0,
+       "warm": 518.6,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 557.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 48.46078199625481,
+      "server_ms": 46.6,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 0.0,
+       "questions": 28.3,
+       "readout": 0.1,
+       "engine": 37.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 568.2345969980815,
+      "server_ms": 566.6,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 519.2,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 557.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 48.55375099577941,
+      "server_ms": 46.6,
+      "stages": {
+       "prepare": 9.5,
+       "warm": 0.0,
+       "questions": 28.3,
+       "readout": 0.1,
+       "engine": 38.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 568.5201229935046,
+      "server_ms": 566.7,
+      "stages": {
+       "prepare": 9.3,
+       "warm": 519.3,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 557.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 47.83514200244099,
+      "server_ms": 46.5,
+      "stages": {
+       "prepare": 9.3,
+       "warm": 0.0,
+       "questions": 28.3,
+       "readout": 0.1,
+       "engine": 37.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 568.2919649989344,
+      "server_ms": 566.7,
+      "stages": {
+       "prepare": 9.3,
+       "warm": 519.4,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 558.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 48.446972999954596,
+      "server_ms": 46.5,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 0.0,
+       "questions": 28.4,
+       "readout": 0.1,
+       "engine": 37.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 575.1049930113368,
+      "server_ms": 573.2,
+      "stages": {
+       "prepare": 9.3,
+       "warm": 521.3,
+       "questions": 31.3,
+       "readout": 0.1,
+       "engine": 562.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 52.816695999354124,
+      "server_ms": 51.3,
+      "stages": {
+       "prepare": 12.3,
+       "warm": 0.0,
+       "questions": 29.9,
+       "readout": 0.1,
+       "engine": 42.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 569.8616929876152,
+      "server_ms": 568.1,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 520.5,
+       "questions": 29.3,
+       "readout": 0.1,
+       "engine": 559.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 51.65104300249368,
+      "server_ms": 47.5,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 0.0,
+       "questions": 29.2,
+       "readout": 0.1,
+       "engine": 38.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 570.6908509891946,
+      "server_ms": 568.6,
+      "stages": {
+       "prepare": 9.6,
+       "warm": 521.0,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 559.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 48.55052099446766,
+      "server_ms": 46.6,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 0.0,
+       "questions": 28.3,
+       "readout": 0.1,
+       "engine": 37.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 570.9893769962946,
+      "server_ms": 568.9,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 521.4,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 560.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 48.57023099611979,
+      "server_ms": 46.5,
+      "stages": {
+       "prepare": 9.3,
+       "warm": 0.0,
+       "questions": 28.3,
+       "readout": 0.1,
+       "engine": 37.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 570.7611410034588,
+      "server_ms": 568.8,
+      "stages": {
+       "prepare": 9.3,
+       "warm": 521.4,
+       "questions": 29.1,
+       "readout": 0.1,
+       "engine": 560.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 48.55147999478504,
+      "server_ms": 46.5,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 0.0,
+       "questions": 28.3,
+       "readout": 0.1,
+       "engine": 37.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 571.206592998351,
+      "server_ms": 569.3,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 521.8,
+       "questions": 29.2,
+       "readout": 0.1,
+       "engine": 560.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 49.03688299236819,
+      "server_ms": 47.3,
+      "stages": {
+       "prepare": 9.4,
+       "warm": 0.0,
+       "questions": 28.9,
+       "readout": 0.1,
+       "engine": 38.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 6038,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 568.35,
+   "first_client_ms_p50": 570.2762719884049,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 9.4,
+    "warm": 520.75,
+    "questions": 29.1,
+    "readout": 0.1,
+    "engine": 559.65
+   },
+   "second_server_ms_p50": 46.6,
+   "second_client_ms_p50": 48.552615495282225
+  },
+  "16000": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 1778.8964200008195,
+      "server_ms": 1776.6,
+      "stages": {
+       "prepare": 25.3,
+       "warm": 1690.5,
+       "questions": 36.5,
+       "readout": 0.1,
+       "engine": 1752.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.87458200822584,
+      "server_ms": 85.5,
+      "stages": {
+       "prepare": 24.9,
+       "warm": 0.0,
+       "questions": 36.6,
+       "readout": 0.1,
+       "engine": 61.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 1780.055294992053,
+      "server_ms": 1777.7,
+      "stages": {
+       "prepare": 25.2,
+       "warm": 1691.6,
+       "questions": 36.6,
+       "readout": 0.1,
+       "engine": 1753.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.66976499464363,
+      "server_ms": 85.4,
+      "stages": {
+       "prepare": 25.1,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 1779.6608729986474,
+      "server_ms": 1777.3,
+      "stages": {
+       "prepare": 25.4,
+       "warm": 1691.4,
+       "questions": 36.6,
+       "readout": 0.1,
+       "engine": 1753.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.5290770054562,
+      "server_ms": 85.2,
+      "stages": {
+       "prepare": 24.9,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 1781.0015249997377,
+      "server_ms": 1778.6,
+      "stages": {
+       "prepare": 25.0,
+       "warm": 1693.0,
+       "questions": 36.6,
+       "readout": 0.1,
+       "engine": 1754.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.50546799274161,
+      "server_ms": 85.1,
+      "stages": {
+       "prepare": 25.1,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 1780.3744259872474,
+      "server_ms": 1778.0,
+      "stages": {
+       "prepare": 24.8,
+       "warm": 1692.6,
+       "questions": 36.8,
+       "readout": 0.1,
+       "engine": 1754.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 86.97783599200193,
+      "server_ms": 84.9,
+      "stages": {
+       "prepare": 24.9,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 1781.5921699948376,
+      "server_ms": 1779.9,
+      "stages": {
+       "prepare": 25.0,
+       "warm": 1694.0,
+       "questions": 36.6,
+       "readout": 0.1,
+       "engine": 1756.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.74622400233056,
+      "server_ms": 85.4,
+      "stages": {
+       "prepare": 25.1,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 1781.792697001947,
+      "server_ms": 1779.4,
+      "stages": {
+       "prepare": 24.8,
+       "warm": 1694.1,
+       "questions": 36.7,
+       "readout": 0.1,
+       "engine": 1755.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.21856299962383,
+      "server_ms": 84.9,
+      "stages": {
+       "prepare": 24.8,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 1784.735155000817,
+      "server_ms": 1782.4,
+      "stages": {
+       "prepare": 24.8,
+       "warm": 1696.8,
+       "questions": 36.7,
+       "readout": 0.1,
+       "engine": 1758.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.28006300225388,
+      "server_ms": 85.0,
+      "stages": {
+       "prepare": 24.9,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 1785.9795380063588,
+      "server_ms": 1783.5,
+      "stages": {
+       "prepare": 24.9,
+       "warm": 1695.7,
+       "questions": 37.8,
+       "readout": 0.1,
+       "engine": 1758.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.53369899932295,
+      "server_ms": 85.2,
+      "stages": {
+       "prepare": 24.9,
+       "warm": 0.0,
+       "questions": 36.3,
+       "readout": 0.1,
+       "engine": 61.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 1786.297234997619,
+      "server_ms": 1783.8,
+      "stages": {
+       "prepare": 25.1,
+       "warm": 1697.8,
+       "questions": 36.7,
+       "readout": 0.1,
+       "engine": 1759.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 87.822123998194,
+      "server_ms": 85.4,
+      "stages": {
+       "prepare": 25.2,
+       "warm": 0.0,
+       "questions": 36.2,
+       "readout": 0.1,
+       "engine": 61.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 16038,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 1779.0,
+   "first_client_ms_p50": 1781.2968474972877,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 25.0,
+    "warm": 1693.5,
+    "questions": 36.650000000000006,
+    "readout": 0.1,
+    "engine": 1755.35
+   },
+   "second_server_ms_p50": 85.2,
+   "second_client_ms_p50": 87.53138800238958
+  },
+  "32000": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 4354.675302005489,
+      "server_ms": 4352.1,
+      "stages": {
+       "prepare": 51.8,
+       "warm": 4201.2,
+       "questions": 49.2,
+       "readout": 0.1,
+       "engine": 4302.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 153.6562929977663,
+      "server_ms": 151.1,
+      "stages": {
+       "prepare": 51.8,
+       "warm": 0.0,
+       "questions": 48.7,
+       "readout": 0.1,
+       "engine": 100.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 4352.306048007449,
+      "server_ms": 4349.8,
+      "stages": {
+       "prepare": 52.0,
+       "warm": 4198.4,
+       "questions": 49.2,
+       "readout": 0.1,
+       "engine": 4300.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 153.37455800909083,
+      "server_ms": 150.9,
+      "stages": {
+       "prepare": 52.0,
+       "warm": 0.0,
+       "questions": 48.7,
+       "readout": 0.1,
+       "engine": 101.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 4354.082270991057,
+      "server_ms": 4351.6,
+      "stages": {
+       "prepare": 51.8,
+       "warm": 4200.4,
+       "questions": 49.1,
+       "readout": 0.1,
+       "engine": 4301.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 153.02299399627373,
+      "server_ms": 150.7,
+      "stages": {
+       "prepare": 51.9,
+       "warm": 0.0,
+       "questions": 48.7,
+       "readout": 0.1,
+       "engine": 100.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 4354.106351005612,
+      "server_ms": 4351.6,
+      "stages": {
+       "prepare": 52.0,
+       "warm": 4200.3,
+       "questions": 49.0,
+       "readout": 0.1,
+       "engine": 4301.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 153.45862800313625,
+      "server_ms": 150.8,
+      "stages": {
+       "prepare": 51.9,
+       "warm": 0.0,
+       "questions": 48.8,
+       "readout": 0.1,
+       "engine": 101.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 4369.925031001912,
+      "server_ms": 4367.2,
+      "stages": {
+       "prepare": 51.7,
+       "warm": 4216.2,
+       "questions": 49.2,
+       "readout": 0.1,
+       "engine": 4317.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 154.18480600055773,
+      "server_ms": 151.8,
+      "stages": {
+       "prepare": 52.7,
+       "warm": 0.0,
+       "questions": 48.9,
+       "readout": 0.1,
+       "engine": 102.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 4400.553655999829,
+      "server_ms": 4398.7,
+      "stages": {
+       "prepare": 52.4,
+       "warm": 4247.2,
+       "questions": 49.2,
+       "readout": 0.1,
+       "engine": 4349.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 153.0788539967034,
+      "server_ms": 150.6,
+      "stages": {
+       "prepare": 51.8,
+       "warm": 0.0,
+       "questions": 48.8,
+       "readout": 0.1,
+       "engine": 100.9,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 4426.451922990964,
+      "server_ms": 4424.6,
+      "stages": {
+       "prepare": 51.7,
+       "warm": 4273.5,
+       "questions": 49.1,
+       "readout": 0.1,
+       "engine": 4374.8,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 152.65522099798545,
+      "server_ms": 150.8,
+      "stages": {
+       "prepare": 52.0,
+       "warm": 0.0,
+       "questions": 48.9,
+       "readout": 0.1,
+       "engine": 101.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 4428.740628005471,
+      "server_ms": 4426.9,
+      "stages": {
+       "prepare": 52.1,
+       "warm": 4275.4,
+       "questions": 49.1,
+       "readout": 0.1,
+       "engine": 4377.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 152.8281190112466,
+      "server_ms": 151.0,
+      "stages": {
+       "prepare": 52.0,
+       "warm": 0.0,
+       "questions": 48.8,
+       "readout": 0.1,
+       "engine": 101.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 4431.374638006673,
+      "server_ms": 4429.5,
+      "stages": {
+       "prepare": 51.9,
+       "warm": 4274.6,
+       "questions": 52.8,
+       "readout": 0.1,
+       "engine": 4379.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 168.0234290106455,
+      "server_ms": 166.2,
+      "stages": {
+       "prepare": 59.4,
+       "warm": 0.0,
+       "questions": 49.5,
+       "readout": 0.3,
+       "engine": 109.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 4473.55520799465,
+      "server_ms": 4471.6,
+      "stages": {
+       "prepare": 57.2,
+       "warm": 4309.7,
+       "questions": 49.3,
+       "readout": 0.1,
+       "engine": 4416.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32043,
+      "error": null
+     },
+     "second": {
+      "client_ms": 154.27757799625397,
+      "server_ms": 152.0,
+      "stages": {
+       "prepare": 51.7,
+       "warm": 0.0,
+       "questions": 50.5,
+       "readout": 0.1,
+       "engine": 102.5,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 32038,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 4382.95,
+   "first_client_ms_p50": 4385.239343500871,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 51.95,
+    "warm": 4231.7,
+    "questions": 49.2,
+    "readout": 0.1,
+    "engine": 4333.3
+   },
+   "second_server_ms_p50": 150.95,
+   "second_client_ms_p50": 153.41659300611354
+  }
+ }
+}

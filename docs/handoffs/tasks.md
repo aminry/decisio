@@ -93,6 +93,7 @@ Use it only where a scorer or a downstream rule needs a committed probability; a
 ## Abstention
 
 `POST /v1/abstention/tasks` registers a threshold on an abstain option's probability (`decisio.serve.abstention`): the customer's own option (for example "out of scope") or one the server appends (`--abstain-option`, answered through imajev's `unknown_probability` and `abstained` fields).
+A task matches by `match`: `option_set` (the question's exact option list), `option_keys` (the question's set of keys alone, for items that share their labels and not their texts: the keys A to D and `idk` over item-specific answers; the whole key set, not the abstain key alone, because the abstain option's probability moves with the number of candidates) or `imajev_extension`. Examples that do not share the match identity are refused with 422.
 The threshold is fitted from labelled examples that include unanswerable ones, with leave-one-out cross-validation and an acceptance rule that keeps the plain behaviour when the examples do not justify it; it decides on the distribution after the temperature or the task's correction.
 
 ## Exact ties
