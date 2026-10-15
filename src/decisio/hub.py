@@ -68,7 +68,7 @@ REPOSITORIES = {
 RENAMED = {f"aminry/{name.split('/')[1]}": name for name in REPOSITORIES.values()}
 # the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins)
 PINNED_REVISIONS: dict[str, str] = {
-    "tachara-ai/decisio-gemma-4-31b": "ecf6eec6396acdee9d4b4113aa0c7bb16739d53b",
+    "tachara-ai/decisio-gemma-4-31b": "8f51c722b80c32d0ceb769aa38b6ff7516f28aa9",
     "tachara-ai/decisio-gemma-4-12b": "6fc1b9b9e9a5a04262a49055eb28e3a6f72df83c",
     "tachara-ai/decisio-qwen3.6-35b-a3b": "d7bfda49b8284c3213098bafb6664bbee0f94433",
 }
