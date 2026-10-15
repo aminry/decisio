@@ -347,9 +347,9 @@ Ours are the same field of each run's `scores.json` (`index_benchmarks[id].raw`)
 The board file holds a second Jev value for GPQA Diamond, `jev.results['25'].score` = 0.7828, which its GPQA Diamond column and benchmark page display as 78.3.
 That value is over all 198 questions (its `cases`: 198; 0.7828 is 155 of 198), including the two rows edition 0.2.1 excludes from scoring, while ours and its `raw` 0.7857 (154 of 196) are over the 196 it scores; so 0.7828 is not the comparison with our accuracy.
 For MMLU-Pro both fields are 0.827.
-On these two knowledge benchmarks Jev is ahead of every base served here.
+In the values above, as of 2026-10-05, on these two knowledge benchmarks Jev is ahead of every base served here.
 
-`docs/comparison.md` extends this to every index benchmark, the five areas, JevBench's 231 published questions, latency, cost and capabilities, for the three bases, Jev and the three open-weights entries with the highest index, each of our cells marked ahead, level or behind by a rule written before computing (`runs/2026-10-05_comparison/`).
+`docs/comparison.md` extends this to every index benchmark, the five areas, JevBench's 231 published questions, latency, cost and capabilities, for the three bases, Jev and three open-weights entries, as of 2026-10-05, as values and intervals with no marks (the rule of that date, written before computing, stays in `runs/2026-10-05_comparison/` as a record).
 
 ## 9. JevBench v1.6.1: what the compared systems' cards state
 

@@ -3,7 +3,7 @@
 
 # Decisio
 
-**Jev-level decisions on your own hardware, open source.**
+**Decisions you can trust, on your own hardware. Open source.**
 
 [![PyPI](https://img.shields.io/pypi/v/decisio)](https://pypi.org/project/decisio/)
 [![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
@@ -11,7 +11,7 @@
 
 **Decisio is an open-source server that answers typed questions about any text, with a calibrated probability for every option, from one forward pass and no generated text.**
 
-> **Second among open-weights systems on JevBench, level with Jev, and the highest-ranked with frozen weights.**
+> **On JevBench v1.6.1 (the board's file, October 2026), Decisio 31B scored 71.69 on the composite (95% interval 69.86 to 72.81) and Jev 1.13.0 scored 71.49 (69.14 to 72.40); the two intervals overlap.** The live board is at https://benchmarkheaven.com/jev-models and has moved since.
 > ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), decisio on Gemma 4 31B; [how we read the board](#how-we-read-the-board).)
 
 ## Teach it your task
@@ -71,7 +71,7 @@ How to register a task end to end, what each number was measured on and where th
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_top12_dark.png">
-  <img src="docs/launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for the board's ten highest open-weights systems, with Jev 1.13.0 below as a reference row. H2O-Lightning-4B is first and Decisio on Gemma 4 31B is second, 71.69 against 72.52, with Quyet-1.0-Large third. The intervals of the first three overlap, and Jev's overlaps Decisio's.">
+  <img src="docs/launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for ten open-weights systems, with Jev 1.13.0 below as a reference row. Decisio on Gemma 4 31B scored 71.69 and Jev 1.13.0 71.49; the two intervals overlap.">
 </picture>
 
 ## Why Decisio
@@ -80,11 +80,11 @@ The usual way to get a decision out of a model is to let it write text and parse
 Decisio skips the text.
 It reads your document once and reads the probability of each option straight off the model's output.
 
-- **Higher than Jev on what the model knows.** Intelligence axis: 70.4 against Jev 1.13.0's 63.6.
-- **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
+- **What the model knows.** Intelligence axis on JevBench v1.6.1: 70.4 (Jev 1.13.0: 63.6).
+- **The sealed set.** On JevBench v1.6.1, the 31B's sealed-set intelligence was 73.3 and Jev 1.13.0's 61.6; the open-set intelligence was 67.6 and 65.6. The sealed questions were never published.
 - **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
 - **Long prompts, many options.** Prompts up to 32,768 tokens and 255 options per question.
-- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on JevBench v1.6.1 Decisio is 9th of the 11 rows shown on the board's cost axis (51.7; H2O-Lightning-4B's 60.3 is highest).
+- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on JevBench v1.6.1 its cost axis was 51.7 (Jev 1.13.0: 54.7).
 
 | | Gemma 4 31B (the default) |
 | --- | --- |
@@ -119,7 +119,7 @@ Intent heads use labelled examples, so they are not comparable with zero-shot sy
 n/m is not measured.
 Latency is server time on decisio 0.8.1's served defaults, at a 585 W power limit (default 600 W), so a card at 600 W may read new states faster (`runs/2026-10-06_latency-585w/`, `docs/running.md`).
 
-[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and the leading open entries on every benchmark (the board's figures and their date are in `EVAL_CARD.md` section 8.1).
+[`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and three open entries on every benchmark, with values and intervals (the board's figures and their date are in `EVAL_CARD.md` section 8.1).
 ECE, the expected calibration error, is the average gap between the stated probability and how often the answer was right, over 10 equal-width bins of the probability (JevBench's own measure; the card's other ECEs use 10 equal-mass bins and say so, `EVAL_CARD.md` section 3).
 Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
 `EVAL_CARD.md` has the full tables and what was fitted on what.
@@ -128,15 +128,15 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_axes_dark.png">
-  <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores, 11 rows sorted by composite score: the ten highest open-weights systems and Jev 1.13.0 as a reference row, six columns (overall, intelligence, sealed questions, calibration, speed, cost), each cell shaded by its rank in the column. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. Among the 11 rows shown it is second on overall, third on intelligence, second on sealed questions, fifth on calibration, fifth on speed and ninth on cost. The highest in each column: overall: H2O-Lightning-4B v1.1; intelligence: Quyet-1.0-Large; sealed questions: deck-31B; calibration: Jev 1.13.0; speed: H2O-Lightning-4B v1.1; cost: H2O-Lightning-4B v1.1. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
+  <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores for eleven rows: ten open-weights systems from the board's file and Jev 1.13.0 as a reference row, sorted by composite score, with six columns (overall, intelligence, sealed questions, calibration, speed, cost). Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
 </picture>
 
-- On JevBench v1.6.1, among the ten highest open-weights systems and Jev: 2nd overall, 2nd on sealed questions (73.3, never published) and 3rd on intelligence (70.4, ahead of Jev's 63.6).
-- On JevBench v1.6.1, within 2 points of the highest on calibration (88.7; Jev 90.6) and on speed (91.2; H2O-Lightning-4B 92.6).
-- On JevBench v1.6.1, 9th on the board's cost axis (51.7; H2O-Lightning-4B 60.3 is highest).
+- On JevBench v1.6.1, the 31B's sealed-set intelligence was 73.3 and Jev 1.13.0's 61.6; the open-set intelligence was 67.6 and 65.6. The sealed questions were never published.
+- On JevBench v1.6.1, calibration was 88.7 (Jev 1.13.0: 90.6) and speed 91.2 (91.5).
+- On JevBench v1.6.1, the cost axis was 51.7 (Jev 1.13.0: 54.7).
 
 <details>
-<summary>All the numbers: the ten highest open-weights systems and Jev, by axis</summary>
+<summary>All the numbers: ten open-weights systems and Jev, by axis</summary>
 
 JevBench v1.6.1, 0 to 100, higher is better on every axis, sorted by overall score; only the composite has a published 95% interval.
 The Decisio rows are the board's v0.8.0 entries; the board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.
@@ -168,7 +168,7 @@ What the compared systems' cards state, quoted as recorded with their revisions,
 
 Five systems, one box, one session: the median time to answer 50 questions about one document.
 On one box, Decisio 31B answers 50 questions about one 3,000-token document in 1.08 s and about one 6,000-token document in 1.73 s; Decisio 12B takes 1.57 s and 1.97 s, and H2O-Lightning-4B 2.05 s and 2.82 s.
-On one box, Jeff-1.0-Large and Quyet-1.0-Large, which both score higher than Decisio 31B on JevBench's capability score, take about 44 times (3,000 tokens) and 66 times (6,000 tokens) as long as Decisio 31B to answer 50 questions about one document, and neither accepts a 32,000-token document.
+On one box (one RTX PRO 6000 at 600 W, one session on 2026-10-11), Decisio 31B answered 50 questions about a 3,000-token document in 1.08 s and about a 6,000-token document in 1.73 s; Jeff-1.0-Large took 47.1 s and 114.6 s, and Quyet-1.0-Large 48.9 s and 114.8 s, about 44 and 66 times as long. Neither accepts a 32,000-token document; Decisio 31B answered one in 10.1 s. Time, not accuracy.
 On one box, the first question about a new 3,000-token document takes a median of 112 ms on H2O-Lightning-4B, 295 ms on Decisio 12B, 490 ms on Decisio 31B, and 895 ms on Jeff-1.0-Large and 895 ms on Quyet-1.0-Large.
 At 32,000 tokens, Decisio 31B answers 50 questions about one document in 10.1 s, Decisio 12B in 6.76 s and H2O-Lightning-4B in 9.05 s; Jeff-1.0-Large accepts documents of up to 8,192 tokens and Quyet-1.0-Large up to 6,000, so neither accepts a 32,000-token document.
 
@@ -182,20 +182,19 @@ Measured by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell Workstation Edit
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
-  <img src="docs/launch/sealed_vs_open.png" alt="A dot plot of the intelligence axis of JevBench v1.6.1 for eleven systems, sorted by sealed-set score, each with its open-set score beside it. deck-31B is first and Decisio on Gemma 4 31B is second on the sealed set, and Decisio scores higher on the sealed items than on the open ones.">
+  <img src="docs/launch/sealed_vs_open.png" alt="A dot plot of the intelligence axis of JevBench v1.6.1 for eleven systems, each with its sealed-set score and its open-set score beside it. Decisio on Gemma 4 31B scored 73.3 on the sealed set and 67.6 on the open set, and Decisio scores higher on the sealed items than on the open ones.">
 </picture>
 
 Decisio scores higher on the sealed items than on the open ones.
 
-The headline claim rests on the board's own ranks and on interval overlap, not on separation.
+The two composite intervals overlap, so the measurement does not separate Decisio 31B from Jev 1.13.0.
 In short:
 
-- **Open weights.** Second among the board's 128 open-weights systems. H2O-Lightning-4B ranks above us (72.52, interval 69.79 to 73.79) and its interval overlaps ours (69.86 to 72.81).
-- **Level with Jev.** Our interval and Jev 1.13.0's (69.14 to 72.40) overlap. The scores are 71.69 and 71.49.
-- **Frozen weights.** The board has no such class. We count a row as frozen by its display text, and decisio's row is the highest-ranked of those.
+- **The composite.** On JevBench v1.6.1 (the board's file, October 2026), Decisio 31B scored 71.69 on the composite (95% interval 69.86 to 72.81) and Jev 1.13.0 scored 71.49 (69.14 to 72.40); the two intervals overlap.
+- **Jev 1.13.0.** Our interval (69.86 to 72.81) and Jev 1.13.0's (69.14 to 72.40) overlap. The scores are 71.69 and 71.49.
 - **Not fitted, but read.** Our temperatures were not fitted on JevBench, but we have read its published items (EVAL_CARD 7.4).
 
-[`docs/board-reading.md`](docs/board-reading.md) has the source file, the ranks, the frozen-weights rule, the overlapping intervals and what the board's row ran on.
+[`docs/board-reading.md`](docs/board-reading.md) has the source file, the values and intervals, and what the board's row ran on.
 
 ## Quickstart
 
