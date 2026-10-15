@@ -16,17 +16,26 @@
 
 ## Teach it your task
 
-**Register labelled examples of your own question and the server learns what your labels mean, without retraining the model.**
-The model behind Decisio stays frozen: it answers from what it already knows, which is also where it can be wrong about your data (what "access" means in your company, or which queue it tends to over-pick).
-`POST /v1/tasks` fits four things from a handful of your own examples, in seconds to minutes, and applies them to every later question with the same options:
+**Teach it your question, and it tells you which answers to trust.**
+Register one recurring question with your own labelled examples and the server learns what your labels mean, without retraining the model: its weights never change.
+Add a `certify` block and every later answer says whether it is certified: on examples the server set aside, at most 5% of the certified answers are wrong, with 90% confidence (both are yours to change).
+The tradeoff: you need labelled examples (10 per option for the intent head; 59 held out to certify at the defaults, so 118 in all with half held out), and a certificate holds for one task on one serving setup.
 
-- **Calibration:** one correction per option, so the probabilities are honest for your traffic.
-- **An intent head,** for questions with 10 or more options: a small layer on the model's internal representation of the text that learns what your labels mean.
-- **A per-task temperature** for the head, fitted on examples the head did not see, so its probabilities are no more confident than it is right.
-- **Certified answers:** ask for an error rate `alpha` and the server finds the confidence above which it can say, with a stated confidence, that at most that share of the answers are wrong, and marks every later answer `certified: true` or `false`.
+**Before and after, from labelled examples** (BANKING77 has 77 options and CLINC150 has 150; 10 labelled examples per intent; the test items are held out; each base measured in its own session):
 
-Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
-The weights, and every question you did not register, are untouched.
+| Base | BANKING77, untaught to taught | CLINC150, untaught to taught | Record |
+| --- | --- | --- | --- |
+| Gemma 4 31B (the default) | 0.787 to **0.844** | 0.940 to **0.970** | `runs/2026-10-04_gemma-4-31b/` (three draws) |
+| Gemma 4 12B | 0.747 to **0.832** | 0.850 to **0.908** | `runs/2026-10-04_gemma-base/` (six draws) |
+| Qwen3.6-35B-A3B | 0.747 to **0.840** (+9.3 points, 95% interval +5.1 to +14.0) | 0.820 to **0.912** (+9.2, +3.5 to +15.2) | `runs/2026-10-03_qiv-default/` (six draws) |
+
+These numbers use labels, so they compare the taught server with the untaught one and not with systems that see no labels.
+Registering takes about 0.30 s per example (770 examples took about 230 s on the Qwen base).
+
+**What a certificate looks like** (`runs/2026-10-14_certified-answers/`, the Gemma 4 12B on a Mac, a three-queue ticket question, 400 labelled tickets, `alpha` 0.15): the server held out 200 of them, and the threshold 0.986 certifies 169 (84%), 17 of them wrong.
+The promise: with probability at least 90% over the draw of such examples, at most 15% of the answers above the threshold are wrong, for traffic like them and on that serving stack.
+On 200 further tickets 169 answers were certified and 19 of those were wrong (11.2%); that is one draw, not a test of the promise, which is about a rate over many answers.
+Below 59 held-out examples (at the defaults) the server refuses to certify at all, and when no threshold holds it says so and certifies nothing.
 
 ```json
 POST /v1/tasks
@@ -36,25 +45,15 @@ POST /v1/tasks
 ```
 
 From then on every answer for that question carries the verdict, for example `{"choice": "shipping", "certified": false, "certificate": "ticket-queue#c2e4cc6e431b", "certified_reason": "below_threshold", ...}`.
+Registering one question fits four things, in seconds to minutes: a **calibration** (one correction per option, so the probabilities are honest for your traffic), an **intent head** for questions with 10 or more options (a small layer on the model's internal representation of the text), a **per-task temperature** for the head (new in 0.12.0, fitted on examples the head did not see, so its probabilities are no more confident than it is right), and the **certificate**.
+Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
+Every question you did not register is untouched.
 
 <!-- TEACH-IT PLACEHOLDERS (Lab 1's numbers; fill when public, keys in launch_facts.json under "teaching"; no Jev figure may appear here):
      T1 teaching.gatekeeper.n200.untaught.macro_f1     T2 teaching.gatekeeper.n200.taught.macro_f1
      T3 teaching.gatekeeper.n1000.taught.macro_f1      T4 teaching.banking77.n10_per_intent.taught.macro_f1
      T5 teaching.temperature.ece_head_without          T6 teaching.temperature.ece_head_with
      T7 teaching.time_to_teach.n200.seconds            T8 teaching.certified.gatekeeper.certified_share -->
-
-**What it does for intent questions** (the test items are held out; 10 labelled examples per intent; each base measured in its own session):
-
-| Base | BANKING77 (77 options), plain to taught | CLINC150 (150 options), plain to taught | Record |
-| --- | --- | --- | --- |
-| Gemma 4 31B (the default) | 0.787 to **0.844** | 0.940 to **0.970** | `runs/2026-10-04_gemma-4-31b/` (three draws) |
-| Gemma 4 12B | 0.747 to **0.832** | 0.850 to **0.908** | `runs/2026-10-04_gemma-base/` (six draws) |
-| Qwen3.6-35B-A3B | 0.747 to **0.840** (+9.3 points, 95% interval +5.1 to +14.0) | 0.820 to **0.912** (+9.2, +3.5 to +15.2) | `runs/2026-10-03_qiv-default/` (six draws) |
-
-**What a certificate looks like** (`runs/2026-10-14_certified-answers/`, the Gemma 4 12B on a Mac, a three-queue ticket question, 400 labelled tickets, `alpha` 0.15): the server held out 200 of them, and the threshold 0.986 keeps 169 (84%) with 17 wrong.
-The promise: with probability at least 90% over the draw of such examples, at most 15% of the answers above the threshold are wrong, for traffic like them and on that serving stack.
-On 200 further tickets 169 answers were certified and 19 of those were wrong (11.2%); that is one draw, not a test of the promise, which is about a rate over many answers.
-Below 59 held-out examples (at the defaults) the server refuses to certify at all, and when no threshold holds it says so and certifies nothing.
 
 How to register a task end to end, what each number was measured on and where the promise stops: [`docs/tasks.md`](docs/tasks.md).
 
@@ -72,6 +71,8 @@ The usual way to get a decision out of a model is to let it write text and parse
 Decisio skips the text.
 It reads your document once and reads the probability of each option straight off the model's output.
 
+- **Teach it your labels.** With 10 labelled examples per intent, BANKING77 intent accuracy on the default 31B goes from 0.787 to 0.844 and CLINC150 from 0.940 to 0.970 ([Teach it your task](#teach-it-your-task)).
+- **Know which answers to trust.** In the docs' example (the 12B on a Mac, 400 support tickets, at most 15% wrong), 169 of 200 held-out tickets were certified, and 17 of those were wrong.
 - **Higher than Jev on what the model knows.** Intelligence axis: 70.4 against Jev 1.13.0's 63.6.
 - **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
 - **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
