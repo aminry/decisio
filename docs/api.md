@@ -32,6 +32,7 @@ A malformed request is answered with status 422 and a `detail` naming what is wr
 
 A prompt, the state with one question, can hold up to 32,768 tokens (`EVAL_CARD.md` section 2).
 A prompt over that is answered with 422 and a `detail` that says the rendered prompt is longer than the context, with the lengths vLLM reports (shorten the state or the question and send it again); the server stays up (before 0.11.0 it was a bare 500).
+A NaN or infinity in the engine's probabilities (a model whose arithmetic does not survive the device's dtype or matmul precision, or a checkpoint served under a profile that is not its own) is answered with 500 and a `detail` that says the values are not finite, that the request is not at fault, and which served model and engine produced them; before 0.12.0 a NaN in a choice question surfaced as a 400 "min() iterable argument is empty".
 The same holds for `POST /v1/answer` and for the examples of `POST /v1/tasks` and `POST /v1/abstention/tasks`.
 Fields the server does not know are ignored, so extensions (such as `orders`, for two-order averaging) and fields added to the wire format later do not break a request.
 

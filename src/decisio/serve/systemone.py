@@ -290,18 +290,31 @@ def score_confidence(p) -> float:
     return max(0.0, 1.0 - dist / uniform_mad)
 
 
+class NonFiniteReadout(RuntimeError):
+    """An engine returned NaN or infinity as a probability. It is a fault in the model's arithmetic on this server (a
+    dtype or matmul precision the checkpoint does not survive, a checkpoint that does not belong to the base's
+    profile), not in the request, so the route answers 500 with a message that says so (`add_routes`), never 400."""
+
+
+def require_finite(p, what: str = "an engine probability") -> None:
+    if not np.isfinite(np.asarray(p, dtype=np.float64)).all():
+        raise NonFiniteReadout(f"{what} is not finite (NaN or infinity)")
+
+
 def top_index(keys, p, among=None) -> int:
     """The declared choice: the most probable option; among options whose probabilities are exactly equal, the one whose
     key sorts first (Unicode code-point order), so the choice never depends on the order of the keys on the wire (JSON
     objects are unordered, and clients that serialise with sorted keys reorder them; docs/handoffs/tasks.md,
     "Exact ties"). `among`: the candidate indices (default: all)."""
     idx = list(range(len(p))) if among is None else list(among)
+    require_finite([p[i] for i in idx], "a choice question's probability")
     m = max(p[i] for i in idx)
     return min((i for i in idx if p[i] == m), key=lambda i: keys[i])
 
 
 def to_answer(q, keys, p) -> dict:
     p = [float(x) for x in p]
+    require_finite(p, f"a {q.type} question's probability")
     if q.type == "noul":
         return {"type": "noul", "noul": p[0]}
     if q.type == "choice":
@@ -715,6 +728,7 @@ class SystemOne:
             for state, q in pairs:
                 eq, _, swapped = self.engine_question(q)
                 probs, _ = self.engine.answer(state, [eq])
+                require_finite(probs[0], "a registration example's probability")
                 out.append(probs[0][::-1] if swapped else probs[0])
             return out
 
@@ -722,7 +736,10 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                out.append(self.hidden_engine.readout(state, [eq])[0])
+                lp, h = self.hidden_engine.readout(state, [eq])[0]
+                require_finite(lp, "a registration example's label log-probability")
+                require_finite(h, "a registration example's hidden state")
+                out.append((lp, h))
             return out
 
         result = self.task_store.register(
@@ -1239,6 +1256,19 @@ def add_routes(app, systemone: SystemOne):
         hit = client_error(e)
         if hit is not None:
             raise HTTPException(*hit) from e
+
+    @app.exception_handler(NonFiniteReadout)
+    async def non_finite_readout(request, exc):
+        facts = systemone.engine.facts()
+        said = {k: facts[k] for k in ("base", "engine", "model", "quantization", "vllm", "mode") if k in facts}
+        return JSONResponse(
+            {
+                "detail": f"{exc}. The request is not at fault: the model's arithmetic on this server produced it. "
+                f"Served model {systemone.name!r}, engine {json.dumps(said, default=str)}. Check the device's dtype "
+                "and matmul precision and that the checkpoint belongs to the base given with --base."
+            },
+            status_code=500,
+        )
 
     @app.get("/v1/models")
     def models():
