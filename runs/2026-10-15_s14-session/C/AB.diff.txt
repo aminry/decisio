@@ -1,0 +1,7 @@
+AB a against b n 200 median 0.00e+00 p90 0.00e+00 max 0.000 | above 1e-3: 0 above 1e-2: 0 exactly equal: 200
+   dp 0.000 toxicchat:9 (A's top-two margin 0.958)
+   dp 0.000 toxicchat:88 (A's top-two margin 0.947)
+   dp 0.000 toxicchat:78 (A's top-two margin 0.952)
+   dp 0.000 toxicchat:77 (A's top-two margin 0.912)
+   dp 0.000 toxicchat:67 (A's top-two margin 0.957)
+   dp 0.000 toxicchat:59 (A's top-two margin 0.953)

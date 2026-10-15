@@ -1,0 +1,42 @@
+{
+ "B": {
+  "status": "RAN"
+ },
+ "A": {
+  "status": "PASS",
+  "max_model_len": 98304,
+  "prediction": "hit: 90,112 or 98,304"
+ },
+ "E": {
+  "status": "FAIL",
+  "max_model_len": 98304
+ },
+ "D": {
+  "status": "PASS",
+  "max_model_len": 98304,
+  "prediction": "first question 25 to 45 s, second 0.3 to 0.6 s (reported, not gated)"
+ },
+ "C": {
+  "status": "PASS",
+  "verdict": "PASS",
+  "rule": "200 of 200 exactly equal and every tensor's bytes identical"
+ },
+ "B2": {
+  "status": "RAN"
+ },
+ "G": {
+  "status": "FAIL",
+  "lengths_by_share": {
+   "0.90": 98304,
+   "0.85": 49152
+  }
+ },
+ "F": {
+  "status": "PASS"
+ },
+ "L12": {
+  "status": "PASS",
+  "max_model_len": 65536,
+  "prediction": "65,536 (the base's ceiling)"
+ }
+}

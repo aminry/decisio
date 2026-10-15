@@ -1,0 +1,8 @@
+{
+ "cell": "L12",
+ "pass": true,
+ "max_model_len": 65536,
+ "source": "auto: the base's ceiling of 65,536 fits on this card",
+ "prediction": "65,536 (the base's ceiling)",
+ "kv_gib": 43.28
+}

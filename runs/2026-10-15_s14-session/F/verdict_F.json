@@ -1,0 +1,10 @@
+{
+ "cell": "F",
+ "pass": true,
+ "started": false,
+ "exit_status_not_0": true,
+ "message_found": true,
+ "vllm_fit_in_message": "7,968",
+ "server_left_running": false,
+ "note": ""
+}

@@ -1,0 +1,10 @@
+{"stage":"gate","hours_at_start":0.15,"rc":0,"note":"pass","end_utc":"20:33:48"}
+{"stage":"setup","hours_at_start":0.20,"rc":0,"note":"downloads","end_utc":"20:36:41"}
+{"stage":"c.B","hours_at_start":0.32,"rc":0,"note":"the 31B at 32,768 and the 200 requests","end_utc":"20:43:30"}
+{"stage":"c.A","hours_at_start":0.42,"rc":0,"note":"the 31B with no length flag","end_utc":"20:49:50"}
+{"stage":"c.E","hours_at_start":0.42,"rc":0,"note":"a prompt over the chosen length","end_utc":"20:49:59"}
+{"stage":"c.D","hours_at_start":0.59,"rc":0,"note":"the long-context check at 80000 tokens","end_utc":"20:59:49"}
+{"stage":"c.B2","hours_at_start":0.68,"rc":0,"note":"the 31B at 32,768 and the 200 requests","end_utc":"21:05:15"}
+{"stage":"c.G","hours_at_start":0.84,"rc":0,"note":"the share at 0.85 and 0.70","end_utc":"21:14:54"}
+{"stage":"c.F","hours_at_start":0.91,"rc":0,"note":"the start at 0.55","end_utc":"21:19:21"}
+{"stage":"c.L12","hours_at_start":0.97,"rc":0,"note":"the 12B with no length flag","end_utc":"21:22:31"}

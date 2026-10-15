@@ -1,0 +1,15 @@
+{
+ "max_model_len": 49152,
+ "checks": [
+  {
+   "target_tokens": 51152,
+   "state_tokens_counted": 51330,
+   "status": 422,
+   "message": "{\"detail\":\"the rendered prompt (the state with one question) is longer than the context the server was started with; shorten the state or the question and send it again. vLLM says: This model's maximum context length is 49152 tokens. However, you requested 0 output tokens and your prompt contains 50",
+   "refused_with_the_message": true,
+   "enforcement_failure": false
+  }
+ ],
+ "health_after_ok": true,
+ "pass": true
+}

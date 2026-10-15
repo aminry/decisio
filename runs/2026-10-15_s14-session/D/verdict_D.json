@@ -1,0 +1,13 @@
+{
+ "cell": "D",
+ "pass": true,
+ "target_tokens": 80000,
+ "max_model_len": 98304,
+ "errors": 0,
+ "correct_short": 26,
+ "correct_long": 24,
+ "first_question_ms_start_depth_median": 18805.449999999997,
+ "second_question_ms_median": 476.9,
+ "prediction": "first question 25 to 45 s, second 0.3 to 0.6 s (reported, not gated)",
+ "first_question_in_predicted_range": false
+}

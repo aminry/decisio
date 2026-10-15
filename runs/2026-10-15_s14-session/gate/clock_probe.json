@@ -1,0 +1,19 @@
+{
+ "load": "fp8",
+ "gemm_tflops": 706.3,
+ "samples": 34,
+ "loaded_samples": 34,
+ "min_sm_mhz": 0.0,
+ "reasons_seen": {
+  "0x4": 34
+ },
+ "reasons_refused": [],
+ "send_back": [],
+ "sm_mhz_p10": 810.0,
+ "sm_mhz_p50": 862.5,
+ "sm_mhz_p90": 915.0,
+ "power_w_p50": 347.23,
+ "temp_c_max": 44.0,
+ "power_cap_share": 1.0,
+ "verdict": "PASS"
+}

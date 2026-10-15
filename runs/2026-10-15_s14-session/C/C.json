@@ -1,0 +1,41 @@
+{
+ "A_vs_B": {
+  "n": 200,
+  "exactly_equal": 200,
+  "median_dp": 0.0,
+  "largest_dp": 0.0
+ },
+ "fingerprint_A_vs_B": {
+  "tensors_a": 1145,
+  "tensors_b": 1145,
+  "only_in_one": [],
+  "bytes_differ": 0,
+  "bytes_differ_names": [],
+  "shape_differ": 0,
+  "shape_differ_names": [],
+  "all_digest_equal": true,
+  "read": true,
+  "bytes_identical": true
+ },
+ "B_vs_B2": {
+  "n": 200,
+  "exactly_equal": 0,
+  "median_dp": 0.00398384687341613,
+  "largest_dp": 0.6112457757086115
+ },
+ "fingerprint_B_vs_B2": {
+  "tensors_a": 1145,
+  "tensors_b": 1145,
+  "only_in_one": [],
+  "bytes_differ": 0,
+  "bytes_differ_names": [],
+  "shape_differ": 0,
+  "shape_differ_names": [],
+  "all_digest_equal": true,
+  "read": true,
+  "bytes_identical": true
+ },
+ "control_equal": false,
+ "verdict": "PASS",
+ "rule": "200 of 200 exactly equal and every tensor's bytes identical"
+}

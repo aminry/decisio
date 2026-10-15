@@ -1,0 +1,30 @@
+{
+ "cell": "G",
+ "pass": false,
+ "rows": [
+  {
+   "gpu_memory_utilization": "0.70",
+   "started": false,
+   "floor_message": true,
+   "vllm_fit_in_message": "22,064",
+   "pass": false
+  },
+  {
+   "gpu_memory_utilization": "0.85",
+   "started": true,
+   "max_model_len": 49152,
+   "vllm_fit": 53696,
+   "expected_round_down_of_fit": 49152,
+   "source": "auto: fits 49,152 of 98,304 on this card",
+   "length_is_round_down_of_fit": true,
+   "source_begins_auto": true,
+   "e_first_check_422": true,
+   "pass": true
+  }
+ ],
+ "lengths_by_share": {
+  "0.90": 98304,
+  "0.85": 49152
+ },
+ "lengths_fall_as_the_share_falls": true
+}

@@ -1,0 +1,28 @@
+{
+ "max_model_len": 98304,
+ "checks": [
+  {
+   "target_tokens": 100304,
+   "state_tokens_counted": 100201,
+   "status": 422,
+   "message": "{\"detail\":\"the rendered prompt (the state with one question) is longer than the context the server was started with; shorten the state or the question and send it again. vLLM says: This model's maximum context length is 98304 tokens. However, you requested 0 output tokens and your prompt contains 99",
+   "refused_with_the_message": true,
+   "enforcement_failure": false
+  },
+  {
+   "target_tokens": 118304,
+   "state_tokens_counted": 118443,
+   "status": 422,
+   "message": "{\"detail\":\"the rendered prompt (the state with one question) is longer than the context the server was started with; shorten the state or the question and send it again. vLLM says: This model's maximum context length is 98304 tokens. However, you requested 0 output tokens and your prompt contains 11",
+   "refused_with_the_message": true,
+   "enforcement_failure": false
+  }
+ ],
+ "health_after_ok": true,
+ "short_question": {
+  "id": "boolq:1",
+  "status": 200,
+  "equal_to_reference": false
+ },
+ "pass": false
+}

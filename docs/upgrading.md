@@ -14,6 +14,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
   The server asks vLLM for the longest single request the card's KV cache holds and serves the largest multiple of 8,192 of that; `/health` reports the length (`max_model_len`) and why (`max_model_len_source`, for example "auto: fits 81,920 of 98,304 on this card").
 - Why: a fixed longer context can fail to start on a smaller card, and a failed start loses the whole run, while a fixed 32,768 leaves out the prompts of 50,000 to 98,000 tokens that a bigger card holds.
   The default now never fails where 32,768 would have started, and never goes above the ceiling.
+  How long that is depends on the card and on `--gpu-memory-utilization`, strongly and not linearly: on an H100 PCIe 80 GB the 31B served 98,304 at the default share, 49,152 at 0.85, and did not start at 0.70 (`running.md` has the table); a card where 32,768 does not fit fails to start as it did before.
 - Details: [`running.md`](running.md#the-context-length).
 
 ### Who is affected

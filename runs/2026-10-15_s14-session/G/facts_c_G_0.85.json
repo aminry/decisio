@@ -1,0 +1,37 @@
+{
+ "wall_seconds": 310.0,
+ "health": {
+  "ok": true,
+  "base": "gemma-4-31b",
+  "max_model_len": 49152,
+  "max_model_len_source": "auto: fits 49,152 of 98,304 on this card",
+  "max_model_len_ceiling": 98304,
+  "quantization": "compressed-tensors",
+  "vllm": "0.31.0",
+  "engine_process": "in"
+ },
+ "init_engine_s": 272.88,
+ "kv_gib": 29.9,
+ "kv_tokens": 53700,
+ "concurrency": {
+  "tokens": 53696,
+  "x": 1.0
+ },
+ "autofit_line": {
+  "from": 262144,
+  "to": 53696
+ },
+ "context_line": {
+  "tokens": 49152,
+  "source": "auto: fits 49,152 of 98,304 on this card",
+  "fit": 53696
+ },
+ "fit": 53696,
+ "lines": [
+  "(MainProcess pid=24051) INFO 10-15 21:08:28 [gpu_worker.py:692] Available KV cache memory: 29.9 GiB",
+  "(MainProcess pid=24051) INFO 10-15 21:08:28 [kv_cache_utils.py:2630] Auto-fit max_model_len: reduced from 262144 to 53696 to fit in available GPU memory (29.89 GiB available for KV cache)",
+  "(MainProcess pid=24051) INFO 10-15 21:08:28 [kv_cache_utils.py:2464] GPU KV cache size: 53,700 tokens, Maximum concurrency for 53,696 tokens per request: 1.00x",
+  "(MainProcess pid=24051) INFO 10-15 21:10:17 [core.py:373] init engine (profile, create kv cache, warmup model) took 272.88 s (compilation: 57.57 s)",
+  "CONTEXT 49,152 tokens (auto: fits 49,152 of 98,304 on this card; vLLM's fit 53,696)"
+ ]
+}

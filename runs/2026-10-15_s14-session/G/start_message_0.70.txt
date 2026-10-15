@@ -1,0 +1,8 @@
+  File "/workspace/l2s14/decisio/src/decisio/serve/vllm_engine.py", line 323, in __init__
+    self._settle_context(auto)
+  File "/workspace/l2s14/decisio/src/decisio/serve/vllm_engine.py", line 351, in _settle_context
+    chosen = auto.choose(fit)
+             ^^^^^^^^^^^^^^^^
+  File "/workspace/l2s14/decisio/src/decisio/serve/context.py", line 44, in choose
+    raise ContextDoesNotFit(
+decisio.serve.context.ContextDoesNotFit: the KV cache memory vLLM reports on this card holds a context of 22,064 tokens, less than the 32,768 every record was measured at. Start a smaller base, raise --gpu-memory-utilization, or set --max-model-len to a length that fits (docs/running.md, 'The contex

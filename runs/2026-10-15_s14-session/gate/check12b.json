@@ -1,0 +1,199 @@
+{
+ "url": "http://127.0.0.1:18000",
+ "tokens": {
+  "3000": {
+   "rows": [
+    {
+     "slot": 0,
+     "first": {
+      "client_ms": 223.6164379864931,
+      "server_ms": 221.1,
+      "stages": {
+       "prepare": 6.4,
+       "warm": 180.8,
+       "questions": 27.0,
+       "readout": 0.2,
+       "engine": 214.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 1,
+     "first": {
+      "client_ms": 224.47713580913842,
+      "server_ms": 221.7,
+      "stages": {
+       "prepare": 6.3,
+       "warm": 181.7,
+       "questions": 27.2,
+       "readout": 0.2,
+       "engine": 215.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 2,
+     "first": {
+      "client_ms": 223.50576100870967,
+      "server_ms": 220.5,
+      "stages": {
+       "prepare": 6.0,
+       "warm": 180.6,
+       "questions": 27.3,
+       "readout": 0.2,
+       "engine": 214.3,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 3,
+     "first": {
+      "client_ms": 224.06805283389986,
+      "server_ms": 221.4,
+      "stages": {
+       "prepare": 6.1,
+       "warm": 181.1,
+       "questions": 27.0,
+       "readout": 0.2,
+       "engine": 214.7,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 4,
+     "first": {
+      "client_ms": 222.47788100503385,
+      "server_ms": 220.1,
+      "stages": {
+       "prepare": 6.0,
+       "warm": 179.6,
+       "questions": 27.2,
+       "readout": 0.2,
+       "engine": 213.2,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 5,
+     "first": {
+      "client_ms": 223.7507300451398,
+      "server_ms": 221.0,
+      "stages": {
+       "prepare": 6.3,
+       "warm": 180.5,
+       "questions": 27.0,
+       "readout": 0.2,
+       "engine": 214.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 6,
+     "first": {
+      "client_ms": 222.0323800574988,
+      "server_ms": 219.1,
+      "stages": {
+       "prepare": 5.8,
+       "warm": 179.5,
+       "questions": 27.5,
+       "readout": 0.2,
+       "engine": 213.4,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 7,
+     "first": {
+      "client_ms": 220.20949912257493,
+      "server_ms": 218.0,
+      "stages": {
+       "prepare": 5.6,
+       "warm": 179.3,
+       "questions": 26.3,
+       "readout": 0.1,
+       "engine": 211.6,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 8,
+     "first": {
+      "client_ms": 219.56808492541313,
+      "server_ms": 216.7,
+      "stages": {
+       "prepare": 6.1,
+       "warm": 177.8,
+       "questions": 25.9,
+       "readout": 0.1,
+       "engine": 210.0,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    },
+    {
+     "slot": 9,
+     "first": {
+      "client_ms": 224.1451379377395,
+      "server_ms": 221.5,
+      "stages": {
+       "prepare": 5.9,
+       "warm": 180.8,
+       "questions": 27.9,
+       "readout": 0.2,
+       "engine": 215.1,
+       "wait": 0.0
+      },
+      "waited_behind_registration": false,
+      "input_tokens": 3043,
+      "error": null
+     }
+    }
+   ],
+   "first_server_ms_p50": 220.75,
+   "first_client_ms_p50": 223.5610994976014,
+   "first_wait_ms_p50": 0.0,
+   "stages_p50": {
+    "prepare": 6.05,
+    "warm": 180.55,
+    "questions": 27.1,
+    "readout": 0.2,
+    "engine": 214.35000000000002
+   }
+  }
+ }
+}

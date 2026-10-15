@@ -1,0 +1,28 @@
+{
+ "wall_seconds": 308.0,
+ "health": {
+  "ok": true,
+  "base": "gemma-4-31b",
+  "max_model_len": 32768,
+  "max_model_len_source": "set by --max-model-len",
+  "max_model_len_ceiling": 98304,
+  "quantization": "compressed-tensors",
+  "vllm": "0.31.0",
+  "engine_process": "in"
+ },
+ "init_engine_s": 209.38,
+ "kv_gib": 34.37,
+ "kv_tokens": 40936,
+ "concurrency": {
+  "tokens": 32768,
+  "x": 1.25
+ },
+ "autofit_line": null,
+ "context_line": null,
+ "fit": null,
+ "lines": [
+  "(MainProcess pid=21321) INFO 10-15 21:02:04 [gpu_worker.py:692] Available KV cache memory: 34.37 GiB",
+  "(MainProcess pid=21321) INFO 10-15 21:02:04 [kv_cache_utils.py:2464] GPU KV cache size: 40,936 tokens, Maximum concurrency for 32,768 tokens per request: 1.25x",
+  "(MainProcess pid=21321) INFO 10-15 21:03:49 [core.py:373] init engine (profile, create kv cache, warmup model) took 209.38 s (compilation: 0.52 s)"
+ ]
+}
