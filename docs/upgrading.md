@@ -6,6 +6,26 @@
 What changes for a running deployment from one release to the next, newest first.
 The changelog (`CHANGELOG.md`) lists every change; this page is for the ones that change what a deployment serves.
 
+## 0.14.0: the default context follows the card
+
+### What changed
+
+- A vLLM server started without `--max-model-len` on a Gemma base now serves **the largest context that fits the card**, up to the base's ceiling (31B 98,304; 12B 65,536) and not below 32,768, instead of a fixed 32,768. The Qwen base stays at 32,768.
+  The server asks vLLM for the longest single request the card's KV cache holds and serves the largest multiple of 8,192 of that; `/health` reports the length (`max_model_len`) and why (`max_model_len_source`, for example "auto: fits 81,920 of 98,304 on this card").
+- Why: a fixed longer context can fail to start on a smaller card, and a failed start loses the whole run, while a fixed 32,768 leaves out the prompts of 50,000 to 98,000 tokens that a bigger card holds.
+  The default now never fails where 32,768 would have started, and never goes above the ceiling.
+- Details: [`running.md`](running.md#the-context-length).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The 31B or the 12B on vLLM with no `--max-model-len` | A prompt between 32,768 tokens and the chosen length is answered instead of refused with 422; it takes longer the longer it is (the first question about a new 32,000-token state took 8.9 s on the 31B at 600 W) | Nothing, or give `--max-model-len 32768` to keep the old limit |
+| The same with `--max-model-len N`, or a `max_model_len` in `--engine` | The same length as before | Nothing |
+| The Qwen base, `--image-model`, `--head-engine`, `--engine-process separate`, `--backend mlx` or `hf` | 32,768, as before | Nothing |
+| Certified answers | The context length is not part of the serving-stack fingerprint, so a certificate is not suspended by the new default or by moving to a card that fits a different length | Nothing |
+| A client that relied on 422 for prompts over 32,768 tokens | Those prompts are answered where the card allows it | Check the length on your side, or pin `--max-model-len 32768` |
+
 ## 0.11.0: the model repositories moved to tachara-ai
 
 ### What changed

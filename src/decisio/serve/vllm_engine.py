@@ -78,6 +78,7 @@ def options_listing(tok, options):
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
+from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
@@ -248,8 +249,16 @@ class LettersEngine:
         family=None,
         revision=None,
         kv_cache_dtype=None,
+        context_source=None,
     ):
         from vllm import LLM
+
+        # an AutoContext as the length is the largest that fits this card, up to the base's ceiling
+        # (decisio.serve.context); a length in --engine's JSON takes precedence, as every keyword there does
+        auto = max_model_len if isinstance(max_model_len, AutoContext) else None
+        if auto is not None and "max_model_len" in (engine_kw or {}):
+            max_model_len, auto, context_source = int(engine_kw["max_model_len"]), None, "set by --engine"
+        self.context_source = None if auto is not None else (context_source or f"{int(max_model_len):,}")
 
         from decisio.families import family_of
 
@@ -268,7 +277,7 @@ class LettersEngine:
         self.adapters = {}
         kw = dict(
             model=model,
-            max_model_len=max_model_len,
+            max_model_len=-1 if auto is not None else max_model_len,  # -1: vLLM fits the longest single request
             max_num_seqs=max_num_seqs,
             gpu_memory_utilization=gpu_memory_utilization,
             limit_mm_per_prompt=dict(self.family.limit_mm),
@@ -310,6 +319,8 @@ class LettersEngine:
             raise ValueError(f"unknown mode {mode!r}")
         kw.update(engine_kw or {})
         self.llm = LLM(**kw)
+        if auto is not None:
+            self._settle_context(auto)
         self.tok = self.llm.get_tokenizer()
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
@@ -329,6 +340,19 @@ class LettersEngine:
                 self.adapters[name] = LoRARequest(name, i, str(path))
         self._lock = threading.Lock()  # one request at a time through the engine
         self._warm_up()
+
+    def _settle_context(self, auto):
+        """The length vLLM fitted (its profile of this card, the KV memory it reports, the longest single request that
+        fits, up to the model's own maximum) becomes the largest clean step of it, up to the base's ceiling. A length
+        below the fit is enforced by lowering the engine's own limit, so a longer prompt is refused (422) as at any
+        other length. Raises ContextDoesNotFit when 32,768 does not fit, which is a failed start as before."""
+        model_config = self.llm.llm_engine.vllm_config.model_config
+        fit = int(model_config.max_model_len)
+        chosen = auto.choose(fit)
+        if chosen < fit:
+            model_config.max_model_len = chosen
+        self.context_source = auto.describe(chosen, fit)
+        print(f"CONTEXT {chosen:,} tokens ({self.context_source}; vLLM's fit {fit:,})", flush=True)
 
     def _warm_up(self):
         """Serve two throwaway requests before any real one. On the H200 the first requests after start-up
@@ -387,6 +411,8 @@ class LettersEngine:
             "quantization": str(c.model_config.quantization),
             "kv_cache_dtype": str(c.cache_config.cache_dtype),
             "max_model_len": int(c.model_config.max_model_len),
+            "max_model_len_source": self.context_source,
+            "max_model_len_ceiling": getattr(self.family, "context_ceiling", None),
             "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
             "adapters": sorted(self.adapters),
             "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
@@ -1073,11 +1099,18 @@ KV_CACHE_DTYPES = ("auto", "fp8")
 
 def resolve_context(family, max_model_len, kv_cache_dtype, backend="vllm", image_model=None):
     """(max_model_len, kv_cache_dtype) for the text engine from `--max-model-len` and `--kv-cache-dtype`, or ValueError.
-    The default is 32,768 tokens, the length every record was measured at. A longer context is an opt-in up to the
-    base's ceiling (`Family.context_ceiling`: the 12B 65,536, the 31B 98,304, the Qwen base 32,768), on the vLLM
-    server only, and not with the image engine, which is built for 32,768 (docs/running.md, "A longer context").
+    Given `--max-model-len`, that length (above 32,768 up to the base's ceiling, `Family.context_ceiling`: the 12B
+    65,536, the 31B 98,304, the Qwen base 32,768; the vLLM server only, and not with the image engine, which is built
+    for 32,768). Not given, on the vLLM server without `--image-model`, on a base whose ceiling is above 32,768: an
+    `AutoContext`, the largest length that fits this card up to the ceiling (decisio.serve.context); everywhere else
+    32,768 tokens, the length every record was measured at (docs/running.md, "The context length").
     `kv_cache_dtype` is None for vLLM's own choice (the model's dtype) or "fp8", which halves the KV cache and changes
     the numerics."""
+    ceiling = getattr(family, "context_ceiling", 32768)
+    if max_model_len is None and backend == "vllm" and not image_model and ceiling > FLOOR:
+        if kv_cache_dtype not in (None, *KV_CACHE_DTYPES):
+            raise ValueError(f"--kv-cache-dtype: one of {', '.join(KV_CACHE_DTYPES)}")
+        return AutoContext(ceiling), (None if kv_cache_dtype in (None, "auto") else kv_cache_dtype)
     n = 32768 if max_model_len is None else int(max_model_len)
     if n < 1024:
         raise ValueError(f"--max-model-len {n}: a context of at least 1,024 tokens")
@@ -1092,7 +1125,7 @@ def resolve_context(family, max_model_len, kv_cache_dtype, backend="vllm", image
         if n > ceiling:
             raise ValueError(
                 f"--max-model-len {n:,}: the {family.key} base is documented to {ceiling:,} tokens "
-                "(a longer context is not measured; docs/running.md, 'A longer context')"
+                "(a longer context is not measured; docs/running.md, 'The context length')"
             )
     if kv_cache_dtype not in (None, *KV_CACHE_DTYPES):
         raise ValueError(f"--kv-cache-dtype: one of {', '.join(KV_CACHE_DTYPES)}")
@@ -1518,8 +1551,11 @@ def main():
         "--max-model-len",
         type=int,
         default=None,
-        help="the longest prompt, in tokens (default 32,768, the length every record was measured at). A longer one is "
-        "an opt-in up to the base's ceiling: gemma-4-12b 65,536, gemma-4-31b 98,304 (docs/running.md)",
+        help="the longest prompt, in tokens. Without it, the vLLM server on a Gemma base serves the largest length "
+        "that fits this card, up to the base's ceiling (gemma-4-12b 65,536, gemma-4-31b 98,304) and not below 32,768; "
+        "the Qwen base, --image-model, a second engine, --engine-process separate and the other backends stay at "
+        "32,768. "
+        "Given, it is that length, up to the ceiling (docs/running.md)",
     )
     ap.add_argument(
         "--kv-cache-dtype",
@@ -1600,6 +1636,7 @@ def main():
         )
         if given
     ]
+    given_length = args.max_model_len
     try:
         args.max_model_len, args.kv_cache_dtype = resolve_context(
             args.family, args.max_model_len, args.kv_cache_dtype, args.backend, args.image_model
@@ -1607,6 +1644,17 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
+    args.context_source = "set by --max-model-len" if given_length is not None else None
+    if isinstance(args.max_model_len, AutoContext) and (args.engine_process != "in" or second):
+        # the fit is read from the engine's own configuration, which is the server's only with `--engine-process in`
+        args.max_model_len = FLOOR
+        args.context_source = (
+            "default 32,768: the auto length needs one engine in the server's process and no image model"
+        )
+    elif given_length is None and not isinstance(args.max_model_len, AutoContext):
+        args.context_source = "default 32,768" + (
+            f" (this base's ceiling is {args.family.context_ceiling:,})" if args.family.context_ceiling == FLOOR else ""
+        )
     args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
@@ -1660,6 +1708,7 @@ def main():
             gpu_memory_utilization=args.gpu_memory_utilization,
             max_model_len=args.max_model_len,
             kv_cache_dtype=args.kv_cache_dtype,
+            context_source=args.context_source,
             engine_kw=engine_kwargs(args),
             fmt=fmt,
             family=args.family,
