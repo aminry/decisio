@@ -15,9 +15,12 @@ permissions: {}
 env:
   STAND_IN_REVISION: da87bfb608c14b7cf20ba1ce41287e8de496c0cd
 
+# A newer push to a pull request branch cancels the older run. A run on main is never cancelled: each commit on main
+# has its own group, so a release commit's checks always finish (a newer merge used to cancel the older run, and a
+# release is only as good as its own CI).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   checks:
