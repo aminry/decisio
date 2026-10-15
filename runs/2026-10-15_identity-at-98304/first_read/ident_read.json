@@ -1,0 +1,23 @@
+{
+ "ident_vs_start1": {
+  "n": 200,
+  "exactly_equal": 0,
+  "median_dp": 0.003842901912515231,
+  "largest_dp": 0.24869770477389658
+ },
+ "ident_vs_start2": {
+  "n": 200,
+  "exactly_equal": 0,
+  "median_dp": 0.004453408531688852,
+  "largest_dp": 0.486797383147775
+ },
+ "start1_vs_start2": {
+  "n": 200,
+  "exactly_equal": 0,
+  "median_dp": 0.004722050974308667,
+  "largest_dp": 0.358222218136795
+ },
+ "starts_equal": false,
+ "verdict": "DIFF",
+ "rule": "F's starts differ: the 98,304 run's median within 2x and largest within 1.25x of the starts' own, against both starts"
+}

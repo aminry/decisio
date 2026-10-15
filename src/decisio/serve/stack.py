@@ -12,7 +12,9 @@ What it holds, and where each part comes from:
   base          the base's key (`gemma-4-31b`, ...) and the checkpoint: repository name and revision, or the model's
   name
   engine        the engine and its version (vLLM, or MLX and mlx-lm, or transformers and torch), the card or device, the
-                dtype or quantisation, the KV cache dtype, the attention backend, the block and cache-hit units
+                dtype or quantisation, the KV cache dtype, the context length served (`max_model_len`: where it follows
+                the card's fit, another length is another compiled path, and it moved short answers by restart-sized
+                amounts on one card class), the attention backend, the block and cache-hit units
   prompt        a hash of the token rows the server builds for a fixed probe question (so the tokenizer, the chat
   template,
                 the system turn and the rendering are all in it), and the prompt format's own facts
@@ -46,6 +48,7 @@ ENGINE_KEYS = (
     "base",
     "quantization",
     "kv_cache_dtype",
+    "max_model_len",
     "attention_backend",
     "engine_process",
     "mode",

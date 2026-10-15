@@ -1,0 +1,34 @@
+{
+ "what": "Does a context of 98,304 tokens change short answers? The stored FP8 31B on one RTX PRO 6000 Blackwell Workstation Edition, 98,304 against 32,768",
+ "date": "2026-10-15",
+ "vllm": [
+  "0.31.0"
+ ],
+ "source": "our private records of the card sessions of 2026-10-15",
+ "files": {
+  "clean_read/health_98304.json": "002237140a0e99bef7ed31f46c9fb921a86e43175e2fb08e4a192c7b9ff5fb37",
+  "clean_read/ident2.diff.txt": "d11fe39ee7f9d0dbaaf0252141f552a551a3123b1def4ded16bef77d934e9cb0",
+  "clean_read/ident2.equal.txt": "66f11fabb179a35ab3f45f8658a6fce862da47a4f2bff354344dd31c41179751",
+  "clean_read/ident2.verdict": "e7a068d3ace5d54e56592f143dc3eb252df71025efedbd0de1af45d3fa831b16",
+  "clean_read/ident2_a.json": "89f9edcac3ddb50e477376294b936a27ca8c98b6f954602b69ff1d8075246b0a",
+  "clean_read/ident2_b.json": "50a0465a27c8ee1cdde24f9f2d3a0f6a1fb3260deb5fd9c696df738f8d4dbb43",
+  "clean_read/ident_read.json": "17f2d363ff0eb135fd52c938868e829bd68b97b711e059e0021f519445ade07e",
+  "clean_read/start2.json": "2eeb9012f064c6b4dbc28474511c917f838026d9e6610a77a99df2eaeb23cc7e",
+  "control_32768_same_code/health_32768.json": "b9ca848ad2472714197c3ac2c22681ef2299b648ac57a9cffe78fac4c2fd0c08",
+  "control_32768_same_code/ident2b.diff.txt": "da76136142965f1ec6775635ceb5e5a565ca5f5549fddfa64fea08202a219083",
+  "control_32768_same_code/ident2b.equal.txt": "e86fc6c155390a7cf4e626d3d619e266742af65bf9dad43d2cb67729f15a0104",
+  "control_32768_same_code/ident2b.verdict": "c10f638a1ca6c7461909b61944269560c7de2a8d8f79ff63467886b6aef7ca5d",
+  "control_32768_same_code/ident_read.json": "0765b9b4f535a7c4511bb24539ed41997a639e28bcce99e96ae28d9759ffaded",
+  "first_contact.json": "fd2d9aa7d1b6b646d20f84edc4697cfca0277cedf1740be7f8eb487f7d3e946e",
+  "first_read/ctrl.diff.txt": "0eea9bcc822849e14957cdf1e6a919c5a1fe4178c8e4de80c542017df3ee5d6a",
+  "first_read/ctrl.equal.txt": "030f2b0010c5a79c187460a3d5b1c49e171a76a07c665f79150c9e642ea3d793",
+  "first_read/ctrl.verdict": "0fd3e9215b3daa7adef8de597b3829802799f8af53d96c5e9fa7c45b928df52b",
+  "first_read/ident.diff.txt": "200e474d91a946328a2ffa2116d0878f419a2809854b34e288e6b61e886214fa",
+  "first_read/ident.equal.txt": "852d3afe6ff82313bfcf25e99c8c06c634aaffa6d291009ffe8e97c0a8edf2c0",
+  "first_read/ident.verdict": "a6100208049aad34ca47d453849237653aab9c39909912bd252adbeaade7239f",
+  "first_read/ident_read.json": "66446efc070e5487226847e6fc41ec69f8b4d0b6171ab90d5caa45f84c696d1e",
+  "first_read/ident_read.txt": "27e454f816710b83682697612b7f8de47d4664a28df2f477b6d7346ca233a5fb",
+  "host.txt": "b045cadc3ab918895447d4a2777729a7fdeca0f87e3a4de073d025aca107ead9",
+  "summary.md": "887ea558a3b1f5a222b256bb4cfaa6ddfa50526215bef811c312e733c1d67626"
+ }
+}

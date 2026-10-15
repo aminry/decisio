@@ -7,7 +7,8 @@ A1  the selection rule: a multiple of 8,192, never above vLLM's fit, never above
 A2  the reasons /health gives: "auto: fits 81,920 of 98,304 on this card"
 A3  a fake vLLM that reports a fit: the engine asks for -1, settles on the rule's length, lowers vLLM's own limit to it,
     and a length in --engine or a plain length is never touched
-A4  the serving-stack fingerprint does not hold the context length (so a card's fit never suspends a certificate)
+A4  the serving-stack fingerprint holds the context length served (not its source text or the ceiling), so a
+    certificate made at one length is suspended at another
 
   uv run pytest -q tests/unit/test_context_auto.py
 """
@@ -140,6 +141,21 @@ def test_a3_a_length_in_engine_json_or_a_plain_length_is_left_alone(fake_vllm):
     assert fake_vllm.kw["max_model_len"] == 32768 and e.context_source == "32,768"
 
 
-def test_a4_the_context_length_is_not_in_the_serving_stack_fingerprint():
-    assert "max_model_len" not in stack.ENGINE_KEYS
+def test_a4_the_context_length_is_in_the_serving_stack_fingerprint():
+    assert "max_model_len" in stack.ENGINE_KEYS
     assert "max_model_len_source" not in stack.ENGINE_KEYS and "max_model_len_ceiling" not in stack.ENGINE_KEYS
+
+    class E:
+        def __init__(self, n):
+            self.n = n
+
+        def facts(self):
+            return {"engine": "fake", "max_model_len": self.n, "max_model_len_source": f"source of {self.n}"}
+
+    def fp(e):
+        return stack.stack_facts(
+            e, decisio_version="x", serving={}, temperatures={}, task_fingerprint=None, probe_sha256="p"
+        )
+
+    assert stack.differences(fp(E(98304)), fp(E(81920))) == ["engine.max_model_len"]
+    assert stack.differences(fp(E(98304)), fp(E(98304))) == []  # the reason text is not part of it

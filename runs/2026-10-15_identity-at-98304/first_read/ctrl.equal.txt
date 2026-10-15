@@ -1,0 +1,2 @@
+DIFFERENT: 200 answers, 0 exactly equal, largest dp 0.358, top-answer changes 4
+equal exit 1

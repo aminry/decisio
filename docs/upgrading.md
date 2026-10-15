@@ -24,7 +24,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | The 31B or the 12B on vLLM with no `--max-model-len` | A prompt between 32,768 tokens and the chosen length is answered instead of refused with 422; it takes longer the longer it is (the first question about a new 32,000-token state took 8.9 s on the 31B at 600 W) | Nothing, or give `--max-model-len 32768` to keep the old limit |
 | The same with `--max-model-len N`, or a `max_model_len` in `--engine` | The same length as before | Nothing |
 | The Qwen base, `--image-model`, `--head-engine`, `--engine-process separate`, `--backend mlx` or `hf` | 32,768, as before | Nothing |
-| Certified answers | The context length is not part of the serving-stack fingerprint, so a certificate is not suspended by the new default or by moving to a card that fits a different length | Nothing |
+| Certified answers | The context length served is part of the serving-stack fingerprint: a certificate made at one length is suspended at another, so one made on 0.13.0 (32,768) is suspended on 0.14.0 on the 31B or the 12B, as it already is by the new version, and a card that fits a different length suspends one made on another card | Register and certify again on the server that will serve; give `--max-model-len` to pin the length across cards |
 | A client that relied on 422 for prompts over 32,768 tokens | Those prompts are answered where the card allows it | Check the length on your side, or pin `--max-model-len 32768` |
 
 ## 0.11.0: the model repositories moved to tachara-ai

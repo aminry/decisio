@@ -1,0 +1,11 @@
+ident a against b n 200 median 3.84e-03 p90 6.02e-02 max 0.249 | above 1e-3: 152 above 1e-2: 72 exactly equal: 0
+   dp 0.249 M2-1015c117b8ee20 TOP CHANGED (A's top-two margin 0.042)
+   dp 0.205 M1-3fde6588d18427 TOP CHANGED (A's top-two margin 0.211)
+   dp 0.200 M2-739f32eee8ba93 (A's top-two margin 0.010)
+   dp 0.129 M1-e9bb889ff7741b (A's top-two margin 0.363)
+   dp 0.118 I1-5a60c239a4bb2e (A's top-two margin 0.049)
+   dp 0.111 N4-f66880a2fc5be7 (A's top-two margin 0.334)
+   top answer changed: M1-3fde6588d18427 dp 0.205 A's top-two margin 0.211
+   top answer changed: M2-00f371d4cb999f dp 0.079 A's top-two margin 0.015
+   top answer changed: M2-77f01bcfa15276 dp 0.080 A's top-two margin 0.040
+   top answer changed: M2-1015c117b8ee20 dp 0.249 A's top-two margin 0.042

@@ -438,6 +438,28 @@ def test_c5_the_stack_names_what_moves_an_answer():
     assert sorted(stack.differences(f, other.stack_facts())) == ["calibration.temperatures.global", "serving.orders"]
 
 
+def test_c5_another_context_length_suspends_the_certificate():
+    class E(FakeEngine):
+        def __init__(self, n):
+            super().__init__()
+            self.n = n
+
+        def facts(self):
+            return {**super().facts(), "max_model_len": self.n}
+
+    client, so = make(engine=E(98304))
+    post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}})
+    exported = client.get("/v1/tasks?full=1").json()["tasks"]
+    same, _ = make(engine=E(98304))
+    assert same.post("/v1/tasks/import", json={"tasks": exported}).status_code == 200
+    assert ask(same, 1, 0.99)["certified"] is True
+    shorter, _ = make(engine=E(81920))  # a card whose fit is shorter, or a server started with --max-model-len
+    assert shorter.post("/v1/tasks/import", json={"tasks": exported}).status_code == 200
+    a = ask(shorter, 1, 0.99)
+    assert a["certified"] is False and a["certified_reason"] == "serving_stack_changed" and a["choice"] == "option_1"
+    assert shorter.get("/v1/tasks/routing").json()["status"]["state"] == "suspended"
+
+
 def test_c5_a_certified_task_fitted_under_another_fingerprint_is_not_applied_and_not_certified():
     client, so = make()
     post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}})
