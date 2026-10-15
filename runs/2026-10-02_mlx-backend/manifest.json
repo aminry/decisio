@@ -572,7 +572,7 @@
     {
      "attempt": 3,
      "max_foreign_cpu": 98.4,
-     "max_foreign_process": "/Users/amin/repo/decisio/.venv/bin/python",
+     "max_foreign_process": "<a local virtualenv>/bin/python",
      "idle": false,
      "p50_ms": {
       "1q": 230,
