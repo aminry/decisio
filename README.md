@@ -14,6 +14,50 @@
 > **Second among open-weights systems on JevBench, level with Jev, and the highest-ranked with frozen weights.**
 > ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), decisio on Gemma 4 31B; [how we read the board](#how-we-read-the-board).)
 
+## Teach it your task
+
+**Register labelled examples of your own question and the server learns what your labels mean, without retraining the model.**
+The model behind Decisio stays frozen: it answers from what it already knows, which is also where it can be wrong about your data (what "access" means in your company, or which queue it tends to over-pick).
+`POST /v1/tasks` fits four things from a handful of your own examples, in seconds to minutes, and applies them to every later question with the same options:
+
+- **Calibration:** one correction per option, so the probabilities are honest for your traffic.
+- **An intent head,** for questions with 10 or more options: a small layer on the model's internal representation of the text that learns what your labels mean.
+- **A per-task temperature** for the head, fitted on examples the head did not see, so its probabilities are no more confident than it is right.
+- **Certified answers:** ask for an error rate `alpha` and the server finds the confidence above which it can say, with a stated confidence, that at most that share of the answers are wrong, and marks every later answer `certified: true` or `false`.
+
+Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
+The weights, and every question you did not register, are untouched.
+
+```json
+POST /v1/tasks
+{"id": "ticket-queue",
+ "examples": [{"request": <a /v1/systemone request: one ticket and the three queues>, "answer": "billing"}, ...],
+ "certify": {"alpha": 0.15, "delta": 0.1}}
+```
+
+From then on every answer for that question carries the verdict, for example `{"choice": "shipping", "certified": false, "certificate": "ticket-queue#c2e4cc6e431b", "certified_reason": "below_threshold", ...}`.
+
+<!-- TEACH-IT PLACEHOLDERS (Lab 1's numbers; fill when public, keys in launch_facts.json under "teaching"; no Jev figure may appear here):
+     T1 teaching.gatekeeper.n200.untaught.macro_f1     T2 teaching.gatekeeper.n200.taught.macro_f1
+     T3 teaching.gatekeeper.n1000.taught.macro_f1      T4 teaching.banking77.n10_per_intent.taught.macro_f1
+     T5 teaching.temperature.ece_head_without          T6 teaching.temperature.ece_head_with
+     T7 teaching.time_to_teach.n200.seconds            T8 teaching.certified.gatekeeper.certified_share -->
+
+**What it does for intent questions** (the test items are held out; 10 labelled examples per intent; each base measured in its own session):
+
+| Base | BANKING77 (77 options), plain to taught | CLINC150 (150 options), plain to taught | Record |
+| --- | --- | --- | --- |
+| Gemma 4 31B (the default) | 0.787 to **0.844** | 0.940 to **0.970** | `runs/2026-10-04_gemma-4-31b/` (three draws) |
+| Gemma 4 12B | 0.747 to **0.832** | 0.850 to **0.908** | `runs/2026-10-04_gemma-base/` (six draws) |
+| Qwen3.6-35B-A3B | 0.747 to **0.840** (+9.3 points, 95% interval +5.1 to +14.0) | 0.820 to **0.912** (+9.2, +3.5 to +15.2) | `runs/2026-10-03_qiv-default/` (six draws) |
+
+**What a certificate looks like** (`runs/2026-10-14_certified-answers/`, the Gemma 4 12B on a Mac, a three-queue ticket question, 400 labelled tickets, `alpha` 0.15): the server held out 200 of them, and the threshold 0.986 keeps 169 (84%) with 17 wrong.
+The promise: with probability at least 90% over the draw of such examples, at most 15% of the answers above the threshold are wrong, for traffic like them and on that serving stack.
+On 200 further tickets 169 answers were certified and 19 of those were wrong (11.2%); that is one draw, not a test of the promise, which is about a rate over many answers.
+Below 59 held-out examples (at the defaults) the server refuses to certify at all, and when no threshold holds it says so and certifies nothing.
+
+How to register a task end to end, what each number was measured on and where the promise stops: [`docs/tasks.md`](docs/tasks.md).
+
 ![How Decisio works: your text and your questions go in, a probability for every answer comes out](docs/launch/decisio_article.png)
 *How it works (illustration; the probabilities are examples, real recorded responses are below).*
 
