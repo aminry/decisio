@@ -1,6 +1,6 @@
 {
   "schema": "decisio.decision_config/1",
-  "decisio": "0.12.0",
+  "decisio": "0.13.0",
   "base": "gemma-4-31b",
   "source": {
     "repository": "google/gemma-4-31B-it",
@@ -11,7 +11,7 @@
     "modified": true,
     "dtype": "fp8_e4m3",
     "quantization": "compressed-tensors",
-    "method": "quantized to FP8 exactly as vLLM 0.30.0 does on load (online per-tensor weight scales, activations quantized per token at run time); every other tensor, the vision tower included, is the source's; nothing was trained",
+    "method": "quantized to FP8 by decisio's export (per-tensor scales stored beside the weights), the same bytes as the tensors vLLM 0.30.0 and 0.31.0 hold after quantizing these weights on load (compared 2026-10-15; the answers of the two differ on 0.31.0, see the card); activations are quantized per token at run time; every other tensor, the vision tower included, is the source's; nothing was trained",
     "quantized_on_load": false
   },
   "model_types": [
