@@ -1519,8 +1519,7 @@ def main():
         type=int,
         default=None,
         help="the longest prompt, in tokens (default 32,768, the length every record was measured at). A longer one is "
-        "an opt-in up to the base's ceiling: gemma-4-12b 65,536, gemma-4-31b 98,304; the 31B needs --kv-cache-dtype "
-        "fp8 beyond about 57,000 tokens on a 96 GB card (docs/running.md)",
+        "an opt-in up to the base's ceiling: gemma-4-12b 65,536, gemma-4-31b 98,304 (docs/running.md)",
     )
     ap.add_argument(
         "--kv-cache-dtype",
