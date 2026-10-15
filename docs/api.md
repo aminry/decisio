@@ -159,10 +159,14 @@ A change of the serving stack suspends the certificate (every answer certified f
 ```json
 {"id": "...",
  "option": {"key": "<the request's own abstain key>"} or {"append": "<text of an option the server adds>"},
- "match": "option_set" or "imajev_extension",
+ "match": "option_set", "option_keys" or "imajev_extension",
  "examples": [{"request": <a /v1/systemone request, images allowed>, "answer": <the option key, or null when unanswerable>}, ...]}
 ```
 
+`option_set` is for one question with one option list: the task applies to a question whose options (keys and descriptions, in any order) are those of the examples.
+`option_keys` is for a family of questions that share their option keys and not their texts, such as a multiple-choice exam whose items each have their own four answers behind the keys A to D and an `idk` key: the task applies to a choice question whose set of keys is exactly the examples' (any descriptions, any instructions), and the threshold is fitted on the pooled probabilities of the abstain key across the items.
+It is deliberately the whole key set and not the abstain key alone: the probability of an abstain option moves with the number of candidates, so a threshold fitted on four candidates plus `idk` is not applied to ten plus `idk` (register one task per key set), and a question that merely has an option of the same name is not caught.
+When several tasks match a question, the exact `option_set` one wins over an `option_keys` one.
 The server then abstains when that option's probability exceeds the threshold, and otherwise answers the best of the other options; the probabilities themselves are reported unchanged.
 The threshold is kept only when the examples justify it.
 `GET /v1/abstention/tasks` lists the tasks and whether thresholds are applied (`--abstention`, on by default).

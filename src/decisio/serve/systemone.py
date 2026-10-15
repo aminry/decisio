@@ -383,6 +383,15 @@ def option_set(q, described: bool = False) -> str:
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
 
 
+def option_keys(q) -> str:
+    """A choice question's task identity by its option keys alone: the set of keys, whatever their descriptions, their
+    order and the question's instructions. For a family of questions that share their labels but not their texts (a
+    multiple-choice exam: the keys A to D and "idk", each item with its own four answers), where `option_set` would see
+    a different question every time."""
+    spec = {"type": q.type, "keys": sorted(q.criteria) if q.type == "choice" else None}
+    return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
+
+
 class SystemOne:
     """Serves the wire format on a text engine and, optionally, an image engine (decisio.serve.image_engine): requests
     with images go to the image engine, every other request to the text engine."""
@@ -1119,9 +1128,13 @@ class SystemOne:
         if not self.abstention or not self.tasks:
             return None
         fp = option_set(q, self.described(q)) if q.type == "choice" else None
-        for t in self.tasks.values():
+        kp = option_keys(q) if q.type == "choice" else None
+        for t in self.tasks.values():  # the exact option set first, then the imajev extension
             m = t["match"]
             if (m.get("option_set") and m["option_set"] == fp) or (m.get("imajev_extension") and imajev_ext):
+                return t
+        for t in self.tasks.values():  # then the key set alone: the most general match, so the last
+            if kp is not None and t["match"].get("option_keys") == kp:
                 return t
         return None
 
@@ -1193,14 +1206,15 @@ class SystemOne:
 
         if bool(option.get("key") is not None) == bool(option.get("append")):
             raise ValueError("option: exactly one of {'key': <declared key>} or {'append': <text>}")
-        if match not in ("option_set", "imajev_extension"):
-            raise ValueError("match: 'option_set' or 'imajev_extension'")
+        if match not in ("option_set", "option_keys", "imajev_extension"):
+            raise ValueError("match: 'option_set', 'option_keys' or 'imajev_extension'")
         if option.get("append") and match != "imajev_extension" and not all(e[2] for e in examples):
             raise ValueError("an appended abstain option is answered only through imajev's extension")
-        p_abs, unans, ok, plain_right, plain_false, fps = [], [], [], [], [], set()
+        p_abs, unans, ok, plain_right, plain_false, fps, kps = [], [], [], [], [], set(), set()
         for req, images, ext, gold in examples:
             q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext)
             fps.add(option_set(q, self.described(q)))
+            kps.add(option_keys(q))
             gold_key = gold_key_of(q, gold)
             _, best = decide(p, idx, None, keys=keys)
             u = gold_key is None
@@ -1215,12 +1229,23 @@ class SystemOne:
                 plain_right.append((not u) and keys0[top_index(keys0, p0)] == gold_key)
                 plain_false.append(False)
         if match == "option_set" and len(fps) != 1:
-            raise ValueError("the examples of an option-set task must share one option set")
+            raise ValueError(
+                "the examples of an option-set task must share one option set (the same keys and the same "
+                "descriptions); examples that share their keys but not their texts take match 'option_keys'"
+            )
+        if match == "option_keys" and len(kps) != 1:
+            raise ValueError("the examples of an option-keys task must share one set of option keys")
         cfg = fit(p_abs, unans, ok, plain_right, plain_false)
         task = {
             "id": task_id,
             "option": option,
-            "match": {"option_set": fps.pop()} if match == "option_set" else {"imajev_extension": True},
+            "match": (
+                {"option_set": fps.pop()}
+                if match == "option_set"
+                else {"option_keys": kps.pop()}
+                if match == "option_keys"
+                else {"imajev_extension": True}
+            ),
             "config": cfg,
             "model": self.name,
         }
