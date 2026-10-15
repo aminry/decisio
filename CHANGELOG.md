@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/aminry/decisio/compare/v0.12.0...v0.13.0) (2026-10-15)
+
+
+### Features
+
+* **serve:** a longer context as an opt-in: --max-model-len up to a ceiling per base (12B 65,536, 31B 98,304), and --kv-cache-dtype fp8 ([#179](https://github.com/aminry/decisio/issues/179)) ([f10a364](https://github.com/aminry/decisio/commit/f10a36483b8b027ea4f0776bf3d9f268a1324405))
+
+
+### Bug Fixes
+
+* **serve:** pin the 0.13.0 Hub revisions; the 31B's weights.method names what was measured ([#191](https://github.com/aminry/decisio/issues/191)) ([26e4b7e](https://github.com/aminry/decisio/commit/26e4b7ee40f37bede8d91c7dcde56df07acc4314))
+
 ## [0.12.0](https://github.com/aminry/decisio/compare/v0.11.1...v0.12.0) (2026-10-15)
 
 
