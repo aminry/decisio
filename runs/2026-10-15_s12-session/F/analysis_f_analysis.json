@@ -1,0 +1,86 @@
+{
+ "tensors": 1145,
+ "bytes_differ": 0,
+ "fp8_weight_tensors": 240,
+ "fp8_weight_tensors_byte_equal": 240,
+ "differ_only_in_shape": [
+  {
+   "kind": "_k_scale",
+   "count": 60,
+   "A_shape": [
+    1
+   ],
+   "B_shape": []
+  },
+  {
+   "kind": "_q_scale",
+   "count": 60,
+   "A_shape": [
+    1
+   ],
+   "B_shape": []
+  },
+  {
+   "kind": "_v_scale",
+   "count": 60,
+   "A_shape": [
+    1
+   ],
+   "B_shape": []
+  },
+  {
+   "kind": "weight_scale",
+   "count": 240,
+   "A_shape": [],
+   "B_shape": [
+    1
+   ]
+  }
+ ],
+ "answers": {
+  "n": 200,
+  "exactly_equal": 0,
+  "median_dp": 0.003619157588547861,
+  "p90_dp": 0.05156276032042184,
+  "max_dp": 0.3711402071121568,
+  "top_answer_changes": 4,
+  "by_task": {
+   "banking77": {
+    "n": 33,
+    "median_dp": 0.011732783826627458,
+    "max_dp": 0.30127817548661284,
+    "top_answer_changes": 2
+   },
+   "boolq": {
+    "n": 34,
+    "median_dp": 0.0007252043712082101,
+    "max_dp": 0.07534830743885401,
+    "top_answer_changes": 0
+   },
+   "mmlu": {
+    "n": 34,
+    "median_dp": 0.005843982491712498,
+    "max_dp": 0.14447018294499825,
+    "top_answer_changes": 0
+   },
+   "mmlu_pro_text": {
+    "n": 33,
+    "median_dp": 0.022295549520691793,
+    "max_dp": 0.14436690786087292,
+    "top_answer_changes": 2
+   },
+   "scifact": {
+    "n": 33,
+    "median_dp": 0.002764227644074843,
+    "max_dp": 0.3711402071121568,
+    "top_answer_changes": 0
+   },
+   "toxicchat": {
+    "n": 33,
+    "median_dp": 0.0019669502886693613,
+    "max_dp": 0.10554934552028117,
+    "top_answer_changes": 0
+   }
+  }
+ }
+}

@@ -1,0 +1,8 @@
+(MainProcess pid=92336) INFO 10-15 13:36:59 [core.py:129] Initializing a V1 LLM engine (v0.31.0) with config: model='google/gemma-4-12B-it', speculative_config=None, tokenizer='google/gemma-4-12B-it', skip_tokenizer_init=False, tokenizer_mo
+(MainProcess pid=92336) INFO 10-15 13:37:06 [utils.py:343] Using LBNHC KV cache layout.
+(MainProcess pid=92336) INFO 10-15 13:38:21 [gpu_worker.py:692] Available KV cache memory: 57.53 GiB
+(MainProcess pid=92336) INFO 10-15 13:38:21 [gpu_worker.py:707] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.9000 is equivalent to --gpu-memory-utilization=0.8735 without CUDA graph 
+(MainProcess pid=92336) INFO 10-15 13:38:21 [kv_cache_utils.py:2464] GPU KV cache size: 333,114 tokens, Maximum concurrency for 65,536 tokens per request: 5.08x
+(MainProcess pid=92336) INFO 10-15 13:39:11 [gpu_worker.py:955] Free memory on device (94.42/94.97 GiB) on startup. Desired GPU memory utilization is (0.9, 85.47 GiB). Actual usage is 23.35 GiB for consumed memory (weights + non-torch), 4.5
+(MainProcess pid=92336) INFO 10-15 13:39:12 [core.py:373] init engine (profile, create kv cache, warmup model) took 126.23 s (compilation: 22.85 s)
+(MainProcess pid=92336) INFO 10-15 13:39:12 [kv_cache_utils.py:772] kv cache group sizes [16, 16, 16, 16, 16, 64]

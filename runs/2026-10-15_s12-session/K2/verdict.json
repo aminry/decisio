@@ -1,0 +1,23 @@
+{
+ "alpha": 0.15,
+ "threshold": 0.9912478080209587,
+ "certified_n": 166,
+ "certified_share": 0.8,
+ "accuracy": 0.83,
+ "wrong_share_of_certified": 0.10240963855421686,
+ "comparisons": 5,
+ "states_after_import": [
+  "ok",
+  "ok",
+  "ok"
+ ],
+ "choices_that_differ_max": 0,
+ "largest_top_probability_difference": 0.0,
+ "flag_flips_within_noise": 0,
+ "prediction_met": {
+  "threshold_exists": true,
+  "certified_share_between_0.5_and_0.9": true,
+  "wrong_share_at_most_0.15": true
+ },
+ "verdict": "HOLDS"
+}
