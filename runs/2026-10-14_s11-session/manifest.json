@@ -1,5 +1,5 @@
 {
- "what": "Lab 2's card session S11 of 2026-10-14, the parts that concern decisio's public documents",
+ "what": "The card session S11 of 2026-10-14, the parts that concern decisio's public documents",
  "date": "2026-10-14",
  "decisio": "0.11.1 (pinned) and main with vLLM 0.31.0 (#144)",
  "vllm": [
@@ -8,7 +8,7 @@
  ],
  "card": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 600 W, driver 595.104.02",
  "cpu": "AMD EPYC 9534",
- "source": "private RLCD experiments/2026-10-13_lab2_s11_session/results/box",
+ "source": "our private records of 2026-10-13, results/box",
  "files": {
   "G2/G2_12b.log": "3bf99f055ded34291e815d72d197f6eb80a26193a39a148d184c60ad9de76f13",
   "G2/G2_31b.log": "8218bf081efaaa67d33b8104869b406e9bd939dd79cb07321159cc546c650f27",
@@ -49,6 +49,6 @@
   "s10/control/control.verdict": "bf94ab83dd8ca3ac4aeb7c0b93339fd371afe0fff967bb1fd519191e962c86b5",
   "s10/control/control_a_health.json": "ce9035c9ab8788023bcc058450d4a7f118a435ff3f388cb1b924bda32dce08f8",
   "stage_power_clock.md": "0e7f5270b36bf990e934ebefbba009143f7f78c5e371ff2c87a40d307703a837",
-  "summary.md": "f1576ee7d9f596ffa0daa1e925f2bbebe4677a17ab7f918f333ab51dd46d5570"
+  "summary.md": "5f048cbc131522d979a9b86836adad1a41e91c3d8cef328abf3128aaab049550"
  }
 }

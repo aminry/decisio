@@ -1,5 +1,5 @@
 {
- "what": "The five integration checks of Advocacy's examples repository run against a decisio server on the Gemma 4 31B base, from a Mac through an SSH tunnel (Lab 2's gate session, session A).",
+ "what": "The five integration checks of the examples repository run against a decisio server on the Gemma 4 31B base, from a Mac through an SSH tunnel (the gate session, session A).",
  "date": "2026-10-08",
  "server": "decisio 0.9.0 at bc74193, vLLM 0.30.0, one RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654",
  "results": {

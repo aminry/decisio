@@ -19,7 +19,7 @@
  "servers": {
   "A": "every flag the default, --debug-readout (suite, JevBench capture, conformance, intent heads)"
  },
- "preregistration": "RLCD experiments/2026-10-06_ls_qwen_4bit_regate/PREREG.md",
+ "preregistration": "our private records of 2026-10-06, PREREG.md",
  "results": {
   "F3": {
    "n": 231,

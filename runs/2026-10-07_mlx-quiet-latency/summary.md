@@ -2,7 +2,7 @@
 
 Every MLX latency figure since 2026-10-03 had been measured beside other processes.
 This record measures them again with no other job running on the Mac (its owner away, the display asleep), with the same drivers and run counts as `runs/2026-10-03_mlx-regate` and `runs/2026-10-05_mlx-gemma`, on decisio `83e461d`, an Apple M5 Pro (64 GB), on AC power.
-Pre-registered before any measurement (the RLCD repository, `experiments/2026-10-06_ls_mlx_quiet_latency/PREREG.md`).
+Pre-registered before any measurement (our private records of 2026-10-06).
 
 - **Quiet rule:** each base started after five minutes with no process above 25% CPU outside the desktop set (WindowServer and two desktop apps) and the desktop set under 100% (`<base>/wait_quiet.log`).
 - **During the passes:** `latency.py`'s own idle rule (no other process above 25%) did not hold in any pass; macOS's indexing and analysis services (`mds_stores`, `corespotlightd`, `duetexpertd`, `searchpartyd`) peaked at 35% to 150%. Its three passes agree within 3%; the third is reported, as before.

@@ -7,7 +7,7 @@
 - **Method:** decisio's own server for `--base <base> --model <checkpoint>`, its uvicorn on 127.0.0.1:18000 in the measuring process, asked over HTTP by one client, one request at a time.
   Server time is the route's `x-decisio-server-ms`; client time, the HTTP round trip, is 0.7 to 2.3 ms more (both in `measure_*.json`).
 - **First contact** (CPU, disk, power limit and clocks) and a CPU check before any cell: a cached Qwen question took 20.3 ms, against a threshold of 30 ms.
-- The pre-registration, its amendments (the 570 W rule among them) and the session's record are in RLCD `experiments/2026-10-06_lab2_latency_600w/`.
+- The pre-registration, its amendments (the 570 W rule among them) and the session's record are in our private records of 2026-10-06.
 
 ## The cells (server time, median of 20)
 
@@ -68,5 +68,5 @@ The CPU matters for the Qwen base instead: a cached Qwen question took 39.4 ms i
 
 ## Against the earlier records (not paired)
 
-- Track 3's session on the Ryzen 9 9950X at 400 W (`runs/2026-10-06_latency-0.8.1/`): Qwen within about 2 ms in every cell; the Gemma first reads at 3,000 tokens 258.6 against 347.4 ms (12B) and 438.1 against 614.7 ms (31B).
+- The session on the Ryzen 9 9950X at 400 W (`runs/2026-10-06_latency-0.8.1/`): Qwen within about 2 ms in every cell; the Gemma first reads at 3,000 tokens 258.6 against 347.4 ms (12B) and 438.1 against 614.7 ms (31B).
 - The records these cells replace in README and EVAL_CARD were measured with the engine in its own process, on hosts whose CPU and power limit were not recorded (`runs/2026-09-30_plugin-verification/`, `runs/2026-10-02_multi-question-and-rendering/`, `runs/2026-10-04_gemma-base/`, `runs/2026-10-04_gemma-4-31b/`).

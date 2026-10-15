@@ -5,7 +5,7 @@
 - **Software:** vLLM 0.30.0, decisio v0.8.1 as released, every checkpoint at its pinned revision.
 - **Served defaults:** the engine in the server's process; Gemma 4 31B scoring several questions warm; the Gemma bases registering a single question's state boundary.
 - **Method:** each base measured on the server decisio builds for `--base <base> --model <checkpoint>`, with uvicorn left out. Server time is the `x-decisio-server-ms` the HTTP route reports.
-- The pre-registration and the session's record are in RLCD `experiments/2026-10-06_t3_latency_and_gpu_tier/`.
+- The pre-registration and the session's record are in our private records of 2026-10-06.
 
 ## The second question (since 0.8.1)
 

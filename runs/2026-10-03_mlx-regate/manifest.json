@@ -23,7 +23,7 @@
   "B2": "--temperature 1.307 --temperature-choice 1.307 --debug-readout (conformance, as the FP8 record's)",
   "C": "--prefix-cache-mb 0 (latency.py)"
  },
- "preregistration": "RLCD experiments/2026-10-02_t2_mlx_backend/PREREG.md, addenda E, F, G",
+ "preregistration": "our private records of 2026-10-02, PREREG.md, addenda E, F, G",
  "results": {
   "S1_accuracy": {
    "mlx": 0.7721428571428571,

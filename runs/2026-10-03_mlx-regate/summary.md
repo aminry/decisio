@@ -2,7 +2,7 @@
 
 The served default changed in #54 (the spaced layout, yes/no as named letters, T 1.506 with choice T 1.370), so the MLX gates of `runs/2026-10-02_mlx-backend`, measured under the earlier default, were run again at 6 bits on the same Mac.
 Reference: the FP8 record of the new default, `runs/2026-10-03_qiv-default`.
-Pre-registered before any measurement (the RLCD repository, `experiments/2026-10-02_t2_mlx_backend/PREREG.md`, addenda E, F and G).
+Pre-registered before any measurement (our private records of 2026-10-02, addenda E, F and G).
 Every gate ran on decisio `62dfe1f`; #56's renames were then checked on `4f5c704`, and the latency was measured on `4f5c704`.
 
 ## Gates

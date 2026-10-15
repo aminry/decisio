@@ -4,7 +4,7 @@
 
 `--backend mlx --base gemma-4-31b` serving `mlx-community/gemma-4-31b-it-6bit@7d13b58`, prompts built with `google/gemma-4-31B-it@842da37`, on an Apple M5 Pro (64 GB), macOS 26.6.2, mlx 0.32.3, mlx-lm 0.32.0.
 Reference: the base's vLLM FP8 record, `runs/2026-10-04_gemma-4-31b` (suite and JevBench readouts at the served temperatures 5.252 and 4.672, and three intent-head draws per set).
-Pre-registered before any gate measurement (the RLCD repository, `experiments/2026-10-06_ls_gemma31b_mlx/PREREG_6bit.md`), with four dated amendments, all committed before the gate run started; the amendments concern the memory rule and are disclosed there as prompted by earlier trial runs.
+Pre-registered before any gate measurement (our private records of 2026-10-06), with four dated amendments, all committed before the gate run started; the amendments concern the memory rule and are disclosed there as prompted by earlier trial runs.
 
 **Code.** The suite, the capture, conformance and memory reading a ran on branch `feat/mlx-gemma-4-31b` at `8512f27` (21:31 UTC, 2026-10-07). The branch was then rebased onto main (which added the per-base cache budget) and gained the FP8-repository guard, so the heads, memory reading b and the cache entries ran at `54b6754` (from 01:36 UTC, 2026-10-08); the finished stages were re-scored from their kept outputs with identical numbers. Between the two commits the MLX engine file differs only in a docstring and a comment, and the 31B's profile gains a vLLM-only setting (`register_boundary`) and the per-base cache-budget field, which stays 2,048 MiB for the 31B; its prompt and temperature settings are unchanged. The one head draw run on both commits, BANKING77 draw 0, gave the same accuracies on both (0.847 with the head, 0.800 plain).
 
@@ -59,7 +59,7 @@ The entries are large because the 50 sliding-window layers keep their last prefi
 ## Not measured
 
 - Server times (the quiet-window latency drivers).
-- A cache hit's time, and memory pressure with the cache full (the budget proposal in the RLCD folder says why that matters).
+- A cache hit's time, and memory pressure with the cache full (the budget proposal in our private records says why that matters).
 - The 4-bit and 8-bit conversions, and any Mac smaller than 64 GB.
 
 ## Files

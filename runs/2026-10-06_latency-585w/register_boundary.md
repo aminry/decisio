@@ -2,7 +2,7 @@
 
 The same session as `summary.md` (one RTX PRO 6000 Blackwell Workstation Edition at an enforced 585 W, an AMD Ryzen Threadripper 9960X host, vLLM 0.30.0), on decisio #99 at `c0d251f`, which added `--register-boundary` (`off`, `before`, `after`).
 Server time is the `x-decisio-server-ms` the HTTP route reports, median of 20 unless stated.
-The files are checked against RLCD `experiments/2026-10-06_lab2_latency_600w/results/checksums_box.sha256`.
+The files are checked against our private records of 2026-10-06.
 
 ## The three orders
 
