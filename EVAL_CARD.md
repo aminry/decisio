@@ -317,7 +317,8 @@ The disclosures of section 4 hold here too, with two more: the go rule this base
 
 The kit's whole 0.2.1 suite, 150,759 requests of which 150,317 are scored, was run once per base on one RTX PRO 6000 Blackwell Workstation Edition (`runs/2026-10-05_decision-index/`).
 Each base was served by its tag with `--base` alone, and the kit's `http` engine at `87d4650` sent one request at a time.
-These are self-run scores, submitted in [apolinario/decision-index#62](https://github.com/apolinario/decision-index/pull/62) on 2026-10-05 and pending the maintainers' validation; they are not board numbers until the maintainers add them.
+These are our own Decision Index 0.2.1 runs, first submitted in [apolinario/decision-index#62](https://github.com/apolinario/decision-index/pull/62) on 2026-10-05.
+The board lists decisio's rows from later runs under its later editions, with other numbers ([`docs/comparison.md`](docs/comparison.md)); the scores below are ours, not the board's.
 
 | Base | Tag | Decision Index 0.2.1 | Raw index | Breadth | Scored requests answered | Request latency, median / p95 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
