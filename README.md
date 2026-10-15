@@ -20,8 +20,8 @@
 
 Your labels, your rules, and it tells you which answers it is sure of.
 
-- **BANKING77: 0.787 to 0.844.** Intent accuracy on the Gemma 4 31B, with 10 labelled examples per intent (mean of 3 draws, 150 test items held out).
-- **CLINC150: 0.940 to 0.970.** The same, on 150 options (mean of 3 draws, 100 test items held out).
+- **BANKING77: 0.787 to 0.844 after 10 labelled examples per intent (mean of 3 draws, 150 test items).** Intent accuracy on the Gemma 4 31B, the test items held out.
+- **CLINC150: 0.940 to 0.970 after 10 labelled examples per intent (mean of 3 draws, 100 test items).** The same, on 150 options, the test items held out.
 - **169 of 200 held-out tickets certified, 17 wrong.** On a ticket question (the Gemma 4 12B, on a Mac) with 400 labelled tickets, asking for at most 15% wrong. Every answer says `certified: true` or `certified: false`.
 
 How it works: you send labelled examples of your own question to `POST /v1/tasks`. The server fits a small correction to the frozen model's answers, checks it against your examples, and keeps it only if it helps.
@@ -236,7 +236,7 @@ Measured on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwel
 ### With Docker
 
 ```bash
-docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio:0.12.0
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio:0.13.0
 ```
 
 The release notes give the image's digest; [Docker](#docker) has the compose file.
