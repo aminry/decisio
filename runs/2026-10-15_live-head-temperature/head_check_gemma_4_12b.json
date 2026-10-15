@@ -1,0 +1,74 @@
+{
+ "base": "gemma_4_12b",
+ "tag": "gemma-4-12b-card",
+ "cells": {
+  "gatekeeper_N200": {
+   "server": {
+    "head_applied": true,
+    "temperature": 2.742015,
+    "lambda": 0.01,
+    "calibration_applied": false
+   },
+   "offline": {
+    "mode": "head",
+    "head_applied": true,
+    "lambda": 0.01,
+    "cv_temperature": 2.7576154017631325
+   },
+   "offline_head_at_the_servers_temperature": {
+    "max_abs_probability_difference": 0.26053747606516087,
+    "median_item_difference": 0.011397084770439825,
+    "items_over_0.01": 155,
+    "items_over_1e-4": 300,
+    "argmax_disagreements": 7,
+    "items": 300
+   },
+   "metrics": {
+    "live": {
+     "accuracy": 0.77,
+     "ece": 0.05203759560333335,
+     "log_loss": 0.7734134052133245
+    },
+    "offline_with_server_T": {
+     "accuracy": 0.7733333333333333,
+     "ece": 0.07497259584999999,
+     "log_loss": 0.7867811313416416
+    }
+   }
+  },
+  "gatekeeper_N1000": {
+   "server": {
+    "head_applied": true,
+    "temperature": 2.483318,
+    "lambda": 0.001,
+    "calibration_applied": true
+   },
+   "offline": {
+    "mode": "head",
+    "head_applied": true,
+    "lambda": 0.001,
+    "cv_temperature": 2.442465396698061
+   },
+   "offline_head_at_the_servers_temperature": {
+    "max_abs_probability_difference": 0.38441433878455145,
+    "median_item_difference": 0.01596011383735374,
+    "items_over_0.01": 173,
+    "items_over_1e-4": 300,
+    "argmax_disagreements": 12,
+    "items": 300
+   },
+   "metrics": {
+    "live": {
+     "accuracy": 0.8166666666666667,
+     "ece": 0.054060445119999995,
+     "log_loss": 0.6291896730399417
+    },
+    "offline_with_server_T": {
+     "accuracy": 0.8066666666666666,
+     "ece": 0.05512260588999998,
+     "log_loss": 0.6211487520994055
+    }
+   }
+  }
+ }
+}

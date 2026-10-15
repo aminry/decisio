@@ -1,0 +1,144 @@
+{
+ "measured": "2026-10-15",
+ "stack": "decisio v0.12.0 (f5e40e0f) on vLLM 0.31.0, one RTX PRO 6000 Blackwell Workstation Edition at 600 W",
+ "task": "gatekeeper: which of 16 team rules covers a shell command (16 options), 300 test items, draw 0 of the offline grid",
+ "ece": "tie-robust, 10 equal-mass bins, 50 tie orders",
+ "bases": {
+  "31b": {
+   "200": {
+    "examples": 200,
+    "live_with_per_task_temperature": {
+     "accuracy": 0.8066666666666666,
+     "ece": 0.06126653201999998,
+     "log_loss": 0.7391184984254077
+    },
+    "same_head_without_it": {
+     "accuracy": 0.8,
+     "ece": 0.16666974459533324,
+     "log_loss": 2.0995716825397253
+    },
+    "ece_without_minus_with": {
+     "point": 0.10540321257533325,
+     "ci95": [
+      0.03490571081250004,
+      0.130469616536
+     ]
+    },
+    "server_temperature": 3.84539,
+    "offline_cv_temperature": 3.815712599388253,
+    "lambda_server": 0.0001,
+    "lambda_offline": 0.0001,
+    "registration_seconds": 79.4,
+    "live_vs_offline_head_at_the_servers_temperature": {
+     "max_abs_probability_difference": 0.4920167046921944,
+     "median_item_difference": 0.019302416226605286,
+     "items_over_0.01": 194,
+     "items_over_1e-4": 300,
+     "argmax_disagreements": 16,
+     "items": 300
+    }
+   },
+   "1000": {
+    "examples": 1000,
+    "live_with_per_task_temperature": {
+     "accuracy": 0.83,
+     "ece": 0.0403615493966667,
+     "log_loss": 0.5902331568336173
+    },
+    "same_head_without_it": {
+     "accuracy": 0.8233333333333334,
+     "ece": 0.14345181002133342,
+     "log_loss": 1.3379428207030843
+    },
+    "ece_without_minus_with": {
+     "point": 0.10309026062466672,
+     "ci95": [
+      0.047621024061916664,
+      0.1216406272981667
+     ]
+    },
+    "server_temperature": 3.360739,
+    "offline_cv_temperature": 3.3645554934524835,
+    "lambda_server": 0.0001,
+    "lambda_offline": 0.0001,
+    "registration_seconds": 392.7,
+    "live_vs_offline_head_at_the_servers_temperature": {
+     "max_abs_probability_difference": 0.6323394983451671,
+     "median_item_difference": 0.023262509877345277,
+     "items_over_0.01": 199,
+     "items_over_1e-4": 300,
+     "argmax_disagreements": 22,
+     "items": 300
+    }
+   }
+  },
+  "12b": {
+   "200": {
+    "examples": 200,
+    "live_with_per_task_temperature": {
+     "accuracy": 0.77,
+     "ece": 0.05203759560333335,
+     "log_loss": 0.7734134052133245
+    },
+    "same_head_without_it": {
+     "accuracy": 0.7733333333333333,
+     "ece": 0.16821897408999997,
+     "log_loss": 1.453307201064364
+    },
+    "ece_without_minus_with": {
+     "point": 0.11618137848666663,
+     "ci95": [
+      0.05462308073741671,
+      0.13863432922308333
+     ]
+    },
+    "server_temperature": 2.742015,
+    "offline_cv_temperature": 2.7576154017631325,
+    "lambda_server": 0.01,
+    "lambda_offline": 0.01,
+    "registration_seconds": 39.6,
+    "live_vs_offline_head_at_the_servers_temperature": {
+     "max_abs_probability_difference": 0.26053747606516087,
+     "median_item_difference": 0.011397084770439825,
+     "items_over_0.01": 155,
+     "items_over_1e-4": 300,
+     "argmax_disagreements": 7,
+     "items": 300
+    }
+   },
+   "1000": {
+    "examples": 1000,
+    "live_with_per_task_temperature": {
+     "accuracy": 0.8166666666666667,
+     "ece": 0.054060445119999995,
+     "log_loss": 0.6291896730399417
+    },
+    "same_head_without_it": {
+     "accuracy": 0.8066666666666666,
+     "ece": 0.14575936554333332,
+     "log_loss": 1.0458505023617177
+    },
+    "ece_without_minus_with": {
+     "point": 0.09169892042333333,
+     "ci95": [
+      0.0355049658874167,
+      0.12417966377341662
+     ]
+    },
+    "server_temperature": 2.483318,
+    "offline_cv_temperature": 2.442465396698061,
+    "lambda_server": 0.001,
+    "lambda_offline": 0.001,
+    "registration_seconds": 226.9,
+    "live_vs_offline_head_at_the_servers_temperature": {
+     "max_abs_probability_difference": 0.38441433878455145,
+     "median_item_difference": 0.01596011383735374,
+     "items_over_0.01": 173,
+     "items_over_1e-4": 300,
+     "argmax_disagreements": 12,
+     "items": 300
+    }
+   }
+  }
+ }
+}

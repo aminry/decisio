@@ -1,0 +1,160 @@
+{
+ "base": "gemma_4_31b",
+ "tag": "gemma-4-31b-card",
+ "draw": 0,
+ "test_items": 300,
+ "sets": {
+  "gatekeeper": {
+   "untaught": {
+    "live": {
+     "accuracy": 0.7633333333333333,
+     "macro_f1": 0.7940498349582896,
+     "ece": 0.07872991138666664,
+     "log_loss": 0.9626761999273735
+    },
+    "offline": {
+     "accuracy": 0.7633333333333333,
+     "macro_f1": 0.7943919371809777,
+     "ece": 0.06058097908666669,
+     "log_loss": 0.963271090042071
+    },
+    "max_abs_probability_difference": 0.14276556066118587,
+    "median_item_difference": 0.008925040060482947
+   },
+   "cells": {
+    "200": {
+     "n_examples": 200,
+     "A_registration_seconds": 79.43568325898377,
+     "A_kept": {
+      "calibration": true,
+      "head": true,
+      "lambda": 0.0001
+     },
+     "live_taught": {
+      "accuracy": 0.8066666666666666,
+      "macro_f1": 0.8380003238901487,
+      "ece": 0.06126653201999998,
+      "log_loss": 0.7391184984254077
+     },
+     "offline_taught": {
+      "accuracy": 0.8,
+      "macro_f1": 0.8382353328587681,
+      "ece": 0.16666974459533324,
+      "log_loss": 2.0995716825397253
+     },
+     "live_vs_offline": {
+      "max_abs_probability_difference": 0.7545012615847582,
+      "median_item_difference": 0.07883735164068034,
+      "items_over_1e-4": 300,
+      "argmax_disagreements": 16
+     },
+     "offline_taught_T": {
+      "accuracy": 0.8,
+      "macro_f1": 0.8382353328587681,
+      "ece": 0.08410579363999998,
+      "log_loss": 0.7917965906795477
+     },
+     "live_vs_offline_T": {
+      "max_abs_probability_difference": 0.49230538107954824,
+      "median_item_difference": 0.01834242950559639,
+      "items_over_1e-4": 300,
+      "items_over_0.01": 192,
+      "argmax_disagreements": 16
+     },
+     "live_taught_minus_untaught": {
+      "accuracy": 0.043333333333333335,
+      "macro_f1": 0.043950488931859044,
+      "ece": -0.017463379366666663,
+      "log_loss": -0.22355770150196586
+     },
+     "B": {
+      "alphas": {
+       "0.02": {
+        "refused": "HTTP 422"
+       },
+       "0.05": {
+        "certificate": {
+         "certified": false,
+         "threshold": null
+        },
+        "test_certified_share": 0.0
+       }
+      },
+      "fit_on_half": {
+       "accuracy_of_the_certify_fit_on_the_test_items": 0.76
+      },
+      "same_fit_across_alphas": true
+     }
+    },
+    "1000": {
+     "n_examples": 1000,
+     "A_registration_seconds": 392.7484133040125,
+     "A_kept": {
+      "calibration": true,
+      "head": true,
+      "lambda": 0.0001
+     },
+     "live_taught": {
+      "accuracy": 0.83,
+      "macro_f1": 0.8679354999110135,
+      "ece": 0.0403615493966667,
+      "log_loss": 0.5902331568336173
+     },
+     "offline_taught": {
+      "accuracy": 0.8233333333333334,
+      "macro_f1": 0.8565472591803184,
+      "ece": 0.14345181002133342,
+      "log_loss": 1.3379428207030843
+     },
+     "live_vs_offline": {
+      "max_abs_probability_difference": 0.9451610415821955,
+      "median_item_difference": 0.06360458094391941,
+      "items_over_1e-4": 300,
+      "argmax_disagreements": 22
+     },
+     "offline_taught_T": {
+      "accuracy": 0.8233333333333334,
+      "macro_f1": 0.8565472591803184,
+      "ece": 0.05498889307333333,
+      "log_loss": 0.6049943077777162
+     },
+     "live_vs_offline_T": {
+      "max_abs_probability_difference": 0.6322890504619569,
+      "median_item_difference": 0.023404759870649158,
+      "items_over_1e-4": 300,
+      "items_over_0.01": 199,
+      "argmax_disagreements": 22
+     },
+     "live_taught_minus_untaught": {
+      "accuracy": 0.06666666666666665,
+      "macro_f1": 0.07388566495272386,
+      "ece": -0.03836836198999994,
+      "log_loss": -0.3724430430937562
+     },
+     "B": {
+      "alphas": {
+       "0.02": {
+        "certificate": {
+         "certified": false,
+         "threshold": null
+        },
+        "test_certified_share": 0.0
+       },
+       "0.05": {
+        "certificate": {
+         "certified": false,
+         "threshold": null
+        },
+        "test_certified_share": 0.0
+       }
+      },
+      "fit_on_half": {
+       "accuracy_of_the_certify_fit_on_the_test_items": 0.8166666666666667
+      },
+      "same_fit_across_alphas": true
+     }
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,18 @@
+{
+ "what": "The live per-task head temperature on decisio v0.12.0, Gemma 4 31B and 12B, one 16-option task, 2026-10-15",
+ "date": "2026-10-15",
+ "decisio": "0.12.0 (f5e40e0f)",
+ "vllm": [
+  "0.31.0"
+ ],
+ "card": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 600 W",
+ "source": "our private records of the card session of 2026-10-15 and the offline arms",
+ "files": {
+  "head_check_gemma_4_12b.json": "c6198daea54424cff604a2e146b48b8cc0d76fdcc2b9a93cad7814320f4cc71e",
+  "head_check_gemma_4_31b.json": "ed5274e1dee7b7948bcdc7438583b39013798b802dc77d32b1dd56744b415ffc",
+  "live_head_temperature.json": "c61156f005ee3f20592b5641034d0a39c43403f53022319f864da272638aeaa0",
+  "score_gemma_4_12b.json": "89a298244cccb1046191a26a762ccbd13cfbea746ddb14edb46caf359bed6ef0",
+  "score_gemma_4_31b.json": "1a6bbfd2c7550530048a85f91363edd568c41408d7ee7d417887d42f2dd86b6a",
+  "summary.md": "9a2f815c63c21587392a6fffc181545fe78f111a19fc52cfae4c362f93f9ab72"
+ }
+}
