@@ -16,10 +16,19 @@
 
 ## Teach it your task
 
-**Teach it your question, and it tells you which answers to trust.**
-Register one recurring question with your own labelled examples and the server learns what your labels mean, without retraining the model: its weights never change.
-Add a `certify` block and every later answer says whether it is certified: on examples the server set aside, at most 5% of the certified answers are wrong, with 90% confidence (both are yours to change).
-The tradeoff: you need labelled examples (10 per option for the intent head; 59 held out to certify at the defaults, so 118 in all with half held out), and a certificate holds for one task on one serving setup.
+**Teach it your task in minutes. No retraining.**
+
+Your labels, your rules, and it tells you which answers it is sure of.
+
+- **BANKING77: 0.787 to 0.844.** Intent accuracy on the Gemma 4 31B, with 10 labelled examples per intent and the test items held out.
+- **CLINC150: 0.940 to 0.970.** The same, on 150 options.
+- **169 of 200 held-out tickets certified, 17 wrong.** On a ticket question (the Gemma 4 12B, on a Mac) with 400 labelled tickets, asking for at most 15% wrong. Every answer says `certified: true` or `certified: false`.
+
+How it works: you send labelled examples of your own question to `POST /v1/tasks`. The server fits a small correction to the frozen model's answers, checks it against your examples, and keeps it only if it helps.
+
+The tradeoff: you need labelled examples (10 per option for the intent head, and 59 held out to certify at the defaults, so 118 in all), and a certificate holds for one task on one serving setup. It is a rate over many answers, not a promise about one.
+
+**Under the hood.** The model behind Decisio stays frozen: its weights never change. The numbers above, for every base, with their records:
 
 **Before and after, from labelled examples** (BANKING77 has 77 options and CLINC150 has 150; 10 labelled examples per intent; the test items are held out; each base measured in its own session):
 
@@ -71,8 +80,6 @@ The usual way to get a decision out of a model is to let it write text and parse
 Decisio skips the text.
 It reads your document once and reads the probability of each option straight off the model's output.
 
-- **Teach it your labels.** With 10 labelled examples per intent, BANKING77 intent accuracy on the default 31B goes from 0.787 to 0.844 and CLINC150 from 0.940 to 0.970 ([Teach it your task](#teach-it-your-task)).
-- **Know which answers to trust.** In the docs' example (the 12B on a Mac, 400 support tickets, at most 15% wrong), 169 of 200 held-out tickets were certified, and 17 of those were wrong.
 - **Higher than Jev on what the model knows.** Intelligence axis: 70.4 against Jev 1.13.0's 63.6.
 - **Second on the sealed set.** Sealed-set intelligence: 73.3 against Jev 61.6, H2O-Lightning-4B 59.0 and Quyet-1.0-Large 71.6.
 - **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
