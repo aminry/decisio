@@ -1,0 +1,69 @@
+{
+ "label": "31b",
+ "server": "http://127.0.0.1:18000",
+ "examples": 96,
+ "test_items": 40,
+ "started": "2026-10-15T12:13:17Z",
+ "offline": {
+  "mode": "head",
+  "info": {
+   "n": 96,
+   "calibration_applied": true,
+   "calibration_reason": "cross-validated gain",
+   "min_per_option": 6,
+   "head_applied": true,
+   "head_reason": "cross-validated gain"
+  }
+ },
+ "registrations": [
+  {
+   "calibration_inputs_sha256": "1733032082e7ad59dfa9035e4185f7de850f8d2077bf9192ed5e90865a889bd9",
+   "head_inputs_sha256": "b87f8f7c2a4106a759a2670be86bafd1d268c778661f542c940ff88174c36c45",
+   "head_applied": true,
+   "calibration_applied": true,
+   "cv_logloss_plain": 3.50571
+  },
+  {
+   "calibration_inputs_sha256": "f27b48cd4d25334cb79b2cd0dbc29d4b23cfe4eb50a8a2e5ab7c46574c77343b",
+   "head_inputs_sha256": "b87f8f7c2a4106a759a2670be86bafd1d268c778661f542c940ff88174c36c45",
+   "head_applied": true,
+   "calibration_applied": true,
+   "cv_logloss_plain": 3.50571
+  },
+  {
+   "calibration_inputs_sha256": "1733032082e7ad59dfa9035e4185f7de850f8d2077bf9192ed5e90865a889bd9",
+   "head_inputs_sha256": "b87f8f7c2a4106a759a2670be86bafd1d268c778661f542c940ff88174c36c45",
+   "head_applied": true,
+   "calibration_applied": true,
+   "cv_logloss_plain": 3.50571
+  }
+ ],
+ "H1": {
+  "head_path_returns_hidden_state": true,
+  "paths": {
+   "head": 40
+  },
+  "h_bitwise_equal_items": 40,
+  "h_max_abs_difference": 0.0,
+  "hidden_lp_max_abs_difference": 0.7275342237567131,
+  "hidden_lp_equal_items": 39
+ },
+ "H2": {
+  "offline_head_vs_live_head": {
+   "max": 0.0012917896022552888,
+   "median": 0.0,
+   "items_above_0.01": 0,
+   "items_above_1e-4": 1,
+   "argmax_disagreements": 0,
+   "items": 40
+  }
+ },
+ "H3": {
+  "registrations": 3,
+  "distinct_calibration_inputs_sha256": 2,
+  "distinct_head_inputs_sha256": 1,
+  "digests_present": true
+ },
+ "reading": "h equal and lp different: the history reading is confirmed (the next step is serving a head question as a plain answer, then the readout)",
+ "finished": "2026-10-15T12:15:40Z"
+}

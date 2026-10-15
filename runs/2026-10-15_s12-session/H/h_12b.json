@@ -1,0 +1,69 @@
+{
+ "label": "12b",
+ "server": "http://127.0.0.1:18000",
+ "examples": 96,
+ "test_items": 40,
+ "started": "2026-10-15T12:17:52Z",
+ "offline": {
+  "mode": "head",
+  "info": {
+   "n": 96,
+   "calibration_applied": true,
+   "calibration_reason": "cross-validated gain",
+   "min_per_option": 6,
+   "head_applied": true,
+   "head_reason": "cross-validated gain"
+  }
+ },
+ "registrations": [
+  {
+   "calibration_inputs_sha256": "ec4e3fd2b2281ec891144faeca6b60329e58751c2d0ec7bceb2be713393bca16",
+   "head_inputs_sha256": "464bee258b56e7aa0cf87d3304b4c92707e514c0851d6c0779ff35333cd896e2",
+   "head_applied": true,
+   "calibration_applied": true,
+   "cv_logloss_plain": 1.77565
+  },
+  {
+   "calibration_inputs_sha256": "ec4e3fd2b2281ec891144faeca6b60329e58751c2d0ec7bceb2be713393bca16",
+   "head_inputs_sha256": "464bee258b56e7aa0cf87d3304b4c92707e514c0851d6c0779ff35333cd896e2",
+   "head_applied": true,
+   "calibration_applied": true,
+   "cv_logloss_plain": 1.77565
+  },
+  {
+   "calibration_inputs_sha256": "ec4e3fd2b2281ec891144faeca6b60329e58751c2d0ec7bceb2be713393bca16",
+   "head_inputs_sha256": "464bee258b56e7aa0cf87d3304b4c92707e514c0851d6c0779ff35333cd896e2",
+   "head_applied": true,
+   "calibration_applied": true,
+   "cv_logloss_plain": 1.77565
+  }
+ ],
+ "H1": {
+  "head_path_returns_hidden_state": true,
+  "paths": {
+   "head": 40
+  },
+  "h_bitwise_equal_items": 40,
+  "h_max_abs_difference": 0.0,
+  "hidden_lp_max_abs_difference": 0.0,
+  "hidden_lp_equal_items": 40
+ },
+ "H2": {
+  "offline_head_vs_live_head": {
+   "max": 0.0,
+   "median": 0.0,
+   "items_above_0.01": 0,
+   "items_above_1e-4": 0,
+   "argmax_disagreements": 0,
+   "items": 40
+  }
+ },
+ "H3": {
+  "registrations": 3,
+  "distinct_calibration_inputs_sha256": 1,
+  "distinct_head_inputs_sha256": 1,
+  "digests_present": true
+ },
+ "reading": "h equal and lp equal: the history reading is killed; the variation is start noise, nothing in the reading protocol to fix",
+ "finished": "2026-10-15T12:19:12Z"
+}

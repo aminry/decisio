@@ -1,0 +1,29 @@
+{
+ "H1": {
+  "head_path_returns_hidden_state": true,
+  "paths": {
+   "head": 40
+  },
+  "h_bitwise_equal_items": 40,
+  "h_max_abs_difference": 0.0,
+  "hidden_lp_max_abs_difference": 0.0,
+  "hidden_lp_equal_items": 40
+ },
+ "H2": {
+  "offline_head_vs_live_head": {
+   "max": 0.0,
+   "median": 0.0,
+   "items_above_0.01": 0,
+   "items_above_1e-4": 0,
+   "argmax_disagreements": 0,
+   "items": 40
+  }
+ },
+ "H3": {
+  "registrations": 3,
+  "distinct_calibration_inputs_sha256": 1,
+  "distinct_head_inputs_sha256": 1,
+  "digests_present": true
+ },
+ "reading": "h equal and lp equal: the history reading is killed; the variation is start noise, nothing in the reading protocol to fix"
+}

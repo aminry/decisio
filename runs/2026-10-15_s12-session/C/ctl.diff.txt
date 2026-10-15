@@ -1,0 +1,7 @@
+ctl a against b n 200 median 0.00e+00 p90 0.00e+00 max 0.000 | above 1e-3: 0 above 1e-2: 0 exactly equal: 200
+   dp 0.000 T1-d8cd8bac98a43b (A's top-two margin 0.930)
+   dp 0.000 T1-774d969e591726 (A's top-two margin 0.445)
+   dp 0.000 S4-ffa54ab776c5fc (A's top-two margin 0.944)
+   dp 0.000 S4-fa654260c7a3cc (A's top-two margin 0.395)
+   dp 0.000 S4-f22a2b4eeb4d49 (A's top-two margin 0.952)
+   dp 0.000 S4-ee2312a990879e (A's top-two margin 0.793)

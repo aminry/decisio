@@ -1,0 +1,11 @@
+f a against b n 200 median 3.62e-03 p90 5.16e-02 max 0.371 | above 1e-3: 156 above 1e-2: 61 exactly equal: 0
+   dp 0.371 scifact:85 (A's top-two margin 0.048)
+   dp 0.301 banking77:89 TOP CHANGED (A's top-two margin 0.215)
+   dp 0.144 mmlu:90 (A's top-two margin 0.456)
+   dp 0.144 mmlu_pro_text:55 (A's top-two margin 0.702)
+   dp 0.121 mmlu_pro_text:41 TOP CHANGED (A's top-two margin 0.017)
+   dp 0.113 banking77:93 TOP CHANGED (A's top-two margin 0.118)
+   top answer changed: mmlu_pro_text:39 dp 0.065 A's top-two margin 0.120
+   top answer changed: mmlu_pro_text:41 dp 0.121 A's top-two margin 0.017
+   top answer changed: banking77:89 dp 0.301 A's top-two margin 0.215
+   top answer changed: banking77:93 dp 0.113 A's top-two margin 0.118
