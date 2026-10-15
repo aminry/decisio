@@ -1,8 +1,8 @@
-# Lab 2's card session of 2026-10-15 (S12): the parts that concern decisio's public documents
+# The card session of 2026-10-15 (S12): the parts that concern decisio's public documents
 
-Run by Lab 2 on one RTX PRO 6000 Blackwell Workstation Edition (600 W enforced, driver 595.104.02, AMD EPYC 9534 host), 3.60 card hours; first-contact gate passed (`first_contact.json`).
+Run on one RTX PRO 6000 Blackwell Workstation Edition (600 W enforced, driver 595.104.02, AMD EPYC 9534 host), 3.60 card hours; first-contact gate passed (`first_contact.json`).
 Stack: decisio 0.12.0 (`f5e40e0f`) on vLLM 0.31.0; parts X and X5 ran on the head of #179 (`X/commit.txt`).
-Lab 1's parts of the same session (L, I, J of the teaching study) are Lab 1's and not in this record.
+The teaching study's parts of the same session (L, I, J) are not in this record.
 Item-level files that name a private request set are not here: the 12B control's answers, the long-context rows, the certified-answers server logs and answers; the W2 verdict keeps its aggregates and the counts of near-tie and out-of-range items (`W2/summary.json`).
 `manifest.json` lists every file with its sha256.
 
@@ -16,12 +16,12 @@ Item-level files that name a private request set are not here: the 12B control's
 | X | `--max-model-len` at 65,536 and 131,072 on the 12B, at 65,536 on the 31B, each with a smoke accuracy check on 30 items (the same items short and at length) | 12B starts at both lengths (154 s and 156 s; 57.53 GiB of KV at 131,072 and 65,536 alike, 333,114 tokens at 65,536); 12B at 60,000 tokens: 23 right against 26 short, first question 11.0 s, second 0.29 s; at 120,000: 19 right against 26 short, first 23.2 s, second 0.57 s; 31B at 65,536 with the model's own KV dtype and the default share: 48.05 GiB of KV, 102,255 tokens, at 60,000: 24 right against 25 short, first 23.0 s, second 0.29 s | `X/` |
 | X5 | the 31B at `--max-model-len` 98,304, the model's own KV dtype, the check at 85,000 tokens | starts (48.05 GiB, 141,865 tokens, concurrency 1.44 at 98,304); 23 right against 25 short, first question 40.8 s, second 0.40 s | `X5/` |
 | P | 50 questions about a 3,000-token document against one plain read of the same 4,843 tokens, the 12B, 10 documents | median 1,598 ms sequential and 731 ms warm against 461 ms for the plain read (ratios 3.47 and 1.59) | `P/` |
-| J (score comparison) | Lab 2's comparison of the stored FP8 against the committed on-load 31B record and against F's on-load arm | see below | `J/` |
+| J (score comparison) | the session's comparison of the stored FP8 against the committed on-load 31B record and against F's on-load arm | see below | `J/` |
 
 ## F, read tensor by tensor
 
 `F/f_a.fp.json` and `F/f_b.fp.json` are each engine's fingerprint: for every tensor its dtype, shape and sha256.
-The script that reads them and the answers (the private RLCD repository's `experiments/2026-10-15_serve_s12_f_analysis/f_analysis.py`) is not copied here; its output is `F/analysis_f_analysis.json`.
+The script that reads them and the answers (kept in our private records) is not copied here; its output is `F/analysis_f_analysis.json`.
 
 - All 1,145 tensors have the same bytes in the two engines, including all 240 FP8 weights and every scale tensor.
 - `compare-fp` lists 420 tensors as different because it compares shapes too: the 240 `weight_scale` tensors are 0-d in the stored engine and one element in the on-load engine, and the 180 attention `_q_scale`, `_k_scale` and `_v_scale` tensors are the other way round.
@@ -35,7 +35,7 @@ The script that reads them and the answers (the private RLCD repository's `exper
 ## J, the score comparison
 
 `J/score_compare.json` compares the stored FP8's JevBench run of this session (v0.12.0) with the committed on-load record `runs/2026-10-04_gemma-4-31b/jevbench_g31/` (decisio `249b56d`, vLLM 0.30.0) and F's two arms.
-Accuracy is 213 of 231 on both, tier by tier (1.000, 1.000, 0.838); Lab 2 reports the stored FP8's JevBench run bit-identical to Lab 1's frozen stored-FP8 run of 2026-10-13 (that run is not in this record).
+Accuracy is 213 of 231 on both, tier by tier (1.000, 1.000, 0.838); the session's analysis reports the stored FP8's JevBench run bit-identical to the frozen stored-FP8 run of 2026-10-13 (that run is not in this record).
 The expected calibration error and the score type of the v1.5 reading differ from the on-load record's, which is older software, so those gaps are not attributed to the checkpoint.
 
 ## Not in this record

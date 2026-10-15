@@ -21,7 +21,7 @@
   "L": "every flag the default (prefix_cache_latency.py --cells 1, then t7.py latency --repeats 20)",
   "C": "--prefix-cache-mb 0 (latency.py)"
  },
- "preregistration": "RLCD experiments/2026-10-06_ls_mlx_quiet_latency/PREREG.md",
+ "preregistration": "our private records of 2026-10-06, PREREG.md",
  "results": {
   "qwen": {
    "latency_py_pass": 3,

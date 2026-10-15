@@ -4,7 +4,7 @@ One RTX PRO 6000 Blackwell Workstation Edition on a host with an AMD EPYC 7452 (
 The servers ran decisio v0.7.2 plus a session-only patch that injects the faults below, never merged.
 Every checkpoint was at its pinned revision.
 "In-process" is the engine in the server's process (`--engine-process in`); "separate" is vLLM's own arrangement, the engine in a process of its own.
-Verdicts follow the session's pre-registration with its two dated amendments (RLCD `experiments/2026-10-05_t3_engine_death_gates/`); `gates.json` holds them all.
+Verdicts follow the session's pre-registration with its two dated amendments (our private records of 2026-10-05); `gates.json` holds them all.
 The browser-agent demo's travel requests are published as aggregates only.
 
 ## What this cleared

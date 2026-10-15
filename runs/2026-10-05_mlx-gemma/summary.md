@@ -1,7 +1,7 @@
 # The Gemma base on MLX: the gates at 6, 4 and 8 bits on a Mac (2026-10-04 and 2026-10-05)
 
 The Gemma base (`--base gemma-4-12b`) served by `--backend mlx` from the mlx-community conversions of `google/gemma-4-12B-it`, gated against the base's vLLM bf16 record `runs/2026-10-04_gemma-base`, on one Apple M5 Pro (64 GB).
-Pre-registered before any measurement (the RLCD repository, `experiments/2026-10-03_t2_gemma_mac/PREREG.md`), with the shape of the Qwen re-gate (`runs/2026-10-03_mlx-regate`).
+Pre-registered before any measurement (our private records of 2026-10-03), with the shape of the Qwen re-gate (`runs/2026-10-03_mlx-regate`).
 The gates ran on the branch at `e7d20fc` (v0.4.0 plus this change); the 50-item checks were repeated on `cf4a8b6`, the same code rebased onto main.
 
 ## Gates
@@ -41,7 +41,7 @@ The Mac was not quiet within the 60 minutes the pre-registration allowed, so the
   - one question on a new state: 392 ms;
   - per question, 10 sharing a state: 179 ms; 100 sharing a state: 163 ms; 100 on an 8,000-token state: 285 ms.
 - **The cached-state cell** (a fresh default server, 30 states asked twice) met the idle rule: 392 ms on first sight and 156 ms when the state was seen before, every hit equal to its miss.
-- **Track 7's driver** (`6bit/latency_t7.json`, the reference's own), against the reference card's:
+- **The reference's own driver** (`6bit/latency_t7.json`), against the reference card's:
   - one question on a cached state: 165 ms (26.7);
   - a new state, one question: 554 / 1,299 / 3,585 ms at 300 / 1,000 / 3,000 tokens (39 / 102 / 293);
   - four questions: 1,025 / 1,771 / 4,117 ms (131 / 196 / 392).

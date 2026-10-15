@@ -22,7 +22,7 @@
   "E<n>": "--prefix-cache-mb 65536 (one entry per length)",
   "F1000": "every flag the default (the 2,048 MiB budget)"
  },
- "preregistration": "RLCD experiments/2026-10-06_ls_gemma31b_mlx/PREREG_6bit.md (amendments 1 to 4, deviation 1)",
+ "preregistration": "our private records of 2026-10-06, PREREG_6bit.md (amendments 1 to 4, deviation 1)",
  "results": {
   "S": {
    "n": 1400,

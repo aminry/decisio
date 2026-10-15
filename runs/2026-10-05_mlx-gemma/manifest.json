@@ -30,7 +30,7 @@
   "L": "as A, fresh (latency)",
   "C": "as A with --prefix-cache-mb 0 (latency.py)"
  },
- "preregistration": "RLCD experiments/2026-10-03_t2_gemma_mac/PREREG.md",
+ "preregistration": "our private records of 2026-10-03, PREREG.md",
  "results": {
   "default": "6bit",
   "S": {

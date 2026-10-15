@@ -43,7 +43,7 @@
  },
  "servers": "python -m decisio.serve.vllm_engine --backend mlx --model <snapshot> --tokenizer <official tokenizer> --debug-readout --port 23456 (every other flag the served default: front padding to 1,056, T = 1.307, tasks, abstention, the head from the same forward)",
  "reference": "runs/2026-09-30_plugin-verification (FP8 served default, server H): conformance_H.json.gz C4 rows for the suite; intent_heads/ for the heads",
- "pre_registration": "private RLCD experiment 2026-10-02_t2_mlx_backend (PLAN.md, PREREG.md), written before any gate measurement; G1 reported, not gated, for the reason stated there",
+ "pre_registration": "our private records of 2026-10-02 (PLAN.md, PREREG.md), written before any gate measurement; G1 reported, not gated, for the reason stated there",
  "gates": {
   "8bit": {
    "P_prompts": "pass, 1400 of 1400 rows identical",
@@ -323,7 +323,7 @@
  },
  "excluded": [
   "the registrations' example hidden states (r12/*_examples.npz, 83 MB) and the server logs: kept in the private record",
-  "the 1,400 suite items and the round-12 items: private (RLCD); the records here carry answers, labels and probabilities, no item text"
+  "the 1,400 suite items and the round-12 items: private (our records); the records here carry answers, labels and probabilities, no item text"
  ],
  "cost": "this Mac's time only (16 h of wall clock for the chain)",
  "deviations": [
@@ -334,7 +334,7 @@
  "pad_policy_shared": {
   "decision": "Amin, 2026-10-02: gate --pad-policy shared on the MLX backend at 6 bits with the backend's full gate set; if it passes, make it the MLX default. It passed, and is the MLX default (resolve_pad_policy)",
   "code": "decisio f3c5026 (as merged), --pad-policy shared; records in 6bit_shared/",
-  "pre_registration": "private RLCD experiment 2026-10-02_t2_mlx_backend, PREREG.md addendum A, written before the run",
+  "pre_registration": "our private records of 2026-10-02, PREREG.md addendum A, written before the run",
   "gates": {
    "P_prompts": "1,400 of 1,400 single-question rows equal the default rows minus their front padding; multi-question rows unchanged",
    "C1_cpu_and_G2": "pass (16 fillers and repeat bit for bit); a question alone vs inside a request differs by design: max 0.021, 0 flips (reported)",
@@ -420,7 +420,7 @@
  "pad_policy_none": {
   "decision": "Amin, 2026-10-02: gate no padding on MLX at 6 bits with the shared run's gate set plus the alone-vs-in-request check bit for bit and H3; if it passes, it replaces shared as the MLX default. It passed",
   "code": "decisio f3c5026 (as merged), --pad-to none (the rows --pad-policy none builds); records in 6bit_none/",
-  "pre_registration": "private RLCD experiment 2026-10-02_t2_mlx_backend, PREREG.md addendum C, written before the run",
+  "pre_registration": "our private records of 2026-10-02, PREREG.md addendum C, written before the run",
   "gates": {
    "P_prompts": "1,400 of 1,400 suite rows and the multi-question rows equal the default rows minus their front padding",
    "C1_cpu_and_G2": "pass: 16 fillers, repeat, and each question alone against inside the request, all bit for bit",
@@ -518,7 +518,7 @@
    "record": "6bit_none/rebased_check/"
   },
   "latency_quiet": {
-   "why": "every latency pass of the gate run ran under heavy foreign load (up to 265% CPU), passes differing by up to 2.6x; re-measured on main (8e3f54f) with every flag the default except --prefix-cache-mb 0 (latency.py reuses its states across cells, which the cache would turn into hits), pre-registered (RLCD PREREG addendum D)",
+   "why": "every latency pass of the gate run ran under heavy foreign load (up to 265% CPU), passes differing by up to 2.6x; re-measured on main (8e3f54f) with every flag the default except --prefix-cache-mb 0 (latency.py reuses its states across cells, which the cache would turn into hits), pre-registered (PREREG addendum D, in our private records)",
    "start": "the quiet-wait start condition did not reach 5 quiet minutes in an hour; started at Amin's request, the per-pass idle rule applied",
    "server_ms_p50_p95": {
     "1q": [

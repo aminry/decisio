@@ -1,5 +1,5 @@
 {
- "what": "The first recorded decision of Advocacy's examples 1, 2 and 4, each on the Gemma 4 31B base, as the README's 'Three decisions' section shows them (probabilities rounded to three decimals there; the files hold the server's full-precision response).",
+ "what": "The first recorded decision of examples 1, 2 and 4, each on the Gemma 4 31B base, as the README's 'Three decisions' section shows them (probabilities rounded to three decimals there; the files hold the server's full-precision response).",
  "rule": "the first record of each run, not chosen for its result",
  "record": {
   "base": "gemma-4-31b",

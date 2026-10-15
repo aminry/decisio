@@ -1,5 +1,5 @@
 {
- "what": "Lab 2's run of the README's pip path on decisio 0.11.0 and the README's three worked decisions on the 31B and the 12B (RLCD experiments/2026-10-08_lab2_latency_grid/results/box/readme_job/)",
+ "what": "A run of the README's pip path on decisio 0.11.0 and the README's three worked decisions on the 31B and the 12B (our private records of 2026-10-08, results/box/readme_job/)",
  "date": "2026-10-09",
  "decisio": "0.11.0 from PyPI",
  "vllm": "0.30.0",

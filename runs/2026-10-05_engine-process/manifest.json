@@ -13,7 +13,7 @@
  },
  "code": {
   "servers": "0ae97ca (v0.6.0); the arrangement set by VLLM_ENABLE_V1_MULTIPROCESSING=0, which --engine-process in sets from this change on",
-  "harness": "RLCD experiments/2026-10-04_t3_vllm_batch_composition/code (repro.py, hooks.py, travel_warm.py, t7.py latency, identity.py, score_oracle.py)"
+  "harness": "our private records of 2026-10-04, code (repro.py, hooks.py, travel_warm.py, t7.py latency, identity.py, score_oracle.py)"
  },
  "models": {
   "qwen3.6-35b-a3b": "Qwen/Qwen3.6-35B-A3B-FP8 at 95a723d08a9490559dae23d0cff1d9466213d989",
@@ -39,7 +39,7 @@
    "engine_process": "in"
   }
  },
- "preregistration": "RLCD experiments/2026-10-04_t3_vllm_batch_composition/PREREG.md (amendments 1 and 2)",
+ "preregistration": "our private records of 2026-10-04, PREREG.md (amendments 1 and 2)",
  "results": {
   "issue_script": {
    "fp8_default": {

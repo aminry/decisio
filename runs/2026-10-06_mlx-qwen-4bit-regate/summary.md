@@ -2,7 +2,7 @@
 
 The served default changed in #54, and only the 6-bit conversion had been gated again (`runs/2026-10-03_mlx-regate`).
 This record gates the 4-bit conversion, `mlx-community/Qwen3.6-35B-A3B-4bit` at `38740b8`, with the same gates against the same FP8 record (`runs/2026-10-03_qiv-default`), on decisio `83e461d`, an Apple M5 Pro (64 GB).
-Pre-registered before any measurement (the RLCD repository, `experiments/2026-10-06_ls_qwen_4bit_regate/PREREG.md`).
+Pre-registered before any measurement (our private records of 2026-10-06).
 
 ## Gates
 
