@@ -1074,7 +1074,7 @@ KV_CACHE_DTYPES = ("auto", "fp8")
 def resolve_context(family, max_model_len, kv_cache_dtype, backend="vllm", image_model=None):
     """(max_model_len, kv_cache_dtype) for the text engine from `--max-model-len` and `--kv-cache-dtype`, or ValueError.
     The default is 32,768 tokens, the length every record was measured at. A longer context is an opt-in up to the
-    base's ceiling (`Family.context_ceiling`: the 12B 131,072, the 31B 65,536, the Qwen base 32,768), on the vLLM
+    base's ceiling (`Family.context_ceiling`: the 12B 65,536, the 31B 98,304, the Qwen base 32,768), on the vLLM
     server only, and not with the image engine, which is built for 32,768 (docs/running.md, "A longer context").
     `kv_cache_dtype` is None for vLLM's own choice (the model's dtype) or "fp8", which halves the KV cache and changes
     the numerics."""
@@ -1519,8 +1519,8 @@ def main():
         type=int,
         default=None,
         help="the longest prompt, in tokens (default 32,768, the length every record was measured at). A longer one is "
-        "an opt-in up to the base's ceiling: gemma-4-12b 131,072, gemma-4-31b 65,536; the 31B needs --kv-cache-dtype "
-        "fp8 and a larger --gpu-memory-utilization beyond about 57,000 tokens on a 96 GB card (docs/running.md)",
+        "an opt-in up to the base's ceiling: gemma-4-12b 65,536, gemma-4-31b 98,304; the 31B needs --kv-cache-dtype "
+        "fp8 beyond about 57,000 tokens on a 96 GB card (docs/running.md)",
     )
     ap.add_argument(
         "--kv-cache-dtype",

@@ -130,7 +130,7 @@ GEMMA4 = Family(
     served_name="decisio-gemma-4-12b-it-letters",
     pad_to="none",
     limit_mm={"image": 0, "video": 0, "audio": 0},
-    context_ceiling=131072,
+    context_ceiling=65536,
     # text-only is vLLM's own class with every multimodal input off: Gemma has no M-RoPE, so a text prompt gets the
     # language model's own positions
     classes={"text-only": None, "hidden-readout": "DecisioGemma4UnifiedHiddenReadout"},
@@ -169,7 +169,7 @@ GEMMA4_31B = Family(
     served_name="decisio-gemma-4-31b-it-letters",
     pad_to="none",
     limit_mm={"image": 0, "video": 0},
-    context_ceiling=65536,
+    context_ceiling=98304,
     # vLLM's text class of the Gemma4ForConditionalGeneration checkpoint, the vision tower left out at load
     classes={"text-only": "DecisioGemma4TextOnly", "hidden-readout": "DecisioGemma4HiddenReadout"},
     head_rows=GEMMA4.head_rows,

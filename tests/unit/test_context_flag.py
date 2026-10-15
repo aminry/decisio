@@ -3,7 +3,7 @@
 """A longer context as an opt-in (`--max-model-len`, `--kv-cache-dtype`; decisio.serve.vllm_engine.resolve_context).
 
 L1  the default is 32,768 tokens and vLLM's own KV cache dtype, on every base and in the engine the server builds
-L2  a longer context is accepted up to the base's ceiling (the 12B 131,072, the 31B 65,536) and refused beyond it, on
+L2  a longer context is accepted up to the base's ceiling (the 12B 65,536, the 31B 98,304) and refused beyond it, on
     the Qwen base at all, off the vLLM server and with the image engine, each with its reason
 L3  `--kv-cache-dtype fp8` and `--max-model-len` reach the text engine, and a refusal ends start-up with its reason
 L4  the engines (the text engine and `--head-engine`'s second one) put them in vLLM's arguments
@@ -27,19 +27,19 @@ def test_l1_the_default_is_the_measured_length():
         assert resolve_context(fam, None, "auto") == (32768, None)
     assert {k: f.context_ceiling for k, f in BASES.items()} == {
         "qwen3.6-35b-a3b": 32768,
-        "gemma-4-12b": 131072,
-        "gemma-4-31b": 65536,
+        "gemma-4-12b": 65536,
+        "gemma-4-31b": 98304,
     }
 
 
 def test_l2_up_to_the_ceiling_and_refused_beyond_with_the_reason():
     g12, g31, qwen = BASES["gemma-4-12b"], BASES["gemma-4-31b"], BASES["qwen3.6-35b-a3b"]
-    assert resolve_context(g12, 131072, None) == (131072, None) and resolve_context(g12, 65536, "fp8") == (65536, "fp8")
-    assert resolve_context(g31, 65536, "fp8") == (65536, "fp8")
-    with pytest.raises(ValueError, match=r"gemma-4-12b base is documented to 131,072"):
-        resolve_context(g12, 131073, None)
-    with pytest.raises(ValueError, match=r"gemma-4-31b base is documented to 65,536"):
-        resolve_context(g31, 65537, "fp8")
+    assert resolve_context(g12, 65536, None) == (65536, None) and resolve_context(g12, 65536, "fp8") == (65536, "fp8")
+    assert resolve_context(g31, 98304, "fp8") == (98304, "fp8") and resolve_context(g31, 65536, None) == (65536, None)
+    with pytest.raises(ValueError, match=r"gemma-4-12b base is documented to 65,536"):
+        resolve_context(g12, 65537, None)
+    with pytest.raises(ValueError, match=r"gemma-4-31b base is documented to 98,304"):
+        resolve_context(g31, 98305, "fp8")
     with pytest.raises(ValueError, match=r"qwen3.6-35b-a3b base is documented to 32,768"):
         resolve_context(qwen, 40000, None)
     with pytest.raises(ValueError, match="for the vLLM server, not --backend mlx"):
@@ -80,22 +80,22 @@ def run_main(monkeypatch, argv):
 def test_l3_the_flags_reach_the_text_engine(monkeypatch):
     k = run_main(monkeypatch, ["--base", "gemma-4-12b"])
     assert k["max_model_len"] == 32768 and k["kv_cache_dtype"] is None
-    k = run_main(monkeypatch, ["--base", "gemma-4-12b", "--max-model-len", "131072"])
-    assert k["max_model_len"] == 131072 and k["kv_cache_dtype"] is None
+    k = run_main(monkeypatch, ["--base", "gemma-4-12b", "--max-model-len", "65536"])
+    assert k["max_model_len"] == 65536 and k["kv_cache_dtype"] is None
     k = run_main(
         monkeypatch,
         [
             "--base",
             "gemma-4-31b",
             "--max-model-len",
-            "65536",
+            "98304",
             "--kv-cache-dtype",
             "fp8",
             "--gpu-memory-utilization",
             "0.95",
         ],
     )
-    assert (k["max_model_len"], k["kv_cache_dtype"], k["gpu_memory_utilization"]) == (65536, "fp8", 0.95)
+    assert (k["max_model_len"], k["kv_cache_dtype"], k["gpu_memory_utilization"]) == (98304, "fp8", 0.95)
     k = run_main(monkeypatch, ["--base", "gemma-4-31b", "--kv-cache-dtype", "auto"])
     assert k["kv_cache_dtype"] is None
 
@@ -103,7 +103,7 @@ def test_l3_the_flags_reach_the_text_engine(monkeypatch):
 @pytest.mark.parametrize(
     "argv,reason",
     [
-        (["--base", "gemma-4-31b", "--max-model-len", "131072"], "documented to 65,536"),
+        (["--base", "gemma-4-31b", "--max-model-len", "131072"], "documented to 98,304"),
         (["--base", "qwen3.6-35b-a3b", "--max-model-len", "65536"], "documented to 32,768"),
         (["--base", "gemma-4-12b", "--max-model-len", "65536", "--image-model", "x"], "image engine serves 32,768"),
     ],
