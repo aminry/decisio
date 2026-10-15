@@ -58,11 +58,11 @@ Registering one question fits four things, in seconds to minutes: a **calibratio
 Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
 Every question you did not register is untouched.
 
-<!-- TEACH-IT PLACEHOLDERS (Lab 1's numbers; fill when public, keys in launch_facts.json under "teaching"; no Jev figure may appear here):
-     T1 teaching.gatekeeper.n200.untaught.macro_f1     T2 teaching.gatekeeper.n200.taught.macro_f1
-     T3 teaching.gatekeeper.n1000.taught.macro_f1      T4 teaching.banking77.n10_per_intent.taught.macro_f1
-     T5 teaching.temperature.ece_head_without          T6 teaching.temperature.ece_head_with
-     T7 teaching.time_to_teach.n200.seconds            T8 teaching.certified.gatekeeper.certified_share -->
+<!-- TEACH-IT PLACEHOLDERS (Lab 1's numbers, keys of launch_facts.json under "teaching"; this section names the default 31B, the 12B reads gemma_4_12b; no Jev figure may appear here):
+     T1 teaching.by_base.gemma_4_31b.gatekeeper.n200.untaught.macro_f1      T2 teaching.by_base.gemma_4_31b.gatekeeper.n200.taught.macro_f1
+     T3 teaching.by_base.gemma_4_31b.gatekeeper.n1000.taught.macro_f1       T4 on a public page: teaching.intent_heads.gemma_4_31b.banking77.taught (accuracy; quote its wording, draws and test items)
+     T5, T6 post-hoc analysis: not for a public page yet
+     T7 teaching.by_base.gemma_4_31b.time_to_teach.n200.seconds (usable)    T8 teaching.by_base.gemma_4_31b.certified.gatekeeper.certified_share (waits for the server's own certificate) -->
 
 How to register a task end to end, what each number was measured on and where the promise stops: [`docs/tasks.md`](docs/tasks.md).
 
@@ -168,7 +168,7 @@ What the compared systems' cards state, quoted as recorded with their revisions,
 
 Five systems, one box, one session: the median time to answer 50 questions about one document.
 On one box, Decisio 31B answers 50 questions about one 3,000-token document in 1.08 s and about one 6,000-token document in 1.73 s; Decisio 12B takes 1.57 s and 1.97 s, and H2O-Lightning-4B 2.05 s and 2.82 s.
-On one box, Jeff-1.0-Large and Quyet-1.0-Large, the two systems ranked above Decisio on JevBench's capability score, take about 44 times (3,000 tokens) and 66 times (6,000 tokens) as long as Decisio 31B to answer 50 questions about one document, and neither accepts a 32,000-token document.
+On one box, Jeff-1.0-Large and Quyet-1.0-Large, which both score higher than Decisio 31B on JevBench's capability score, take about 44 times (3,000 tokens) and 66 times (6,000 tokens) as long as Decisio 31B to answer 50 questions about one document, and neither accepts a 32,000-token document.
 On one box, the first question about a new 3,000-token document takes a median of 112 ms on H2O-Lightning-4B, 295 ms on Decisio 12B, 490 ms on Decisio 31B, and 895 ms on Jeff-1.0-Large and 895 ms on Quyet-1.0-Large.
 At 32,000 tokens, Decisio 31B answers 50 questions about one document in 10.1 s, Decisio 12B in 6.76 s and H2O-Lightning-4B in 9.05 s; Jeff-1.0-Large accepts documents of up to 8,192 tokens and Quyet-1.0-Large up to 6,000, so neither accepts a 32,000-token document.
 
