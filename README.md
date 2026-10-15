@@ -185,7 +185,7 @@ Measured by Lab 2 on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000
 ### With Docker
 
 ```bash
-docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio:0.11.1
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio:0.12.0
 ```
 
 The release notes give the image's digest; [Docker](#docker) has the compose file.
