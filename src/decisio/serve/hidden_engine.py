@@ -88,6 +88,7 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         max_model_len=32768,
         max_num_seqs=256,
         revision=None,
+        kv_cache_dtype=None,
     ):
         from vllm import LLM
         from vllm.config import PoolerConfig
@@ -103,6 +104,7 @@ class HiddenEngine(HiddenReadout, LettersEngine):
             runner="pooling",
             convert="embed",
             pooler_config=PoolerConfig(task="embed", seq_pooling_type="LAST", use_activation=False),
+            **({"kv_cache_dtype": kv_cache_dtype} if kv_cache_dtype else {}),
             **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
         )
         kw.update({k: v for k, v in (engine_kw or {}).items() if k != "limit_mm_per_prompt"})

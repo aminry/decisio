@@ -247,6 +247,7 @@ class LettersEngine:
         fmt=None,
         family=None,
         revision=None,
+        kv_cache_dtype=None,
     ):
         from vllm import LLM
 
@@ -274,6 +275,7 @@ class LettersEngine:
             worker_extension_cls=WORKER_EXTENSION,
             # the base's precision on load (the 31B: FP8); --engine's own "quantization" overrides it
             **({"quantization": self.family.quantization} if self.family.quantization else {}),
+            **({"kv_cache_dtype": kv_cache_dtype} if kv_cache_dtype else {}),  # --kv-cache-dtype fp8
             **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
         )
         if mode == "separate":
@@ -384,6 +386,7 @@ class LettersEngine:
             "pad_where": self.pad_where if self.pad_unit else None,
             "quantization": str(c.model_config.quantization),
             "kv_cache_dtype": str(c.cache_config.cache_dtype),
+            "max_model_len": int(c.model_config.max_model_len),
             "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
             "adapters": sorted(self.adapters),
             "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
@@ -1065,6 +1068,39 @@ def engine_kwargs(args) -> dict:
     return {**kw, **plugin.engine_kwargs(arch)}
 
 
+KV_CACHE_DTYPES = ("auto", "fp8")
+
+
+def resolve_context(family, max_model_len, kv_cache_dtype, backend="vllm", image_model=None):
+    """(max_model_len, kv_cache_dtype) for the text engine from `--max-model-len` and `--kv-cache-dtype`, or ValueError.
+    The default is 32,768 tokens, the length every record was measured at. A longer context is an opt-in up to the
+    base's ceiling (`Family.context_ceiling`: the 12B 131,072, the 31B 65,536, the Qwen base 32,768), on the vLLM
+    server only, and not with the image engine, which is built for 32,768 (docs/running.md, "A longer context").
+    `kv_cache_dtype` is None for vLLM's own choice (the model's dtype) or "fp8", which halves the KV cache and changes
+    the numerics."""
+    n = 32768 if max_model_len is None else int(max_model_len)
+    if n < 1024:
+        raise ValueError(f"--max-model-len {n}: a context of at least 1,024 tokens")
+    if n > 32768:
+        if backend != "vllm":
+            raise ValueError(f"--max-model-len above 32,768 is for the vLLM server, not --backend {backend}")
+        if image_model:
+            raise ValueError(
+                "--max-model-len above 32,768 does not combine with --image-model: the image engine serves 32,768"
+            )
+        ceiling = getattr(family, "context_ceiling", 32768)
+        if n > ceiling:
+            raise ValueError(
+                f"--max-model-len {n:,}: the {family.key} base is documented to {ceiling:,} tokens "
+                "(a longer context is not measured; docs/running.md, 'A longer context')"
+            )
+    if kv_cache_dtype not in (None, *KV_CACHE_DTYPES):
+        raise ValueError(f"--kv-cache-dtype: one of {', '.join(KV_CACHE_DTYPES)}")
+    if kv_cache_dtype and kv_cache_dtype != "auto" and backend != "vllm":
+        raise ValueError(f"--kv-cache-dtype {kv_cache_dtype} is for the vLLM server, not --backend {backend}")
+    return n, (None if kv_cache_dtype in (None, "auto") else kv_cache_dtype)
+
+
 def facts_register_boundary(engine):
     """Where a single question registers its state's boundary (--register-boundary), or None on a base that does not."""
     fam = getattr(engine, "family", None)
@@ -1479,6 +1515,21 @@ def main():
     )
     ap.add_argument("--gpu-memory-utilization", type=float, default=0.90, help="the text engine's share of the card")
     ap.add_argument(
+        "--max-model-len",
+        type=int,
+        default=None,
+        help="the longest prompt, in tokens (default 32,768, the length every record was measured at). A longer one is "
+        "an opt-in up to the base's ceiling: gemma-4-12b 131,072, gemma-4-31b 65,536; the 31B needs --kv-cache-dtype "
+        "fp8 and a larger --gpu-memory-utilization beyond about 57,000 tokens on a 96 GB card (docs/running.md)",
+    )
+    ap.add_argument(
+        "--kv-cache-dtype",
+        choices=KV_CACHE_DTYPES,
+        default=None,
+        help="the KV cache's data type: auto (the model's, the default) or fp8, which holds twice the tokens and "
+        "changes the numerics (a task and its certificate are fitted under one; docs/running.md)",
+    )
+    ap.add_argument(
         "--image-gpu-memory-utilization", type=float, default=0.50, help="the image engine's share of the card"
     )
     ap.add_argument(
@@ -1550,6 +1601,12 @@ def main():
         )
         if given
     ]
+    try:
+        args.max_model_len, args.kv_cache_dtype = resolve_context(
+            args.family, args.max_model_len, args.kv_cache_dtype, args.backend, args.image_model
+        )
+    except ValueError as e:
+        ap.error(str(e))
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
     args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
@@ -1602,6 +1659,8 @@ def main():
             adapters=adapters,
             pack=args.pack,
             gpu_memory_utilization=args.gpu_memory_utilization,
+            max_model_len=args.max_model_len,
+            kv_cache_dtype=args.kv_cache_dtype,
             engine_kw=engine_kwargs(args),
             fmt=fmt,
             family=args.family,
@@ -1672,6 +1731,8 @@ def main():
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.head_gpu_memory_utilization,
+                max_model_len=args.max_model_len,
+                kv_cache_dtype=args.kv_cache_dtype,
                 engine_kw=engine_kwargs(args),
                 revision=args.revision,
             )
