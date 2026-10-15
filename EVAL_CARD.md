@@ -302,7 +302,7 @@ The disclosures of section 4 hold here too, with two more: the go rule this base
 - **Most published numbers of this base were measured on Google's bf16 quantised on load; the stored FP8 repository scores the same within noise.**
   On JevBench's 231 public items both give 213 right, tier by tier; on 200 suite requests, in one session on one box and one stack (vLLM 0.31.0), 162 are right in each arm and the expected calibration error is 0.075 stored against 0.080 on load.
   The tensors are byte-identical, but the answers are not: none of the 200 is exactly equal (median difference in a probability 0.0036, largest 0.371), and 4 top answers differ (one is right only on the stored side and one only on the on-load side).
-  The cause of the differing answers is not isolated (the card session of 2026-10-15, `runs/2026-10-15_s12-session/`).
+  With eager execution on both arms the two answer identically on 200 of 200 requests, so the difference is in the compiled path and not in the weights; the other steps that would isolate it further were not run (the card sessions of 2026-10-15, `runs/2026-10-15_s12-session/` and `runs/2026-10-15_s13-session/`).
 - Slower than both served bases on states it has not seen before, the more so the longer the state (one question on a new 3,000-token state: 438 ms, against 85 ms on the Qwen base; 585 W).
 - One card and one session; the intent heads over three draws, the other bases' over six.
 - **A request repeats exactly on a freshly started server; on a server that has already answered it, a repeat can differ (5 of 200 items, up to 0.031, no top answer changed, 31B on vLLM 0.30.0 and 0.31.0, the same on both).**

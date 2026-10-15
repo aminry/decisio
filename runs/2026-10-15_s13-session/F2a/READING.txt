@@ -1,0 +1,2 @@
+stored pair: {'answers': 200, 'equal': 200, 'largest': 0.0, 'top_changes': 0, 'median': 0.0}; on-load pair: {'answers': 200, 'equal': 200, 'largest': 0.0, 'top_changes': 0, 'median': 0.0}; cross pair: {'answers': 200, 'equal': 0, 'largest': 0.276, 'top_changes': 5, 'median': 0.00379}
+READING 1: both same-arm pairs 200 of 200 equal, the cross pair not: a loading-path effect; go to F2-c

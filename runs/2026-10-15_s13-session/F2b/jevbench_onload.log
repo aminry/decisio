@@ -1,0 +1,5 @@
+choice CC  86.32  easy 100.0 (n=36)  standard 100.0 (n=36)  hard 76.1 (n=67)
+noul   CC  79.57  easy 100.0 (n=12)  standard 91.7 (n=24)  hard 68.4 (n=38)  abstained 0.041
+score  CC  72.02  standard 95.9 (n=12)  hard 60.1 (n=6)
+I_open A (equal types) 79.30   B (50/25/25) 81.06   items 231, invalid 0, tiers without items ['judge']
+JEVBENCH_V15_DONE

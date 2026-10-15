@@ -1,0 +1,12 @@
+pair_x a against b n 200 median 3.79e-03 p90 5.63e-02 max 0.276 | above 1e-3: 154 above 1e-2: 60 exactly equal: 0
+   dp 0.276 toxicchat:104 (A's top-two margin 0.083)
+   dp 0.233 boolq:124 TOP CHANGED (A's top-two margin 0.177)
+   dp 0.173 mmlu:10 (A's top-two margin 0.376)
+   dp 0.165 mmlu_pro_text:130 (A's top-two margin 0.369)
+   dp 0.156 banking77:89 (A's top-two margin 0.392)
+   dp 0.155 mmlu_pro_text:85 (A's top-two margin 0.196)
+   top answer changed: boolq:124 dp 0.233 A's top-two margin 0.177
+   top answer changed: mmlu_pro_text:35 dp 0.057 A's top-two margin 0.032
+   top answer changed: mmlu_pro_text:41 dp 0.057 A's top-two margin 0.009
+   top answer changed: mmlu_pro_text:54 dp 0.059 A's top-two margin 0.000
+   top answer changed: mmlu_pro_text:122 dp 0.110 A's top-two margin 0.131
