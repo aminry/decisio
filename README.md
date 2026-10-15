@@ -20,8 +20,8 @@
 
 Your labels, your rules, and it tells you which answers it is sure of.
 
-- **BANKING77: 0.787 to 0.844.** Intent accuracy on the Gemma 4 31B, with 10 labelled examples per intent and the test items held out.
-- **CLINC150: 0.940 to 0.970.** The same, on 150 options.
+- **BANKING77: 0.787 to 0.844.** Intent accuracy on the Gemma 4 31B, with 10 labelled examples per intent (mean of 3 draws, 150 test items held out).
+- **CLINC150: 0.940 to 0.970.** The same, on 150 options (mean of 3 draws, 100 test items held out).
 - **169 of 200 held-out tickets certified, 17 wrong.** On a ticket question (the Gemma 4 12B, on a Mac) with 400 labelled tickets, asking for at most 15% wrong. Every answer says `certified: true` or `certified: false`.
 
 How it works: you send labelled examples of your own question to `POST /v1/tasks`. The server fits a small correction to the frozen model's answers, checks it against your examples, and keeps it only if it helps.
@@ -30,7 +30,7 @@ The tradeoff: you need labelled examples (10 per option for the intent head, and
 
 **Under the hood.** The model behind Decisio stays frozen: its weights never change. The numbers above, for every base, with their records:
 
-**Before and after, from labelled examples** (BANKING77 has 77 options and CLINC150 has 150; 10 labelled examples per intent; the test items are held out; each base measured in its own session):
+**Before and after, from labelled examples** (BANKING77 has 77 options and 150 test items, CLINC150 has 150 options and 100 test items; 10 labelled examples per intent; the test items are held out; each base measured in its own session):
 
 | Base | BANKING77, untaught to taught | CLINC150, untaught to taught | Record |
 | --- | --- | --- | --- |
