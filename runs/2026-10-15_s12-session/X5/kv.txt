@@ -1,0 +1,8 @@
+(MainProcess pid=107887) INFO 10-15 14:07:22 [utils.py:343] Using LBNHC KV cache layout.
+(MainProcess pid=107887) INFO 10-15 14:09:24 [gpu_worker.py:692] Available KV cache memory: 48.05 GiB
+(MainProcess pid=107887) INFO 10-15 14:09:24 [gpu_worker.py:707] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.9000 is equivalent to --gpu-memory-utilization=0.8652 without CUDA graph
+(MainProcess pid=107887) INFO 10-15 14:09:24 [kv_cache_utils.py:2464] GPU KV cache size: 141,865 tokens, Maximum concurrency for 98,304 tokens per request: 1.44x
+(MainProcess pid=107887) INFO 10-15 14:10:43 [gpu_worker.py:955] Free memory on device (94.42/94.97 GiB) on startup. Desired GPU memory utilization is (0.9, 85.47 GiB). Actual usage is 31.12 GiB for consumed memory (weights + non-torch), 6.
+(MainProcess pid=107887) INFO 10-15 14:10:44 [core.py:373] init engine (profile, create kv cache, warmup model) took 202.25 s (compilation: 45.07 s)
+(MainProcess pid=107887) INFO 10-15 14:10:44 [kv_cache_utils.py:772] kv cache group sizes [16, 16, 16, 16, 16, 32]
+(MainProcess pid=107887) INFO 10-15 14:10:48 [kv_cache_utils.py:772] kv cache group sizes [16, 16, 16, 16, 16, 32]

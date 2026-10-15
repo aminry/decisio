@@ -230,6 +230,26 @@ Watch the footprint, not the resident size.
 Run one model server on a Mac at a time.
 Two servers each stay under their own limit and can still add up to more than the machine has.
 
+## A longer context (opt-in)
+
+Every record in this repository was measured at **32,768 tokens**, the default (`--max-model-len`). A longer context is an opt-in on the vLLM server, up to a ceiling per base:
+
+| Base | Default | Ceiling of `--max-model-len` |
+| --- | ---: | ---: |
+| `qwen3.6-35b-a3b` | 32,768 | 32,768 (not offered) |
+| `gemma-4-12b` | 32,768 | 65,536 |
+| `gemma-4-31b` | 32,768 | 98,304 |
+
+Past the ceiling, off the vLLM server (`--backend mlx`, `--backend hf`) and with `--image-model` (the image engine serves 32,768) the server refuses to start and says why. `/health` reports the length in force as `max_model_len`, and a prompt over it is answered 422 as before.
+
+**What the records say about memory.** The card session of 2026-10-15 started the 31B (FP8 weights) at a context of 98,304 tokens on one 96 GB card at the default 0.90 share with the model's own cache dtype: vLLM 0.31.0 reported 48.05 GiB of KV cache and room for 141,865 tokens, and the 12B at 131,072 reported 57.53 GiB and 612,140 tokens (`runs/2026-10-15_s12-session/X/` and `X5/`). vLLM's start-up check counts the cache differently across versions: on 0.30.0 the same share of the 31B was called 48.6 GiB and 57,882 tokens (EVAL_CARD section 7; the bf16 start needed 27.51 GiB for one 32,768-token request, `runs/2026-10-04_gemma-4-31b/bf16_start.txt`), so a 0.30.0 server may need `--kv-cache-dtype fp8`, a larger `--gpu-memory-utilization`, or both beyond about 57,000 tokens, and a 0.31.0 server on a smaller card is not measured. `--kv-cache-dtype fp8` changes the numerics: a certificate made under the model's own cache dtype is suspended under fp8 (the serving-stack fingerprint includes the KV cache dtype), and the answers of a registered task can move; register and certify again under the dtype you serve.
+
+**What the records say about time.** The first question about a state the server has not seen grows faster than the state does, because attention does (the table of first-question latency above stops at 32,000 tokens: 3,370 ms at 16,000 and 8,880 ms at 32,000 on the 31B; 1,779 ms and 4,383 ms on the 12B). The faster attention backends are refused for Gemma 4 on vLLM 0.30.0 and 0.31.0, so a longer context is slower than a proportional guess.
+
+**Where the ceilings come from.** The card session of 2026-10-15 (parts X and X5, pass rules written before the run; `runs/2026-10-15_s12-session/`): the 31B started at a context of 98,304 tokens and answered a check at a state of 85,000 tokens (23 of 30 items right against 25 of 30 for the same items short; first question 40.8 s, second 0.40 s), which is its ceiling. The 12B started at 131,072 and was right on 23 of 30 items at 60,000 tokens (26 short; first question 11.0 s) but on 19 of 30 at 120,000 (26 short; first question 23.2 s), which failed the pass rule (a drop of at most 3), so its ceiling is the lower 65,536 (started and not itself checked; the check was at 60,000). Each check is 30 items, a smoke test and not an accuracy measurement.
+
+**What is not measured.** Anything between the checked states and the ceilings other than what the session ran, the first and later question at those lengths, the prefix cache and the state boundary at that size, the temperatures (fitted on states of a few thousand tokens), and the accuracy of answers at long context on a suite (no suite here has a state over 32,768 tokens). A longer context is an opt-in at your own check: the default stays 32,768.
+
 ## Ollama
 
 ```bash

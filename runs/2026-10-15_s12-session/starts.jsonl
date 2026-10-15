@@ -1,0 +1,22 @@
+{"label":"g12","flags":"--base gemma-4-12b","rc":0,"seconds":211,"card_hours":0.15}
+{"label":"ctl_a","flags":"--base gemma-4-12b","rc":0,"seconds":188,"card_hours":0.29}
+{"label":"ctl_b","flags":"--base gemma-4-12b","rc":0,"seconds":172,"card_hours":0.34}
+{"label":"W2_s1","flags":"--base gemma-4-12b --multi-question sequential","rc":0,"seconds":132,"card_hours":0.38}
+{"label":"W2_w1","flags":"--base gemma-4-12b --multi-question warm","rc":0,"seconds":130,"card_hours":0.53}
+{"label":"W2_s2","flags":"--base gemma-4-12b --multi-question sequential","rc":0,"seconds":128,"card_hours":0.64}
+{"label":"W2_w2","flags":"--base gemma-4-12b --multi-question warm","rc":0,"seconds":130,"card_hours":0.79}
+{"label":"W2_s3","flags":"--base gemma-4-12b --multi-question sequential","rc":0,"seconds":130,"card_hours":0.89}
+{"label":"h_31b","flags":"--base gemma-4-31b --debug-readout","rc":0,"seconds":267,"card_hours":1.33}
+{"label":"h_12b","flags":"--base gemma-4-12b --debug-readout","rc":0,"seconds":130,"card_hours":1.41}
+{"label":"f_stored","flags":"--base gemma-4-31b","rc":0,"seconds":284,"card_hours":1.51}
+{"label":"f_online","flags":"--model /workspace/l2d/hf/hub/models--google--gemma-4-31B-it/snapshots/842da3794eaa0b77d5f08bae87a17459d91ff475","rc":0,"seconds":280,"card_hours":1.59}
+{"label":"lab1_L_31b","flags":"--base gemma-4-31b","rc":0,"seconds":184,"card_hours":1.65}
+{"label":"lab1_L_12b","flags":"--base gemma-4-12b","rc":0,"seconds":136,"card_hours":2.10}
+{"label":"lab1_I_31b","flags":"--base gemma-4-31b","rc":0,"seconds":186,"card_hours":2.38}
+{"label":"lab1_I_12b","flags":"--base gemma-4-12b","rc":0,"seconds":130,"card_hours":2.54}
+{"label":"lab1_J_31b","flags":"--base gemma-4-31b","rc":0,"seconds":202,"card_hours":2.67}
+{"label":"lab1_J_12b","flags":"--base gemma-4-12b","rc":0,"seconds":130,"card_hours":2.72}
+{"label":"x_12b_65536","flags":"--base gemma-4-12b --max-model-len 65536","rc":0,"seconds":154,"card_hours":2.77}
+{"label":"x_12b_131072","flags":"--base gemma-4-12b --max-model-len 131072","rc":0,"seconds":156,"card_hours":2.81}
+{"label":"x_31b_65536_i","flags":"--base gemma-4-31b --max-model-len 65536 --kv-cache-dtype auto","rc":0,"seconds":232,"card_hours":3.09}
+{"label":"x5_31b","flags":"--base gemma-4-31b --max-model-len 65536 --kv-cache-dtype auto --engine {\"compilation_config\": {\"max_cudagraph_capture_size\": 4096}, \"max_model_len\": 98304}","rc":0,"seconds":232,"card_hours":3.29}

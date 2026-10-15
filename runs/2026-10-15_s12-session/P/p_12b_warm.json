@@ -1,0 +1,418 @@
+{
+ "rows": [
+  {
+   "doc": 0,
+   "A": {
+    "client_ms": 730.8916029869579,
+    "server_ms": 728.2,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 245.6,
+     "questions": 465.5,
+     "readout": 1.0,
+     "engine": 721.0,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 457.55357801681384,
+    "server_ms": 455.9,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 411.2,
+     "questions": 30.2,
+     "readout": 0.1,
+     "engine": 449.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 1,
+   "A": {
+    "client_ms": 730.1544249930885,
+    "server_ms": 727.4,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 245.7,
+     "questions": 464.5,
+     "readout": 1.0,
+     "engine": 720.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 458.5139930131845,
+    "server_ms": 456.9,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 411.9,
+     "questions": 30.4,
+     "readout": 0.1,
+     "engine": 450.0,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 2,
+   "A": {
+    "client_ms": 726.1045439809095,
+    "server_ms": 723.6,
+    "stages": {
+     "prepare": 8.2,
+     "warm": 242.6,
+     "questions": 464.0,
+     "readout": 1.0,
+     "engine": 716.4,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 457.687607005937,
+    "server_ms": 456.1,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 410.9,
+     "questions": 30.7,
+     "readout": 0.1,
+     "engine": 449.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 3,
+   "A": {
+    "client_ms": 729.5219269872177,
+    "server_ms": 727.0,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 244.9,
+     "questions": 464.9,
+     "readout": 1.0,
+     "engine": 719.7,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 456.1949920025654,
+    "server_ms": 454.6,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 412.1,
+     "questions": 28.0,
+     "readout": 0.1,
+     "engine": 447.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 4,
+   "A": {
+    "client_ms": 730.5980009841733,
+    "server_ms": 727.4,
+    "stages": {
+     "prepare": 8.2,
+     "warm": 245.8,
+     "questions": 464.7,
+     "readout": 1.0,
+     "engine": 720.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 461.79699001368135,
+    "server_ms": 459.7,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 414.5,
+     "questions": 30.6,
+     "readout": 0.1,
+     "engine": 452.8,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 5,
+   "A": {
+    "client_ms": 731.6633249865845,
+    "server_ms": 728.1,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 245.9,
+     "questions": 465.1,
+     "readout": 1.0,
+     "engine": 720.9,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 461.154101009015,
+    "server_ms": 459.0,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 414.5,
+     "questions": 30.1,
+     "readout": 0.1,
+     "engine": 452.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 6,
+   "A": {
+    "client_ms": 731.4284900203347,
+    "server_ms": 727.7,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 245.0,
+     "questions": 465.6,
+     "readout": 1.0,
+     "engine": 720.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 461.2366500077769,
+    "server_ms": 459.4,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 415.2,
+     "questions": 29.5,
+     "readout": 0.1,
+     "engine": 452.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 7,
+   "A": {
+    "client_ms": 734.2793039861135,
+    "server_ms": 731.4,
+    "stages": {
+     "prepare": 8.4,
+     "warm": 247.5,
+     "questions": 466.7,
+     "readout": 1.0,
+     "engine": 724.2,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 459.96655098861083,
+    "server_ms": 458.3,
+    "stages": {
+     "prepare": 7.4,
+     "warm": 415.6,
+     "questions": 28.2,
+     "readout": 0.1,
+     "engine": 451.5,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 8,
+   "A": {
+    "client_ms": 734.7333470243029,
+    "server_ms": 731.4,
+    "stages": {
+     "prepare": 8.3,
+     "warm": 247.1,
+     "questions": 467.1,
+     "readout": 1.0,
+     "engine": 724.1,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 464.25557098700665,
+    "server_ms": 462.2,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 416.1,
+     "questions": 31.5,
+     "readout": 0.1,
+     "engine": 455.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  },
+  {
+   "doc": 9,
+   "A": {
+    "client_ms": 736.6915050079115,
+    "server_ms": 732.5,
+    "stages": {
+     "prepare": 8.4,
+     "warm": 246.6,
+     "questions": 468.6,
+     "readout": 1.0,
+     "engine": 725.3,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 50
+   },
+   "F": {
+    "client_ms": 463.8960379816126,
+    "server_ms": 461.7,
+    "stages": {
+     "prepare": 7.5,
+     "warm": 417.0,
+     "questions": 30.2,
+     "readout": 0.1,
+     "engine": 454.9,
+     "wait": 0.0
+    },
+    "input_tokens": 4843,
+    "n_answers": 1,
+    "state_tokens": 4803
+   }
+  }
+ ],
+ "median_A_ms": 731.1600465036463,
+ "median_F_ms": 460.5603259988129,
+ "R": 1.5875445739230496,
+ "tokens_A": 4843.0,
+ "tokens_F": 4843.0,
+ "stages_A_median": {
+  "prepare": 8.3,
+  "warm": 245.75,
+  "questions": 465.3,
+  "readout": 1.0,
+  "engine": 720.7,
+  "wait": 0.0
+ },
+ "health": {
+  "ok": true,
+  "vllm": "0.31.0",
+  "gpu": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition",
+  "engine_process": "in",
+  "mode": "separate",
+  "block_size": 16,
+  "match_unit": 16,
+  "cache_hit_unit": 64,
+  "hash_unit": 16,
+  "registers_state_boundary": true,
+  "register_boundary": "before",
+  "pad_unit": null,
+  "pad_where": null,
+  "quantization": "None",
+  "kv_cache_dtype": "auto",
+  "mamba_ssm_cache_dtype": "auto",
+  "adapters": [],
+  "VLLM_USE_DEEP_GEMM": "0",
+  "prompt_format": {
+   "tail": "spaced",
+   "slot": "template",
+   "variants": "summed",
+   "system_prompt": true
+  },
+  "base": "gemma-4-12b",
+  "attention_backend": "AttentionBackendEnum.TRITON_ATTN",
+  "profile": {
+   "base": "gemma-4-12b",
+   "checkpoint": "google/gemma-4-12B-it",
+   "revision": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+   "quantization_on_load": null,
+   "engine_process": "in",
+   "temperatures": {
+    "choice": 3.592,
+    "noul": 3.592,
+    "score": 3.592
+   },
+   "prompt": {
+    "tail": "spaced",
+    "slot": "template",
+    "variants": "summed",
+    "system_prompt": true,
+    "noul_rendering": "letters",
+    "describe_options": true,
+    "multi_question": "warm",
+    "register_boundary": "before",
+    "pad_policy": "always",
+    "pad_unit": null
+   }
+  },
+  "systemone": {
+   "hide_index_keys": true,
+   "desnake_labels": true,
+   "describe_options": true,
+   "noul_rendering": "letters",
+   "noul_commit": false,
+   "abstention": true,
+   "abstention_tasks": {},
+   "orders": 1,
+   "abstain_option": null,
+   "tasks": true,
+   "debug_readout": false,
+   "temperature": 3.592,
+   "temperatures": {},
+   "readout_tasks": {}
+  },
+  "head_engine": {
+   "mode": "hidden (serving engine, reserved logit columns)",
+   "reserved_ids": [
+    170000,
+    173840
+   ],
+   "lm_head": [
+    262144,
+    3840
+   ],
+   "label_logprobs": "engine",
+   "requests_per_question": 5
+  }
+ }
+}

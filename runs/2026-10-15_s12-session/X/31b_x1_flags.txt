@@ -1,0 +1,1 @@
+--base gemma-4-31b --max-model-len 65536 --kv-cache-dtype auto
