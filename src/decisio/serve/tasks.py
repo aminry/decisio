@@ -107,6 +107,18 @@ def split_holdout(task_id: str, examples, fraction: float):
     return [i for i in range(len(examples)) if i not in held_set], sorted(held)
 
 
+def inputs_digest(*arrays) -> str:
+    """A digest of what a registration read from the engine (the examples' label log-scores, and for a head their hidden
+    states), as float64 bytes. Two registrations of the same examples have the same digest exactly when the engine read
+    them identically, so a head or a threshold that differs between them can be told apart from a fit that differs."""
+    h = hashlib.sha256()
+    for a in arrays:
+        a = np.ascontiguousarray(np.asarray(a, dtype=np.float64))
+        h.update(str(a.shape).encode())
+        h.update(a.tobytes())
+    return h.hexdigest()
+
+
 def fit_digest(task) -> str:
     """A digest of what the task applies to an answer: the calibration prior's record and the head's, arrays
     included."""
@@ -161,6 +173,7 @@ class TaskStore:
         pairs = [(s, q) for q, s, _ in examples]
         lps = [log_probs(p) for p in score_fn(pairs)]
         prior = calibration.fit_task_prior(lps, labels, fingerprint=self.fingerprint, task_id=task_id, K=len(options))
+        prior = {**prior, "inputs_sha256": inputs_digest(lps)}
         counts = np.bincount(labels, minlength=len(options))
         if hidden_fn is None:
             head = {
@@ -205,6 +218,10 @@ class TaskStore:
                 fingerprint=self.fingerprint,
                 task_id=task_id,
             )
+            head = {
+                **head,
+                "inputs_sha256": inputs_digest([lp for lp, _ in readout], [h for _, h in readout]),
+            }
         task = {
             "format": FORMAT,
             "id": task_id,
