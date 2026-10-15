@@ -1,0 +1,8 @@
+(MainProcess pid=101821) INFO 10-15 13:55:15 [core.py:129] Initializing a V1 LLM engine (v0.31.0) with config: model='tachara-ai/decisio-gemma-4-31b', speculative_config=None, tokenizer='tachara-ai/decisio-gemma-4-31b', skip_tokenizer_init=
+(MainProcess pid=101821) INFO 10-15 13:55:24 [utils.py:343] Using LBNHC KV cache layout.
+(MainProcess pid=101821) INFO 10-15 13:57:27 [gpu_worker.py:692] Available KV cache memory: 48.05 GiB
+(MainProcess pid=101821) INFO 10-15 13:57:27 [gpu_worker.py:707] CUDA graph memory profiling is enabled (default since v0.21.0). The current --gpu-memory-utilization=0.9000 is equivalent to --gpu-memory-utilization=0.8652 without CUDA graph
+(MainProcess pid=101821) INFO 10-15 13:57:27 [kv_cache_utils.py:2464] GPU KV cache size: 102,255 tokens, Maximum concurrency for 65,536 tokens per request: 1.56x
+(MainProcess pid=101821) INFO 10-15 13:58:45 [gpu_worker.py:955] Free memory on device (94.42/94.97 GiB) on startup. Desired GPU memory utilization is (0.9, 85.47 GiB). Actual usage is 31.12 GiB for consumed memory (weights + non-torch), 6.
+(MainProcess pid=101821) INFO 10-15 13:58:46 [core.py:373] init engine (profile, create kv cache, warmup model) took 202.19 s (compilation: 45.20 s)
+(MainProcess pid=101821) INFO 10-15 13:58:46 [kv_cache_utils.py:772] kv cache group sizes [16, 16, 16, 16, 16, 32]

@@ -1,0 +1,13 @@
+{"stage":"gate","start_epoch":1792061600,"end_epoch":1792062160}
+{"stage":"setup","start_epoch":1792062175,"end_epoch":1792062448}
+{"stage":"ctl","start_epoch":1792062448,"end_epoch":1792062829}
+{"stage":"w2","start_epoch":1792062829,"end_epoch":1792065217}
+{"stage":"k2","start_epoch":1792065217,"end_epoch":1792066130}
+{"stage":"h","start_epoch":1792066130,"end_epoch":1792066753}
+{"stage":"f","start_epoch":1792066753,"end_epoch":1792067351}
+{"stage":"l","start_epoch":1792067351,"end_epoch":1792069992}
+{"stage":"i","start_epoch":1792069992,"end_epoch":1792071001}
+{"stage":"j","start_epoch":1792071001,"end_epoch":1792071403}
+{"stage":"x","start_epoch":1792071403,"end_epoch":1792073216}
+{"stage":"x5","start_epoch":1792073216,"end_epoch":1792074546}
+{"stage":"done","start_epoch":1792074546,"end_epoch":1792074546}

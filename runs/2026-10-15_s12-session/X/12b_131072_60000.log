@@ -1,0 +1,62 @@
+1/30 boolq/47 end: first 10435.2 ms second 291.6 ms error None
+2/30 boolq/102 middle: first 10478.6 ms second 279.9 ms error None
+3/30 boolq/7 start: first 10501.9 ms second 300.5 ms error None
+4/30 boolq/130 end: first 10644.7 ms second 289.2 ms error None
+5/30 boolq/20 middle: first 10761.1 ms second 297.6 ms error None
+6/30 boolq/60 start: first 10843.9 ms second 279.2 ms error None
+7/30 boolq/120 end: first 386.3 ms second 272.4 ms error None
+8/30 boolq/87 middle: first 6965.0 ms second 283.0 ms error None
+9/30 mmlu/139 start: first 11031.1 ms second 282.0 ms error None
+10/30 mmlu/58 end: first 424.1 ms second 276.0 ms error None
+11/30 mmlu/97 middle: first 6994.6 ms second 276.4 ms error None
+12/30 mmlu/113 start: first 11066.3 ms second 277.0 ms error None
+13/30 mmlu/80 end: first 436.0 ms second 283.2 ms error None
+14/30 mmlu/93 middle: first 6949.6 ms second 274.8 ms error None
+15/30 mmlu/138 start: first 11035.3 ms second 302.2 ms error None
+16/30 mmlu/133 end: first 418.7 ms second 304.2 ms error None
+17/30 scifact/5 middle: first 7164.7 ms second 330.6 ms error None
+18/30 scifact/106 start: first 11089.9 ms second 287.7 ms error None
+19/30 scifact/127 end: first 426.4 ms second 302.7 ms error None
+20/30 scifact/103 middle: first 7103.4 ms second 302.0 ms error None
+21/30 scifact/69 start: first 11051.8 ms second 313.5 ms error None
+22/30 scifact/88 end: first 512.4 ms second 296.7 ms error None
+23/30 scifact/100 middle: first 7021.0 ms second 293.2 ms error None
+24/30 scifact/55 start: first 11057.4 ms second 290.8 ms error None
+25/30 toxicchat/103 end: first 381.4 ms second 274.8 ms error None
+26/30 toxicchat/144 middle: first 6926.0 ms second 272.1 ms error None
+27/30 toxicchat/43 start: first 10965.0 ms second 273.5 ms error None
+28/30 toxicchat/19 end: first 382.4 ms second 247.6 ms error None
+29/30 toxicchat/5 middle: first 6939.7 ms second 294.3 ms error None
+30/30 toxicchat/39 start: first 11001.3 ms second 286.7 ms error None
+{
+ "target_tokens": 60000,
+ "background_tokens": 59445,
+ "items": 30,
+ "errors": 0,
+ "accuracy_short": 0.8666666666666667,
+ "accuracy_long": 0.7666666666666667,
+ "answered_long": 30,
+ "correct_short": 26,
+ "correct_long": 23,
+ "by_depth": {
+  "end": {
+   "n": 10,
+   "correct_short": 9,
+   "correct_long": 8
+  },
+  "middle": {
+   "n": 10,
+   "correct_short": 9,
+   "correct_long": 8
+  },
+  "start": {
+   "n": 10,
+   "correct_short": 8,
+   "correct_long": 7
+  }
+ },
+ "first_question_ms_start_depth_median": 11033.2,
+ "second_question_ms_median": 287.2,
+ "tokens_counted_start_depth": 58987.0
+}
+LONG CONTEXT 60000: PASS
