@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.12.0](https://github.com/aminry/decisio/compare/v0.11.1...v0.12.0) (2026-10-15)
+
+
+### Features
+
+* **reference:** a plain-transformers reference for the model repositories ([#123](https://github.com/aminry/decisio/issues/123)) ([00bc619](https://github.com/aminry/decisio/commit/00bc61991e35384ea9894b8dfccd35f64a07d364))
+* **serve:** an abstention task can match by option keys, for items that share their labels and not their texts ([#176](https://github.com/aminry/decisio/issues/176)) ([8bd9d20](https://github.com/aminry/decisio/commit/8bd9d20d872b1172a91be00ae4df7530f7681109))
+* **serve:** certified answers and a monitor in /v1/tasks ([#155](https://github.com/aminry/decisio/issues/155)) ([a6dd227](https://github.com/aminry/decisio/commit/a6dd227c4292529855da1b3eb688bd96433cef10))
+* **serve:** registration names what it read: inputs_sha256 on the calibration and head records ([#177](https://github.com/aminry/decisio/issues/177)) ([14de77b](https://github.com/aminry/decisio/commit/14de77be4b372498a4866527140299af6f525e53))
+* **serve:** the intent head carries a temperature, fitted on its out-of-fold logits ([#171](https://github.com/aminry/decisio/issues/171)) ([0ee2dcc](https://github.com/aminry/decisio/commit/0ee2dcc7c28833860872aad772ac2059fc7d4cc3))
+* **serve:** vLLM 0.31.0 ([#137](https://github.com/aminry/decisio/issues/137)) ([3f615a3](https://github.com/aminry/decisio/commit/3f615a30c552cdcdc63e7f4ca78175a36e4e8f7d))
+* **serve:** vLLM 0.31.0 ([#144](https://github.com/aminry/decisio/issues/144)) ([8375011](https://github.com/aminry/decisio/commit/83750116c1bd66f29955d7f73184fa8457f44199))
+
+
+### Bug Fixes
+
+* **serve:** /health state_boundary reports running, so a registration being sent is not read as idle ([#147](https://github.com/aminry/decisio/issues/147)) ([4d3fa3b](https://github.com/aminry/decisio/commit/4d3fa3bd3d370600e61224bd962678c452554af1))
+* **serve:** a NaN or infinity in an engine's probabilities is a clear 500 that names the model and engine, not a 400 ([#175](https://github.com/aminry/decisio/issues/175)) ([e2a9f09](https://github.com/aminry/decisio/commit/e2a9f09fb13230c99089f766284c341148777ee0))
+* **serve:** engine_kwargs reads the base from the checkpoint when the caller gives no family ([#150](https://github.com/aminry/decisio/issues/150)) ([e1404ae](https://github.com/aminry/decisio/commit/e1404aea5573c5311df01c0cd571ba799e2c533e))
+* **serve:** refuse a POST that is not JSON with 415, before any work, on every route ([#157](https://github.com/aminry/decisio/issues/157)) ([aabd8fd](https://github.com/aminry/decisio/commit/aabd8fdd1fbd47a82372c79c99990d94b022ac3d))
+* the MLX backend sets its own memory and cache limits ([#158](https://github.com/aminry/decisio/issues/158)) ([d21a31c](https://github.com/aminry/decisio/commit/d21a31c989622c8271d98b30c11665688b822386))
+
+
+### Reverts
+
+* "feat(serve): vLLM 0.31.0 ([#137](https://github.com/aminry/decisio/issues/137))" ([#143](https://github.com/aminry/decisio/issues/143)) ([82f3853](https://github.com/aminry/decisio/commit/82f3853c6b7f859e7427df1c790876402fb29c16))
+
 ## [0.11.1](https://github.com/aminry/decisio/compare/v0.11.0...v0.11.1) (2026-10-10)
 
 
