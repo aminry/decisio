@@ -1,0 +1,1 @@
+DIFF - F's starts differ: the 98,304 run's median within 2x and largest within 1.25x of the starts' own, against both starts

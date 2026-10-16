@@ -1,0 +1,23 @@
+{
+ "ident_vs_start1": {
+  "n": 200,
+  "exactly_equal": 200,
+  "median_dp": 0.0,
+  "largest_dp": 0.0
+ },
+ "ident_vs_start2": {
+  "n": 200,
+  "exactly_equal": 200,
+  "median_dp": 0.0,
+  "largest_dp": 0.0
+ },
+ "start1_vs_start2": {
+  "n": 200,
+  "exactly_equal": 200,
+  "median_dp": 0.0,
+  "largest_dp": 0.0
+ },
+ "starts_equal": true,
+ "verdict": "EQUAL",
+ "rule": "F's starts are equal: read directly"
+}

@@ -1,0 +1,24 @@
+{
+ "cell": "A",
+ "pass": true,
+ "checks": {
+  "health_length_multiple_of_8192_in_32768_to_98304": true,
+  "source_begins_auto": true,
+  "ceiling_98304": true,
+  "context_line_matches": true,
+  "init_engine_at_most_1.25x_B_plus_15s": true
+ },
+ "max_model_len": 98304,
+ "source": "auto: the base's ceiling of 98,304 fits on this card",
+ "vllm_fit": 105600,
+ "prediction": "hit: 90,112 or 98,304",
+ "init_engine_s": {
+  "A": 265.02,
+  "B": 285.74
+ },
+ "wall_seconds": {
+  "A": 362.0,
+  "B": 387.0
+ },
+ "kv_gib": 33.85
+}

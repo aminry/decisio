@@ -1,0 +1,17 @@
+{
+ "cpu": "Intel(R) Xeon(R) Gold 6438N",
+ "gpu": "NVIDIA H100 PCIe",
+ "power_limit_w": "350.00",
+ "enforced_power_limit_w": "350.00",
+ "default_power_limit_w": "310.00",
+ "max_power_limit_w": "350.00",
+ "max_sm_clock_mhz": "1755",
+ "max_mem_clock_mhz": "1593",
+ "gpu_memory_used_mib": "0",
+ "gpu_memory_total_mib": "81559",
+ "gpu_count": "1",
+ "disk_free_gb": "199",
+ "driver": "610.57.04",
+ "refused": [],
+ "verdict": "PASS"
+}

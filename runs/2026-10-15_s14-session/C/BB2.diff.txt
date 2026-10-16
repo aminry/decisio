@@ -1,0 +1,13 @@
+BB2 a against b n 200 median 3.98e-03 p90 5.74e-02 max 0.611 | above 1e-3: 162 above 1e-2: 59 exactly equal: 0
+   dp 0.611 mmlu_pro_text:55 TOP CHANGED (A's top-two margin 0.509)
+   dp 0.313 mmlu_pro_text:71 TOP CHANGED (A's top-two margin 0.289)
+   dp 0.220 mmlu_pro_text:130 (A's top-two margin 0.080)
+   dp 0.184 mmlu_pro_text:85 TOP CHANGED (A's top-two margin 0.085)
+   dp 0.159 mmlu_pro_text:118 TOP CHANGED (A's top-two margin 0.056)
+   dp 0.159 mmlu_pro_text:77 (A's top-two margin 0.399)
+   top answer changed: mmlu_pro_text:41 dp 0.031 A's top-two margin 0.025
+   top answer changed: mmlu_pro_text:55 dp 0.611 A's top-two margin 0.509
+   top answer changed: mmlu_pro_text:71 dp 0.313 A's top-two margin 0.289
+   top answer changed: mmlu_pro_text:85 dp 0.184 A's top-two margin 0.085
+   top answer changed: mmlu_pro_text:118 dp 0.159 A's top-two margin 0.056
+   top answer changed: banking77:47 dp 0.099 A's top-two margin 0.139

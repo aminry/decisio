@@ -1,0 +1,2 @@
+the first step that makes the cross-arm answers 200 of 200 equal: eager
+step 3 (the 0.30.0 checkout, G2's pair) is not run here: it needs a second environment (vLLM 0.30.0)

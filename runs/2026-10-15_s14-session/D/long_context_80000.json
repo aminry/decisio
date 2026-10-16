@@ -1,0 +1,31 @@
+{
+ "target_tokens": 80000,
+ "background_tokens": 79435,
+ "items": 30,
+ "errors": 0,
+ "accuracy_short": 0.8666666666666667,
+ "accuracy_long": 0.8,
+ "answered_long": 30,
+ "correct_short": 26,
+ "correct_long": 24,
+ "by_depth": {
+  "end": {
+   "n": 10,
+   "correct_short": 9,
+   "correct_long": 9
+  },
+  "middle": {
+   "n": 10,
+   "correct_short": 9,
+   "correct_long": 9
+  },
+  "start": {
+   "n": 10,
+   "correct_short": 8,
+   "correct_long": 6
+  }
+ },
+ "first_question_ms_start_depth_median": 18805.449999999997,
+ "second_question_ms_median": 476.9,
+ "tokens_counted_start_depth": 78790.0
+}

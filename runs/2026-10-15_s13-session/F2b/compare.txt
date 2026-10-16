@@ -1,0 +1,73 @@
+top answers changed on the 231 items, stored against on-load: 2; the published figures hold on the Serve's rule (same accuracy on every tier, calibration of the same order)
+{
+ "tiers": {
+  "easy": {
+   "items": 48,
+   "top_answers_changed": 0,
+   "identical_probabilities": 0,
+   "stored": {
+    "accuracy": 1.0,
+    "correct": 48,
+    "ece": 0.019363735484193678,
+    "brier": 0.0006218770946225745
+   },
+   "onload": {
+    "accuracy": 1.0,
+    "correct": 48,
+    "ece": 0.020124286810686787,
+    "brier": 0.0006772377383178016
+   }
+  },
+  "original": {
+   "items": 72,
+   "top_answers_changed": 0,
+   "identical_probabilities": 0,
+   "stored": {
+    "accuracy": 0.9861111111111112,
+    "correct": 71,
+    "ece": 0.03861868267689471,
+    "brier": 0.018004151847846758
+   },
+   "onload": {
+    "accuracy": 0.9861111111111112,
+    "correct": 71,
+    "ece": 0.037587663685708275,
+    "brier": 0.014045205163834985
+   }
+  },
+  "hard": {
+   "items": 111,
+   "top_answers_changed": 2,
+   "identical_probabilities": 0,
+   "stored": {
+    "accuracy": 0.8198198198198198,
+    "correct": 91,
+    "ece": 0.09241598170938693,
+    "brier": 0.26629077917045907
+   },
+   "onload": {
+    "accuracy": 0.8378378378378378,
+    "correct": 93,
+    "ece": 0.08662955038830682,
+    "brier": 0.2570131117451914
+   }
+  }
+ },
+ "published": "1.000 / 1.000 / 0.838 (213 correct), ECE 0.035 standard and 0.091 hard",
+ "per_type_cc": {
+  "choice": [
+   85.18237082066868,
+   86.32218844984801
+  ],
+  "noul": [
+   85.58897243107769,
+   79.57393483709272
+  ],
+  "score": [
+   70.99720420840895,
+   72.01529741984751
+  ]
+ },
+ "top_answers_changed_total": 2,
+ "to_put_beside_the_published_number": []
+}

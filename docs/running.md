@@ -230,25 +230,48 @@ Watch the footprint, not the resident size.
 Run one model server on a Mac at a time.
 Two servers each stay under their own limit and can still add up to more than the machine has.
 
-## A longer context (opt-in)
+## The context length
 
-Every record in this repository was measured at **32,768 tokens**, the default (`--max-model-len`). A longer context is an opt-in on the vLLM server, up to a ceiling per base:
+Every record in this repository was measured at **32,768 tokens**.
+Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest length that fits the card, up to the base's ceiling and not below 32,768**; the Qwen base stays at 32,768.
 
-| Base | Default | Ceiling of `--max-model-len` |
-| --- | ---: | ---: |
-| `qwen3.6-35b-a3b` | 32,768 | 32,768 (not offered) |
-| `gemma-4-12b` | 32,768 | 65,536 |
-| `gemma-4-31b` | 32,768 | 98,304 |
+| Base | Without `--max-model-len` | Ceiling |
+| --- | --- | ---: |
+| `qwen3.6-35b-a3b` | 32,768 | 32,768 |
+| `gemma-4-12b` | the largest that fits the card, 32,768 to 65,536 | 65,536 |
+| `gemma-4-31b` | the largest that fits the card, 32,768 to 98,304 | 98,304 |
 
-Past the ceiling, off the vLLM server (`--backend mlx`, `--backend hf`) and with `--image-model` (the image engine serves 32,768) the server refuses to start and says why. `/health` reports the length in force as `max_model_len`, and a prompt over it is answered 422 as before.
+**How the length is chosen.** At start-up the server asks vLLM for the longest single request that fits the card (`max_model_len=-1`: vLLM profiles the card, takes the KV cache memory it reports and searches the longest length that fits), then serves the largest multiple of 8,192 not above that and not above the ceiling. It is one start of the engine, not a trial. If even 32,768 does not fit, the start fails with a message that names the length that fits, as a fixed 32,768 failed before.
+`/health` reports the length in force as `max_model_len`, why as `max_model_len_source` (for example "auto: fits 81,920 of 98,304 on this card"), and the ceiling as `max_model_len_ceiling`; a prompt over it is answered 422 as before.
 
-**What the records say about memory.** The card session of 2026-10-15 started the 31B (FP8 weights) at a context of 98,304 tokens on one 96 GB card at the default 0.90 share with the model's own cache dtype: vLLM 0.31.0 reported 48.05 GiB of KV cache and room for 141,865 tokens, and the 12B at 131,072 reported 57.53 GiB and 612,140 tokens (`runs/2026-10-15_s12-session/X/` and `X5/`). vLLM's start-up check counts the cache differently across versions: on 0.30.0 the same share of the 31B was called 48.6 GiB and 57,882 tokens (EVAL_CARD section 7; the bf16 start needed 27.51 GiB for one 32,768-token request, `runs/2026-10-04_gemma-4-31b/bf16_start.txt`), so a 0.30.0 server may need `--kv-cache-dtype fp8`, a larger `--gpu-memory-utilization`, or both beyond about 57,000 tokens, and a 0.31.0 server on a smaller card is not measured. `--kv-cache-dtype fp8` changes the numerics: a certificate made under the model's own cache dtype is suspended under fp8 (the serving-stack fingerprint includes the KV cache dtype), and the answers of a registered task can move; register and certify again under the dtype you serve.
+**What a card gives depends heavily on `--gpu-memory-utilization`.** The 31B (stored FP8) on one H100 PCIe 80 GB, vLLM 0.31.0, the engine's share of the card varied and no length flag (`runs/2026-10-15_s14-session/`):
+
+| Engine share | KV cache vLLM reported | vLLM's fit (the longest single request) | Served |
+| ---: | ---: | ---: | --- |
+| 0.90 (the default) | 33.85 GiB | 105,600 | 98,304 (the ceiling) |
+| 0.85 | 29.9 GiB | 53,696 | 49,152 |
+| 0.70 | 18.54 GiB | 22,064 | does not start |
+| 0.55 | 6.71 GiB | 7,968 | does not start |
+
+The fit is not linear in the KV memory: 12% less KV cache (0.90 to 0.85) halved it, and the 31B's cache has several groups (vLLM's hybrid KV cache manager) that all have to fit, so the length cannot be estimated from one measurement or from a card's size alone. On the same 80 GB card the 12B served its ceiling of 65,536 at the default share (43.28 GiB of KV cache). Read `/health` for what a server chose, and give `--max-model-len` to fix a length. Where 32,768 does not fit the server does not start (as a fixed 32,768 did not): raise the share, start a smaller base, or give a `--max-model-len` below 32,768.
+
+**Where it does not apply.** With `--max-model-len` the server serves exactly that length (above 32,768 only up to the ceiling; beyond it the server refuses to start, as before), and so with a `max_model_len` in `--engine`. The default stays 32,768 with `--image-model` (the image engine serves 32,768), a second engine (`--head-engine`), `--engine-process separate` (the fit is read from the engine's configuration in the server's own process), `--backend mlx` and `--backend hf`.
+To keep one length on every card, give `--max-model-len`.
+
+**What it does to certificates, and to short answers.** The context length served is part of the serving-stack fingerprint (the card, the engine, the KV cache dtype and the rest of [Where it stops](tasks.md#where-it-stops)), so a certificate made at one length is suspended at another, whether the length was given or followed the card; a card's fit is the same for the same flags, and the 8,192 step absorbs small differences in the memory vLLM reports. It is in the fingerprint because the length is not inert on every card. What was measured, on the stored FP8 31B with 200 single-question requests answered one at a time:
+- On an H100 PCIe 80 GB, the default (98,304) was **exactly equal** to a fixed 32,768 start on all 200, with every tensor's bytes identical (`runs/2026-10-15_s14-session/C/`).
+- On an RTX PRO 6000, 98,304 against two fresh starts at 32,768 that were exactly equal to each other: **0 of 200 equal**, median difference 4.3e-3, largest 0.389, **6 of 200 top answers changed**. A start at 32,768 on the same code and `--engine` route was exactly equal to those two, so the difference is the length (`runs/2026-10-15_identity-at-98304/`). That is the size of the start-to-start differences seen on that card class in other sessions, not a new kind of error; the likely cause is the compiled graph, which depends on the length, and that is a reading, not a test.
+**The published figures hold at the auto length.** JevBench's 231 public items on the stored FP8 31B started at 98,304 tokens on that RTX PRO 6000: 213 correct (1.000, 1.000 and 0.838 on the easy, original and hard tiers, the published figures), ECE 0.035 on the standard tier and 0.092 on the hard tier, against 210 correct and ECE 0.039 and 0.092 at 32,768 on the same box; 3 of 231 top answers changed, all three toward the published figures, and the calibration is of the same order (`runs/2026-10-15_s13-session/jevbench_98304/`). Three items between two runs of one length is what restarts and boxes already produce, so this says the figures hold at the auto length, not that the longer length is better.
+
+To get the same answers on every card, give `--max-model-len` the same value on all of them.
+
+**What the records say about memory.** The card session of 2026-10-15 on one 96 GB card started the 31B (FP8 weights) at a context of 98,304 tokens on one 96 GB card at the default 0.90 share with the model's own cache dtype: vLLM 0.31.0 reported 48.05 GiB of KV cache and room for 141,865 tokens, and the 12B at 131,072 reported 57.53 GiB and 612,140 tokens (`runs/2026-10-15_s12-session/X/` and `X5/`). vLLM's start-up check counts the cache differently across versions: on 0.30.0 the same share of the 31B was called 48.6 GiB and 57,882 tokens (EVAL_CARD section 7; the bf16 start needed 27.51 GiB for one 32,768-token request, `runs/2026-10-04_gemma-4-31b/bf16_start.txt`), so a 0.30.0 server may need `--kv-cache-dtype fp8`, a larger `--gpu-memory-utilization`, or both beyond about 57,000 tokens, and a 0.31.0 server on a smaller card is not measured. `--kv-cache-dtype fp8` changes the numerics: a certificate made under the model's own cache dtype is suspended under fp8 (the serving-stack fingerprint includes the KV cache dtype), and the answers of a registered task can move; register and certify again under the dtype you serve.
 
 **What the records say about time.** The first question about a state the server has not seen grows faster than the state does, because attention does (the table of first-question latency above stops at 32,000 tokens: 3,370 ms at 16,000 and 8,880 ms at 32,000 on the 31B; 1,779 ms and 4,383 ms on the 12B). The faster attention backends are refused for Gemma 4 on vLLM 0.30.0 and 0.31.0, so a longer context is slower than a proportional guess.
 
 **Where the ceilings come from.** The card session of 2026-10-15 (the long-context checks, pass rules written before the run; `runs/2026-10-15_s12-session/`): the 31B started at a context of 98,304 tokens and answered a check at a state of 85,000 tokens (23 of 30 items right against 25 of 30 for the same items short; first question 40.8 s, second 0.40 s), which is its ceiling. The 12B started at 131,072 and was right on 23 of 30 items at 60,000 tokens (26 short; first question 11.0 s) but on 19 of 30 at 120,000 (26 short; first question 23.2 s), which failed the pass rule (a drop of at most 3), so its ceiling is the lower 65,536 (started and not itself checked; the check was at 60,000). Each check is 30 items, a smoke test and not an accuracy measurement.
 
-**What is not measured.** Anything between the checked states and the ceilings other than what the session ran, the first and later question at those lengths, the prefix cache and the state boundary at that size, the temperatures (fitted on states of a few thousand tokens), and the accuracy of answers at long context on a suite (no suite here has a state over 32,768 tokens). A longer context is an opt-in at your own check: the default stays 32,768.
+**What is not measured.** Anything between the checked states and the ceilings other than what the session ran, the first and later question at those lengths, the prefix cache and the state boundary at that size, the temperatures (fitted on states of a few thousand tokens), and the accuracy of answers at long context on a suite (no suite here has a state over 32,768 tokens). A length that the card allows is not a length that was checked: to serve only what was measured, give `--max-model-len 32768`.
 
 ## Ollama
 

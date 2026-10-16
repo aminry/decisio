@@ -50,7 +50,7 @@ class Family:
     limit_mm: dict = field(default_factory=dict)
     # the longest `--max-model-len` the documents state for this base (vLLM server only): the server refuses a longer
     # one. 32,768 is the length every record was measured at; a longer ceiling is an opt-in whose card record is
-    # runs/ (docs/running.md, "A longer context")
+    # runs/ (docs/running.md, "The context length")
     context_ceiling: int = 32768
     # --model-class -> the architecture the engine is built under (None: the checkpoint's own class, unmodified)
     classes: dict = field(default_factory=dict)

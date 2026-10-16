@@ -1,0 +1,5 @@
+{"stage":"gate","start_epoch":1792095875,"end_epoch":1792095934}
+{"stage":"gate","start_epoch":1792095963,"end_epoch":1792096428}
+{"stage":"setup","start_epoch":1792096450,"end_epoch":1792096601}
+{"stage":"cells","start_epoch":1792096604,"end_epoch":1792099351}
+{"stage":"done","start_epoch":1792099351,"end_epoch":1792099351}

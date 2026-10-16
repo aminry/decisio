@@ -1,0 +1,2 @@
+EQUAL: 200 answers, 200 exactly equal, largest dp 0, top-answer changes 0
+equal exit 0

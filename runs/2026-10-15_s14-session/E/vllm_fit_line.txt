@@ -1,0 +1,1 @@
+(MainProcess pid=14160) INFO 10-15 20:46:35 [kv_cache_utils.py:2630] Auto-fit max_model_len: reduced from 262144 to 105600 to fit in available GPU memory (33.85 GiB available for KV cache)

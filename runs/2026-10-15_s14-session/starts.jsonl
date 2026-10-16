@@ -1,0 +1,8 @@
+{"label":"g12","flags":"--base gemma-4-12b --max-model-len 32768","batch_invariant":"unset","rc":0,"seconds":247,"card_hours":0.15}
+{"label":"c_B","flags":"--base gemma-4-31b --max-model-len 32768","batch_invariant":"unset","rc":0,"seconds":387,"card_hours":0.31}
+{"label":"c_A","flags":"--base gemma-4-31b","batch_invariant":"unset","rc":0,"seconds":362,"card_hours":0.42}
+{"label":"c_B2","flags":"--base gemma-4-31b --max-model-len 32768","batch_invariant":"unset","rc":0,"seconds":308,"card_hours":0.67}
+{"label":"c_G_0.85","flags":"--base gemma-4-31b --gpu-memory-utilization 0.85","batch_invariant":"unset","rc":0,"seconds":310,"card_hours":0.76}
+{"label":"c_G_0.70","flags":"--base gemma-4-31b --gpu-memory-utilization 0.70","batch_invariant":"unset","rc":6,"seconds":260,"card_hours":0.84}
+{"label":"c_F","flags":"--base gemma-4-31b --gpu-memory-utilization 0.55","batch_invariant":"unset","rc":6,"seconds":266,"card_hours":0.91}
+{"label":"c_L12","flags":"--base gemma-4-12b","batch_invariant":"unset","rc":0,"seconds":188,"card_hours":0.96}

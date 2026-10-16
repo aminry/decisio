@@ -2,7 +2,8 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """A longer context as an opt-in (`--max-model-len`, `--kv-cache-dtype`; decisio.serve.vllm_engine.resolve_context).
 
-L1  the default is 32,768 tokens and vLLM's own KV cache dtype, on every base and in the engine the server builds
+L1  without --max-model-len: the Gemma bases on the vLLM server ask for the largest length that fits (an AutoContext
+    up to their ceiling); the Qwen base, the image engine and the other backends stay at 32,768; vLLM's own KV dtype
 L2  a longer context is accepted up to the base's ceiling (the 12B 65,536, the 31B 98,304) and refused beyond it, on
     the Qwen base at all, off the vLLM server and with the image engine, each with its reason
 L3  `--kv-cache-dtype fp8` and `--max-model-len` reach the text engine, and a refusal ends start-up with its reason
@@ -18,13 +19,19 @@ import pytest
 
 from decisio.families import BASES
 from decisio.serve import vllm_engine
+from decisio.serve.context import AutoContext
 from decisio.serve.vllm_engine import resolve_context
 
 
-def test_l1_the_default_is_the_measured_length():
+def test_l1_the_default_is_the_largest_that_fits_up_to_the_ceiling():
     for fam in BASES.values():
-        assert resolve_context(fam, None, None) == (32768, None)
-        assert resolve_context(fam, None, "auto") == (32768, None)
+        want = AutoContext(fam.context_ceiling) if fam.context_ceiling > 32768 else 32768
+        assert resolve_context(fam, None, None) == (want, None)
+        assert resolve_context(fam, None, "auto") == (want, None)
+        # off the vLLM server, and with the image engine, 32,768 as before
+        assert resolve_context(fam, None, None, backend="mlx") == (32768, None)
+        assert resolve_context(fam, None, None, backend="hf") == (32768, None)
+        assert resolve_context(fam, None, None, image_model="x") == (32768, None)
     assert {k: f.context_ceiling for k, f in BASES.items()} == {
         "qwen3.6-35b-a3b": 32768,
         "gemma-4-12b": 65536,
@@ -79,7 +86,11 @@ def run_main(monkeypatch, argv):
 
 def test_l3_the_flags_reach_the_text_engine(monkeypatch):
     k = run_main(monkeypatch, ["--base", "gemma-4-12b"])
-    assert k["max_model_len"] == 32768 and k["kv_cache_dtype"] is None
+    assert k["max_model_len"] == AutoContext(65536) and k["kv_cache_dtype"] is None
+    k = run_main(monkeypatch, ["--base", "qwen3.6-35b-a3b"])
+    assert k["max_model_len"] == 32768 and "ceiling" in k["context_source"]
+    k = run_main(monkeypatch, ["--base", "gemma-4-31b", "--engine-process", "separate"])
+    assert k["max_model_len"] == 32768 and "one engine in the server's process" in k["context_source"]
     k = run_main(monkeypatch, ["--base", "gemma-4-12b", "--max-model-len", "65536"])
     assert k["max_model_len"] == 65536 and k["kv_cache_dtype"] is None
     k = run_main(
@@ -96,6 +107,7 @@ def test_l3_the_flags_reach_the_text_engine(monkeypatch):
         ],
     )
     assert (k["max_model_len"], k["kv_cache_dtype"], k["gpu_memory_utilization"]) == (98304, "fp8", 0.95)
+    assert k["context_source"] == "set by --max-model-len"
     k = run_main(monkeypatch, ["--base", "gemma-4-31b", "--kv-cache-dtype", "auto"])
     assert k["kv_cache_dtype"] is None
 
@@ -139,7 +151,7 @@ def test_l4_the_engine_gives_vllm_the_length_and_the_dtype(monkeypatch):
     assert captured["max_model_len"] == 65536 and captured["kv_cache_dtype"] == "fp8"
     captured.clear()
     with pytest.raises(Stop):
-        vllm_engine.LettersEngine("stand-in", family=fam)
+        vllm_engine.LettersEngine("stand-in", family=fam)  # a plain length, as the library's default
     assert captured["max_model_len"] == 32768 and "kv_cache_dtype" not in captured
 
 

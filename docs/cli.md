@@ -33,7 +33,7 @@ Where the columns differ, the value is the base's.
 | `--engine` | `{"compilation_config": {"max_cudagraph_capture_size": 4096}}` | the same | the same | extra `LLM(...)` keyword arguments, as JSON |
 | `--adapter` | none | none | none | `name=path` of a vLLM-format LoRA adapter; repeatable |
 | `--gpu-memory-utilization` | 0.9 | 0.9 | 0.9 | the text engine's share of the card |
-| `--max-model-len` | 32768 | 32768 (up to 65536) | 32768 (up to 98304) | the longest prompt in tokens; a longer one is an opt-in up to the base's ceiling, refused beyond it, and not with `--image-model` or off the vLLM server ([`running.md`](running.md#a-longer-context-opt-in)) |
+| `--max-model-len` | 32768 | the largest that fits the card, 32768 to 65536 | the largest that fits the card, 32768 to 98304 | the longest prompt in tokens. Without it the vLLM server on a Gemma base serves the largest multiple of 8192 that fits the card's KV cache, up to the base's ceiling and not below 32768; given, that length, refused above the ceiling. The Qwen base, `--image-model`, a second engine, `--engine-process separate` and the other backends stay at 32768 ([`running.md`](running.md#the-context-length)) |
 | `--kv-cache-dtype` | `auto` | `auto` | `auto` | `auto` (the model's own) or `fp8`, which holds twice the tokens in the KV cache and changes the numerics: a certificate is made under one dtype and suspended under the other |
 | `--allow-deep-gemm` | off | off | off | start even when `VLLM_USE_DEEP_GEMM` is set to something other than 0 |
 | `--served-name` | `decisio-qwen3.6-35b-a3b-letters` | `decisio-gemma-4-12b-it-letters` | `decisio-gemma-4-31b-it-letters` | the name `GET /v1/models` lists |

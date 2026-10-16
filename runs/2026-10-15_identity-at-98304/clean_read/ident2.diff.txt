@@ -1,0 +1,13 @@
+ident2 a against b n 200 median 4.32e-03 p90 5.16e-02 max 0.389 | above 1e-3: 150 above 1e-2: 63 exactly equal: 0
+   dp 0.389 scifact:85 TOP CHANGED (A's top-two margin 0.707)
+   dp 0.272 toxicchat:104 (A's top-two margin 0.083)
+   dp 0.257 mmlu_pro_text:71 TOP CHANGED (A's top-two margin 0.426)
+   dp 0.253 mmlu_pro_text:122 TOP CHANGED (A's top-two margin 0.131)
+   dp 0.222 boolq:124 TOP CHANGED (A's top-two margin 0.177)
+   dp 0.172 mmlu_pro_text:39 TOP CHANGED (A's top-two margin 0.056)
+   top answer changed: boolq:124 dp 0.222 A's top-two margin 0.177
+   top answer changed: scifact:85 dp 0.389 A's top-two margin 0.707
+   top answer changed: mmlu_pro_text:39 dp 0.172 A's top-two margin 0.056
+   top answer changed: mmlu_pro_text:54 dp 0.027 A's top-two margin 0.000
+   top answer changed: mmlu_pro_text:71 dp 0.257 A's top-two margin 0.426
+   top answer changed: mmlu_pro_text:122 dp 0.253 A's top-two margin 0.131
