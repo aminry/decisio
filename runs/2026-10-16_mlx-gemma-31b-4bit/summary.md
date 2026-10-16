@@ -23,7 +23,7 @@ The group size is 32, not mlx-lm's default of 64, so a community "4-bit" convers
 | MMLU-Pro (12,032 items), the Decision Index | 0.6785 | 0.6939 | **below: -1.54 [-1.99, -1.08] points** (rule: lower bound at or above -1.0) |
 
 The suite, ECE and JevBench rows were read on an earlier build of the same recipe (a first conversion); this build's answers equal that build's on 200 of 200 suite items, which is why they carry over.
-The pairing for MMLU-Pro is item by item against the FP8 record's answers (95% bootstrap, 10,000 resamples, seed 0); the answers of both sides are in `mmlu_pro_pairs.jsonl.gz`.
+The pairing for MMLU-Pro is item by item against the FP8 record's answers (95% bootstrap, 10,000 resamples, seed 0); each item's correctness on both sides is in `mmlu_pro_pairs.jsonl.gz`.
 1,331 of 12,032 top answers differ; 307 move from wrong to right and 492 from right to wrong.
 The FP8 record did not reproduce exactly in a later session (28 top-answer changes in 1,631 items), which is small beside 1,331 of 12,032.
 
