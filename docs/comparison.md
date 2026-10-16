@@ -7,6 +7,7 @@ decisio's three bases set beside TypeSafe's Jev 1.13 and three open-weights entr
 Our values are our own runs of Decision Index 0.2.1 (decisio v0.4.0 and v0.6.0, 2026-10-05), and the JevBench counts are this repository's records, not board entries.
 The board now lists decisio's three rows, read from its data files generated 2026-10-14: the Gemma 4 31B row (decisio 0.6.0) is 58.09 on its public index and 58.55 on Decision Index 0.3, the Gemma 4 12B row (decisio 0.4.0) 49.72 and 47.47, and the Qwen3.6-35B-A3B row (decisio 0.4.0) 48.43 and 47.72.
 Those are runs under the board's later editions, so their numbers differ from the table's 0.2.1 runs.
+The context lengths in the table are those of the versions measured (32,768 tokens for every base); from decisio 0.14.0 the Gemma bases serve the largest context that fits the card ([`running.md`](running.md#the-context-length)).
 Jev's and the other entries' values come only from the public boards, with each board's revision, the fields read and the date read in [`runs/2026-10-05_comparison/`](../runs/2026-10-05_comparison/).
 No figure here comes from any call of ours to TypeSafe's API, and nothing here is a rank.
 

@@ -16,6 +16,8 @@ The record of Gemma 4 31B at bf16 on the 96 GB card (`runs/2026-10-04_gemma-4-31
 ValueError: To serve at least one request with the model's max seq len (32768), (27.51 GiB KV cache is needed, which is larger than the available KV cache memory (20.24 GiB). Based on the available memory, the estimated maximum model length is 24096. Try increasing `gpu_memory_utilization` ... or decreasing `max_model_len` when initializing the engine.
 ```
 
+On a Gemma base started without `--max-model-len` (decisio 0.14.0 and later) the server asks vLLM for the longest context that fits and serves the largest step of it, so a card that cannot hold even 32,768 tokens ends the start with decisio's own message instead: "the KV cache memory vLLM reports on this card holds a context of N tokens, less than the 32,768 every record was measured at. Start a smaller base, raise --gpu-memory-utilization, or set --max-model-len to a length that fits" (reproduced on an H100 PCIe 80 GB at `--gpu-memory-utilization` 0.70 and 0.55: `runs/2026-10-15_s14-session/G/` and `F/`).
+
 The container prints its own warning first, before it starts the server, when the card has less than 90 GB: `decisio: warning: the record was measured on a 96 GB card; with less memory the engine may fail to start (see EVAL_CARD.md)`.
 
 **What fits.**
@@ -25,7 +27,7 @@ The container prints its own warning first, before it starts the server, when th
 
 **What to do.**
 1. Pick a base for the card: `--base gemma-4-12b` or `--base qwen3.6-35b-a3b` (each base's weights are in [Choosing a base](../README.md#choosing-a-base)).
-2. Or lower the context, as vLLM's message says: `--engine` takes `LLM(...)` keyword arguments as JSON and **replaces the server's defaults as a whole**, so repeat the default `compilation_config`: `--engine '{"compilation_config": {"max_cudagraph_capture_size": 4096}, "max_model_len": 16384}'`. That is vLLM's own suggestion; it was not run on a smaller card for this page, and a state over the lowered context is answered with 422.
+2. Or lower the context: `--max-model-len 16384` (any length from 1,024 up) fixes it; vLLM's own message suggests the same through `--engine`, which takes `LLM(...)` keyword arguments as JSON and **replaces the server's defaults as a whole**, so repeat the default `compilation_config`: `--engine '{"compilation_config": {"max_cudagraph_capture_size": 4096}, "max_model_len": 16384}'`. That is vLLM's own suggestion; it was not run on a smaller card for this page, and a state over the lowered context is answered with 422.
 3. Or leave the card for a Mac: [`running.md`](running.md#mac-with-mlx) (the 6-bit 12B needs 15.1 GB at the longest state) or Ollama (8.6 GB for the Gemma listing's smallest tag).
 
 ## The driver does not support CUDA 13.0
