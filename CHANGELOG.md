@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.0](https://github.com/aminry/decisio/compare/v0.13.0...v0.14.0) (2026-10-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** without --max-model-len the Gemma bases serve the largest context that fits the card, up to the base's ceiling ([#196](https://github.com/aminry/decisio/issues/196))
+
+### Features
+
+* **serve:** without --max-model-len the Gemma bases serve the largest context that fits the card, up to the base's ceiling ([#196](https://github.com/aminry/decisio/issues/196)) ([39b5852](https://github.com/aminry/decisio/commit/39b5852b65140f31fd488ad550c57259cc9b2990))
+
+
+### Bug Fixes
+
+* **serve:** /v1/systemone passes a request's adapter to the engine ([#200](https://github.com/aminry/decisio/issues/200)) ([cf90db5](https://github.com/aminry/decisio/commit/cf90db5ff9839b20aa17c4f89909c2d8af982c1b))
+* **serve:** pin the 0.14.0 Hub revisions ([#197](https://github.com/aminry/decisio/issues/197)) ([30f43d3](https://github.com/aminry/decisio/commit/30f43d3a0fc2fdf252d96f4505efc32d262ff709))
+
 ## [0.13.0](https://github.com/aminry/decisio/compare/v0.12.0...v0.13.0) (2026-10-15)
 
 
