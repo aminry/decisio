@@ -290,6 +290,10 @@ def score_confidence(p) -> float:
     return max(0.0, 1.0 - dist / uniform_mad)
 
 
+class UnknownAdapter(LookupError):
+    """A request named an adapter this server did not load (a 404 that names it and the ones that are loaded)."""
+
+
 class NonFiniteReadout(RuntimeError):
     """An engine returned NaN or infinity as a probability. It is a fault in the model's arithmetic on this server (a
     dtype or matmul precision the checkpoint does not survive, a checkpoint that does not belong to the base's
@@ -476,11 +480,19 @@ class SystemOne:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
         the letters readout has no unknown outcome); `route="image"` sends a text request to the image engine (the
-        paired check)."""
+        paired check). `adapter`: the name of a loaded LoRA adapter (a request's `"adapter"` field), served on the
+        text route; the registered tasks were fitted on the base's readout, so a question one matches is refused."""
         images = list(images or [])
         use_image = bool(images) or route == "image"
         if use_image and self.image_engine is None:
             raise ValueError("this server has no image engine (start it with --image-model)")
+        adapter = adapter or None
+        if adapter is not None:
+            if use_image:
+                raise ValueError("an adapter is served on the text route only")
+            loaded = getattr(self.engine, "adapters", None) or {}
+            if adapter not in loaded:
+                raise UnknownAdapter(f"unknown adapter {adapter!r}; loaded: {sorted(loaded)}")
         engine = self.image_engine if use_image else self.engine
         orders = int((req.model_extra or {}).get("orders") or self.orders)
         names = list(req.questions)
@@ -508,6 +520,18 @@ class SystemOne:
                 raise ValueError("the abstain option is served with one order only")
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
+        if adapter is not None:
+            # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
+            # would be applied to another one: refuse rather than answer with a correction that does not fit
+            clash = sorted(
+                {t["id"] for t in (self.readout_task(q) for q in wire) if t is not None}
+                | {t["id"] for t in (self.task_for(q, imajev_ext) for q in wire) if t is not None}
+            )
+            if clash:
+                raise ValueError(
+                    f"adapter {adapter!r}: the question matches the registered task(s) {clash}, which were fitted on "
+                    "the base's readout; ask without the adapter, or delete the task"
+                )
         # per-task calibration and head: the registered task of each text-route question (None when there is none)
         rts = [
             self.readout_task(q) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
@@ -613,7 +637,7 @@ class SystemOne:
             answers[name] = to_answer(q, keys, p)
             if t is not None and t.get("certificate") and q.type != "score":
                 answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p)))
-            elif t is None and not use_image and q.type != "score":
+            elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
                 if stale is not None:  # fitted under another model or rendering: not applied, so not certified
                     answers[name].update(
@@ -660,6 +684,8 @@ class SystemOne:
                 },
             },
         }
+        if adapter is not None:
+            out["adapter"] = adapter  # which adapter answered; absent when the base did
         if debug and self.debug_readout:
             out[DEBUG_KEY] = dbg
         return out
@@ -1366,8 +1392,13 @@ def add_routes(app, systemone: SystemOne):
         if route not in (None, "text", "image"):
             raise HTTPException(422, "x-decisio-route must be 'text' or 'image'")
         debug = debug_of(request)
+        adapter = (req.model_extra or {}).get("adapter")
+        if adapter is not None and not isinstance(adapter, str):
+            raise HTTPException(422, '"adapter" must be the name of a loaded adapter, or null')
         try:
-            out = await run_in_threadpool(systemone.answer, req, None, images, ext, route, debug)
+            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug)
+        except UnknownAdapter as e:
+            raise HTTPException(404, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         except Exception as e:
@@ -1377,6 +1408,8 @@ def add_routes(app, systemone: SystemOne):
         headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
         if timing.get("tasks"):
             headers[header("tasks")] = ",".join(timing["tasks"])
+        if out.get("adapter"):
+            headers[header("adapter")] = out["adapter"]
         # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
         if timing.get("stages"):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
@@ -1409,9 +1442,11 @@ def add_routes(app, systemone: SystemOne):
         body = await request.json()
         if not isinstance(body, dict) or not body.get("id") or not isinstance(body.get("examples"), list):
             raise HTTPException(422, "body: {'id', 'option', 'match', 'examples': [{'request', 'answer'}]}")
+        refuse_adapter(body)
         examples = []
         for n, ex in enumerate(body["examples"]):
             payload = dict(ex.get("request") or {})
+            refuse_adapter(payload, f"example {n}")
             ext = "images" in payload
             imgs = payload.pop("images", None) or []
             try:
@@ -1451,12 +1486,22 @@ def add_routes(app, systemone: SystemOne):
 
     # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): register a task from
     # labelled examples, each a text /v1/systemone request with one question and its answer
+    NO_ADAPTER = (
+        '"adapter" is not accepted when registering or certifying a task: a task is fitted on the base\'s readout, '
+        "and the field would be ignored"
+    )
+
+    def refuse_adapter(body, where="body"):
+        if isinstance(body, dict) and body.get("adapter") is not None:
+            raise HTTPException(422, f"{where}: {NO_ADAPTER}")
+
     def parse_examples(items, where="example"):
         examples = []
         for n, ex in enumerate(items):
             if not isinstance(ex, dict):
                 raise HTTPException(422, f"{where} {n}: must be an object {{'request', 'answer'}}")
             payload = dict(ex.get("request") or {})
+            refuse_adapter(payload, f"{where} {n}")
             if "images" in payload or (payload.get("state") is not None and extract_state_images(payload["state"])[1]):
                 raise HTTPException(422, f"{where} {n}: calibration and the intent head serve text requests only")
             try:
@@ -1479,6 +1524,7 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(
                 422, "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, 'answer': <key>}]}"
             )
+        refuse_adapter(body)
         debug = debug_of(request)
         examples = parse_examples(body["examples"])
         certify, held_out = None, None
@@ -1559,6 +1605,7 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(
                 422, "body: {'examples': [{'request', 'answer'}], optional 'alpha', 'delta', 'min_examples'}"
             )
+        refuse_adapter(body)
         examples = parse_examples(body["examples"])
         spec = {k: body[k] for k in ("alpha", "delta", "min_examples") if k in body}
         try:
