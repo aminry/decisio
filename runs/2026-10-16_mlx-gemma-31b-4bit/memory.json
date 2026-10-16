@@ -1,0 +1,186 @@
+{
+ "M2": {
+  "32k": {
+   "state_tokens": 32379,
+   "completed": true,
+   "mlx_peak_bytes": 27799227240,
+   "limit_bytes": 28991029248,
+   "peak_share_of_limit": 0.9589,
+   "footprint_bytes": 21891857792,
+   "pressure_levels_seen": [
+    1
+   ],
+   "min_free_pct": 70,
+   "wall_s": 125.13,
+   "prefix_cache_mb": 0,
+   "fits": true
+  },
+  "16k_prefix0": {
+   "state_tokens": 16425,
+   "completed": true,
+   "mlx_peak_bytes": 23877962398,
+   "limit_bytes": 28991029248,
+   "peak_share_of_limit": 0.8236,
+   "footprint_bytes": 20850916760,
+   "pressure_levels_seen": [
+    1
+   ],
+   "min_free_pct": 43,
+   "wall_s": 55.06,
+   "prefix_cache_mb": 0,
+   "fits": true
+  }
+ },
+ "M1": {
+  "limit_bytes": 28991029248,
+  "pressure_levels_seen": [
+   1
+  ],
+  "pressure_samples": 93,
+  "swap_mb_range": [
+   3243,
+   3243
+  ],
+  "cells": [
+   {
+    "target_tokens": 8192,
+    "prompt_tokens_max": 8056,
+    "questions": 1,
+    "completed": true,
+    "peak_gb": 23.864298288,
+    "server_ms": 25559.002333000535,
+    "peak_share_of_limit": 0.8232,
+    "swap_growth_mb": 0.0,
+    "fits": true
+   },
+   {
+    "target_tokens": 8192,
+    "prompt_tokens_max": 8056,
+    "questions": 10,
+    "completed": true,
+    "peak_gb": 23.864609584,
+    "server_ms": 29328.333749988815,
+    "peak_share_of_limit": 0.8232,
+    "swap_growth_mb": 0.0,
+    "fits": true
+   },
+   {
+    "target_tokens": 16384,
+    "prompt_tokens_max": 16383,
+    "questions": 1,
+    "completed": true,
+    "peak_gb": 25.334958896,
+    "server_ms": 58485.487708996516,
+    "peak_share_of_limit": 0.8739,
+    "swap_growth_mb": 0.0,
+    "fits": true
+   },
+   {
+    "target_tokens": 16384,
+    "prompt_tokens_max": 16383,
+    "questions": 10,
+    "completed": true,
+    "peak_gb": 25.335270192,
+    "server_ms": 61650.528999976814,
+    "peak_share_of_limit": 0.8739,
+    "swap_growth_mb": 0.0,
+    "fits": true
+   },
+   {
+    "target_tokens": 32768,
+    "prompt_tokens_max": 32687,
+    "questions": 1,
+    "completed": true,
+    "peak_gb": 27.967949606,
+    "server_ms": 137736.39054200612,
+    "peak_share_of_limit": 0.9647,
+    "swap_growth_mb": 0.0,
+    "fits": false
+   },
+   {
+    "target_tokens": 32768,
+    "prompt_tokens_max": 32687,
+    "questions": 10,
+    "completed": true,
+    "peak_gb": 27.968260902,
+    "server_ms": 133696.8909999996,
+    "peak_share_of_limit": 0.9647,
+    "swap_growth_mb": 0.0,
+    "fits": false
+   }
+  ],
+  "longest_fitting": {
+   "1": 16384,
+   "10": 16384
+  }
+ },
+ "derived_min_mac": {
+  "label": "derived (one 64 GB Mac; not measured on the smaller machine)",
+  "need_bytes": 30483581800,
+  "two_thirds_holds": {
+   "16": false,
+   "18": false,
+   "24": false,
+   "32": false,
+   "36": false,
+   "48": true,
+   "64": true,
+   "96": true,
+   "128": true
+  },
+  "smallest_gb": 48,
+  "planner": {
+   "32": false,
+   "36": false,
+   "48": true,
+   "64": true
+  }
+ },
+ "plan": {
+  "weights_bytes": 19187886068,
+  "working_gb": 9,
+  "family_prefix_cache_mb": 2048,
+  "macs": {
+   "32": {
+    "starts": false,
+    "why": "gemma-4-31b needs about 28.3 GiB under MLX (17.9 GiB of weights, a working set of 8.4 GiB at a 32k-token state, and the MLX cache limit of 2.0 GiB), and this Mac has 32.0 GiB: two thirds of it, 21.3 GiB, is the most the server asks MLX for by default. Start a smaller base or conversion, or set --mlx"
+   },
+   "36": {
+    "starts": false,
+    "why": "gemma-4-31b needs about 28.3 GiB under MLX (17.9 GiB of weights, a working set of 8.4 GiB at a 32k-token state, and the MLX cache limit of 2.0 GiB), and this Mac has 36.0 GiB: two thirds of it, 24.0 GiB, is the most the server asks MLX for by default. Start a smaller base or conversion, or set --mlx"
+   },
+   "48": {
+    "starts": true,
+    "memory_limit_gib": 32.0,
+    "prefix_cache_mb": 1789
+   },
+   "64": {
+    "starts": true,
+    "memory_limit_gib": 33.0,
+    "prefix_cache_mb": 2048
+   }
+  },
+  "smallest_mac_that_starts_gib": 48,
+  "prefix_cache_mb_on_smallest": 1789
+ },
+ "latency": {
+  "quiet_rule": {
+   "quiet": false,
+   "waited_s": 3600
+  },
+  "cells": {
+   "3000": {
+    "first_server_ms_median": 9361.4,
+    "later_server_ms_median": 9549.2
+   },
+   "16000": {
+    "first_server_ms_median": 66339.7,
+    "later_server_ms_median": 66315.8
+   },
+   "32000": {
+    "first_server_ms_median": 152099.5,
+    "later_server_ms_median": 149879.7
+   }
+  }
+ }
+}

@@ -1,0 +1,60 @@
+{
+ "source": "google/gemma-4-31B-it@842da3794eaa0b77d5f08bae87a17459d91ff475",
+ "recipe": "mlx_lm.convert -q --q-bits 4 --q-group-size 32",
+ "quantization": {
+  "group_size": 32,
+  "bits": 4,
+  "mode": "affine"
+ },
+ "mlx": "0.32.3",
+ "mlx_lm": "0.32.0",
+ "machine": "arm64",
+ "mac": "26.6.2",
+ "files": {
+  "README.md": {
+   "bytes": 81,
+   "sha256": "748c964f9b7e5f2c3770ce013bbc0153be7c54311d9692c343b6188eefe77ac6"
+  },
+  "chat_template.jinja": {
+   "bytes": 18683,
+   "sha256": "ae53464bf3be25802b3a5b37def7fd89667067d7577049b3b2d74c4d8de4c6d4"
+  },
+  "config.json": {
+   "bytes": 4346,
+   "sha256": "3e6f4d7c54ac170a2f459b71aad10cc57960dd54272be07bee5cd4b2d236ebb7"
+  },
+  "generation_config.json": {
+   "bytes": 208,
+   "sha256": "d4226bbe3117d2d253ba4609720ba82c6c4ce4627a9a6ae05387c78983ac03de"
+  },
+  "model-00001-of-00004.safetensors": {
+   "bytes": 5368070775,
+   "sha256": "07ebddec382c40c2cafcd2e2950be4e8658438740b9f15e2e49f01b87c4fde5e"
+  },
+  "model-00002-of-00004.safetensors": {
+   "bytes": 5347613738,
+   "sha256": "20b0818ffb2baa689b97e0afd3b9d50f8226374d2f7d2c1e8cf19dd8595a7032"
+  },
+  "model-00003-of-00004.safetensors": {
+   "bytes": 5337245728,
+   "sha256": "70a04465a640a20d1cdd649f5470e32559ae86fcaf646ad4dffc6c27d1f904bd"
+  },
+  "model-00004-of-00004.safetensors": {
+   "bytes": 3134955827,
+   "sha256": "522c6631cfad52daaf50328b92304b3d10769b3d65df7a0e12cde048f3d4f023"
+  },
+  "model.safetensors.index.json": {
+   "bytes": 167415,
+   "sha256": "c4e87bbc0784519062ec4ea18c5ffc1a3aee5babe2b951de51c43f469f2e197f"
+  },
+  "tokenizer.json": {
+   "bytes": 32169626,
+   "sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f"
+  },
+  "tokenizer_config.json": {
+   "bytes": 3760,
+   "sha256": "8227f6f1d959e2ded8be6351bf863a77b781bfd93b82b01e6f65d5d91d5cecb8"
+  }
+ },
+ "weights_bytes": 19187886068
+}

@@ -507,7 +507,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 
 The Qwen base runs from its 6-bit MLX conversion, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
 The Gemma 4 12B base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
-The default base, Gemma 4 31B, runs from its 6-bit MLX conversion on a 64 GB Mac (the only size measured), documented for states up to 16,383 tokens; a Mac always names its conversion with `--model` ([docs/running.md](docs/running.md#mac-with-mlx)).
+The default base, Gemma 4 31B, runs from its 6-bit MLX conversion on a 64 GB Mac (the only size measured), or from its 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` on a 48 GB Mac (derived from the 64 GB measurement), which scores 1.5 points lower on MMLU-Pro; both are documented for states up to 16,383 tokens; a Mac always names its conversion with `--model` ([docs/running.md](docs/running.md#mac-with-mlx)).
 
 ### Ollama
 

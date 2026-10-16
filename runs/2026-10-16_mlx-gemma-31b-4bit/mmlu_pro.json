@@ -1,0 +1,168 @@
+{
+ "rows": 12032,
+ "mlx_4bit_accuracy": 0.6785239361702128,
+ "fp8_record_accuracy": 0.6938996010638298,
+ "paired_mlx_minus_fp8": {
+  "diff": -0.015375664893617021,
+  "lo": -0.0199468085106383,
+  "hi": -0.010804521276595746,
+  "n": 12032
+ },
+ "paired_method": "95% bootstrap, 10,000 resamples, seed 0",
+ "top_answers_differ": 1331,
+ "wrong_to_right": 307,
+ "right_to_wrong": 492,
+ "by_subject": [
+  {
+   "subject": "engineering",
+   "rows": 969,
+   "mlx_minus_fp8_points": -3.61
+  },
+  {
+   "subject": "math",
+   "rows": 1351,
+   "mlx_minus_fp8_points": -3.48
+  },
+  {
+   "subject": "chemistry",
+   "rows": 1132,
+   "mlx_minus_fp8_points": -3.36
+  },
+  {
+   "subject": "physics",
+   "rows": 1299,
+   "mlx_minus_fp8_points": -2.85
+  },
+  {
+   "subject": "history",
+   "rows": 381,
+   "mlx_minus_fp8_points": -2.62
+  },
+  {
+   "subject": "health",
+   "rows": 818,
+   "mlx_minus_fp8_points": -1.59
+  },
+  {
+   "subject": "business",
+   "rows": 789,
+   "mlx_minus_fp8_points": -1.14
+  },
+  {
+   "subject": "computer science",
+   "rows": 410,
+   "mlx_minus_fp8_points": -0.98
+  },
+  {
+   "subject": "philosophy",
+   "rows": 499,
+   "mlx_minus_fp8_points": -0.8
+  },
+  {
+   "subject": "other",
+   "rows": 924,
+   "mlx_minus_fp8_points": -0.43
+  },
+  {
+   "subject": "law",
+   "rows": 1101,
+   "mlx_minus_fp8_points": -0.09
+  },
+  {
+   "subject": "psychology",
+   "rows": 798,
+   "mlx_minus_fp8_points": 0.63
+  },
+  {
+   "subject": "biology",
+   "rows": 717,
+   "mlx_minus_fp8_points": 0.7
+  },
+  {
+   "subject": "economics",
+   "rows": 844,
+   "mlx_minus_fp8_points": 0.83
+  }
+ ],
+ "calibration": {
+  "rows": 12032,
+  "not_joined_or_failed": 0,
+  "benchmarks": {
+   "MMLU-Pro": {
+    "n": 12032,
+    "accuracy": 0.6785239361702128,
+    "ece": 0.03605656508349871,
+    "brier": 0.4458728939991078,
+    "nll": 1.0759332218607436,
+    "mean_confidence": 0.7128523444258895
+   }
+  }
+ },
+ "decision_index_report": {
+  "edition": "0.2.1",
+  "engine": "di_MMLU-Pro",
+  "latency_ms": {
+   "median": 963.2187289971625,
+   "p95": 1701.6730420000385,
+   "mean": 1077.428330006257
+  },
+  "benchmarks": {
+   "BANKING77": {
+    "catalog_id": 4,
+    "metric": null,
+    "native_score": null,
+    "requests": 3080,
+    "answered": 0,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": null,
+    "chance": 0.0127,
+    "raw": 0.0,
+    "skill": 0.0,
+    "coverage": 0.0
+   },
+   "CLINC150+OOS": {
+    "catalog_id": 5,
+    "metric": null,
+    "native_score": null,
+    "requests": 5500,
+    "answered": 0,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": null,
+    "chance": 0.006,
+    "raw": 0.0,
+    "skill": 0.0,
+    "coverage": 0.0
+   },
+   "GPQA Diamond": {
+    "catalog_id": 25,
+    "metric": null,
+    "native_score": null,
+    "requests": 196,
+    "answered": 0,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": null,
+    "chance": 0.25,
+    "raw": 0.0,
+    "skill": 0.0,
+    "coverage": 0.0
+   },
+   "MMLU-Pro": {
+    "catalog_id": 57,
+    "metric": "accuracy",
+    "native_score": 0.6785239361702128,
+    "requests": 12032,
+    "answered": 12032,
+    "errors": 0,
+    "unsupported": 0,
+    "median_ms": 963.2187289971625,
+    "chance": 0.1109,
+    "raw": 0.6785,
+    "skill": 0.6384,
+    "coverage": 1.0
+   }
+  }
+ }
+}

@@ -1,0 +1,25 @@
+{
+ "what": "The Gemma 4 31B on MLX at 4 bits (group size 32): bit identity, the gates, the intent heads, MMLU-Pro, memory and latency, 2026-10-15 to 2026-10-16",
+ "date": "2026-10-15 to 2026-10-16",
+ "decisio": "main at d9f607b2 (v0.12.0 plus 6 commits); the MLX path is unchanged to v0.13.0",
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2, MLX memory limit 27 GiB",
+ "software": {
+  "mlx": "0.32.3",
+  "mlx-lm": "0.32.0"
+ },
+ "model": "google/gemma-4-31B-it at 842da3794eaa0b77d5f08bae87a17459d91ff475, mlx_lm.convert -q --q-bits 4 --q-group-size 32 (sha256 of every file in build.json); prompts built with the base's tokenizer and chat template",
+ "reference": "runs/2026-10-04_gemma-4-31b (vLLM, FP8 on load); its MMLU-Pro answers are the fp8 column of mmlu_pro_pairs.jsonl.gz",
+ "source": "our private records of 2026-10-15 and 2026-10-16",
+ "files": {
+  "bit_identity.json": "d845f02e7b83df32b0f624e069ffc8b6d7a09ce2b1ce27c19e5d459fdbc12a8d",
+  "build.json": "46e0a6e59d27c3e079dad5846286a05f8a89e2c37e7a6b43f95e49b41d18c49a",
+  "gates.json": "3b5f1789ffbbb93c41e6ffe6998c3d79b447093e76525cddbd77710edd55b442",
+  "latency.json": "3212a82eb78d8441ee5d60d0a143d32687d65e4de2e21f297778bdef8a6a3f86",
+  "memory.json": "db776165c6ee2dd8ae8c215436d188a42f8bb50b2c5cf7a2e34bcfae636d72b0",
+  "memory_in_process.json": "54089e0eb862e23647d263d07bcd43a965c1253ce29c6753521b06b63ccfdff2",
+  "mmlu_pro.json": "31cd284883c96beabfc5474de512389e9fd4760055d48eb058531f11c3243f9a",
+  "mmlu_pro_pairs.jsonl.gz": "9f941d5fb7934d47f2940859da73636973f1ee0964e66e73f0eda6d01618789d",
+  "server_health.json": "d4c7eb8ba2e2a22a1b50829c782f85bca0715200a2bfeadd6be0099fcb97bb0c",
+  "summary.md": "01a0db1c5bf239d9b287e7da76cd47fc928ab80d46676a00c7ceb30f1163001c"
+ }
+}

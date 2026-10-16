@@ -1,0 +1,16 @@
+{
+ "B_against_the_earlier_build": {
+  "keys": 200,
+  "compared": 200,
+  "equal": 200,
+  "differ": [],
+  "pass": true
+ },
+ "R_second_fresh_start": {
+  "keys": 200,
+  "compared": 200,
+  "equal": 200,
+  "differ": [],
+  "pass": true
+ }
+}

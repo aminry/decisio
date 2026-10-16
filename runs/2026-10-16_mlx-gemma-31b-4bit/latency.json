@@ -1,0 +1,528 @@
+{
+ "quiet_rule": {
+  "quiet": false,
+  "waited_s": 3600,
+  "samples": [
+   {
+    "t": 3506,
+    "top": [
+     [
+      39.2,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      38.9,
+      "a desktop application renderer"
+     ],
+     [
+      21.9,
+      "ntents/MacOS/com.apple.WebKit.WebContent"
+     ]
+    ]
+   },
+   {
+    "t": 3516,
+    "top": [
+     [
+      43.0,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      38.1,
+      "a desktop application renderer"
+     ],
+     [
+      20.3,
+      ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+     ]
+    ]
+   },
+   {
+    "t": 3526,
+    "top": [
+     [
+      48.6,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      37.2,
+      "a desktop application renderer"
+     ],
+     [
+      20.8,
+      ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+     ]
+    ]
+   },
+   {
+    "t": 3536,
+    "top": [
+     [
+      37.7,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      32.3,
+      "a desktop application renderer"
+     ],
+     [
+      21.3,
+      ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+     ]
+    ]
+   },
+   {
+    "t": 3546,
+    "top": [
+     [
+      37.3,
+      "a desktop application renderer"
+     ],
+     [
+      35.5,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      20.2,
+      ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+     ]
+    ]
+   },
+   {
+    "t": 3556,
+    "top": [
+     [
+      39.8,
+      "a desktop application renderer"
+     ],
+     [
+      37.1,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      20.4,
+      ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+     ]
+    ]
+   },
+   {
+    "t": 3566,
+    "top": [
+     [
+      40.4,
+      "a desktop application renderer"
+     ],
+     [
+      35.8,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      19.7,
+      "ntents/MacOS/com.apple.WebKit.WebContent"
+     ]
+    ]
+   },
+   {
+    "t": 3576,
+    "top": [
+     [
+      39.3,
+      "a desktop application renderer"
+     ],
+     [
+      34.6,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      19.0,
+      ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+     ]
+    ]
+   },
+   {
+    "t": 3586,
+    "top": [
+     [
+      40.4,
+      "a desktop application renderer"
+     ],
+     [
+      28.1,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      20.3,
+      "ntents/MacOS/com.apple.WebKit.WebContent"
+     ]
+    ]
+   },
+   {
+    "t": 3596,
+    "top": [
+     [
+      51.4,
+      "kyLight.framework/Resources/WindowServer"
+     ],
+     [
+      42.6,
+      "a desktop application renderer"
+     ],
+     [
+      21.0,
+      "ntents/MacOS/com.apple.WebKit.WebContent"
+     ]
+    ]
+   }
+  ]
+ },
+ "cells": {
+  "3000": {
+   "first_server_ms_median": 9361.4,
+   "later_server_ms_median": 9549.2,
+   "rows": [
+    {
+     "doc": 0,
+     "state_tokens": 3000,
+     "first_server_ms": 8718.4,
+     "first_wall_ms": 8738.9,
+     "later_server_ms": 8734.8,
+     "later_wall_ms": 8736.2,
+     "load_after": [
+      [
+       43.0,
+       "a desktop application renderer"
+      ],
+      [
+       34.6,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       30.1,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 1,
+     "state_tokens": 3000,
+     "first_server_ms": 8902.7,
+     "first_wall_ms": 8904.2,
+     "later_server_ms": 9034.1,
+     "later_wall_ms": 9035.2,
+     "load_after": [
+      [
+       37.9,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       37.5,
+       "a desktop application renderer"
+      ],
+      [
+       22.3,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 2,
+     "state_tokens": 3000,
+     "first_server_ms": 9361.4,
+     "first_wall_ms": 9362.7,
+     "later_server_ms": 9549.2,
+     "later_wall_ms": 9550.4,
+     "load_after": [
+      [
+       39.8,
+       "a desktop application renderer"
+      ],
+      [
+       39.6,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       22.3,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 3,
+     "state_tokens": 3000,
+     "first_server_ms": 9647.6,
+     "first_wall_ms": 9649.0,
+     "later_server_ms": 9661.0,
+     "later_wall_ms": 9662.1,
+     "load_after": [
+      [
+       35.0,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       34.1,
+       "a desktop application renderer"
+      ],
+      [
+       22.0,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 4,
+     "state_tokens": 3000,
+     "first_server_ms": 9677.1,
+     "first_wall_ms": 9678.5,
+     "later_server_ms": 9658.0,
+     "later_wall_ms": 9659.2,
+     "load_after": [
+      [
+       38.5,
+       "a desktop application renderer"
+      ],
+      [
+       35.5,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       27.2,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    }
+   ]
+  },
+  "16000": {
+   "first_server_ms_median": 66339.7,
+   "later_server_ms_median": 66315.8,
+   "rows": [
+    {
+     "doc": 0,
+     "state_tokens": 16000,
+     "first_server_ms": 55356.5,
+     "first_wall_ms": 55358.2,
+     "later_server_ms": 60304.3,
+     "later_wall_ms": 60305.6,
+     "load_after": [
+      [
+       49.3,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       37.1,
+       "a desktop application renderer"
+      ],
+      [
+       21.4,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 1,
+     "state_tokens": 16000,
+     "first_server_ms": 65134.8,
+     "first_wall_ms": 65137.0,
+     "later_server_ms": 67730.4,
+     "later_wall_ms": 67732.0,
+     "load_after": [
+      [
+       35.7,
+       "a desktop application renderer"
+      ],
+      [
+       28.9,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       21.4,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 2,
+     "state_tokens": 16000,
+     "first_server_ms": 66827.9,
+     "first_wall_ms": 66829.5,
+     "later_server_ms": 66153.3,
+     "later_wall_ms": 66154.5,
+     "load_after": [
+      [
+       42.2,
+       "a desktop application renderer"
+      ],
+      [
+       34.1,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       21.3,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 3,
+     "state_tokens": 16000,
+     "first_server_ms": 66339.7,
+     "first_wall_ms": 66341.1,
+     "later_server_ms": 66399.7,
+     "later_wall_ms": 66400.7,
+     "load_after": [
+      [
+       45.1,
+       "a desktop application renderer"
+      ],
+      [
+       25.8,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       21.3,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 4,
+     "state_tokens": 16000,
+     "first_server_ms": 66779.6,
+     "first_wall_ms": 66781.0,
+     "later_server_ms": 66315.8,
+     "later_wall_ms": 66316.9,
+     "load_after": [
+      [
+       48.0,
+       "a desktop application renderer"
+      ],
+      [
+       31.5,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       22.9,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    }
+   ]
+  },
+  "32000": {
+   "first_server_ms_median": 152099.5,
+   "later_server_ms_median": 149879.7,
+   "rows": [
+    {
+     "doc": 0,
+     "state_tokens": 32000,
+     "first_server_ms": 152445.4,
+     "first_wall_ms": 152447.8,
+     "later_server_ms": 149879.7,
+     "later_wall_ms": 149881.4,
+     "load_after": [
+      [
+       34.5,
+       "a desktop application renderer"
+      ],
+      [
+       27.0,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       21.4,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 1,
+     "state_tokens": 32000,
+     "first_server_ms": 149234.4,
+     "first_wall_ms": 149236.1,
+     "later_server_ms": 148829.8,
+     "later_wall_ms": 148831.2,
+     "load_after": [
+      [
+       40.6,
+       "a desktop application renderer"
+      ],
+      [
+       33.8,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       21.4,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 2,
+     "state_tokens": 32000,
+     "first_server_ms": 149806.4,
+     "first_wall_ms": 149807.9,
+     "later_server_ms": 149463.9,
+     "later_wall_ms": 149465.3,
+     "load_after": [
+      [
+       40.8,
+       "a desktop application renderer"
+      ],
+      [
+       39.2,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       31.8,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ]
+     ]
+    },
+    {
+     "doc": 3,
+     "state_tokens": 32000,
+     "first_server_ms": 152099.5,
+     "first_wall_ms": 152101.1,
+     "later_server_ms": 155740.8,
+     "later_wall_ms": 155742.2,
+     "load_after": [
+      [
+       54.5,
+       "kyLight.framework/Resources/WindowServer"
+      ],
+      [
+       48.6,
+       ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+      ],
+      [
+       40.8,
+       "a desktop application renderer"
+      ]
+     ]
+    },
+    {
+     "doc": 4,
+     "state_tokens": 32000,
+     "first_server_ms": 160487.2,
+     "first_wall_ms": 160489.6,
+     "later_server_ms": 159723.7,
+     "later_wall_ms": 159725.6,
+     "load_after": [
+      [
+       90.0,
+       "ntents/MacOS/com.apple.WebKit.WebContent"
+      ],
+      [
+       80.7,
+       ".xpc/Contents/MacOS/com.apple.WebKit.GPU"
+      ],
+      [
+       75.9,
+       "kyLight.framework/Resources/WindowServer"
+      ]
+     ]
+    }
+   ]
+  }
+ }
+}

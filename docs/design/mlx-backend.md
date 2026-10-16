@@ -195,14 +195,19 @@ The engine serves `--base gemma-4-31b` from `mlx-community/gemma-4-31b-it-6bit` 
 
 Gated on the Mac against the base's vLLM FP8 record (`runs/2026-10-04_gemma-4-31b`), pre-registered with four dated amendments; the record is `runs/2026-10-07_mlx-gemma-31b` (Apple M5 Pro, 64 GB):
 
-| Gate | MLX 6-bit | FP8 | Verdict |
-| --- | --- | --- | --- |
-| Suite accuracy (1,400) | 0.8064 | 0.7993 | pass: +0.7 [0.0, +1.5] points |
-| Top-answer flips | 42 of 1,400 (largest probability difference 0.572) | | counted |
-| Pooled ECE (gate: within 0.01) | 0.0535 | 0.0540 | pass |
-| JevBench 231, ECE at the served temperatures (reported) | 0.0442 | 0.0349 | +0.0093 |
-| Conformance C2 to C4 | pass; 0 of 1,400 prompts differ; largest and mean probability difference 0.0 | | pass |
-| Intent heads, three draws, BANKING77 / CLINC150 | 0.849 / 0.970 | 0.844 / 0.970 | pass / pass (+0.4 [-2.2, +3.3], 0.0 [0.0, 0.0] points) |
+| Gate | MLX 6-bit | MLX 4-bit | FP8 | Verdict (6-bit; 4-bit) |
+| --- | --- | --- | --- | --- |
+| Suite accuracy (1,400) | 0.8064 | 0.7957 | 0.7993 | pass: +0.7 [0.0, +1.5] points; level: -0.4 [-1.4, +0.7] |
+| Top-answer flips | 42 of 1,400 (largest probability difference 0.572) | 80 of 1,400 (largest 0.777) | | counted |
+| Pooled ECE (gate: within 0.01) | 0.0535 | 0.0550 | 0.0540 | pass; pass |
+| JevBench 231, ECE at the served temperatures (reported) | 0.0442 | 0.0379 | 0.0349 | +0.0093; +0.0030 |
+| Conformance C2 to C4 | pass; 0 of 1,400 prompts differ; largest and mean probability difference 0.0 | pass | | pass; pass |
+| Intent heads, three draws, BANKING77 / CLINC150 | 0.849 / 0.970 | 0.833 / 0.967 | 0.844 / 0.970 | pass / pass (+0.4 [-2.2, +3.3], 0.0 [0.0, 0.0] points); level / level (-1.1 [-3.6, +1.1], -0.3 [-2.3, +1.7]) |
+| MMLU-Pro (12,032), the Decision Index | not measured | 0.6785 | 0.6939 | 4-bit below: -1.5 [-2.0, -1.1] points |
+| Answers on a second fresh start (200 items) | | 200 of 200 equal | | repeats exactly |
+
+The 6-bit column is `runs/2026-10-07_mlx-gemma-31b`, the 4-bit one `runs/2026-10-16_mlx-gemma-31b-4bit` (`mlx_lm.convert -q --q-bits 4 --q-group-size 32`, 19.2 GB of weights; the suite, ECE and JevBench rows were read on an earlier build of the same recipe whose answers this build's equal on 200 of 200 items).
+The 4-bit conversion's MMLU-Pro loss is in the quantitative subjects (engineering -3.6, math -3.5, chemistry -3.4, physics -2.9 points) and history (-2.6); psychology, biology and economics are level or slightly up.
 
 **Memory, per length.** A length fits if its cells completed, every peak was at most 90% of the Mac's GPU memory limit (55.7 GB here), and macOS memory pressure (`kern.memorystatus_vm_pressure_level`) stayed normal in every sample from before the model loaded through the length's last cell. Swap growth is recorded, not gated, because it measures the other applications on the Mac. The build is documented for states up to the longest fitting length. GB are 1e9 bytes.
 
@@ -213,3 +218,14 @@ Gated on the Mac against the base's vLLM FP8 record (`runs/2026-10-04_gemma-4-31
 | 32,687 | 33.7 GB | 39.4% | 1 of 54 (warning level); +78, -8 MB | 9 of 61 (warning level, none critical); +3,688, +1,905 MB | runs, with memory pressure |
 
 The weights take 24.9 GB. Reading a is the quiet reading, taken at night with nothing else large running (the eight largest resident processes at its start and end are in the record); it governs the verdict. Reading b, the pre-registered working-day reading, was taken after the head draws with the Mac's usual desktop applications open (the largest resident process was 0.5 GB); it is recorded and not gated. Both readings are of a cache that was empty: at the default budget no entry of 8,000 tokens or more is stored.
+
+**The 4-bit conversion's memory** was read under a 27 GiB MLX memory limit on the same 64 GB Mac (a length fits if it completes, peaks at most 90% of the limit and pressure stays normal; pressure was normal in all 93 samples and swap stayed flat). It is documented for states up to 16,383 tokens, as the 6-bit one is.
+
+| State tokens | Questions | Peak | Share of the 27 GiB limit | Time | Verdict |
+| ---: | ---: | ---: | ---: | ---: | --- |
+| 8,056 | 1, 10 | 23.86 GB | 82.3% | 25.6 s, 29.3 s | fits |
+| 16,383 | 1, 10 | 25.33 GB, 25.34 GB | 87.4% | 58.5 s, 61.7 s | fits |
+| 32,687 | 1, 10 | 27.97 GB | 96.5% | 137.7 s, 133.7 s | completes, over 90% |
+
+The weights take 19.2 GB, and the peaks are 5.7 GB lower than the 6-bit conversion's at the same lengths.
+decisio's memory planner starts it on a 48 GB Mac (a 32 GiB limit and a 1,789 MiB prefix cache) and refuses 32 and 36 GB; the 48 GB minimum is derived from the measured 32k peak, the cache limit and 2 GiB of headroom, and was not measured on a 48 GB Mac.

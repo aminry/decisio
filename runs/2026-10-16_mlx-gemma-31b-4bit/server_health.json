@@ -1,0 +1,101 @@
+{
+ "ok": true,
+ "engine": "mlx",
+ "base": "gemma-4-31b",
+ "mlx": "0.32.3",
+ "mlx_lm": "0.32.0",
+ "device": "Device(gpu, 0)",
+ "machine": "arm64",
+ "model": "<local>/model",
+ "quantization": {
+  "group_size": 32,
+  "bits": 4,
+  "mode": "affine"
+ },
+ "tokenizer": "google/gemma-4-31B-it",
+ "tokenizer_revision": "842da3794eaa0b77d5f08bae87a17459d91ff475",
+ "tokenizer_json_sha256": "cc8d3a0ce36466ccc1278bf987df5f71db1719b9ca6b4118264f45cb627bfe0f",
+ "official_tokenizer": true,
+ "final_logit_softcap": 30.0,
+ "mode": "separate",
+ "block_size": 1056,
+ "pad_unit": null,
+ "pad_where": null,
+ "prefill_step": 2048,
+ "prefix_cache": {
+  "max_mb": 2048.0,
+  "entries": 0,
+  "mb": 0.0,
+  "hits": 0,
+  "misses": 0
+ },
+ "memory": {
+  "machine_bytes": 68719476736,
+  "weights_bytes": 19187886068,
+  "working_bytes": 9000000000,
+  "cache_limit_bytes": 2147483648,
+  "memory_limit_bytes": 35433480192,
+  "prefix_cache_mb": 2048,
+  "prefix_cache_requested_mb": 2048,
+  "memory_limit_source": "default",
+  "cache_limit_source": "default",
+  "mlx_active_bytes": 19187681930,
+  "mlx_cache_bytes": 701489686,
+  "mlx_peak_bytes": 19656438442,
+  "physical_footprint_bytes": 21000961360,
+  "resident_bytes": 16896770048
+ },
+ "adapters": [],
+ "prompt_format": {
+  "tail": "spaced",
+  "slot": "template",
+  "variants": "summed",
+  "system_prompt": true
+ },
+ "profile": {
+  "base": "gemma-4-31b",
+  "checkpoint": "<local>/model",
+  "revision": null,
+  "quantization_on_load": "fp8",
+  "engine_process": null,
+  "temperatures": {
+   "choice": 4.672,
+   "noul": 5.252,
+   "score": 5.252
+  },
+  "prompt": {
+   "tail": "spaced",
+   "slot": "template",
+   "variants": "summed",
+   "system_prompt": true,
+   "noul_rendering": "letters",
+   "describe_options": true,
+   "multi_question": "sequential",
+   "register_boundary": "before",
+   "pad_policy": "none",
+   "pad_unit": null
+  }
+ },
+ "systemone": {
+  "hide_index_keys": true,
+  "desnake_labels": true,
+  "describe_options": true,
+  "noul_rendering": "letters",
+  "noul_commit": false,
+  "abstention": true,
+  "abstention_tasks": {},
+  "orders": 1,
+  "abstain_option": null,
+  "tasks": true,
+  "debug_readout": true,
+  "temperature": 5.252,
+  "temperatures": {
+   "choice": 4.672
+  },
+  "readout_tasks": {}
+ },
+ "head_engine": {
+  "mode": "hidden (MLX engine, same forward as the letters)",
+  "requests_per_question": 0
+ }
+}
