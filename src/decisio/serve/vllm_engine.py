@@ -21,7 +21,8 @@ separate (default): one engine request per question, the state shared through vL
     restricting the single generated token to the label tokens (`allowed_token_ids`) with
     `logprobs_mode="processed_logprobs"`: the K returned log-probabilities are then exactly the
     log-softmax over the label logits. Isolation is structural: every question is its own sequence.
-    LoRA adapters are served here (vLLM LoRA; see `check_adapter_names` for the tensor names each class needs).
+    LoRA adapters are served here (vLLM LoRA; decisio.serve.adapters maps an adapter's tensor names to the layout the
+    served class needs).
 
 packed: questions are packed into one prompt as consecutive chat turns, each turn's assistant reply
     left at "Answer:", and the label logits are read at every turn's last position in one prefill,
@@ -77,6 +78,7 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
+from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
 from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
@@ -139,27 +141,6 @@ def pad_prompt(ids, n, k, token, where, head_len):
 
 TURN_SEP = "<|im_end|>\n"  # closes an assistant turn left at "Answer:" (packed mode)
 PAD_TOKEN = 198  # "\n"
-
-
-def check_adapter_names(model, adapters, arch=None):
-    """Refuse an adapter whose tensor names the served class would not map: vLLM then loads it as a
-    silent no-op. The multimodal class (Qwen3_5MoeForConditionalGeneration) needs
-    `...model.language_model.layers...`; the text classes (Qwen3_5MoeForCausalLM and decisio's) need
-    PEFT's original `...model.layers...`."""
-    # decisio's registered classes are text classes (the trainer's original names), whatever config.json names
-    arch = (
-        "ForCausalLM" if arch else json.loads((Path(model) / "config.json").read_text()).get("architectures", [""])[0]
-    )
-    for name, path in adapters.items():
-        with open(Path(path) / "adapter_model.safetensors", "rb") as f:
-            n = int.from_bytes(f.read(8), "little")
-            keys = [k for k in json.loads(f.read(n)) if k != "__metadata__"]
-        converted = all(".language_model.layers." in k for k in keys)
-        original = all(k.startswith("base_model.model.model.layers.") for k in keys)
-        if arch.endswith("ForConditionalGeneration") and not converted:
-            raise ValueError(f"adapter {name}: {arch} needs names under `.language_model.layers.`")
-        if arch.endswith("ForCausalLM") and not original:
-            raise ValueError(f"adapter {name}: {arch} needs PEFT's original names (`base_model.model.model.layers.`)")
 
 
 def state_prefix(tok, body, fmt=DEFAULT_FORMAT):
@@ -260,7 +241,7 @@ class LettersEngine:
             max_model_len, auto, context_source = int(engine_kw["max_model_len"]), None, "set by --engine"
         self.context_source = None if auto is not None else (context_source or f"{int(max_model_len):,}")
 
-        from decisio.families import family_of
+        from decisio.families import family_of, read_config
 
         # where the engine runs (--engine-process), as vLLM will read it when the LLM below is built
         self.engine_process = "in" if os.environ.get("VLLM_ENABLE_V1_MULTIPROCESSING") == "0" else "separate"
@@ -318,6 +299,14 @@ class LettersEngine:
         else:
             raise ValueError(f"unknown mode {mode!r}")
         kw.update(engine_kw or {})
+        # the adapters' names are checked, and mapped to the served class's layout, before the engine is built: a
+        # refusal costs seconds, not the minutes of loading the weights
+        self.adapter_paths, self.adapter_names = {}, {}
+        if adapters:
+            overrides = (engine_kw or {}).get("hf_overrides") or {}
+            arch = overrides.get("architectures")
+            arch = "ForCausalLM" if arch else (read_config(model, revision).get("architectures") or [""])[0]
+            self.adapter_paths, self.adapter_names = prepare_adapters(adapters, arch)
         self.llm = LLM(**kw)
         if auto is not None:
             self._settle_context(auto)
@@ -333,10 +322,7 @@ class LettersEngine:
         if adapters:
             from vllm.lora.request import LoRARequest
 
-            check_adapter_names(
-                model, adapters, arch=((engine_kw or {}).get("hf_overrides") or {}).get("architectures")
-            )
-            for i, (name, path) in enumerate(adapters.items(), start=1):
+            for i, (name, path) in enumerate(self.adapter_paths.items(), start=1):
                 self.adapters[name] = LoRARequest(name, i, str(path))
         self._lock = threading.Lock()  # one request at a time through the engine
         self._warm_up()
@@ -415,6 +401,7 @@ class LettersEngine:
             "max_model_len_ceiling": getattr(self.family, "context_ceiling", None),
             "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
             "adapters": sorted(self.adapters),
+            **({"adapter_names": self.adapter_names} if self.adapter_names else {}),
             "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
             "prompt_format": self.fmt.facts(),
             "base": self.family.key,
