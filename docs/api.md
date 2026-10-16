@@ -36,6 +36,8 @@ A NaN or infinity in the engine's probabilities (a model whose arithmetic does n
 The same holds for `POST /v1/answer` and for the examples of `POST /v1/tasks` and `POST /v1/abstention/tasks`.
 Fields the server does not know are ignored, so extensions (such as `orders`, for two-order averaging) and fields added to the wire format later do not break a request.
 
+**`adapter` (optional, decisio's extension).** The name of a LoRA adapter the server loaded with `--adapter name=path`; the question is then answered by the base with that adapter (text route only). Without the field, or with `null` or an empty string, the base answers. An unknown name is answered 404 with the name and the adapters that are loaded; a value that is not a string is 422. The response carries `"adapter": "<name>"` (and the header `x-decisio-adapter`) when an adapter answered. The registered tasks (calibration, intent head, certificates, abstention thresholds) were fitted on the base's readout, so a question that one of them matches is answered 400 with the task named, not with a correction that does not fit; the global temperature still applies. The task registration and certification routes refuse an `adapter` field instead of ignoring it. `POST /v1/answer` takes `adapter` too and reports it.
+
 Each question:
 
 | Field | Type | Meaning |
@@ -91,6 +93,7 @@ Response headers:
 - `x-decisio-server-ms`: the server's time for the request.
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
+- `x-decisio-adapter`: the adapter that answered, when one did.
 - `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the engine call itself; `wait` is the time before it, from the request reaching the engine until it took the engine's lock, so `engine + wait` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server.
 - `x-decisio-wait-behind`: `registration` when a boundary registration (`--register-boundary after`) was running when the request arrived, so the `wait` was behind it; absent otherwise. On `POST /v1/answer` the same facts are `timing.waited_ms` and `timing.waited_behind_registration`.
 

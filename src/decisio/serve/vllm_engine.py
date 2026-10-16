@@ -918,7 +918,7 @@ def make_app(engine, systemone=None, health=None):
         for q, p in zip(req.questions, probs):
             opts = ["yes", "no"] if q.get("kind", "choice") == "noul" else list(q["options"])
             answers.append({"options": opts, "probs": [float(x) for x in p]})
-        return {"answers": answers, "timing": info}
+        return {"answers": answers, "timing": info, **({"adapter": req.adapter} if req.adapter else {})}
 
     # this module has `from __future__ import annotations`, so `req: Request` is the string "Request", which FastAPI
     # cannot resolve for a class local to make_app and reads as a missing query parameter: every POST /v1/answer got
