@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1](https://github.com/aminry/decisio/compare/v0.15.0...v0.15.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **serve:** refuse a checkpoint of a model type no base serves instead of giving it the Qwen profile ([#213](https://github.com/aminry/decisio/issues/213)) ([a1bc43c](https://github.com/aminry/decisio/commit/a1bc43cdc8c21deb6f63c6d1bc505cee52b125bc))
+* **serve:** the MLX backend downloads --model at --revision, and the revision is in the fingerprint when given ([#210](https://github.com/aminry/decisio/issues/210)) ([3fdadd8](https://github.com/aminry/decisio/commit/3fdadd808b991bd9238bb5c761d59cb7405d78b2))
+
 ## [0.15.0](https://github.com/aminry/decisio/compare/v0.14.0...v0.15.0) (2026-10-17)
 
 
