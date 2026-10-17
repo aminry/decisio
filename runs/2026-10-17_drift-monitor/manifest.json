@@ -1,0 +1,13 @@
+{
+ "what": "The traffic monitor on a drift replay of the stored 31B with a CLINC150 task: the old answer-mix alert against a confidence CUSUM, with no-drift controls",
+ "date": "2026-10-17",
+ "decisio": "the feat/drift-monitor-v2 branch, based on main at 3fdadd8 (not released)",
+ "card": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, the reads of 2026-10-16",
+ "source": "our private records of the card session of 2026-10-16",
+ "files": {
+  "controls.json": "559b21805032da192c0e39e1e607dc2d08eb99fd78efa170ed10c994ca5d999c",
+  "detector_variants.txt": "375d5554ca7b1f979e550a7ed327628c6be9ae5e83c03492f5cc241232bb8ccc",
+  "replay.json": "ea5525d9098717374b10be3b7282913c9cf3c51b42d20e9324dfb577e26b75bf",
+  "summary.md": "ba2fc13c3bc3bd1967c75169cd8934eee8e0ac09aa5c2270d0dc70523a26a00a"
+ }
+}
