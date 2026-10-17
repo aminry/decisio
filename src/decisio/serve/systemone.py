@@ -928,17 +928,27 @@ class SystemOne:
         from decisio.readout.intent_head import apply_intent_head
 
         out = []
+        with_head = t["head"].get("applied") and self.hidden_engine is not None
         for state, q in pairs:
+            if with_head:
+                # the head's answer comes from the hidden-state read alone, as serving always read it. Registration
+                # used to make a plain read first and discard it, but that read ran before the hidden-state one, and on
+                # vLLM the hidden-state read then differs slightly from the same read made without it (the card session
+                # of 2026-10-16: 154 served above the threshold against 153 certified, whether read one at a time or
+                # 16 in flight).
+                eqh, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
+                lp, h = self.hidden_engine.readout(state, [eqh])[0]
+                p = apply_intent_head(lp, h, t["head"], t["options"])
+                if self.noul_commit and q.type == "noul":
+                    p = commit_noul(p)
+                out.append(np.asarray(p, dtype=np.float64))
+                continue
             eq, _, swapped = self.engine_question(q)
             probs, _ = self.engine.answer(state, [eq])
             p = np.asarray(probs[0], dtype=np.float64)
             if swapped:
                 p = p[::-1].copy()
-            if t["head"].get("applied") and self.hidden_engine is not None:
-                eqh, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                lp, h = self.hidden_engine.readout(state, [eqh])[0]
-                p = apply_intent_head(lp, h, t["head"], t["options"])
-            elif t["calibration"].get("applied"):
+            if t["calibration"].get("applied"):
                 p = apply_task_prior(log_probs(p), t["calibration"])
             else:
                 p = apply_temperature(p, self.temperature_of(q.type))

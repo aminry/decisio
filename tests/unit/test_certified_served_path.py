@@ -145,3 +145,31 @@ def test_s7_re_certification_makes_the_check_too():
     r = client.post("/v1/tasks/routing/certify", json={"examples": new})
     assert r.status_code == 200, r.text
     assert r.json()["certificate"]["served_check"]["n"] == 20
+
+
+def test_s8_a_head_question_is_one_hidden_state_read_and_no_plain_read(monkeypatch):
+    """The card session of 2026-10-16: registration read each certifying example plain and then hidden, serving only
+    hidden, and the two differ slightly on vLLM. Both are now the hidden read alone."""
+    import decisio.readout.intent_head as ih
+    from decisio.serve.systemone import SystemOne  # noqa: F401
+
+    class Hidden:
+        def __init__(self):
+            self.calls = []
+
+        def readout(self, state, questions):
+            self.calls.append(state["message"])
+            return [(np.array([0.0, 1.0, 2.0]), np.array([1.0]))]
+
+    client, so = make(engine=BatchEngine())
+    so.hidden_engine = Hidden()
+    monkeypatch.setattr(ih, "apply_intent_head", lambda lp, h, head, options: np.array([0.1, 0.2, 0.7]))
+    task = {"head": {"applied": True}, "calibration": {}, "options": ["a", "b", "c"]}
+    from decisio.serve.systemone import ChoiceQuestion
+
+    q = ChoiceQuestion(type="choice", instructions="Which?", criteria=CRIT)
+    before = so.engine.calls
+    out = so.served_rows(task, [({"message": "1:0.9:x"}, q), ({"message": "2:0.9:y"}, q)])
+    assert so.engine.calls == before  # the engine was never asked for a plain read
+    assert so.hidden_engine.calls == ["1:0.9:x", "2:0.9:y"]
+    assert all(np.allclose(p, [0.1, 0.2, 0.7]) for p in out)
