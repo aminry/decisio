@@ -34,6 +34,7 @@ from pathlib import Path
 
 import numpy as np
 
+from decisio.serve import engine_stream
 from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import LettersEngine
 
@@ -109,6 +110,9 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         )
         kw.update({k: v for k, v in (engine_kw or {}).items() if k != "limit_mm_per_prompt"})
         self.llm = LLM(**kw)
+        self._stream = (
+            engine_stream.capture()
+        )  # the stream the engine was built and warmed up on (decisio.serve.engine_stream)
         self.tok = self.llm.get_tokenizer()
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
@@ -187,9 +191,15 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         )
         return [o.outputs.data.float().cpu().numpy() for o in outs]
 
+    def bind_stream(self):
+        """Put the calling thread on the stream the engine was built on (decisio.serve.engine_stream)."""
+        engine_stream.bind(getattr(self, "_stream", None))
+
     def probe(self):
         """A pooling request over a one-token prompt (engine_health), the call this engine serves."""
         from vllm.inputs import TokensPrompt
+
+        self.bind_stream()
 
         self.llm.encode([TokensPrompt(prompt_token_ids=self.probe_ids())], pooling_task="embed", use_tqdm=False)
 

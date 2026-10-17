@@ -78,6 +78,7 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
+from decisio.serve import engine_stream  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
 from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
@@ -310,6 +311,9 @@ class LettersEngine:
         self.llm = LLM(**kw)
         if auto is not None:
             self._settle_context(auto)
+        self._stream = (
+            engine_stream.capture()
+        )  # the stream the engine was built and warmed up on (decisio.serve.engine_stream)
         self.tok = self.llm.get_tokenizer()
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
@@ -361,12 +365,19 @@ class LettersEngine:
         """The probe's prompt (decisio.serve.engine_health): one token."""
         return self.tok.encode("ok", add_special_tokens=False)[:1]
 
+    def bind_stream(self):
+        """Put the calling thread on the stream the engine was built on (engine_stream); `engine_health.guarded` and the
+        probe call it, so that no thread asks vLLM for a resource under a stream the warm-up never used."""
+        engine_stream.bind(getattr(self, "_stream", None))
+
     def probe(self):
         """The smallest call this engine serves, to tell a failed request from a dead engine (engine_health): one
         forward pass over a one-token prompt, as the warm-up's call (a pooling request in packed mode). Prompts shorter
         than a cache block leave the prefix cache as it was."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
+
+        self.bind_stream()
 
         prompt = [TokensPrompt(prompt_token_ids=self.probe_ids())]
         if self.mode == "packed":
