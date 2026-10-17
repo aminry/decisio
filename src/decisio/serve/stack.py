@@ -14,12 +14,13 @@ What it holds, and where each part comes from:
   engine        the engine and its version (vLLM, or MLX and mlx-lm, or transformers and torch), the card or device, the
                 dtype or quantisation, the KV cache dtype, the context length served (`max_model_len`: where it follows
                 the card's fit, another length is another compiled path, and it moved short answers by restart-sized
-                amounts on one card class), the attention backend, the block and cache-hit units
+                amounts on one card class), the attention backend, the block and cache-hit units, and the loaded
+                adapters: their names and the sha256 of each one's weights and configuration
   prompt        a hash of the token rows the server builds for a fixed probe question (so the tokenizer, the chat
   template,
                 the system turn and the rendering are all in it), and the prompt format's own facts
-  calibration   the temperatures served for the questions without a task correction, and the task's own fit (the prior's
-                and the head's arrays) as a digest
+  calibration   the temperatures served for the questions without a task correction (and each loaded adapter's own),
+                and the task's own fit (the prior's and the head's arrays) as a digest
   serving       the flags that change what is asked or returned: orders, multi-question mode, pad policy, option
   rendering,
                 abstention and --noul-commit
@@ -65,6 +66,7 @@ ENGINE_KEYS = (
     "tokenizer_json_sha256",
     "final_logit_softcap",
     "adapters",
+    "adapter_identity",
 )
 
 PROBE_STATE = "A state to check. " * 30
