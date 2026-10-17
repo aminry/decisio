@@ -217,6 +217,22 @@ def noul_as_letters(q, keys_shown: bool = False) -> tuple[dict, list[str]] | Non
 COMMIT_LO, COMMIT_HI = 0.20, 0.80
 
 
+# A certified task whose traffic alert is on stops certifying its answers (`certified_reason: traffic_changed`) until
+# the alert clears, unless its certify block says `"suspend_on_alert": false`. The promise is for traffic like the
+# examples.
+SUSPEND_ON_ALERT = True
+
+# a catch-all option: the words of an option's key that say "none of the above"
+CATCH_ALL = re.compile(
+    r"\b(other|others|none|neither|unknown|unclear|irrelevant|miscellaneous|misc|else|nonsense|oos|"
+    r"out[ _-]?of[ _-]?(scope|domain)|not[ _-]?applicable|n/?a|no[ _-]?intent|can'?t[ _-]?tell|cannot[ _-]?tell)\b"
+)
+
+
+def has_catch_all(keys) -> bool:
+    return any(CATCH_ALL.search(str(k).lower().replace("_", " ")) for k in keys)
+
+
 def commit_noul(p: np.ndarray) -> np.ndarray:
     """--noul-commit: a yes/no answer with 0.20 < P(yes) < 0.80 is reported at the band's edge on its own side, 0.80 if
     P(yes) > 0.5 and 0.20 otherwise (exactly 0.5 stays no, the served tie-break); outside the band it is unchanged. An
@@ -846,11 +862,15 @@ class SystemOne:
         from decisio.readout import certify
 
         spec = dict(spec or {})
-        unknown = sorted(set(spec) - {"alpha", "delta", "min_examples", "holdout", "examples"})
+        unknown = sorted(set(spec) - {"alpha", "delta", "min_examples", "holdout", "examples", "suspend_on_alert"})
         if unknown:
             raise ValueError(
-                f"certify: unknown settings {unknown}; the settings are alpha, delta, min_examples, holdout, examples"
+                f"certify: unknown settings {unknown}; the settings are alpha, delta, min_examples, holdout, examples, "
+                "suspend_on_alert"
             )
+        suspend = spec.get("suspend_on_alert", SUSPEND_ON_ALERT)
+        if not isinstance(suspend, bool):
+            raise ValueError("certify: suspend_on_alert is true or false")
         try:
             alpha, delta = float(spec.get("alpha", 0.05)), float(spec.get("delta", 0.1))
             holdout = float(spec.get("holdout", 0.5))
@@ -866,6 +886,7 @@ class SystemOne:
             "alpha": alpha,
             "delta": delta,
             "holdout": holdout,
+            "suspend_on_alert": suspend,
             "min_examples": max(asked, floor),
             "floor": floor,
             "asked": asked,
@@ -1035,8 +1056,19 @@ class SystemOne:
                 "summary": self.certificate_summary(cert),
             }
         )
+        cert["suspend_on_alert"] = settings["suspend_on_alert"]
+        if t.get("type", "choice") == "choice" and not has_catch_all(keys):
+            cert["warnings"] = [
+                {
+                    "code": "no_catch_all_option",
+                    "text": "This task has no option for a message that fits none of its labels (such as 'other' or "
+                    "'out of scope'), so such a message gets a wrong answer that can be certified. Add one, or rely on "
+                    "the traffic monitor, which watches the answer mix and the confidences.",
+                }
+            ]
+            cert["summary"] += " Warning: " + cert["warnings"][0]["text"]
         t["certificate"] = cert
-        t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"])
+        t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"], conf)
         return conf, chosen
 
     SERVED_CHECK_SHARE, SERVED_CHECK_MIN, SERVED_CHECK_MAX = 0.1, 20, 200
@@ -1130,7 +1162,12 @@ class SystemOne:
         from decisio.serve.tasks import example_digest
 
         old = t["certificate"]
-        spec = {**{k: old[k] for k in ("alpha", "delta")}, "min_examples": old.get("min_examples"), **(spec or {})}
+        spec = {
+            **{k: old[k] for k in ("alpha", "delta")},
+            "min_examples": old.get("min_examples"),
+            "suspend_on_alert": old.get("suspend_on_alert", False),
+            **(spec or {}),
+        }
         settings = self.certify_settings(spec)
         cert_ex = [(q, s, g) for s, q, g in examples]
         fit_digests = set(old["split"]["fit_digests"])
@@ -1172,8 +1209,10 @@ class SystemOne:
         else:
             reason = "below_threshold"
         m = self.task_store.monitors.get(t["id"])
+        if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", False):
+            reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
         if m is not None and not getattr(self._probe, "on", False):
-            m.observe(chosen, reason is None)
+            m.observe(chosen, reason is None, float(max(p)))
         out = {"certified": reason is None, "certificate": cert["id"]}
         if reason is not None:
             out["certified_reason"] = reason
@@ -1197,13 +1236,22 @@ class SystemOne:
         m = self.task_store.monitors.get(t["id"])
         f = m.facts() if m is not None else None
         state = f["state"] if f else "ok"
-        text = (
-            "traffic changed: the mix of chosen options moved away from the certification examples' (the certificate "
-            "is not "
-            "suspended; this alert says the traffic is not like the examples)"
-            if state == "traffic_changed"
-            else "ok"
-        )
+        if state == "traffic_changed":
+            what = " and ".join(
+                {"answer_mix": "the mix of chosen options", "confidence": "the confidences"}[x] for x in f["signals"]
+            )
+            if cert.get("suspend_on_alert") and "confidence" in f["signals"]:
+                text = (
+                    f"traffic changed: {what} moved away from the certification examples'; certification is "
+                    "suspended (every answer is certified: false) until the alert clears"
+                )
+            else:
+                text = (
+                    f"traffic changed: {what} moved away from the certification examples' (the certificate is not "
+                    "suspended; this alert says the traffic is not like the examples)"
+                )
+        else:
+            text = "ok"
         return {"state": state, "text": text, **({"monitor": f} if f else {})}
 
     def metrics_text(self) -> str:
@@ -1227,6 +1275,12 @@ class SystemOne:
             ]
             if f.get("distance") is not None:
                 rows.append(("decisio_task_mix_distance", f'task="{tid}"', f["distance"]))
+            if f.get("confidence"):
+                rows += [
+                    ("decisio_task_confidence_statistic", f'task="{tid}"', f["confidence"]["statistic"]),
+                    ("decisio_task_confidence_limit", f'task="{tid}"', f["confidence"]["limit"]),
+                    ("decisio_task_confidence_alerts_total", f'task="{tid}"', f["confidence"]["alerts"]),
+                ]
         helps = {
             "decisio_task_state": "gauge",
             "decisio_task_answers_total": "counter",
@@ -1235,6 +1289,9 @@ class SystemOne:
             "decisio_task_window_answers": "gauge",
             "decisio_task_mix_line": "gauge",
             "decisio_task_mix_distance": "gauge",
+            "decisio_task_confidence_statistic": "gauge",
+            "decisio_task_confidence_limit": "gauge",
+            "decisio_task_confidence_alerts_total": "counter",
         }
         out, seen = [], set()
         for name, labels, value in rows:
@@ -1703,7 +1760,7 @@ def add_routes(app, systemone: SystemOne):
             )
         refuse_adapter(body)
         examples = parse_examples(body["examples"])
-        spec = {k: body[k] for k in ("alpha", "delta", "min_examples") if k in body}
+        spec = {k: body[k] for k in ("alpha", "delta", "min_examples", "suspend_on_alert") if k in body}
         try:
             task = await run_in_threadpool(systemone.recertify_task, task_id, examples, spec)
         except KeyError:
