@@ -103,7 +103,7 @@ def test_s4_the_check_does_not_feed_the_monitor_and_is_skipped_when_nothing_is_c
     import decisio.serve.monitor as monitor
 
     orig = monitor.MixMonitor.observe
-    monitor.MixMonitor.observe = lambda self, chosen, ok: (seen.append(chosen), orig(self, chosen, ok))[1]
+    monitor.MixMonitor.observe = lambda self, chosen, ok, *rest: (seen.append(chosen), orig(self, chosen, ok, *rest))[1]
     try:
         r = post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}})
         assert r.json()["certificate"]["served_check"]["n"] == 20 and seen == []
