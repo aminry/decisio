@@ -454,6 +454,7 @@ class SystemOne:
         self.release_date, self.description = release_date, description
         self.branch_log = branch_log
         self._log_lock = threading.Lock()
+        self._probe = threading.local()  # set while a registration re-reads its sample through the serving path
 
     def models(self) -> dict:
         return {
@@ -537,13 +538,30 @@ class SystemOne:
             self.readout_task(q) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
             for i, q in enumerate(wire)
         ]
-        head = [i for i, t in enumerate(rts) if t is not None and t["head"].get("applied") and self.hidden_engine]
+        # a question of a certified task is scored by the function its certificate was made with (`served_rows`): one
+        # question at a time, in request order, never batched with the request's other questions (docs/tasks.md)
+        own = [
+            i
+            for i, t in enumerate(rts)
+            if t is not None
+            and t.get("certificate")
+            and wire[i].type != "score"
+            and orders == 1
+            and not abstain
+            and not use_image
+        ]
+        served = {i: self.served_rows(rts[i], [(req.state, wire[i])])[0] for i in own}
+        head = [
+            i
+            for i, t in enumerate(rts)
+            if t is not None and t["head"].get("applied") and self.hidden_engine and i not in served
+        ]
         if head and orders == 2:
             raise ValueError(
                 "the intent head is not combined with two-order averaging: a question of a task with a "
                 "head was asked with orders=2 (the head is bound to one option order)"
             )
-        gen = [i for i in range(len(names)) if i not in head]
+        gen = [i for i in range(len(names)) if i not in head and i not in served]
         engine_qs, plan = [qs[i] for i in gen], {}
         if orders == 2:
             for i in gen:
@@ -566,7 +584,13 @@ class SystemOne:
         answers, log = {}, []
         for i, (name, q, (eq, keys)) in enumerate(zip(names, wire, mapped)):
             t = rts[i]
-            if i in hidden:  # the intent head (reference arithmetic)
+            if i in served:  # a certified task's question: the registration's own function, already applied
+                p = served[i]
+                if swapped[i]:
+                    keys = ["yes", "no"]
+                if debug:
+                    dbg.setdefault(name, {}).update(path="served", task=t["id"], p=p.tolist())
+            elif i in hidden:  # the intent head (reference arithmetic)
                 from decisio.readout.intent_head import apply_intent_head
 
                 lp, h = hidden[i]
@@ -632,7 +656,7 @@ class SystemOne:
                 answers[name] = abstain_answer(q, keys, p)
                 continue
             # --noul-commit, the output transform, last (abstention answers above keep theirs)
-            if self.noul_commit and q.type == "noul":
+            if self.noul_commit and q.type == "noul" and i not in served:  # served rows are committed already
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
             if t is not None and t.get("certificate") and q.type != "score":
@@ -788,8 +812,9 @@ class SystemOne:
         if certify is None:
             return result
         task, fitted = result
-        self.attach_certificate(task, cert_ex, certify, split)  # certified: stored only once the certificate is made
+        registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
         self.task_store.put(task)
+        self.check_served(task, cert_ex, *registered)
         return task, fitted
 
     def with_readout_task(self, state, q, eq, p):
@@ -969,9 +994,10 @@ class SystemOne:
             cache[fit] = stack.sha256(self.stack_with_fit(t))
         return cache[fit]
 
-    def attach_certificate(self, t, cert_ex, settings, split) -> None:
+    def attach_certificate(self, t, cert_ex, settings, split):
         """Certify task `t` (fitted, not yet stored) on the held-out examples [(question, state, gold)] and attach the
-        certificate and the monitor's baseline to it."""
+        certificate and the monitor's baseline to it. Returns the held-out examples' registered confidences and chosen
+        options, for `check_served`."""
         from decisio.readout import certify
         from decisio.serve import monitor
         from decisio.serve.stack import sha256
@@ -1001,6 +1027,65 @@ class SystemOne:
         )
         t["certificate"] = cert
         t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"])
+        return conf, chosen
+
+    SERVED_CHECK_SHARE, SERVED_CHECK_MIN, SERVED_CHECK_MAX = 0.1, 20, 200
+
+    def check_served(self, t, cert_ex, conf, chosen) -> None:
+        """Re-read a sample of the held-out examples through the serving path (`answer`, one question per request) and
+        record how far the confidences it serves are from the ones the certificate was made on: the largest and the
+        99th-percentile difference, how many items changed sides of the threshold and how many changed their top
+        answer. A certified question is scored by the function that registered it, so on one stack this reads zero;
+        a nonzero value is the certificate's exposure, stated in the certificate and its summary. Not made when
+        nothing is certified (no answer would carry the promise); the answer-mix monitor does not see these reads."""
+        cert = t["certificate"]
+        if cert["threshold"] is None or not cert_ex:
+            return
+        import math
+
+        from decisio.serve.tasks import answer_keys
+
+        n = len(cert_ex)
+        k = min(n, max(self.SERVED_CHECK_MIN, math.ceil(self.SERVED_CHECK_SHARE * n)), self.SERVED_CHECK_MAX)
+        idx = sorted({int(i * n / k) for i in range(k)})
+        thr = cert["threshold"]
+        keys = answer_keys(cert_ex[0][0])
+        shifts, crossed, top_changed, applied = [], 0, 0, 0
+        self._probe.on = True
+        try:
+            for i in idx:
+                q, state, _ = cert_ex[i]
+                out = self.answer(SystemOneRequest(state=state, questions={"q": q}))
+                a = out["answers"]["q"]
+                applied += t["id"] in out["_timing"]["tasks"]
+                if a["type"] == "noul":
+                    p = np.array([a["noul"], 1.0 - a["noul"]])
+                else:
+                    p = np.array(list(a["probabilities"].values()), dtype=np.float64)
+                shifts.append(abs(float(max(p)) - float(conf[i])))
+                crossed += (float(max(p)) >= thr) != (float(conf[i]) >= thr)
+                top_changed += top_index(keys, p) != chosen[i]
+        except Exception as e:  # the check never blocks a registration; its failure is recorded
+            cert["served_check"] = {"error": f"{type(e).__name__}: {e}"}
+            return
+        finally:
+            self._probe.on = False
+        sh = np.asarray(shifts)
+        cert["served_check"] = {
+            "n": len(idx),
+            "task_applied": applied,
+            "max_shift": float(sh.max()),
+            "p99_shift": float(np.percentile(sh, 99)),
+            "crossed_threshold": int(crossed),
+            "top_answer_changed": int(top_changed),
+            "rule": "every 1/10th held-out example (20 to 200), each as a request of its own, through the serving path",
+        }
+        if crossed or sh.max() > 0:
+            cert["summary"] += (
+                f" Re-read through the serving path, {len(idx)} of the held-out examples moved by at most "
+                f"{sh.max():.2g} in confidence and {int(crossed)} changed sides of the threshold: served confidences "
+                "can differ from the ones this certificate was made on."
+            )
 
     @staticmethod
     def certificate_summary(c: dict) -> str:
@@ -1058,8 +1143,9 @@ class SystemOne:
             "rule": "re-certified on new examples that share no input with the fit",
         }
         new = {k: v for k, v in t.items() if k not in ("certificate", "monitor")}
-        self.attach_certificate(new, cert_ex, settings, split)
+        registered = self.attach_certificate(new, cert_ex, settings, split)
         store.put(new)
+        self.check_served(new, cert_ex, *registered)
         return new
 
     def certified_fields(self, t, q, keys, p, orders: int, chosen: int) -> dict:
@@ -1076,7 +1162,7 @@ class SystemOne:
         else:
             reason = "below_threshold"
         m = self.task_store.monitors.get(t["id"])
-        if m is not None:
+        if m is not None and not getattr(self._probe, "on", False):
             m.observe(chosen, reason is None)
         out = {"certified": reason is None, "certificate": cert["id"]}
         if reason is not None:
