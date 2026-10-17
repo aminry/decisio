@@ -283,6 +283,61 @@ To get the same answers on every card, give `--max-model-len` the same value on 
 
 **What is not measured.** Anything between the checked states and the ceilings other than what the session ran, the first and later question at those lengths, the prefix cache and the state boundary at that size, the temperatures (fitted on states of a few thousand tokens), and the accuracy of answers at long context on a suite (no suite here has a state over 32,768 tokens). A length that the card allows is not a length that was checked: to serve only what was measured, give `--max-model-len 32768`.
 
+## LoRA adapters
+
+`--adapter name=path` loads a vLLM-format LoRA adapter, and a request that names it (`"adapter": "<name>"`) is answered by the base with that adapter.
+The adapter is served unmerged, on the text route, in separate mode; the MLX backend refuses adapters.
+The request fields are in [api.md](api.md), the flags in [cli.md](cli.md).
+
+### An adapter's own temperatures
+
+The base's temperatures were fitted on the base's plain readouts, and an adapter changes the scale of the readout.
+Served at the base's, a tuned 31B hedged on 70.3% of a benchmark's yes/no items, which scored it -45 (its top answer was right on 70 of 74 of them, as the stored base's was).
+So an adapter carries its own temperatures, one per question type (`choice`, `noul` for yes/no, `score`), in a file `decisio_adapter.json` beside its weights, or in a file given with `--adapter-temperatures name=file` for an adapter whose folder is not yours to change:
+
+```json
+{"schema": "decisio.adapter/1",
+ "temperatures": {"choice": 2.141, "noul": 3.075, "score": 4.185},
+ "fit": {"objective": {"choice": "log_loss", "noul": "log_loss", "score": "log_loss"}, "n": {"choice": 173, "noul": 155, "score": 172}}}
+```
+
+- A request that names the adapter is served at them. A request that does not is served at the base's, as before.
+- A type the file does not list keeps the base's temperature. An adapter with no file is served at the base's, and the server says so when it starts.
+- The file is checked before the engine is built: the schema, the types, positive finite numbers, and that `--adapter-temperatures` names a loaded adapter.
+- `/health` shows them in `adapter_temperatures`, and the debug readout of a request names the adapter and the temperature it was served at.
+
+`python -m decisio.serve.adapter_temperatures fit` writes the file from the adapter's readouts on labelled items:
+
+```bash
+python -m decisio.serve.adapter_temperatures fit --reads reads.jsonl --out decisio_adapter.json --data "what the items are"
+```
+
+One row per item, `{"type": "choice" | "noul" | "score", "probs": [...], "gold": <index>}`, with the raw readout (`p_plain` of a `--debug-readout` response) or probabilities and the temperature they were served at (`"read_at"`).
+Every type is fitted by minimum log loss: the temperature at which the probabilities are calibrated on those items.
+Use items that are not a benchmark's; a temperature is a statement about the items it was fitted on, and an adapter fitted on hard public-source questions was underconfident on an easier set of synthetic ones (`runs/2026-10-17_adapter-temperatures/`).
+A score item sent as a choice question is served at the choice temperature, so name the temperature a row was served at.
+
+### Yes/no stays a probability
+
+An adapter's yes/no answer is the calibrated probability, and the server does not commit it.
+`--noul-commit` (the answer as 0.9 or 0.1) remains the operator's choice and applies to an adapter's answers as to the base's.
+On JevBench's 74 public yes/no items an honest adapter hedges (35.1% of its answers fall between 0.2 and 0.8, where the reading counts no answer), while a service that returns two constants never does; the top answers are the same.
+
+### Score questions
+
+A score answer is the expected position of the returned distribution, and JevBench scores that number.
+A calibrated distribution over levels is wider than the position error asks for, so a score temperature fitted by log loss pulls the expected position to the middle level.
+The fit tool's `--score-objective expected_position_error` fits the score temperature for the position error instead: the flattest temperature whose score CC is within one point of the best, which is sharper than the calibrated one, and the file says so in `fit.objective`.
+On the 18 public score items, with MeTask's adapter: 63.12 CC at the log-loss temperature, 70.09 at the expected-position one, 75.60 at MeTask's own temperature, which they fitted on those 18 items, against 73.21 for their service and 70.91 for the stored base (`runs/2026-10-17_adapter-temperatures/`).
+The gap to their service is that temperature, fitted on the items it is scored on, and not the readout.
+
+### Identity and the fingerprint
+
+The server hashes each adapter's weights file and configuration when it starts, and `/health` reports them in `adapter_identity`.
+The serving-stack fingerprint of [a certificate](tasks.md#where-it-stops) holds each loaded adapter's name, weights hash and temperatures, so a different adapter, a retrained one or a changed temperature is a different stack.
+A server with no adapter has none of these keys, and its certificates are unchanged.
+A request that names an adapter is never certified, and a question that a registered task matches is refused with an adapter, as [api.md](api.md) says.
+
 ## Ollama
 
 ```bash
