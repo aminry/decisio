@@ -1,0 +1,11 @@
+{
+ "what": "The stored Gemma 4 31B's two fresh starts in one card session (2026-10-16): how far the answers moved, and how many borderline items swapped sides of a confidence threshold",
+ "date": "2026-10-16",
+ "decisio": "0.14.0 with vLLM 0.31.0, --max-model-len 32768, VLLM_BATCH_INVARIANT unset",
+ "card": "NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 600 W, driver 595.99.02, AMD Threadripper PRO 7965WX (the earlier session: driver 615.71.09, AMD EPYC 9334)",
+ "source": "our private records of the card sessions of 2026-10-15 and 2026-10-16",
+ "files": {
+  "pair_statistics.json": "643477dcc34e3c368a899f4866852844b288713f7774d0c4dd8eba8e0756fef3",
+  "summary.md": "b8f78bd4bf33d9591d561a2986cd13203c20fb71f780ad3eb7754f90652be464"
+ }
+}
