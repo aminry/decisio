@@ -1,0 +1,148 @@
+{
+ "temperatures": {
+  "log_loss": {
+   "choice": 2.141,
+   "noul": 3.075,
+   "score": 4.185
+  },
+  "expected_position": {
+   "choice": 2.141,
+   "noul": 3.075,
+   "score": 2.864
+  }
+ },
+ "read_at": {
+  "choice": 4.672,
+  "noul": 5.252,
+  "score": 5.252
+ },
+ "H776_choice": {
+  "F": {
+   "accuracy": 0.8028,
+   "log_loss": 0.5783,
+   "ece": 0.0481
+  },
+  "A0": {
+   "accuracy": 0.8028,
+   "log_loss": 0.577,
+   "ece": 0.0889
+  },
+  "A_as_served_start1": {
+   "accuracy": 0.8376,
+   "log_loss": 0.8615,
+   "ece": 0.3774
+  },
+  "A_as_served_start2": {
+   "accuracy": 0.8363,
+   "log_loss": 0.8601,
+   "ece": 0.376
+  },
+  "M_start1": {
+   "accuracy": 0.8389,
+   "log_loss": 0.4395,
+   "ece": 0.0511
+  },
+  "M_start2": {
+   "accuracy": 0.8415,
+   "log_loss": 0.4411,
+   "ece": 0.0428
+  },
+  "A_adapter_temperatures_start1": {
+   "accuracy": 0.8376,
+   "log_loss": 0.5674,
+   "ece": 0.1741
+  },
+  "A_adapter_temperatures_start2": {
+   "accuracy": 0.8363,
+   "log_loss": 0.5648,
+   "ece": 0.1733
+  }
+ },
+ "dev500_A_start1": {
+  "choice": {
+   "n": 173,
+   "as_served": {
+    "accuracy": 0.7399,
+    "log_loss": 1.3894,
+    "ece": 0.3437
+   },
+   "refit_out_of_fold": {
+    "accuracy": 0.7399,
+    "log_loss": 0.9535,
+    "ece": 0.0359
+   }
+  },
+  "noul": {
+   "n": 155,
+   "as_served": {
+    "accuracy": 0.8323,
+    "log_loss": 0.4074,
+    "ece": 0.0934
+   },
+   "refit_out_of_fold": {
+    "accuracy": 0.8323,
+    "log_loss": 0.3735,
+    "ece": 0.0583
+   }
+  },
+  "score": {
+   "n": 172,
+   "as_served": {
+    "accuracy": 0.4826,
+    "log_loss": 1.2839,
+    "ece": 0.1033
+   },
+   "refit_out_of_fold": {
+    "accuracy": 0.4826,
+    "log_loss": 1.2816,
+    "ece": 0.0772
+   },
+   "position_cc_as_served": 47.67,
+   "position_cc_out_of_fold": 49.0
+  }
+ },
+ "jevbench_231": {
+  "A_as_served": {
+   "choice": 85.18,
+   "noul": -45.11,
+   "score": 58.59,
+   "noul_abstention": 0.703,
+   "I_open_A": 32.89
+  },
+  "A_adapter_temperatures_log_loss": {
+   "choice": 85.18,
+   "noul": 19.55,
+   "score": 63.12,
+   "noul_abstention": 0.351,
+   "I_open_A": 55.95
+  },
+  "A_adapter_temperatures_expected_position": {
+   "choice": 85.18,
+   "noul": 19.55,
+   "score": 70.09,
+   "noul_abstention": 0.351,
+   "I_open_A": 58.27
+  },
+  "A_at_MeTask_own_temperatures": {
+   "choice": 85.18,
+   "noul": 70.55,
+   "score": 75.6,
+   "noul_abstention": 0.095,
+   "I_open_A": 77.11
+  },
+  "M_as_served": {
+   "choice": 84.04,
+   "noul": 88.6,
+   "score": 73.21,
+   "noul_abstention": 0.0,
+   "I_open_A": 81.95
+  },
+  "F_as_served": {
+   "choice": 87.46,
+   "noul": 85.59,
+   "score": 70.91,
+   "noul_abstention": 0.014,
+   "I_open_A": 81.32
+  }
+ }
+}
