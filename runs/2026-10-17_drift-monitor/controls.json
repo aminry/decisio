@@ -1,0 +1,41 @@
+{
+ "d1": {
+  "calibration": 1535,
+  "test": 3080,
+  "tail_share_in_test": 0.0406,
+  "tail_share_baseline": 0.0502,
+  "first_alert": [
+   500,
+   [
+    "answer_mix"
+   ]
+  ],
+  "statistic_max_limit": 9.22
+ },
+ "d2": {
+  "calibration": 1535,
+  "test": 3080,
+  "tail_share_in_test": 0.0442,
+  "tail_share_baseline": 0.0502,
+  "first_alert": [
+   500,
+   [
+    "answer_mix"
+   ]
+  ],
+  "statistic_max_limit": 8.88
+ },
+ "d3": {
+  "calibration": 1535,
+  "test": 3080,
+  "tail_share_in_test": 0.0468,
+  "tail_share_baseline": 0.0502,
+  "first_alert": [
+   500,
+   [
+    "answer_mix"
+   ]
+  ],
+  "statistic_max_limit": 8.97
+ }
+}

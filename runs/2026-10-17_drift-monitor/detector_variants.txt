@@ -1,0 +1,21 @@
+# first pass: the likelihood ratio between the examples' own share and ratio x that share (no allowance for another split's normal traffic)
+old answer-mix monitor: line 0.278, distance range 0.178 to 0.287, first alert 5300, wrong certified from the rise to it: 1008
+q 0.05 (conf < 0.786, share 0.050) ratio 1.5: h 7.34  alarm at 1470  delay 470  wrong certified 32  | in-scope-only 4,500 messages: ALARM at 1778
+q 0.05 (conf < 0.786, share 0.050) ratio 2.0: h 8.60  alarm at 1497  delay 497  wrong certified 36  | in-scope-only 4,500 messages: ALARM at 2181
+q 0.05 (conf < 0.786, share 0.050) ratio 3.0: h 9.72  alarm at 1524  delay 524  wrong certified 39  | in-scope-only 4,500 messages: quiet
+q 0.10 (conf < 0.909, share 0.100) ratio 1.5: h 8.05  alarm at 1512  delay 512  wrong certified 38  | in-scope-only 4,500 messages: ALARM at 2067
+q 0.10 (conf < 0.909, share 0.100) ratio 2.0: h 9.22  alarm at 1626  delay 626  wrong certified 49  | in-scope-only 4,500 messages: quiet
+q 0.10 (conf < 0.909, share 0.100) ratio 3.0: h 10.45  alarm at 2032  delay 1032  wrong certified 109  | in-scope-only 4,500 messages: quiet
+q 0.20 (conf < 0.968, share 0.200) ratio 1.5: h 9.24  alarm at 1896  delay 896  wrong certified 87  | in-scope-only 4,500 messages: ALARM at 2194
+q 0.20 (conf < 0.968, share 0.200) ratio 2.0: h 10.10  alarm at 1995  delay 995  wrong certified 104  | in-scope-only 4,500 messages: quiet
+q 0.20 (conf < 0.968, share 0.200) ratio 3.0: h 10.76  alarm at 2016  delay 1016  wrong certified 106  | in-scope-only 4,500 messages: quiet
+
+# second pass: normal up to ok x the examples' share, alarm at bad x it; the row used is q 0.05 ok x1.3 bad x2.5
+q 0.05 ok x1.3 bad x2.5: h 8.7 alarm 1697 (delay 697, wrong certified 55)  in-scope-only: quiet
+q 0.05 ok x1.3 bad x2.0: h 8.0 alarm 1698 (delay 698, wrong certified 56)  in-scope-only: quiet
+q 0.05 ok x1.5 bad x3.0: h 8.9 alarm 1999 (delay 999, wrong certified 105)  in-scope-only: quiet
+q 0.05 ok x1.3 bad x3.0: h 9.0 alarm 1719 (delay 719, wrong certified 58)  in-scope-only: quiet
+q 0.1 ok x1.3 bad x2.5: h 9.8 alarm 2138 (delay 1138, wrong certified 123)  in-scope-only: quiet
+q 0.1 ok x1.3 bad x2.0: h 8.6 alarm 1999 (delay 999, wrong certified 105)  in-scope-only: quiet
+q 0.1 ok x1.5 bad x3.0: h 10.1 alarm 2389 (delay 1389, wrong certified 176)  in-scope-only: quiet
+q 0.1 ok x1.3 bad x3.0: h 10.5 alarm 2265 (delay 1265, wrong certified 150)  in-scope-only: quiet
