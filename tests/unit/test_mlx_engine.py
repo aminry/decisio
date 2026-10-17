@@ -42,7 +42,8 @@ TINY_TEXT = {
 def _main(monkeypatch, *argv):
     from decisio.serve import vllm_engine
 
-    monkeypatch.setattr(sys, "argv", ["vllm_engine", "--model", "m", *argv])
+    # --base names the profile: a checkpoint "m" of an unknown type would be refused before the flags are read
+    monkeypatch.setattr(sys, "argv", ["vllm_engine", "--base", "gemma-4-31b", "--model", "m", *argv])
     with pytest.raises(SystemExit) as e:
         vllm_engine.main()
     return e.value.code

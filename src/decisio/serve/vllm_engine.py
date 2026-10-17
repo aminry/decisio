@@ -1202,7 +1202,7 @@ def resolve_base(args):
         if args.model is None:
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
-        fam = family_of(args.model, args.revision)
+        fam = family_of(args.model, args.revision, lenient=args.backend == "hf")  # the stand-in takes any small model
     if args.backend == "mlx" and repo is None and declares_fp8(read_config(args.model, args.revision)):
         # a repository was checked by its decision_config.json above; any other checkpoint, by its own config.json
         raise ValueError(
