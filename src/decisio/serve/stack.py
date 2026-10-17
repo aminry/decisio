@@ -45,6 +45,7 @@ ENGINE_KEYS = (
     "device",
     "machine",
     "model",
+    "model_revision",
     "base",
     "quantization",
     "kv_cache_dtype",

@@ -457,3 +457,76 @@ def test_the_12b_budget_stays_under_two_thirds_of_a_32_gib_mac():
     peak_gb = 15.125
     budget_gb = BASES["gemma-4-12b"].mlx_prefix_cache_mb * 2**20 / 1e9
     assert round(line_gb, 3) == 22.906 and budget_gb < line_gb - peak_gb < 7.8
+
+
+# ---- --revision reaches the conversion's download (no MLX needed) -----------------------------------------------
+
+
+def test_the_conversion_is_downloaded_at_the_revision_given(tmp_path):
+    from decisio.serve.mlx_engine import fetch_model
+
+    seen = []
+
+    def fake(name, revision=None):
+        seen.append((name, revision))
+        return str(tmp_path)
+
+    assert fetch_model("owner/conv", "v0.15.0", download=fake) == tmp_path
+    assert fetch_model("owner/conv", download=fake) == tmp_path  # none given: the repository's main, as before
+    assert seen == [("owner/conv", "v0.15.0"), ("owner/conv", None)]
+    d = tmp_path / "conv"
+    d.mkdir()
+    assert fetch_model(str(d), download=fake) == d and len(seen) == 2  # a directory is not downloaded
+    with pytest.raises(ValueError, match="names a Hub revision, but --model .* is a directory"):
+        fetch_model(str(d), "v0.15.0", download=fake)
+
+
+def test_main_passes_revision_to_the_mlx_engine_and_reads_the_config_at_it(monkeypatch, tmp_path):
+    from decisio.serve import mlx_engine, vllm_engine
+
+    reads = []
+
+    def fake_hub_download(name, filename, revision=None):
+        reads.append((name, filename, revision))
+        (tmp_path / filename).write_text(json.dumps({"model_type": "gemma4", "quantization": {"bits": 4}}))
+        return str(tmp_path / filename)
+
+    got = {}
+
+    class Stop(Exception):
+        pass
+
+    class FakeEngine:
+        def __init__(self, model, **kw):
+            got.update(model=model, **kw)
+            raise Stop
+
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", fake_hub_download)
+    monkeypatch.setattr(mlx_engine, "MLXLettersEngine", FakeEngine)
+    for argv, revision in ((["--revision", "v0.15.0"], "v0.15.0"), ([], None)):
+        got.clear()
+        monkeypatch.setattr(
+            sys, "argv", ["vllm_engine", "--backend", "mlx", "--base", "gemma-4-31b", "--model", "owner/conv", *argv]
+        )
+        with pytest.raises(Stop):
+            vllm_engine.main()
+        assert got["model"] == "owner/conv" and got["revision"] == revision
+        assert ("owner/conv", "config.json", revision) in reads
+
+
+def test_the_revision_is_in_the_fingerprint_only_when_given():
+    from decisio.serve.stack import ENGINE_KEYS, stack_facts
+
+    assert "model_revision" in ENGINE_KEYS
+
+    class E:
+        def __init__(self, **kw):
+            self.kw = kw
+
+        def facts(self):
+            return {"engine": "mlx", "model": "owner/conv", **self.kw}
+
+    kw = {"decisio_version": "x", "serving": {}, "temperatures": {}, "task_fingerprint": None, "probe_sha256": "p"}
+    plain = stack_facts(E(), **kw)["engine"]
+    pinned = stack_facts(E(model_revision="v0.15.0"), **kw)["engine"]
+    assert "model_revision" not in plain and pinned["model_revision"] == "v0.15.0"

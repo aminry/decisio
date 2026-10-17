@@ -1683,6 +1683,7 @@ def main():
             cache_limit_gb=args.mlx_cache_limit_gb,
             pad_to=None if args.pad_to == "none" else args.pad_to,
             pad_where=args.pad_where,
+            revision=args.revision,
         )
     else:
         engine = LettersEngine(
