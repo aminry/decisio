@@ -153,7 +153,8 @@ uv sync --extra mlx
 uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --model mlx-community/gemma-4-31b-it-6bit
-uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --model tachara-ai/decisio-gemma-4-31b-mlx-4bit   # 48 GB Macs
+uv run hf download tachara-ai/decisio-gemma-4-31b-mlx-4bit --revision v0.15.0 --local-dir decisio-gemma-4-31b-mlx-4bit   # 48 GB Macs: the tag, not main
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --model decisio-gemma-4-31b-mlx-4bit
 ```
 
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
@@ -180,7 +181,7 @@ The Gemma base (`--base gemma-4-12b`):
 - It reads a new state more slowly than the Qwen base on the same Mac: one question on a new 1,000-token state takes 1,312 ms, against 515 ms for the Qwen base (server medians on an Apple M5 Pro with no other job running; `runs/2026-10-07_mlx-quiet-latency/`).
 
 The Gemma 31B base (`--base gemma-4-31b`):
-- The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the default, on a 64 GB Mac. The 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` (group size 32, 19.2 GB of weights) is for Macs with 48 GB of memory; its figures are below. The 8-bit one is not measured.
+- The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the default, on a 64 GB Mac. The 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` (group size 32, 19.2 GB of weights) is for Macs with 48 GB of memory; its figures are below. The MLX backend takes no revision for `--model`, so `--model tachara-ai/decisio-gemma-4-31b-mlx-4bit` would follow the repository's main; the command above downloads its tag `v0.15.0` (the build that was measured) to a directory and serves that. The 8-bit one is not measured.
 - Measured on one Apple M5 Pro with 64 GB; no smaller Mac was measured. GB are 1e9 bytes.
 - It peaks at 29.6, 31.1 and 33.7 GB at about 8k, 16k and 32k tokens of state, against the Mac's GPU memory limit of 55.7 GB.
 - **It is documented for states up to 16,383 tokens.** In the quiet reading (nothing else large running), macOS memory pressure stayed normal from the model's load through the 16k cells.
