@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/aminry/decisio/compare/v0.14.0...v0.15.0) (2026-10-17)
+
+
+### Features
+
+* **serve:** an adapter in the other tensor-name layout is mapped, not refused, and the check runs before the engine is built ([#198](https://github.com/aminry/decisio/issues/198)) ([530971b](https://github.com/aminry/decisio/commit/530971b41123dc376a3997e535129e25eea171ce))
+
+
+### Bug Fixes
+
+* **serve:** pin the 0.15.0 Hub revisions ([#204](https://github.com/aminry/decisio/issues/204)) ([02f6229](https://github.com/aminry/decisio/commit/02f6229c34ceb8979e2fb8d0942d2425eea9d6f7))
+
 ## [0.14.0](https://github.com/aminry/decisio/compare/v0.13.0...v0.14.0) (2026-10-16)
 
 
