@@ -58,7 +58,7 @@ Registering one question fits four things, in seconds to minutes: a **calibratio
 Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
 Every question you did not register is untouched.
 
-<!-- TEACH-IT PLACEHOLDERS (our teaching-study numbers, keys of the private launch facts under "teaching"; this section names the default 31B, the 12B reads gemma_4_12b; no Jev figure may appear here):
+<!-- TEACH-IT PLACEHOLDERS (the maintainers' teaching-study numbers, which are not published; this section names the default 31B, the 12B reads gemma_4_12b; no Jev figure may appear here):
      T1 teaching.by_base.gemma_4_31b.gatekeeper.n200.untaught.macro_f1      T2 teaching.by_base.gemma_4_31b.gatekeeper.n200.taught.macro_f1
      T3 teaching.by_base.gemma_4_31b.gatekeeper.n1000.taught.macro_f1       T4 on a public page: teaching.intent_heads.gemma_4_31b.banking77.taught (accuracy; quote its wording, draws and test items)
      T5, T6 post-hoc analysis: not for a public page yet
@@ -221,7 +221,7 @@ Ollama builds its own prompt and applies no calibration, so its numbers are the 
 
 ### On a GPU, with pip
 
-One NVIDIA card with 96 GB (the size everything below was measured on), Linux, Python 3.12:
+One NVIDIA card with 96 GB (the size everything below was measured on; the 31B also started and answered on an 80 GB H100, `docs/running.md`), Linux, Python 3.12:
 
 ```bash
 python3.12 -m venv .venv && . .venv/bin/activate
@@ -462,7 +462,7 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 
 | Machine | Path | Memory needed |
 | --- | --- | --- |
-| Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured; each base's weights are in [Choosing a base](#choosing-a-base) |
+| Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured (an 80 GB H100 also runs the 31B); each base's weights are in [Choosing a base](#choosing-a-base) |
 | Linux with one NVIDIA card and Docker | [Docker](#docker) | as the GPU server |
 | Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | each base's, in [docs/running.md](docs/running.md#mac-with-mlx) |
 | Mac, Linux or Windows with Ollama | [Ollama](#ollama) | 8.6 GB for the Gemma base's smallest tag, so a 16 GB laptop; each tag's size is on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio](https://ollama.com/aminroudaki/decisio)) |
@@ -481,7 +481,7 @@ uv sync --extra serve --frozen
 uv run python -m decisio.serve.vllm_engine
 ```
 
-With no flag the server serves Gemma 4 31B, the default base (a 96 GB card; [Choosing a base](#choosing-a-base) says when to pick another).
+With no flag the server serves Gemma 4 31B, the default base (measured on a 96 GB card; it also runs on an 80 GB H100; [Choosing a base](#choosing-a-base) says when to pick another).
 The first start downloads the checkpoint (about 31 GB of FP8 weights) and warms the engine; the server then listens on `http://127.0.0.1:8000`.
 Upgrading from a release before 0.10.0, where the container served the Qwen base: [docs/upgrading.md](docs/upgrading.md).
 
@@ -545,7 +545,7 @@ curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '
 }'
 ```
 
-Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (the same in 30 of 30 repeats on one server, in our private records of 2026-10-08; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
+Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (`runs/2026-10-08_readme-worked-decisions/ticket.json` holds the full response; the same response came back in 30 of 30 repeats on one server, measured by the maintainers and not published; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
 
 ```json
 {"answers": {
@@ -578,7 +578,7 @@ A checkpoint named with `--model` and no `--base` brings the base its `config.js
 
 | Base | Checkpoint | Provenance |
 | --- | --- | --- |
-| `gemma-4-31b` (default) | `tachara-ai/decisio-gemma-4-31b`: Google's `google/gemma-4-31B-it` at `842da379`, stored as FP8, 30.6 GiB in memory; `--model google/gemma-4-31B-it` serves Google's weights at the same revision instead, quantized to FP8 when they load (vLLM 0.30.0) | Official checkpoint from Google, at a pinned revision, quantized to FP8 once with the arithmetic vLLM uses on load (`python -m decisio.hub_fp8`); no training or fine-tuning by us; the repository's card states the check that its tensors equal the ones made on load |
+| `gemma-4-31b` (default) | `tachara-ai/decisio-gemma-4-31b`: Google's `google/gemma-4-31B-it` at `842da379`, stored as FP8, 30.6 GiB in memory; `--model google/gemma-4-31B-it` serves Google's weights at the same revision instead, quantized to FP8 when they load (measured on vLLM 0.30.0; the server now pins 0.31.0) | Official checkpoint from Google, at a pinned revision, quantized to FP8 once with the arithmetic vLLM uses on load (`python -m decisio.hub_fp8`); no training or fine-tuning by us; the repository's card states the check that its tensors equal the ones made on load |
 | `qwen3.6-35b-a3b` | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
 | `gemma-4-12b` | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
 
@@ -596,15 +596,15 @@ A base that is a third-party fine-tune names its publisher in the provenance col
 
 In plain words:
 - **Gemma 4 31B, the default, for accuracy.**
-  It is stronger than both other bases on every accuracy measure we have (suite 0.799 against 0.770 and 0.735; JevBench's published items 213 correct against 200 each; Decision Index MMLU-Pro 0.694 against 0.613 and 0.549).
-  It needs a 96 GB card on vLLM (its weights take 31 GB); on a 64 GB Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens ([Mac with MLX](#mac-with-mlx)).
+  It is stronger than both other bases on the suite, JevBench's published items and the Decision Index (suite 0.799 against 0.770 and 0.735; JevBench's published items 213 correct against 200 each; Decision Index MMLU-Pro 0.694 against 0.613 and 0.549); in the demos the 12B was the most accurate browser agent (below).
+  It is measured on a 96 GB card on vLLM (its weights take 31 GB) and also runs on an 80 GB H100 (`docs/running.md`); on a 64 GB Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens, and on a 48 GB Mac from its 4-bit conversion ([Mac with MLX](#mac-with-mlx)).
 - **Qwen3.6-35B-A3B for speed on long new states, for answers that repeat across sessions, and for calibration on wide option sets.**
   - A question on a new state reads 3.2 and 5.1 times faster than on the 31B at 1,000 and 3,000 tokens (50.0 and 85.2 ms against 160.1 and 438.1; 1.6 times at 300 tokens, 49.9 against 80.7), measured in one session on one card at 585 W (`runs/2026-10-06_latency-585w/`).
   - Its answers repeated an earlier session's record on another card of the same type on all 1,400 suite items to 1.1e-16 (`EVAL_CARD.md` 6.2), where the 31B's near-tied answers moved between sessions (7.5).
   - On the 77-option BANKING77 items of the suite its calibration error is 0.055 against the 31B's 0.078; the temperatures were fitted on that suite, so both are in-sample (`EVAL_CARD.md` 3, 4 and 7.2).
-- **Gemma 4 12B for machines without a 96 GB card.**
+- **Gemma 4 12B for machines smaller than the 31B's.**
   It runs on a 32 GB Mac from its MLX conversion ([Mac with MLX](#mac-with-mlx)), and its Ollama listing takes 8.6 GB loaded ([Ollama](#ollama)).
-  On vLLM its weights are the smallest of the three (22.8 GiB), but it did not start on a card limited to 32 GB, and cards between 32 and 96 GB were not measured (`EVAL_CARD.md` 6.6).
+  On vLLM its weights are the smallest of the three (22.8 GiB), but it did not start on a card limited to 32 GB; on an 80 GB H100 it served its ceiling of 65,536 tokens at the default share (`docs/running.md`), and cards between 32 and 80 GB were not measured (`EVAL_CARD.md` 6.6).
 - On JevBench's published items the 12B and Qwen are level (200 of 231 each).
 
 What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, each base with its own defaults, paired over the same items (95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):
