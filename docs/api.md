@@ -49,7 +49,7 @@ Each question:
 | --- | --- | --- |
 | `type` | `"noul"`, `"choice"` or `"score"` | yes/no, a choice among named options, or a level on an ordered scale |
 | `instructions` | string, object or array, optional | the question; an object or array is sent as compact JSON; absent or blank, a fixed default per type |
-| `criteria` | depends on `type` | `noul`: optional, `{"true": ..., "false": ...}` describing each side; `choice`: required, an object of option keys to descriptions (or `null`), up to 255 options; `score`: required, a list of level descriptions, lowest first |
+| `criteria` | depends on `type` | `noul`: optional, `{"true": ..., "false": ...}` describing each side; `choice`: required, an object of option keys to descriptions (or `null`), up to 255 options (more is 422); `score`: required, a list of level descriptions, lowest first |
 
 How a question is shown to the model (the layout, the yes/no rendering, which keys are shown) is set by the server's flags, listed in `docs/cli.md`; the answer keys are always the request's own.
 
@@ -106,11 +106,21 @@ Response headers:
 
 The served model in System One's format; the name is the base's served name unless `--served-name` sets another.
 
+## Where this route differs from System One
+
+The conformance gate C5 compares the request and response fields with System One's published OpenAPI document (version 0.2.0) and fails on any difference that is not in this list:
+- **`model` is optional.** System One requires it and refuses a request without it with 422; here a request without it is answered and the response names the served model.
+- **A score may have more than 10 levels.** System One refuses more than 10 with 422 (`too_long`); decisio accepts more (up to the engine's 255 labels) and does not cap them.
+- **`box` questions are not supported.** A request with `"type": "box"` is refused with 422.
+- **`assets` is not read.** System One's image placeholders (`assets`, with the placeholder text in the state) are ignored here, and the placeholder stays in the text; send images with `images`, as `data:image/...` URIs, or as a multipart request (above).
+- **`usage.output_tokens` is 1 per question**, not the tokens a generating model produced.
+- Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` names the served model, not `jev-latest`.
+
 ## What one request can hold
 
 Decisio sets no limit of its own on the size of a request body, on the number of questions in one request, or on the number of concurrent connections; uvicorn's defaults apply (no body limit, a backlog of 2,048). What bounds a request:
 - **The context.** The state with one question, as rendered, can hold up to the server's `max_model_len` tokens (at least 32,768; `/health` reports it and why, and `running.md` says how it is chosen); over it the answer is 422 (above).
-- **Options per question.** A choice has up to 255 options (the wire format's cap); more is refused with 400 and the detail `letter readout supports 1 to 255 options, got N` (checked on the stand-in with 256).
+- **Options per question.** A choice has up to 255 options (the wire format's cap); more is refused with 422 and a `too_long` detail, as System One does (`Dictionary should have at most 255 items after validation, not 256`). A score has no cap on its levels here (System One's is 10).
 - **Questions per request.** No cap: a request with no questions is 422, and any other number is answered. Each question costs its own time: with the default `--multi-question sequential` about 20 ms per further question on a cached state (`EVAL_CARD.md` section 4); with `--multi-question warm` the questions are scored in one batch, 5.4 ms per question at 100 questions and 2.7 ms at 1,000 on an 8,000-token state on the Qwen base (`EVAL_CARD.md` section 3, `runs/2026-09-30_plugin-verification/bench_patched_on.json`; the Gemma 31B's default is `warm`). The response and the batch grow with the question count, so for thousands of questions send several requests about the same state: the second and later read the state from the prefix cache.
 - **Concurrency.** The server runs one engine and its calls are serialized by a lock, so concurrent requests queue behind it and are answered in turn; there is no queue limit. It was measured with 32 and 64 concurrent clients sending first and follow-up questions about new 1,000-token states (`docs/running.md`, "A later question about the same state"); `x-decisio-stages` reports each request's wait (`wait=`), and `x-decisio-wait-behind: registration` says when it waited behind a background boundary registration.
 

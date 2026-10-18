@@ -59,7 +59,7 @@ A field decisio does not know is accepted and has no effect, so check that a fie
 The extensions decisio reads are `images` and `orders`.
 
 **Limits.**
-Up to 255 options per question (a request with more gets 400), a prompt of 32,768 tokens on the Qwen base (on a Gemma base the largest length the card holds, at most 98,304 on the 31B and 65,536 on the 12B, reported in `/health` as `max_model_len`; 32,768 with `--image-model`), and up to 2 images per request, which need a server started with `--image-model`.
+Up to 255 options per question (a request with more gets 422, as on System One), a prompt of 32,768 tokens on the Qwen base (on a Gemma base the largest length the card holds, at most 98,304 on the 31B and 65,536 on the 12B, reported in `/health` as `max_model_len`; 32,768 with `--image-model`), and up to 2 images per request, which need a server started with `--image-model`.
 
 **Errors.**
 A request that fails validation gets 422 and one the engine cannot answer gets 400, each with a `detail` naming the problem.

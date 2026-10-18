@@ -12,6 +12,10 @@ benchmark measurement in runs/.
       /health), as for the `/v1/answer` form.
   C4  paired probabilities over HTTP: each item's state is cached by a first `/v1/answer` call, then `/v1/answer` and
       `/v1/systemone` are asked in turn; their probabilities must be bit-identical (max abs delta p = 0).
+  C5  the wire against System One's published OpenAPI document (version 0.2.0, kept as a snapshot of structural facts in
+      `benchmarks/system_one_wire_0.2.0.json`): request fields, required fields, question types and the limits of their
+      criteria, and the response and answer fields. Offline. Every difference is named in DOCUMENTED_DIFFERENCES (and
+      in `docs/api.md`); a difference that is not named fails, and so does a named one that has gone away.
 
     python -m decisio.serve.systemone_conformance --url http://127.0.0.1:8000 --items conformance_items.json \
         --tokenizer $DECISIO_MODEL --block-size 1056 --out conformance.json
@@ -357,7 +361,182 @@ def gate_c4(url, items):
     }
 
 
+# ---- C5: the wire against System One's published OpenAPI document ---------------------------------------------------
+
+LIMIT_KEYS = ("minProperties", "maxProperties", "minItems", "maxItems")
+
+# What differs from System One's wire on purpose, in the words `c5_differences` uses; each is in docs/api.md.
+DOCUMENTED_DIFFERENCES = (
+    "request field `assets`: System One has it, decisio does not read it",
+    "request field `model`: required by System One, optional here",
+    "question type `box`: not supported",
+    "score criteria maxItems: System One 10, decisio none",
+)
+
+
+def _ref(doc_schemas: dict, ref: str) -> dict:
+    return doc_schemas[ref.rsplit("/", 1)[1]]
+
+
+def _facts_of(schema: dict) -> dict:
+    return {"properties": sorted(schema.get("properties", {})), "required": sorted(schema.get("required", []))}
+
+
+def _criteria_limits(schema: dict) -> dict:
+    crit = schema.get("properties", {}).get("criteria", {})
+    return {k: crit[k] for k in LIMIT_KEYS if k in crit}
+
+
+def wire_facts(openapi: dict, source: str = "https://api.typesafe.ai/openapi.json", fetched: str = "") -> dict:
+    """The structural facts of System One's request and response from its OpenAPI document (no descriptions)."""
+    sc = openapi["components"]["schemas"]
+    qmap = sc["Question"]["discriminator"]["mapping"]
+    amap = sc["Answer"]["discriminator"]["mapping"]
+    return {
+        "source": source,
+        "version": openapi["info"]["version"],
+        "fetched": fetched,
+        "request": {
+            **_facts_of(sc["SystemOneRequest"]),
+            "questions": {
+                k: sc["SystemOneRequest"]["properties"]["questions"][k]
+                for k in LIMIT_KEYS
+                if k in sc["SystemOneRequest"]["properties"]["questions"]
+            },
+        },
+        "question_types": {
+            t: {**_facts_of(_ref(sc, r)), "criteria": _criteria_limits(_ref(sc, r))} for t, r in qmap.items()
+        },
+        "noul_criteria": _facts_of(sc["NoulCriteria"]),
+        "response": _facts_of(sc["SystemOneResponse"]),
+        "usage": _facts_of(sc["Usage"]),
+        "answers": {t: _facts_of(_ref(sc, r)) for t, r in amap.items()},
+    }
+
+
+def decisio_wire_facts() -> dict:
+    """The same facts from decisio's own request models."""
+    sch = SystemOneRequest.model_json_schema()
+    defs = sch["$defs"]
+    qmap = sch["properties"]["questions"]["additionalProperties"]["discriminator"]["mapping"]
+    return {
+        "request": {
+            **_facts_of(sch),
+            "questions": {
+                k: sch["properties"]["questions"][k] for k in LIMIT_KEYS if k in sch["properties"]["questions"]
+            },
+        },
+        "question_types": {
+            t: {**_facts_of(_ref(defs, r)), "criteria": _criteria_limits(_ref(defs, r))} for t, r in qmap.items()
+        },
+        "noul_criteria": _facts_of(defs["NoulCriteria"]),
+    }
+
+
+def c5_differences(snapshot: dict) -> list[str]:
+    """Where decisio's request models differ from System One's, as sentences."""
+    ours, theirs = decisio_wire_facts(), snapshot
+    out = []
+    for f in sorted(set(theirs["request"]["properties"]) - set(ours["request"]["properties"])):
+        out.append(f"request field `{f}`: System One has it, decisio does not read it")
+    for f in sorted(set(ours["request"]["properties"]) - set(theirs["request"]["properties"])):
+        out.append(f"request field `{f}`: decisio has it, System One does not")
+    for f in sorted(set(theirs["request"]["required"]) - set(ours["request"]["required"])):
+        out.append(f"request field `{f}`: required by System One, optional here")
+    for f in sorted(set(ours["request"]["required"]) - set(theirs["request"]["required"])):
+        out.append(f"request field `{f}`: required here, not by System One")
+    if ours["request"]["questions"] != theirs["request"]["questions"]:
+        out.append(
+            f"questions limits: System One {theirs['request']['questions']}, decisio {ours['request']['questions']}"
+        )
+    for t in sorted(set(theirs["question_types"]) - set(ours["question_types"])):
+        out.append(f"question type `{t}`: not supported")
+    for t in sorted(set(ours["question_types"]) - set(theirs["question_types"])):
+        out.append(f"question type `{t}`: decisio has it, System One does not")
+    for t in sorted(set(theirs["question_types"]) & set(ours["question_types"])):
+        a, b = theirs["question_types"][t], ours["question_types"][t]
+        for key in ("properties", "required"):
+            if a[key] != b[key]:
+                out.append(f"{t} question {key}: System One {a[key]}, decisio {b[key]}")
+        for k in LIMIT_KEYS:
+            if a["criteria"].get(k) != b["criteria"].get(k):
+                mine, theirs_k = b["criteria"].get(k, "none"), a["criteria"].get(k, "none")
+                out.append(f"{t} criteria {k}: System One {theirs_k}, decisio {mine}")
+    if ours["noul_criteria"] != theirs["noul_criteria"]:
+        out.append(f"noul criteria fields: System One {theirs['noul_criteria']}, decisio {ours['noul_criteria']}")
+    return out
+
+
+def response_differences(snapshot: dict, response: dict) -> list[str]:
+    """What a `/v1/systemone` response lacks against System One's response, usage and answer fields (extra fields are
+    decisio's additions and are not differences). The response holds one answer per type it wants checked."""
+    out = []
+    for f in snapshot["response"]["required"]:
+        if f not in response:
+            out.append(f"response field `{f}` missing")
+    for f in snapshot["usage"]["required"]:
+        if f not in response.get("usage", {}):
+            out.append(f"usage field `{f}` missing")
+    for name, ans in response.get("answers", {}).items():
+        want = snapshot["answers"].get(ans.get("type"))
+        if want is None:
+            out.append(f"answer `{name}`: type {ans.get('type')!r} is not a System One answer type")
+            continue
+        for f in want["required"]:
+            if f not in ans:
+                out.append(f"{ans['type']} answer `{name}`: field `{f}` missing")
+    return out
+
+
+def gate_c5(snapshot: dict, responses: list[dict] | None = None):
+    """(pass, detail): every request difference is documented, every documented one still exists, and the responses
+    given carry System One's fields."""
+    diffs = c5_differences(snapshot)
+    undocumented = [d for d in diffs if d not in DOCUMENTED_DIFFERENCES]
+    stale = [d for d in DOCUMENTED_DIFFERENCES if d not in diffs]
+    resp = [d for r in (responses or []) for d in response_differences(snapshot, r)]
+    return not (undocumented or stale or resp), {
+        "system_one_version": snapshot["version"],
+        "differences": diffs,
+        "undocumented": undocumented,
+        "documented_but_gone": stale,
+        "response_missing": resp,
+    }
+
+
+def c5_main(argv):
+    ap = argparse.ArgumentParser(prog="systemone_conformance c5")
+    ap.add_argument("--snapshot", required=True, help="benchmarks/system_one_wire_0.2.0.json")
+    ap.add_argument("--url", help="a running server: one noul, one choice and one score question are asked and checked")
+    ap.add_argument("--refresh", help="a downloaded System One openapi.json: print the snapshot facts for it and exit")
+    a = ap.parse_args(argv)
+    if a.refresh:
+        print(json.dumps(wire_facts(json.load(open(a.refresh))), indent=1))
+        return 0
+    responses = []
+    if a.url:
+        import urllib.request
+
+        body = {
+            "state": "The shipment arrived two days late.",
+            "questions": {
+                "n": {"type": "noul", "instructions": "Was it late?"},
+                "c": {"type": "choice", "criteria": {"late": None, "on_time": None}},
+                "s": {"type": "score", "instructions": "How bad?", "criteria": ["fine", "bad", "terrible"]},
+            },
+        }
+        req = urllib.request.Request(
+            a.url.rstrip("/") + "/v1/systemone", json.dumps(body).encode(), {"Content-Type": "application/json"}
+        )
+        responses.append(json.load(urllib.request.urlopen(req, timeout=120)))
+    ok, detail = gate_c5(json.load(open(a.snapshot)), responses)
+    print(json.dumps({"C5": {"pass": ok, **detail}}, indent=1))
+    return 0 if ok else 1
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] == "c5":
+        sys.exit(c5_main(sys.argv[2:]))
     ap = argparse.ArgumentParser()
     ap.add_argument("--url", required=True)
     ap.add_argument("--items", required=True)

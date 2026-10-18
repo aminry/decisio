@@ -141,7 +141,7 @@ Where a row says the documentation does not state something, that is about the p
 | | decisio (all three bases unless noted) | Jev 1.13, as TypeSafe's documentation states it |
 | --- | --- | --- |
 | Question types | yes/no (`noul`), choice and score, on the same `/v1/systemone` wire format | "The three TypeSafe question types (Choice, Score, Noul)" ([primitives](https://docs.typesafe.ai/primitives)) |
-| Options per question | up to 255 named options per choice | "a maximum of 255 options per Choice"; a Score "accepts up to 10" levels ([API](https://docs.typesafe.ai/api)) |
+| Options per question | up to 255 named options per choice (more is 422, as there); a score has no cap on its levels | "a maximum of 255 options per Choice"; a Score "accepts up to 10" levels ([API](https://docs.typesafe.ai/api)) |
 | Several questions per request | the state is read once and shared by every question in the request | "System One models evaluate every question in a request in parallel." ([primitives](https://docs.typesafe.ai/primitives)) |
 | Context | 32,768 tokens per prompt: the state plus one question | "64k tokens per request; 32k tokens for `state` plus the longest question" ([models](https://docs.typesafe.ai/models)) |
 | Self-hosting | yes: one 96 GB card on vLLM, the Docker image, or a Mac (below) | served by "the same endpoint, `POST /v1/systemone`"; the pages read describe the hosted API and no self-hosted option ([models](https://docs.typesafe.ai/models)) |

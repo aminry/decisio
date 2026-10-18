@@ -63,10 +63,14 @@ class NoulQuestion(BaseModel):
     criteria: NoulCriteria | None = None
 
 
+# System One's cap on the options of a choice (`maxProperties: 255` in its OpenAPI): more is a 422 `too_long`, as there
+MAX_CHOICE_OPTIONS = 255
+
+
 class ChoiceQuestion(BaseModel):
     type: Literal["choice"]
     instructions: JSONContent | None = None
-    criteria: dict[str, JSONContent | None] = Field(..., min_length=1)
+    criteria: dict[str, JSONContent | None] = Field(..., min_length=1, max_length=MAX_CHOICE_OPTIONS)
 
 
 class ScoreQuestion(BaseModel):
