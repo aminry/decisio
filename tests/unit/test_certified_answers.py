@@ -368,7 +368,7 @@ def test_c5_an_edited_fit_suspends_the_certificate():
 def test_c6_the_monitor_counts_options_only_and_alerts_on_a_changed_mix():
     client, so = make()
     exs = examples(600, 0.96, seed=5)
-    t = post_task(client, {"id": "routing", "examples": exs, "certify": {}}).json()
+    t = post_task(client, {"id": "routing", "examples": exs, "certify": {"suspend_on_alert": False}}).json()
     base = monitor.baseline([0, 1, 2] * 100, 3, "x")
     assert base["window"] == 500 and base["step"] == 100 and len(base["option_counts"]) == 3 and 0 < base["line"] < 0.2
     mix0 = np.array(
