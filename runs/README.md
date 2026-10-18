@@ -5,7 +5,7 @@ Documents and pages cite these folders by path.
 
 ## Naming
 
-A new folder is named `YYYY-MM-DD_what-was-measured`, in lower case with hyphens: the date of the measurement and what it measured (`2026-10-17_drift-monitor`, `2026-10-18_adapter-fit`).
+A new folder is named `YYYY-MM-DD_what-was-measured`, in lower case with hyphens: the date of the measurement and what it measured (`2026-10-17_drift-monitor`, `2026-10-16_mlx-gemma-31b-4bit`).
 The name carries no session code, track code, machine name or person: a reader should be able to tell from it what the folder holds.
 Two measurements of one thing on one day add what tells them apart (`_12b`, `_after-restart`), not a letter or a counter.
 
