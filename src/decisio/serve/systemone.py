@@ -1666,7 +1666,7 @@ def add_routes(app, systemone: SystemOne):
         return payload, blobs, ext, {}, False
 
     async def system_one(request: Request):
-        from decisio.serve.image_engine import MAX_IMAGES, load_image
+        from decisio.serve.image_engine import DEFAULT_MAX_IMAGES, load_image
 
         payload, blobs, ext, legends, from_assets = await read(request)
         try:
@@ -1677,10 +1677,11 @@ def add_routes(app, systemone: SystemOne):
                 for err in e.errors(include_url=False)
             ]
             return JSONResponse({"detail": json.loads(json.dumps(detail, default=str))}, status_code=422)
-        if len(blobs) > MAX_IMAGES:
+        limit = getattr(systemone.image_engine, "max_images", DEFAULT_MAX_IMAGES)
+        if len(blobs) > limit:
             if from_assets:
-                raise ImageRequestError(f"at most {MAX_IMAGES} images per request; the placeholders make {len(blobs)}.")
-            raise HTTPException(422, f"at most {MAX_IMAGES} images per request; got {len(blobs)}")
+                raise ImageRequestError(f"at most {limit} images per request; the placeholders make {len(blobs)}.")
+            raise HTTPException(422, f"at most {limit} images per request; got {len(blobs)}")
         try:
             images = [load_image(b) for b in blobs]
         except (ValueError, OSError) as e:
@@ -1740,7 +1741,7 @@ def add_routes(app, systemone: SystemOne):
     # per-task abstention (decisio.serve.abstention; docs/handoffs/tasks.md): register a task from labelled
     # examples, each a /v1/systemone request (JSON, images as data URLs) with its answer (null: unanswerable)
     async def register(request: Request):
-        from decisio.serve.image_engine import MAX_IMAGES, load_image
+        from decisio.serve.image_engine import DEFAULT_MAX_IMAGES, load_image
 
         body = await request.json()
         if not isinstance(body, dict) or not body.get("id") or not isinstance(body.get("examples"), list):
@@ -1764,8 +1765,9 @@ def add_routes(app, systemone: SystemOne):
                     payload["state"], found = extract_state_images(payload["state"])
                     ext = ext or bool(found)
                     blobs += [decode_data_url(u) for u in found]
-                if len(blobs) > MAX_IMAGES:
-                    raise ValueError(f"at most {MAX_IMAGES} images per request")
+                limit = getattr(systemone.image_engine, "max_images", DEFAULT_MAX_IMAGES)
+                if len(blobs) > limit:
+                    raise ValueError(f"at most {limit} images per request")
                 req = SystemOneRequest.model_validate(payload)
                 images = [load_image(b) for b in blobs]
             except (ValueError, TypeError, OSError, ValidationError) as e:

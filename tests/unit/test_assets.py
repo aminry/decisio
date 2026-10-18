@@ -6,7 +6,7 @@ A1  an image sent through `assets` reaches the image engine exactly as the same 
     decisio already had: the same state, the same question texts and the same image, so the same probabilities
 A2  a placeholder is found in the state (a string, inside a string, inside an object or an array), in a question's
     instructions and in its criteria descriptions (choice, noul, score), not in option keys; longest name first
-A3  a placeholder used twice is two images, in reading order; more images than the image engine takes is a 400
+A3  a placeholder used twice is two images, in reading order; the count is the engine's (`max_images`), not a fixed 2
 A4  a placeholder with no asset stays text; an asset used nowhere, an empty `assets`, a nameless asset, a bad format,
     bad base64 and bytes that are not an image are 400 with System One's error shape
 A5  `format` may disagree with the bytes (the bytes decide, as on System One); `type` defaults to image
@@ -165,7 +165,7 @@ def test_a2_where_placeholders_are_found():
     assert img.calls[-1]["images"] == pixels  # PHOTO_10 (blue) first, then PHOTO_1 (red)
 
 
-def test_a3_a_placeholder_used_twice_is_two_images():
+def test_a3_a_placeholder_used_twice_is_two_images_and_the_engine_sets_the_count():
     c, _, img = make()
     r = c.post("/v1/systemone", json=req("PHOTO and PHOTO", assets={"PHOTO": asset(RED)}))
     assert (
@@ -173,12 +173,16 @@ def test_a3_a_placeholder_used_twice_is_two_images():
         and img.calls[-1]["state"] == "[image 1] and [image 2]"
         and len(img.calls[-1]["images"]) == 2
     )
-    r = c.post("/v1/systemone", json=req("PHOTO PHOTO PHOTO", assets={"PHOTO": asset(RED)}))
-    assert (
-        r.status_code == 400
-        and r.json()["detail"]["error_type"] == "api_usage_error"
-        and "at most 2 images" in r.json()["detail"]["message"]
-    )
+    # no cap of 2: the engine without a limit of its own takes the default (128); the context ends a request
+    r = c.post("/v1/systemone", json=req(" ".join(["PHOTO"] * 5), assets={"PHOTO": asset(RED)}))
+    assert r.status_code == 200 and len(img.calls[-1]["images"]) == 5
+    # an engine started with --max-images 3: a fourth image is a 400 that says so (and the images field is a 422)
+    img.max_images = 3
+    r = c.post("/v1/systemone", json=req("PHOTO PHOTO PHOTO PHOTO", assets={"PHOTO": asset(RED)}))
+    d = r.json()["detail"]
+    assert r.status_code == 400 and d["error_type"] == "api_usage_error" and "at most 3 images" in d["message"]
+    r = c.post("/v1/systemone", json=req("x", images=[data_url(RED)] * 4))
+    assert r.status_code == 422 and "at most 3 images" in r.json()["detail"]
 
 
 def test_a4_unusable_requests_are_400_in_system_ones_shape():
