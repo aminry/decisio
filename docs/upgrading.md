@@ -6,6 +6,27 @@
 What changes for a running deployment from one release to the next, newest first.
 The changelog (`CHANGELOG.md`) lists every change; this page is for the ones that change what a deployment serves.
 
+## 0.16.0: certified tasks, drift protection and the unknown-model refusal
+
+### What changed
+
+- **A certified task is watched for drift by its confidences, and stops certifying while the alert is on.** The traffic monitor gained a second signal beside the answer mix: a CUSUM on how often an answer's top probability falls below the certification examples' 5th percentile. When it alerts, every answer of the task is `certified: false` with the reason `traffic_changed` until it clears (`"suspend_on_alert": false` in the certify block only reports). On a replay where out-of-scope messages rose from message 1,000, the answer mix alerted after message 5,200 with 976 wrong certified answers served; the confidence signal alerts near message 1,700. Registration also warns (`certificate.warnings`) when a choice task has no catch-all option. Details: [`tasks.md`](tasks.md#the-monitor).
+- **A task certified before 0.16.0 has no confidence statistic, so it gets no drift protection until it is certified again.** Its monitor baseline was stored without one, and the statistic is built when the certificate is made. It keeps working as before (the answer mix alone, which reports and never suspends). **To get the protection:** certify it again on the running 0.16.0 server with `POST /v1/tasks/{id}/certify`, body `{"examples": [{"request": ..., "answer": ...}, ...]}` (labelled like the task's own; optionally `alpha`, `delta`, `min_examples`, `suspend_on_alert`), on examples that share no input with the task's fit, such as the held-out examples it was certified on. The fit is kept; the call returns the new certificate, and `suspend_on_alert` there is true unless you name it false, whatever the old certificate said. Check it took: `GET /v1/tasks/{id}` shows `status.monitor.confidence` (the statistic and its limit) and the certificate's `warnings`. Importing a task exported by an older version keeps its old certificate until you do this.
+- **A certified task's questions are scored by the function that certified them.** A question a certified task matches is scored alone, in request order, by the function the certificate was made with, not batched with the request's other questions, and a task with an intent head is certified on the hidden-state read alone (registration used to read each example plain first, which on vLLM moved the confidences slightly: a card session certified 153 answers where serving put 154 above the threshold). Registration records `served_check` (a sample of the held-out examples re-read through the serving path). A certificate made before 0.16.0 keeps its gap until it is made again.
+- **A `--model` of a type no base serves is refused** instead of being given the Qwen profile; `--base <key>` with the same `--model` is the explicit way to serve it (the CPU stand-in `--backend hf` is unchanged).
+- **The MLX backend downloads `--model` at `--revision`**, so `--model tachara-ai/decisio-gemma-4-31b-mlx-4bit --revision v0.15.0` pins the build.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A certified task made before 0.16.0 | Works as before; no confidence alert, so no suspension on drift | Certify it again on 0.16.0 (above) |
+| A certified task made on 0.16.0 | The confidence alert suspends certification while it is on | Nothing; `"suspend_on_alert": false` to only report |
+| A certified task with an intent head | Its next certificate is made on the hidden-state read alone | Nothing |
+| `--model` of a checkpoint no base serves, on vLLM or MLX | Refused at start with the supported bases named | Add `--base <key>` if it is that base's profile |
+| An MLX server with `--revision` | The conversion is downloaded at that revision (before, it was the repository's main) | Nothing |
+| A certified task, exported and imported | The export carries the new baseline and `suspend_on_alert` | Nothing |
+
 ## 0.14.0: the default context follows the card
 
 ### What changed
