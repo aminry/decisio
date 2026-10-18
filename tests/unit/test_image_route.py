@@ -13,7 +13,9 @@ checks are about the route, the prompt and the wire format, not about any number
       request uses its extension; text requests stay on the text engine with TypeSafe's format;
   I4  the paired text check: a text request through the text route and through the image engine (`x-decisio-route:
       image`) gives bit-identical probabilities;
-  I5  refusals are 422: three images, a bad data URL, a bad multipart request field, an unknown route.
+  I5  refusals are 422: three images, a bad data URL, a bad multipart request field, an unknown route;
+  I7  System One's `assets` (JSON `data_base64`, a multipart `part`) give the same probabilities as a data:image URI in
+      the state and as the images list with the marker written by hand, and carry no imajev fields.
 
 Needs transformers with the Qwen3.5 classes, torchvision, pillow, fastapi, httpx and python-multipart (the package's
 dependencies and the dev extra); I6 also needs imajev's harness (`imajev_bench`) and is skipped without it:
@@ -134,6 +136,33 @@ def test_i3_encodings_agree_and_route(served, picture):
     r_empty = client.post("/v1/systemone", json={**req, "images": []})  # the extension used, no image: text route
     assert r_empty.headers["x-decisio-route"] == "text"
     assert all(a["abstained"] is False for a in r_empty.json()["answers"].values())
+
+
+def test_i7_assets_agree_with_the_other_encodings(served, picture):
+    client, _, _ = served
+    asset = {"type": "image", "format": "png", "data_base64": base64.b64encode(png(picture)).decode()}
+    state = {**STATE, "photo": "PHOTO"}
+    uri_state = {**STATE, "photo": data_url(picture)}
+    r_assets = client.post("/v1/systemone", json={"state": state, "questions": QUESTIONS, "assets": {"PHOTO": asset}})
+    r_uri = client.post("/v1/systemone", json={"state": uri_state, "questions": QUESTIONS})
+    req = {"state": state, "questions": QUESTIONS, "assets": {"PHOTO": {"type": "image", "part": "p"}}}
+    r_part = client.post(
+        "/v1/systemone", data={"request": json.dumps(req)}, files={"p": ("p.png", png(picture), "image/png")}
+    )
+    hand = {**STATE, "photo": "[image 1]"}
+    r_hand = client.post("/v1/systemone", json={"state": hand, "questions": QUESTIONS, "images": [data_url(picture)]})
+    for r in (r_assets, r_uri, r_part, r_hand):
+        assert r.status_code == 200, r.text
+        assert r.headers["x-decisio-route"] == "image"
+    assert probs(r_assets.json()) == probs(r_uri.json()) == probs(r_part.json()) == probs(r_hand.json())
+    assert r_assets.json()["usage"] == r_uri.json()["usage"]
+    assert all("abstained" not in a for a in r_assets.json()["answers"].values())  # System One's fields only
+    # a placeholder in a question's instructions is the same as the marker written there
+    q_ph = {**QUESTIONS, "colour": {**QUESTIONS["colour"], "instructions": "Which colour is the mug in PHOTO?"}}
+    q_hand = {**QUESTIONS, "colour": {**QUESTIONS["colour"], "instructions": "Which colour is the mug in [image 1]?"}}
+    a = client.post("/v1/systemone", json={"state": STATE, "questions": q_ph, "assets": {"PHOTO": asset}})
+    b = client.post("/v1/systemone", json={"state": STATE, "questions": q_hand, "images": [data_url(picture)]})
+    assert a.status_code == b.status_code == 200 and probs(a.json()) == probs(b.json())
 
 
 def test_i4_paired_text_check(served):

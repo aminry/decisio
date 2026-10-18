@@ -78,6 +78,21 @@
   ],
   "required": []
  },
+ "asset": {
+  "properties": [
+   "data_base64",
+   "format",
+   "part",
+   "type"
+  ],
+  "required": [],
+  "format": [
+   "jpeg",
+   "jpg",
+   "png"
+  ],
+  "type": "image"
+ },
  "response": {
   "properties": [
    "answers",
