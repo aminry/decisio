@@ -250,9 +250,14 @@ def declares_fp8(config: dict) -> bool:
     return False
 
 
-def family_of(model: str | None, revision: str | None = None) -> Family:
-    """The base a checkpoint (a local directory or a hub id) belongs to; Qwen for anything unknown. DECISIO_BASE, when
-    set to a base's key, overrides the detection (tokenizer-only tests)."""
+def family_of(model: str | None, revision: str | None = None, lenient: bool = False) -> Family:
+    """The base a checkpoint (a local directory or a hub id) belongs to. No checkpoint named is the default base
+    (Qwen). A checkpoint whose config.json names a model type no base serves, or has no readable config.json, is
+    refused with the supported bases named: it used to be given the Qwen profile silently, whose classes, token
+    ranges and temperatures were fitted for another model. `--base <key>` with `--model` is the explicit way to serve a
+    checkpoint as a base's profile. `lenient` (the CPU stand-in, which serves a small Qwen3 model to develop the routes
+    and is not a measured system) keeps the old answer for them, the Qwen profile. DECISIO_BASE, when set to a base's
+    key, overrides the detection (tokenizer-only tests)."""
     forced = os.environ.get("DECISIO_BASE")
     if forced:
         if forced not in BASES:
@@ -263,4 +268,13 @@ def family_of(model: str | None, revision: str | None = None) -> Family:
     cfg = read_config(model, revision)
     mt = cfg.get("model_type")
     moe = bool((cfg.get("text_config") or cfg).get("enable_moe_block"))
-    return next((f for f in FAMILIES if mt in f.model_types and (f.moe is None or f.moe == moe)), QWEN)
+    found = next((f for f in FAMILIES if mt in f.model_types and (f.moe is None or f.moe == moe)), None)
+    if found is None and lenient:
+        return QWEN
+    if found is None:
+        what = f"its config.json names the model type {mt!r}" if mt else "its config.json could not be read"
+        raise ValueError(
+            f"--model {model}: {what}, which no supported base serves (the bases: {', '.join(sorted(BASES))}). "
+            "Give --base <key> with --model to serve a checkpoint as that base's profile, if it is one."
+        )
+    return found

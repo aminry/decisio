@@ -142,7 +142,9 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     assert (QWEN.temperature, QWEN.choice_temperature) == (SERVED_TEMPERATURE, SERVED_CHOICE_TEMPERATURE)
     qwen_dir, gemma_dir = _checkpoint(tmp_path, "qwen3_5_moe"), _checkpoint(tmp_path, "gemma4_unified")
     assert family_of(qwen_dir) is QWEN and family_of(gemma_dir) is GEMMA4
-    assert family_of(_checkpoint(tmp_path, "qwen3")) is QWEN  # the CPU stand-in's small models
+    assert family_of(_checkpoint(tmp_path, "qwen3"), lenient=True) is QWEN  # the CPU stand-in's small models
+    with pytest.raises(ValueError, match="no supported base serves"):  # anywhere else an unknown type is refused
+        family_of(_checkpoint(tmp_path, "qwen3"))
     # the Qwen base: the served defaults, unchanged
     a = _args(model=qwen_dir)
     fam, fmt = sv.resolve_base(a)
@@ -199,7 +201,8 @@ def test_b4_the_31b_base(tmp_path, monkeypatch):
     monkeypatch.delenv("DECISIO_BASE", raising=False)
     _fake_31b_repository(tmp_path, monkeypatch)
     assert family_of(_gemma4_checkpoint(tmp_path, "dense", False)) is GEMMA4_31B
-    assert family_of(_gemma4_checkpoint(tmp_path, "moe", True)) is QWEN  # not a base: the old default
+    with pytest.raises(ValueError, match="no supported base serves"):  # a MoE gemma4 is not a base: refused
+        family_of(_gemma4_checkpoint(tmp_path, "moe", True))
     a = _args(base="gemma-4-31b")
     fam, fmt = sv.resolve_base(a)
     repo = hub.REPOSITORIES["gemma-4-31b"]
@@ -319,11 +322,11 @@ def test_b8_another_checkpoint_gets_no_pin(base, tmp_path, monkeypatch):
     calls = _config_reader(monkeypatch)
     # a different hub repository, even one of the same family or one a base would otherwise be served from
     for model in ("Qwen/Qwen3-0.6B-Base", "Qwen/Qwen3.6-35B-A3B", "google/gemma-4-12B-it-other"):
-        a = _args(base=base, model=model)
+        a = _args(base=base, model=model, backend="hf" if base is None else "vllm")  # the stand-in takes any model
         sv.resolve_base(a)
         assert a.revision is None, model
     # a revision given for it is kept
-    a = _args(base=base, model="Qwen/Qwen3-0.6B-Base", revision="abc123")
+    a = _args(base=base, model="Qwen/Qwen3-0.6B-Base", revision="abc123", backend="hf" if base is None else "vllm")
     sv.resolve_base(a)
     assert a.revision == "abc123"
     calls.clear()
@@ -332,7 +335,7 @@ def test_b8_another_checkpoint_gets_no_pin(base, tmp_path, monkeypatch):
     local.mkdir(parents=True)
     monkeypatch.chdir(tmp_path)
     for model in (str(local), QWEN.model):
-        a = _args(base=base, model=model)
+        a = _args(base=base, model=model, backend="hf" if base is None else "vllm")
         sv.resolve_base(a)
         assert a.revision is None, model
     assert calls  # the configs were read, at no revision

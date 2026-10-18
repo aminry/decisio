@@ -77,6 +77,19 @@ PREFILL_STEP = 2048  # tokens per prefill chunk (bounds the attention layers' me
 PREFIX_CACHE_MB = 2048
 
 
+def fetch_model(model, revision=None, download=None):
+    """The directory of the MLX conversion `model` (a local directory, or a Hugging Face repository id) at `revision`.
+    A repository id downloads that revision (the repository's main when it is None); a local directory has no
+    revisions and is refused when one is given. `download` stands in for mlx_lm's, for tests."""
+    if Path(str(model)).is_dir():
+        if revision:
+            raise ValueError(f"--revision {revision} names a Hub revision, but --model {model} is a directory")
+        return Path(str(model))
+    if download is None:
+        from mlx_lm.utils import _download as download
+    return Path(download(str(model), revision=revision))
+
+
 def split_revision(tokenizer):
     """`repo@revision` -> (repo, revision); a local directory or a bare repository -> (it, None)."""
     t = str(tokenizer)
@@ -203,6 +216,7 @@ class MLXLettersEngine(LettersEngine):
         memory_limit_gb=None,
         cache_limit_gb=None,
         prefix_cache_explicit=False,
+        revision=None,
     ):
         import mlx.core as mx
         from mlx_lm import load
@@ -213,8 +227,9 @@ class MLXLettersEngine(LettersEngine):
         self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
         self.adapters = {}
         self.model_name = str(model)
+        self.revision = revision  # the conversion's Hub revision (None: the repository's main, or a local directory)
         # the base (decisio.families), from the conversion's config.json model_type unless given; Qwen for any other
-        self.family = family or family_of(str(model))
+        self.family = family or family_of(str(model), revision)
         self.official_tokenizer_sha256 = TOKENIZER_SHA256.get(self.family.key)
         if tokenizer is None:
             self.tokenizer_name, self.tokenizer_revision = self.family.model, self.family.revision
@@ -222,11 +237,9 @@ class MLXLettersEngine(LettersEngine):
             self.tokenizer_name, self.tokenizer_revision = split_revision(tokenizer)
         # MLX's memory and cache limits, set before the model is loaded (decisio.serve.mlx_memory); the conversion is
         # fetched first, as `load` would, so that its size is known
-        from mlx_lm.utils import _download
-
         from decisio.serve import mlx_memory
 
-        model_dir = _download(str(model))
+        model_dir = fetch_model(model, revision)
         self.memory = mlx_memory.setup(
             mx, model_dir, self.family, prefix_cache_mb, prefix_cache_explicit, memory_limit_gb, cache_limit_gb
         )
@@ -382,6 +395,7 @@ class MLXLettersEngine(LettersEngine):
             "device": str(mx.default_device()),
             "machine": platform.machine(),
             "model": self.model_name,
+            **({"model_revision": self.revision} if self.revision else {}),
             "quantization": quant,
             "tokenizer": self.tokenizer_name,
             "tokenizer_revision": self.tokenizer_revision,
