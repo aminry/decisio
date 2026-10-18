@@ -6,6 +6,22 @@
 What changes for a running deployment from one release to the next, newest first.
 The changelog (`CHANGELOG.md`) lists every change; this page is for the ones that change what a deployment serves.
 
+## 0.17.0: System One's `assets` are read, and too many options is a 422
+
+### What changed
+
+- **A choice with more than 255 options now returns 422 instead of 400.** It is System One's rejection, a `too_long` validation error at `body.questions.<name>.choice.criteria` (`Dictionary should have at most 255 items after validation, not 256`); before, the engine refused it with a 400 and a plain `letter readout supports 1 to 255 options` message. The limit itself, 255, is unchanged.
+- **System One's `assets` are now read.** A request that carried images as `assets` (placeholder names mapped to images, the placeholders written in the state or a question's text) was accepted before and answered **without its image**: the placeholder stayed text and nothing said so. Now every placeholder becomes the marker `[image N]` and its image goes to the image engine, in JSON (`data_base64`) and in multipart (`part`); a problem with an asset is a 400 in System One's `api_usage_error` shape. Details and the remaining differences from System One: [`api.md`](api.md#where-this-route-differs-from-system-one).
+- **A conformance gate, C5,** compares the request and response fields with System One's published OpenAPI document (`python -m decisio.serve.systemone_conformance c5 --snapshot benchmarks/system_one_wire_0.2.0.json`).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A client that checks for status 400 on a choice with more than 255 options | It now gets 422 | Accept 422 (System One's own code) |
+| A client that sent `assets` to decisio | Its answers before 0.17.0 were made without the images | Send them again on 0.17.0, on a server started with `--image-model` (the Qwen base); a text-only server answers with "no image engine" |
+| A client that sends no `assets` and stays under 255 options | Nothing changes | Nothing |
+
 ## 0.16.0: certified tasks, drift protection and the unknown-model refusal
 
 ### What changed
