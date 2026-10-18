@@ -21,6 +21,11 @@ A malformed request is answered with status 422 and a `detail` naming what is wr
 
 ## `POST /v1/systemone`
 
+This route follows TypeSafe's System One, so a System One client works unchanged.
+vLLM 0.32 also serves a route called `/v1/systemone` ([vLLM #59299](https://github.com/vllm-project/vllm/pull/59299)); it is not this wire.
+It defines `confidence` as the chosen option's probability over the whole vocabulary, where System One and decisio use the top probability rescaled from uniform (choice) and the concentration at the mode (score), and it takes up to 26 options per choice where System One and decisio take 255.
+Check which server a client is pointed at before comparing confidences or sending more than 26 options.
+
 ### Request
 
 | Field | Type | Meaning |
