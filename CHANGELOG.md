@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.16.0](https://github.com/aminry/decisio/compare/v0.15.0...v0.16.0) (2026-10-18)
+
+
+### Features
+
+* **serve:** a certified task's questions are scored by the function that certified them, and registration records how far the served confidences are ([#211](https://github.com/aminry/decisio/issues/211)) ([a494297](https://github.com/aminry/decisio/commit/a4942971ae605fd55609b19e591b387bef13b24e))
+* **serve:** a confidence signal in the traffic monitor, certification that stops while it alerts, and a warning for a task with no catch-all option ([#214](https://github.com/aminry/decisio/issues/214)) ([f7ba1ed](https://github.com/aminry/decisio/commit/f7ba1edd950964a80c85d3afc746b1182f20689c))
+
+
+### Bug Fixes
+
+* **serve:** refuse a checkpoint of a model type no base serves instead of giving it the Qwen profile ([#213](https://github.com/aminry/decisio/issues/213)) ([a1bc43c](https://github.com/aminry/decisio/commit/a1bc43cdc8c21deb6f63c6d1bc505cee52b125bc))
+* **serve:** the MLX backend downloads --model at --revision, and the revision is in the fingerprint when given ([#210](https://github.com/aminry/decisio/issues/210)) ([3fdadd8](https://github.com/aminry/decisio/commit/3fdadd808b991bd9238bb5c761d59cb7405d78b2))
+
 ## [0.15.0](https://github.com/aminry/decisio/compare/v0.14.0...v0.15.0) (2026-10-17)
 
 
