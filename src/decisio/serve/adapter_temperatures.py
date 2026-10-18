@@ -256,7 +256,7 @@ def main(argv=None):
         "--dev", required=True, help="the model's reads of the dev pool (typed: choice, yes/no, true score)"
     )
     sp.add_argument("--dev-keys", required=True, help="{id: {gold, type}} of the dev pool")
-    sp.add_argument("--variant", choices=("half0", "half1", "full", "dev"), default="half0")
+    sp.add_argument("--variant", choices=("half0", "half1", "full", "dev", "devhalf0", "devhalf1"), default="half0")
     sp.add_argument("--use", choices=("probs", "p_plain"), default="probs")
     sp.add_argument(
         "--served", default="", help="temperatures the reads were served at, e.g. choice=4.672,noul=5.252,score=5.252"

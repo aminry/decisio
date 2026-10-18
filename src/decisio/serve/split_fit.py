@@ -18,8 +18,10 @@ on the plain readout (`p_plain`, which `--debug-readout` returns at temperature 
 
 The variants are Lab 1's: `half0` fits on the items whose id has an even sha256 prefix (their V1, the headline) and
 reports the other half as held-out, `half1` the swap (V2), `full` all of the pool (V3), `dev` takes the choice fit from
-the dev pool too (V4). It never reads a benchmark: the pools are the program-keyed H pool and the public-source dev
-pool, and the keys files carry their gold answers.
+the dev pool too (V4), and `devhalf0` and `devhalf1` do the same on halves of the dev pool with the other half held
+out (the choice kappa of a model whose H-fitted choice temperature does not transfer to public-source questions).
+It never reads a benchmark: the pools are the program-keyed H pool and the public-source dev pool, and the keys files
+carry their gold answers.
 
     python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-keys h_keys.json \\
         --dev D_reads.jsonl.gz --dev-keys d500_keys.json --out decisio_adapter.json --variant half0
@@ -41,7 +43,7 @@ from decisio.serve.adapter_temperatures import SCHEMA, TYPES
 
 GRID = np.exp(np.linspace(math.log(0.2), math.log(8.0), 781))  # the kappa grid of Lab 1's fits
 SERVED = {"choice": 4.672, "noul": 5.252, "score": 5.252}  # decisio 0.14.0 to 0.16.0's defaults for the Gemma bases
-VARIANTS = ("half0", "half1", "full", "dev")
+VARIANTS = ("half0", "half1", "full", "dev", "devhalf0", "devhalf1")
 FLOOR = 1e-12  # a probability under this counts as this, as in Lab 1's log loss
 
 
@@ -152,7 +154,7 @@ def fit_split(
 
     pools = {
         "choice": ("dev", ids_of(dev_keys, dev_reads, "choice"))
-        if variant == "dev"
+        if variant in ("dev", "devhalf0", "devhalf1")
         else ("H", ids_of(h_keys, h_reads)),
         "noul": ("dev", ids_of(dev_keys, dev_reads, "noul")),
         "score": ("dev", ids_of(dev_keys, dev_reads, "score")),
@@ -161,9 +163,9 @@ def fit_split(
     for t in TYPES:
         src, ids = pools[t]
         reads, keys = (h_reads, h_keys) if src == "H" else (dev_reads, dev_keys)
-        h = 0 if variant == "half0" else 1
+        h = 0 if variant in ("half0", "devhalf0") else 1
         fit_ids = [i for i in ids if variant in ("full", "dev") or half(i) == h]
-        out_ids = [i for i in ids if variant in ("half0", "half1") and half(i) != h]
+        out_ids = [i for i in ids if variant in ("half0", "half1", "devhalf0", "devhalf1") and half(i) != h]
         if not fit_ids:
             raise ValueError(f"no {t} items to fit on in the {src} pool")
         P = [vec(reads[i], i) for i in fit_ids]
