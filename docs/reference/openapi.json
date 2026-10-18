@@ -1,0 +1,1886 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "decisio",
+    "version": "0.17.0",
+    "description": "The HTTP API of a decisio server: TypeSafe's System One wire on `POST /v1/systemone`, with routes for tasks, abstention, health and metrics. Generated from the server's code; `docs/api.md` is the prose.",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "What the server is serving",
+        "operationId": "health_route_health_get",
+        "responses": {
+          "200": {
+            "description": "What the server is serving.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The engine has died.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeadEngine"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/answer": {
+      "post": {
+        "summary": "The engine's own route (conformance gates and benchmarks)",
+        "operationId": "answer_v1_answer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "summary": "The served model, in System One's format",
+        "operationId": "models_v1_models_get",
+        "responses": {
+          "200": {
+            "description": "The served model.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/systemone": {
+      "post": {
+        "summary": "TypeSafe's System One wire: answer typed questions about a state",
+        "operationId": "system_one_v1_systemone_post",
+        "responses": {
+          "200": {
+            "description": "The answers, by the request's question names.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemOneResponse"
+                }
+              }
+            },
+            "headers": {
+              "x-decisio-server-ms": {
+                "description": "The server's time for the request, in milliseconds.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-route": {
+                "description": "The route that served it: `text` or `image`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-tasks": {
+                "description": "The registered tasks applied, when any were.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-adapter": {
+                "description": "The adapter that answered, when one did.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-stages": {
+                "description": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-wait-behind": {
+                "description": "`registration` when a boundary registration was running when the request arrived.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unusable asset (`api_usage_error`) or a request the engine cannot answer (`detail` string).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ImageError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorDetail"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "An adapter that is not loaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "A POST that is not JSON (or a multipart request without `x-decisio-client`)."
+          },
+          "422": {
+            "description": "A request that does not validate (for example a choice with more than 255 options).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "The model's arithmetic produced a non-finite probability (not the request's fault).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The engine has died; the server is exiting.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "description": "A state and typed questions (`noul`, `choice`, `score`), answered with probabilities and System One's confidence. Images go in `assets` (placeholders in the texts), in `images` (imajev), as `data:image` URIs in the state, or in a multipart request; they are served by the image engine (a server started with `--image-model`).",
+        "parameters": [
+          {
+            "name": "x-decisio-route",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "text",
+                "image"
+              ]
+            },
+            "description": "Choose the route explicitly; `image` sends a text request to the image engine (the paired check)."
+          },
+          {
+            "name": "x-decisio-debug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "readout",
+                "hidden"
+              ]
+            },
+            "description": "Add the raw readout to the response; only on a server started with `--debug-readout` (verification, never production)."
+          },
+          {
+            "name": "x-decisio-client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Required, with any value, on a `multipart/form-data` request (a request a browser can send without a preflight is refused with 415)."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SystemOneRequest"
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "request"
+                ],
+                "properties": {
+                  "request": {
+                    "description": "The JSON request, first.",
+                    "contentMediaType": "application/json",
+                    "contentSchema": {
+                      "$ref": "#/components/schemas/SystemOneRequest"
+                    }
+                  },
+                  "image": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "imajev's encoding: an image file (also `images`, `image[]`)."
+                  }
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "format": "binary",
+                  "description": "An image part named by the `part` of an asset (System One's encoding)."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/abstention/tasks": {
+      "get": {
+        "summary": "List per-task abstention thresholds",
+        "operationId": "tasks_v1_abstention_tasks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Register an abstention threshold from labelled examples",
+        "operationId": "register_v1_abstention_tasks_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbstentionRegistration"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks": {
+      "post": {
+        "summary": "Register a recurring question from labelled examples (calibration, intent head, certificate)",
+        "operationId": "register_readout_v1_tasks_post",
+        "responses": {
+          "200": {
+            "description": "The task's record: what was fitted, what is applied, the certificate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRecord"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskRegistration"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List the registered tasks (`full=1` for the form `/v1/tasks/import` takes)",
+        "description": "Every registered task; `?full=1` includes the heads' arrays, the form `--tasks-file` loads. A certified task\nalso carries its `status` (ok, traffic_changed or suspended).",
+        "operationId": "readout_tasks_v1_tasks_get",
+        "parameters": [
+          {
+            "name": "full",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Full"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks/{task_id}": {
+      "get": {
+        "summary": "One task with its status",
+        "description": "One task, with its status and the answer-mix monitor's facts when it is certified.",
+        "operationId": "readout_task_one_v1_tasks__task_id__get",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a task",
+        "operationId": "remove_readout_task_v1_tasks__task_id__delete",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks/{task_id}/certify": {
+      "post": {
+        "summary": "Make a task's certificate again under the current serving stack",
+        "operationId": "certify_readout_v1_tasks__task_id__certify_post",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new certificate.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRecord"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CertifyRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Prometheus metrics (including the traffic monitor's)",
+        "description": "Per certified task, in Prometheus text format: state, answers, certified answers, answer-mix distance.",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks/import": {
+      "post": {
+        "summary": "Load tasks exported with `GET /v1/tasks?full=1`",
+        "description": "Load tasks as `GET /v1/tasks?full=1` returns them (no re-scoring); refused when fitted under another model or\nrendering (re-register those from their examples).",
+        "operationId": "import_readout_tasks_v1_tasks_import_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskImport"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "Asset": {
+        "description": "System One's image asset: an image that replaces its placeholder, with its bytes in `data_base64` (and their\n`format`), or, in a multipart request, the name of the image part that holds them.",
+        "properties": {
+          "type": {
+            "const": "image",
+            "default": "image",
+            "title": "Type",
+            "type": "string"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "png",
+                  "jpg",
+                  "jpeg"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Format"
+          },
+          "data_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Data Base64"
+          },
+          "part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Part"
+          }
+        },
+        "title": "Asset",
+        "type": "object"
+      },
+      "ChoiceQuestion": {
+        "properties": {
+          "type": {
+            "const": "choice",
+            "title": "Type",
+            "type": "string"
+          },
+          "instructions": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instructions"
+          },
+          "criteria": {
+            "additionalProperties": {
+              "anyOf": [
+                {},
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "maxProperties": 255,
+            "minProperties": 1,
+            "title": "Criteria",
+            "type": "object"
+          }
+        },
+        "required": [
+          "type",
+          "criteria"
+        ],
+        "title": "ChoiceQuestion",
+        "type": "object"
+      },
+      "NoulCriteria": {
+        "properties": {
+          "true": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "True"
+          },
+          "false": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "False"
+          }
+        },
+        "title": "NoulCriteria",
+        "type": "object"
+      },
+      "NoulQuestion": {
+        "properties": {
+          "type": {
+            "const": "noul",
+            "title": "Type",
+            "type": "string"
+          },
+          "instructions": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instructions"
+          },
+          "criteria": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoulCriteria"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "NoulQuestion",
+        "type": "object"
+      },
+      "ScoreQuestion": {
+        "properties": {
+          "type": {
+            "const": "score",
+            "title": "Type",
+            "type": "string"
+          },
+          "instructions": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instructions"
+          },
+          "criteria": {
+            "items": {},
+            "minItems": 1,
+            "title": "Criteria",
+            "type": "array"
+          }
+        },
+        "required": [
+          "type",
+          "criteria"
+        ],
+        "title": "ScoreQuestion",
+        "type": "object"
+      },
+      "SystemOneRequest": {
+        "additionalProperties": true,
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              }
+            ],
+            "title": "State"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Model"
+          },
+          "questions": {
+            "additionalProperties": {
+              "discriminator": {
+                "mapping": {
+                  "choice": "#/components/schemas/ChoiceQuestion",
+                  "noul": "#/components/schemas/NoulQuestion",
+                  "score": "#/components/schemas/ScoreQuestion"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/NoulQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/ChoiceQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/ScoreQuestion"
+                }
+              ]
+            },
+            "minProperties": 1,
+            "title": "Questions",
+            "type": "object"
+          },
+          "assets": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/Asset"
+                },
+                "minProperties": 1,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Assets"
+          }
+        },
+        "required": [
+          "state",
+          "questions"
+        ],
+        "title": "SystemOneRequest",
+        "type": "object"
+      },
+      "ChoiceAnswer": {
+        "additionalProperties": true,
+        "properties": {
+          "certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Present when a registered certified task applies: whether this answer carries the promise.",
+            "title": "Certified"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The certificate's id, with `certified`.",
+            "title": "Certificate"
+          },
+          "certified_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "below_threshold",
+                  "nothing_certified",
+                  "serving_stack_changed",
+                  "traffic_changed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Why `certified` is false.",
+            "title": "Certified Reason"
+          },
+          "unknown_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension (its encodings only): the probability of an unknown outcome.",
+            "title": "Unknown Probability"
+          },
+          "abstained": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension, and abstention tasks: whether the server abstained.",
+            "title": "Abstained"
+          },
+          "type": {
+            "const": "choice",
+            "title": "Type",
+            "type": "string"
+          },
+          "choice": {
+            "description": "The most probable option's key; among tied options the key that sorts first.",
+            "title": "Choice",
+            "type": "string"
+          },
+          "confidence": {
+            "description": "System One's: the top probability rescaled from uniform.",
+            "title": "Confidence",
+            "type": "number"
+          },
+          "probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "The distribution over the options, by key.",
+            "title": "Probabilities",
+            "type": "object"
+          }
+        },
+        "required": [
+          "type",
+          "choice",
+          "confidence",
+          "probabilities"
+        ],
+        "title": "ChoiceAnswer",
+        "type": "object"
+      },
+      "NoulAnswer": {
+        "additionalProperties": true,
+        "properties": {
+          "certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Present when a registered certified task applies: whether this answer carries the promise.",
+            "title": "Certified"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The certificate's id, with `certified`.",
+            "title": "Certificate"
+          },
+          "certified_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "below_threshold",
+                  "nothing_certified",
+                  "serving_stack_changed",
+                  "traffic_changed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Why `certified` is false.",
+            "title": "Certified Reason"
+          },
+          "unknown_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension (its encodings only): the probability of an unknown outcome.",
+            "title": "Unknown Probability"
+          },
+          "abstained": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension, and abstention tasks: whether the server abstained.",
+            "title": "Abstained"
+          },
+          "type": {
+            "const": "noul",
+            "title": "Type",
+            "type": "string"
+          },
+          "noul": {
+            "description": "The probability of yes.",
+            "title": "Noul",
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "noul"
+        ],
+        "title": "NoulAnswer",
+        "type": "object"
+      },
+      "ScoreAnswer": {
+        "additionalProperties": true,
+        "properties": {
+          "certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Present when a registered certified task applies: whether this answer carries the promise.",
+            "title": "Certified"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The certificate's id, with `certified`.",
+            "title": "Certificate"
+          },
+          "certified_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "below_threshold",
+                  "nothing_certified",
+                  "serving_stack_changed",
+                  "traffic_changed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Why `certified` is false.",
+            "title": "Certified Reason"
+          },
+          "unknown_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension (its encodings only): the probability of an unknown outcome.",
+            "title": "Unknown Probability"
+          },
+          "abstained": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension, and abstention tasks: whether the server abstained.",
+            "title": "Abstained"
+          },
+          "type": {
+            "const": "score",
+            "title": "Type",
+            "type": "string"
+          },
+          "score": {
+            "description": "The probability-weighted mean level.",
+            "title": "Score",
+            "type": "number"
+          },
+          "confidence": {
+            "description": "System One's: the concentration at the mode.",
+            "title": "Confidence",
+            "type": "number"
+          },
+          "legend": {
+            "additionalProperties": true,
+            "description": "Each level's index and description, as the request wrote it.",
+            "title": "Legend",
+            "type": "object"
+          },
+          "probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "description": "The distribution over the levels, by index.",
+            "title": "Probabilities",
+            "type": "object"
+          }
+        },
+        "required": [
+          "type",
+          "score",
+          "confidence",
+          "legend",
+          "probabilities"
+        ],
+        "title": "ScoreAnswer",
+        "type": "object"
+      },
+      "Usage": {
+        "properties": {
+          "input_tokens": {
+            "description": "The state and each question's own text in the served tokenizer, plus the image tokens.",
+            "title": "Input Tokens",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "description": "One per question.",
+            "title": "Output Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "input_tokens",
+          "output_tokens"
+        ],
+        "title": "Usage",
+        "type": "object"
+      },
+      "SystemOneResponse": {
+        "properties": {
+          "model": {
+            "description": "The served model's name.",
+            "title": "Model",
+            "type": "string"
+          },
+          "answers": {
+            "additionalProperties": {
+              "discriminator": {
+                "mapping": {
+                  "choice": "#/components/schemas/ChoiceAnswer",
+                  "noul": "#/components/schemas/NoulAnswer",
+                  "score": "#/components/schemas/ScoreAnswer"
+                },
+                "propertyName": "type"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/NoulAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/ChoiceAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/ScoreAnswer"
+                }
+              ]
+            },
+            "description": "By the request's question names.",
+            "title": "Answers",
+            "type": "object"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The adapter that answered, when the request named one.",
+            "title": "Adapter"
+          }
+        },
+        "required": [
+          "model",
+          "answers",
+          "usage"
+        ],
+        "title": "SystemOneResponse",
+        "type": "object"
+      },
+      "ModelEntry": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "release_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Release Date"
+          }
+        },
+        "required": [
+          "name",
+          "description"
+        ],
+        "title": "ModelEntry",
+        "type": "object"
+      },
+      "ModelList": {
+        "properties": {
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/ModelEntry"
+            },
+            "title": "Models",
+            "type": "array"
+          }
+        },
+        "required": [
+          "models"
+        ],
+        "title": "ModelList",
+        "type": "object"
+      },
+      "HealthResponse": {
+        "additionalProperties": true,
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "engine": {
+            "default": null,
+            "description": "The engine's facts (vLLM version, GPU, mode, padding, quantization); the string `dead` once it has died.",
+            "title": "Engine"
+          },
+          "base": {
+            "default": null,
+            "description": "The base, the checkpoint and its revision, `engine_process`, the temperatures and the prompt.",
+            "title": "Base"
+          },
+          "systemone": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The System One route's settings: rendering, `noul_commit`, abstention, `orders`, tasks, temperatures.",
+            "title": "Systemone"
+          },
+          "image_engine": {
+            "default": null,
+            "description": "The image engine's facts (including `max_images`), when `--image-model` is set.",
+            "title": "Image Engine"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "DeadEngine": {
+        "properties": {
+          "ok": {
+            "const": false,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "engine": {
+            "const": "dead",
+            "title": "Engine",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Exit Code"
+          }
+        },
+        "required": [
+          "ok",
+          "engine",
+          "reason"
+        ],
+        "title": "DeadEngine",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "properties": {
+          "detail": {
+            "description": "What is wrong.",
+            "title": "Detail",
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "Detail": {
+        "properties": {
+          "error_type": {
+            "const": "api_usage_error",
+            "title": "Error Type",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "error_type",
+          "message"
+        ],
+        "title": "Detail",
+        "type": "object"
+      },
+      "ImageError": {
+        "properties": {
+          "detail": {
+            "$ref": "#/components/schemas/Detail"
+          }
+        },
+        "required": [
+          "detail"
+        ],
+        "title": "ImageError",
+        "type": "object"
+      },
+      "TaskExample": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/SystemOneRequest",
+            "description": "A /v1/systemone request with exactly one question (text only for POST /v1/tasks)."
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The option key; null for an unanswerable example (abstention tasks).",
+            "title": "Answer"
+          }
+        },
+        "required": [
+          "request",
+          "answer"
+        ],
+        "title": "TaskExample",
+        "type": "object"
+      },
+      "CertifyBlock": {
+        "properties": {
+          "alpha": {
+            "default": 0.05,
+            "description": "At most this share of the certified answers is wrong.",
+            "title": "Alpha",
+            "type": "number"
+          },
+          "delta": {
+            "default": 0.1,
+            "description": "The promise fails with at most this probability.",
+            "title": "Delta",
+            "type": "number"
+          },
+          "min_examples": {
+            "default": 59,
+            "description": "Fewest held-out examples the procedure may use.",
+            "title": "Min Examples",
+            "type": "integer"
+          },
+          "holdout": {
+            "default": 0.5,
+            "description": "The share of the task's examples held out when `examples` is not given.",
+            "title": "Holdout",
+            "type": "number"
+          },
+          "suspend_on_alert": {
+            "default": true,
+            "description": "Stop certifying while the traffic monitor's confidence alert is on.",
+            "title": "Suspend On Alert",
+            "type": "boolean"
+          },
+          "examples": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskExample"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Labelled like the task's own; never fitted on.",
+            "title": "Examples"
+          }
+        },
+        "title": "CertifyBlock",
+        "type": "object"
+      },
+      "TaskRegistration": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaskExample"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "certify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CertifyBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "id",
+          "examples"
+        ],
+        "title": "TaskRegistration",
+        "type": "object"
+      },
+      "CertifyRequest": {
+        "properties": {
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaskExample"
+            },
+            "title": "Examples",
+            "type": "array"
+          },
+          "alpha": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Alpha"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Delta"
+          },
+          "min_examples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Min Examples"
+          },
+          "suspend_on_alert": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Suspend On Alert"
+          }
+        },
+        "required": [
+          "examples"
+        ],
+        "title": "CertifyRequest",
+        "type": "object"
+      },
+      "TaskImport": {
+        "properties": {
+          "tasks": {
+            "description": "Tasks as `GET /v1/tasks?full=1` returns them.",
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "tasks"
+        ],
+        "title": "TaskImport",
+        "type": "object"
+      },
+      "AbstentionRegistration": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "option": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "`{\"key\": \"<the request's own abstain key>\"}` or `{\"append\": \"<text of an option the server adds>\"}`.",
+            "title": "Option",
+            "type": "object"
+          },
+          "match": {
+            "enum": [
+              "option_set",
+              "option_keys",
+              "imajev_extension"
+            ],
+            "title": "Match",
+            "type": "string"
+          },
+          "examples": {
+            "items": {
+              "$ref": "#/components/schemas/TaskExample"
+            },
+            "title": "Examples",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "option",
+          "match",
+          "examples"
+        ],
+        "title": "AbstentionRegistration",
+        "type": "object"
+      },
+      "TaskRecord": {
+        "additionalProperties": true,
+        "properties": {
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Format"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Id"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Key"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Type"
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Options"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fingerprint"
+          },
+          "calibration": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Calibration"
+          },
+          "head": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Head"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Certificate"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Status"
+          }
+        },
+        "title": "TaskRecord",
+        "type": "object"
+      },
+      "AnswerRequest": {
+        "properties": {
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              }
+            ],
+            "title": "State"
+          },
+          "questions": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "adapter": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Adapter"
+          }
+        },
+        "type": "object",
+        "required": [
+          "state",
+          "questions"
+        ],
+        "title": "AnswerRequest"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8000",
+      "description": "The default host and port (`--host`, `--port`)"
+    }
+  ]
+}
