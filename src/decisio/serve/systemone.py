@@ -34,7 +34,7 @@ import time
 from typing import Annotated, Any, Literal
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve.engine_health import client_error
@@ -82,6 +82,16 @@ class ScoreQuestion(BaseModel):
 Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion, Field(discriminator="type")]
 
 
+class Asset(BaseModel):
+    """System One's image asset: an image that replaces its placeholder, with its bytes in `data_base64` (and their
+    `format`), or, in a multipart request, the name of the image part that holds them."""
+
+    type: Literal["image"] = "image"  # System One's schema requires nothing of an asset
+    format: Literal["png", "jpg", "jpeg"] | None = None
+    data_base64: str | None = None
+    part: str | None = None
+
+
 class SystemOneRequest(BaseModel):
     model_config = ConfigDict(extra="allow")  # extensions (`orders`) and fields TypeSafe may add later are ignored
     state: str | dict[str, Any] | list[Any]
@@ -89,6 +99,9 @@ class SystemOneRequest(BaseModel):
     # optional here and the response names the served model when it is absent
     model: str | None = None
     questions: dict[str, Question] = Field(..., min_length=1)
+    # System One's images: placeholders in the state and the questions' texts, replaced by these (`bind_assets` does it
+    # before the request is validated, so a validated request never carries them)
+    assets: dict[str, Asset] | None = Field(None, min_length=1)
 
 
 # ---- mapping --------------------------------------------------------------------------------------------------------
@@ -395,6 +408,104 @@ def extract_state_images(state):
         return node
 
     return walk(state), found
+
+
+class ImageRequestError(ValueError):
+    """An image problem in a request that uses `assets`. System One answers these with 400 and
+    `{"detail": {"error_type": "api_usage_error", "message": ...}}` (the route's handler does the same)."""
+
+
+def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
+    """System One's `assets`: every placeholder (an asset's name, found as or inside a string of the state, a question's
+    instructions or its criteria's descriptions, longest name first) becomes the marker "[image N]", N counting the
+    occurrences in reading order (the state, then each question: instructions, then criteria), and the asset's bytes
+    become image N, once per occurrence, exactly as a data:image URI in the state does (`extract_state_images`). Option
+    keys are not searched. Returns (the payload without `assets`, the images' bytes in order, the score questions'
+    original levels by name, so the legend can show the text the caller wrote). `parts`: a multipart request's image
+    parts by name. Raises ImageRequestError for an asset that is not usable or never used, an image part that no asset
+    uses or two assets share."""
+    assets = payload.pop("assets", None)
+    if assets is None:
+        return payload, [], {}
+    if not isinstance(assets, dict) or not assets:
+        raise ImageRequestError("assets must be a non-empty object of placeholder names to images.")
+    data: dict[str, bytes] = {}
+    used_parts: set[str] = set()
+    for name, raw in assets.items():
+        if not isinstance(name, str) or not name:
+            raise ImageRequestError("Each asset needs a nonempty placeholder name.")
+        try:
+            asset = Asset.model_validate(raw)
+        except ValidationError:
+            raise ImageRequestError(f'Asset "{name}": an image asset has type "image" and format png, jpg or jpeg.')
+        if asset.part is not None:
+            if not parts or asset.part not in parts:
+                raise ImageRequestError(f'Asset "{name}": no image part named "{asset.part}" in the request.')
+            if asset.part in used_parts:
+                raise ImageRequestError(f'Image part "{asset.part}" is used by more than one asset.')
+            used_parts.add(asset.part)
+            data[name] = parts[asset.part]
+            continue
+        if asset.format is None:
+            raise ImageRequestError(f'Asset "{name}": format must be png, jpg or jpeg.')
+        try:
+            blob = base64.b64decode(asset.data_base64 or "", validate=True)
+        except ValueError:
+            raise ImageRequestError(f'Asset "{name}": data_base64 is not valid base64.')
+        if not blob:
+            raise ImageRequestError(f'Asset "{name}": data_base64 is empty.')
+        data[name] = blob
+    unused_parts = sorted(set(parts or ()) - used_parts)
+    if unused_parts:
+        raise ImageRequestError(f'Image part "{unused_parts[0]}" is not used by any asset.')
+
+    pattern = re.compile("|".join(re.escape(n) for n in sorted(data, key=len, reverse=True)))
+    blobs: list[bytes] = []
+    used: set[str] = set()
+
+    def sub(text: str) -> str:
+        def one(m):
+            blobs.append(data[m.group(0)])
+            used.add(m.group(0))
+            return f"[image {len(blobs)}]"
+
+        return pattern.sub(one, text)
+
+    def walk(node):
+        if isinstance(node, str):
+            return sub(node)
+        if isinstance(node, list):
+            return [walk(x) for x in node]
+        if isinstance(node, dict):
+            return {k: walk(v) for k, v in node.items()}
+        return node
+
+    legends: dict[str, list] = {}
+    out = dict(payload)
+    if "state" in out:
+        out["state"] = walk(out["state"])
+    if isinstance(out.get("questions"), dict):
+        qs = {}
+        for qname, q in out["questions"].items():
+            if not isinstance(q, dict):
+                qs[qname] = q
+                continue
+            q = dict(q)
+            if "instructions" in q:
+                q["instructions"] = walk(q["instructions"])
+            crit = q.get("criteria")
+            if isinstance(crit, dict):  # option keys are answers' names: only the descriptions are searched
+                q["criteria"] = {k: walk(v) for k, v in crit.items()}
+            elif isinstance(crit, list):
+                if q.get("type") == "score":
+                    legends[qname] = list(crit)
+                q["criteria"] = walk(crit)
+            qs[qname] = q
+        out["questions"] = qs
+    unused = [n for n in data if n not in used]
+    if unused:
+        raise ImageRequestError(f'Asset "{unused[0]}" is not used: its name appears in no text of the request.')
+    return out, blobs, legends
 
 
 def option_set(q, described: bool = False) -> str:
@@ -1465,6 +1576,10 @@ def add_routes(app, systemone: SystemOne):
         if hit is not None:
             raise HTTPException(*hit) from e
 
+    @app.exception_handler(ImageRequestError)
+    def image_request_error(request, exc):
+        return JSONResponse({"detail": {"error_type": "api_usage_error", "message": str(exc)}}, status_code=400)
+
     @app.exception_handler(NonFiniteReadout)
     async def non_finite_readout(request, exc):
         facts = systemone.engine.facts()
@@ -1483,8 +1598,12 @@ def add_routes(app, systemone: SystemOne):
         return systemone.models()
 
     async def read(request: Request):
+        """The body as (payload, image bytes, imajev's extension used, the score levels as written, whether `assets`
+        bound the images). `assets` (System One's images) replaces its placeholders by "[image N]" markers and takes the
+        images from the asset's `data_base64`, or from the multipart part its `part` names."""
         ctype = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
         blobs = []
+        parts = None
         if ctype == "multipart/form-data":
             form = await request.form()
             raw = form.get("request")
@@ -1496,11 +1615,25 @@ def add_routes(app, systemone: SystemOne):
                 raise HTTPException(422, f"the 'request' form field is not valid JSON: {e}")
             if not isinstance(payload, dict):
                 raise HTTPException(422, "the 'request' form field must be a JSON object")
-            for key in ("image", "images", "image[]"):
-                for f in form.getlist(key):
+            if "assets" in payload:  # System One's multipart: the request first, then every image as a part of its own
+                items = form.multi_items()
+                if not items or items[0][0] != "request":
+                    raise ImageRequestError(
+                        'A multipart request must start with a "request" part holding the JSON request.'
+                    )
+                parts = {}
+                for key, f in items[1:]:
+                    if not key or key in parts:
+                        raise ImageRequestError("Each part needs a unique, nonempty name.")
                     if isinstance(f, str):
-                        raise HTTPException(422, f"form field {key!r} must be an uploaded file")
-                    blobs.append(await f.read())
+                        raise ImageRequestError(f'Part "{key}" must be an uploaded image.')
+                    parts[key] = await f.read()
+            else:
+                for key in ("image", "images", "image[]"):
+                    for f in form.getlist(key):
+                        if isinstance(f, str):
+                            raise HTTPException(422, f"form field {key!r} must be an uploaded file")
+                        blobs.append(await f.read())
             ext = True
         else:
             try:
@@ -1509,6 +1642,8 @@ def add_routes(app, systemone: SystemOne):
                 raise HTTPException(422, f"request body is not valid JSON: {e}")
             if not isinstance(payload, dict):
                 raise HTTPException(422, "request body must be a JSON object")
+            if "assets" in payload and "images" in payload:
+                raise ImageRequestError('A request carries its images in "assets" or in "images", not both.')
             ext = "images" in payload
             imgs = payload.pop("images", None) or []
             if not isinstance(imgs, list):
@@ -1517,6 +1652,9 @@ def add_routes(app, systemone: SystemOne):
                 blobs += [decode_data_url(u) for u in imgs]
             except (ValueError, TypeError) as e:
                 raise HTTPException(422, str(e))
+        if "assets" in payload:  # System One's images; the imajev encodings are not read beside them
+            payload, blobs, legends = bind_assets(payload, parts)
+            return payload, blobs, False, legends, True
         if payload.get("state") is not None:
             payload["state"], found = extract_state_images(payload["state"])
             if found:
@@ -1525,12 +1663,12 @@ def add_routes(app, systemone: SystemOne):
                     blobs += [decode_data_url(u) for u in found]
                 except (ValueError, TypeError) as e:
                     raise HTTPException(422, f"image in the state: {e}")
-        return payload, blobs, ext
+        return payload, blobs, ext, {}, False
 
     async def system_one(request: Request):
         from decisio.serve.image_engine import MAX_IMAGES, load_image
 
-        payload, blobs, ext = await read(request)
+        payload, blobs, ext, legends, from_assets = await read(request)
         try:
             req = SystemOneRequest.model_validate(payload)
         except ValidationError as e:
@@ -1540,10 +1678,14 @@ def add_routes(app, systemone: SystemOne):
             ]
             return JSONResponse({"detail": json.loads(json.dumps(detail, default=str))}, status_code=422)
         if len(blobs) > MAX_IMAGES:
+            if from_assets:
+                raise ImageRequestError(f"at most {MAX_IMAGES} images per request; the placeholders make {len(blobs)}.")
             raise HTTPException(422, f"at most {MAX_IMAGES} images per request; got {len(blobs)}")
         try:
             images = [load_image(b) for b in blobs]
         except (ValueError, OSError) as e:
+            if from_assets:
+                raise ImageRequestError(f"Invalid image: {e}")
             raise HTTPException(422, f"bad image: {e}")
         route = request_header(request.headers, "route")
         if route not in (None, "text", "image"):
@@ -1562,6 +1704,10 @@ def add_routes(app, systemone: SystemOne):
             raise_client_error(e)
             raise
         timing = out.pop("_timing")
+        for qname, levels in legends.items():  # a score's legend shows the levels as the caller wrote them
+            ans = out["answers"].get(qname)
+            if ans and ans.get("type") == "score":
+                ans["legend"] = {str(i): c for i, c in enumerate(levels)}
         headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
         if timing.get("tasks"):
             headers[header("tasks")] = ",".join(timing["tasks"])
@@ -1607,8 +1753,14 @@ def add_routes(app, systemone: SystemOne):
             ext = "images" in payload
             imgs = payload.pop("images", None) or []
             try:
-                blobs = [decode_data_url(u) for u in imgs]
-                if payload.get("state") is not None:
+                if "assets" in payload:
+                    if imgs:
+                        raise ValueError('a request carries its images in "assets" or in "images", not both')
+                    payload, blobs, _ = bind_assets(payload)
+                    ext = False
+                else:
+                    blobs = [decode_data_url(u) for u in imgs]
+                if "assets" not in ex.get("request", {}) and payload.get("state") is not None:
                     payload["state"], found = extract_state_images(payload["state"])
                     ext = ext or bool(found)
                     blobs += [decode_data_url(u) for u in found]
@@ -1659,7 +1811,11 @@ def add_routes(app, systemone: SystemOne):
                 raise HTTPException(422, f"{where} {n}: must be an object {{'request', 'answer'}}")
             payload = dict(ex.get("request") or {})
             refuse_adapter(payload, f"{where} {n}")
-            if "images" in payload or (payload.get("state") is not None and extract_state_images(payload["state"])[1]):
+            if (
+                "images" in payload
+                or "assets" in payload
+                or (payload.get("state") is not None and extract_state_images(payload["state"])[1])
+            ):
                 raise HTTPException(422, f"{where} {n}: calibration and the intent head serve text requests only")
             try:
                 req = SystemOneRequest.model_validate(payload)

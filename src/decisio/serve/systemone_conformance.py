@@ -367,7 +367,6 @@ LIMIT_KEYS = ("minProperties", "maxProperties", "minItems", "maxItems")
 
 # What differs from System One's wire on purpose, in the words `c5_differences` uses; each is in docs/api.md.
 DOCUMENTED_DIFFERENCES = (
-    "request field `assets`: System One has it, decisio does not read it",
     "request field `model`: required by System One, optional here",
     "question type `box`: not supported",
     "score criteria maxItems: System One 10, decisio none",
@@ -385,6 +384,15 @@ def _facts_of(schema: dict) -> dict:
 def _criteria_limits(schema: dict) -> dict:
     crit = schema.get("properties", {}).get("criteria", {})
     return {k: crit[k] for k in LIMIT_KEYS if k in crit}
+
+
+def _asset_facts(schema: dict) -> dict:
+    """An asset's fields, which are required, and the formats its `format` takes (an `enum`, or an optional one)."""
+    fmt = schema["properties"].get("format", {})
+    options = [fmt] + list(fmt.get("anyOf", []))
+    enum = next((o["enum"] for o in options if "enum" in o), [])
+    kind = schema["properties"].get("type", {})
+    return {**_facts_of(schema), "format": sorted(enum), "type": kind.get("const") or kind.get("enum")}
 
 
 def wire_facts(openapi: dict, source: str = "https://api.typesafe.ai/openapi.json", fetched: str = "") -> dict:
@@ -408,6 +416,7 @@ def wire_facts(openapi: dict, source: str = "https://api.typesafe.ai/openapi.jso
             t: {**_facts_of(_ref(sc, r)), "criteria": _criteria_limits(_ref(sc, r))} for t, r in qmap.items()
         },
         "noul_criteria": _facts_of(sc["NoulCriteria"]),
+        "asset": _asset_facts(sc["Asset"]),
         "response": _facts_of(sc["SystemOneResponse"]),
         "usage": _facts_of(sc["Usage"]),
         "answers": {t: _facts_of(_ref(sc, r)) for t, r in amap.items()},
@@ -430,6 +439,7 @@ def decisio_wire_facts() -> dict:
             t: {**_facts_of(_ref(defs, r)), "criteria": _criteria_limits(_ref(defs, r))} for t, r in qmap.items()
         },
         "noul_criteria": _facts_of(defs["NoulCriteria"]),
+        "asset": _asset_facts(defs["Asset"]),
     }
 
 
@@ -462,6 +472,8 @@ def c5_differences(snapshot: dict) -> list[str]:
             if a["criteria"].get(k) != b["criteria"].get(k):
                 mine, theirs_k = b["criteria"].get(k, "none"), a["criteria"].get(k, "none")
                 out.append(f"{t} criteria {k}: System One {theirs_k}, decisio {mine}")
+    if ours["asset"] != theirs["asset"]:
+        out.append(f"asset fields: System One {theirs['asset']}, decisio {ours['asset']}")
     if ours["noul_criteria"] != theirs["noul_criteria"]:
         out.append(f"noul criteria fields: System One {theirs['noul_criteria']}, decisio {ours['noul_criteria']}")
     return out

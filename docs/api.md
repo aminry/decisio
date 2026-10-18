@@ -34,6 +34,7 @@ Check which server a client is pointed at before comparing confidences or sendin
 | `questions` | object, at least one entry | the questions, by name; the names are the keys of the response's `answers` |
 | `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it and names the served model in the response |
 | `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`) |
+| `assets` | object, optional | System One's images: placeholder names mapped to images, each placeholder found in the state or a question's text is replaced by its image (below) |
 
 A prompt, the state with one question, can hold 32,768 tokens on the Qwen base. On a Gemma base it can hold the largest length that fits the card (at least 32,768, at most 98,304 on the 31B and 65,536 on the 12B), which the server chooses at start-up and `/health` reports as `max_model_len` with its reason, unless `--max-model-len` fixed it; with `--image-model` it is 32,768 ([`running.md`](running.md#the-context-length)). Every measured record in `EVAL_CARD.md` is at 32,768.
 A prompt over that is answered with 422 and a `detail` that says the rendered prompt is longer than the context, with the lengths vLLM reports (shorten the state or the question and send it again); the server stays up (before 0.11.0 it was a bare 500).
@@ -56,6 +57,16 @@ How a question is shown to the model (the layout, the yes/no rendering, which ke
 Images: up to 2 per request, PNG, JPEG or WebP, up to 20 MB each.
 They can be sent as data URLs in `images`, as `data:image/...` URIs anywhere inside the state, or as a `multipart/form-data` request whose `request` field holds the JSON body and whose `image`, `images` or `image[]` fields hold the files; a multipart request must carry an `X-Decisio-Client` header (any value, for example `X-Decisio-Client: my-app`), and is refused with 415 without one.
 A request with images is served by the image engine; the text route is unchanged.
+
+**Images the System One way (`assets`).**
+`assets` maps a placeholder name to an image: `{"type": "image", "format": "png"|"jpg"|"jpeg", "data_base64": "..."}`, or, in a multipart request, `{"type": "image", "part": "<the name of an image part>"}` (a part wins over `data_base64`).
+Every place a placeholder appears, as a string or inside one, in the state or in a question's instructions or criteria descriptions (option keys are not searched; the longest name wins when one contains another), becomes the marker `[image N]` and the asset's bytes become image N, in reading order; a placeholder used twice is two images.
+That is the same path as a `data:image` URI in the state: the image engine gets the same state text, the same questions and the same images, and gives the same probabilities as the other encodings (test I7), with System One's answer fields only (no `unknown_probability` or `abstained`).
+A placeholder name that matches no asset is plain text.
+A multipart request puts the `request` part first and every image in a part of its own, with a unique, non-empty name that exactly one asset uses; it needs the `X-Decisio-Client` header like any multipart request here.
+A problem with an asset (a name no text uses, an empty `assets`, a format that is not png, jpg or jpeg, bad base64, bytes that are not an image, an image part nothing uses or two assets share, `assets` together with `images`, more than 2 images) is a 400 with `{"detail": {"error_type": "api_usage_error", "message": "..."}}`, System One's shape for image errors.
+System One's `TypeSafe-Danger-Zone-Images` header is not needed and is ignored.
+A calibration or head task's examples (`POST /v1/tasks`) are text only and refuse `assets`; the examples of `POST /v1/abstention/tasks` may carry them.
 
 What an image costs and where it is cut down (the image route runs on the Qwen base, `--image-model Qwen/Qwen3.6-35B-A3B-FP8`; the numbers are that model's processor settings and `smart_resize` from the pinned transformers, computed on 2026-10-14):
 - An image over 20 MiB, or over 20 megapixels (width times height), or in another format, is refused with 422 (`bad image: ...`) before it is read; a third image is refused with 422 as well.
@@ -112,7 +123,8 @@ The conformance gate C5 compares the request and response fields with System One
 - **`model` is optional.** System One requires it and refuses a request without it with 422; here a request without it is answered and the response names the served model.
 - **A score may have more than 10 levels.** System One refuses more than 10 with 422 (`too_long`); decisio accepts more (up to the engine's 255 labels) and does not cap them.
 - **`box` questions are not supported.** A request with `"type": "box"` is refused with 422.
-- **`assets` is not read.** System One's image placeholders (`assets`, with the placeholder text in the state) are ignored here, and the placeholder stays in the text; send images with `images`, as `data:image/...` URIs, or as a multipart request (above).
+- **Images (`assets`) are read, with these differences.** At most 2 images per request (System One's limit is its context, about 110 images of 320 by 320 pixels in 32k tokens, more with its long-context header); no size window (System One takes sides of 280 to 1,568 pixels and refuses others with "Invalid image dimensions"; here the image is resized, up to 20 megapixels and 20 MB); WebP bytes are accepted besides PNG and JPEG (System One refuses them); a placeholder is replaced longest name first (System One replaces naively, so `PHOTO_1` inside `PHOTO_10` breaks it); an image costs the Qwen image engine's tokens, not System One's; a multipart request needs `X-Decisio-Client`; and the image route runs on a server started with `--image-model`, on the Qwen base.
+- **Unknown fields are accepted.** System One refuses a request with an unknown top-level field (400 `Invalid request.`), so its `images`-style extensions cannot be sent to it; decisio ignores unknown fields (imajev's `images` and `orders` are such extensions).
 - **`usage.output_tokens` is 1 per question**, not the tokens a generating model produced.
 - Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` names the served model, not `jev-latest`.
 
