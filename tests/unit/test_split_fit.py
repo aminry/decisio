@@ -185,3 +185,30 @@ def test_f4_the_file_loads_and_the_cli_writes_it_and_bad_input_is_refused(tmp_pa
         sf.fit_split(bare, hk, D, dk, use="p_plain")
     with pytest.raises(ValueError, match="no noul items"):
         sf.fit_split(H, hk, {i: r for i, r in D.items() if dk[i]["type"] != "noul"}, dk)
+
+
+def test_f5_the_ship_gates_ece_is_equal_width_and_pooled_out_of_half():
+    """The ship gates (Lab 1's T25 note) take the ECE with ten equal-width bins, pooled over the dev pool's items of a
+    type, each scored with the kappa fitted on the other half. Held-out figures per half use equal-count bins."""
+    assert sf.ece_width10([0.95, 0.95, 0.55, 0.55], [1, 1, 1, 0]) == pytest.approx(0.5 * 0.05 + 0.5 * 0.05)
+    assert sf.ece_width10([1.0] * 4, [1, 1, 1, 1]) == 0.0 and sf.ece_width10([0.0, 0.05], [0, 0]) == pytest.approx(
+        0.025
+    )
+    H, hk, D, dk = pools()
+    sv = sf.swap_validated(D, dk)
+    assert set(sv) == {"choice", "noul", "score"} and sv["choice"]["n"] == 60
+    ids = [i for i in sorted(dk) if dk[i]["type"] == "choice"]
+    kap = {
+        h: sf.fit_kappa(
+            [D[i]["probs"] for i in ids if sf.half(i) == h], [dk[i]["gold"] for i in ids if sf.half(i) == h]
+        )
+        for h in (0, 1)
+    }
+    Q = [sf.rescale(D[i]["probs"], kap[1 - sf.half(i)]) for i in ids]
+    want = sf.ece_width10([q.max() for q in Q], [int(q.argmax() == dk[i]["gold"]) for q, i in zip(Q, ids)])
+    assert sv["choice"]["ece10_swap_validated"] == round(want, 4)
+    assert sv["choice"]["kappa_ratio"] == round(max(kap.values()) / min(kap.values()), 3)
+    f = sf.fit_split(H, hk, D, dk)
+    assert f["fit"]["swap_validated_dev"] == sv  # reported with every fit, whatever the variant
+    # the swap judges a calibrating fit: scaled ECE under the unscaled one on data served at the wrong temperature
+    assert sv["choice"]["ece10_swap_validated"] < sv["choice"]["ece10_unscaled"]
