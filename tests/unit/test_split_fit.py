@@ -100,6 +100,11 @@ def test_f2_the_variants_split_by_the_id_hash():
     assert full["fit"]["checks"]["choice"]["n_fit"] == len(H) and "heldout" not in full["fit"]["checks"]["choice"]
     assert dev["fit"]["checks"]["choice"]["pool"] == "dev" and dev["fit"]["checks"]["choice"]["n_fit"] == 60
     assert full["fit"]["checks"]["noul"]["pool"] == "dev" and full["fit"]["checks"]["score"]["n_fit"] == 70
+    dh = sf.fit_split(H, hk, D, dk, variant="devhalf0")
+    nd0 = sum(sf.half(i) == 0 for i in D if dk[i]["type"] == "choice")
+    assert dh["fit"]["checks"]["choice"]["pool"] == "dev" and dh["fit"]["checks"]["choice"]["n_fit"] == nd0
+    assert dh["fit"]["checks"]["choice"]["heldout"]["n"] == 60 - nd0
+    assert dh["fit"]["kappa"]["noul"] == v0["fit"]["kappa"]["noul"]  # yes/no and score are the half0 fits
     h = v0["fit"]["checks"]["choice"]["heldout"]
     assert (
         h["log_loss_fit"] < h["log_loss_kappa1"] and h["ece_fit"] < h["ece_kappa1"]

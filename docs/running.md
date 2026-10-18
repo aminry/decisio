@@ -328,7 +328,7 @@ python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-
     --dev dev_reads.jsonl.gz --dev-keys dev_keys.json --variant half0 --out decisio_adapter.json
 ```
 
-- The choice kappa is fitted on the H pool, the yes/no and score kappas on the dev pool. `--variant half0` fits on the items whose id has an even sha256 prefix and reports the other half as held-out (log loss and ECE before and after), `half1` is the swap, `full` uses all of both pools, `dev` fits the choice kappa on the dev pool too.
+- The choice kappa is fitted on the H pool, the yes/no and score kappas on the dev pool. `--variant half0` fits on the items whose id has an even sha256 prefix and reports the other half as held-out (log loss and ECE before and after), `half1` is the swap, `full` uses all of both pools, `dev` fits the choice kappa on the dev pool too, and `devhalf0` and `devhalf1` do that on halves of the dev pool with the other half held out (a model whose H-fitted choice temperature does not transfer to public-source questions).
 - The reads are rows of `id`, `probs` (as the server returned them, at the base's temperatures; `--served` and `--dev-served` say which if they differ from the defaults) and `p_plain` (the plain readout of a `--debug-readout` server; `--use p_plain` fits on it, with temperature 1 as the reference).
 - It never reads a benchmark. On the stored reads of the first MeTask evaluation it reproduces every kappa and held-out figure of Lab 1's fits (`runs/2026-10-18_adapter-fit/`).
 
