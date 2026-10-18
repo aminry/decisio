@@ -103,6 +103,52 @@ def ece_tie(conf, ok, orders: int = 200) -> float:
     return float(np.mean(vals))
 
 
+def ece_width10(conf, ok) -> float:
+    """Top-label ECE with ten equal-width bins (the ship gates' definition, Lab 1's `ece10`): the bins are [0, 0.1),
+    ..., [0.9, 1.0], each weighted by its share of the items."""
+    conf, ok = np.clip(np.asarray(conf, float), 0, 1), np.asarray(ok, float)
+    idx = np.minimum((conf * 10).astype(int), 9)
+    n = len(conf)
+    c = np.bincount(idx, minlength=10)
+    hits = np.bincount(idx, weights=ok, minlength=10)
+    mass = np.bincount(idx, weights=conf, minlength=10)
+    m = c > 0
+    return float(np.sum(c[m] / n * np.abs(hits[m] / c[m] - mass[m] / c[m])))
+
+
+def swap_validated(dev_reads, dev_keys, *, use: str = "probs") -> dict:
+    """The ship gates' ECE per type on the dev pool: the kappa of each half (by log loss) is applied to the OTHER half's
+    items, and the ECE is taken over all of the pool's items of that type, pooled (ten equal-width bins). Also the
+    ECE of the same items unscaled, the same pooled swap with Lab 1's older equal-count tie-robust ECE, and the two
+    halves' kappas with their ratio (the gates call a fit unstable when the ratio is over 1.25)."""
+    out = {}
+    for t in TYPES:
+        ids = [i for i in sorted(dev_keys) if i in dev_reads and dev_keys[i]["type"] == t]
+        if not ids:
+            continue
+        kap = {}
+        for h in (0, 1):
+            fit = [i for i in ids if half(i) == h]
+            kap[h] = fit_kappa([dev_reads[i][use] for i in fit], [dev_keys[i]["gold"] for i in fit])
+        q = {i: rescale(dev_reads[i][use], kap[1 - half(i)]) for i in ids}
+        p0 = {i: np.asarray(dev_reads[i][use], float) for i in ids}
+        gold = {i: dev_keys[i]["gold"] for i in ids}
+
+        def ece(P, fn):
+            return fn([P[i].max() for i in ids], [int(P[i].argmax() == gold[i]) for i in ids])
+
+        out[t] = {
+            "n": len(ids),
+            "kappa_half0": round(kap[0], 3),
+            "kappa_half1": round(kap[1], 3),
+            "kappa_ratio": round(max(kap.values()) / min(kap.values()), 3),
+            "ece10_unscaled": round(ece(p0, ece_width10), 4),
+            "ece10_swap_validated": round(ece(q, ece_width10), 4),
+            "ece_equal_count_swap_validated": round(ece(q, ece_tie), 4),
+        }
+    return out
+
+
 def heldout(P, gold, kappa: float) -> dict:
     Q = [rescale(p, kappa) for p in P]
     P = [np.asarray(p, float) for p in P]
@@ -112,6 +158,7 @@ def heldout(P, gold, kappa: float) -> dict:
         "log_loss_fit": round(mean_log_loss(P, gold, kappa), 4),
         "ece_kappa1": round(ece_tie([p.max() for p in P], [int(p.argmax() == g) for p, g in zip(P, gold)]), 4),
         "ece_fit": round(ece_tie([q.max() for q in Q], [int(q.argmax() == g) for q, g in zip(Q, gold)]), 4),
+        "ece_definition": "equal-count bins, ties shuffled (200 orders), this half only",
     }
 
 
@@ -188,6 +235,7 @@ def fit_split(
             "kappa_against_decisio_defaults": vs_default,
             "served_at": {t: (dev_served if pools[t][0] == "dev" else served)[t] for t in TYPES},
             "n": {t: checks[t]["n_fit"] for t in TYPES},
+            "swap_validated_dev": swap_validated(dev_reads, dev_keys, use=field),
             "checks": checks,
             "data": data,
         },
