@@ -15,6 +15,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - **A certified task's questions are scored by the function that certified them.** A question a certified task matches is scored alone, in request order, by the function the certificate was made with, not batched with the request's other questions, and a task with an intent head is certified on the hidden-state read alone (registration used to read each example plain first, which on vLLM moved the confidences slightly: a card session certified 153 answers where serving put 154 above the threshold). Registration records `served_check` (a sample of the held-out examples re-read through the serving path). A certificate made before 0.16.0 keeps its gap until it is made again.
 - **A `--model` of a type no base serves is refused** instead of being given the Qwen profile; `--base <key>` with the same `--model` is the explicit way to serve it (the CPU stand-in `--backend hf` is unchanged).
 - **The MLX backend downloads `--model` at `--revision`**, so `--model tachara-ai/decisio-gemma-4-31b-mlx-4bit --revision v0.15.0` pins the build.
+- **Known limit: a Marlin W4A16 checkpoint (compressed-tensors, such as `google/gemma-4-31B-it-qat-w4a16-ct`) needs `--engine-process separate` on 0.16.0**, because the default in-process engine refuses its first request with a `marlin_locks` error; the in-process fix (#215) is planned for 0.17.0.
 
 ### Who is affected
 
