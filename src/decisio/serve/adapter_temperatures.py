@@ -249,11 +249,52 @@ def main(argv=None):
         help="how the score temperature is fitted (default: log loss, as the other types)",
     )
     f.add_argument("--data", default="", help="what the items are (kept in the file)")
+    sp = sub.add_parser("fit-split", help="Lab 1's split fit from a model's stored reads on the H and dev pools")
+    sp.add_argument("--h", required=True, help="the model's reads of the H pool (JSONL or .gz: id, probs, p_plain)")
+    sp.add_argument("--h-keys", required=True, help="{id: {gold, ...}} of the H pool")
+    sp.add_argument(
+        "--dev", required=True, help="the model's reads of the dev pool (typed: choice, yes/no, true score)"
+    )
+    sp.add_argument("--dev-keys", required=True, help="{id: {gold, type}} of the dev pool")
+    sp.add_argument("--variant", choices=("half0", "half1", "full", "dev"), default="half0")
+    sp.add_argument("--use", choices=("probs", "p_plain"), default="probs")
+    sp.add_argument(
+        "--served", default="", help="temperatures the reads were served at, e.g. choice=4.672,noul=5.252,score=5.252"
+    )
+    sp.add_argument("--dev-served", default="", help="the same for the dev pool where it differs, e.g. score=4.672")
+    sp.add_argument("--out", required=True)
+    sp.add_argument("--data", default="")
     c = sub.add_parser("check", help="validate an adapter file and print it")
     c.add_argument("file")
     a = ap.parse_args(argv)
     if a.cmd == "check":
         print(json.dumps(read(a.file), indent=1))
+        return 0
+    if a.cmd == "fit-split":
+        from decisio.serve import split_fit
+
+        def temps(text):
+            return {k: float(v) for k, v in (kv.split("=", 1) for kv in text.split(",") if kv)}
+
+        doc = split_fit.fit_split(
+            split_fit.read_reads(a.h),
+            json.loads(Path(a.h_keys).read_text()),
+            split_fit.read_reads(a.dev),
+            json.loads(Path(a.dev_keys).read_text()),
+            variant=a.variant,
+            use=a.use,
+            served=temps(a.served),
+            dev_served=temps(a.dev_served),
+            data=a.data,
+        )
+        Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
+        print(
+            json.dumps(
+                {k: doc["fit"][k] for k in ("variant", "kappa", "kappa_against_decisio_defaults", "n")}
+                | {"temperatures": doc["temperatures"]},
+                indent=1,
+            )
+        )
         return 0
     read_at = {k: float(v) for k, v in (kv.split("=", 1) for kv in a.read_at.split(",") if kv)}
     doc = fit(list(_rows(a.reads)), read_at, a.tolerance, a.data, a.score_objective)

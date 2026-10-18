@@ -317,6 +317,19 @@ Every type is fitted by minimum log loss: the temperature at which the probabili
 Use items that are not a benchmark's; a temperature is a statement about the items it was fitted on, and an adapter fitted on hard public-source questions was underconfident on an easier set of synthetic ones (`runs/2026-10-17_adapter-temperatures/`).
 A score item sent as a choice question is served at the choice temperature, so name the temperature a row was served at.
 
+### Fitting them from a model's stored reads
+
+`python -m decisio.serve.adapter_temperatures fit-split` is Lab 1's split fit as a tool: from the model's stored reads of two pools (an H pool of choice items and a dev pool with choice, yes/no and true score items, both with their gold answers in a keys file) it fits one kappa per type by minimum log loss and writes the temperatures (`T = served temperature / kappa`) as the file above.
+
+```bash
+python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-keys h_keys.json \
+    --dev dev_reads.jsonl.gz --dev-keys dev_keys.json --variant half0 --out decisio_adapter.json
+```
+
+- The choice kappa is fitted on the H pool, the yes/no and score kappas on the dev pool. `--variant half0` fits on the items whose id has an even sha256 prefix and reports the other half as held-out (log loss and ECE before and after), `half1` is the swap, `full` uses all of both pools, `dev` fits the choice kappa on the dev pool too.
+- The reads are rows of `id`, `probs` (as the server returned them, at the base's temperatures; `--served` and `--dev-served` say which if they differ from the defaults) and `p_plain` (the plain readout of a `--debug-readout` server; `--use p_plain` fits on it, with temperature 1 as the reference).
+- It never reads a benchmark. On the stored reads of the first MeTask evaluation it reproduces every kappa and held-out figure of Lab 1's fits (`runs/2026-10-18_adapter-fit/`).
+
 ### Yes/no stays a probability
 
 An adapter's yes/no answer is the calibrated probability, and the server does not commit it.
