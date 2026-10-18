@@ -1,0 +1,158 @@
+{
+ "source": "https://api.typesafe.ai/openapi.json",
+ "version": "0.2.0",
+ "fetched": "2026-10-18",
+ "request": {
+  "properties": [
+   "assets",
+   "model",
+   "questions",
+   "state"
+  ],
+  "required": [
+   "model",
+   "questions",
+   "state"
+  ],
+  "questions": {
+   "minProperties": 1
+  }
+ },
+ "question_types": {
+  "noul": {
+   "properties": [
+    "criteria",
+    "instructions",
+    "type"
+   ],
+   "required": [
+    "type"
+   ],
+   "criteria": {}
+  },
+  "choice": {
+   "properties": [
+    "criteria",
+    "instructions",
+    "type"
+   ],
+   "required": [
+    "criteria",
+    "type"
+   ],
+   "criteria": {
+    "minProperties": 1,
+    "maxProperties": 255
+   }
+  },
+  "score": {
+   "properties": [
+    "criteria",
+    "instructions",
+    "type"
+   ],
+   "required": [
+    "criteria",
+    "type"
+   ],
+   "criteria": {
+    "minItems": 1,
+    "maxItems": 10
+   }
+  },
+  "box": {
+   "properties": [
+    "instructions",
+    "type"
+   ],
+   "required": [
+    "type"
+   ],
+   "criteria": {}
+  }
+ },
+ "noul_criteria": {
+  "properties": [
+   "false",
+   "true"
+  ],
+  "required": []
+ },
+ "response": {
+  "properties": [
+   "answers",
+   "model",
+   "usage"
+  ],
+  "required": [
+   "answers",
+   "model",
+   "usage"
+  ]
+ },
+ "usage": {
+  "properties": [
+   "input_tokens",
+   "output_tokens"
+  ],
+  "required": [
+   "input_tokens",
+   "output_tokens"
+  ]
+ },
+ "answers": {
+  "noul": {
+   "properties": [
+    "noul",
+    "type"
+   ],
+   "required": [
+    "noul",
+    "type"
+   ]
+  },
+  "choice": {
+   "properties": [
+    "choice",
+    "confidence",
+    "probabilities",
+    "type"
+   ],
+   "required": [
+    "choice",
+    "confidence",
+    "probabilities",
+    "type"
+   ]
+  },
+  "score": {
+   "properties": [
+    "confidence",
+    "legend",
+    "probabilities",
+    "score",
+    "type"
+   ],
+   "required": [
+    "confidence",
+    "legend",
+    "probabilities",
+    "score",
+    "type"
+   ]
+  },
+  "box": {
+   "properties": [
+    "box",
+    "confidence",
+    "type"
+   ],
+   "required": [
+    "box",
+    "confidence",
+    "type"
+   ]
+  }
+ },
+ "openapi_sha256": "ee599512cbea3a198b34af3f60addcd72b381d3521196f93c70ae83185c057c3"
+}
