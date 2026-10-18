@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/aminry/decisio/compare/v0.16.0...v0.17.0) (2026-10-18)
+
+
+### Features
+
+* **serve:** System One's assets - placeholders in the state and the questions are bound to images, in JSON and multipart ([#221](https://github.com/aminry/decisio/issues/221)) ([b6bf2fe](https://github.com/aminry/decisio/commit/b6bf2fe8526c57291a5af2e5631b3a352af5f65e))
+
+
+### Bug Fixes
+
+* **serve:** a choice with more than 255 options is a 422 like System One's, and conformance gate C5 compares the wire with System One's OpenAPI ([#219](https://github.com/aminry/decisio/issues/219)) ([d95c891](https://github.com/aminry/decisio/commit/d95c8915d3177c8198e8d1bbab0001a317fab3cf))
+
 ## [0.16.0](https://github.com/aminry/decisio/compare/v0.15.0...v0.16.0) (2026-10-18)
 
 
