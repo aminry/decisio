@@ -233,3 +233,54 @@ def test_m3_the_answer_mix_alone_reports_and_does_not_suspend():
     assert st["state"] == "traffic_changed" and st["monitor"]["signals"] == ["answer_mix"]
     assert "not suspended" in st["text"]
     assert ask(client, 1, 0.99)["certified"] is True
+
+
+def legacy_export(exported):
+    """A task as decisio 0.14.0 and 0.15.0 exported it: a certificate with no `suspend_on_alert` and no `warnings`,
+    and a monitor baseline with no confidence block."""
+    import copy
+
+    out = copy.deepcopy(exported)
+    for t in out:
+        t["certificate"].pop("suspend_on_alert", None)
+        t["certificate"].pop("warnings", None)
+        t["monitor"].pop("confidence", None)
+    return out
+
+
+def test_m3_a_certificate_made_before_the_signal_takes_the_default_on_re_certification_and_suspends():
+    """S21's drift cell (RLCD, Lab 2): Lab 3's task was certified by 0.14.0, so `old.get("suspend_on_alert", False)`
+    gave a re-certification false and "on by default" held for no upgrading user."""
+    client, so, task = registered()
+    legacy = legacy_export(client.get("/v1/tasks?full=1").json()["tasks"])
+    assert "suspend_on_alert" not in legacy[0]["certificate"] and "confidence" not in legacy[0]["monitor"]
+    c2, so2 = make()
+    assert c2.post("/v1/tasks/import", json={"tasks": legacy}).status_code == 200
+    # imported as it was: no confidence signal yet, so nothing can suspend, and an answer is served as before
+    assert ask(c2, 1, 0.99)["certified"] is True
+    st = c2.get("/v1/tasks/routing").json()["status"]
+    assert "confidence" not in st["monitor"]
+    # re-certified with no setting named: the default, true
+    r = c2.post("/v1/tasks/routing/certify", json={"examples": examples(200, 0.96, seed=9, start=10_000)})
+    assert r.status_code == 200, r.text
+    assert r.json()["certificate"]["suspend_on_alert"] is True
+    thr = so2.task_store.by_key[r.json()["key"]]["monitor"]["confidence"]["tail_threshold"]
+    for _ in range(120):
+        ask(c2, 1, round(thr * 0.5, 4))
+    a = ask(c2, 1, 0.99)
+    assert a["certified"] is False and a["certified_reason"] == "traffic_changed"
+    assert "certification is suspended" in c2.get("/v1/tasks/routing").json()["status"]["text"]
+
+
+def test_m3_a_stored_certificate_without_the_key_reads_as_the_default_when_it_alerts():
+    """A task whose certificate has no `suspend_on_alert` but whose monitor has the confidence block (an edited export)
+    is read with the default, not as false."""
+    client, so, task = registered()
+    t = so.task_store.by_key[task["key"]]
+    thr = t["monitor"]["confidence"]["tail_threshold"]
+    t["certificate"].pop("suspend_on_alert")
+    for _ in range(120):
+        ask(client, 1, round(thr * 0.5, 4))
+    a = ask(client, 1, 0.99)
+    assert a["certified"] is False and a["certified_reason"] == "traffic_changed"
+    assert "certification is suspended" in client.get("/v1/tasks/routing").json()["status"]["text"]

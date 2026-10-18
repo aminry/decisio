@@ -1165,7 +1165,7 @@ class SystemOne:
         spec = {
             **{k: old[k] for k in ("alpha", "delta")},
             "min_examples": old.get("min_examples"),
-            "suspend_on_alert": old.get("suspend_on_alert", False),
+            "suspend_on_alert": old.get("suspend_on_alert", SUSPEND_ON_ALERT),
             **(spec or {}),
         }
         settings = self.certify_settings(spec)
@@ -1209,7 +1209,7 @@ class SystemOne:
         else:
             reason = "below_threshold"
         m = self.task_store.monitors.get(t["id"])
-        if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", False):
+        if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", SUSPEND_ON_ALERT):
             reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
         if m is not None and not getattr(self._probe, "on", False):
             m.observe(chosen, reason is None, float(max(p)))
@@ -1240,7 +1240,7 @@ class SystemOne:
             what = " and ".join(
                 {"answer_mix": "the mix of chosen options", "confidence": "the confidences"}[x] for x in f["signals"]
             )
-            if cert.get("suspend_on_alert") and "confidence" in f["signals"]:
+            if cert.get("suspend_on_alert", SUSPEND_ON_ALERT) and "confidence" in f["signals"]:
                 text = (
                     f"traffic changed: {what} moved away from the certification examples'; certification is "
                     "suspended (every answer is certified: false) until the alert clears"
