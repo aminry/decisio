@@ -8,20 +8,25 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.19.0: the x-rlcd-* request headers are removed
+## 0.19.0: decisio's name only on the wire, in new records and in the served name
 
 ### What changed
 
-- **The `x-rlcd-debug` and `x-rlcd-route` request headers are no longer read.**
-  Send `x-decisio-debug` and `x-decisio-route`.
-  A request that still carries an `x-rlcd-*` header is served as if it did not: it is ignored, not refused, so a client that sent `x-rlcd-debug` gets no `decisio_debug` field and one that sent `x-rlcd-route` gets the route the server picks.
-  Responses never carried `x-rlcd-*` headers; task records in the earlier `rlcd-*/1` formats still load.
+- **Only `x-decisio-debug` and `x-decisio-route` are read as request headers.**
+  The earlier spellings of those two headers, with the project's former name in place of `decisio`, are ignored, not refused: a request that still carries one is served as if it did not, so a client that sent the debug header gets no `decisio_debug` field and one that sent the route header gets the route the server picks.
+  Responses never carried the earlier spellings.
+- **New task records and the Qwen base's served name use decisio's name.**
+  A task is written as `decisio-task/1`, with `decisio-task-prior/1`, `decisio-intent-head/1`, `decisio-certificate/1` and `decisio-abstention/1` inside it, and the Qwen base's served name is `decisio-qwen3.6-35b-a3b-letters`; the server writes no record, header or served name that carries the former name.
+- **Records and requests that use the earlier names are still accepted.**
+  A task record in the earlier format ids loads and applies as written (it is not rewritten), a task fitted under the Qwen base's earlier default served name applies on a server with the current one, and a request's `model` is not checked against the served name, so the earlier served name is accepted and echoed like any other.
 
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| A client or script that sends `x-rlcd-debug` or `x-rlcd-route` | The header is ignored: no debug readout, no route choice | Send `x-decisio-debug` / `x-decisio-route` |
+| A client or script that sends the earlier debug or route header | The header is ignored: no debug readout, no route choice | Send `x-decisio-debug` / `x-decisio-route` |
+| Stored tasks in the earlier record formats | They load and apply as before | Nothing |
+| A client that names the Qwen base's earlier served name in `model` | It is accepted; the response echoes it | Nothing; use the name `GET /v1/models` lists |
 | Anything else | Nothing changes | Nothing |
 
 ## 0.18.0: adapter temperatures, more than two images, shares that fit one card
