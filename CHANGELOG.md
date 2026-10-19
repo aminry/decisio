@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.18.0](https://github.com/aminry/decisio/compare/v0.17.0...v0.18.0) (2026-10-19)
+
+
+### Features
+
+* **serve:** an adapter carries its own temperatures per question type, and its identity and temperatures are in the serving-stack fingerprint ([#207](https://github.com/aminry/decisio/issues/207)) ([72e8aff](https://github.com/aminry/decisio/commit/72e8aff27154c57338ab69e432ed6420a567e6dc))
+* **serve:** reference docs generated from the code - an OpenAPI file of the served routes and models and a table of the server's flags, written at release time ([#224](https://github.com/aminry/decisio/issues/224)) ([35d4287](https://github.com/aminry/decisio/commit/35d42879babdf398a9ea2fbc538d93f6004d9115))
+* **serve:** the image count of a request is limited by the context, not by a cap of 2 (--max-images, default 128) ([#222](https://github.com/aminry/decisio/issues/222)) ([24568fc](https://github.com/aminry/decisio/commit/24568fc8e4ba428a8a3cde563b55d5a862190771))
+
+
+### Bug Fixes
+
+* **serve:** --image-model's text and image engines default to shares that fit one card (0.47 and 0.49), and a pair that cannot fit is refused before either engine is built ([#227](https://github.com/aminry/decisio/issues/227)) ([4693205](https://github.com/aminry/decisio/commit/4693205bd6d0bfba2724c288989ff5c4e1396233))
+* **serve:** every thread that calls the in-process engine runs on the stream the engine was warmed up on (Marlin W4A16 checkpoints) ([#215](https://github.com/aminry/decisio/issues/215)) ([8454d7d](https://github.com/aminry/decisio/commit/8454d7dc47ff0cd72fb5fe8769eeadfd393f84c6))
+
 ## [0.17.0](https://github.com/aminry/decisio/compare/v0.16.0...v0.17.0) (2026-10-18)
 
 
