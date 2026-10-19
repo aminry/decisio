@@ -80,6 +80,14 @@
         {
           "type": "generic",
           "path": "docs/reference/flags.md"
+        },
+        {
+          "type": "generic",
+          "path": "README.md"
+        },
+        {
+          "type": "generic",
+          "path": "docs/running.md"
         }
       ]
     }
