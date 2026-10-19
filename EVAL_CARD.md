@@ -69,7 +69,7 @@ With `--temperature 1` every choice and every accuracy is the same; calibration 
 None of these is a board number: JevBench's official score needs its sealed set, and a Decision Index value needs all 38 of its benchmarks, which section 8 runs.
 Nothing was submitted to JevBench's board; the Decision Index runs of section 8 were self-run and submitted for review.
 No output of Jev (TypeSafe's hosted model behind the System One API, which JevBench is named after) is in this repository; section 8 and `docs/comparison.md` quote its aggregate values from the public boards, whose files are kept in `runs/2026-10-05_comparison/snapshots/`.
-The records keep the wire names they were written with (`rlcd-*/1`, the served name `rlcd-qwen3.6-35b-a3b-letters`); decisio reads both spellings (`decisio.names`).
+The records keep the format and served names they were written with (before the project's rename); decisio reads both spellings (`decisio.names`).
 
 ## 4. What was fitted on what
 
