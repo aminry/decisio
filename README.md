@@ -202,7 +202,7 @@ Ollama on a laptop, then pip on a GPU, then Docker.
 
 ### On a laptop, with Ollama
 
-The Gemma listing's smallest tag takes 8.6 GB in Ollama (measured on a 64 GB Mac), so it should fit a 16 GB laptop ([docs/running.md](docs/running.md#ollama)):
+The Gemma listing's smallest tag takes 8.6 GB in Ollama (measured on a 64 GB Mac), and it has not been tried on a smaller machine ([docs/running.md](docs/running.md#ollama)):
 
 ```bash
 ollama pull aminroudaki/decisio-gemma      # Gemma 4 12B, 8.6 GB in Ollama at its smallest tag
@@ -466,7 +466,7 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 | Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured (an 80 GB H100 also runs the 31B); each base's weights are in [Choosing a base](#choosing-a-base) |
 | Linux with one NVIDIA card and Docker | [Docker](#docker) | as the GPU server |
 | Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | each base's, in [docs/running.md](docs/running.md#mac-with-mlx) |
-| Mac, Linux or Windows with Ollama | [Ollama](#ollama) | 8.6 GB for the Gemma base's smallest tag, so a 16 GB laptop; each tag's size is on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio](https://ollama.com/aminroudaki/decisio)) |
+| Mac, Linux or Windows with Ollama | [Ollama](#ollama) | 8.6 GB for the Gemma base's smallest tag (measured on a 64 GB Mac); each tag's size is on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio](https://ollama.com/aminroudaki/decisio)) |
 | Any machine, for development | [CPU stand-in](#cpu-stand-in-for-development) | a small Hugging Face model on the CPU |
 
 [`docs/running.md`](docs/running.md) has the details of every path.
@@ -515,12 +515,12 @@ The default base, Gemma 4 31B, runs from its 6-bit MLX conversion on a 64 GB Mac
 ### Ollama
 
 ```bash
-ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base, for 16 GB laptops
+ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base
 ollama pull aminroudaki/decisio          # the Qwen base
 ```
 
 Requires Ollama 0.35.1 or later.
-The Gemma listing's smallest tag takes 8.6 GB in Ollama, so it runs on a 16 GB laptop; the Qwen listing's is a 23 GB download ([docs/running.md](docs/running.md#ollama)).
+The Gemma listing's smallest tag takes 8.6 GB in Ollama (measured on a 64 GB Mac, not tried on a smaller machine); the Qwen listing's is a 23 GB download ([docs/running.md](docs/running.md#ollama)).
 Ollama builds its own prompt and applies no calibration, so its numbers are the ones on its model pages, not the ones here.
 
 ### CPU stand-in for development

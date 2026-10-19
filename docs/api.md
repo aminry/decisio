@@ -148,7 +148,7 @@ A page on another origin therefore cannot read its answers, and cannot make it d
 
 Do not expose the port to browsers, and do not rely on CORS to protect it.
 To call it from a web page, call it from your own backend, or put a reverse proxy in front that authenticates the caller and adds the CORS headers your page needs (`Access-Control-Allow-Origin`, `Access-Control-Allow-Headers: content-type`, and an answer to `OPTIONS`).
-A client of this server sends `Content-Type: application/json`; every client the integration checks cover does (`docs/integrations.md`).
+A client of this server sends `Content-Type: application/json`; every client the integration checks cover does.
 
 ## What to watch
 
@@ -183,7 +183,7 @@ Every later answer of a certified task carries `certified` (true or false), `cer
 A change of the serving stack suspends the certificate (every answer certified false, status `suspended: serving stack changed`, the differing parts listed in `status.changed`); `POST /v1/tasks/{id}/certify` with `{"examples": [...]}` (and optionally `alpha`, `delta`, `min_examples`) makes it again under the current stack, on examples that share no input with the fit.
 `docs/tasks.md`, "Certified answers", says what the promise is and where it stops.
 
-`docs/tasks.md` walks through registration and states what each number was measured on; `docs/handoffs/tasks.md` is the reference for its rules.
+`docs/tasks.md` walks through registration and states what each number was measured on.
 
 ## Abstention
 
