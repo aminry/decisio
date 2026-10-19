@@ -1023,6 +1023,36 @@ def resolve_register_boundary(family, choice):
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
 
 
+TEXT_SHARE = 0.90  # the text engine's share of the card when it is the only engine
+IMAGE_PAIR = (0.47, 0.49)  # the shares of the text and image engines that were measured side by side on one card
+IMAGE_PAIR_LIMIT = 0.96  # the largest total of the two that is vouched for: the measured pair (EVAL_CARD section 1)
+
+
+def resolve_memory_shares(text, image, image_model, one_engine=False, backend="vllm"):
+    """(the text engine's share of the card, the image engine's) from the flags (None where not given).
+
+    Alone, the text engine takes 0.90. With `--image-model` as a second engine the two share the card: the defaults
+    are the measured pair, 0.47 and 0.49. A pair whose total is over 1.0 cannot fit and is refused; so is a pair with
+    a default in it that is over the measured pair's 0.96 (the text engine given at 0.90 beside the image engine's
+    default 0.49), since the default is not the operator's choice. A pair the operator gave in full is theirs up to 1.0,
+    and vLLM tells whether it fits. A refusal comes before either engine is built, with both shares and where each came
+    from. With `--one-engine` the image engine is the only one and takes the text share. Raises ValueError."""
+    if not image_model or one_engine or backend != "vllm":
+        return (TEXT_SHARE if text is None else text), (IMAGE_PAIR[1] if image is None else image)
+    t, i = (IMAGE_PAIR[0] if text is None else text), (IMAGE_PAIR[1] if image is None else image)
+    total = round(t + i, 6)
+    defaulted = text is None or image is None
+    if total > 1.0 or (defaulted and total > IMAGE_PAIR_LIMIT):
+        raise ValueError(
+            f"--image-model: the text engine ({t:.2f}, {'given' if text is not None else 'default'}) and the image "
+            f"engine ({i:.2f}, {'given' if image is not None else 'default'}) share the card and need {total:.2f} of "
+            f"it together; the measured pair is {IMAGE_PAIR[0]} and {IMAGE_PAIR[1]} ({IMAGE_PAIR_LIMIT:.2f}). "
+            "Set --gpu-memory-utilization and --image-gpu-memory-utilization to fit, or --one-engine to serve both "
+            "routes from the image engine"
+        )
+    return t, i
+
+
 def resolve_head_mode(model_class, head_engine, one_engine=False):
     """The text engine's model class and where the intent head reads the hidden state from, from the command line.
     Returns (model_class, head_mode), head_mode one of:
@@ -1566,7 +1596,13 @@ def build_parser():
         "it too: the fallback for a card that cannot hold both engines; changes the text route's "
         "class",
     )
-    ap.add_argument("--gpu-memory-utilization", type=float, default=0.90, help="the text engine's share of the card")
+    ap.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+        help="the text engine's share of the card (default 0.90; 0.47 beside the image engine of --image-model, "
+        "which needs the pair to fit on the card)",
+    )
     ap.add_argument(
         "--max-model-len",
         type=int,
@@ -1585,7 +1621,11 @@ def build_parser():
         "changes the numerics (a task and its certificate are fitted under one; docs/running.md)",
     )
     ap.add_argument(
-        "--image-gpu-memory-utilization", type=float, default=0.50, help="the image engine's share of the card"
+        "--image-gpu-memory-utilization",
+        type=float,
+        default=None,
+        help="the image engine's share of the card (default 0.49, beside the text engine's 0.47); a pair with a "
+        "default in it may total at most 0.96, a pair given in full at most 1.0",
     )
     ap.add_argument(
         "--host",
@@ -1659,6 +1699,12 @@ def main():
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
+    try:  # the shares that fit one card, refused before either engine is built
+        args.gpu_memory_utilization, args.image_gpu_memory_utilization = resolve_memory_shares(
+            args.gpu_memory_utilization, args.image_gpu_memory_utilization, args.image_model, one, args.backend
+        )
+    except ValueError as e:
+        ap.error(str(e))
     if args.max_images is not None and not args.image_model:
         ap.error("--max-images needs --image-model")
     if args.max_images is not None and args.max_images < 1:
@@ -1771,6 +1817,12 @@ def main():
         flush=True,
     )
     image_engine = engine if one else None
+    if args.image_model and not one and args.backend == "vllm":
+        print(
+            "ENGINE SHARES",
+            json.dumps({"text": args.gpu_memory_utilization, "image": args.image_gpu_memory_utilization}),
+            flush=True,
+        )
     if args.image_model and not one:
         pad_to = None if args.pad_to == "none" else args.pad_to
         if args.backend == "hf":
