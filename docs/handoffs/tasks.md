@@ -105,4 +105,4 @@ JSON objects are unordered and some clients serialise with sorted keys, so the c
 
 With `--debug-readout`, a request may send `x-decisio-debug: readout` (the readout before any task and the path taken) or `hidden` (also the hidden state); registration returns the examples' readouts the same way.
 The response headers `x-decisio-route` and `x-decisio-tasks` name the route and the tasks applied, and the body's `decisio_debug` field carries the debug readout.
-Requests sent with the earlier `x-rlcd-debug` and `x-rlcd-route` headers are still honoured, and task records in the earlier `rlcd-*/1` formats, or fitted under the earlier default served name `rlcd-qwen3.6-35b-a3b-letters`, still load and apply (`decisio.names`).
+Task records in the earlier `rlcd-*/1` formats, or fitted under the earlier default served name `rlcd-qwen3.6-35b-a3b-letters`, still load and apply (`decisio.names`).
