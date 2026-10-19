@@ -7,6 +7,8 @@
 uv run python -m decisio.serve.vllm_engine [flags]
 ```
 
+[`reference/flags.md`](reference/flags.md) is the complete table of the flags, their defaults and values, generated from the server's argument parser at release time; this page says what each base takes.
+
 `--base` chooses the base model and brings its checkpoint at a pinned revision and its value for every setting marked "the base's" below; a flag given explicitly overrides it.
 With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`. A checkpoint whose `model_type` no base serves, or whose `config.json` cannot be read, is refused with the supported bases named (decisio 0.15.0 and earlier served it with the Qwen profile, whose classes, token ranges and temperatures were fitted for another model); `--base <key>` with the same `--model` is the explicit way to serve it as that base's profile, if it is one. The CPU stand-in (`--backend hf`) is the exception: it takes any small model and uses the Qwen profile.
 With neither, the vLLM server serves `gemma-4-31b`, the default base since 0.10.0 (the CPU stand-in and the MLX backend always name a checkpoint, and refuse to start without one).
