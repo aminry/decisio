@@ -71,7 +71,7 @@ The SDK's default timeout is 10 s.
 A long state seen for the first time takes longer on the larger bases, and the first request after a start warms the engine; raise `timeout` for those.
 
 **Repeatability is stated per base.**
-On the Qwen base a question returns the same probabilities every time, alone or among other questions; the Gemma 4 12B base returns the same choice with probabilities that can move slightly; `EVAL_CARD.md` sections 6.5 and 7.5 have what was measured on each Gemma base (and the README's "Choosing a base", `docs/cli.md` "Determinism").
+On the Qwen base a question returns the same probabilities every time, alone or among other questions; the default Gemma 4 31B repeats exactly on a freshly started server on one machine (a repeat on a server that has already answered it can differ slightly, and other machines differ); the Gemma 4 12B base returns the same choice with probabilities that can move slightly; `EVAL_CARD.md` sections 6.5 and 7.5 have what was measured on each Gemma base (and the README's "Choosing a base", `docs/cli.md` "Determinism").
 Among exactly tied options, the answer is the key that sorts first, so it never depends on the order the keys arrive in.
 
 **What decisio adds.**

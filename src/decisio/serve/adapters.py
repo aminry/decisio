@@ -24,6 +24,7 @@ Standard library only.
 from __future__ import annotations
 
 import atexit
+import hashlib
 import json
 import shutil
 import tempfile
@@ -96,6 +97,25 @@ def rewrite(src: Path, dst: Path, to: str) -> int:
         if f.is_file() and f.name != WEIGHTS:
             shutil.copy2(f, dst / f.name)
     return len(header)
+
+
+def identity(folder) -> dict:
+    """Who an adapter is: the sha256 and size of its weights file as given (before any name mapping) and the sha256 of
+    its `adapter_config.json`. Two folders with the same weights and rank are the same adapter; it goes into the
+    serving-stack fingerprint (decisio.serve.stack)."""
+    src = Path(folder)
+    out = {"weights_sha256": _sha256(src / WEIGHTS), "weights_bytes": (src / WEIGHTS).stat().st_size}
+    if (src / "adapter_config.json").is_file():
+        out["config_sha256"] = _sha256(src / "adapter_config.json")
+    return out
+
+
+def _sha256(path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(16 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def prepare(adapters: dict, arch: str | None, workdir=None) -> tuple[dict, dict]:

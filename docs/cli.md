@@ -7,6 +7,8 @@
 uv run python -m decisio.serve.vllm_engine [flags]
 ```
 
+[`reference/flags.md`](reference/flags.md) is the complete table of the flags, their defaults and values, generated from the server's argument parser at release time; this page says what each base takes.
+
 `--base` chooses the base model and brings its checkpoint at a pinned revision and its value for every setting marked "the base's" below; a flag given explicitly overrides it.
 With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`. A checkpoint whose `model_type` no base serves, or whose `config.json` cannot be read, is refused with the supported bases named (decisio 0.15.0 and earlier served it with the Qwen profile, whose classes, token ranges and temperatures were fitted for another model); `--base <key>` with the same `--model` is the explicit way to serve it as that base's profile, if it is one. The CPU stand-in (`--backend hf`) is the exception: it takes any small model and uses the Qwen profile.
 With neither, the vLLM server serves `gemma-4-31b`, the default base since 0.10.0 (the CPU stand-in and the MLX backend always name a checkpoint, and refuse to start without one).
@@ -24,14 +26,15 @@ Where the columns differ, the value is the base's.
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
 | `--base` | | | the default | the base, or a decisio model repository (`owner/name[@revision]`, or a directory); without it, detected from `--model`, or the default if no `--model` either |
-| `--model` | `Qwen/Qwen3.6-35B-A3B-FP8` | `google/gemma-4-12B-it` | `google/gemma-4-31B-it` | the checkpoint, a local directory or a Hugging Face repository id |
-| `--revision` | `95a723d08a9490559dae23d0cff1d9466213d989` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` | `842da3794eaa0b77d5f08bae87a17459d91ff475` | the checkpoint's revision on the Hub; the pin applies whenever `--model` is the base's own repository |
+| `--model` | `Qwen/Qwen3.6-35B-A3B-FP8` | `google/gemma-4-12B-it` | `tachara-ai/decisio-gemma-4-31b` (its FP8 repository; `google/gemma-4-31B-it` serves Google's weights instead) | the checkpoint, a local directory or a Hugging Face repository id |
+| `--revision` | `95a723d08a9490559dae23d0cff1d9466213d989` | `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7` | `eaf1e4fa30a351ab87d07803ca60f1fa5606f882` (the repository's; `842da3794eaa0b77d5f08bae87a17459d91ff475` for `google/gemma-4-31B-it`) | the checkpoint's revision on the Hub; the pin applies whenever `--model` is the base's own repository |
 | `--backend` | `vllm` | `vllm` | `vllm` | `vllm`; `mlx` for Apple silicon (the three bases, `docs/running.md`); `hf` for the CPU stand-in, not for measurement: it serves a base's own checkpoint (`--base` and `--model` that belong together), not another model under a base's profile (Gemma 4 E4B under `--base gemma-4-31b` carries the 31B's soft cap, prompt and temperatures and is not supported; a NaN it produces is answered 500 with the model and engine named, `docs/api.md`) |
 | `--model-class` | `hidden-readout` | `hidden-readout` | `hidden-readout` | `hidden-readout`: decisio's text class that also returns the hidden state at the answer position, for the intent head; `text-only`: the same without it (the default with `--head-engine`); `view`: a directory built by `decisio.serve.make_text_only`, loaded as it is, needing no plugin |
 | `--mode` | `separate` | `separate` | `separate` | `separate`: one prompt per question, the state shared through the prefix cache; `packed`: questions packed into one pooling request (the compact layout only) |
 | `--pack` | 16 | 16 | 16 | questions per pack in packed mode |
 | `--engine` | `{"compilation_config": {"max_cudagraph_capture_size": 4096}}` | the same | the same | extra `LLM(...)` keyword arguments, as JSON |
 | `--adapter` | none | none | none | `name=path` of a vLLM-format LoRA adapter; repeatable. A request uses it only when its body names it (`"adapter": "<name>"`). An adapter whose tensors are named for the other layout than the served class (`base_model.model.model.language_model.layers.` from a multimodal checkpoint, against `base_model.model.model.layers.` on a text-only base, or the reverse) is served from a mapped copy, made before the engine is built, with the tensor bytes unchanged; `/health` reports the mapping in `adapter_names`. An adapter in neither layout is refused at once, before the weights load |
+| `--adapter-temperatures` | none | none | none | `name=file` of a `decisio.adapter/1` file of that adapter's temperatures per question type (`choice`, `noul`, `score`) and, for choice, optionally per band of option count (`choice_bands`); repeatable. A request that names the adapter is served at them; a type the file does not list keeps the base's. It replaces the `decisio_adapter.json` beside the adapter's weights, which is read when the flag is not given. An unusable file, or a name `--adapter` did not load, is refused before the engine is built. `/health` reports them in `adapter_temperatures`, and the adapter's weights hash and temperatures are part of the serving-stack fingerprint ([running.md](running.md#lora-adapters)) |
 | `--gpu-memory-utilization` | 0.9 | 0.9 | 0.9 | the text engine's share of the card |
 | `--max-model-len` | 32768 | the largest that fits the card, 32768 to 65536 | the largest that fits the card, 32768 to 98304 | the longest prompt in tokens. Without it the vLLM server on a Gemma base serves the largest multiple of 8192 that fits the card's KV cache, up to the base's ceiling and not below 32768; given, that length, refused above the ceiling. The Qwen base, `--image-model`, a second engine, `--engine-process separate` and the other backends stay at 32768 ([`running.md`](running.md#the-context-length)) |
 | `--kv-cache-dtype` | `auto` | `auto` | `auto` | `auto` (the model's own) or `fp8`, which holds twice the tokens in the KV cache and changes the numerics: a certificate is made under one dtype and suspended under the other |
@@ -134,9 +137,11 @@ Measurements: `runs/2026-10-02_pad-policy-row/`; not measured on the Gemma base.
 
 ### Determinism
 
-On a running server with the Qwen base, a question returns the same probabilities every time, alone or among other questions: each question is scored in its own engine call.
+**Qwen base.** On a running server a question returns the same probabilities every time, alone or among other questions: each question is scored in its own engine call.
 Across server restarts, single-question answers have matched an earlier record on the whole suite in most starts measured, and moved slightly without changing a choice in the others.
-The Gemma base does not repeat bit for bit: its logits come out in bf16 after its soft cap, and a state read for the first time and read again from the prefix cache can land a step apart; several questions in one request stay within the bound in the README's settings table.
+**Gemma 4 31B (the default) and Gemma 4 12B.** Neither repeats bit for bit: their logits come out in bf16 after the soft cap, and a state read for the first time and read again from the prefix cache can land a step apart; several questions in one request stay within the bound in the README's settings table.
+For the 31B, on one machine, two fresh starts gave the same 200 single-question answers on all 200 items, but asking the same 200 again on the server that had just answered them changed 5 (largest 0.031, no top answer changed); on other machines the same requests differed from an earlier machine's record on every item (median 4.3e-3, largest 0.379, 4 top answers changed). So the 31B repeats exactly on a freshly started server on one machine, and nothing is promised across machines (`EVAL_CARD.md` section 7.5).
+The 12B returns the same choice with probabilities that can move slightly (`EVAL_CARD.md` section 6.5).
 Any change of rounding moves this model's answers, the batch, the padding or where a long row is split, so every bit-identity claim holds for a fixed configuration and request form.
 Measurements: `EVAL_CARD.md` sections 4 and 6.5.
 
