@@ -9,7 +9,8 @@ refused before either engine is built.
 
 M1  alone, the text engine takes 0.90; with --image-model the defaults are 0.47 and 0.49; --one-engine keeps the text
     share for the one engine; the other backends are not checked
-M2  a pair over 0.96 is refused with both shares and where each came from; the measured pair and up to 0.96 pass
+M2  a pair over 1.0, or over 0.96 with a default in it, is refused with both shares and where each came from; the
+    measured pair, any pair up to 0.96 and a pair given in full up to 1.0 pass
 M3  the server refuses a pair that cannot fit before it builds an engine
 
   uv run pytest -q tests/unit/test_image_memory_shares.py
@@ -36,11 +37,14 @@ def test_m2_a_pair_that_cannot_fit_is_refused_with_its_origins():
     for text, image in ok:
         t, i = ve.resolve_memory_shares(text, image, "Qwen/image")
         assert t + i <= 0.96 + 1e-9
+    assert ve.resolve_memory_shares(0.5, 0.48, "Qwen/image") == (0.5, 0.48)  # given in full: the operator's, up to 1.0
+    assert ve.resolve_memory_shares(0.5, 0.5, "Qwen/image") == (0.5, 0.5)
+    assert ve.resolve_memory_shares(0.5, 0.47, "Qwen/image") == (0.5, 0.47)
     with pytest.raises(ValueError) as e:
         ve.resolve_memory_shares(0.90, None, "Qwen/image")  # the text engine at its own default leaves nothing
     msg = str(e.value)
     assert "0.90, given" in msg and "0.49, default" in msg and "1.39" in msg and "--one-engine" in msg
-    for text, image in ((0.5, 0.47), (0.9, 0.9), (None, 0.6), (0.7, 0.3)):
+    for text, image in ((0.9, 0.9), (None, 0.6), (0.5, 0.52), (0.6, 0.41), (None, 0.5), (0.5, None)):
         with pytest.raises(ValueError, match="share the card"):
             ve.resolve_memory_shares(text, image, "Qwen/image")
     with pytest.raises(ValueError, match="0.47, default"):
