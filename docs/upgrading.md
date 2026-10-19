@@ -6,6 +6,8 @@
 What changes for a running deployment from one release to the next, newest first.
 The changelog (`CHANGELOG.md`) lists every change; this page is for the ones that change what a deployment serves.
 
+**After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
+
 ## 0.17.0: System One's `assets` are read, and too many options is a 422
 
 ### What changed
@@ -28,7 +30,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 - **A certified task is watched for drift by its confidences, and stops certifying while the alert is on.** The traffic monitor gained a second signal beside the answer mix: a CUSUM on how often an answer's top probability falls below the certification examples' 5th percentile. When it alerts, every answer of the task is `certified: false` with the reason `traffic_changed` until it clears (`"suspend_on_alert": false` in the certify block only reports). On a replay where out-of-scope messages rose from message 1,000, the answer mix alerted after message 5,200 with 976 wrong certified answers served; the confidence signal alerts near message 1,700. Registration also warns (`certificate.warnings`) when a choice task has no catch-all option. Details: [`tasks.md`](tasks.md#the-monitor).
 - **A task certified before 0.16.0 has no confidence statistic, so it gets no drift protection until it is certified again.** Its monitor baseline was stored without one, and the statistic is built when the certificate is made. It keeps working as before (the answer mix alone, which reports and never suspends). **To get the protection:** certify it again on the running 0.16.0 server with `POST /v1/tasks/{id}/certify`, body `{"examples": [{"request": ..., "answer": ...}, ...]}` (labelled like the task's own; optionally `alpha`, `delta`, `min_examples`, `suspend_on_alert`), on examples that share no input with the task's fit, such as the held-out examples it was certified on. The fit is kept; the call returns the new certificate, and `suspend_on_alert` there is true unless you name it false, whatever the old certificate said. Check it took: `GET /v1/tasks/{id}` shows `status.monitor.confidence` (the statistic and its limit) and the certificate's `warnings`. Importing a task exported by an older version keeps its old certificate until you do this.
-- **A certified task's questions are scored by the function that certified them.** A question a certified task matches is scored alone, in request order, by the function the certificate was made with, not batched with the request's other questions, and a task with an intent head is certified on the hidden-state read alone (registration used to read each example plain first, which on vLLM moved the confidences slightly: a card session certified 153 answers where serving put 154 above the threshold). Registration records `served_check` (a sample of the held-out examples re-read through the serving path). A certificate made before 0.16.0 keeps its gap until it is made again.
+- **A certified task's questions are scored by the function that certified them.** A question a certified task matches is scored alone, in request order, by the function the certificate was made with, not batched with the request's other questions, and a task with an intent head is certified on the hidden-state read alone (registration used to read each example plain first, which on vLLM moved the confidences slightly: one measurement certified 153 answers where serving put 154 above the threshold). Registration records `served_check` (a sample of the held-out examples re-read through the serving path). A certificate made before 0.16.0 keeps its gap until it is made again.
 - **A `--model` of a type no base serves is refused** instead of being given the Qwen profile; `--base <key>` with the same `--model` is the explicit way to serve it (the CPU stand-in `--backend hf` is unchanged).
 - **The MLX backend downloads `--model` at `--revision`**, so `--model tachara-ai/decisio-gemma-4-31b-mlx-4bit --revision v0.15.0` pins the build.
 - **Known limit: a Marlin W4A16 checkpoint (compressed-tensors, such as `google/gemma-4-31B-it-qat-w4a16-ct`) needs `--engine-process separate` on 0.16.0**, because the default in-process engine refuses its first request with a `marlin_locks` error; the in-process fix (#215) is planned for 0.17.0.
@@ -64,6 +66,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | The Qwen base, `--image-model`, `--head-engine`, `--engine-process separate`, `--backend mlx` or `hf` | 32,768, as before | Nothing |
 | Certified answers | The context length served is part of the serving-stack fingerprint: a certificate made at one length is suspended at another, so one made on 0.13.0 (32,768) is suspended on 0.14.0 on the 31B or the 12B, as it already is by the new version, and a card that fits a different length suspends one made on another card | Register and certify again on the server that will serve; give `--max-model-len` to pin the length across cards |
 | A client that relied on 422 for prompts over 32,768 tokens | Those prompts are answered where the card allows it | Check the length on your side, or pin `--max-model-len 32768` |
+
+## 0.12.0: a POST that is not JSON is refused, and vLLM is 0.31.0
+
+### What changed
+
+- **Every POST must be JSON.** A POST whose `Content-Type` is not `application/json` (parameters such as `; charset=utf-8` are fine), or has none, is refused with 415 and `accept-post: application/json` before its body is read, on every route. Before 0.12.0 such a POST was carried out: a web page could make the server do the work (and register or replace tasks) without being able to read the answer. The one other form is `multipart/form-data` on `/v1/systemone` (the image clients), which is accepted when the request carries an `X-Decisio-Client` header with any value. `SECURITY.md`, "Cross-site requests from a web page", says why.
+- **A non-finite probability is a 500, not a 400.** If an engine returns NaN or infinity, the model's arithmetic on that device is at fault, not the request: the route answers 500 with a `detail` that names the model and the engine.
+- **vLLM is 0.31.0** (the lock file and the image pin it). Rebuild the environment with `uv sync` or pull the new image.
+- **New and optional:** certified answers and a traffic monitor in `/v1/tasks` (`docs/tasks.md`), an abstention task that matches by option keys, and `/health`'s `state_boundary` reporting `running` while a registration is being sent.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A client that posts form-encoded or `text/plain` bodies, or sends no `Content-Type` | It gets 415 | Send JSON with `Content-Type: application/json` |
+| A client that sends `multipart/form-data` to `/v1/systemone` | It gets 415 without the header | Add `X-Decisio-Client: <any value>` |
+| A client that treats every 4xx as the request's fault | A model whose arithmetic fails now answers 500 | Treat a 500 with "not finite" as a server fault (`docs/api.md`) |
+| An environment built for 0.11.x | It has vLLM 0.30.0 | Rebuild it; measurements made on 0.30.0 are labelled as such in `EVAL_CARD.md` |
 
 ## 0.11.0: the model repositories moved to tachara-ai
 
@@ -106,7 +126,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| `docker compose up`, or the image, with no `DECISIO_MODEL` set | The container now serves Gemma 4 31B, which needs a 96 GB card | To keep the Qwen base, set `DECISIO_BASE=qwen3.6-35b-a3b` (in `compose.yaml`'s `environment`, or `-e` on `docker run`) |
+| `docker compose up`, or the image, with no `DECISIO_MODEL` set | The container now serves Gemma 4 31B, which is measured on a 96 GB card (an 80 GB H100 also runs it, `docs/running.md`) | To keep the Qwen base, set `DECISIO_BASE=qwen3.6-35b-a3b` (in `compose.yaml`'s `environment`, or `-e` on `docker run`) |
 | The image with `DECISIO_MODEL` set | Nothing: a checkpoint alone names its own base, so the container serves what it served | Nothing |
 | A derived image that relied on `ENV DECISIO_MODEL` coming from this image | It no longer comes from it, so the default base is served | Set `DECISIO_MODEL` or `DECISIO_BASE` in your image |
 | `uv run python -m decisio.serve.vllm_engine --base ...` or `--model ...` | Nothing | Nothing |
@@ -120,7 +140,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - The probabilities are another model's, calibrated with its own temperatures and prompt (`docs/cli.md`), so some choices differ from the Qwen base's.
   `EVAL_CARD.md` section 7 has the 31B's measurements and section 3 the Qwen base's; the README's "Choosing a base" says when each is the better choice.
 - It reads a new state more slowly: 1.6, 3.2 and 5.1 times the Qwen base's time at 300, 1,000 and 3,000 tokens (80.7, 160.1 and 438.1 ms against 49.9, 50.0 and 85.2, one card at 585 W; `runs/2026-10-06_latency-585w/`).
-- It needs a 96 GB card on vLLM; on a Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens (`docs/running.md`).
+- It is measured on a 96 GB card on vLLM (an 80 GB H100 also runs it, `docs/running.md`); on a Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens (`docs/running.md`).
 - Its probabilities repeat exactly within a session, not across sessions: near-tied answers moved between two sessions in our measurements (`EVAL_CARD.md` 7.5).
 
 ### Keeping the previous behaviour
