@@ -7,7 +7,9 @@ and score 5.25): the base's were fitted on the base's plain readouts, and on a t
 answer into the abstention band. The fix is its own temperature per question type, fitted on data that is not a
 benchmark's. This is Lab 1's split-fit method (`S18_SPLIT_FIT_RESULTS.md`, the S20 note), as a tool:
 
-  choice     the kappa that minimises log loss on the model's reads of the H pool (776 program-keyed choice items)
+  choice     the kappa that minimises log loss on the model's reads of the H pool (776 program-keyed choice items); and
+             one per band of option count (2-10, 11-26, 27-255) on the pool's choice items with that many options, so
+             that a choice temperature follows the over-confidence that grows with the number of options
   yes/no     the same on its reads of the dev pool's yes/no items
   score      the same on its reads of the dev pool's score items (true score questions)
 
@@ -39,7 +41,16 @@ import math
 
 import numpy as np
 
-from decisio.serve.adapter_temperatures import SCHEMA, TYPES
+from decisio.serve.adapter_temperatures import (
+    DEFAULT_BANDS,
+    MIN_BAND_ITEMS,
+    SCHEMA,
+    TYPES,
+    band_name,
+    band_of,
+    fit_choice_bands,
+    parse_bands,
+)
 
 GRID = np.exp(np.linspace(math.log(0.2), math.log(8.0), 781))  # the kappa grid of Lab 1's fits
 SERVED = {"choice": 4.672, "noul": 5.252, "score": 5.252}  # decisio 0.14.0 to 0.16.0's defaults for the Gemma bases
@@ -116,36 +127,65 @@ def ece_width10(conf, ok) -> float:
     return float(np.sum(c[m] / n * np.abs(hits[m] / c[m] - mass[m] / c[m])))
 
 
-def swap_validated(dev_reads, dev_keys, *, use: str = "probs") -> dict:
+def swap_stats(dev_reads, dev_keys, ids, use: str) -> dict:
+    """One group's swap-validated figures (see `swap_validated`) for the items `ids`."""
+    kap = {}
+    for h in (0, 1):
+        fit = [i for i in ids if half(i) == h]
+        kap[h] = fit_kappa([dev_reads[i][use] for i in fit], [dev_keys[i]["gold"] for i in fit])
+    q = {i: rescale(dev_reads[i][use], kap[1 - half(i)]) for i in ids}
+    p0 = {i: np.asarray(dev_reads[i][use], float) for i in ids}
+    gold = {i: dev_keys[i]["gold"] for i in ids}
+
+    def ece(P, fn):
+        return fn([P[i].max() for i in ids], [int(P[i].argmax() == gold[i]) for i in ids])
+
+    return {
+        "n": len(ids),
+        "kappa_half0": round(kap[0], 3),
+        "kappa_half1": round(kap[1], 3),
+        "kappa_ratio": round(max(kap.values()) / min(kap.values()), 3),
+        "ece10_unscaled": round(ece(p0, ece_width10), 4),
+        "ece10_swap_validated": round(ece(q, ece_width10), 4),
+        "ece_equal_count_swap_validated": round(ece(q, ece_tie), 4),
+    }
+
+
+def swap_validated(
+    dev_reads, dev_keys, *, use: str = "probs", bands=DEFAULT_BANDS, min_band_items: int = MIN_BAND_ITEMS
+) -> dict:
     """The ship gates' ECE per type on the dev pool: the kappa of each half (by log loss) is applied to the OTHER half's
     items, and the ECE is taken over all of the pool's items of that type, pooled (ten equal-width bins). Also the
     ECE of the same items unscaled, the same pooled swap with Lab 1's older equal-count tie-robust ECE, and the two
-    halves' kappas with their ratio (the gates call a fit unstable when the ratio is over 1.25)."""
+    halves' kappas with their ratio (the gates call a fit unstable when the ratio is over 1.25).
+
+    Where the pool's choice items fall in more than one band of option count, `choice` also holds `bands`: the same
+    figures for the items of each band, each fitted and scored within the band (a band needs `min_band_items` / 2
+    items in each half, else it is listed with its count and not scored)."""
     out = {}
     for t in TYPES:
         ids = [i for i in sorted(dev_keys) if i in dev_reads and dev_keys[i]["type"] == t]
         if not ids:
             continue
-        kap = {}
-        for h in (0, 1):
-            fit = [i for i in ids if half(i) == h]
-            kap[h] = fit_kappa([dev_reads[i][use] for i in fit], [dev_keys[i]["gold"] for i in fit])
-        q = {i: rescale(dev_reads[i][use], kap[1 - half(i)]) for i in ids}
-        p0 = {i: np.asarray(dev_reads[i][use], float) for i in ids}
-        gold = {i: dev_keys[i]["gold"] for i in ids}
-
-        def ece(P, fn):
-            return fn([P[i].max() for i in ids], [int(P[i].argmax() == gold[i]) for i in ids])
-
-        out[t] = {
-            "n": len(ids),
-            "kappa_half0": round(kap[0], 3),
-            "kappa_half1": round(kap[1], 3),
-            "kappa_ratio": round(max(kap.values()) / min(kap.values()), 3),
-            "ece10_unscaled": round(ece(p0, ece_width10), 4),
-            "ece10_swap_validated": round(ece(q, ece_width10), 4),
-            "ece_equal_count_swap_validated": round(ece(q, ece_tie), 4),
-        }
+        out[t] = swap_stats(dev_reads, dev_keys, ids, use)
+        if t == "choice" and bands:
+            groups: dict = {}
+            for i in ids:
+                b = band_of(bands, len(dev_reads[i][use]))
+                if b is not None:
+                    groups.setdefault(b, []).append(i)
+            if len(groups) > 1:
+                per = {}
+                for b, g in sorted(groups.items()):
+                    halves = [sum(half(i) == h for i in g) for h in (0, 1)]
+                    if min(halves) < max(1, min_band_items // 2):
+                        per[band_name(*b)] = {
+                            "n": len(g),
+                            "not_scored": f"under {max(1, min_band_items // 2)} items in a half",
+                        }
+                    else:
+                        per[band_name(*b)] = swap_stats(dev_reads, dev_keys, g, use)
+                out[t]["bands"] = per
     return out
 
 
@@ -173,8 +213,15 @@ def fit_split(
     served: dict | None = None,
     dev_served: dict | None = None,
     data: str = "",
+    bands=DEFAULT_BANDS,
+    min_band_items: int = MIN_BAND_ITEMS,
 ) -> dict:
     """The adapter file (schema `decisio.adapter/1`) fitted by Lab 1's split method.
+
+    Choice is also fitted per band of option count (`bands`; none for the one temperature only) on the choice pool's
+    fit items in the band, with the held-out figures of each band beside it. When the pool's items fall in one band only
+    (the H pool's 3 to 6 options) the file has no bands. A band with fewer than `min_band_items` fit items is not fitted
+    and is served at the temperature of all the pool's choice items.
 
     `served`: the temperatures the reads' `probs` were served at (default the Gemma bases'). `dev_served`: where the dev
     pool's reads were served at other temperatures (S18's dev score items were sent as choice questions and served at
@@ -206,7 +253,8 @@ def fit_split(
         "noul": ("dev", ids_of(dev_keys, dev_reads, "noul")),
         "score": ("dev", ids_of(dev_keys, dev_reads, "score")),
     }
-    temps, kappa, checks, vs_default = {}, {}, {}, {}
+    bands = parse_bands(bands) if isinstance(bands, str) else tuple(bands)
+    temps, kappa, checks, vs_default, banded, band_notes = {}, {}, {}, {}, {}, {}
     for t in TYPES:
         src, ids = pools[t]
         reads, keys = (h_reads, h_keys) if src == "H" else (dev_reads, dev_keys)
@@ -223,9 +271,27 @@ def fit_split(
         checks[t] = {"pool": src, "n_fit": len(fit_ids), "kappa_fit": round(k, 3), "served_at": base}
         if out_ids:
             checks[t]["heldout"] = heldout([vec(reads[i], i) for i in out_ids], [keys[i]["gold"] for i in out_ids], k)
+        if t == "choice" and bands:
+            fitted, skipped = fit_choice_bands(P, y, bands, min_band_items, fit_kappa)
+            if fitted:
+                checks[t]["bands"] = {}
+                for b, (kb, nb) in sorted(fitted.items()):
+                    banded[band_name(*b)] = round(base / kb, 3)
+                    entry = {"n_fit": nb, "kappa_fit": round(kb, 3), "served_at": base}
+                    held = [i for i in out_ids if band_of(bands, len(vec(reads[i], i))) == b]
+                    if held:
+                        entry["heldout"] = heldout(
+                            [vec(reads[i], i) for i in held], [keys[i]["gold"] for i in held], kb
+                        )
+                    checks[t]["bands"][band_name(*b)] = entry
+                band_notes = {
+                    "not_fitted_under_min_items": {band_name(*b): m for b, m in sorted(skipped.items())},
+                    "min_band_items": min_band_items,
+                }
     return {
         "schema": SCHEMA,
         "temperatures": temps,
+        **({"choice_bands": banded} if banded else {}),
         "fit": {
             "method": "split-fit (Lab 1's): per-type kappa by minimum log loss on a split of the model's own reads",
             "variant": variant,
@@ -235,7 +301,10 @@ def fit_split(
             "kappa_against_decisio_defaults": vs_default,
             "served_at": {t: (dev_served if pools[t][0] == "dev" else served)[t] for t in TYPES},
             "n": {t: checks[t]["n_fit"] for t in TYPES},
-            "swap_validated_dev": swap_validated(dev_reads, dev_keys, use=field),
+            "swap_validated_dev": swap_validated(
+                dev_reads, dev_keys, use=field, bands=bands, min_band_items=min_band_items
+            ),
+            **({"choice_bands": band_notes} if band_notes else {}),
             "checks": checks,
             "data": data,
         },

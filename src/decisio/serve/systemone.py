@@ -37,6 +37,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
 from decisio.serve.temperature import apply_temperature
 
@@ -584,9 +585,15 @@ class SystemOne:
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
         # per adapter, {question type: temperature} replacing the base's for a request that names the adapter
-        # (decisio.serve.adapter_temperatures); a type the adapter has none for keeps the base's
+        # (decisio.serve.adapter_temperatures); a type the adapter has none for keeps the base's. A "choice_bands"
+        # entry, {"lo-hi": temperature}, is the adapter's choice temperature by the question's number of options
         self.adapter_temperatures = {
-            n: {k: float(v) for k, v in t.items()} for n, t in (adapter_temperatures or {}).items() if t
+            n: {k: ({b: float(x) for b, x in v.items()} if k == "choice_bands" else float(v)) for k, v in t.items()}
+            for n, t in (adapter_temperatures or {}).items()
+            if t
+        }
+        self._adapter_bands = {
+            n: band_table(b) for n, t in self.adapter_temperatures.items() if (b := t.get("choice_bands"))
         }
         self.release_date, self.description = release_date, description
         self.branch_log = branch_log
@@ -781,7 +788,7 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                t_q = self.temperature_of(q.type, adapter)
+                t_q = self.temperature_of(q.type, adapter, len(p))
                 if not corrected and t_q != 1.0 and not use_image:
                     p = apply_temperature(p, t_q)
                     if debug:
@@ -853,10 +860,15 @@ class SystemOne:
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
 
-    def temperature_of(self, qtype: str, adapter: str | None = None) -> float:
-        """The temperature a question of this type is served at: the named adapter's own for the type, else the type's
-        (--temperature-<type>), else the global one."""
+    def temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
+        """The temperature a question of this type is served at: the named adapter's own for the type (for a choice
+        question of `options` options, its temperature for the band that count falls in, if it has bands), else the
+        type's (--temperature-<type>), else the global one."""
         if adapter is not None:
+            if qtype == "choice" and options is not None:
+                for lo, hi, t in self._adapter_bands.get(adapter, ()):
+                    if lo <= options <= hi:
+                        return t
             own = self.adapter_temperatures.get(adapter, {}).get(qtype)
             if own is not None:
                 return own
