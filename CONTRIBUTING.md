@@ -46,9 +46,11 @@ If your change touches the served path, say so in the pull request so the mainta
 
 - One change per pull request, described in the title as a [Conventional Commit](https://www.conventionalcommits.org/) (`feat:`, `fix:`, `docs:`, `test:`, `chore:`); the changelog is generated from these, never edited by hand.
 - Tests for new behaviour and for any bug fixed.
+- A new run folder under `runs/` is named for its date and what was measured, `YYYY-MM-DD_what-was-measured` (`runs/2026-10-16_mlx-gemma-31b-4bit`), with no session, track or machine code in the name. Existing folders keep the names they have, because records and pages point at those paths. `runs/README.md` has the rest.
 - No change to a measured answer unless the pull request includes the measurement: a run under `runs/` with its manifest, or a statement of the check that shows bit-identity (the suite, the conformance gates).
 - No benchmark item text, no API keys, no addresses of machines, no personal data in any file, including test data and run records.
 - Every new source file carries the SPDX header used throughout the tree.
+- A change to a route, a wire model or a server flag brings its regenerated reference files: `uv run python -m decisio.serve.reference_docs --write` (a test fails when `docs/reference/` and the code disagree; release-please rewrites the version in both files at release time).
 - The DCO sign-off on every commit.
 
 Merges are squash merges by a maintainer; pull requests are not rebased or force-pushed by the reviewer.

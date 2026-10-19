@@ -21,7 +21,7 @@ On a Gemma base started without `--max-model-len` (decisio 0.14.0 and later) the
 The container prints its own warning first, before it starts the server, when the card has less than 90 GB: `decisio: warning: the record was measured on a 96 GB card; with less memory the engine may fail to start (see EVAL_CARD.md)`.
 
 **What fits.**
-- The default base, the 31B in FP8, is measured on a 96 GB card only: 30.61 GiB of weights and 48.6 GiB of KV cache at vLLM's 0.90 share (`EVAL_CARD.md` section 7).
+- The default base, the 31B in FP8, is measured in full on a 96 GB card: 30.61 GiB of weights and 48.6 GiB of KV cache at vLLM's 0.90 share (`EVAL_CARD.md` section 7); on an 80 GB H100 it also started and served up to 98,304 tokens at the default share (`docs/running.md`, "The context length").
 - The Gemma 4 12B at bf16 takes 22.8 GiB of weights and, simulated on the 96 GB card with the engine's share cut to 28.8 GB (0.90 of 32 GB), did not start at 32,768 or at 16,384 tokens of context (`EVAL_CARD.md` section 6.6): it does not start on a 32 GB card on vLLM's defaults.
 - No smaller card was run: nothing here says the 31B starts or does not start on a 48 GB card, or that a smaller context makes any of these fit.
 

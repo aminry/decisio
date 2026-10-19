@@ -1,0 +1,11 @@
+{
+ "what": "The split fit tool against Lab 1's S18 fits from the same stored reads",
+ "date": "2026-10-18",
+ "decisio": "the feat/adapter-serving branch (not released)",
+ "source": "our private records of the card sessions of 2026-10-16",
+ "files": {
+  "reproduction.json": "7be582697799795ac2de382bea39898e29ba5401393bdd485ea50249dc253998",
+  "reproduction_s20.json": "abd401f32947d7c52bc119faf2bcd8753c0f270659ff016b4967286ee1ed4c46",
+  "summary.md": "519b57653d6b6926192dacdc16059efdd526b3d25c1895366849f9507bde87f4"
+ }
+}

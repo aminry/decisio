@@ -78,6 +78,8 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
+from decisio.serve import adapter_temperatures, engine_stream  # noqa: E402
+from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
 from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
@@ -301,8 +303,9 @@ class LettersEngine:
         kw.update(engine_kw or {})
         # the adapters' names are checked, and mapped to the served class's layout, before the engine is built: a
         # refusal costs seconds, not the minutes of loading the weights
-        self.adapter_paths, self.adapter_names = {}, {}
+        self.adapter_paths, self.adapter_names, self.adapter_identity = {}, {}, {}
         if adapters:
+            self.adapter_identity = {name: adapter_identity(folder) for name, folder in adapters.items()}
             overrides = (engine_kw or {}).get("hf_overrides") or {}
             arch = overrides.get("architectures")
             arch = "ForCausalLM" if arch else (read_config(model, revision).get("architectures") or [""])[0]
@@ -310,6 +313,9 @@ class LettersEngine:
         self.llm = LLM(**kw)
         if auto is not None:
             self._settle_context(auto)
+        self._stream = (
+            engine_stream.capture()
+        )  # the stream the engine was built and warmed up on (decisio.serve.engine_stream)
         self.tok = self.llm.get_tokenizer()
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
@@ -361,12 +367,19 @@ class LettersEngine:
         """The probe's prompt (decisio.serve.engine_health): one token."""
         return self.tok.encode("ok", add_special_tokens=False)[:1]
 
+    def bind_stream(self):
+        """Put the calling thread on the stream the engine was built on (engine_stream); `engine_health.guarded` and the
+        probe call it, so that no thread asks vLLM for a resource under a stream the warm-up never used."""
+        engine_stream.bind(getattr(self, "_stream", None))
+
     def probe(self):
         """The smallest call this engine serves, to tell a failed request from a dead engine (engine_health): one
         forward pass over a one-token prompt, as the warm-up's call (a pooling request in packed mode). Prompts shorter
         than a cache block leave the prefix cache as it was."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
+
+        self.bind_stream()
 
         prompt = [TokensPrompt(prompt_token_ids=self.probe_ids())]
         if self.mode == "packed":
@@ -401,6 +414,7 @@ class LettersEngine:
             "max_model_len_ceiling": getattr(self.family, "context_ceiling", None),
             "mamba_ssm_cache_dtype": str(c.cache_config.mamba_ssm_cache_dtype),
             "adapters": sorted(self.adapters),
+            **({"adapter_identity": self.adapter_identity} if self.adapter_identity else {}),
             **({"adapter_names": self.adapter_names} if self.adapter_names else {}),
             "VLLM_USE_DEEP_GEMM": os.environ.get("VLLM_USE_DEEP_GEMM", "unset"),
             "prompt_format": self.fmt.facts(),
@@ -860,6 +874,7 @@ def make_app(engine, systemone=None, health=None):
                     "debug_readout": systemone.debug_readout,
                     "temperature": systemone.temperature,
                     "temperatures": systemone.temperatures,
+                    "adapter_temperatures": systemone.adapter_temperatures,
                     "readout_tasks": {
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),
@@ -1265,7 +1280,9 @@ def resolve_base(args):
     return fam, fmt
 
 
-def main():
+def build_parser():
+    """The server's command line (`python -m decisio.serve.vllm_engine`): `main` parses it, and the flags table of
+    `decisio.serve.reference_docs` is written from it."""
     import argparse
 
     ap = argparse.ArgumentParser()
@@ -1300,6 +1317,14 @@ def main():
     )
     ap.add_argument("--pad-where", default="front", choices=PAD_PLACES)
     ap.add_argument("--adapter", action="append", default=[], help="name=path of a vLLM-format LoRA adapter")
+    ap.add_argument(
+        "--adapter-temperatures",
+        action="append",
+        default=[],
+        help="name=file of a decisio.adapter/1 file of that adapter's temperatures per question type (choice, noul, "
+        "score) and, for choice, optionally per band of option count (choice_bands), served for a request that names "
+        "it; replaces the decisio_adapter.json in its folder; repeatable",
+    )
     ap.add_argument("--pack", type=int, default=16)
     ap.add_argument(
         "--pad-policy",
@@ -1419,6 +1444,14 @@ def main():
         help="the full multimodal checkpoint: a second engine under the multimodal class, serving only "
         "/v1/systemone requests that carry images (decisio.serve.image_engine); the text route is "
         "unchanged",
+    )
+    ap.add_argument(
+        "--max-images",
+        type=int,
+        default=None,
+        help="the most images one request may carry on the --image-model engine (default 128: 128 images of 512 by "
+        "512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal "
+        "profiling memory at start-up, raise it for smaller images)",
     )
     ap.add_argument(
         "--hide-index-keys",
@@ -1600,8 +1633,28 @@ def main():
         help="listen address (default: this machine only; put a reverse proxy in front to expose it)",
     )
     ap.add_argument("--port", type=int, default=8000)
+    return ap
+
+
+def main():
+    ap = build_parser()
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
+    try:  # an unusable file is a refusal before the engine is built
+        adapter_temps = adapter_temperatures.load(adapters, dict(a.split("=", 1) for a in args.adapter_temperatures))
+    except (adapter_temperatures.AdapterFileError, ValueError) as e:
+        ap.error(str(e))
+    for name, entry in adapter_temps.items():
+        print(
+            f"ADAPTER TEMPERATURES {name} ({entry['source']}: {entry['file']}) "
+            f"{json.dumps(adapter_temperatures.serving_temperatures(entry))}; types not listed keep the base's",
+            flush=True,
+        )
+    for name in sorted(set(adapters) - set(adapter_temps)):
+        print(
+            f"WARNING: adapter {name} has no temperatures; it is served at the base's, which were fitted on the base",
+            flush=True,
+        )
     try:
         args.family, fmt = resolve_base(args)
     except ValueError as e:
@@ -1618,6 +1671,7 @@ def main():
                 ("--one-engine", args.one_engine),
                 ("--head-engine", args.head_engine),
                 ("--adapter", args.adapter),
+                ("--adapter-temperatures", args.adapter_temperatures),
                 ("--mode packed", args.mode == "packed"),
                 (f"--multi-question {args.multi_question}", args.multi_question not in (None, "sequential")),
             )
@@ -1645,6 +1699,10 @@ def main():
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
+    if args.max_images is not None and not args.image_model:
+        ap.error("--max-images needs --image-model")
+    if args.max_images is not None and args.max_images < 1:
+        ap.error("--max-images must be at least 1")
     try:  # the shares that fit one card, refused before either engine is built
         args.gpu_memory_utilization, args.image_gpu_memory_utilization = resolve_memory_shares(
             args.gpu_memory_utilization, args.image_gpu_memory_utilization, args.image_model, one, args.backend
@@ -1701,6 +1759,7 @@ def main():
 
             engine = ImageLettersEngine(
                 args.image_model,
+                **({"max_images": args.max_images} if args.max_images is not None else {}),
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.gpu_memory_utilization,
@@ -1775,6 +1834,7 @@ def main():
 
             image_engine = ImageLettersEngine(
                 args.image_model,
+                **({"max_images": args.max_images} if args.max_images is not None else {}),
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.image_gpu_memory_utilization,
@@ -1889,6 +1949,7 @@ def main():
             "noul": args.temperature_noul,
             "score": args.temperature_score,
         },
+        adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
     )
     # one engine state for every engine of this server: a dead engine refuses requests, turns /health to 503 and ends
     # the process with code 70, so that a restart policy starts a new server (decisio.serve.engine_health)

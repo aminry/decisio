@@ -1,0 +1,12 @@
+{
+ "what": "An adapter's own temperatures per question type, checked offline against one card session's reads of a tuned 31B (JevBench 231, a 776-item set, a 500-item development set)",
+ "date": "2026-10-17",
+ "decisio": "the feat/adapter-serving branch on main at d1bc9a4 (not released)",
+ "source": "our private records of the card session of 2026-10-16 and the offline arms",
+ "files": {
+  "decisio_adapter.metask.expected_position.json": "147b2f3318fc946f5a765fe22f8e3d03c0a7b32e0d0d01ac04411df3068685a0",
+  "decisio_adapter.metask.log_loss.json": "c163cc1480c25372e8f276ff14d001afb5ca9fb7a25b221f15256753cf3c8bf7",
+  "offline_check.json": "facada4030f8e5d7b15b53b41aa72b0755d0ff6eb5fe1e59ab4ecc9d5b37de34",
+  "summary.md": "21195c99c6fd2adc5b74dbbd40a05f5958a97d3b19105e36e65f8b3d9b36a878"
+ }
+}

@@ -13,17 +13,19 @@ If a first start fails (a card too small, a driver, a busy port, a download), [`
 
 Requirements: Linux, one NVIDIA card (measured on an RTX PRO 6000 Blackwell with 96 GB), a driver that supports CUDA 13.0 (the runtime `uv.lock` pins), Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
+<!-- x-release-please-start-version -->
 ```bash
-git clone https://github.com/aminry/decisio
+git clone --branch v0.17.0 https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
 uv run python -m decisio.serve.vllm_engine
 ```
+<!-- x-release-please-end -->
 
-- With no flag the server serves Gemma 4 31B (`--base gemma-4-31b`), the default base since 0.10.0, from its FP8 repository `tachara-ai/decisio-gemma-4-31b`; it needs the 96 GB card.
+- With no flag the server serves Gemma 4 31B (`--base gemma-4-31b`), the default base since 0.10.0, from its FP8 repository `tachara-ai/decisio-gemma-4-31b`; it is measured in full on a 96 GB card, and it also started and answered on an 80 GB H100 ("The context length" below).
   `--model google/gemma-4-31B-it` serves Google's weights at the pinned revision instead, quantized to FP8 each time they load (`--revision` does the same, naming a revision of Google's checkpoint).
 - A third party served the 31B on a smaller card than ours: JevBench's maintainer ran decisio 0.8.0 with `--base gemma-4-31b` (Google's weights, quantized to FP8 on load) on one H100 80 GB (Lium) and "no flag of theirs was changed to make it fit".
-  That is the board's own account of its run of 2026-10-06 on the v1.6.0/v1.6.1 pool, in the row `decisio-gemma-4-31b-v080` (JevBench v1.6.1, `https://benchmarkheaven.com/api/jevbench/v1.6.1`); we did not run it, and nothing here changes what we state: the 31B is measured on, and needs, a 96 GB card.
+  That is the board's own account of its run of 2026-10-06 on the v1.6.0/v1.6.1 pool, in the row `decisio-gemma-4-31b-v080` (JevBench v1.6.1, `https://benchmarkheaven.com/api/jevbench/v1.6.1`); we did not run it. It agrees with our own 80 GB record ("The context length" below): the 31B is measured in full on a 96 GB card, and it also runs on an 80 GB H100.
   The row also notes that 23 of the pool's items, of about 80,000 tokens, are over the 32,768-token context.
 - `--base qwen3.6-35b-a3b` serves `Qwen/Qwen3.6-35B-A3B-FP8` and `--base gemma-4-12b` serves `google/gemma-4-12B-it`, each at its pinned revision and with its own settings (the README's "Choosing a base"; `docs/cli.md` lists every setting per base).
 - With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`, so a local copy of any base's checkpoint brings its own settings; a base's pinned revision applies whenever `--model` names the base's own Hugging Face repository and `--revision` is not given.
@@ -76,7 +78,7 @@ Several questions in one request are not affected, and the Qwen base needs no re
 - `before` (the default of both Gemma bases since 0.11.1; the 12B's was `after` from 0.9.0 to 0.11.0): the warm-up goes ahead of the question, in the caller's request, as in 0.8.1. On one card at 585 W with an AMD Ryzen Threadripper 9960X that added +16, +25 and +28 ms to a first read at 300, 1,000 and 3,000 tokens on Gemma 4 12B, and +21, +34 and +34 ms on Gemma 4 31B (`runs/2026-10-06_latency-585w/`, and `register_boundary.md` there for every figure below).
 - `off`: never; a later, different question about a state reads it again, as before 0.8.1. For traffic that asks one question per state, where a registration would only cost throughput.
 
-Why the 12B's default moved from `after` to `before` in 0.11.1: our grid of 2026-10-09 (12B, `after`, AMD EPYC 9534, RTX PRO 6000 at 600 W, decisio 0.10.0; in our private records) found that one question on each new state, sent back to back, took 774 ms at 3,000 tokens instead of about 390 and 1.6 s instead of 0.8 at 6,000, because each request waited behind the previous state's registration (385 and 796 ms outside the engine's stages, one read of the state); `batch` mode, three-question requests and the 31B's `before` showed no gap. `before` reads the state once plus one token inside the request, so nothing is pending behind a response. A direct check then confirmed it (2026-10-09, one server on decisio 0.10.0, in our private records): one question per new state, ten states, server time of the first request and the median of the nine later ones. Back to back, `after` took 378 and 771 ms at 3,000 tokens and 812 and 1,613 ms at 6,000; `before` 413 and 417 ms and 834 and 834 ms; `off` 383 and 395 ms and 816 and 818 ms. With the client waiting for the registrar between states, `after` took 396 and 396 ms and 818 and 827 ms. So the doubling is only under `after` and only back to back; `before` costs 22 ms (3,000 tokens) and 17 ms (6,000) over `off`. `off` shows the cost of no registration and nothing else: it is the baseline the other two are read against, and it does not show how a later, different question fares, since without a registration that question reads the state again. The response's `timing.state_boundary.ran_before` was 0 on every request of every order: it counts only a registration the request sends itself, and no field records the wait for the registrar's background warm-up.
+Why the 12B's default moved from `after` to `before` in 0.11.1: our grid of 2026-10-09 (12B, `after`, AMD EPYC 9534, RTX PRO 6000 at 600 W, decisio 0.10.0; measured by the maintainers, the record is not published) found that one question on each new state, sent back to back, took 774 ms at 3,000 tokens instead of about 390 and 1.6 s instead of 0.8 at 6,000, because each request waited behind the previous state's registration (385 and 796 ms outside the engine's stages, one read of the state); `batch` mode, three-question requests and the 31B's `before` showed no gap. `before` reads the state once plus one token inside the request, so nothing is pending behind a response. A direct check then confirmed it (2026-10-09, one server on decisio 0.10.0, measured by the maintainers; the record is not published): one question per new state, ten states, server time of the first request and the median of the nine later ones. Back to back, `after` took 378 and 771 ms at 3,000 tokens and 812 and 1,613 ms at 6,000; `before` 413 and 417 ms and 834 and 834 ms; `off` 383 and 395 ms and 816 and 818 ms. With the client waiting for the registrar between states, `after` took 396 and 396 ms and 818 and 827 ms. So the doubling is only under `after` and only back to back; `before` costs 22 ms (3,000 tokens) and 17 ms (6,000) over `off`. `off` shows the cost of no registration and nothing else: it is the baseline the other two are read against, and it does not show how a later, different question fares, since without a registration that question reads the state again. The response's `timing.state_boundary.ran_before` was 0 on every request of every order: it counts only a registration the request sends itself, and no field records the wait for the registrar's background warm-up.
 
 Why `after` is still there: on the same card, with the queue idle, `after` took the registration off the caller's first read on both bases (12B 33.3, 90.3 and 237.1 ms against 56.7, 107.7 and 261.9 at 300, 1,000 and 3,000 tokens; 31B 52.0, 149.2 and 415.5 against 78.6, 157.2 and 435.4).
 Under load, with 32 and 64 clients sending first and follow-up questions about new 1,000-token states, the 12B kept 0.99 and 0.98 of the throughput it had with `before`, but the 31B kept only 0.61 and 0.74, with p95 1.69 and 1.62 times; so the 31B registers before the question.
@@ -143,7 +145,7 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, the image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume, and the README's example request and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start/`).
 The image published with v0.1.0 repeated the start from its digest: healthy in 223 s with the checkpoint cached, example and conformance passing (`pushed_image_0.1.0/` in the same record).
 Those starts were with the Qwen base, the container's default then.
-The no-flag vLLM start selected Gemma 4 31B on 2026-10-08 on one RTX PRO 6000 Blackwell at 600 W and AMD EPYC 9654, using decisio 0.9.0 at the PR head; `/health` recorded `base: gemma-4-31b`, and the README request produced one distinct response in 30 repeats (our private records of 2026-10-08).
+The no-flag vLLM start selected Gemma 4 31B on 2026-10-08 on one RTX PRO 6000 Blackwell at 600 W and AMD EPYC 9654, using decisio 0.9.0 at the PR head; `/health` recorded `base: gemma-4-31b`, and the README request produced one distinct response in 30 repeats (measured by the maintainers on 2026-10-08; the record is not published; the first response is `runs/2026-10-08_readme-worked-decisions/ticket.json`).
 The same start through a built 0.10.0 container remains to be recorded.
 
 ## Mac with MLX
@@ -159,7 +161,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
 - It refuses the image route, packed mode, LoRA adapters and the second-engine head.
-- It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `aminry/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
+- It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `tachara-ai/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
 
 The Qwen base:
 - The 6-bit conversion is the Mac default; the 8-bit one is not shipped.
@@ -206,7 +208,7 @@ The Gemma 31B base (`--base gemma-4-31b`):
 
 MLX keeps the buffers a computation has freed, up to a cache limit, and allows allocation up to a memory limit.
 Both default to about 80 percent of the Mac's memory (51.8 GiB on a 64 GB Mac).
-A server that answers many different states therefore grows toward that size, not toward the size of its weights: one Gemma 4 12B server reached about 50 GB on a 64 GB Mac, and with a second server froze the machine twice (our private records of 2026-10-14).
+A server that answers many different states therefore grows toward that size, not toward the size of its weights: one Gemma 4 12B server reached about 50 GB on a 64 GB Mac, and with a second server froze the machine twice (measured by the maintainers on 2026-10-14; the record is not published).
 
 So the server sets both limits itself, before it loads the model, and prints the line `MLX MEMORY ...` at start-up with the figures.
 
@@ -275,13 +277,100 @@ To keep one length on every card, give `--max-model-len`.
 
 To get the same answers on every card, give `--max-model-len` the same value on all of them.
 
-**What the records say about memory.** The card session of 2026-10-15 on one 96 GB card started the 31B (FP8 weights) at a context of 98,304 tokens on one 96 GB card at the default 0.90 share with the model's own cache dtype: vLLM 0.31.0 reported 48.05 GiB of KV cache and room for 141,865 tokens, and the 12B at 131,072 reported 57.53 GiB and 612,140 tokens (`runs/2026-10-15_s12-session/X/` and `X5/`). vLLM's start-up check counts the cache differently across versions: on 0.30.0 the same share of the 31B was called 48.6 GiB and 57,882 tokens (EVAL_CARD section 7; the bf16 start needed 27.51 GiB for one 32,768-token request, `runs/2026-10-04_gemma-4-31b/bf16_start.txt`), so a 0.30.0 server may need `--kv-cache-dtype fp8`, a larger `--gpu-memory-utilization`, or both beyond about 57,000 tokens, and a 0.31.0 server on a smaller card is not measured. `--kv-cache-dtype fp8` changes the numerics: a certificate made under the model's own cache dtype is suspended under fp8 (the serving-stack fingerprint includes the KV cache dtype), and the answers of a registered task can move; register and certify again under the dtype you serve.
+**What the records say about memory.** The measurement of 2026-10-15 on one 96 GB card started the 31B (FP8 weights) at a context of 98,304 tokens on one 96 GB card at the default 0.90 share with the model's own cache dtype: vLLM 0.31.0 reported 48.05 GiB of KV cache and room for 141,865 tokens, and the 12B at 131,072 reported 57.53 GiB and 612,140 tokens (`runs/2026-10-15_s12-session/X/` and `X5/`). vLLM's start-up check counts the cache differently across versions: on 0.30.0 the same share of the 31B was called 48.6 GiB and 57,882 tokens (EVAL_CARD section 7; the bf16 start needed 27.51 GiB for one 32,768-token request, `runs/2026-10-04_gemma-4-31b/bf16_start.txt`), so a 0.30.0 server may need `--kv-cache-dtype fp8`, a larger `--gpu-memory-utilization`, or both beyond about 57,000 tokens, and a 0.31.0 server on a smaller card is not measured. `--kv-cache-dtype fp8` changes the numerics: a certificate made under the model's own cache dtype is suspended under fp8 (the serving-stack fingerprint includes the KV cache dtype), and the answers of a registered task can move; register and certify again under the dtype you serve.
 
 **What the records say about time.** The first question about a state the server has not seen grows faster than the state does, because attention does (the table of first-question latency above stops at 32,000 tokens: 3,370 ms at 16,000 and 8,880 ms at 32,000 on the 31B; 1,779 ms and 4,383 ms on the 12B). The faster attention backends are refused for Gemma 4 on vLLM 0.30.0 and 0.31.0, so a longer context is slower than a proportional guess.
 
 **Where the ceilings come from.** The card session of 2026-10-15 (the long-context checks, pass rules written before the run; `runs/2026-10-15_s12-session/`): the 31B started at a context of 98,304 tokens and answered a check at a state of 85,000 tokens (23 of 30 items right against 25 of 30 for the same items short; first question 40.8 s, second 0.40 s), which is its ceiling. The 12B started at 131,072 and was right on 23 of 30 items at 60,000 tokens (26 short; first question 11.0 s) but on 19 of 30 at 120,000 (26 short; first question 23.2 s), which failed the pass rule (a drop of at most 3), so its ceiling is the lower 65,536 (started and not itself checked; the check was at 60,000). Each check is 30 items, a smoke test and not an accuracy measurement.
 
 **What is not measured.** Anything between the checked states and the ceilings other than what the session ran, the first and later question at those lengths, the prefix cache and the state boundary at that size, the temperatures (fitted on states of a few thousand tokens), and the accuracy of answers at long context on a suite (no suite here has a state over 32,768 tokens). A length that the card allows is not a length that was checked: to serve only what was measured, give `--max-model-len 32768`.
+
+## LoRA adapters
+
+`--adapter name=path` loads a vLLM-format LoRA adapter, and a request that names it (`"adapter": "<name>"`) is answered by the base with that adapter.
+The adapter is served unmerged, on the text route, in separate mode; the MLX backend refuses adapters.
+The request fields are in [api.md](api.md), the flags in [cli.md](cli.md).
+
+### An adapter's own temperatures
+
+The base's temperatures were fitted on the base's plain readouts, and an adapter changes the scale of the readout.
+Served at the base's, a tuned 31B hedged on 70.3% of a benchmark's yes/no items, which scored it -45 (its top answer was right on 70 of 74 of them, as the stored base's was).
+So an adapter carries its own temperatures, one per question type (`choice`, `noul` for yes/no, `score`), in a file `decisio_adapter.json` beside its weights, or in a file given with `--adapter-temperatures name=file` for an adapter whose folder is not yours to change:
+
+```json
+{"schema": "decisio.adapter/1",
+ "temperatures": {"choice": 2.141, "noul": 3.075, "score": 4.185},
+ "fit": {"objective": {"choice": "log_loss", "noul": "log_loss", "score": "log_loss"}, "n": {"choice": 173, "noul": 155, "score": 172}}}
+```
+
+- A request that names the adapter is served at them. A request that does not is served at the base's, as before.
+- A type the file does not list keeps the base's temperature. An adapter with no file is served at the base's, and the server says so when it starts.
+- The file is checked before the engine is built: the schema, the types, the bands, positive finite numbers, and that `--adapter-temperatures` names a loaded adapter.
+- `/health` shows them in `adapter_temperatures`, and the debug readout of a request names the adapter and the temperature it was served at.
+
+#### A choice temperature by the number of options
+
+An adapter's over-confidence on choice questions can grow with the number of options, and the one `choice` temperature cannot follow it: an adapter fitted on questions with a few options is calibrated there and over-confident on questions with many.
+The file can therefore carry a choice temperature per band of option count, beside the flat one:
+
+```json
+{"schema": "decisio.adapter/1",
+ "temperatures": {"choice": 2.141, "noul": 3.075, "score": 4.185},
+ "choice_bands": {"2-10": 1.9, "11-26": 2.6, "27-255": 3.1}}
+```
+
+- A choice question is served at the temperature of the band its number of options falls in. A count in no band is served at `temperatures.choice`, then at the base's. Yes/no and score questions are not banded (a score question with 12 levels is not a choice with 12 options).
+- The keys are `lo-hi`, within 2 to 255 (the most options a choice can have) and not overlapping. A file may have bands and no flat `choice`. A file without `choice_bands` is served as before.
+- The bands are in `/health`'s `adapter_temperatures` and in the serving-stack fingerprint, so changing one is a different stack.
+
+`python -m decisio.serve.adapter_temperatures fit` writes the file from the adapter's readouts on labelled items:
+
+```bash
+python -m decisio.serve.adapter_temperatures fit --reads reads.jsonl --out decisio_adapter.json --data "what the items are"
+```
+
+One row per item, `{"type": "choice" | "noul" | "score", "probs": [...], "gold": <index>}`, with the raw readout (`p_plain` of a `--debug-readout` response) or probabilities and the temperature they were served at (`"read_at"`).
+Every type is fitted by minimum log loss: the temperature at which the probabilities are calibrated on those items.
+Choice is also fitted per band of option count (`--choice-bands`, default `2-10,11-26,27-255`; `none` writes the one temperature only), each on the choice rows with that many options.
+A band with fewer than `--min-band-items` rows (default 20) is not fitted and is served at the temperature fitted on all the choice rows, which is always written beside the bands; when the rows fall in one band only, the file has no bands, since they would repeat that temperature.
+Use items that are not a benchmark's; a temperature is a statement about the items it was fitted on, and an adapter fitted on hard public-source questions was underconfident on an easier set of synthetic ones (`runs/2026-10-17_adapter-temperatures/`).
+A score item sent as a choice question is served at the choice temperature, so name the temperature a row was served at.
+
+### Fitting them from a model's stored reads
+
+`python -m decisio.serve.adapter_temperatures fit-split` is Lab 1's split fit as a tool: from the model's stored reads of two pools (an H pool of choice items and a dev pool with choice, yes/no and true score items, both with their gold answers in a keys file) it fits one kappa per type by minimum log loss and writes the temperatures (`T = served temperature / kappa`) as the file above.
+
+```bash
+python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-keys h_keys.json \
+    --dev dev_reads.jsonl.gz --dev-keys dev_keys.json --variant half0 --out decisio_adapter.json
+```
+
+- Choice is also fitted per band of option count on the choice pool's items (`--choice-bands`, `--min-band-items`, as for `fit`), with each band's held-out figures in `fit.checks.choice.bands` and its swap-validated ECE in `fit.swap_validated_dev.choice.bands`. The H pool has 3 to 6 options only, so its file has no bands: to fit the 11-26 and 27-255 bands, use a `dev` variant on a natural pool with those option counts, one that is not the gate's set.
+- The choice kappa is fitted on the H pool, the yes/no and score kappas on the dev pool. `--variant half0` fits on the items whose id has an even sha256 prefix and reports the other half as held-out (log loss and ECE before and after), `half1` is the swap, `full` uses all of both pools, `dev` fits the choice kappa on the dev pool too, and `devhalf0` and `devhalf1` do that on halves of the dev pool with the other half held out (a model whose H-fitted choice temperature does not transfer to public-source questions).
+- The reads are rows of `id`, `probs` (as the server returned them, at the base's temperatures; `--served` and `--dev-served` say which if they differ from the defaults) and `p_plain` (the plain readout of a `--debug-readout` server; `--use p_plain` fits on it, with temperature 1 as the reference).
+- **Two ECE definitions, both reported, named.** The held-out figures of a half variant (`fit.checks.<type>.heldout`) are per half, with ten equal-count bins and ties shuffled (the definition of the first evaluation's fits). The figure a ship gate uses is `fit.swap_validated_dev`: the kappa of each half applied to the other half's items, pooled over all of the dev pool's items of the type, with ten equal-width bins, next to the unscaled figure and the two halves' kappas with their ratio (over 1.25 the gates call the fit unstable). They differ on the same fit: BH0's choice figure is 0.061 pooled with equal-width bins and 0.095 and 0.127 on its two halves with equal-count bins.
+- It never reads a benchmark. On the stored reads of the first MeTask evaluation it reproduces every kappa and held-out figure of Lab 1's fits (`runs/2026-10-18_adapter-fit/`).
+
+### Yes/no stays a probability
+
+An adapter's yes/no answer is the calibrated probability, and the server does not commit it.
+`--noul-commit` (the answer as 0.9 or 0.1) remains the operator's choice and applies to an adapter's answers as to the base's.
+On JevBench's 74 public yes/no items an honest adapter hedges (35.1% of its answers fall between 0.2 and 0.8, where the reading counts no answer), while a service that returns two constants never does; the top answers are the same.
+
+### Score questions
+
+A score answer is the expected position of the returned distribution, and JevBench scores that number.
+A calibrated distribution over levels is wider than the position error asks for, so a score temperature fitted by log loss pulls the expected position to the middle level.
+The fit tool's `--score-objective expected_position_error` fits the score temperature for the position error instead: the flattest temperature whose score CC is within one point of the best, which is sharper than the calibrated one, and the file says so in `fit.objective`.
+On the 18 public score items, with MeTask's adapter: 63.12 CC at the log-loss temperature, 70.09 at the expected-position one, 75.60 at MeTask's own temperature, which they fitted on those 18 items, against 73.21 for their service and 70.91 for the stored base (`runs/2026-10-17_adapter-temperatures/`).
+The gap to their service is that temperature, fitted on the items it is scored on, and not the readout.
+
+### Identity and the fingerprint
+
+The server hashes each adapter's weights file and configuration when it starts, and `/health` reports them in `adapter_identity`.
+The serving-stack fingerprint of [a certificate](tasks.md#where-it-stops) holds each loaded adapter's name, weights hash and temperatures, so a different adapter, a retrained one or a changed temperature is a different stack.
+A server with no adapter has none of these keys, and its certificates are unchanged.
+A request that names an adapter is never certified, and a question that a registered task matches is refused with an adapter, as [api.md](api.md) says.
 
 ## Ollama
 

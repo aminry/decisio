@@ -59,7 +59,7 @@ A field decisio does not know is accepted and has no effect, so check that a fie
 The extensions decisio reads are `images` and `orders`.
 
 **Limits.**
-Up to 255 options per question (a request with more gets 422, as on System One), a prompt of 32,768 tokens on the Qwen base (on a Gemma base the largest length the card holds, at most 98,304 on the 31B and 65,536 on the 12B, reported in `/health` as `max_model_len`; 32,768 with `--image-model`), and up to 2 images per request, which need a server started with `--image-model`.
+Up to 255 options per question (a request with more gets 422, as on System One), a prompt of 32,768 tokens on the Qwen base (on a Gemma base the largest length the card holds, at most 98,304 on the 31B and 65,536 on the 12B, reported in `/health` as `max_model_len`; 32,768 with `--image-model`), and as many images per request as the context holds (up to `--max-images`, 128 by default), which need a server started with `--image-model`.
 
 **Errors.**
 A request that fails validation gets 422 and one the engine cannot answer gets 400, each with a `detail` naming the problem.
@@ -71,7 +71,7 @@ The SDK's default timeout is 10 s.
 A long state seen for the first time takes longer on the larger bases, and the first request after a start warms the engine; raise `timeout` for those.
 
 **Repeatability is stated per base.**
-On the Qwen base a question returns the same probabilities every time, alone or among other questions; the Gemma 4 12B base returns the same choice with probabilities that can move slightly; `EVAL_CARD.md` sections 6.5 and 7.5 have what was measured on each Gemma base (and the README's "Choosing a base", `docs/cli.md` "Determinism").
+On the Qwen base a question returns the same probabilities every time, alone or among other questions; the default Gemma 4 31B repeats exactly on a freshly started server on one machine (a repeat on a server that has already answered it can differ slightly, and other machines differ); the Gemma 4 12B base returns the same choice with probabilities that can move slightly; `EVAL_CARD.md` sections 6.5 and 7.5 have what was measured on each Gemma base (and the README's "Choosing a base", `docs/cli.md` "Determinism").
 Among exactly tied options, the answer is the key that sorts first, so it never depends on the order the keys arrive in.
 
 **What decisio adds.**
