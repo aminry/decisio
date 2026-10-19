@@ -5,6 +5,7 @@
 
 The server speaks TypeSafe's System One wire format on `POST /v1/systemone`, so existing clients work unchanged, and adds routes for task registration, abstention and health.
 It listens on `http://127.0.0.1:8000` unless `--host` and `--port` say otherwise.
+The machine-readable form of this page is [`reference/openapi.json`](reference/openapi.json) (OpenAPI 3.1: every served route, its parameters, request and response models and headers), generated from the server's code and written at release time; the flags have the same kind of table, [`reference/flags.md`](reference/flags.md).
 A malformed request is answered with status 422 and a `detail` naming what is wrong; a request the engine cannot answer, with 400.
 
 | Route | What it does |
