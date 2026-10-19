@@ -205,7 +205,7 @@ Two freshly started servers did not always repeat each other: it depended on the
 On 2026-10-13, on one box (driver 590.48.01), the same 200 single-question requests on two fresh starts of this base differed on every item: median 3.1e-3, largest 0.060 on vLLM 0.30.0 (0.041 on 0.31.0), and one choice changed, an exact tie (top-two margin 0.000).
 A second pass on one server differed from its first on 168 of 200 items (largest 0.014).
 The two vLLM versions differed from each other on every item by no more than two starts of one version differ (0.056 against 0.060).
-The same base on 2026-10-10 had repeated exactly across two starts in its own session, on another box; why the 2026-10-13 box's starts do not (box, driver, kernel path) was not found, and nothing here says how many boxes behave as which (our private records of 2026-10-13).
+The same base on 2026-10-10 had repeated exactly across two starts in its own session, on another box; why the 2026-10-13 box's starts do not (box, driver, kernel path) was not found, and nothing here says how many boxes behave as which (measured by the maintainers on 2026-10-13; the record is not published).
 On 2026-10-14, on a third box (driver 595.104.02, vLLM 0.30.0), two fresh starts answered the same 200 single-question requests equally on 200 of 200 (`runs/2026-10-14_s11-session/s10/`).
 On that box and vLLM 0.31.0, two fresh starts in `--multi-question sequential` chose differently on 12 of 1,400, 3 of 231 and 7 of 1,088 questions of four-question requests, by up to 0.155, 0.104 and 0.172 in probability, while two warm starts were identical (`runs/2026-10-14_s11-session/W/summary.json`); that comparison changed the stack as well as the request pattern, so neither is named as the cause.
 With the questions batched (`--multi-question warm`) and the engine in the server's process, a repeated request moves only as a single question does, between a state's first read and later reads from the prefix cache: on 272 four-question travel requests the first answer differed from the next four, which agreed, on 204, by up to 0.046, with one choice changed (`runs/2026-10-05_engine-process/`).
@@ -215,9 +215,9 @@ With the questions batched (`--multi-question warm`) and the engine in the serve
 - One card and one session; the Qwen base's numbers beside it are from the same session.
 - The Gemma base does not fit a 32 GB card on vLLM's defaults.
   Simulated on the 96 GB card with the engine's share cut to 28.8 GB (vLLM's 0.90 of 32 GB), it did not start at 32,768 or at 16,384 tokens of context: its 22.8 GiB of weights left no room for the KV cache.
-  Its path to 32 GB machines is an MLX build, in preparation.
+  Its path to 32 GB machines is its MLX build (`--backend mlx`; the README's "Mac with MLX").
 - The image route and `--pad-policy row` were not measured on this base; `--multi-question warm` only on the 272 travel requests of section 6.5.
-- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the out-of-fold log-loss gain was not wholly below zero (its upper end +0.0005); the temperatures of 6.4 stay as served (our private records of 2026-10-07).
+- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the out-of-fold log-loss gain was not wholly below zero (its upper end +0.0005); the temperatures of 6.4 stay as served (measured by the maintainers on 2026-10-07; the record is not published).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 7. The Gemma 4 31B base
@@ -302,19 +302,19 @@ The disclosures of section 4 hold here too, with two more: the go rule this base
 - **Most published numbers of this base were measured on Google's bf16 quantised on load; the stored FP8 repository scores the same within noise.**
   On JevBench's 231 public items both give 213 right, tier by tier; on 200 suite requests, in one session on one box and one stack (vLLM 0.31.0), 162 are right in each arm and the expected calibration error is 0.075 stored against 0.080 on load.
   The tensors are byte-identical, but the answers are not: none of the 200 is exactly equal (median difference in a probability 0.0036, largest 0.371), and 4 top answers differ (one is right only on the stored side and one only on the on-load side).
-  With eager execution on both arms the two answer identically on 200 of 200 requests, so the difference is in the compiled path and not in the weights; the other steps that would isolate it further were not run (the card sessions of 2026-10-15, `runs/2026-10-15_s12-session/` and `runs/2026-10-15_s13-session/`).
+  With eager execution on both arms the two answer identically on 200 of 200 requests, so the difference is in the compiled path and not in the weights; the other steps that would isolate it further were not run (the measurements of 2026-10-15, `runs/2026-10-15_s12-session/` and `runs/2026-10-15_s13-session/`).
 - Slower than both served bases on states it has not seen before, the more so the longer the state (one question on a new 3,000-token state: 438 ms, against 85 ms on the Qwen base; 585 W).
 - One card and one session; the intent heads over three draws, the other bases' over six.
 - **A request repeats exactly on a freshly started server; on a server that has already answered it, a repeat can differ (5 of 200 items, up to 0.031, no top answer changed, 31B on vLLM 0.30.0 and 0.31.0, the same on both).**
-  On 2026-10-13, on one box and in one session, two separate starts of the served FP8 31B gave the same 200 single-question answers on all 200 items, on vLLM 0.30.0 and on 0.31.0 alike; asking the same 200 again on the server that had just answered them changed 5 (largest 0.031, no top answer changed), identically on both versions (our private records of 2026-10-12 and 2026-10-13).
+  On 2026-10-13, on one box and in one session, two separate starts of the served FP8 31B gave the same 200 single-question answers on all 200 items, on vLLM 0.30.0 and on 0.31.0 alike; asking the same 200 again on the server that had just answered them changed 5 (largest 0.031, no top answer changed), identically on both versions (measured by the maintainers on 2026-10-12 and 2026-10-13; the record is not published).
   Repeatability across sessions is not promised.
   On 2026-10-06 the served FP8 profile at v0.8.0, with identical prompts and profile, did not reproduce this section's record: over 1,631 suite and JevBench items every readout differed (median |dp| per task 1e-9 to 3e-6), and near-tied items moved by up to 0.98, changing 28 top answers (1.7%).
   The engine arrangement (in the server's process, 0.8.0's default) and the driver (590.48.01, against the record's 610.43.02) differed; section 8's run of 2026-10-05, at v0.6.0 with the engine in its own process and the record's driver, had reproduced its four Decision Index values exactly.
   The same 200 requests gave the same answers on vLLM 0.30.0 and on 0.31.0 in one session (200 of 200 exactly equal), and on 0.31.0 on two different boxes (drivers 610.43.02 and 590.48.01).
   All of them differed from the record of 2026-10-10, which was taken on a third box (driver 595.99.02), on every item (median 4.3e-3, largest 0.379, 4 top answers changed); the vLLM version is not the cause, and the box's cause was not found.
-  A comparison of this base with an earlier record must therefore be paired in the same session (a stage C comparison of 2026-10-05, recorded in our private records).
+  A comparison of this base with an earlier record must therefore be paired in the same session (a paired comparison of 2026-10-05, measured by the maintainers; the record is not published).
 - The figures in this section are the vLLM FP8 path's; the MLX path is another engine, gated against them (`runs/2026-10-07_mlx-gemma-31b/`) and documented for states up to 16,383 tokens; the image route was not measured and is not served on a Mac.
-- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the board-style calibration estimate fell 27.0%, where the rule required a third; the temperatures of 7.4 stay as served (our private records of 2026-10-07).
+- An option-count temperature (one that depends on a question's number of options, fitted on the suite only) was tested for this base on 2026-10-07 against a rule written before the run, and is not adopted: the board-style calibration estimate fell 27.0%, where the rule required a third; the temperatures of 7.4 stay as served (measured by the maintainers on 2026-10-07; the record is not published).
 - The limits of section 5 on JevBench, the Decision Index rows and the board apply as written; nothing was submitted to JevBench's board, and the Decision Index's whole suite was self-run and submitted (section 8).
 
 ## 8. The Decision Index's whole suite, self-run
@@ -359,8 +359,8 @@ In the values above, as of 2026-10-05, on these two knowledge benchmarks Jev is 
 ## 9. JevBench v1.6.1: what the compared systems' cards state
 
 The README compares decisio on Gemma 4 31B with other systems on JevBench v1.6.1's axes.
-This section records what the cards of the compared systems state, quoted as recorded with the card's revision and line (`head_to_head` in our private launch facts; the cards are kept in our private records).
-The board's values, with their paths and file hashes, are in the same file.
+This section records what the cards of the compared systems state, quoted as recorded with the card's revision and line (each card is named with its revision and line, so a reader can check the quotation against the card itself; the maintainers' notes of the comparison are not published).
+The board's values are the board's own, as its public pages give them.
 Jev 1.13.0 is a hosted API with no card, so none is quoted for it.
 
 | Card | Statement | Quoted line | Where |

@@ -71,6 +71,23 @@
           "type": "toml",
           "path": "uv.lock",
           "jsonpath": "$.package[?(@.name.value=='decisio')].version"
+        },
+        {
+          "type": "json",
+          "path": "docs/reference/openapi.json",
+          "jsonpath": "$.info.version"
+        },
+        {
+          "type": "generic",
+          "path": "docs/reference/flags.md"
+        },
+        {
+          "type": "generic",
+          "path": "README.md"
+        },
+        {
+          "type": "generic",
+          "path": "docs/running.md"
         }
       ]
     }

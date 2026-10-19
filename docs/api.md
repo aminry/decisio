@@ -5,6 +5,7 @@
 
 The server speaks TypeSafe's System One wire format on `POST /v1/systemone`, so existing clients work unchanged, and adds routes for task registration, abstention and health.
 It listens on `http://127.0.0.1:8000` unless `--host` and `--port` say otherwise.
+The machine-readable form of this page is [`reference/openapi.json`](reference/openapi.json) (OpenAPI 3.1: every served route, its parameters, request and response models and headers), generated from the server's code and written at release time; the flags have the same kind of table, [`reference/flags.md`](reference/flags.md).
 A malformed request is answered with status 422 and a `detail` naming what is wrong; a request the engine cannot answer, with 400.
 
 | Route | What it does |
@@ -32,7 +33,7 @@ Check which server a client is pointed at before comparing confidences or sendin
 | --- | --- | --- |
 | `state` | string, object or array | the text the questions are about; an object is rendered as `key: value` lines |
 | `questions` | object, at least one entry | the questions, by name; the names are the keys of the response's `answers` |
-| `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it and names the served model in the response |
+| `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it. The response's `model` is the name the request sent, or the served model's name when it sent none |
 | `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`) |
 | `assets` | object, optional | System One's images: placeholder names mapped to images, each placeholder found in the state or a question's text is replaced by its image (below) |
 
@@ -57,6 +58,7 @@ How a question is shown to the model (the layout, the yes/no rendering, which ke
 Images: up to 2 per request, PNG, JPEG or WebP, up to 20 MB each.
 They can be sent as data URLs in `images`, as `data:image/...` URIs anywhere inside the state, or as a `multipart/form-data` request whose `request` field holds the JSON body and whose `image`, `images` or `image[]` fields hold the files; a multipart request must carry an `X-Decisio-Client` header (any value, for example `X-Decisio-Client: my-app`), and is refused with 415 without one.
 A request with images is served by the image engine; the text route is unchanged.
+Starting the server with `--image-model` makes vLLM's engine run in a process of its own (`--engine-process separate`), which turns off the 31B's in-process `--multi-question warm` default and keeps the context at 32,768 tokens (`docs/cli.md`); the image route is measured with the Qwen base only.
 
 **Images the System One way (`assets`).**
 `assets` maps a placeholder name to an image: `{"type": "image", "format": "png"|"jpg"|"jpeg", "data_base64": "..."}`, or, in a multipart request, `{"type": "image", "part": "<the name of an image part>"}` (a part wins over `data_base64`).
@@ -101,8 +103,9 @@ The earlier `x-rlcd-route` and `x-rlcd-debug` headers are still honoured.
 | `probabilities` | the distribution over the options (choice) or the levels by index (score) |
 | `confidence` | System One's confidence: for a choice, the top probability rescaled from uniform; for a score, the concentration at the mode |
 | `legend` | each level's index and description |
-| `unknown_probability`, `abstained` | with imajev's abstention extension (`--abstain-option`): the probability of the offered "can't tell" option and whether the server abstained |
+| `unknown_probability`, `abstained` | with the abstention extension of imajev (an open-source System One client and test harness, github.com/mohit67890/imajev; `--abstain-option`): the probability of the offered "can't tell" option and whether the server abstained |
 
+`model` echoes the name the request sent, so a client left on the SDK's default model name gets that name back unchanged; a request without one gets the served model's name (`--served-name`, or the base's).
 `usage.input_tokens` counts the state and each question's own text; `usage.output_tokens` is one per question.
 
 Response headers:
@@ -126,14 +129,14 @@ The conformance gate C5 compares the request and response fields with System One
 - **Images (`assets`) are read, with these differences.** At most 2 images per request (System One's limit is its context, about 110 images of 320 by 320 pixels in 32k tokens, more with its long-context header); no size window (System One takes sides of 280 to 1,568 pixels and refuses others with "Invalid image dimensions"; here the image is resized, up to 20 megapixels and 20 MB); WebP bytes are accepted besides PNG and JPEG (System One refuses them); a placeholder is replaced longest name first (System One replaces naively, so `PHOTO_1` inside `PHOTO_10` breaks it); an image costs the Qwen image engine's tokens, not System One's; a multipart request needs `X-Decisio-Client`; and the image route runs on a server started with `--image-model`, on the Qwen base.
 - **Unknown fields are accepted.** System One refuses a request with an unknown top-level field (400 `Invalid request.`), so its `images`-style extensions cannot be sent to it; decisio ignores unknown fields (imajev's `images` and `orders` are such extensions).
 - **`usage.output_tokens` is 1 per question**, not the tokens a generating model produced.
-- Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` names the served model, not `jev-latest`.
+- Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` is the name the request sent (the served model's name when it sent none), not the name of the model that answered.
 
 ## What one request can hold
 
 Decisio sets no limit of its own on the size of a request body, on the number of questions in one request, or on the number of concurrent connections; uvicorn's defaults apply (no body limit, a backlog of 2,048). What bounds a request:
 - **The context.** The state with one question, as rendered, can hold up to the server's `max_model_len` tokens (at least 32,768; `/health` reports it and why, and `running.md` says how it is chosen); over it the answer is 422 (above).
 - **Options per question.** A choice has up to 255 options (the wire format's cap); more is refused with 422 and a `too_long` detail, as System One does (`Dictionary should have at most 255 items after validation, not 256`). A score has no cap on its levels here (System One's is 10).
-- **Questions per request.** No cap: a request with no questions is 422, and any other number is answered. Each question costs its own time: with the default `--multi-question sequential` about 20 ms per further question on a cached state (`EVAL_CARD.md` section 4); with `--multi-question warm` the questions are scored in one batch, 5.4 ms per question at 100 questions and 2.7 ms at 1,000 on an 8,000-token state on the Qwen base (`EVAL_CARD.md` section 3, `runs/2026-09-30_plugin-verification/bench_patched_on.json`; the Gemma 31B's default is `warm`). The response and the batch grow with the question count, so for thousands of questions send several requests about the same state: the second and later read the state from the prefix cache.
+- **Questions per request.** No cap: a request with no questions is 422, and any other number is answered. Each question costs its own time: with `--multi-question sequential` (the default of the Qwen and 12B bases, and of the 31B when it has a second engine) about 20 ms per further question on a cached state (`EVAL_CARD.md` section 4); with `--multi-question warm` (the default of the 31B, the default base, when its engine runs in the server's process) the questions are scored in one batch, 5.4 ms per question at 100 questions and 2.7 ms at 1,000 on an 8,000-token state on the Qwen base (`EVAL_CARD.md` section 3, `runs/2026-09-30_plugin-verification/bench_patched_on.json`). The response and the batch grow with the question count, so for thousands of questions send several requests about the same state: the second and later read the state from the prefix cache.
 - **Concurrency.** The server runs one engine and its calls are serialized by a lock, so concurrent requests queue behind it and are answered in turn; there is no queue limit. It was measured with 32 and 64 concurrent clients sending first and follow-up questions about new 1,000-token states (`docs/running.md`, "A later question about the same state"); `x-decisio-stages` reports each request's wait (`wait=`), and `x-decisio-wait-behind: registration` says when it waited behind a background boundary registration.
 
 ## Calling the server from a browser
