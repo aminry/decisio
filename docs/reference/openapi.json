@@ -1509,10 +1509,17 @@
             "type": "number"
           },
           "min_examples": {
-            "default": 59,
-            "description": "Fewest held-out examples the procedure may use.",
-            "title": "Min Examples",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Fewest held-out examples to accept; never fewer than alpha and delta need (59 at the defaults).",
+            "title": "Min Examples"
           },
           "holdout": {
             "default": 0.5,

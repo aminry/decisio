@@ -1301,12 +1301,19 @@ class SystemOne:
             raise ValueError(
                 f"task {task_id!r} was registered without certification: register it again with a certify block"
             )
+        from decisio.readout import certify
         from decisio.serve.tasks import example_digest
 
         old = t["certificate"]
+        # min_examples is carried over only if the original call set it: a stored value above what the old alpha and
+        # delta need can only have been asked for; a value at that floor was derived, and the new alpha and delta
+        # derive their own (a looser target needs fewer examples than the 59 of the defaults)
+        asked_before = old.get("min_examples") or 0
+        if asked_before <= certify.minimum_examples(old["alpha"], old["delta"]):
+            asked_before = None
         spec = {
             **{k: old[k] for k in ("alpha", "delta")},
-            "min_examples": old.get("min_examples"),
+            "min_examples": asked_before,
             "suspend_on_alert": old.get("suspend_on_alert", SUSPEND_ON_ALERT),
             **(spec or {}),
         }
