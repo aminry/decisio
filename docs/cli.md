@@ -32,7 +32,7 @@ Where the columns differ, the value is the base's.
 | `--pack` | 16 | 16 | 16 | questions per pack in packed mode |
 | `--engine` | `{"compilation_config": {"max_cudagraph_capture_size": 4096}}` | the same | the same | extra `LLM(...)` keyword arguments, as JSON |
 | `--adapter` | none | none | none | `name=path` of a vLLM-format LoRA adapter; repeatable. A request uses it only when its body names it (`"adapter": "<name>"`). An adapter whose tensors are named for the other layout than the served class (`base_model.model.model.language_model.layers.` from a multimodal checkpoint, against `base_model.model.model.layers.` on a text-only base, or the reverse) is served from a mapped copy, made before the engine is built, with the tensor bytes unchanged; `/health` reports the mapping in `adapter_names`. An adapter in neither layout is refused at once, before the weights load |
-| `--gpu-memory-utilization` | 0.9 | 0.9 | 0.9 | the text engine's share of the card |
+| `--gpu-memory-utilization` | 0.9 (0.47 with `--image-model`) | 0.9 | 0.9 | the text engine's share of the card. With `--image-model` the two engines share the card, and the default is the measured pair's 0.47; a pair that cannot fit (together over 0.96) is refused at start, before either engine is loaded |
 | `--max-model-len` | 32768 | the largest that fits the card, 32768 to 65536 | the largest that fits the card, 32768 to 98304 | the longest prompt in tokens. Without it the vLLM server on a Gemma base serves the largest multiple of 8192 that fits the card's KV cache, up to the base's ceiling and not below 32768; given, that length, refused above the ceiling. The Qwen base, `--image-model`, a second engine, `--engine-process separate` and the other backends stay at 32768 ([`running.md`](running.md#the-context-length)) |
 | `--kv-cache-dtype` | `auto` | `auto` | `auto` | `auto` (the model's own) or `fp8`, which holds twice the tokens in the KV cache and changes the numerics: a certificate is made under one dtype and suspended under the other |
 | `--allow-deep-gemm` | off | off | off | start even when `VLLM_USE_DEEP_GEMM` is set to something other than 0 |
@@ -92,7 +92,7 @@ Where the columns differ, the value is the base's.
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
 | `--image-model` | none | none | none | the full multimodal checkpoint, as a second engine serving only requests that carry images; measured with the Qwen base only |
-| `--image-gpu-memory-utilization` | 0.5 | 0.5 | 0.5 | the image engine's share of the card |
+| `--image-gpu-memory-utilization` | 0.49 | 0.49 | 0.49 | the image engine's share of the card, beside the text engine's 0.47; the two together may be at most 0.96 |
 | `--one-engine` | off | off | off | load only the image engine and serve text requests on it too, for a card that cannot hold both; changes the text route's class |
 
 ### The Mac (`--backend mlx`)
