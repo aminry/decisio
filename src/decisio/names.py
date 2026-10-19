@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The names decisio writes on the wire and in its records, and the earlier spellings it still reads.
+"""The names decisio writes on the wire and in its records, and the earlier spellings of the records it still reads.
 
   headers        responses carry x-decisio-server-ms, x-decisio-route and x-decisio-tasks; requests may send
-                 x-decisio-debug and x-decisio-route, or the earlier x-rlcd-debug and x-rlcd-route
+                 x-decisio-debug and x-decisio-route (the earlier x-rlcd-* request headers are not read)
   record formats decisio-<kind>/1 is written; decisio-<kind>/1 and rlcd-<kind>/1 are accepted on load (the records
                  in runs/ use the earlier spelling)
   served name    the default is decisio-qwen3.6-35b-a3b-letters; a task fitted under the earlier default,
@@ -28,9 +28,8 @@ def header(name: str) -> str:
 
 
 def request_header(headers, name: str):
-    """A request header's value under decisio's name, else under the legacy one, else None."""
-    value = headers.get(f"x-{PREFIX}-{name}")
-    return value if value is not None else headers.get(f"x-{LEGACY_PREFIX}-{name}")
+    """The value of the request header x-decisio-<name>, else None; x-rlcd-<name> is ignored."""
+    return headers.get(f"x-{PREFIX}-{name}")
 
 
 def record_format(kind: str) -> str:

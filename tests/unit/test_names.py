@@ -3,8 +3,9 @@
 """decisio's names on the wire and in its records, and the earlier `rlcd` spellings it still reads (`decisio.names`).
 
 W1  response headers: x-decisio-route, x-decisio-server-ms and x-decisio-tasks are written and no x-rlcd-* header
-    is; the request headers x-decisio-debug / x-decisio-route are read, and the earlier x-rlcd-debug / x-rlcd-route
-    still work, the new spelling winning when both are sent; the debug readout is the body's decisio_debug field
+    is; the request headers x-decisio-debug / x-decisio-route are read; the earlier x-rlcd-debug / x-rlcd-route are
+    IGNORED, not refused (a request that carries one is served as if it did not: no debug readout, no route choice);
+    the debug readout is the body's decisio_debug field
 W2  record formats: new records are written as decisio-<kind>/1; the task records committed in runs/ (rlcd-task/1
     with rlcd-task-prior/1 and rlcd-intent-head/1 inside) load and are looked up; an abstention task in either
     spelling loads; a record of another kind, or without a format, is refused
@@ -50,7 +51,8 @@ def load_json(path):
 
 def test_w1_request_header_fallback():
     assert names.request_header({"x-decisio-debug": "readout"}, "debug") == "readout"
-    assert names.request_header({"x-rlcd-debug": "hidden"}, "debug") == "hidden"
+    assert names.request_header({"x-rlcd-debug": "hidden"}, "debug") is None  # the earlier spelling is ignored
+    assert names.request_header({"x-rlcd-route": "image"}, "route") is None
     assert names.request_header({"x-rlcd-route": "image", "x-decisio-route": "text"}, "route") == "text"
     assert names.request_header({}, "route") is None
     assert names.header("tasks") == "x-decisio-tasks"
@@ -75,12 +77,17 @@ def test_w1_served_headers():
     assert r.headers["x-decisio-route"] == "text" and float(r.headers["x-decisio-server-ms"]) >= 0
     assert not [h for h in r.headers if h.lower().startswith("x-rlcd-")]
     assert names.DEBUG_KEY not in r.json() and "rlcd_debug" not in r.json()
-    for h in ("x-decisio-debug", "x-rlcd-debug"):
-        r = client.post("/v1/systemone", json=body, headers={h: "readout"})
-        assert r.status_code == 200 and r.json()[names.DEBUG_KEY]["q"]["path"], (h, r.text)
-    for h in ("x-decisio-route", "x-rlcd-route"):
-        assert client.post("/v1/systemone", json=body, headers={h: "gpu"}).status_code == 422  # read, refused
-        assert client.post("/v1/systemone", json=body, headers={h: "text"}).status_code == 200
+    r = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"})
+    assert r.status_code == 200 and r.json()[names.DEBUG_KEY]["q"]["path"], r.text
+    assert (
+        client.post("/v1/systemone", json=body, headers={"x-decisio-route": "gpu"}).status_code == 422
+    )  # read, refused
+    assert client.post("/v1/systemone", json=body, headers={"x-decisio-route": "text"}).status_code == 200
+    # the earlier x-rlcd-* request headers are ignored: served as if absent, not refused
+    r = client.post("/v1/systemone", json=body, headers={"x-rlcd-debug": "readout"})
+    assert r.status_code == 200 and names.DEBUG_KEY not in r.json()
+    r = client.post("/v1/systemone", json=body, headers={"x-rlcd-route": "gpu"})
+    assert r.status_code == 200 and r.headers["x-decisio-route"] == "text"
 
 
 def test_w2_new_records_are_decisio():

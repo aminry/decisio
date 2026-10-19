@@ -82,7 +82,6 @@ Request headers:
 - `x-decisio-route: text` or `image` chooses the route explicitly.
 - `x-decisio-debug: readout` or `hidden` adds the raw readout to the response, on a server started with `--debug-readout` only (verification, never production).
 
-The `x-rlcd-route` and `x-rlcd-debug` headers are honoured as aliases.
 
 ### Response
 

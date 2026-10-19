@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.19.0: the x-rlcd-* request headers are removed
+
+### What changed
+
+- **The `x-rlcd-debug` and `x-rlcd-route` request headers are no longer read.**
+  Send `x-decisio-debug` and `x-decisio-route`.
+  A request that still carries an `x-rlcd-*` header is served as if it did not: it is ignored, not refused, so a client that sent `x-rlcd-debug` gets no `decisio_debug` field and one that sent `x-rlcd-route` gets the route the server picks.
+  Responses never carried `x-rlcd-*` headers; task records in the earlier `rlcd-*/1` formats still load.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A client or script that sends `x-rlcd-debug` or `x-rlcd-route` | The header is ignored: no debug readout, no route choice | Send `x-decisio-debug` / `x-decisio-route` |
+| Anything else | Nothing changes | Nothing |
+
 ## 0.18.0: adapter temperatures, more than two images, shares that fit one card
 
 ### What changed
