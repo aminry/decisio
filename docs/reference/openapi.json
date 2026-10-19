@@ -1242,7 +1242,7 @@
       "SystemOneResponse": {
         "properties": {
           "model": {
-            "description": "The served model's name.",
+            "description": "The model name the request sent, or the served model's name when it sent none.",
             "title": "Model",
             "type": "string"
           },

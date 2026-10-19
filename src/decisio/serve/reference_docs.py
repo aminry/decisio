@@ -86,7 +86,7 @@ Answer = Annotated[NoulAnswer | ChoiceAnswer | ScoreAnswer, Field(discriminator=
 
 
 class SystemOneResponse(BaseModel):
-    model: str = Field(description="The served model's name.")
+    model: str = Field(description="The model name the request sent, or the served model's name when it sent none.")
     answers: dict[str, Answer] = Field(description="By the request's question names.")
     usage: Usage
     adapter: str | None = Field(None, description="The adapter that answered, when the request named one.")
