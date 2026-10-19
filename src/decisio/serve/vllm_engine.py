@@ -1299,9 +1299,9 @@ def build_parser():
     ap.add_argument(
         "--model",
         default=None,
-        help="the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint; for "
-        "gemma-4-31b that is tachara-ai/decisio-gemma-4-31b, and --model google/gemma-4-31B-it serves Google's weights "
-        "instead, quantized to FP8 on load)",
+        help="the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint; "
+        "for gemma-4-31b that is tachara-ai/decisio-gemma-4-31b, and --model google/gemma-4-31B-it serves "
+        "Google's weights instead, quantized to FP8 on load)",
     )
     ap.add_argument(
         "--revision",
