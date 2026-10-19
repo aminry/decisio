@@ -486,7 +486,7 @@ uv run python -m decisio.serve.vllm_engine
 
 With no flag the server serves Gemma 4 31B, the default base (measured on a 96 GB card; it also runs on an 80 GB H100; [Choosing a base](#choosing-a-base) says when to pick another).
 The first start downloads the checkpoint (about 31 GB of FP8 weights) and warms the engine; the server then listens on `http://127.0.0.1:8000`.
-Upgrading from a release before 0.10.0, where the container served the Qwen base: [docs/upgrading.md](docs/upgrading.md).
+Upgrade notes: [docs/upgrading.md](docs/upgrading.md).
 
 ### Docker
 
@@ -593,9 +593,9 @@ A base that is a third-party fine-tune names its publisher in the provenance col
 | Prompt | no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, read at the chat template's own answer position, every single-token form of each letter summed | as `gemma-4-12b` |
 | Yes/no | a two-option letter choice with its sides named | a two-option letter choice, each side shown as its description | as `gemma-4-12b` |
 | Padding | the state padded to the 1,056-token block | none | none |
-| Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 | scored in one batch after the state is read (`--multi-question warm`, its default since 0.8.0): the same choice as one engine call per question on every item measured, probabilities within 0.0073 |
+| Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 | scored in one batch after the state is read (`--multi-question warm`, its default): the same choice as one engine call per question on every item measured, probabilities within 0.0073 |
 | Precision | FP8, as the checkpoint stores it | bf16 | FP8, as its repository stores it (on load from Google's bf16 weights with `--model google/gemma-4-31B-it`; at bf16 they leave too little of a 96 GB card for a 32,768-token context) |
-| A second, different question on a document already read (since 0.8.1; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | read from the cache, as always: 23.5 ms after an 85 ms first read (3,000 tokens) | read from the cache since 0.8.1: 35.8 ms after a 260 ms first read; since 0.9.0 the document's boundary is registered after the answer, so the first read costs nothing more (+16 to +28 ms at 300 to 3,000 tokens before) | read from the cache since 0.8.1: 43.3 ms after a 439 ms first read; the boundary is registered before the answer, which costs the first read +21 to +34 ms and keeps throughput under load |
+| A second, different question on a document already read (decisio 0.8.1's served defaults, the 12B's boundary registered after the answer as on 0.9.0; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | read from the cache: 23.5 ms after an 85 ms first read (3,000 tokens) | read from the cache: 35.8 ms after a 260 ms first read; with the boundary registered after the answer (`--register-boundary after`) the first read costs nothing more, with it registered before the answer (the default) +16 to +28 ms at 300 to 3,000 tokens | read from the cache: 43.3 ms after a 439 ms first read; the boundary is registered before the answer, which costs the first read +21 to +34 ms and keeps throughput under load |
 
 In plain words:
 - **Gemma 4 31B, the default, for accuracy.**
