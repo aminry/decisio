@@ -289,6 +289,7 @@ To get the same answers on every card, give `--max-model-len` the same value on 
 
 `--adapter name=path` loads a vLLM-format LoRA adapter, and a request that names it (`"adapter": "<name>"`) is answered by the base with that adapter.
 The adapter is served unmerged, on the text route, in separate mode; the MLX backend refuses adapters.
+The CPU stand-in (`--backend hf`) serves no adapters either: it loads none, so a request that names one is refused as an unknown adapter (`loaded: []`). Adapters need the vLLM backend on a GPU.
 The request fields are in [api.md](api.md), the flags in [cli.md](cli.md).
 
 ### An adapter's own temperatures

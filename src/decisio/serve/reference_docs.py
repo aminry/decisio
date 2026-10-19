@@ -151,7 +151,10 @@ class TaskExample(BaseModel):
 class CertifyBlock(BaseModel):
     alpha: float = Field(0.05, description="At most this share of the certified answers is wrong.")
     delta: float = Field(0.1, description="The promise fails with at most this probability.")
-    min_examples: int = Field(59, description="Fewest held-out examples the procedure may use.")
+    min_examples: int | None = Field(
+        None,
+        description="Fewest held-out examples to accept; never fewer than alpha and delta need (59 at the defaults).",
+    )
     holdout: float = Field(0.5, description="The share of the task's examples held out when `examples` is not given.")
     suspend_on_alert: bool = Field(
         True, description="Stop certifying while the traffic monitor's confidence alert is on."
