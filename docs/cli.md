@@ -149,7 +149,7 @@ Measurements: `EVAL_CARD.md` sections 4 and 6.5.
 
 For scorers that treat a yes/no probability strictly between 0.20 and 0.80 as no answer, as JevBench v1.5 does, such an answer is reported at the band's edge on its own side: 0.80 above 0.5, and 0.20 at or below it.
 The answer never changes; its probability does, and calibration pays for it: log loss and ECE rise, while JevBench v1.5's yes/no competence rises.
-Measurements: `runs/2026-10-03_noul-commit/` and `docs/handoffs/tasks.md`.
+Measurements: `runs/2026-10-03_noul-commit/`.
 
 ### The earlier layout (`--prompt-tail compact`)
 

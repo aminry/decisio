@@ -1563,8 +1563,8 @@ def build_parser():
         "--noul-commit",
         action="store_true",
         help="/v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported "
-        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does (the measured cost "
-        "in docs/handoffs/tasks.md); off by default",
+        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does; off by "
+        "default",
     )
     ap.add_argument(
         "--tasks",
@@ -1581,7 +1581,7 @@ def build_parser():
         "(decisio.serve.hidden_engine.HiddenEngine), a second copy of --model in vLLM's pooling mode, "
         "instead of from the text engine: faster head questions (one request, not three) for "
         "deployments with heavy intent traffic on a dedicated card, at a second weight copy; not "
-        "co-resident with --image-model (docs/handoffs/tasks.md)",
+        "co-resident with --image-model (docs/tasks.md)",
     )
     ap.add_argument("--head-gpu-memory-utilization", type=float, default=0.47, help="the hidden-state engine's share")
     ap.add_argument(
