@@ -1250,7 +1250,9 @@ def resolve_base(args):
     return fam, fmt
 
 
-def main():
+def build_parser():
+    """The server's command line (`python -m decisio.serve.vllm_engine`): `main` parses it, and the flags table of
+    `decisio.serve.reference_docs` is written from it."""
     import argparse
 
     ap = argparse.ArgumentParser()
@@ -1591,6 +1593,11 @@ def main():
         help="listen address (default: this machine only; put a reverse proxy in front to expose it)",
     )
     ap.add_argument("--port", type=int, default=8000)
+    return ap
+
+
+def main():
+    ap = build_parser()
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
     try:  # an unusable file is a refusal before the engine is built
