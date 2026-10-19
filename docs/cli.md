@@ -10,11 +10,11 @@ uv run python -m decisio.serve.vllm_engine [flags]
 [`reference/flags.md`](reference/flags.md) is the complete table of the flags, their defaults and values, generated from the server's argument parser at release time; this page says what each base takes.
 
 `--base` chooses the base model and brings its checkpoint at a pinned revision and its value for every setting marked "the base's" below; a flag given explicitly overrides it.
-With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`. A checkpoint whose `model_type` no base serves, or whose `config.json` cannot be read, is refused with the supported bases named (decisio 0.15.0 and earlier served it with the Qwen profile, whose classes, token ranges and temperatures were fitted for another model); `--base <key>` with the same `--model` is the explicit way to serve it as that base's profile, if it is one. The CPU stand-in (`--backend hf`) is the exception: it takes any small model and uses the Qwen profile.
-With neither, the vLLM server serves `gemma-4-31b`, the default base since 0.10.0 (the CPU stand-in and the MLX backend always name a checkpoint, and refuse to start without one).
+With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`. A checkpoint whose `model_type` no base serves, or whose `config.json` cannot be read, is refused with the supported bases named, because a base's classes, token ranges and temperatures are fitted for its own model; `--base <key>` with the same `--model` is the explicit way to serve it as that base's profile, if it is one. The CPU stand-in (`--backend hf`) is the exception: it takes any small model and uses the Qwen profile.
+With neither, the vLLM server serves `gemma-4-31b`, the default base (the CPU stand-in and the MLX backend always name a checkpoint, and refuse to start without one).
 `--base` also takes a decisio model repository, `owner/name[@revision]` or a directory holding its `decision_config.json`: the repository's weights are the checkpoint, its file names the base, and the server refuses to start if the file differs from the installed profile (`docs/running.md`, "Model repositories").
 The served defaults need no other flag: every default below is what was measured, base by base (`EVAL_CARD.md` sections 1, 6.1 and 7.1).
-`gemma-4-31b` is served from its FP8 repository, `tachara-ai/decisio-gemma-4-31b`, and `--model google/gemma-4-31B-it` serves Google's weights instead, quantized to FP8 when they load (vLLM's `fp8_per_tensor` online quantization, which `quantization="fp8"` redirects to since 0.31.0), a setting of its profile; `--engine '{"quantization": null}'` loads them at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
+`gemma-4-31b` is served from its FP8 repository, `tachara-ai/decisio-gemma-4-31b`, and `--model google/gemma-4-31B-it` serves Google's weights instead, quantized to FP8 when they load (vLLM's `fp8_per_tensor` online quantization, which `quantization="fp8"` redirects to), a setting of its profile; `--engine '{"quantization": null}'` loads them at bf16, which does not leave room for a 32,768-token context on a 96 GB card (`EVAL_CARD.md` section 7).
 `--help` prints the same list with each flag's description.
 
 ## Every flag
@@ -46,11 +46,11 @@ Where the columns differ, the value is the base's.
 
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
-| `--prompt-tail` | `spaced` | `spaced` | `spaced` | `spaced`: a blank line before and after the lettered options, then one line asking for the chosen option's letter alone; `compact`: the earlier layout, for tasks registered under it |
+| `--prompt-tail` | `spaced` | `spaced` | `spaced` | `spaced`: a blank line before and after the lettered options, then one line asking for the chosen option's letter alone; `compact`: the compact layout, for tasks registered under it |
 | `--answer-slot` | `prefill` | `template` | `template` | where the label is read: after "Answer:" prefilled in the assistant turn, or at the chat template's own first assistant position |
 | `--label-variants` | `single` | `summed` | `summed` | the tokens read per label: the one form the slot reads, or every single-token form summed |
 | `--system-prompt` | off | on | on | a system turn before each question |
-| `--noul-rendering` | `letters-keys` | `letters` | `letters` | how a yes/no question is asked: `letters-keys`, a two-option letter choice, the false side first, the sides named; `letters`, the same with each side shown as its description; `words`, the earlier rendering, read from the yes and no tokens |
+| `--noul-rendering` | `letters-keys` | `letters` | `letters` | how a yes/no question is asked: `letters-keys`, a two-option letter choice, the false side first, the sides named; `letters`, the same with each side shown as its description; `words`, read from the yes and no tokens |
 | `--describe-options` | on | on | on | show an option that has a description as its description alone; `--no-describe-options` shows `key: description` |
 | `--hide-index-keys` | on | on | on | never show enumerated keys (`option_0`, `option_1`, ...) |
 | `--desnake-labels` | on | on | on | show bare snake_case labels as words |
@@ -72,7 +72,7 @@ Where the columns differ, the value is the base's.
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
 | `--multi-question` | `sequential` | `sequential` | `warm` with the engine in the server's process, else `sequential` | how a request's questions are scored (below) |
-| `--register-boundary` | not used (no registration needed) | `before` (`after` from 0.9.0 to 0.11.0) | `before` | when a single question on a new state registers its boundary for the next question: `after`, once the response is out; `before`, ahead of the question, as in 0.8.1; `off`, never (`docs/running.md`) |
+| `--register-boundary` | not used (no registration needed) | `before` | `before` | when a single question on a new state registers its boundary for the next question: `after`, once the response is out; `before`, ahead of the question; `off`, never (`docs/running.md`) |
 | `--engine-process` | `in` (`separate` with a second engine) | `in` (`separate` with a second engine) | `in` | where vLLM's engine runs: `in`, the server's process; `separate`, a process of its own (vLLM's arrangement) (below) |
 | `--pad-policy` | `always` | `always` | `always` | `always`: pad every state; `shared`: pad only requests with more than one question; `row`: pad a single-question request's whole row (below); `none`: never pad (the default with `--backend mlx`) |
 | `--pad-to` | `block` | `none` | `none` | what a state is padded to: the KV cache block, a token count, or nothing |
@@ -121,7 +121,7 @@ Where the columns differ, the value is the base's.
 With `sequential`, the served default, a request with several questions first prefills the state once, then scores each question in its own engine call, reading the state from the prefix cache, so every answer equals the same question sent alone.
 With `warm`, for bulk scoring, the questions are scored in one batch after the same prefill: faster (four questions on a new state take about half the time of `sequential` on the Qwen base and about two thirds on the Gemma bases), but a batched answer differs from the same question sent alone, and when two options are close the choice can change (`EVAL_CARD.md` section 4).
 With the engine in its own process (`--engine-process separate`) a warm answer can also move between repeats, because that process does not always put a request's questions in one engine step (vllm-project/vllm#59764); with the engine in the server's process (`--engine-process in`) an identical four-question warm request repeated exactly on a server that had answered it before (272 of 272 requests, 5 repeats each, vLLM 0.30.0); a single-question request repeated on such a server can differ slightly (5 of 200 requests, up to 0.031, on vLLM 0.30.0 and 0.31.0 alike; `EVAL_CARD.md` sections 4 and 7.5).
-`--engine-process` resolves to `in` for a single-engine server (since 0.8.0) and to `separate` when a second engine is configured (`--image-model`, `--head-engine`, `--one-engine`), with which `in` is refused; an explicit choice is honoured, and the server prints the arrangement and why at start-up and reports it in `/health` as `engine_process`.
+`--engine-process` resolves to `in` for a single-engine server and to `separate` when a second engine is configured (`--image-model`, `--head-engine`, `--one-engine`), with which `in` is refused; an explicit choice is honoured, and the server prints the arrangement and why at start-up and reports it in `/health` as `engine_process`.
 On the Gemma 4 31B base `warm` is the default when the engine runs in the server's process: against `sequential` it changed no choice on the suite, JevBench and the travel requests, by at most 0.0073 in a probability (`runs/2026-10-05_engine-death-gates/`); the other bases keep `sequential`.
 With `batch`, every question goes in one engine call that prefills the state itself, with no warm-up.
 Measurements: `EVAL_CARD.md` section 4, `runs/2026-10-02_multi-question-and-rendering/`, and the README's example request in `runs/2026-10-01_docker-first-gpu-start/repeat_variability/`.
@@ -151,8 +151,8 @@ For scorers that treat a yes/no probability strictly between 0.20 and 0.80 as no
 The answer never changes; its probability does, and calibration pays for it: log loss and ECE rise, while JevBench v1.5's yes/no competence rises.
 Measurements: `runs/2026-10-03_noul-commit/`.
 
-### The earlier layout (`--prompt-tail compact`)
+### The compact layout (`--prompt-tail compact`)
 
 The compact layout has no blank lines around the options and ends with "Answer with the letter only.".
-Tasks registered under one layout are not applied under the other, so a task registered before the spaced layout became the default needs `--prompt-tail compact` or registering again.
+Tasks registered under one layout are not applied under the other, so a task registered under the compact layout needs `--prompt-tail compact` or registering again.
 Packed mode reads the compact layout only, and the image route keeps it.

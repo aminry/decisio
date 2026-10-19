@@ -653,7 +653,7 @@ The served defaults need no flags; these change behaviour ([`docs/cli.md`](docs/
 - `--pad-policy row`: pads a single-question request so its whole row ends on the block boundary, faster on a new state at a small cost in repeatability.
 - `--multi-question warm`: scores a request's questions in one batch for bulk scoring, faster, but each answer then depends on the batch. It is the Gemma 4 31B base's default: with the engine in the server's process a warm request repeated exactly on a server that had answered it before (vLLM 0.30.0: 272 of 272 four-question requests, 5 repeats each); on vLLM 0.30.0 and 0.31.0 alike a request repeats exactly on a freshly started server, and on a server that has already answered it a repeat can differ (5 of 200 single-question requests, up to 0.031, no top answer changed, 31B, the same on both versions, `EVAL_CARD.md` section 7.5); and on the items measured it chose as `sequential` did every time (`runs/2026-10-05_engine-death-gates/`).
 - `--noul-commit`: reports a yes/no probability inside JevBench v1.5's no-answer band at the band's edge; the answer never changes, its calibration does.
-- `--prompt-tail compact`: the earlier layout, for tasks registered under it.
+- `--prompt-tail compact`: the compact layout, for tasks registered under it.
 - `--image-model`: a second engine on the same card for requests that carry images.
 - `--backend`: `vllm` (the default), `mlx` for Apple silicon, `hf` for the CPU stand-in.
 
