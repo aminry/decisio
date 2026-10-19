@@ -1699,16 +1699,16 @@ def main():
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
-    if args.max_images is not None and not args.image_model:
-        ap.error("--max-images needs --image-model")
-    if args.max_images is not None and args.max_images < 1:
-        ap.error("--max-images must be at least 1")
     try:  # the shares that fit one card, refused before either engine is built
         args.gpu_memory_utilization, args.image_gpu_memory_utilization = resolve_memory_shares(
             args.gpu_memory_utilization, args.image_gpu_memory_utilization, args.image_model, one, args.backend
         )
     except ValueError as e:
         ap.error(str(e))
+    if args.max_images is not None and not args.image_model:
+        ap.error("--max-images needs --image-model")
+    if args.max_images is not None and args.max_images < 1:
+        ap.error("--max-images must be at least 1")
     try:
         args.model_class, head_mode = resolve_head_mode(args.model_class, args.head_engine, one)
     except ValueError as e:
