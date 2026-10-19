@@ -1355,10 +1355,10 @@ def build_parser():
         default=None,
         choices=["after", "before", "off"],
         help="on a base that registers a state's boundary for the next question (the Gemma bases; /health "
-        "registers_state_boundary), where a single question on a new state registers it: after (gemma-4-12b's "
-        "default), once the response is out, so the caller does not wait for it and a question sent after the answer "
-        "reads the state from the cache; before (gemma-4-31b's default), ahead of the question, as 0.8.1 did; off, "
-        "never, so a later question about the state reads it again (docs/running.md)",
+        "registers_state_boundary), where a single question on a new state registers it: after, once the response is "
+        "out, so the caller does not wait for it and a question sent after the answer reads the state from the "
+        "cache; before (the default of both Gemma bases), ahead of the question; off, never, so a later question "
+        "about the state reads it again (docs/running.md)",
     )
     ap.add_argument(
         "--engine-process",
@@ -1485,8 +1485,8 @@ def build_parser():
         help="/v1/systemone: how a yes/no question is asked (default: the base's; Qwen letters-keys, Gemma letters). "
         "letters-keys: a two-option "
         "choice, the false side first, the sides named ('No: ...', 'Yes: ...'), read from the letters; letters: as "
-        "letters-keys with each side shown as its criteria description alone ('No' and 'Yes' without one); words (the "
-        "earlier default): the instructions with 'Yes means' and 'No means' lines, read from the yes and no tokens. "
+        "letters-keys with each side shown as its criteria description alone ('No' and 'Yes' without one); words: "
+        "the instructions with 'Yes means' and 'No means' lines, read from the yes and no tokens. "
         "Abstention and two-order requests keep words",
     )
     ap.add_argument(
@@ -1520,7 +1520,7 @@ def build_parser():
         help="the question's layout and last line (default: the base's, spaced for both): spaced (a blank line before "
         "and after the "
         "lettered options, then one line asking for the chosen option's letter alone, decisio.readout.spaced), or "
-        "compact (the earlier default, for tasks fitted under it; no blank lines, 'Answer with the letter only.'). "
+        "compact (for tasks fitted under it; no blank lines, 'Answer with the letter only.'). "
         "Tasks registered under one are not applied under the other",
     )
     ap.add_argument(
