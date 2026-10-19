@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.19.0](https://github.com/aminry/decisio/compare/v0.18.1...v0.19.0) (2026-10-19)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** the earlier spellings of the debug and route request headers are no longer read; send x-decisio-debug and x-decisio-route
+
+### Features
+
+* **serve:** the earlier spellings of the debug and route request headers are no longer read; send x-decisio-debug and x-decisio-route ([2b08ccd](https://github.com/aminry/decisio/commit/2b08ccdcbf917738f56ac4fd57555bc679d6e5ae))
+
 ## [0.18.1](https://github.com/aminry/decisio/compare/v0.18.0...v0.18.1) (2026-10-19)
 
 
