@@ -323,5 +323,8 @@ class InFlight:
 
 def guarded(engine, fn, *args, **kwargs):
     """`fn(*args, **kwargs)`, one of `engine`'s calls, through its health when the server gave it one."""
+    bind = getattr(engine, "bind_stream", None)
+    if bind is not None:  # any thread: the stream the engine was warmed up on (decisio.serve.engine_stream)
+        bind()
     health = getattr(engine, "health", None)
     return health.call(engine, fn, *args, **kwargs) if health is not None else fn(*args, **kwargs)
