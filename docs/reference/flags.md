@@ -17,6 +17,7 @@ A dash in the default column means the flag has no default of its own: it takes 
 | `--pad-to` | - | text | 'block', a token count, or 'none' (separate mode); default: the base's (Qwen: block; Gemma: none) |
 | `--pad-where` | `front` | `between`, `front`, `user` |  |
 | `--adapter` | - | text, repeatable | name=path of a vLLM-format LoRA adapter |
+| `--adapter-temperatures` | - | text, repeatable | name=file of a decisio.adapter/1 file of that adapter's temperatures per question type (choice, noul, score) and, for choice, optionally per band of option count (choice_bands), served for a request that names it; replaces the decisio_adapter.json in its folder; repeatable |
 | `--pack` | `16` | `int` |  |
 | `--pad-policy` | - | `always`, `shared`, `row`, `none` | always (the default with vLLM): front-pad every state to the block; shared: pad only when the request has more than one question to share the padded boundary (a single-question request then reads its state unpadded, a different prompt); row: a single-question request is front-padded so its whole row, state and question, ends on the block boundary and is prefilled in one engine step (multi-question requests as always); none (the default with --backend mlx, whose cache needs no padding): never pad, so a question asked alone and inside a request is one prompt (resolve_pad_policy) |
 | `--multi-question` | - | `sequential`, `warm`, `batch` | sequential (the served default; gemma-4-31b's is warm with the engine in the server's process): a request with several questions first prefills the state in a warm-up request, then sends each question in its own engine call, reading the state from the prefix cache, so every answer equals the question sent alone; warm (for bulk scoring): the warm-up, then every question in one batch, faster but each answer depends on the batch; batch: one engine call with every question, each prefilling the state itself, no warm-up |
@@ -34,6 +35,7 @@ A dash in the default column means the flag has no default of its own: it takes 
 | `--orders` | `1` | `1`, `2` | /v1/systemone: 2 = two-order averaging (after Reflex); the per-question disagreement goes to --branch-log |
 | `--branch-log` | - | text | JSONL of two-order branches and their disagreement |
 | `--image-model` | - | text | the full multimodal checkpoint: a second engine under the multimodal class, serving only /v1/systemone requests that carry images (decisio.serve.image_engine); the text route is unchanged |
+| `--max-images` | - | `int` | the most images one request may carry on the --image-model engine (default 128: 128 images of 512 by 512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal profiling memory at start-up, raise it for smaller images) |
 | `--hide-index-keys` / `--no-hide-index-keys` | on | on or off | /v1/systemone: show only the descriptions of options whose keys are a pure enumeration (option_0, option_1, ...), never the index beside our letters (default on; --no-hide-index-keys renders `key: description` as before) |
 | `--desnake-labels` / `--no-desnake-labels` | on | on or off | /v1/systemone: when options are shown as bare labels and every label is snake_case (card_arrival, ...), show them with spaces (default on; --no-desnake-labels leaves them) |
 | `--describe-options` / `--no-describe-options` | on | on or off | /v1/systemone: show an option that has a description as its description alone, with no key; an option without one as its key (default on; --no-describe-options shows `key: description`; the keys stay the answer's keys) |
@@ -56,9 +58,9 @@ A dash in the default column means the flag has no default of its own: it takes 
 | `--head-gpu-memory-utilization` | `0.47` | `float` | the hidden-state engine's share |
 | `--debug-readout` | off | on or off | honour the x-decisio-debug header (the raw readout in the response; verification only) |
 | `--one-engine` | off | on or off | load only the --image-model engine (at --gpu-memory-utilization) and serve text requests on it too: the fallback for a card that cannot hold both engines; changes the text route's class |
-| `--gpu-memory-utilization` | `0.9` | `float` | the text engine's share of the card |
+| `--gpu-memory-utilization` | - | `float` | the text engine's share of the card (default 0.90; 0.47 beside the image engine of --image-model, which needs the pair to fit on the card) |
 | `--max-model-len` | - | `int` | the longest prompt, in tokens. Without it, the vLLM server on a Gemma base serves the largest length that fits this card, up to the base's ceiling (gemma-4-12b 65,536, gemma-4-31b 98,304) and not below 32,768; the Qwen base, --image-model, a second engine, --engine-process separate and the other backends stay at 32,768. Given, it is that length, up to the ceiling (docs/running.md) |
 | `--kv-cache-dtype` | - | `auto`, `fp8` | the KV cache's data type: auto (the model's, the default) or fp8, which holds twice the tokens and changes the numerics (a task and its certificate are fitted under one; docs/running.md) |
-| `--image-gpu-memory-utilization` | `0.5` | `float` | the image engine's share of the card |
+| `--image-gpu-memory-utilization` | - | `float` | the image engine's share of the card (default 0.49, beside the text engine's 0.47); a pair with a default in it may total at most 0.96, a pair given in full at most 1.0 |
 | `--host` | `127.0.0.1` | text | listen address (default: this machine only; put a reverse proxy in front to expose it) |
 | `--port` | `8000` | `int` |  |
