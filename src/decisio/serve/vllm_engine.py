@@ -1414,6 +1414,14 @@ def main():
         "unchanged",
     )
     ap.add_argument(
+        "--max-images",
+        type=int,
+        default=None,
+        help="the most images one request may carry on the --image-model engine (default 128: 128 images of 512 by "
+        "512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal "
+        "profiling memory at start-up, raise it for smaller images)",
+    )
+    ap.add_argument(
         "--hide-index-keys",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1644,6 +1652,10 @@ def main():
     one = args.one_engine
     if one and not args.image_model:
         ap.error("--one-engine needs --image-model")
+    if args.max_images is not None and not args.image_model:
+        ap.error("--max-images needs --image-model")
+    if args.max_images is not None and args.max_images < 1:
+        ap.error("--max-images must be at least 1")
     try:
         args.model_class, head_mode = resolve_head_mode(args.model_class, args.head_engine, one)
     except ValueError as e:
@@ -1694,6 +1706,7 @@ def main():
 
             engine = ImageLettersEngine(
                 args.image_model,
+                **({"max_images": args.max_images} if args.max_images is not None else {}),
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.gpu_memory_utilization,
@@ -1762,6 +1775,7 @@ def main():
 
             image_engine = ImageLettersEngine(
                 args.image_model,
+                **({"max_images": args.max_images} if args.max_images is not None else {}),
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.image_gpu_memory_utilization,

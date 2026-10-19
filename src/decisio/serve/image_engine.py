@@ -30,7 +30,10 @@ from decisio.readout.letters import fmt_state
 from decisio.serve.vllm_engine import USER_HEAD, LettersEngine, pad_prompt, question_text, state_prefix, user_turn
 
 VISION = "<|vision_start|><|image_pad|><|vision_end|>"
-MAX_IMAGES = 2
+# Images per request: no cap of its own, the context bounds a request (System One's rule). vLLM wants a number at
+# start-up for its multimodal profiling: 128 images of 512 by 512 pixels (256 tokens each) fill the 32,768-token
+# context, so for photos the context, not this number, ends a request; `--max-images` sets it (smaller images fit more).
+DEFAULT_MAX_IMAGES = 128
 MAX_BYTES = 20 * 1024 * 1024  # imajev's server limits (github.com/mohit67890/imajev)
 MAX_PIXELS = 20_000_000
 
@@ -109,8 +112,9 @@ class ImageRequests:
     def answer(self, state, questions, adapter=None, images=None):
         if not images:
             return super().answer(state, questions, adapter)
-        if len(images) > MAX_IMAGES:
-            raise ValueError(f"at most {MAX_IMAGES} images per request")
+        limit = getattr(self, "max_images", DEFAULT_MAX_IMAGES)
+        if len(images) > limit:
+            raise ValueError(f"at most {limit} images per request")
         with self._lock:
             t0 = time.perf_counter()
             rows, p_exp, p_sent, counts = self._prepare_images(state, images, questions)
@@ -131,10 +135,12 @@ class ImageRequests:
 
 
 class ImageLettersEngine(ImageRequests, LettersEngine):
-    """The multimodal class on vLLM with up to two images per request; every text-path setting as the served default."""
+    """The multimodal class on vLLM with as many images per request as the context holds (up to `max_images`, 128 unless
+    `--max-images` says otherwise); every text-path setting as the served default."""
 
-    def __init__(self, model, engine_kw=None, **kw):
-        engine_kw = {"limit_mm_per_prompt": {"image": MAX_IMAGES, "video": 0}, **(engine_kw or {})}
+    def __init__(self, model, engine_kw=None, max_images=DEFAULT_MAX_IMAGES, **kw):
+        self.max_images = int(max_images)
+        engine_kw = {"limit_mm_per_prompt": {"image": self.max_images, "video": 0}, **(engine_kw or {})}
         LettersEngine.__init__(self, model, engine_kw=engine_kw, **kw)
         self._image_setup(model)
         # warm the image path too: the vision tower and the multimodal prefill compile on their first image request
@@ -145,4 +151,4 @@ class ImageLettersEngine(ImageRequests, LettersEngine):
             self.answer("Warm-up.", [{"kind": "noul", "instructions": "Is this a warm-up request?"}], images=[blank])
 
     def facts(self):
-        return {**super().facts(), "class": "multimodal", "max_images": MAX_IMAGES}
+        return {**super().facts(), "class": "multimodal", "max_images": self.max_images}
