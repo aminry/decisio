@@ -381,4 +381,6 @@ Jev 1.13.0 is a hosted API with no card, so none is quoted for it.
 | Quyet-1.0-Large | prompt limit | an 8,000-token prompt | [line 23, revision 3a3c5e7d](https://huggingface.co/chinhnc/Quyet-1.0-Large) |
 
 Prompt length, each card's own words, prompt against prompt: Prompt length: 32,768 tokens against 8,000 tokens (4.1 times).
+That is decisio's context as its card stated it at revision c23ae405, before decisio 0.14.0 (a fixed 32,768 tokens).
+Since 0.14.0 the 31B serves the largest length the card holds, at least 32,768 and at most 98,304 tokens (`docs/running.md`, the context length), so against 8,000 tokens the ratio is 4.1 times at the 32,768-token minimum and 12.3 times at 98,304.
 These are the limits the cards state, not measured accuracy at those lengths.

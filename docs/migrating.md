@@ -26,6 +26,8 @@ answer = client.system_one(
     questions={"category": {"type": "choice", "instructions": "Which team should handle this ticket?",
                             "criteria": {"billing": None, "access": None, "bug": None}}},
 )
+category = answer.choices["category"]
+print(category.choice, category.confidence)   # the chosen label and its confidence, for example: access 0.96
 ```
 
 Or leave the code as it is and set the SDK's environment variables:
