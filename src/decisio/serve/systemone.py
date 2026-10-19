@@ -37,6 +37,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
 from decisio.serve.temperature import apply_temperature
 
@@ -554,6 +555,7 @@ class SystemOne:
         debug_readout: bool = False,
         temperature: float = 1.0,
         temperatures: dict | None = None,
+        adapter_temperatures: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -582,6 +584,17 @@ class SystemOne:
         self.temperature = float(temperature)
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
+        # per adapter, {question type: temperature} replacing the base's for a request that names the adapter
+        # (decisio.serve.adapter_temperatures); a type the adapter has none for keeps the base's. A "choice_bands"
+        # entry, {"lo-hi": temperature}, is the adapter's choice temperature by the question's number of options
+        self.adapter_temperatures = {
+            n: {k: ({b: float(x) for b, x in v.items()} if k == "choice_bands" else float(v)) for k, v in t.items()}
+            for n, t in (adapter_temperatures or {}).items()
+            if t
+        }
+        self._adapter_bands = {
+            n: band_table(b) for n, t in self.adapter_temperatures.items() if (b := t.get("choice_bands"))
+        }
         self.release_date, self.description = release_date, description
         self.branch_log = branch_log
         self._log_lock = threading.Lock()
@@ -775,11 +788,11 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                t_q = self.temperature_of(q.type)
+                t_q = self.temperature_of(q.type, adapter, len(p))
                 if not corrected and t_q != 1.0 and not use_image:
                     p = apply_temperature(p, t_q)
                     if debug:
-                        dbg[name].update(path="temperature", temperature=t_q)
+                        dbg[name].update(path="temperature", temperature=t_q, adapter=adapter)
             if plans[i]:
                 answers[name] = self.abstention_answer(q, keys, p, plans[i], imajev_ext)
                 continue
@@ -847,8 +860,18 @@ class SystemOne:
 
     # ---- per-task calibration and the intent head ----------------------------------------------------------------
 
-    def temperature_of(self, qtype: str) -> float:
-        """The temperature a question of this type is served at: its own (--temperature-<type>) or the global one."""
+    def temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
+        """The temperature a question of this type is served at: the named adapter's own for the type (for a choice
+        question of `options` options, its temperature for the band that count falls in, if it has bands), else the
+        type's (--temperature-<type>), else the global one."""
+        if adapter is not None:
+            if qtype == "choice" and options is not None:
+                for lo, hi, t in self._adapter_bands.get(adapter, ()):
+                    if lo <= options <= hi:
+                        return t
+            own = self.adapter_temperatures.get(adapter, {}).get(qtype)
+            if own is not None:
+                return own
         return self.temperatures.get(qtype, self.temperature)
 
     def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
@@ -1121,7 +1144,11 @@ class SystemOne:
                 self.engine,
                 decisio_version=ver,
                 serving=serving,
-                temperatures={"global": self.temperature, **self.temperatures},
+                temperatures={
+                    "global": self.temperature,
+                    **self.temperatures,
+                    **({"adapters": self.adapter_temperatures} if self.adapter_temperatures else {}),
+                },
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
             )
         return self._stack

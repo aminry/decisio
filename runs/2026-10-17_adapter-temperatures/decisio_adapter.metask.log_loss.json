@@ -1,0 +1,32 @@
+{
+ "schema": "decisio.adapter/1",
+ "temperatures": {
+  "choice": 2.141,
+  "noul": 3.075,
+  "score": 4.185
+ },
+ "fit": {
+  "objective": {
+   "choice": "log_loss",
+   "noul": "log_loss",
+   "score": "log_loss"
+  },
+  "kappa_on_raw_readout": {
+   "choice": 0.4671,
+   "noul": 0.3252,
+   "score": 0.2389
+  },
+  "n": {
+   "choice": 173,
+   "noul": 155,
+   "score": 172
+  },
+  "detail": {
+   "score": {
+    "cc_at_fit": 49.07,
+    "cc_unscaled": 52.29
+   }
+  },
+  "data": "a 500-item development set of public-source questions (choice 173, yes/no 155, score 172 items; the score items were sent as choice questions), read through MeTask's published adapter (MeTask-Rain/metask-jev-rain-31B-trained at 2feff076) on R2, one card session; no benchmark item is in it (read start 1)"
+ }
+}
