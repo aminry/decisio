@@ -1290,7 +1290,7 @@ def build_parser():
         "--base",
         default=None,
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b "
-        "(the default; google/gemma-4-31B-it quantized to FP8 on load, or its FP8 repository), qwen3.6-35b-a3b "
+        "(the default; served from its FP8 repository, tachara-ai/decisio-gemma-4-31b), qwen3.6-35b-a3b "
         "(Qwen/Qwen3.6-35B-A3B-FP8) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision; or a decisio "
         "repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
@@ -1299,7 +1299,9 @@ def build_parser():
     ap.add_argument(
         "--model",
         default=None,
-        help="the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint)",
+        help="the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint; "
+        "for gemma-4-31b that is tachara-ai/decisio-gemma-4-31b, and --model google/gemma-4-31B-it serves "
+        "Google's weights instead, quantized to FP8 on load)",
     )
     ap.add_argument(
         "--revision",

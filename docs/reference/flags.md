@@ -10,8 +10,8 @@ A dash in the default column means the flag has no default of its own: it takes 
 
 | Flag | Default | Values | What it does |
 | --- | --- | --- | --- |
-| `--base` | - | text | the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b (the default; google/gemma-4-31B-it quantized to FP8 on load, or its FP8 repository), qwen3.6-35b-a3b (Qwen/Qwen3.6-35B-A3B-FP8) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision; or a decisio repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is detected from --model's config.json |
-| `--model` | - | text | the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint) |
+| `--base` | - | text | the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b (the default; served from its FP8 repository, tachara-ai/decisio-gemma-4-31b), qwen3.6-35b-a3b (Qwen/Qwen3.6-35B-A3B-FP8) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision; or a decisio repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is detected from --model's config.json |
+| `--model` | - | text | the checkpoint: a local directory or a Hugging Face repository id (default: the base's own checkpoint; for gemma-4-31b that is tachara-ai/decisio-gemma-4-31b, and --model google/gemma-4-31B-it serves Google's weights instead, quantized to FP8 on load) |
 | `--revision` | - | text | the checkpoint's revision on the Hugging Face hub (default: the base's pinned revision when --model is the base's own checkpoint) |
 | `--mode` | `separate` | `separate`, `packed` |  |
 | `--pad-to` | - | text | 'block', a token count, or 'none' (separate mode); default: the base's (Qwen: block; Gemma: none) |
