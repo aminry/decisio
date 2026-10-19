@@ -32,7 +32,7 @@ Every number is on the base's served settings as they were when it was measured 
   `--multi-question warm` scores them in one batch instead, for bulk scoring, where each answer depends on the batch (section 4).
 - Task registration from labelled examples (`POST /v1/tasks`): per-task calibration from 10 examples (about 20 recommended), and an intent head on questions of 10 or more options with 5 examples per option; each is kept only when cross-validation on the examples shows a gain.
 - An opt-in abstention threshold per task (`POST /v1/abstention/tasks`), on a declared or appended "can't tell" option.
-- Image input: up to 2 images per request (PNG, JPEG or WebP, up to 20 MB each), as data URLs, multipart, or inside the state.
+- Image input: as many images per request as the context holds (up to `--max-images`, 128 by default) (PNG, JPEG or WebP, up to 20 MB each), as data URLs, multipart, or inside the state.
 - Two-order averaging, opt-in (`--orders 2` or a request's `orders`), with the two orders' disagreement logged per question.
 - Context: every record here was measured at 32,768 tokens per prompt. From decisio 0.14.0 the Gemma bases serve the largest context that fits the card, up to 98,304 (31B) and 65,536 (12B); the Qwen base stays at 32,768 (`docs/running.md`, "The context length").
 

@@ -13,7 +13,8 @@ checks are about the route, the prompt and the wire format, not about any number
       request uses its extension; text requests stay on the text engine with TypeSafe's format;
   I4  the paired text check: a text request through the text route and through the image engine (`x-decisio-route:
       image`) gives bit-identical probabilities;
-  I5  refusals are 422: three images, a bad data URL, a bad multipart request field, an unknown route;
+  I5  refusals are 422: more images than the engine's `--max-images` (set to 2 here), a bad data URL, a bad multipart
+      request field, an unknown route;
   I7  System One's `assets` (JSON `data_base64`, a multipart `part`) give the same probabilities as a data:image URI in
       the state and as the images list with the marker written by hand, and carry no imajev fields.
 
@@ -175,9 +176,13 @@ def test_i4_paired_text_check(served):
 
 
 def test_i5_refusals(served, picture):
-    client, _, _ = served
+    client, _, image = served
     req = {"state": STATE, "questions": QUESTIONS}
-    assert client.post("/v1/systemone", json={**req, "images": [data_url(picture)] * 3}).status_code == 422
+    image.max_images = 2  # an engine started with --max-images 2: the third image is refused (the default is 128)
+    try:
+        assert client.post("/v1/systemone", json={**req, "images": [data_url(picture)] * 3}).status_code == 422
+    finally:
+        del image.max_images
     assert client.post("/v1/systemone", json={**req, "images": ["data:text/plain;base64,aGk="]}).status_code == 422
     assert client.post("/v1/systemone", json={**req, "images": "not a list"}).status_code == 422
     assert (
