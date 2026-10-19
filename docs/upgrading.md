@@ -8,6 +8,43 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.18.0: adapter temperatures, more than two images, shares that fit one card
+
+### What changed
+
+- **An adapter can carry its own temperatures.**
+  A LoRA adapter changes the scale of the readout, and the base's temperatures were fitted on the base.
+  `decisio_adapter.json` beside the adapter's weights, or `--adapter-temperatures name=file`, gives the adapter a temperature per question type (`choice`, `noul`, `score`) and, for choice, optionally one per band of option count (`choice_bands`: 2-10, 11-26, 27-255 or your own).
+  A request that names the adapter is served at them.
+  A request that does not, and an adapter with no file, are served at the base's temperatures as before.
+  `python -m decisio.serve.adapter_temperatures fit` and `fit-split` write the file ([running.md](running.md#an-adapters-own-temperatures)).
+- **An adapter's identity and temperatures are in the serving-stack fingerprint.**
+  `/health` shows them in `adapter_identity` and `adapter_temperatures`, so a different adapter, a retrained one or a changed temperature is a different stack.
+  A server with no adapter has none of these keys.
+- **The image count of a request is limited by the context, not by a cap of 2.**
+  `--max-images` (default 128) is the most images one request may carry on a server started with `--image-model`.
+  Lowering it saves multimodal profiling memory at start-up.
+- **`--image-model` starts with shares that fit one card.**
+  The text engine defaults to 0.47 of the card and the image engine to 0.49, the pair that was measured.
+  Before, the defaults (0.90 and 0.50) could not fit together and the start failed in the image engine after the text engine had loaded.
+  A pair with a default in it that totals over 0.96, or any pair over 1.0, is now refused at start, before either engine is built.
+  A pair you give in full is yours up to 1.0.
+  The start prints `ENGINE SHARES`.
+- **A Marlin W4A16 checkpoint works with the default in-process engine.**
+  The 0.16.0 limit that it needed `--engine-process separate` is gone: every thread that calls the engine now runs on the stream the engine was warmed up on.
+- **The OpenAPI file and the flags table are generated from the code.**
+  `docs/reference/openapi.json` and `docs/reference/flags.md` are rewritten at release time, and a test fails if they disagree with the code.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `--adapter` without a temperatures file | Nothing changes: the base's temperatures | Fit and ship a file if the adapter's answers are over- or under-confident |
+| `--image-model` with no memory flag | It starts now; before, the image engine failed to load | Nothing |
+| `--image-model` with only one of the two memory flags | The other takes the measured pair's value (0.47 text, 0.49 image), where before it took 0.90 or 0.50 | Give both, or check that the pair totals 0.96 or less |
+| A client that sends more than 2 images in a request | Accepted up to `--max-images` and the context | Nothing |
+| A Marlin W4A16 checkpoint with `--engine-process separate` | Still works | You may drop the flag |
+
 ## 0.17.0: System One's `assets` are read, and too many options is a 422
 
 ### What changed
