@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/aminry/decisio/compare/v0.18.0...v0.18.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **serve:** a re-certification derives min_examples from its new alpha and delta unless the original call asked for more than they need ([#233](https://github.com/aminry/decisio/issues/233)) ([cd3f3cd](https://github.com/aminry/decisio/commit/cd3f3cdb6203c99cc16d68af40ae9792ca8f0a66))
+
 ## [0.18.0](https://github.com/aminry/decisio/compare/v0.17.0...v0.18.0) (2026-10-19)
 
 
