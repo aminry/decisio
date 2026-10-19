@@ -49,6 +49,7 @@ If your change touches the served path, say so in the pull request so the mainta
 - No change to a measured answer unless the pull request includes the measurement: a run under `runs/` with its manifest, or a statement of the check that shows bit-identity (the suite, the conformance gates).
 - No benchmark item text, no API keys, no addresses of machines, no personal data in any file, including test data and run records.
 - Every new source file carries the SPDX header used throughout the tree.
+- A change to a route, a wire model or a server flag brings its regenerated reference files: `uv run python -m decisio.serve.reference_docs --write` (a test fails when `docs/reference/` and the code disagree; release-please rewrites the version in both files at release time).
 - The DCO sign-off on every commit.
 
 Merges are squash merges by a maintainer; pull requests are not rebased or force-pushed by the reviewer.
