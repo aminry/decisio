@@ -305,8 +305,23 @@ So an adapter carries its own temperatures, one per question type (`choice`, `no
 
 - A request that names the adapter is served at them. A request that does not is served at the base's, as before.
 - A type the file does not list keeps the base's temperature. An adapter with no file is served at the base's, and the server says so when it starts.
-- The file is checked before the engine is built: the schema, the types, positive finite numbers, and that `--adapter-temperatures` names a loaded adapter.
+- The file is checked before the engine is built: the schema, the types, the bands, positive finite numbers, and that `--adapter-temperatures` names a loaded adapter.
 - `/health` shows them in `adapter_temperatures`, and the debug readout of a request names the adapter and the temperature it was served at.
+
+#### A choice temperature by the number of options
+
+An adapter's over-confidence on choice questions can grow with the number of options, and the one `choice` temperature cannot follow it: an adapter fitted on questions with a few options is calibrated there and over-confident on questions with many.
+The file can therefore carry a choice temperature per band of option count, beside the flat one:
+
+```json
+{"schema": "decisio.adapter/1",
+ "temperatures": {"choice": 2.141, "noul": 3.075, "score": 4.185},
+ "choice_bands": {"2-10": 1.9, "11-26": 2.6, "27-255": 3.1}}
+```
+
+- A choice question is served at the temperature of the band its number of options falls in. A count in no band is served at `temperatures.choice`, then at the base's. Yes/no and score questions are not banded (a score question with 12 levels is not a choice with 12 options).
+- The keys are `lo-hi`, within 2 to 255 (the most options a choice can have) and not overlapping. A file may have bands and no flat `choice`. A file without `choice_bands` is served as before.
+- The bands are in `/health`'s `adapter_temperatures` and in the serving-stack fingerprint, so changing one is a different stack.
 
 `python -m decisio.serve.adapter_temperatures fit` writes the file from the adapter's readouts on labelled items:
 
@@ -316,6 +331,8 @@ python -m decisio.serve.adapter_temperatures fit --reads reads.jsonl --out decis
 
 One row per item, `{"type": "choice" | "noul" | "score", "probs": [...], "gold": <index>}`, with the raw readout (`p_plain` of a `--debug-readout` response) or probabilities and the temperature they were served at (`"read_at"`).
 Every type is fitted by minimum log loss: the temperature at which the probabilities are calibrated on those items.
+Choice is also fitted per band of option count (`--choice-bands`, default `2-10,11-26,27-255`; `none` writes the one temperature only), each on the choice rows with that many options.
+A band with fewer than `--min-band-items` rows (default 20) is not fitted and is served at the temperature fitted on all the choice rows, which is always written beside the bands; when the rows fall in one band only, the file has no bands, since they would repeat that temperature.
 Use items that are not a benchmark's; a temperature is a statement about the items it was fitted on, and an adapter fitted on hard public-source questions was underconfident on an easier set of synthetic ones (`runs/2026-10-17_adapter-temperatures/`).
 A score item sent as a choice question is served at the choice temperature, so name the temperature a row was served at.
 
@@ -328,6 +345,7 @@ python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-
     --dev dev_reads.jsonl.gz --dev-keys dev_keys.json --variant half0 --out decisio_adapter.json
 ```
 
+- Choice is also fitted per band of option count on the choice pool's items (`--choice-bands`, `--min-band-items`, as for `fit`), with each band's held-out figures in `fit.checks.choice.bands` and its swap-validated ECE in `fit.swap_validated_dev.choice.bands`. The H pool has 3 to 6 options only, so its file has no bands: to fit the 11-26 and 27-255 bands, use a `dev` variant on a natural pool with those option counts, one that is not the gate's set.
 - The choice kappa is fitted on the H pool, the yes/no and score kappas on the dev pool. `--variant half0` fits on the items whose id has an even sha256 prefix and reports the other half as held-out (log loss and ECE before and after), `half1` is the swap, `full` uses all of both pools, `dev` fits the choice kappa on the dev pool too, and `devhalf0` and `devhalf1` do that on halves of the dev pool with the other half held out (a model whose H-fitted choice temperature does not transfer to public-source questions).
 - The reads are rows of `id`, `probs` (as the server returned them, at the base's temperatures; `--served` and `--dev-served` say which if they differ from the defaults) and `p_plain` (the plain readout of a `--debug-readout` server; `--use p_plain` fits on it, with temperature 1 as the reference).
 - **Two ECE definitions, both reported, named.** The held-out figures of a half variant (`fit.checks.<type>.heldout`) are per half, with ten equal-count bins and ties shuffled (the definition of the first evaluation's fits). The figure a ship gate uses is `fit.swap_validated_dev`: the kappa of each half applied to the other half's items, pooled over all of the dev pool's items of the type, with ten equal-width bins, next to the unscaled figure and the two halves' kappas with their ratio (over 1.25 the gates call the fit unstable). They differ on the same fit: BH0's choice figure is 0.061 pooled with equal-width bins and 0.095 and 0.127 on its two halves with equal-count bins.

@@ -11,7 +11,13 @@ keeps the base's temperature.
 
     {"schema": "decisio.adapter/1",
      "temperatures": {"choice": 2.144, "noul": 3.068, "score": 2.6},
+     "choice_bands": {"2-10": 1.9, "11-26": 2.6, "27-255": 3.1},
      "fit": {"objective": {...}, "read_at": {...}, "n": {...}, "data": "..."}}
+
+`choice_bands` is optional: a choice temperature per number of options, `"lo-hi"` bands that do not overlap, within 2 to
+255. A choice question is served at the temperature of the band its option count falls in; an option count in no band is
+served at `temperatures.choice`, then at the base's. An adapter's over-confidence on choice grows with the number of
+options, and the one choice temperature of a flat file cannot follow it. Yes/no and score questions are not banded.
 
 `fit` writes such a file from an adapter's readouts on labelled items that are not a benchmark's:
 
@@ -24,6 +30,10 @@ server returned them are accepted with the temperature they were served at, in t
 `--read-at`; they are turned back into the raw readout before the fit, so a fit does not depend on the temperature of
 the server that read the items. Take care that the temperature named is the one the question's type was served at:
 a score item sent as a choice question is served at the choice temperature.
+Choice is also fitted per band of option count (`--choice-bands`, default `2-10,11-26,27-255`; `none` for the one
+temperature only), each by minimum log loss on the choice rows whose option count is in the band. A band with fewer than
+`--min-band-items` rows (default 20) is not fitted and is served at the temperature fitted on all choice rows, which is
+always written beside the bands; and when only one band has rows the file has no bands, as they would repeat that one.
 Every type is fitted by minimum log loss by default: the temperature at which the probabilities are calibrated on those
 items. A score question can instead be fitted for the error of its expected position (`--score-objective
 expected_position_error`; the quantity JevBench scores, and what a caller reads from a score distribution): the
@@ -49,6 +59,9 @@ SCHEMA = "decisio.adapter/1"
 TYPES = ("choice", "noul", "score")
 LOG_LOSS = "log_loss"
 EXPECTED_POSITION = "expected_position_error"
+DEFAULT_BANDS = ((2, 10), (11, 26), (27, 255))  # the choice option counts a temperature is fitted for
+MAX_OPTIONS = 255  # a choice question has at most this many options (systemone refuses more with a 422)
+MIN_BAND_ITEMS = 20
 GRID = np.exp(
     np.linspace(math.log(0.05), math.log(8.0), 1500)
 )  # kappa, the factor on log p of a raw readout: T = 1 / kappa
@@ -58,8 +71,74 @@ class AdapterFileError(ValueError):
     """An adapter file that cannot be used, with the reason and the file."""
 
 
+def band_name(lo: int, hi: int) -> str:
+    return f"{lo}-{hi}"
+
+
+def parse_bands(spec) -> tuple:
+    """((lo, hi), ...) from "2-10,11-26" (or a list of "lo-hi" strings), sorted; "none" or "" is no bands. Raises
+    ValueError for a band that is malformed, outside 2 to 255, or overlaps another."""
+    if isinstance(spec, str):
+        spec = [b for b in spec.replace(" ", "").split(",") if b]
+    if spec in ([], ["none"]):
+        return ()
+    out = []
+    for b in spec:
+        lo, sep, hi = str(b).partition("-")
+        if not (sep and lo.isdigit() and hi.isdigit()):
+            raise ValueError(f"band {b!r} must be written lo-hi, for example 11-26")
+        lo, hi = int(lo), int(hi)
+        if not 2 <= lo <= hi <= MAX_OPTIONS:
+            raise ValueError(f"band {b!r} must satisfy 2 <= lo <= hi <= {MAX_OPTIONS}")
+        out.append((lo, hi))
+    out.sort()
+    for a, b in zip(out, out[1:]):
+        if b[0] <= a[1]:
+            raise ValueError(f"bands {band_name(*a)} and {band_name(*b)} overlap")
+    return tuple(out)
+
+
+def band_table(choice_bands: dict) -> list:
+    """[(lo, hi, temperature)] sorted by option count, from {"lo-hi": temperature}."""
+    return sorted((*(int(x) for x in b.split("-")), float(t)) for b, t in choice_bands.items())
+
+
+def band_of(bands, k: int):
+    """The (lo, hi) band an option count falls in, or None."""
+    for lo, hi in bands:
+        if lo <= k <= hi:
+            return (lo, hi)
+    return None
+
+
+def fit_choice_bands(P, gold, bands, min_items: int, fit_fn) -> tuple[dict, dict]:
+    """({(lo, hi): (kappa, n)}, {(lo, hi): n}) for choice items P (one probability vector each) with gold indices: each
+    band's kappa by `fit_fn(P, gold)` on the items whose option count is in the band, and the bands left unfitted with
+    the number of items they had (under `min_items`; empty bands are not listed). When the items fall in only one band
+    nothing is returned: a band fitted on all the items is the one temperature already."""
+    groups: dict = {}
+    for p, g in zip(P, gold):
+        b = band_of(bands, len(p))
+        if b is not None:
+            groups.setdefault(b, ([], []))
+            groups[b][0].append(p)
+            groups[b][1].append(g)
+    if len(groups) < 2:
+        return {}, {}
+    fitted = {b: (fit_fn(ps, ys), len(ps)) for b, (ps, ys) in groups.items() if len(ps) >= min_items}
+    skipped = {b: len(ps) for b, (ps, _) in groups.items() if len(ps) < min_items}
+    return fitted, skipped
+
+
+def serving_temperatures(entry: dict) -> dict:
+    """What the server holds for an adapter and shows in /health and the fingerprint: {type: T} and, when the file has
+    them, "choice_bands": {"lo-hi": T}."""
+    return {**entry["temperatures"], **({"choice_bands": dict(entry["choice_bands"])} if entry["choice_bands"] else {})}
+
+
 def read(path) -> dict:
-    """The validated content of an adapter file: {"temperatures": {type: T}, "fit": dict | None, "file": str}."""
+    """The validated content of an adapter file: {"temperatures": {type: T}, "choice_bands": {"lo-hi": T}, "fit": dict |
+    None, "file": str}."""
     p = Path(path)
     try:
         doc = json.loads(p.read_text())
@@ -69,21 +148,36 @@ def read(path) -> dict:
         raise AdapterFileError(
             f"{p}: not a {SCHEMA} file (schema {doc.get('schema') if isinstance(doc, dict) else None!r})"
         )
-    temps = doc.get("temperatures")
-    if not isinstance(temps, dict) or not temps:
+    temps, raw_bands = doc.get("temperatures"), doc.get("choice_bands")
+    if raw_bands is not None and (not isinstance(raw_bands, dict) or not raw_bands):
+        raise AdapterFileError(f"{p}: `choice_bands` must be a non-empty object of lo-hi: temperature")
+    if not isinstance(temps, dict) or (not temps and not raw_bands):
         raise AdapterFileError(f"{p}: `temperatures` must be a non-empty object of {', '.join(TYPES)}")
+
+    def temperature(what, v):
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+            raise AdapterFileError(f"{p}: the {what} temperature must be a positive number, got {v!r}")
+        return float(v)
+
     out = {}
     for k, v in temps.items():
         if k not in TYPES:
             raise AdapterFileError(f"{p}: unknown question type {k!r} in `temperatures` (expected {', '.join(TYPES)})")
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
-            raise AdapterFileError(f"{p}: the {k} temperature must be a positive number, got {v!r}")
-        out[k] = float(v)
-    return {"temperatures": out, "fit": doc.get("fit"), "file": str(p)}
+        out[k] = temperature(k, v)
+    bands = {}
+    if raw_bands:
+        try:
+            parsed = parse_bands(list(raw_bands))
+        except ValueError as e:
+            raise AdapterFileError(f"{p}: `choice_bands`: {e}") from e
+        for (lo, hi), key in zip(parsed, sorted(raw_bands, key=lambda b: int(b.partition("-")[0]))):
+            bands[band_name(lo, hi)] = temperature(f"choice band {key}", raw_bands[key])
+    return {"temperatures": out, "choice_bands": bands, "fit": doc.get("fit"), "file": str(p)}
 
 
 def load(adapters: dict, overrides: dict | None = None) -> dict:
-    """{adapter name: {"temperatures": ..., "fit": ..., "file": ..., "source": "sidecar" | "flag"}} for the adapters
+    """{adapter name: {"temperatures": ..., "choice_bands": ..., "fit": ..., "file": ..., "source": "sidecar" | "flag"}}
+    for the adapters
     that have one. `adapters` is {name: folder}; `overrides` {name: file} (`--adapter-temperatures`), which wins over
     the folder's own file. Raises AdapterFileError for a file that cannot be used or an override for an adapter that
     is not loaded."""
@@ -165,11 +259,18 @@ def fit_expected_position(P, gold, tolerance: float = 1.0) -> tuple[float, float
 
 
 def fit(
-    rows, read_at: dict | None = None, tolerance: float = 1.0, data: str = "", score_objective: str = LOG_LOSS
+    rows,
+    read_at: dict | None = None,
+    tolerance: float = 1.0,
+    data: str = "",
+    score_objective: str = LOG_LOSS,
+    bands=DEFAULT_BANDS,
+    min_band_items: int = MIN_BAND_ITEMS,
 ) -> dict:
     """The adapter file for labelled rows [{"type", "probs", "gold", "read_at"?}]; types with no rows are left out.
     A row's probabilities are turned back to the raw readout with its own `read_at`, else its type's in `read_at`, else
-    1.0 (already raw); the temperatures are for the raw readout, as the server applies them."""
+    1.0 (already raw); the temperatures are for the raw readout, as the server applies them. Choice rows are also fitted
+    per band of option count (`bands`, none for the one temperature only); see the module's account."""
     if score_objective not in (LOG_LOSS, EXPECTED_POSITION):
         raise ValueError(f"score objective must be {LOG_LOSS} or {EXPECTED_POSITION}")
     read_at = read_at or {}
@@ -181,7 +282,8 @@ def fit(
         p = np.asarray(r["probs"], float)
         by[r["type"]][0].append(p if t_read == 1.0 else rescale(p, t_read))
         by[r["type"]][1].append(int(r["gold"]))
-    temps, kappa, n, objective, detail = {}, {}, {}, {}, {}
+    bands = parse_bands(bands) if isinstance(bands, str) else tuple(bands)
+    temps, kappa, n, objective, detail, banded = {}, {}, {}, {}, {}, {}
     for t, (P, y) in by.items():
         if not P:
             continue
@@ -207,9 +309,21 @@ def fit(
                 }
         kappa[t] = round(k, 4)
         temps[t] = round(1.0 / k, 3)
+        if t == "choice" and bands:
+            fitted, skipped = fit_choice_bands(P, y, bands, min_band_items, fit_log_loss)
+            if fitted:
+                banded = {band_name(*b): round(1.0 / kb, 3) for b, (kb, _) in sorted(fitted.items())}
+                detail[t] = {
+                    "bands": {
+                        band_name(*b): {"n": nb, "kappa": round(kb, 4)} for b, (kb, nb) in sorted(fitted.items())
+                    },
+                    "not_fitted_under_min_items": {band_name(*b): m for b, m in sorted(skipped.items())},
+                    "min_band_items": min_band_items,
+                }
     return {
         "schema": SCHEMA,
         "temperatures": temps,
+        **({"choice_bands": banded} if banded else {}),
         "fit": {"objective": objective, "kappa_on_raw_readout": kappa, "n": n, "detail": detail, "data": data},
     }
 
@@ -221,6 +335,21 @@ def _rows(paths):
             for line in fh:
                 if line.strip():
                     yield json.loads(line)
+
+
+def bands_args(parser):
+    parser.add_argument(
+        "--choice-bands",
+        default=",".join(band_name(*b) for b in DEFAULT_BANDS),
+        help="the option-count bands choice is also fitted for, lo-hi,lo-hi (default %(default)s); none for the one "
+        "choice temperature only",
+    )
+    parser.add_argument(
+        "--min-band-items",
+        type=int,
+        default=MIN_BAND_ITEMS,
+        help="a band with fewer choice items is not fitted and keeps the all-choice temperature (default %(default)s)",
+    )
 
 
 def main(argv=None):
@@ -249,6 +378,7 @@ def main(argv=None):
         help="how the score temperature is fitted (default: log loss, as the other types)",
     )
     f.add_argument("--data", default="", help="what the items are (kept in the file)")
+    bands_args(f)
     sp = sub.add_parser("fit-split", help="Lab 1's split fit from a model's stored reads on the H and dev pools")
     sp.add_argument("--h", required=True, help="the model's reads of the H pool (JSONL or .gz: id, probs, p_plain)")
     sp.add_argument("--h-keys", required=True, help="{id: {gold, ...}} of the H pool")
@@ -264,9 +394,15 @@ def main(argv=None):
     sp.add_argument("--dev-served", default="", help="the same for the dev pool where it differs, e.g. score=4.672")
     sp.add_argument("--out", required=True)
     sp.add_argument("--data", default="")
+    bands_args(sp)
     c = sub.add_parser("check", help="validate an adapter file and print it")
     c.add_argument("file")
     a = ap.parse_args(argv)
+    if a.cmd != "check":
+        try:
+            a.bands = parse_bands(a.choice_bands)
+        except ValueError as e:
+            ap.error(f"--choice-bands: {e}")
     if a.cmd == "check":
         print(json.dumps(read(a.file), indent=1))
         return 0
@@ -286,18 +422,29 @@ def main(argv=None):
             served=temps(a.served),
             dev_served=temps(a.dev_served),
             data=a.data,
+            bands=a.bands,
+            min_band_items=a.min_band_items,
         )
         Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
         print(
             json.dumps(
                 {k: doc["fit"][k] for k in ("variant", "kappa", "kappa_against_decisio_defaults", "n")}
-                | {"temperatures": doc["temperatures"]},
+                | {"temperatures": doc["temperatures"]}
+                | ({"choice_bands": doc["choice_bands"]} if "choice_bands" in doc else {}),
                 indent=1,
             )
         )
         return 0
     read_at = {k: float(v) for k, v in (kv.split("=", 1) for kv in a.read_at.split(",") if kv)}
-    doc = fit(list(_rows(a.reads)), read_at, a.tolerance, a.data, a.score_objective)
+    doc = fit(
+        list(_rows(a.reads)),
+        read_at,
+        a.tolerance,
+        a.data,
+        a.score_objective,
+        a.bands,
+        a.min_band_items,
+    )
     Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
     print(json.dumps(doc, indent=1))
     return 0

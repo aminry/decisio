@@ -1292,7 +1292,8 @@ def build_parser():
         action="append",
         default=[],
         help="name=file of a decisio.adapter/1 file of that adapter's temperatures per question type (choice, noul, "
-        "score), served for a request that names it; replaces the decisio_adapter.json in its folder; repeatable",
+        "score) and, for choice, optionally per band of option count (choice_bands), served for a request that names "
+        "it; replaces the decisio_adapter.json in its folder; repeatable",
     )
     ap.add_argument("--pack", type=int, default=16)
     ap.add_argument(
@@ -1597,8 +1598,8 @@ def main():
         ap.error(str(e))
     for name, entry in adapter_temps.items():
         print(
-            f"ADAPTER TEMPERATURES {name} ({entry['source']}: {entry['file']}) {json.dumps(entry['temperatures'])}; "
-            f"types not listed keep the base's",
+            f"ADAPTER TEMPERATURES {name} ({entry['source']}: {entry['file']}) "
+            f"{json.dumps(adapter_temperatures.serving_temperatures(entry))}; types not listed keep the base's",
             flush=True,
         )
     for name in sorted(set(adapters) - set(adapter_temps)):
@@ -1882,7 +1883,7 @@ def main():
             "noul": args.temperature_noul,
             "score": args.temperature_score,
         },
-        adapter_temperatures={n: e["temperatures"] for n, e in adapter_temps.items()},
+        adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
     )
     # one engine state for every engine of this server: a dead engine refuses requests, turns /health to 503 and ends
     # the process with code 70, so that a restart policy starts a new server (decisio.serve.engine_health)
