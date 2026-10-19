@@ -32,7 +32,7 @@ Check which server a client is pointed at before comparing confidences or sendin
 | --- | --- | --- |
 | `state` | string, object or array | the text the questions are about; an object is rendered as `key: value` lines |
 | `questions` | object, at least one entry | the questions, by name; the names are the keys of the response's `answers` |
-| `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it and names the served model in the response |
+| `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it. The response's `model` is the name the request sent, or the served model's name when it sent none |
 | `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`) |
 | `assets` | object, optional | System One's images: placeholder names mapped to images, each placeholder found in the state or a question's text is replaced by its image (below) |
 
@@ -103,6 +103,7 @@ The earlier `x-rlcd-route` and `x-rlcd-debug` headers are still honoured.
 | `legend` | each level's index and description |
 | `unknown_probability`, `abstained` | with imajev's abstention extension (`--abstain-option`): the probability of the offered "can't tell" option and whether the server abstained |
 
+`model` echoes the name the request sent, so a client left on the SDK's default model name gets that name back unchanged; a request without one gets the served model's name (`--served-name`, or the base's).
 `usage.input_tokens` counts the state and each question's own text; `usage.output_tokens` is one per question.
 
 Response headers:
@@ -126,7 +127,7 @@ The conformance gate C5 compares the request and response fields with System One
 - **Images (`assets`) are read, with these differences.** At most 2 images per request (System One's limit is its context, about 110 images of 320 by 320 pixels in 32k tokens, more with its long-context header); no size window (System One takes sides of 280 to 1,568 pixels and refuses others with "Invalid image dimensions"; here the image is resized, up to 20 megapixels and 20 MB); WebP bytes are accepted besides PNG and JPEG (System One refuses them); a placeholder is replaced longest name first (System One replaces naively, so `PHOTO_1` inside `PHOTO_10` breaks it); an image costs the Qwen image engine's tokens, not System One's; a multipart request needs `X-Decisio-Client`; and the image route runs on a server started with `--image-model`, on the Qwen base.
 - **Unknown fields are accepted.** System One refuses a request with an unknown top-level field (400 `Invalid request.`), so its `images`-style extensions cannot be sent to it; decisio ignores unknown fields (imajev's `images` and `orders` are such extensions).
 - **`usage.output_tokens` is 1 per question**, not the tokens a generating model produced.
-- Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` names the served model, not `jev-latest`.
+- Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` is the name the request sent (the served model's name when it sent none), not the name of the model that answered.
 
 ## What one request can hold
 
