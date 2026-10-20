@@ -639,6 +639,51 @@ class LettersEngine:
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
+    def can_think(self) -> bool:
+        """Whether this engine can write reasoning (decisio.serve.think): the vLLM engine, not the MLX build."""
+        return getattr(self, "llm", None) is not None and getattr(self, "mode", "separate") == "separate"
+
+    def think(self, state, questions, adapter=None, budget=512, subset=None):
+        """The second read of each question after reasoning (decisio.serve.think): for each question the served model
+        (the named adapter, or the weights as loaded) writes up to `budget` tokens greedily after PREFIX, SUFFIX
+        follows, and the options are read from the next token. One generation call for all the questions, the
+        engine's lock held once. `questions` are the request's questions as the first read had them, so that the rows
+        are the first read's own (the same state prefix and padding); `subset` the positions of those to think about
+        (all by default). Returns (log-probabilities over the subset's options in the engine's label order,
+        normalised; tokens generated per question; {"generate_ms", "read_ms"})."""
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+
+        from decisio.serve import think as T
+
+        if self.health is not None:
+            self.health.check()
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
+        with self._lock:
+            rows, _ = self._prepare_separate(state, questions)
+            rows = rows if subset is None else [rows[i] for i in subset]
+            pre, suf = enc(T.PREFIX), enc(T.SUFFIX)
+            lora = self.adapters[adapter] if adapter else None
+            sp = SamplingParams(
+                max_tokens=budget, temperature=0.0, detokenize=False, stop_token_ids=T.stop_ids(self.tok)
+            )
+            t = time.perf_counter()
+            outs = guarded(
+                self,
+                self.llm.generate,
+                [TokensPrompt(prompt_token_ids=ids + pre) for ids, _ in rows],
+                sp,
+                lora_request=lora,
+                use_tqdm=False,
+            )
+            generate_ms = (time.perf_counter() - t) * 1000
+            gens = [list(o.outputs[0].token_ids) for o in outs]
+            t = time.perf_counter()
+            probs, _ = self.score_prompts([(ids + pre + g + suf, lab) for (ids, lab), g in zip(rows, gens)], adapter)
+            read_ms = (time.perf_counter() - t) * 1000
+        lps = [np.log(np.maximum(np.asarray(p, dtype=np.float64), 1e-300)) for p in probs]
+        return lps, [len(g) for g in gens], {"generate_ms": generate_ms, "read_ms": read_ms}
+
     def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
         """Prefill token lists in one batch, one generated token each, so their states are registered in the prefix
         cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took."""
@@ -877,6 +922,12 @@ def make_app(engine, systemone=None, health=None):
                     "describe_options": systemone.describe_options,
                     "noul_rendering": systemone.noul_rendering,
                     "noul_commit": systemone.noul_commit,
+                    "think": {
+                        "default": systemone.think,
+                        "factor": systemone.think_factor,
+                        "budget": systemone.think_budget,
+                        **systemone.thought,
+                    },
                     "over_limit": {
                         "mode": systemone.over_limit,
                         "prompt_limit": getattr(engine, "prompt_limit", lambda: None)(),
@@ -1346,11 +1397,27 @@ def apply_repository_defaults(args, repo) -> None:
                 applied["over_limit"] = args.over_limit
             else:
                 applied["over_limit_set_by"] = f"--over-limit {args.over_limit}"
+        if "think" in defaults:  # on, with the repository's factor, unless a flag says otherwise
+            if getattr(args, "think", None) is None:
+                args.think = True
+                applied["think"] = dict(defaults["think"])
+            else:
+                applied["think_set_by"] = "--think" if args.think else "--no-think"
+            if getattr(args, "think_factor", None) is None:
+                args.think_factor = defaults["think"]["factor"]
+            if getattr(args, "think_budget", None) is None and "budget" in defaults["think"]:
+                args.think_budget = defaults["think"]["budget"]
         args.repository_defaults = applied
     if getattr(args, "noul_commit", None) is None:
         args.noul_commit = False
     if getattr(args, "over_limit", None) is None:
         args.over_limit = "refuse"
+    if getattr(args, "think", None) is None:
+        args.think = False
+    if getattr(args, "think_factor", None) is None:
+        args.think_factor = 1.0
+    if getattr(args, "think_budget", None) is None:
+        args.think_budget = 512
 
 
 def build_parser():
@@ -1653,6 +1720,31 @@ def build_parser():
         "setting",
     )
     ap.add_argument(
+        "--think",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="/v1/systemone: think when unsure. A question whose served top probability is below its type's threshold "
+        "(choice 0.75, yes/no 0.92, score 0.70, times --think-factor) and that has at most 16 options is read again "
+        "after the served model (the adapter named in the request, or the merged weights) has written up to "
+        "--think-budget tokens of reasoning; the two reads are mixed in log space and go through the same temperature. "
+        'Off by default (single-pass speed and determinism); a request\'s "think" field decides for that request, a '
+        "tuned repository's defaults can turn it on, and --no-think turns that off. Needs the vLLM engine; "
+        "questions of a registered task stay at one read",
+    )
+    ap.add_argument(
+        "--think-factor",
+        type=float,
+        default=None,
+        help="the factor on the think thresholds (default 1; a tuned repository's defaults state theirs): a lower "
+        "factor thinks on fewer questions",
+    )
+    ap.add_argument(
+        "--think-budget",
+        type=int,
+        default=None,
+        help="the most tokens of reasoning a thinking question may write (default 512)",
+    )
+    ap.add_argument(
         "--over-limit-tokens",
         type=int,
         default=None,
@@ -1908,6 +2000,8 @@ def main():
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults
     engine.over_limit_tokens = args.over_limit_tokens
+    if args.think and not engine.can_think():
+        raise SystemExit("--think needs the vLLM engine: this engine cannot write reasoning")
     if args.over_limit == "truncate" and engine.prompt_limit() is None:
         raise SystemExit(
             "--over-limit truncate: this engine has no prompt ceiling to cut to; give --over-limit-tokens N"
@@ -2038,6 +2132,9 @@ def main():
         noul_rendering=args.noul_rendering,
         noul_commit=args.noul_commit,
         over_limit=args.over_limit,
+        think=args.think,
+        think_factor=args.think_factor,
+        think_budget=args.think_budget,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),

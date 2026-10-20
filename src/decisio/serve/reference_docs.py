@@ -42,7 +42,12 @@ class Usage(BaseModel):
     input_tokens: int = Field(
         description="The state and each question's own text in the served tokenizer, plus the image tokens."
     )
-    output_tokens: int = Field(description="One per question.")
+    output_tokens: int = Field(
+        description="One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`)."
+    )
+    thinking_tokens: int | None = Field(
+        None, description="The reasoning tokens generated for the request; present when thinking was on for it."
+    )
 
 
 class _Answer(BaseModel):
@@ -90,6 +95,11 @@ class SystemOneResponse(BaseModel):
     answers: dict[str, Answer] = Field(description="By the request's question names.")
     usage: Usage
     adapter: str | None = Field(None, description="The adapter that answered, when the request named one.")
+    thinking: dict[str, Any] | None = Field(
+        None,
+        description="When thinking was on for the request (`think`): `questions` that thought, `of`, `tokens`, `ms`, the "
+        "`factor` and `budget`, and per question `thought` with its `tokens`, or why it did not.",
+    )
     state_truncated: dict[str, Any] | None = Field(
         None,
         description="When the state was cut (`over_limit: truncate`): `kept_tokens`, `of_tokens`, `part` (`start`) and "
@@ -219,6 +229,8 @@ RESPONSE_HEADERS = {
     "x-decisio-route": "The route that served it: `text` or `image`.",
     "x-decisio-tasks": "The registered tasks applied, when any were.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
+    "x-decisio-think-ms": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
+    "x-decisio-think-tokens": "The reasoning tokens generated, when thinking was on for the request.",
     "x-decisio-state-truncated": "`kept=N; of=M; part=start`, when the state was cut (`over_limit`).",
     "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",

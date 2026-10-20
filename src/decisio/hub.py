@@ -44,7 +44,8 @@ two more.
                 question type), choice_bands (choice temperature by number of options, optional), noul_commit (true or
                 false, always stated), fit (how the temperatures were fitted: method, variant, pools, n, ...) and
                 noul_commit_basis (why the commit setting is what it is, with the figures) and over_limit
-                ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets)
+                ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets) and think
+                ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think)
 
 The profile sections of a `/2` file must still equal the installed base's profile (a repository cannot change how the
 base is read); `defaults` is what the repository changes. A decisio that does not know `/2` refuses the file by its
@@ -373,7 +374,7 @@ def check_defaults(defaults) -> None:
     from decisio.serve.adapter_temperatures import validate_temperatures
 
     _need(defaults, "defaults")
-    allowed = {"temperatures", "choice_bands", "noul_commit", "fit", "noul_commit_basis", "over_limit"}
+    allowed = {"temperatures", "choice_bands", "noul_commit", "fit", "noul_commit_basis", "over_limit", "think"}
     unknown = sorted(set(defaults) - allowed)
     if unknown:
         raise ValueError(f"defaults has unknown keys {unknown}")
@@ -383,6 +384,10 @@ def check_defaults(defaults) -> None:
     _need(defaults.get("fit"), "defaults.fit")
     for k in ("method", "data"):
         _need(defaults["fit"].get(k), f"defaults.fit.{k}", str)  # how, and on what items
+    if "think" in defaults:
+        from decisio.serve.think import check_settings
+
+        check_settings(defaults["think"], "defaults.think")
     if "over_limit" in defaults and defaults["over_limit"] not in ("refuse", "truncate"):
         raise ValueError('defaults.over_limit must be "refuse" or "truncate"')
     if defaults["noul_commit"] and not isinstance(defaults.get("noul_commit_basis"), (dict, str)):
@@ -447,6 +452,7 @@ def tuned_config(
     decisio_version: str | None = None,
     quantization: str | None = None,
     over_limit: str | None = None,
+    think: dict | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
@@ -466,6 +472,7 @@ def tuned_config(
         "fit": fit,
         **({"noul_commit_basis": noul_commit_basis} if noul_commit_basis is not None else {}),
         **({"over_limit": over_limit} if over_limit is not None else {}),
+        **({"think": think} if think is not None else {}),
     }
     check_sections(config)
     return config
@@ -549,6 +556,12 @@ def main(argv=None) -> int:
     )
     tc.add_argument("--noul-commit-basis", help="a JSON file, or text: why that setting, with the figures")
     tc.add_argument(
+        "--think-factor",
+        type=float,
+        help="think when unsure for this model, with this factor on the thresholds (the one its evaluation chose)",
+    )
+    tc.add_argument("--think-budget", type=int, help="the most tokens of reasoning (default 512)")
+    tc.add_argument(
         "--over-limit",
         choices=("refuse", "truncate"),
         help="what a server of this repository does with a state over the engine's prompt ceiling (default: not "
@@ -611,6 +624,11 @@ def main(argv=None) -> int:
                 decisio_version=a.decisio_version,
                 quantization=a.quantization,
                 over_limit=a.over_limit,
+                think=(
+                    {"factor": a.think_factor, **({"budget": a.think_budget} if a.think_budget else {})}
+                    if a.think_factor is not None
+                    else None
+                ),
             )
         except ValueError as e:
             print(f"refused: {e}")
