@@ -236,10 +236,10 @@ Measured on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwel
 ### With Docker
 
 ```bash
-docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:167a93caba94c3137cb90ee876a4ea67a0233269e079aabaf100e289d95dc847
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:df3cb3165d963593075e765fad570477c9caf2f2bf913365777756983972abd2
 ```
 
-That digest is the 0.19.0 image (`ghcr.io/aminry/decisio:0.19.0`); the release notes of every release give theirs, and `gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio` checks it.
+That digest is the 0.20.0 image (`ghcr.io/aminry/decisio:0.20.0`); the release notes of every release give theirs, and `gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio` checks it.
 [Docker](#docker) has the compose file.
 The same `curl` as above, with `/v1/systemone` on port 8000 and no `model` field, asks the server you started.
 
