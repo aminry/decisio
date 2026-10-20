@@ -109,7 +109,7 @@ def test_a2_an_older_decisio_and_a_mislabelled_file_are_refused(tmp_path):
         (lambda c: c["defaults"].pop("noul_commit"), "noul_commit must be true or false"),
         (lambda c: c["defaults"].pop("noul_commit_basis"), "noul_commit_basis must say why"),
         (lambda c: c["defaults"].update(extra=1), "unknown keys"),
-        (lambda c: c["defaults"]["fit"].pop("data"), "defaults.fit.data"),
+        (lambda c: c["defaults"]["fit"].pop("method"), "defaults.fit.method"),
         (lambda c: c["tuned"]["adapter"].update(weights_sha256="abc"), "tuned.adapter.weights_sha256 must be a sha256"),
         (lambda c: c["tuned"]["adapter"].pop("revision"), "tuned.adapter.revision"),
         (lambda c: c["tuned"]["merge"].update(precision="bf16"), "must be 'fp32'"),

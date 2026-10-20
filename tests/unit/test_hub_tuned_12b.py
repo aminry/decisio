@@ -178,3 +178,64 @@ def test_c4_an_older_decisio_refuses_it_and_the_digest_follows_the_new_keys(tmp_
         len({hub.defaults_sha256(x) for x in (c, plain, build12(think={"factor": 0.8}), build12(over_limit="refuse"))})
         == 4
     )
+
+
+def test_c5_a_tuned_repositorys_file_says_nothing_about_data(tmp_path):
+    """The fit tools write `data` (what the items were), `n` (how many) and `detail` into a temperature file; none of it
+    reaches the repository's file, for either base, through the function or the command."""
+    fit = {
+        "method": "minimum log loss",
+        "objective": "log loss",
+        "data": "a natural calibration split of public sources",
+        "n": {"choice": 1500},
+        "detail": {"sources": ["x", "y"]},
+        "kappa_on_raw_readout": {"choice": 0.6},
+    }
+    for make, extra in ((build12, {}), (build, {})):
+        c = make(fit=dict(fit), **extra)
+        assert set(c["defaults"]["fit"]) == {"method", "objective", "kappa_on_raw_readout"}
+        text = json.dumps(c).lower()
+        assert not any(w in text for w in ("calibration split", "public sources", '"n":', "sources"))
+    # a file with fit.data (0.20.0 and 0.21.x wrote it) is still read
+    old = build12()
+    old["defaults"]["fit"]["data"] = "a note"
+    hub.check_defaults(old["defaults"])
+    # the command: a temperature file whose fit carries data, n and detail
+    temps = json.loads(json.dumps(TEMPS))
+    temps["fit"] = {**fit, "data": "a natural calibration split of public sources"}
+    (tmp_path / "t.json").write_text(json.dumps(temps))
+    base, t = checkpoint(tmp_path)
+    ad = adapter(tmp_path, targets(t), seed=3, scale_alpha=0.02)
+    out = tmp_path / "m"
+    hub_bf16.merge(base, ad, out)
+    assert (
+        hub.main(
+            [
+                "tuned-config",
+                "--base",
+                "gemma-4-12b",
+                "--temperatures",
+                str(tmp_path / "t.json"),
+                "--noul-commit",
+                "--noul-commit-basis",
+                json.dumps(BASIS),
+                "--adapter-dir",
+                str(ad),
+                "--adapter-repository",
+                "o/a",
+                "--adapter-revision",
+                "0" * 40,
+                "--merge-report",
+                str(out / "MERGE_BF16.json"),
+                "--weights-dir",
+                str(out),
+                "--out",
+                str(out / hub.FILE),
+            ]
+        )  # fmt: skip
+        == 0
+    )
+    written = json.loads((out / hub.FILE).read_text())["defaults"]["fit"]
+    assert (
+        set(written) <= set(hub.FIT_KEYS) and "data" not in written and "n" not in written and "detail" not in written
+    )

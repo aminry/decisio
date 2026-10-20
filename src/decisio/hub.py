@@ -42,7 +42,7 @@ two more.
                 applied and the report's own fields), files (name -> sha256 of every file of the repository's weights)
     defaults    what a plain request to this model gets, with no flag and no adapter field: temperatures (per
                 question type), choice_bands (choice temperature by number of options, optional), noul_commit (true or
-                false, always stated), fit (how the temperatures were fitted: method, variant, pools, n, ...) and
+                false, always stated), fit (how the temperatures were fitted: the method, never the data) and
                 noul_commit_basis (why the commit setting is what it is, with the figures) and over_limit
                 ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets) and think
                 ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think)
@@ -412,8 +412,9 @@ def check_defaults(defaults) -> None:
     if not isinstance(defaults.get("noul_commit"), bool):
         raise ValueError("defaults.noul_commit must be true or false, stated (a tuned repository always says which)")
     _need(defaults.get("fit"), "defaults.fit")
-    for k in ("method", "data"):
-        _need(defaults["fit"].get(k), f"defaults.fit.{k}", str)  # how, and on what items
+    _need(
+        defaults["fit"].get("method"), "defaults.fit.method", str
+    )  # how the temperatures were fitted; nothing about data
     if "think" in defaults:
         from decisio.serve.think import check_settings
 
@@ -482,6 +483,11 @@ def adapter_facts(directory: Path, repository: str, revision: str) -> dict:
     }
 
 
+# what `defaults.fit` may say: how the temperatures were fitted. Nothing about the data (no source, mix or size): a
+# tuned repository's card carries one generic data statement, so the fit tools' `data`, `n` and `detail` stay out
+FIT_KEYS = ("method", "objective", "read_at", "kappa_on_raw_readout", "temperature_file_sha256")
+
+
 def tuned_config(
     fam: Family,
     *,
@@ -509,6 +515,7 @@ def tuned_config(
         "merge": merge,
         "files": files,
     }
+    fit = {k: v for k, v in fit.items() if k in FIT_KEYS}
     config["defaults"] = {
         "temperatures": temperatures,
         **({"choice_bands": choice_bands} if choice_bands else {}),
