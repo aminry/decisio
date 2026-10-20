@@ -8,6 +8,29 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.20.0: tuned repositories, and states over the prompt limit
+
+### What changed
+
+- **A tuned model has its own repository format, `decisio.decision_config/2`.**
+  It keeps the base's profile exactly and adds `tuned` (the base, the adapter with its digests, the merge report, every weight file by sha256) and `defaults`: the temperatures per question type, the choice bands, the commit setting, and optionally `over_limit`.
+  A plain request to such a repository gets those defaults with no flag and no adapter field; a flag beats the repository, and `--temperature-choice` drops its bands.
+  An older decisio reads `/1` only and refuses a `/2` repository by its schema, instead of serving the model at the base's temperatures.
+  `python -m decisio.hub_fp8 merge` writes the merged FP8 weights (an adapter added in fp32 and quantized once), and `python -m decisio.hub tuned-config` and `check` write and verify the file ([running.md](running.md#shipping-a-tuned-model)).
+- **A state over the engine's prompt ceiling can be answered from its start.**
+  `--over-limit truncate`, a request's `over_limit` field, or a tuned repository's `defaults.over_limit` cuts the state (never a question) once per request; the response carries `state_truncated` and the header `x-decisio-state-truncated`, and no answer of a truncated state is certified (`certified_reason: "state_truncated"`).
+  The default is `refuse`, as before ([running.md](running.md#states-over-the-limit)).
+- **New flags:** `--over-limit`, `--over-limit-tokens`, `--noul-commit` / `--no-noul-commit` (the pair; a tuned repository states its own commit setting).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The default base or a `/1` repository, no new flag | Nothing changes: the same temperatures, the same refusals | Nothing |
+| A script that reads `/health` | It has new fields (`systemone.over_limit`, and for a tuned repository `systemone.repository_defaults` and `choice_bands`) | Nothing, unless it rejects unknown fields |
+| A tuned (`/2`) repository | Served at its defaults; an older decisio refuses it | Run 0.20.0 or later |
+| Certified tasks | Suspended by the new version as after any upgrade | Certify them again |
+
 ## 0.19.0: decisio's name only on the wire, in new records and in the served name
 
 ### What changed
