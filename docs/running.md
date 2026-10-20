@@ -128,26 +128,30 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b
 
 ## Shipping a tuned model
 
-A model made by merging a LoRA adapter into the Gemma 4 31B is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
+A model made by merging a LoRA adapter into the Gemma 4 31B (stored in FP8) or the Gemma 4 12B (stored in bf16, as it is served) is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
 A plain request to it, with no flag and no `adapter` field, is already fixed: the repository carries the temperatures, the choice bands and the yes/no commit setting that the adapter needs, and the server applies them.
 This is how a harness that sends no adapter field and no flag reaches a tuned model: it is told `--base owner/name`.
-`--base gemma-4-31b` is still the base's repository.
+`--base gemma-4-31b` and `--base gemma-4-12b` are still the bases' repositories.
 
 **Making it**, on any machine that holds the bf16 base and the adapter's directory:
 
 ```bash
-# 1. merge in fp32 and quantize once to FP8 (a card is not needed; --device cuda is faster)
-uv run python -m decisio.hub_fp8 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>
+# 1. merge in fp32 and round once: the 31B to FP8, the 12B to bf16 (a card is not needed; --device cuda is faster)
+uv run python -m decisio.hub_fp8 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>      # 31B
+uv run python -m decisio.hub_bf16 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>     # 12B
 # 2. fit the temperatures on the MERGED model's own reads of items that are not a benchmark's
 uv run python -m decisio.serve.adapter_temperatures fit-split --h H.jsonl.gz --h-keys h.json --dev D.jsonl.gz --dev-keys d.json --variant dev --out temperatures.json
 # 3. write the repository's file, stating the commit setting, and check it
 uv run python -m decisio.hub tuned-config --base gemma-4-31b --temperatures temperatures.json --noul-commit \
     --noul-commit-basis basis.json --adapter-dir <peft dir> --adapter-repository <owner/adapter> --adapter-revision <commit> \
     --merge-report <merged dir>/MERGE_FP8.json --weights-dir <merged dir> --out <merged dir>/decision_config.json
+#    for the 12B: --base gemma-4-12b and --merge-report <merged dir>/MERGE_BF16.json; --think-factor F turns thinking
+#    on for the model and --over-limit truncate answers states over its prompt ceiling from their start
 uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-dir <merged dir>
 ```
 
-- **The merge** adds `scale * (B @ A)` to each weight in fp32 and quantizes once, with the adapter's change inside each fused group's amax; a merge through bf16 would round most of a small change away. Every pair of the adapter must land on a tensor of a quantized group. `--null` merges an adapter of scale 0, which must equal `hub_fp8 convert` byte for byte. The full-attention layers of the 31B ship no `v_proj` (`attention_k_eq_v`: V is K), so an adapter's `v_proj` pair there has no tensor to land on. The trainer's export writes such a pair as a copy of the layer's `k_proj` pair; the merge checks that it is bit for bit that copy (both halves), leaves it out, and counts it in the report and the repository's file (`dropped_k_eq_v_pairs`): merging the `k_proj` delta already gives V that delta, so nothing of the adapter is lost. A `v_proj` pair that differs from its layer's `k_proj` pair asks for a V that differs from K, which this layout cannot hold, and the merge refuses with the difference.
+- **The 12B's merge** (`hub_bf16`) adds the same change in fp32 and rounds once to bf16, **stochastically**: each entry goes to one of its two bf16 neighbours with the probability that makes its expected value the fp32 value, with noise seeded per tensor (`sha256(seed | tensor name)`, so the result is repeatable and independent of the order; `--seed`, default 0, goes in the report and the repository's file). Rounding to nearest cannot carry a small adapter: the base is already on the bf16 grid, so it rounds the change away for most entries (it kept 0.88 of one real 12B adapter's change in weight space, and about half of a smaller one on the 31B); the stochastic merge kept 1.0000 of the 12B's (`runs/2026-10-20_tuned-12b-merge/`). Every other tensor is copied byte for byte, `--null` equals the source byte for byte, and the K=V rule below holds. The repository is bf16 (22 GB) and nothing is quantized on load.
+- **The 31B's merge** adds `scale * (B @ A)` to each weight in fp32 and quantizes once, with the adapter's change inside each fused group's amax; a merge through bf16 would round most of a small change away. Every pair of the adapter must land on a tensor of a quantized group. `--null` merges an adapter of scale 0, which must equal `hub_fp8 convert` byte for byte. The full-attention layers of the 31B ship no `v_proj` (`attention_k_eq_v`: V is K), so an adapter's `v_proj` pair there has no tensor to land on. The trainer's export writes such a pair as a copy of the layer's `k_proj` pair; the merge checks that it is bit for bit that copy (both halves), leaves it out, and counts it in the report and the repository's file (`dropped_k_eq_v_pairs`): merging the `k_proj` delta already gives V that delta, so nothing of the adapter is lost. A `v_proj` pair that differs from its layer's `k_proj` pair asks for a V that differs from K, which this layout cannot hold, and the merge refuses with the difference.
 - **The file** keeps the base's profile exactly (a repository cannot change how the base is read) and adds `tuned` (the base, the adapter with its digests and revision, the merge report, every file by sha256) and `defaults` (`temperatures` per question type, `choice_bands`, `noul_commit` always stated true or false with its basis, `over_limit` and `think` when the model says them, and the fit).
 - **Precedence at start:** a flag, then the repository's `defaults`, then the base's profile. `--temperature-choice X` is one number for every choice question, so it drops the repository's bands. `--noul-commit` and `--no-noul-commit` override the commit setting either way. The start prints `REPOSITORY DEFAULTS ...` with what was applied, and `/health` reports it under `systemone.repository_defaults` with the digest of `tuned` and `defaults`.
 - **Fingerprint and tasks:** the digest and the bands are in the serving-stack fingerprint, so a certificate made on the tuned model is suspended by any change of either. Tasks are named for the repository and its defaults, so a task fitted on the base is not applied to the tuned model, nor the other way round.

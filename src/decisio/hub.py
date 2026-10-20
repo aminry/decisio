@@ -73,7 +73,8 @@ SCHEMA = "decisio.decision_config/1"  # a base's repository: the profile, unchan
 SCHEMA_TUNED = "decisio.decision_config/2"  # a tuned model's: the profile plus `tuned` and `defaults`
 SCHEMAS = (SCHEMA, SCHEMA_TUNED)
 FILE = "decision_config.json"
-TUNED_BASES = ("gemma-4-31b",)  # the bases a merge exists for (FP8 compressed-tensors, `hub_fp8 merge`)
+# the bases a merge exists for: the 31B is stored in FP8 (`hub_fp8 merge`), the 12B in bf16 (`hub_bf16 merge`)
+TUNED_BASES = ("gemma-4-31b", "gemma-4-12b")
 LICENSE = "apache-2.0"  # Qwen3.6 and Gemma 4 (RLCD experiments/2026-10-07_sd_hf_model_repos/PLAN.md)
 QWEN = "qwen3.6-35b-a3b"
 
@@ -189,9 +190,22 @@ def profile_of(fam: Family) -> dict:
 
 
 def weights_of_tuned(base: str, quantization: str | None = None) -> dict:
-    """The `weights` section of a tuned model's repository: the base's FP8 checkpoint with an adapter merged in."""
+    """The `weights` section of a tuned model's repository: the base's checkpoint with an adapter merged in (FP8 for
+    the 31B, bf16 for the 12B)."""
     if base not in TUNED_BASES:
         raise ValueError(f"a tuned repository is made for {', '.join(TUNED_BASES)}, not {base}")
+    if base == "gemma-4-12b":
+        return {
+            "modified": True,
+            "dtype": "bfloat16",
+            "quantization": None,
+            "method": (
+                "a LoRA adapter merged into the bf16 base in fp32 and rounded once to bf16, stochastically and seeded, "
+                "by decisio's merge (`python -m decisio.hub_bf16 merge`); every other tensor is the base's, byte for "
+                "byte; the adapter, its revision, the rounding seed and the merged files are listed in `tuned`"
+            ),
+            "quantized_on_load": False,
+        }
     return {
         "modified": True,
         "dtype": "fp8_e4m3",
@@ -315,7 +329,13 @@ def check_sections(config: dict) -> None:
         )
     if not isinstance(config.get("weights"), dict) or config["weights"].get("modified") is not True:
         raise ValueError("weights.modified must be true in a tuned repository")
-    check_tuned(config.get("tuned"))
+    expected = weights_of_tuned(config["base"], config["weights"].get("quantization") or None)
+    if config["weights"].get("dtype") != expected["dtype"]:
+        raise ValueError(
+            f"weights.dtype is {config['weights'].get('dtype')!r}; "
+            f"a tuned {config['base']} is stored as {expected['dtype']}"
+        )
+    check_tuned(config.get("tuned"), config["base"])
     check_defaults(config.get("defaults"))
 
 
@@ -333,7 +353,7 @@ def _sha(value, path: str) -> str:
     return value
 
 
-def check_tuned(tuned) -> None:
+def check_tuned(tuned, base_key: str | None = None) -> None:
     _need(tuned, "tuned")
     base = _need(tuned.get("base"), "tuned.base")
     for k in ("repository", "revision"):
@@ -350,6 +370,16 @@ def check_tuned(tuned) -> None:
             "tuned.merge.precision must be 'fp32' (the merge is made in fp32 and quantized once), "
             f"got {merge.get('precision')!r}"
         )
+    if base_key == "gemma-4-12b":
+        if merge.get("output") != "bf16" or merge.get("rounding") != "stochastic":
+            raise ValueError(
+                "tuned.merge of a 12B must say output 'bf16' and rounding 'stochastic' (the merge is rounded once, "
+                f"unbiased), got {merge.get('output')!r} and {merge.get('rounding')!r}"
+            )
+        if not isinstance(merge.get("seed"), int) or isinstance(merge["seed"], bool):
+            raise ValueError("tuned.merge.seed must be the rounding's seed (a whole number)")
+    elif base_key == "gemma-4-31b" and not str(merge.get("output", "")).startswith("fp8"):
+        raise ValueError(f"tuned.merge.output of a 31B must be fp8, got {merge.get('output')!r}")
     if not isinstance(merge.get("adapted_tensors"), int) or merge["adapted_tensors"] < 1:
         raise ValueError(
             "tuned.merge.adapted_tensors must be the number of adapter tensors the merge applied (at least 1)"
@@ -408,9 +438,23 @@ def file_digests(directory: Path) -> dict:
 
 
 def merge_facts(report: dict) -> dict:
-    """The `tuned.merge` section from a merge's report (`MERGE_FP8.json`, written by `hub_fp8 merge`)."""
+    """The `tuned.merge` section from a merge's report (`MERGE_FP8.json` of `hub_fp8 merge`, `MERGE_BF16.json` of
+    `hub_bf16 merge`)."""
     if report.get("null"):
         raise ValueError("this merge report is of a null merge (an adapter of scale 0), not of a shipped model")
+    if report.get("rounding") == "stochastic":
+        return {
+            "precision": "fp32",
+            "output": "bf16",
+            "rounding": "stochastic",
+            "seed": report.get("seed"),
+            "tool": "decisio.hub_bf16 merge",
+            "adapter_sha256": report.get("adapter_sha256"),
+            "adapter_scale": report.get("adapter_scale"),
+            "adapted_tensors": report.get("adapted_tensors"),
+            "dropped_k_eq_v_pairs": report.get("dropped_k_eq_v_pairs", 0),
+            "weight_space_effect_kept": report.get("weight_space_effect_kept"),
+        }
     return {
         "precision": "fp32",
         "output": "fp8 compressed-tensors",
