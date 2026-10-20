@@ -173,31 +173,50 @@ def test_m7_the_command_line(tmp_path, capsys):
     ad = adapter(tmp_path, targets(t), seed=10)
     rc = hub_fp8.main(["merge", "--source", str(base), "--adapter", str(ad), "--out", str(tmp_path / "out")])
     out = capsys.readouterr().out
-    assert (
-        rc == 0 and "adapter pairs applied (text layout, 0 k_eq_v v_proj pairs dropped)" in out and "identical" in out
-    )
+    assert rc == 0 and "applied (text layout, 0 v_proj copies of k_proj pairs left out)" in out and "identical" in out
     rc = hub_fp8.main(["merge", "--source", str(base), "--adapter", str(ad), "--out", str(tmp_path / "n"), "--null"])
     assert rc == 0
 
 
-def test_m8_v_proj_pairs_of_k_eq_v_layers_are_refused_or_dropped_and_recorded(tmp_path):
-    """Layer 1 of the tiny checkpoint is a full-attention layer with no v_proj (attention_k_eq_v). An adapter trained
-    with v_proj there (the N1 pilot's has it on all ten such layers, with non-zero B) has a pair with no tensor."""
+def with_v_proj(tmp_path, want, seed, differ=False):
+    """The adapter of `want` plus a `v_proj` pair for layer 1 (a full-attention layer with no v_proj in the base): a
+    copy of the layer's k_proj pair, as the trainer's export writes it, or (differ) a different pair."""
+    from safetensors import safe_open
+
+    base_dir = adapter(tmp_path, want, seed=seed)
+    with safe_open(str(base_dir / "adapter_model.safetensors"), "pt") as f:
+        tensors = {k: f.get_tensor(k) for k in f.keys()}  # noqa: SIM118
+    for half in ("A", "B"):
+        src = tensors[f"base_model.model.model.layers.1.self_attn.k_proj.lora_{half}.weight"]
+        tensors[f"base_model.model.model.layers.1.self_attn.v_proj.lora_{half}.weight"] = src + (0.001 if differ else 0)
+    d = tmp_path / f"adapter-v-{seed}-{differ}"
+    d.mkdir()
+    save_file({k: v.contiguous() for k, v in tensors.items()}, str(d / "adapter_model.safetensors"))
+    (d / "adapter_config.json").write_text((base_dir / "adapter_config.json").read_text())
+    return d
+
+
+def test_m8_v_proj_copies_of_k_eq_v_layers_are_left_out_and_counted_and_a_different_pair_is_refused(tmp_path):
+    """Layer 1 of the tiny checkpoint is a full-attention layer with no v_proj (attention_k_eq_v). The N1 pilot's
+    adapter carries a v_proj pair there, bit for bit its k_proj pair: merging the k_proj delta already gives V that
+    delta, so the copy is left out and counted; a pair that differs asks for a V that differs from K and is refused."""
     base, t = checkpoint(tmp_path)
     want = targets(t)
-    with_v = adapter(tmp_path, {**want, f"{L}.1.self_attn.v_proj.weight": (4, 6)}, seed=11)
-    with pytest.raises(ValueError, match=r"1 adapter pairs are v_proj of full-attention layers that ship no v_proj"):
-        hub_fp8.merge(base, with_v, tmp_path / "refused")
-    meta = hub_fp8.merge(base, with_v, tmp_path / "dropped", drop_k_eq_v=True)
+    copy = with_v_proj(tmp_path, want, seed=11)
+    meta = hub_fp8.merge(base, copy, tmp_path / "dropped")
     assert meta["dropped_k_eq_v_pairs"] == 1 and meta["adapted_tensors"] == len(want)
     facts = hub.merge_facts(json.loads((tmp_path / "dropped" / "MERGE_FP8.json").read_text()))
     assert facts["dropped_k_eq_v_pairs"] == 1
-    # the same merge without the extra pair is the same checkpoint: dropping changes nothing else
+    # the same merge without the copy is the same checkpoint: leaving the copy out changes nothing else
     plain = hub_fp8.merge(base, adapter(tmp_path, want, seed=11), tmp_path / "plain")
     assert plain["dropped_k_eq_v_pairs"] == 0
     a, b = read_dir(tmp_path / "dropped"), read_dir(tmp_path / "plain")
-    assert set(a) == set(b)
+    assert set(a) == set(b) and all(torch.equal(a[k], b[k]) for k in a)
+    # a pair that is not the k_proj pair is refused, with the difference
+    other = with_v_proj(tmp_path, want, seed=11, differ=True)
+    with pytest.raises(ValueError, match=r"not copies of the layer's k_proj pair.*A differs by up to 0.001"):
+        hub_fp8.merge(base, other, tmp_path / "refused")
     # a v_proj pair on a layer that DOES ship v_proj is an ordinary pair, and a made-up layer is still an error
     stray = adapter(tmp_path, {**want, f"{L}.7.self_attn.v_proj.weight": (4, 6)}, seed=12)
     with pytest.raises(ValueError, match="layers.7.self_attn.v_proj: no such tensor in the base"):
-        hub_fp8.merge(base, stray, tmp_path / "stray", drop_k_eq_v=True)
+        hub_fp8.merge(base, stray, tmp_path / "stray")

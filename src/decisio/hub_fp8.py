@@ -389,6 +389,21 @@ def load_adapter(adapter_dir: Path, names) -> tuple[dict, float, str, str, dict]
     )
 
 
+def k_copy_difference(name: str, ab, deltas: dict) -> str | None:
+    """None when the `v_proj` pair `ab` of module `name` is bit for bit its layer's `k_proj` pair in `deltas`, else why
+    not (the largest absolute difference of each half, or that the layer has no `k_proj` pair)."""
+    k = K_EQ_V_V.match(name)["layer"] + ".self_attn.k_proj"
+    for cand in (k, k.replace("model.layers.", "model.language_model.layers.", 1)):
+        if f"{cand}.weight" in deltas:
+            ka = deltas[f"{cand}.weight"]
+            if all(torch.equal(x, y) for x, y in zip(ab, ka, strict=True)):
+                return None
+            return "A differs by up to {:.3g}, B by up to {:.3g}".format(
+                *((x - y).abs().max().item() for x, y in zip(ab, ka, strict=True))
+            )
+    return "the layer's k_proj has no pair in the adapter"
+
+
 def merged32(w: torch.Tensor, ab, scale: float, device: str) -> torch.Tensor:
     """W + scale * (B @ A) in fp32 on `device` (W alone if the weight has no adapter); no TF32, no bf16 anywhere."""
     w32 = w.to(device=device, dtype=torch.float32)
@@ -406,25 +421,24 @@ def merge(
     null: bool = False,
     shard_bytes: int = 4 << 30,
     progress=None,
-    drop_k_eq_v: bool = False,
 ) -> dict:
     """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) with the LoRA adapter in `adapter` merged in
     fp32 and quantized once; the report (`MERGE_FP8.json`). Raises ValueError if an adapter pair finds no quantized
     tensor.
 
     A full-attention layer with `attention_k_eq_v` ships no `v_proj` (V is K), so an adapter's `v_proj` pair there has
-    no tensor to merge into, and a checkpoint of this layout cannot hold a V that differs from K. Such pairs are an
-    error unless `drop_k_eq_v`: the merge then leaves them out and the report says how many
-    (`dropped_k_eq_v_pairs`), so a model made that way never passes for the adapter's."""
+    no tensor to merge into, and a checkpoint of this layout cannot hold a V that differs from K. Where each such pair
+    is bit for bit the layer's `k_proj` pair (the trainer's export copies it), merging the `k_proj` delta already gives
+    V that delta, so the copy is left out and the report counts it (`dropped_k_eq_v_pairs`): nothing of the adapter is
+    lost. A pair that differs from its layer's `k_proj` pair is an error: it asks for a V that differs from K."""
     src = Source(source)
     deltas, scale, sha, layout, orphans = load_adapter(adapter, src.map)
-    if orphans and not drop_k_eq_v:
+    differ = {n: d for n, ab in orphans.items() if (d := k_copy_difference(n, ab, deltas)) is not None}
+    if differ:
         raise ValueError(
-            f"{len(orphans)} adapter pairs are v_proj of full-attention layers that ship no v_proj (attention_k_eq_v: "
-            f"V is K), e.g. {sorted(orphans)[0]}; this checkpoint layout cannot hold a V that differs from K. "
-            "Train the "
-            "adapter without v_proj on those layers, or pass --drop-k-eq-v to merge without those pairs (the report "
-            "records the number)"
+            f"{len(differ)} adapter pairs are v_proj of full-attention layers that ship no v_proj (attention_k_eq_v: "
+            "V is K) and are not copies of the layer's k_proj pair, so they ask for a V that differs from K, which "
+            "this checkpoint layout cannot hold: " + "; ".join(f"{n}: {d}" for n, d in sorted(differ.items())[:5])
         )
     scale = 0.0 if null else scale
     groups = find_groups(src.map, src.k_eq_v())
@@ -556,11 +570,6 @@ def main(argv=None) -> int:
     mg.add_argument(
         "--null", action="store_true", help="merge an adapter of scale 0: must equal `convert` byte for byte"
     )
-    mg.add_argument(
-        "--drop-k-eq-v",
-        action="store_true",
-        help="merge without the adapter's v_proj pairs on full-attention layers that ship no v_proj (recorded)",
-    )
     cp = sub.add_parser("compare", help="the modules at which two fingerprint files differ")
     cp.add_argument("a")
     cp.add_argument("b")
@@ -578,12 +587,12 @@ def main(argv=None) -> int:
             a.device,
             a.null,
             progress=lambda m: print(m, flush=True),
-            drop_k_eq_v=a.drop_k_eq_v,
         )
         differ = meta["written_vs_loaded_differ"]
         print(
             f"{meta['groups']} groups, {meta['adapted_tensors']} adapter pairs applied "
-            f"({meta['adapter_layout']} layout, {meta['dropped_k_eq_v_pairs']} k_eq_v v_proj pairs dropped); "
+            f"({meta['adapter_layout']} layout, {meta['dropped_k_eq_v_pairs']} v_proj copies of k_proj pairs left "
+            "out); "
             f"the loader would change {meta['loader_changed_elements']} weights; written against loaded fingerprints: "
             + ("identical" if not differ else f"{len(differ)} differ: " + ", ".join(differ[:20]))
         )
