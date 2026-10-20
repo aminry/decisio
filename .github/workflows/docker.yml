@@ -196,6 +196,18 @@ jobs:
       attestations: write
       packages: write
     steps:
+      # syft saves the 9 GB (25 GB unpacked) image under /tmp on the runner; v0.21.0's two attempts ran out of disk
+      # ("disk quota exceeded") on the runner image as it now ships, where v0.20.0's had not. Free what this job does not need.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo swapoff -a || true
+          sudo rm -rf /mnt/swapfile /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/microsoft /opt/az /usr/local/.ghcup \
+            /usr/share/swift /usr/lib/jvm /usr/local/share/boost /usr/local/share/powershell /usr/local/julia* \
+            /usr/share/miniconda /usr/lib/google-cloud-sdk /usr/local/lib/node_modules /usr/local/share/chromium /usr/lib/firefox
+          docker image prune --all --force > /dev/null
+          df -h /
+
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
