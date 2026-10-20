@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.1](https://github.com/aminry/decisio/compare/v0.21.0...v0.21.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ci:** free disk space before the image is scanned for its SBOM ([#252](https://github.com/aminry/decisio/issues/252)) ([e465c8a](https://github.com/aminry/decisio/commit/e465c8a846c799daaf0f84b31cf786e05848fbd1))
+
 ## [0.21.0](https://github.com/aminry/decisio/compare/v0.20.0...v0.21.0) (2026-10-20)
 
 
