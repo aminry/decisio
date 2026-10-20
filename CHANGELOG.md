@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.20.0](https://github.com/aminry/decisio/compare/v0.19.0...v0.20.0) (2026-10-20)
+
+
+### Features
+
+* **hub:** decision_config /2 for a tuned model's repository (tuned and defaults sections, tuned-config and check commands) ([0f0c092](https://github.com/aminry/decisio/commit/0f0c092595cbea702e47fa9d46988d9bee29e983))
+* **hub:** hub_fp8 merge - a LoRA adapter merged into the base in fp32 and quantized once to FP8 ([3ca0e5e](https://github.com/aminry/decisio/commit/3ca0e5e84a055168c960ce9c368236a946c969ea))
+* **serve:** --over-limit truncate - answer a state over the prompt ceiling from its start (never certified, reported in the response) ([ad16bbd](https://github.com/aminry/decisio/commit/ad16bbd4b43fc79c32c7681c8a144a602e699d1c))
+* **serve:** a tuned repository's defaults are served - temperatures, choice bands and the commit setting, with the flags above them ([62b3d13](https://github.com/aminry/decisio/commit/62b3d13d6ba10ea126dd3c8eef9a493cafd2273d))
+* **serve:** a tuned repository's defaults are served ([#244](https://github.com/aminry/decisio/issues/244)) ([62b3d13](https://github.com/aminry/decisio/commit/62b3d13d6ba10ea126dd3c8eef9a493cafd2273d))
+
 ## [0.19.0](https://github.com/aminry/decisio/compare/v0.18.1...v0.19.0) (2026-10-19)
 
 
