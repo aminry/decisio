@@ -169,7 +169,7 @@ def test_r2_a_directory_is_read(tmp_path):
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda c: c.update(schema="decisio.decision_config/2"), "schema"),
+        (lambda c: c.update(schema="decisio.decision_config/3"), "schema"),
         (lambda c: c.update(base="gemma-9"), "names the base"),
     ],
 )
