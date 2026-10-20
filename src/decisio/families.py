@@ -130,7 +130,7 @@ GEMMA4 = Family(
     served_name="decisio-gemma-4-12b-it-letters",
     pad_to="none",
     limit_mm={"image": 0, "video": 0, "audio": 0},
-    context_ceiling=65536,
+    context_ceiling=98304,
     # text-only is vLLM's own class with every multimodal input off: Gemma has no M-RoPE, so a text prompt gets the
     # language model's own positions
     classes={"text-only": None, "hidden-readout": "DecisioGemma4UnifiedHiddenReadout"},

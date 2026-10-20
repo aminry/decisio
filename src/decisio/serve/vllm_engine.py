@@ -1203,7 +1203,7 @@ KV_CACHE_DTYPES = ("auto", "fp8")
 def resolve_context(family, max_model_len, kv_cache_dtype, backend="vllm", image_model=None):
     """(max_model_len, kv_cache_dtype) for the text engine from `--max-model-len` and `--kv-cache-dtype`, or ValueError.
     Given `--max-model-len`, that length (above 32,768 up to the base's ceiling, `Family.context_ceiling`: the 12B
-    65,536, the 31B 98,304, the Qwen base 32,768; the vLLM server only, and not with the image engine, which is built
+    98,304, the 31B 98,304, the Qwen base 32,768; the vLLM server only, and not with the image engine, which is built
     for 32,768). Not given, on the vLLM server without `--image-model`, on a base whose ceiling is above 32,768: an
     `AutoContext`, the largest length that fits this card up to the ceiling (decisio.serve.context); everywhere else
     32,768 tokens, the length every record was measured at (docs/running.md, "The context length").
@@ -1793,7 +1793,7 @@ def build_parser():
         type=int,
         default=None,
         help="the longest prompt, in tokens. Without it, the vLLM server on a Gemma base serves the largest length "
-        "that fits this card, up to the base's ceiling (gemma-4-12b 65,536, gemma-4-31b 98,304) and not below 32,768; "
+        "that fits this card, up to the base's ceiling (gemma-4-12b 98,304, gemma-4-31b 98,304) and not below 32,768; "
         "the Qwen base, --image-model, a second engine, --engine-process separate and the other backends stay at "
         "32,768. "
         "Given, it is that length, up to the ceiling (docs/running.md)",

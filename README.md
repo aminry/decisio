@@ -83,7 +83,7 @@ It reads your document once and reads the probability of each option straight of
 - **What the model knows.** Intelligence axis on JevBench v1.6.1: 70.4 (Jev 1.13.0: 63.6).
 - **The sealed set.** On JevBench v1.6.1, the 31B's sealed-set intelligence was 73.3 and Jev 1.13.0's 61.6; the open-set intelligence was 67.6 and 65.6. The sealed questions were never published.
 - **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
-- **Long prompts, many options.** Prompts of 32,768 tokens on the Qwen base and, on the Gemma bases, of the largest length the card holds, at least 32,768 and at most 98,304 on the 31B and 65,536 on the 12B ([`docs/running.md`](docs/running.md#the-context-length)), and 255 options per question.
+- **Long prompts, many options.** Prompts of 32,768 tokens on the Qwen base and, on the Gemma bases, of the largest length the card holds, at least 32,768 and at most 98,304 on the 31B and 98,304 on the 12B ([`docs/running.md`](docs/running.md#the-context-length)), and 255 options per question.
 - **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on JevBench v1.6.1 its cost axis was 51.7 (Jev 1.13.0: 54.7).
 
 | | Gemma 4 31B (the default) |

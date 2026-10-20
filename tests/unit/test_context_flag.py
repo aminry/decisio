@@ -4,7 +4,7 @@
 
 L1  without --max-model-len: the Gemma bases on the vLLM server ask for the largest length that fits (an AutoContext
     up to their ceiling); the Qwen base, the image engine and the other backends stay at 32,768; vLLM's own KV dtype
-L2  a longer context is accepted up to the base's ceiling (the 12B 65,536, the 31B 98,304) and refused beyond it, on
+L2  a longer context is accepted up to the base's ceiling (the 12B 98,304, the 31B 98,304) and refused beyond it, on
     the Qwen base at all, off the vLLM server and with the image engine, each with its reason
 L3  `--kv-cache-dtype fp8` and `--max-model-len` reach the text engine, and a refusal ends start-up with its reason
 L4  the engines (the text engine and `--head-engine`'s second one) put them in vLLM's arguments
@@ -34,7 +34,7 @@ def test_l1_the_default_is_the_largest_that_fits_up_to_the_ceiling():
         assert resolve_context(fam, None, None, image_model="x") == (32768, None)
     assert {k: f.context_ceiling for k, f in BASES.items()} == {
         "qwen3.6-35b-a3b": 32768,
-        "gemma-4-12b": 65536,
+        "gemma-4-12b": 98304,
         "gemma-4-31b": 98304,
     }
 
@@ -43,8 +43,8 @@ def test_l2_up_to_the_ceiling_and_refused_beyond_with_the_reason():
     g12, g31, qwen = BASES["gemma-4-12b"], BASES["gemma-4-31b"], BASES["qwen3.6-35b-a3b"]
     assert resolve_context(g12, 65536, None) == (65536, None) and resolve_context(g12, 65536, "fp8") == (65536, "fp8")
     assert resolve_context(g31, 98304, "fp8") == (98304, "fp8") and resolve_context(g31, 65536, None) == (65536, None)
-    with pytest.raises(ValueError, match=r"gemma-4-12b base is documented to 65,536"):
-        resolve_context(g12, 65537, None)
+    with pytest.raises(ValueError, match=r"gemma-4-12b base is documented to 98,304"):
+        resolve_context(g12, 98305, None)
     with pytest.raises(ValueError, match=r"gemma-4-31b base is documented to 98,304"):
         resolve_context(g31, 98305, "fp8")
     with pytest.raises(ValueError, match=r"qwen3.6-35b-a3b base is documented to 32,768"):
@@ -86,7 +86,7 @@ def run_main(monkeypatch, argv):
 
 def test_l3_the_flags_reach_the_text_engine(monkeypatch):
     k = run_main(monkeypatch, ["--base", "gemma-4-12b"])
-    assert k["max_model_len"] == AutoContext(65536) and k["kv_cache_dtype"] is None
+    assert k["max_model_len"] == AutoContext(98304) and k["kv_cache_dtype"] is None
     k = run_main(monkeypatch, ["--base", "qwen3.6-35b-a3b"])
     assert k["max_model_len"] == 32768 and "ceiling" in k["context_source"]
     k = run_main(monkeypatch, ["--base", "gemma-4-31b", "--engine-process", "separate"])
