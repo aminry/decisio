@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.21.0](https://github.com/aminry/decisio/compare/v0.20.0...v0.21.0) (2026-10-20)
+
+
+### Features
+
+* **serve:** think when unsure - an unsure question is read again after the served model has written its reasoning (off by default; --think, a request field, or a tuned repository default) ([35a03a8](https://github.com/aminry/decisio/commit/35a03a8faedf36e70591e3b76be6ff4ea5464dfe))
+
 ## [0.20.0](https://github.com/aminry/decisio/compare/v0.19.0...v0.20.0) (2026-10-20)
 
 
