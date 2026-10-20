@@ -641,13 +641,15 @@ class LettersEngine:
 
     def can_think(self) -> bool:
         """Whether this engine can write reasoning (decisio.serve.think): the vLLM engine, not the MLX build."""
-        return getattr(self, "llm", None) is not None
+        return getattr(self, "llm", None) is not None and getattr(self, "mode", "separate") == "separate"
 
-    def think(self, state, questions, adapter=None, budget=512):
+    def think(self, state, questions, adapter=None, budget=512, subset=None):
         """The second read of each question after reasoning (decisio.serve.think): for each question the served model
         (the named adapter, or the weights as loaded) writes up to `budget` tokens greedily after PREFIX, SUFFIX
         follows, and the options are read from the next token. One generation call for all the questions, the
-        engine's lock held once. Returns (log-probabilities over each question's options in the engine's label order,
+        engine's lock held once. `questions` are the request's questions as the first read had them, so that the rows
+        are the first read's own (the same state prefix and padding); `subset` the positions of those to think about
+        (all by default). Returns (log-probabilities over the subset's options in the engine's label order,
         normalised; tokens generated per question; {"generate_ms", "read_ms"})."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
@@ -659,6 +661,7 @@ class LettersEngine:
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         with self._lock:
             rows, _ = self._prepare_separate(state, questions)
+            rows = rows if subset is None else [rows[i] for i in subset]
             pre, suf = enc(T.PREFIX), enc(T.SUFFIX)
             lora = self.adapters[adapter] if adapter else None
             sp = SamplingParams(

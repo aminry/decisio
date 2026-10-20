@@ -60,8 +60,10 @@ class ThinkEngine(CertEngine):
     def can_think(self):
         return self.can
 
-    def think(self, state, questions, adapter=None, budget=512):
-        self.calls.append((state, [q.get("kind") for q in questions], adapter, budget))
+    def think(self, state, questions, adapter=None, budget=512, subset=None):
+        subset = list(range(len(questions))) if subset is None else subset
+        questions = [questions[i] for i in subset]
+        self.calls.append((state, [q.get("kind") for q in questions], adapter, budget, subset))
         second = int(str(state["message"]).split(":")[3])
         out = []
         for q in questions:
@@ -566,3 +568,45 @@ def test_k11_the_engine_writes_after_the_prefix_and_reads_after_the_suffix(monke
     eng.think("state", [{"kind": "choice", "options": ["a", "b", "c"]}], None, 64)
     assert fake.sent[2][2] is None  # no adapter named: the weights as loaded write (the merged model)
     assert not vllm_engine.LettersEngine.__new__(vllm_engine.LettersEngine).can_think()
+
+
+def test_k3_the_engine_is_asked_about_the_unsure_questions_among_the_questions_it_read():
+    client, so, eng = make(think=True)
+    body = wire("0:0.5:x:1")  # q1 is unsure
+    body["questions"]["q2"] = question(3)
+    r = client.post("/v1/systemone", json=body)
+    assert r.status_code == 200
+    # the engine got both questions' rows (so the padding is the first read's) and the position to think about
+    state, kinds, adapter, budget, subset = eng.calls[0]
+    assert subset == [0, 1] and len(kinds) == 2
+    assert len(r.json()["thinking"]["per_question"]) == 2
+
+
+def test_k11_the_subset_picks_rows_of_the_first_reads_questions(monkeypatch):
+    import sys
+    import threading
+    import types
+
+    fake = FakeVLLM()
+    mod = types.ModuleType("vllm")
+    mod.SamplingParams = FakeVLLM.SamplingParams
+    inputs = types.ModuleType("vllm.inputs")
+    inputs.TokensPrompt = FakeVLLM.TokensPrompt
+    monkeypatch.setitem(sys.modules, "vllm", mod)
+    monkeypatch.setitem(sys.modules, "vllm.inputs", inputs)
+
+    class Tok:
+        eos_token_id = 1
+
+        def encode(self, text, add_special_tokens=False):
+            return {T.PREFIX: [50], T.SUFFIX: [60]}[text]
+
+        def get_vocab(self):
+            return {}
+
+    eng = vllm_engine.LettersEngine.__new__(vllm_engine.LettersEngine)
+    eng.llm, eng.tok, eng.adapters, eng._lock = fake, Tok(), {}, threading.Lock()
+    lab = ((11,), (12,), (13,))
+    eng._prepare_separate = lambda state, questions: ([([1, 2], lab), ([1, 2, 9], lab)], 2)
+    lps, counts, _ = eng.think("s", [{}, {}], None, 32, [1])
+    assert fake.sent[0][0] == [[1, 2, 9, 50]] and len(lps) == 1 and counts == [3]  # only the second question's row

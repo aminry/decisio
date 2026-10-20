@@ -688,7 +688,8 @@ class SystemOne:
         second, per_question, tokens, ms = {}, {}, 0, 0.0
         if cand:
             t = time.perf_counter()
-            lps, counts, parts = engine.think(state, [qs[i] for i in cand], adapter, self.think_budget)
+            asked = [qs[i] for i in sorted(at, key=at.get)]  # the questions as the first read had them
+            lps, counts, parts = engine.think(state, asked, adapter, self.think_budget, [at[i] for i in cand])
             wall = (time.perf_counter() - t) * 1000
             ms = float(parts.get("generate_ms", 0.0) + parts.get("read_ms", 0.0)) or wall  # the engine's own timing
             tokens = sum(counts)
