@@ -212,6 +212,9 @@ class LettersEngine:
     # the server's EngineHealth (decisio.serve.engine_health), shared with the other engines; None in library use
     health = None
     fmt = DEFAULT_FORMAT  # the prompt format (decisio.readout.letters.PromptFormat); the server sets it from its flags
+    over_limit_tokens = (
+        None  # --over-limit-tokens: the prompt ceiling a truncating server cuts to, where it is not the context
+    )
 
     def __init__(
         self,
@@ -386,6 +389,16 @@ class LettersEngine:
             self.llm.encode(prompt, pooling_task="token_classify", use_tqdm=False)
         else:
             self.llm.generate(prompt, SamplingParams(max_tokens=1, temperature=0.0, detokenize=False), use_tqdm=False)
+
+    def prompt_limit(self) -> int | None:
+        """The longest prompt in tokens the engine answers (decisio.serve.over_limit): `--over-limit-tokens` where
+        given, else the served context less the one generated token; None where the engine has no ceiling to read (an
+        engine without vLLM's configuration: the MLX build, whose limit is a memory budget)."""
+        if self.over_limit_tokens:
+            return int(self.over_limit_tokens)
+        llm = getattr(self, "llm", None)
+        config = getattr(getattr(llm, "llm_engine", None), "vllm_config", None)
+        return int(config.model_config.max_model_len) - 1 if config is not None else None
 
     def facts(self):
         import torch
@@ -626,6 +639,51 @@ class LettersEngine:
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
+    def can_think(self) -> bool:
+        """Whether this engine can write reasoning (decisio.serve.think): the vLLM engine, not the MLX build."""
+        return getattr(self, "llm", None) is not None and getattr(self, "mode", "separate") == "separate"
+
+    def think(self, state, questions, adapter=None, budget=512, subset=None):
+        """The second read of each question after reasoning (decisio.serve.think): for each question the served model
+        (the named adapter, or the weights as loaded) writes up to `budget` tokens greedily after PREFIX, SUFFIX
+        follows, and the options are read from the next token. One generation call for all the questions, the
+        engine's lock held once. `questions` are the request's questions as the first read had them, so that the rows
+        are the first read's own (the same state prefix and padding); `subset` the positions of those to think about
+        (all by default). Returns (log-probabilities over the subset's options in the engine's label order,
+        normalised; tokens generated per question; {"generate_ms", "read_ms"})."""
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+
+        from decisio.serve import think as T
+
+        if self.health is not None:
+            self.health.check()
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
+        with self._lock:
+            rows, _ = self._prepare_separate(state, questions)
+            rows = rows if subset is None else [rows[i] for i in subset]
+            pre, suf = enc(T.PREFIX), enc(T.SUFFIX)
+            lora = self.adapters[adapter] if adapter else None
+            sp = SamplingParams(
+                max_tokens=budget, temperature=0.0, detokenize=False, stop_token_ids=T.stop_ids(self.tok)
+            )
+            t = time.perf_counter()
+            outs = guarded(
+                self,
+                self.llm.generate,
+                [TokensPrompt(prompt_token_ids=ids + pre) for ids, _ in rows],
+                sp,
+                lora_request=lora,
+                use_tqdm=False,
+            )
+            generate_ms = (time.perf_counter() - t) * 1000
+            gens = [list(o.outputs[0].token_ids) for o in outs]
+            t = time.perf_counter()
+            probs, _ = self.score_prompts([(ids + pre + g + suf, lab) for (ids, lab), g in zip(rows, gens)], adapter)
+            read_ms = (time.perf_counter() - t) * 1000
+        lps = [np.log(np.maximum(np.asarray(p, dtype=np.float64), 1e-300)) for p in probs]
+        return lps, [len(g) for g in gens], {"generate_ms": generate_ms, "read_ms": read_ms}
+
     def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
         """Prefill token lists in one batch, one generated token each, so their states are registered in the prefix
         cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took."""
@@ -864,6 +922,17 @@ def make_app(engine, systemone=None, health=None):
                     "describe_options": systemone.describe_options,
                     "noul_rendering": systemone.noul_rendering,
                     "noul_commit": systemone.noul_commit,
+                    "think": {
+                        "default": systemone.think,
+                        "factor": systemone.think_factor,
+                        "budget": systemone.think_budget,
+                        **systemone.thought,
+                    },
+                    "over_limit": {
+                        "mode": systemone.over_limit,
+                        "prompt_limit": getattr(engine, "prompt_limit", lambda: None)(),
+                        **systemone.truncated,
+                    },
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
                         t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
@@ -874,6 +943,8 @@ def make_app(engine, systemone=None, health=None):
                     "debug_readout": systemone.debug_readout,
                     "temperature": systemone.temperature,
                     "temperatures": systemone.temperatures,
+                    "choice_bands": systemone.choice_bands,
+                    "repository_defaults": getattr(engine, "repository_defaults", None),
                     "adapter_temperatures": systemone.adapter_temperatures,
                     "readout_tasks": {
                         t["id"]: {
@@ -1185,6 +1256,7 @@ def served_profile(engine, systemone) -> dict:
         "quantization_on_load": getattr(fam, "quantization", None),
         "engine_process": getattr(engine, "engine_process", None),
         "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
+        **({"choice_bands": systemone.choice_bands} if systemone.choice_bands else {}),
         "prompt": {
             **fmt.facts(),
             "system_prompt": bool(getattr(fmt, "system_prompt", False)),
@@ -1258,8 +1330,13 @@ def resolve_base(args):
     if repo is not None:
         hub.verify(repo, fam)
         fam = hub.serve_family(fam, repo)
-        # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
-        args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
+        if repo.tuned:
+            # a tuned model reads differently from the checkpoint it came from: its tasks are its own, named for the
+            # repository and its defaults, so a task fitted on the base is not applied to it and the other way round
+            args.model_identity = f"{os.path.basename(os.path.normpath(repo.name))}@{repo.defaults_sha256[:12]}"
+        else:
+            # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
+            args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
         args.repository = repo.facts()
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
@@ -1275,9 +1352,72 @@ def resolve_base(args):
         args.noul_rendering = fam.noul_rendering
     if args.temperature is None:
         args.temperature = fam.temperature
+    apply_repository_defaults(args, repo)
     if args.temperature_choice is None:
         args.temperature_choice = fam.choice_temperature
     return fam, fmt
+
+
+def apply_repository_defaults(args, repo) -> None:
+    """What a tuned repository (`/2`) gives a plain request: its temperatures, choice bands and commit setting, where
+    the command line gave none. Precedence: a flag, then the repository's `defaults`, then the base's profile. Sets
+    `args.choice_bands` ({} when none), `args.noul_commit` (a bool) and `args.repository_defaults` (what was applied,
+    for the start-up line and /health). `--temperature-choice X` is one number for every choice question, so it drops
+    the repository's bands."""
+    args.choice_bands = {}
+    args.repository_defaults = None
+    defaults = repo.defaults if repo is not None else None
+    choice_given = getattr(args, "temperature_choice", None) is not None
+    applied: dict = {}
+    if defaults is not None:
+        applied = {"repository": repo.name, "revision": repo.revision, "defaults_sha256": repo.defaults_sha256}
+        for qtype, flag in (
+            ("choice", "temperature_choice"),
+            ("noul", "temperature_noul"),
+            ("score", "temperature_score"),
+        ):
+            given = getattr(args, flag, None)
+            if given is None and qtype in defaults["temperatures"]:
+                setattr(args, flag, float(defaults["temperatures"][qtype]))
+                applied.setdefault("temperatures", {})[qtype] = float(defaults["temperatures"][qtype])
+        bands = defaults.get("choice_bands") or {}
+        if bands and not choice_given:
+            args.choice_bands = {b: float(t) for b, t in bands.items()}
+            applied["choice_bands"] = dict(args.choice_bands)
+        elif bands:
+            applied["choice_bands_dropped_by"] = "--temperature-choice"
+        if getattr(args, "noul_commit", None) is None:
+            args.noul_commit = bool(defaults["noul_commit"])
+            applied["noul_commit"] = args.noul_commit
+        else:
+            applied["noul_commit_set_by"] = "--noul-commit" if args.noul_commit else "--no-noul-commit"
+        if "over_limit" in defaults:
+            if getattr(args, "over_limit", None) is None:
+                args.over_limit = defaults["over_limit"]
+                applied["over_limit"] = args.over_limit
+            else:
+                applied["over_limit_set_by"] = f"--over-limit {args.over_limit}"
+        if "think" in defaults:  # on, with the repository's factor, unless a flag says otherwise
+            if getattr(args, "think", None) is None:
+                args.think = True
+                applied["think"] = dict(defaults["think"])
+            else:
+                applied["think_set_by"] = "--think" if args.think else "--no-think"
+            if getattr(args, "think_factor", None) is None:
+                args.think_factor = defaults["think"]["factor"]
+            if getattr(args, "think_budget", None) is None and "budget" in defaults["think"]:
+                args.think_budget = defaults["think"]["budget"]
+        args.repository_defaults = applied
+    if getattr(args, "noul_commit", None) is None:
+        args.noul_commit = False
+    if getattr(args, "over_limit", None) is None:
+        args.over_limit = "refuse"
+    if getattr(args, "think", None) is None:
+        args.think = False
+    if getattr(args, "think_factor", None) is None:
+        args.think_factor = 1.0
+    if getattr(args, "think_budget", None) is None:
+        args.think_budget = 512
 
 
 def build_parser():
@@ -1563,10 +1703,53 @@ def build_parser():
         )
     ap.add_argument(
         "--noul-commit",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="/v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported "
-        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does; off by "
-        "default",
+        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does. Off by default; "
+        "a tuned repository's defaults state their own setting, and --noul-commit / --no-noul-commit override it",
+    )
+    ap.add_argument(
+        "--over-limit",
+        choices=("refuse", "truncate"),
+        default=None,
+        help="/v1/systemone: a state over the engine's prompt ceiling. refuse (the default): a 422 that says so. "
+        "truncate: the state, never a question, is cut once per request to its start, the response says what was cut "
+        "(header x-decisio-state-truncated, body state_truncated) and none of the request's answers is certified; a "
+        "request's \"over_limit\" field decides for that request, and a tuned repository's defaults state their own "
+        "setting",
+    )
+    ap.add_argument(
+        "--think",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="/v1/systemone: think when unsure. A question whose served top probability is below its type's threshold "
+        "(choice 0.75, yes/no 0.92, score 0.70, times --think-factor) and that has at most 16 options is read again "
+        "after the served model (the adapter named in the request, or the merged weights) has written up to "
+        "--think-budget tokens of reasoning; the two reads are mixed in log space and go through the same temperature. "
+        'Off by default (single-pass speed and determinism); a request\'s "think" field decides for that request, a '
+        "tuned repository's defaults can turn it on, and --no-think turns that off. Needs the vLLM engine; "
+        "questions of a registered task stay at one read",
+    )
+    ap.add_argument(
+        "--think-factor",
+        type=float,
+        default=None,
+        help="the factor on the think thresholds (default 1; a tuned repository's defaults state theirs): a lower "
+        "factor thinks on fewer questions",
+    )
+    ap.add_argument(
+        "--think-budget",
+        type=int,
+        default=None,
+        help="the most tokens of reasoning a thinking question may write (default 512)",
+    )
+    ap.add_argument(
+        "--over-limit-tokens",
+        type=int,
+        default=None,
+        help="the prompt ceiling in tokens a truncating server cuts to, where it is not the served context less one "
+        "(default: that; the MLX build, whose limit is a memory budget, needs it for --over-limit truncate)",
     )
     ap.add_argument(
         "--tasks",
@@ -1663,6 +1846,8 @@ def main():
         ap.error(str(e))
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
+    if args.repository_defaults:
+        print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
     args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
@@ -1813,6 +1998,14 @@ def main():
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     engine.repository = args.repository
+    engine.repository_defaults = args.repository_defaults
+    engine.over_limit_tokens = args.over_limit_tokens
+    if args.think and not engine.can_think():
+        raise SystemExit("--think needs the vLLM engine: this engine cannot write reasoning")
+    if args.over_limit == "truncate" and engine.prompt_limit() is None:
+        raise SystemExit(
+            "--over-limit truncate: this engine has no prompt ceiling to cut to; give --over-limit-tokens N"
+        )
     print(
         "ENGINE",
         json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),
@@ -1938,6 +2131,10 @@ def main():
         describe_options=args.describe_options,
         noul_rendering=args.noul_rendering,
         noul_commit=args.noul_commit,
+        over_limit=args.over_limit,
+        think=args.think,
+        think_factor=args.think_factor,
+        think_budget=args.think_budget,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
@@ -1952,6 +2149,7 @@ def main():
             "score": args.temperature_score,
         },
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
+        choice_bands=args.choice_bands,
     )
     # one engine state for every engine of this server: a dead engine refuses requests, turns /health to 503 and ends
     # the process with code 70, so that a restart policy starts a new server (decisio.serve.engine_health)

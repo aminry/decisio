@@ -15,7 +15,7 @@ Requirements: Linux, one NVIDIA card (measured on an RTX PRO 6000 Blackwell with
 
 <!-- x-release-please-start-version -->
 ```bash
-git clone --branch v0.19.0 https://github.com/aminry/decisio
+git clone --branch v0.21.2 https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
 uv run python -m decisio.serve.vllm_engine
@@ -110,6 +110,7 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b
 uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b@<commit>   # a pinned commit
 ```
 - The repository's file names the base, and the repository's weights are the checkpoint, so `--model` is not given with it.
+- A repository of a tuned model (an adapter merged into the base) has a file of schema `decisio.decision_config/2` that also carries the temperatures and the commit setting the model is served at ([Shipping a tuned model](#shipping-a-tuned-model)).
 - The server compares the file's profile (prompt, readout, temperatures, serving defaults, the classes, the vLLM version the plugin supports) with the installed one, and refuses to start on a difference, naming the keys and the decisio release the file was made for.
   A profile change therefore reaches a repository only as a new revision of it, made for the release that changed it.
 - A stored FP8 checkpoint is not quantized again on load (the Gemma 4 31B profile quantizes Google's bf16 weights to FP8 when it loads them; a repository holds the FP8 tensors).
@@ -124,6 +125,67 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b
   `tests/gpu/fp8_fingerprints.py` reads the FP8 weights an engine holds, and `python -m decisio.hub_fp8 expected|compare` predict and compare them.
 - The three repositories are public on the Hub, at revisions pinned in `decisio.hub.PINNED_REVISIONS`: `tachara-ai/decisio-gemma-4-31b`, `tachara-ai/decisio-gemma-4-12b` and `tachara-ai/decisio-qwen3.6-35b-a3b`.
   Each carries the licence, a card and `SHA256SUMS`; the 12B and Qwen files are byte-for-byte copies of Google's and Qwen's, and the 31B's text model is quantized to FP8 (its card says so).
+
+## Shipping a tuned model
+
+A model made by merging a LoRA adapter into the Gemma 4 31B (stored in FP8) or the Gemma 4 12B (stored in bf16, as it is served) is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
+A plain request to it, with no flag and no `adapter` field, is already fixed: the repository carries the temperatures, the choice bands and the yes/no commit setting that the adapter needs, and the server applies them.
+This is how a harness that sends no adapter field and no flag reaches a tuned model: it is told `--base owner/name`.
+`--base gemma-4-31b` and `--base gemma-4-12b` are still the bases' repositories.
+
+**Making it**, on any machine that holds the bf16 base and the adapter's directory:
+
+```bash
+# 1. merge in fp32 and round once: the 31B to FP8, the 12B to bf16 (a card is not needed; --device cuda is faster)
+uv run python -m decisio.hub_fp8 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>      # 31B
+uv run python -m decisio.hub_bf16 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>     # 12B
+# 2. fit the temperatures on the MERGED model's own reads of items that are not a benchmark's
+uv run python -m decisio.serve.adapter_temperatures fit-split --h H.jsonl.gz --h-keys h.json --dev D.jsonl.gz --dev-keys d.json --variant dev --out temperatures.json
+# 3. write the repository's file, stating the commit setting, and check it
+uv run python -m decisio.hub tuned-config --base gemma-4-31b --temperatures temperatures.json --noul-commit \
+    --noul-commit-basis basis.json --adapter-dir <peft dir> --adapter-repository <owner/adapter> --adapter-revision <commit> \
+    --merge-report <merged dir>/MERGE_FP8.json --weights-dir <merged dir> --out <merged dir>/decision_config.json
+#    for the 12B: --base gemma-4-12b and --merge-report <merged dir>/MERGE_BF16.json; --think-factor F turns thinking
+#    on for the model and --over-limit truncate answers states over its prompt ceiling from their start
+uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-dir <merged dir>
+```
+
+- **The 12B's merge** (`hub_bf16`) adds the same change in fp32 and rounds once to bf16, **stochastically**: each entry goes to one of its two bf16 neighbours with the probability that makes its expected value the fp32 value, with noise seeded per tensor (`sha256(seed | tensor name)`, so the result is repeatable and independent of the order; `--seed`, default 0, goes in the report and the repository's file). Rounding to nearest cannot carry a small adapter: the base is already on the bf16 grid, so it rounds the change away for most entries (it kept 0.88 of one real 12B adapter's change in weight space, and about half of a smaller one on the 31B); the stochastic merge kept 1.0000 of the 12B's (`runs/2026-10-20_tuned-12b-merge/`). Every other tensor is copied byte for byte, `--null` equals the source byte for byte, and the K=V rule below holds. The repository is bf16 (22 GB) and nothing is quantized on load.
+- **The 31B's merge** adds `scale * (B @ A)` to each weight in fp32 and quantizes once, with the adapter's change inside each fused group's amax; a merge through bf16 would round most of a small change away. Every pair of the adapter must land on a tensor of a quantized group. `--null` merges an adapter of scale 0, which must equal `hub_fp8 convert` byte for byte. The full-attention layers of the 31B ship no `v_proj` (`attention_k_eq_v`: V is K), so an adapter's `v_proj` pair there has no tensor to land on. The trainer's export writes such a pair as a copy of the layer's `k_proj` pair; the merge checks that it is bit for bit that copy (both halves), leaves it out, and counts it in the report and the repository's file (`dropped_k_eq_v_pairs`): merging the `k_proj` delta already gives V that delta, so nothing of the adapter is lost. A `v_proj` pair that differs from its layer's `k_proj` pair asks for a V that differs from K, which this layout cannot hold, and the merge refuses with the difference.
+- **The file** keeps the base's profile exactly (a repository cannot change how the base is read) and adds `tuned` (the base, the adapter with its digests and revision, the merge report, every file by sha256) and `defaults` (`temperatures` per question type, `choice_bands`, `noul_commit` always stated true or false with its basis, `over_limit` and `think` when the model says them, and how the temperatures were fitted: the method only. `tuned-config` drops the fit tools' notes on data, counts and details, so neither the file nor anything generated from it says what a model was trained or calibrated on; the repository's card carries one generic data statement of its own).
+- **Precedence at start:** a flag, then the repository's `defaults`, then the base's profile. `--temperature-choice X` is one number for every choice question, so it drops the repository's bands. `--noul-commit` and `--no-noul-commit` override the commit setting either way. The start prints `REPOSITORY DEFAULTS ...` with what was applied, and `/health` reports it under `systemone.repository_defaults` with the digest of `tuned` and `defaults`.
+- **Fingerprint and tasks:** the digest and the bands are in the serving-stack fingerprint, so a certificate made on the tuned model is suspended by any change of either. Tasks are named for the repository and its defaults, so a task fitted on the base is not applied to the tuned model, nor the other way round.
+- **An older decisio refuses the repository** by its schema (it reads `/1` only), instead of serving the model at the base's temperatures without saying.
+- The commit setting is a stated choice of the model, shown in the repository's card and in `/health`: with it on, a yes/no probability between 0.20 and 0.80 is reported as 0.80 or 0.20 (the answer never changes; [cli.md](cli.md)).
+
+## Thinking when unsure
+
+Off by default: a request is one read, as fast and as repeatable as before.
+`--think`, a request's `"think": true`, or a tuned repository's `defaults.think` turns on the procedure of Chon (github.com/xoai/chon, Apache-2.0), with the served model writing its own reasoning:
+
+1. The question is read as always and given its type's temperature. It is **unsure** when the served top probability (yes/no: the larger of P(yes) and P(no)) is below the type's threshold times `--think-factor`: 0.75 for a choice, 0.92 for a yes/no, 0.70 for a score; and it has at most 16 options.
+2. An unsure question is sent again with `Let me check the deciding facts first.` written inside the reply. **The same model that is served writes** up to `--think-budget` (512) tokens, greedily: the adapter the request names, or the weights as loaded (the merged weights of a tuned repository). Then `Final answer:` follows and the options are read from the next token. All the unsure questions of a request go in one call.
+3. The two reads are mixed in log space (the mean of the two log-probabilities, normalised) and the mix goes through the temperature a single read would get (the type's, the band's for a choice), and then the commit rule where there is one. No temperature of its own, no new parameter.
+
+No history decides anything: whether a question thinks depends on that question and the settings alone, so the same request thinks the same way whatever came before it. A lower factor thinks on fewer questions; the factor of a tuned model is chosen so that the share of an ordinary mix that thinks stays small (a thinking question costs seconds where a single read costs milliseconds, and the median request should stay a single read).
+What stays at one read: a question a registered task answers (its calibration and certificate are fitted on one read; [tasks.md](tasks.md)), a question with more than 16 options, and every question of a request of two orders, an abstention option or the image route. The response says which questions thought and what it cost (`thinking`, `usage.thinking_tokens`, `usage.output_tokens` counting the reasoning tokens, `x-decisio-think-ms`; [api.md](api.md)) and `/health` counts them under `systemone.think`.
+Thinking needs the vLLM engine; the MLX build cannot write reasoning, and `--think` there is refused at start. The server's lock is held for the whole call, so another request waits behind a thinking one: use it where requests arrive one at a time, or size for that. The reasoning is greedy text from a forward pass that does not repeat bit for bit between fresh starts, so a thinking answer can move more between two starts than a single read does. A tuned repository turns it on with `"think": {"factor": 0.79, "budget": 512}` in its `defaults` (`python -m decisio.hub tuned-config --think-factor 0.79`); an older decisio refuses such a repository.
+
+## States over the limit
+
+A request is a state and its questions; each question is one row, the state followed by the question. The engine refuses a row longer than its prompt ceiling, which on the vLLM engine is the context length served (`/health` shows it as `max_model_len`; [The context length](#the-context-length)) less the one generated token. By default the server passes that refusal on as a 422 that says the rendered prompt is over the context.
+
+`--over-limit truncate` answers instead. The server cuts the state once for the whole request, to what the longest question leaves, and answers every question from the same cut state (the questions share one state prefix, so the cache still works). The rules:
+
+- **The state is cut, never a question.** The instruction, the options and the closing line are what the caller asks; the state is the evidence.
+- **The start is kept.** A cut state is a prefix of the full one, so the same state at two ceilings nests, and the rule is one sentence: everything after a token is dropped. The cut backs up to whitespace within 64 tokens so it does not end mid-word; no marker is put in the state. A margin of 32 tokens (and the block padding) stays free for the second order's rows.
+- **The response says what was cut.** `state_truncated` in the body and the header `x-decisio-state-truncated` carry the state's tokens kept and in all, the part and the ceiling ([api.md](api.md)). `/health` counts truncated requests under `systemone.over_limit` with the largest state seen.
+- **Nothing cut is certified.** Every answer of a certified task in a truncated request is `certified: false` with the reason `state_truncated`, and the traffic monitor does not count it. A calibration or head the task has is still applied, as the best available correction, but the answer says it is not covered. Registration and certification refuse an over-limit example.
+- **A question over the ceiling alone is still a 422**, and so is an image request: neither is cut.
+
+Refuse stays the default. A refusal says what is wrong and costs the caller one retry; an answer from part of a document is made with a confidence that nothing was fitted on. Turn it on for one request with `"over_limit": "truncate"`, for a server with `--over-limit truncate`, or for a tuned model with `over_limit` in the repository's `defaults` (`python -m decisio.hub tuned-config --over-limit truncate`), shown at start and in `/health`. A flag beats the repository's default, and a request's field beats both. The setting is not part of the serving-stack fingerprint: a truncated answer is never certified, so the setting cannot change a certified one.
+
+On the MLX build the limit is a memory budget, not a context length: give the ceiling to cut to with `--over-limit-tokens N`.
 
 ## Docker
 

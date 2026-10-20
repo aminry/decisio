@@ -49,4 +49,6 @@ Run one server per trust boundary.
 
 vLLM advisories before 0.31.0 (GHSA-h3rc-6mm3-gc2m, GHSA-p92p-rxj5-7p2x, GHSA-4xqp-c3mv-qff7, GHSA-6cxc-2vcg-w5qc) are not reachable through decisio's routes: decisio uses vLLM as a library, mounts none of its HTTP routes and passes no request field to it as a parameter.
 0.12.0 moves to vLLM 0.31.0, which fixes all four.
+One call generates more than a token and sets no allowed-token mask: think when unsure (`--think`) lets the served model write reasoning.
+Its length is a server setting (`--think-budget`, at most 4,096 tokens), not a request field; a request can only say `think: true` or `false`.
 `tests/unit/test_vllm_exposure.py` fails when the source stops matching this.

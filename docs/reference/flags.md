@@ -4,7 +4,7 @@
 
 # Server flags
 
-`python -m decisio.serve.vllm_engine`, decisio 0.19.0 <!-- x-release-please-version -->.
+`python -m decisio.serve.vllm_engine`, decisio 0.21.2 <!-- x-release-please-version -->.
 A dash in the default column means the flag has no default of its own: it takes the base's value, or is off.
 `docs/cli.md` says which value each base takes.
 
@@ -51,7 +51,12 @@ A dash in the default column means the flag has no default of its own: it takes 
 | `--temperature-choice` | - | `float` | /v1/systemone: the temperature for choice questions in place of --temperature (default: the base's; Qwen 1.37, fitted on the suite's choice items; Gemma the global one); 1 switches it off for that type |
 | `--temperature-noul` | - | `float` | /v1/systemone: the temperature for noul questions in place of --temperature (default: the global one); 1 switches it off for that type |
 | `--temperature-score` | - | `float` | /v1/systemone: the temperature for score questions in place of --temperature (default: the global one); 1 switches it off for that type |
-| `--noul-commit` | off | on or off | /v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does; off by default |
+| `--noul-commit` / `--no-noul-commit` | - | on or off | /v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does. Off by default; a tuned repository's defaults state their own setting, and --noul-commit / --no-noul-commit override it |
+| `--over-limit` | - | `refuse`, `truncate` | /v1/systemone: a state over the engine's prompt ceiling. refuse (the default): a 422 that says so. truncate: the state, never a question, is cut once per request to its start, the response says what was cut (header x-decisio-state-truncated, body state_truncated) and none of the request's answers is certified; a request's "over_limit" field decides for that request, and a tuned repository's defaults state their own setting |
+| `--think` / `--no-think` | - | on or off | /v1/systemone: think when unsure. A question whose served top probability is below its type's threshold (choice 0.75, yes/no 0.92, score 0.70, times --think-factor) and that has at most 16 options is read again after the served model (the adapter named in the request, or the merged weights) has written up to --think-budget tokens of reasoning; the two reads are mixed in log space and go through the same temperature. Off by default (single-pass speed and determinism); a request's "think" field decides for that request, a tuned repository's defaults can turn it on, and --no-think turns that off. Needs the vLLM engine; questions of a registered task stay at one read |
+| `--think-factor` | - | `float` | the factor on the think thresholds (default 1; a tuned repository's defaults state theirs): a lower factor thinks on fewer questions |
+| `--think-budget` | - | `int` | the most tokens of reasoning a thinking question may write (default 512) |
+| `--over-limit-tokens` | - | `int` | the prompt ceiling in tokens a truncating server cuts to, where it is not the served context less one (default: that; the MLX build, whose limit is a memory budget, needs it for --over-limit truncate) |
 | `--tasks` / `--no-tasks` | on | on or off | /v1/systemone: apply registered per-task calibration and intent heads (POST /v1/tasks; decisio.serve.tasks); --no-tasks ignores them (default on; no task, no change) |
 | `--tasks-file` | - | text | a JSON list of tasks to load at start (GET /v1/tasks?full=1) |
 | `--head-engine` | off | on or off | read the intent head's hidden state from a second engine (decisio.serve.hidden_engine.HiddenEngine), a second copy of --model in vLLM's pooling mode, instead of from the text engine: faster head questions (one request, not three) for deployments with heavy intent traffic on a dedicated card, at a second weight copy; not co-resident with --image-model (docs/tasks.md) |

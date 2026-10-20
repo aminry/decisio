@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "decisio",
-    "version": "0.19.0",
+    "version": "0.21.2",
     "description": "The HTTP API of a decisio server: TypeSafe's System One wire on `POST /v1/systemone`, with routes for tasks, abstention, health and metrics. Generated from the server's code; `docs/api.md` is the prose.",
     "license": {
       "name": "Apache-2.0",
@@ -127,6 +127,24 @@
               },
               "x-decisio-adapter": {
                 "description": "The adapter that answered, when one did.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-think-ms": {
+                "description": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-think-tokens": {
+                "description": "The reasoning tokens generated, when thinking was on for the request.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-state-truncated": {
+                "description": "`kept=N; of=M; part=start`, when the state was cut (`over_limit`).",
                 "schema": {
                   "type": "string"
                 }
@@ -1227,9 +1245,22 @@
             "type": "integer"
           },
           "output_tokens": {
-            "description": "One per question.",
+            "description": "One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`).",
             "title": "Output Tokens",
             "type": "integer"
+          },
+          "thinking_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The reasoning tokens generated for the request; present when thinking was on for it.",
+            "title": "Thinking Tokens"
           }
         },
         "required": [
@@ -1287,6 +1318,34 @@
             "default": null,
             "description": "The adapter that answered, when the request named one.",
             "title": "Adapter"
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When thinking was on for the request (`think`): `questions` that thought, `of`, `tokens`, `ms`, the `factor` and `budget`, and per question `thought` with its `tokens`, or why it did not.",
+            "title": "Thinking"
+          },
+          "state_truncated": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When the state was cut (`over_limit: truncate`): `kept_tokens`, `of_tokens`, `part` (`start`) and `limit`. No answer of a truncated state is certified.",
+            "title": "State Truncated"
           }
         },
         "required": [

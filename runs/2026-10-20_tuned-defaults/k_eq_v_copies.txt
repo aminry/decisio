@@ -1,0 +1,11 @@
+adapter 85e6217582e0: 410 pairs land on a base tensor (text layout, scale 2.0); 10 have none
+  model.layers.5.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.11.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.17.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.23.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.29.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.35.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.41.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.47.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.53.self_attn.v_proj: bit for bit the layer k_proj pair
+  model.layers.59.self_attn.v_proj: bit for bit the layer k_proj pair

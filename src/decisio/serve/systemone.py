@@ -37,6 +37,8 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.serve import over_limit as over
+from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
 from decisio.serve.temperature import apply_temperature
@@ -556,6 +558,11 @@ class SystemOne:
         temperature: float = 1.0,
         temperatures: dict | None = None,
         adapter_temperatures: dict | None = None,
+        choice_bands: dict | None = None,
+        over_limit: str = "refuse",
+        think: bool = False,
+        think_factor: float = thinking.DEFAULT_FACTOR,
+        think_budget: int = thinking.DEFAULT_BUDGET,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -565,6 +572,16 @@ class SystemOne:
             raise ValueError(f"noul_rendering must be one of {NOUL_RENDERINGS}")
         self.noul_rendering = noul_rendering  # how a yes/no question is asked (noul_as_letters); words by default
         self.noul_commit = bool(noul_commit)  # an output transform on yes/no answers (commit_noul); off by default
+        # a state over the engine's prompt ceiling: refused (the engine's 422) or cut to its start (decisio.serve.
+        # over_limit); a request's "over_limit" field decides for that request. Counted in /health.
+        self.over_limit = over.check_mode(over_limit, "over_limit")
+        self.truncated = {"requests": 0, "largest_state_tokens": 0}
+        # think when unsure (decisio.serve.think): the server's default (a request's "think" field decides for that
+        # request), the factor on the type thresholds and the token budget; counted in /health
+        self.think = bool(think)
+        self.think_factor = thinking.check_factor(think_factor, "think_factor")
+        self.think_budget = thinking.check_budget(think_budget, "think_budget")
+        self.thought = {"requests": 0, "questions": 0, "tokens": 0, "ms": 0.0}
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -584,6 +601,11 @@ class SystemOne:
         self.temperature = float(temperature)
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
+        # the choice temperature by the question's number of options, {"lo-hi": temperature}, replacing the choice
+        # temperature above for a question whose option count falls in a band (a tuned repository's defaults,
+        # decisio.hub); the adapter's own bands (below) come first
+        self.choice_bands = {b: float(t) for b, t in (choice_bands or {}).items()}
+        self._base_bands = band_table(self.choice_bands) if self.choice_bands else []
         # per adapter, {question type: temperature} replacing the base's for a request that names the adapter
         # (decisio.serve.adapter_temperatures); a type the adapter has none for keeps the base's. A "choice_bands"
         # entry, {"lo-hi": temperature}, is the adapter's choice temperature by the question's number of options
@@ -619,14 +641,124 @@ class SystemOne:
         n = len(tok.encode(fmt_state(state), add_special_tokens=False))
         return n + sum(len(tok.encode(question_text(tok, q, fmt)[0], add_special_tokens=False)) for q in qs)
 
+    def think_pass(
+        self,
+        state,
+        names,
+        wire,
+        mapped,
+        swapped,
+        qs,
+        at,
+        probs,
+        plans,
+        rts,
+        orders,
+        abstain,
+        use_image,
+        adapter,
+        engine,
+    ):
+        """({question index: log-probabilities of the second read in the question's own option order}, the report, ms):
+        every question that is unsure at its served confidence (decisio.serve.think) is read again after the served
+        model has written its reasoning, in one call of the engine. A question a registered task answers, an abstention
+        or an image request, a request of two orders and a question of more than 16 options stay at one read."""
+        if not (use_image or orders != 1 or abstain) and not getattr(engine, "can_think", lambda: False)():
+            raise thinking.ThinkUnavailable(
+                "this server's engine cannot write reasoning (think needs the vLLM engine); send the request without "
+                '"think": true'
+            )
+        why, cand = {}, []
+        for i, name in enumerate(names):
+            if use_image or orders != 1 or abstain or plans[i]:
+                why[name] = thinking.NOT_COMBINED
+            elif rts[i] is not None or i not in at:
+                why[name] = thinking.REGISTERED_TASK
+            elif len(mapped[i][1]) > thinking.MAX_OPTIONS:
+                why[name] = thinking.TOO_MANY_OPTIONS
+            else:
+                p = np.asarray(probs[at[i]], dtype=np.float64)
+                p = p[::-1].copy() if swapped[i] else p
+                t_q = self.temperature_of(wire[i].type, adapter, len(p))
+                served = apply_temperature(p, t_q) if t_q != 1.0 else p
+                if thinking.is_unsure(served, wire[i].type, self.think_factor):
+                    cand.append(i)
+                else:
+                    why[name] = thinking.SURE
+        second, per_question, tokens, ms = {}, {}, 0, 0.0
+        if cand:
+            t = time.perf_counter()
+            asked = [qs[i] for i in sorted(at, key=at.get)]  # the questions as the first read had them
+            lps, counts, parts = engine.think(state, asked, adapter, self.think_budget, [at[i] for i in cand])
+            wall = (time.perf_counter() - t) * 1000
+            ms = float(parts.get("generate_ms", 0.0) + parts.get("read_ms", 0.0)) or wall  # the engine's own timing
+            tokens = sum(counts)
+            for i, lp, n in zip(cand, lps, counts):
+                second[i] = np.asarray(lp)[::-1].copy() if swapped[i] else np.asarray(lp)
+                per_question[names[i]] = {"thought": True, "tokens": n}
+        for name, reason in why.items():
+            per_question[name] = {"thought": False, "why": reason}
+        self.thought["requests"] += 1
+        self.thought["questions"] += len(cand)
+        self.thought["tokens"] += tokens
+        self.thought["ms"] += ms
+        report = {
+            "questions": len(cand),
+            "of": len(names),
+            "tokens": tokens,
+            "ms": round(ms, 1),
+            "factor": self.think_factor,
+            "budget": self.think_budget,
+            "per_question": {n: per_question[n] for n in names},
+        }
+        return second, report, ms
+
+    def truncated_request(self, req: SystemOneRequest, qs: list[dict], engine) -> tuple[SystemOneRequest, dict | None]:
+        """(the request, the report): the request with its state cut to its start where a row would be over the
+        engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
+        decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves."""
+        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state
+        from decisio.serve.vllm_engine import question_text, user_turn
+
+        limit = getattr(engine, "prompt_limit", lambda: None)()
+        if limit is None:
+            raise over.OverLimit(
+                "this engine has no prompt ceiling to cut to; start the server with --over-limit-tokens N, or send "
+                'the request without "over_limit": "truncate"'
+            )
+        tok, fmt = engine.tok, getattr(engine, "fmt", DEFAULT_FORMAT)
+        enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
+        overhead = max(len(enc(user_turn(tok, f"\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
+        text, report = over.fit_state(
+            tok, fmt_state(req.state), overhead, limit, reserve=int(getattr(engine, "pad_unit", 0) or 0)
+        )
+        if report is None:
+            return req, None
+        self.truncated["requests"] += 1
+        self.truncated["largest_state_tokens"] = max(self.truncated["largest_state_tokens"], report["of_tokens"])
+        return req.model_copy(update={"state": text}), report
+
     def answer(
-        self, req: SystemOneRequest, adapter=None, images=None, imajev_ext=False, route=None, debug=None
+        self,
+        req: SystemOneRequest,
+        adapter=None,
+        images=None,
+        imajev_ext=False,
+        route=None,
+        debug=None,
+        over_limit=None,
+        think=None,
     ) -> dict:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
         the letters readout has no unknown outcome); `route="image"` sends a text request to the image engine (the
         paired check). `adapter`: the name of a loaded LoRA adapter (a request's `"adapter"` field), served on the
-        text route; the registered tasks were fitted on the base's readout, so a question one matches is refused."""
+        text route; the registered tasks were fitted on the base's readout, so a question one matches is refused.
+        `over_limit`: this request's choice for a state over the engine's prompt ceiling ("refuse" or "truncate"; the
+        server's own when absent). A truncated state is cut to its start, reported as `state_truncated`, and none of
+        the request's answers is certified. `think`: this request's choice for think when unsure (True or False; the
+        server's own when None): an unsure question is read again after the served model has written its reasoning,
+        and the response's `thinking` says which questions did and what it cost."""
         images = list(images or [])
         use_image = bool(images) or route == "image"
         if use_image and self.image_engine is None:
@@ -665,6 +797,9 @@ class SystemOne:
                 raise ValueError("the abstain option is served with one order only")
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
+        cut = None
+        if (over_limit or self.over_limit) == "truncate" and not use_image:
+            req, cut = self.truncated_request(req, qs, engine)
         if adapter is not None:
             # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
             # would be applied to another one: refuse rather than answer with a correction that does not fit
@@ -720,6 +855,13 @@ class SystemOne:
             else:
                 probs, info = engine.answer(req.state, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
+        effective_think = self.think if think is None else bool(think)
+        second, think_report, think_ms = {}, None, 0.0
+        if effective_think:
+            second, think_report, think_ms = self.think_pass(
+                req.state, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
+                adapter, engine,
+            )  # fmt: skip
         hidden = dict(zip(head, self.hidden_engine.readout(req.state, [qs[i] for i in head]))) if head else {}
         dbg = {}
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
@@ -745,6 +887,10 @@ class SystemOne:
                 p = np.asarray(probs[at[i]], dtype=np.float64)
                 if swapped[i]:  # read false first; from here on (yes, no), as every yes/no readout
                     p, keys = p[::-1].copy(), ["yes", "no"]
+                if i in second:  # an unsure question: the plain read and the read after reasoning, mixed in log space
+                    if debug:
+                        dbg.setdefault(name, {}).update(think_p1=p.tolist(), think_lp2=second[i].tolist())
+                    p = thinking.mix(p, second[i])
                 p2, corrected = None, False
                 if orders == 2:
                     j, perm = plan[i]
@@ -803,7 +949,12 @@ class SystemOne:
             if self.noul_commit and q.type == "noul" and i not in served:  # served rows are committed already
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
-            if t is not None and t.get("certificate") and q.type != "score":
+            if cut is not None and t is not None and t.get("certificate") and q.type != "score":
+                # the promise is for whole inputs like the examples; the monitor does not see a cut state's answer
+                answers[name].update(
+                    {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "state_truncated"}
+                )
+            elif t is not None and t.get("certificate") and q.type != "score":
                 answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p)))
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
@@ -831,6 +982,9 @@ class SystemOne:
             "input_tokens": self.usage_tokens(req.state, qs) + sum(info.get("image_tokens") or []),
             "output_tokens": len(names),
         }
+        if think_report is not None:  # the generated tokens are output tokens, and said so
+            usage["output_tokens"] += think_report["tokens"]
+            usage["thinking_tokens"] = think_report["tokens"]
         out = {
             "model": req.model or self.name,
             "answers": answers,
@@ -854,6 +1008,13 @@ class SystemOne:
         }
         if adapter is not None:
             out["adapter"] = adapter  # which adapter answered; absent when the base did
+        if cut is not None:
+            out["state_truncated"] = cut  # absent when the whole state was read
+        if think_report is not None:
+            out["thinking"] = think_report  # present when thinking was on for the request
+            out["_timing"]["think_ms"] = think_ms
+            out["_timing"]["think_tokens"] = think_report["tokens"]
+            out["_timing"]["stages"]["think"] = think_ms
         if debug and self.debug_readout:
             out[DEBUG_KEY] = dbg
         return out
@@ -862,8 +1023,9 @@ class SystemOne:
 
     def temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
         """The temperature a question of this type is served at: the named adapter's own for the type (for a choice
-        question of `options` options, its temperature for the band that count falls in, if it has bands), else the
-        type's (--temperature-<type>), else the global one."""
+        question of `options` options, its temperature for the band that count falls in, if it has bands), else, for a
+        choice question, the band of the server's own bands (a tuned repository's), else the type's
+        (--temperature-<type>), else the global one."""
         if adapter is not None:
             if qtype == "choice" and options is not None:
                 for lo, hi, t in self._adapter_bands.get(adapter, ()):
@@ -872,6 +1034,10 @@ class SystemOne:
             own = self.adapter_temperatures.get(adapter, {}).get(qtype)
             if own is not None:
                 return own
+        if qtype == "choice" and options is not None:
+            for lo, hi, t in self._base_bands:
+                if lo <= options <= hi:
+                    return t
         return self.temperatures.get(qtype, self.temperature)
 
     def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
@@ -976,7 +1142,7 @@ class SystemOne:
         the plain readout p (for abstention examples, so a threshold is fitted on what it will decide)."""
         t = self.readout_task(q)
         if t is None:
-            return apply_temperature(p, self.temperature_of(q.type))
+            return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
@@ -987,7 +1153,7 @@ class SystemOne:
             from decisio.readout.debias import log_probs
 
             return apply_task_prior(log_probs(p), t["calibration"])
-        return apply_temperature(p, self.temperature_of(q.type))
+        return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
 
     # ---- certified answers and their monitor (decisio.readout.certify, decisio.serve.monitor, decisio.serve.stack) --
 
@@ -1110,7 +1276,7 @@ class SystemOne:
             if t["calibration"].get("applied"):
                 p = apply_task_prior(log_probs(p), t["calibration"])
             else:
-                p = apply_temperature(p, self.temperature_of(q.type))
+                p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
             if self.noul_commit and q.type == "noul":
                 p = commit_noul(p)
             out.append(np.asarray(p, dtype=np.float64))
@@ -1139,6 +1305,10 @@ class SystemOne:
                 "abstention": self.abstention,
                 "abstain_option": self.abstain_option,
                 "head_engine": self.hidden_engine is not None,
+                # the server's think default and procedure, only when on, so that every other server's fingerprint is
+                # what it was; a certificate made with thinking off is suspended by a server that thinks, and the
+                # other way round (`think_mode_changed`)
+                **({"think": self.think_facts()} if self.think else {}),
             }
             self._stack = stack.stack_facts(
                 self.engine,
@@ -1147,11 +1317,24 @@ class SystemOne:
                 temperatures={
                     "global": self.temperature,
                     **self.temperatures,
+                    **({"choice_bands": self.choice_bands} if self.choice_bands else {}),
                     **({"adapters": self.adapter_temperatures} if self.adapter_temperatures else {}),
                 },
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
             )
         return self._stack
+
+    def think_facts(self) -> dict:
+        """What identifies how this server thinks: the factor, the budget and the procedure (prefix, suffix, thresholds,
+        option limit), the last as a digest."""
+        proc = json.dumps(
+            [thinking.PREFIX, thinking.SUFFIX, thinking.TAU, thinking.MAX_OPTIONS], sort_keys=True, ensure_ascii=False
+        )
+        return {
+            "factor": self.think_factor,
+            "budget": self.think_budget,
+            "procedure_sha256": hashlib.sha256(proc.encode()).hexdigest()[:16],
+        }
 
     def stack_with_fit(self, t) -> dict:
         s = self.stack_facts()
@@ -1348,7 +1531,14 @@ class SystemOne:
         """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not."""
         cert = t["certificate"]
         if self.stack_sha(t) != cert["stack_sha256"]:
-            reason = "serving_stack_changed"
+            from decisio.serve import stack
+
+            # a stack that differs only in how the server thinks is its own reason: a task certified one-pass is not
+            # served as certified by a server that thinks, and the other way round
+            only_think = set(stack.differences(cert["stack"], self.stack_with_fit(t))) <= {"serving.think"} | {
+                f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")
+            }
+            reason = "think_mode_changed" if only_think else "serving_stack_changed"
         elif orders != cert["stack"]["serving"]["orders"]:
             reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
         elif cert["threshold"] is None:
@@ -1729,10 +1919,18 @@ def add_routes(app, systemone: SystemOne):
         adapter = (req.model_extra or {}).get("adapter")
         if adapter is not None and not isinstance(adapter, str):
             raise HTTPException(422, '"adapter" must be the name of a loaded adapter, or null')
+        over_limit = (req.model_extra or {}).get("over_limit")
+        if over_limit is not None and over_limit not in over.MODES:
+            raise HTTPException(422, f'"over_limit" must be one of {list(over.MODES)}, or null')
+        think = (req.model_extra or {}).get("think")
+        if think is not None and not isinstance(think, bool):
+            raise HTTPException(422, '"think" must be true, false or null')
         try:
-            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug)
+            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug, over_limit, think)
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
+        except (over.OverLimit, thinking.ThinkUnavailable) as e:
+            raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         except Exception as e:
@@ -1748,6 +1946,12 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
+        if timing.get("think_tokens") is not None and "thinking" in out:
+            headers[header("think-ms")] = f"{timing['think_ms']:.1f}"
+            headers[header("think-tokens")] = str(timing["think_tokens"])
+        if out.get("state_truncated"):
+            cut = out["state_truncated"]
+            headers[header("state-truncated")] = f"kept={cut['kept_tokens']}; of={cut['of_tokens']}; part={cut['part']}"
         # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
         if timing.get("stages"):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
@@ -1836,9 +2040,16 @@ def add_routes(app, systemone: SystemOne):
         "and the field would be ignored"
     )
 
+    NO_OVER_LIMIT = (
+        '"over_limit" is not accepted when registering or certifying a task: registration never truncates a state, '
+        "a certificate is made on whole inputs only"
+    )
+
     def refuse_adapter(body, where="body"):
         if isinstance(body, dict) and body.get("adapter") is not None:
             raise HTTPException(422, f"{where}: {NO_ADAPTER}")
+        if isinstance(body, dict) and body.get("over_limit") is not None:
+            raise HTTPException(422, f"{where}: {NO_OVER_LIMIT}")
 
     def parse_examples(items, where="example"):
         examples = []

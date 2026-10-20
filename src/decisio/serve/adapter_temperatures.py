@@ -148,31 +148,40 @@ def read(path) -> dict:
         raise AdapterFileError(
             f"{p}: not a {SCHEMA} file (schema {doc.get('schema') if isinstance(doc, dict) else None!r})"
         )
-    temps, raw_bands = doc.get("temperatures"), doc.get("choice_bands")
+    out, bands = validate_temperatures(doc.get("temperatures"), doc.get("choice_bands"), str(p))
+    return {"temperatures": out, "choice_bands": bands, "fit": doc.get("fit"), "file": str(p)}
+
+
+def validate_temperatures(temps, raw_bands, where: str) -> tuple[dict, dict]:
+    """({type: T}, {"lo-hi": T}) from the `temperatures` and `choice_bands` values of an adapter file or of a tuned
+    repository's defaults (decisio.hub), checked: known types, positive finite numbers, bands within 2 to 255 that do
+    not overlap, and at least one of the two. Raises AdapterFileError naming `where`."""
     if raw_bands is not None and (not isinstance(raw_bands, dict) or not raw_bands):
-        raise AdapterFileError(f"{p}: `choice_bands` must be a non-empty object of lo-hi: temperature")
+        raise AdapterFileError(f"{where}: `choice_bands` must be a non-empty object of lo-hi: temperature")
     if not isinstance(temps, dict) or (not temps and not raw_bands):
-        raise AdapterFileError(f"{p}: `temperatures` must be a non-empty object of {', '.join(TYPES)}")
+        raise AdapterFileError(f"{where}: `temperatures` must be a non-empty object of {', '.join(TYPES)}")
 
     def temperature(what, v):
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
-            raise AdapterFileError(f"{p}: the {what} temperature must be a positive number, got {v!r}")
+            raise AdapterFileError(f"{where}: the {what} temperature must be a positive number, got {v!r}")
         return float(v)
 
     out = {}
     for k, v in temps.items():
         if k not in TYPES:
-            raise AdapterFileError(f"{p}: unknown question type {k!r} in `temperatures` (expected {', '.join(TYPES)})")
+            raise AdapterFileError(
+                f"{where}: unknown question type {k!r} in `temperatures` (expected {', '.join(TYPES)})"
+            )
         out[k] = temperature(k, v)
     bands = {}
     if raw_bands:
         try:
             parsed = parse_bands(list(raw_bands))
         except ValueError as e:
-            raise AdapterFileError(f"{p}: `choice_bands`: {e}") from e
+            raise AdapterFileError(f"{where}: `choice_bands`: {e}") from e
         for (lo, hi), key in zip(parsed, sorted(raw_bands, key=lambda b: int(b.partition("-")[0]))):
             bands[band_name(lo, hi)] = temperature(f"choice band {key}", raw_bands[key])
-    return {"temperatures": out, "choice_bands": bands, "fit": doc.get("fit"), "file": str(p)}
+    return out, bands
 
 
 def load(adapters: dict, overrides: dict | None = None) -> dict:
