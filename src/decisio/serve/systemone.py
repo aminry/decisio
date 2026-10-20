@@ -556,6 +556,7 @@ class SystemOne:
         temperature: float = 1.0,
         temperatures: dict | None = None,
         adapter_temperatures: dict | None = None,
+        choice_bands: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -584,6 +585,11 @@ class SystemOne:
         self.temperature = float(temperature)
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
+        # the choice temperature by the question's number of options, {"lo-hi": temperature}, replacing the choice
+        # temperature above for a question whose option count falls in a band (a tuned repository's defaults,
+        # decisio.hub); the adapter's own bands (below) come first
+        self.choice_bands = {b: float(t) for b, t in (choice_bands or {}).items()}
+        self._base_bands = band_table(self.choice_bands) if self.choice_bands else []
         # per adapter, {question type: temperature} replacing the base's for a request that names the adapter
         # (decisio.serve.adapter_temperatures); a type the adapter has none for keeps the base's. A "choice_bands"
         # entry, {"lo-hi": temperature}, is the adapter's choice temperature by the question's number of options
@@ -862,8 +868,9 @@ class SystemOne:
 
     def temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
         """The temperature a question of this type is served at: the named adapter's own for the type (for a choice
-        question of `options` options, its temperature for the band that count falls in, if it has bands), else the
-        type's (--temperature-<type>), else the global one."""
+        question of `options` options, its temperature for the band that count falls in, if it has bands), else, for a
+        choice question, the band of the server's own bands (a tuned repository's), else the type's
+        (--temperature-<type>), else the global one."""
         if adapter is not None:
             if qtype == "choice" and options is not None:
                 for lo, hi, t in self._adapter_bands.get(adapter, ()):
@@ -872,6 +879,10 @@ class SystemOne:
             own = self.adapter_temperatures.get(adapter, {}).get(qtype)
             if own is not None:
                 return own
+        if qtype == "choice" and options is not None:
+            for lo, hi, t in self._base_bands:
+                if lo <= options <= hi:
+                    return t
         return self.temperatures.get(qtype, self.temperature)
 
     def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
@@ -976,7 +987,7 @@ class SystemOne:
         the plain readout p (for abstention examples, so a threshold is fitted on what it will decide)."""
         t = self.readout_task(q)
         if t is None:
-            return apply_temperature(p, self.temperature_of(q.type))
+            return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
@@ -987,7 +998,7 @@ class SystemOne:
             from decisio.readout.debias import log_probs
 
             return apply_task_prior(log_probs(p), t["calibration"])
-        return apply_temperature(p, self.temperature_of(q.type))
+        return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
 
     # ---- certified answers and their monitor (decisio.readout.certify, decisio.serve.monitor, decisio.serve.stack) --
 
@@ -1110,7 +1121,7 @@ class SystemOne:
             if t["calibration"].get("applied"):
                 p = apply_task_prior(log_probs(p), t["calibration"])
             else:
-                p = apply_temperature(p, self.temperature_of(q.type))
+                p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
             if self.noul_commit and q.type == "noul":
                 p = commit_noul(p)
             out.append(np.asarray(p, dtype=np.float64))
@@ -1147,6 +1158,7 @@ class SystemOne:
                 temperatures={
                     "global": self.temperature,
                     **self.temperatures,
+                    **({"choice_bands": self.choice_bands} if self.choice_bands else {}),
                     **({"adapters": self.adapter_temperatures} if self.adapter_temperatures else {}),
                 },
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
