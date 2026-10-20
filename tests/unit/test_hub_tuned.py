@@ -12,7 +12,6 @@ A3  every malformation is named by its path: temperatures and bands as an adapte
 A4  the defaults digest covers `tuned` and `defaults` and nothing else; a repository read from a directory carries the
     defaults and the digest in its facts; /1 repositories are unchanged
 A5  the profile of a /2 file is still compared with the installed one (a repository cannot change how the base is read)
-A7  (3a only; removed with 3b) resolve_base refuses a tuned repository rather than serve it at the base's settings
 A6  the commands: `tuned-config` writes a file `check` accepts, refuses a missing commit decision, a merge report of
     another adapter and a null merge; `check --weights-dir` finds a changed file
 
@@ -159,17 +158,6 @@ def test_a5_the_profile_is_still_compared(tmp_path):
     repo = hub.open_repository(str(write_repo(tmp_path, c)))
     with pytest.raises(ValueError, match="temperatures.global"):
         hub.verify(repo, FAM)
-
-
-def test_a7_until_the_defaults_are_served_a_tuned_repository_is_refused_not_served_at_the_bases_settings(tmp_path):
-    from types import SimpleNamespace
-
-    from decisio.serve.vllm_engine import resolve_base
-
-    d = write_repo(tmp_path, build())
-    args = SimpleNamespace(base=str(d), model=None, revision=None, backend="vllm")
-    with pytest.raises(ValueError, match="does not yet apply its defaults"):
-        resolve_base(args)
 
 
 def test_a6_the_commands(tmp_path, capsys):

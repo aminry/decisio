@@ -63,7 +63,7 @@ Where the columns differ, the value is the base's.
 | `--temperature-choice` | 1.370 | the global one | 4.672 | the temperature for choice questions |
 | `--temperature-noul` | the global one | the global one | the global one | the temperature for yes/no questions |
 | `--temperature-score` | the global one | the global one | the global one | the temperature for score questions |
-| `--noul-commit` | off | off | off | report an uncommitted yes/no probability at the band's edge (below) |
+| `--noul-commit`, `--no-noul-commit` | off | off | off | report an uncommitted yes/no probability at the band's edge (below); a tuned repository's `defaults` state their own setting, and either flag overrides it |
 | `--orders` | 1 | 1 | 1 | 2: two-order averaging, each question also read in a second option order |
 | `--branch-log` | none | none | none | a JSONL file for the two orders' disagreement per question |
 

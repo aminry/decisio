@@ -874,6 +874,8 @@ def make_app(engine, systemone=None, health=None):
                     "debug_readout": systemone.debug_readout,
                     "temperature": systemone.temperature,
                     "temperatures": systemone.temperatures,
+                    "choice_bands": systemone.choice_bands,
+                    "repository_defaults": getattr(engine, "repository_defaults", None),
                     "adapter_temperatures": systemone.adapter_temperatures,
                     "readout_tasks": {
                         t["id"]: {
@@ -1185,6 +1187,7 @@ def served_profile(engine, systemone) -> dict:
         "quantization_on_load": getattr(fam, "quantization", None),
         "engine_process": getattr(engine, "engine_process", None),
         "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
+        **({"choice_bands": systemone.choice_bands} if systemone.choice_bands else {}),
         "prompt": {
             **fmt.facts(),
             "system_prompt": bool(getattr(fmt, "system_prompt", False)),
@@ -1217,11 +1220,6 @@ def resolve_base(args):
         if args.model is not None:
             raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
         repo = hub.open_repository(args.base, args.revision)
-        if repo.tuned:  # 3a reads the file; 3b serves its defaults. Until then, never serve it at the base's settings
-            raise ValueError(
-                f"{repo.name} is a tuned model's repository ({repo.config['schema']}); this build reads the file but "
-                "does not yet apply its defaults, so it refuses to serve it"
-            )
         if args.backend == "mlx" and repo.config.get("weights", {}).get("dtype") == "fp8_e4m3":
             raise ValueError(
                 f"--backend mlx cannot load {repo.name}: its weights are FP8, vLLM's format; "
@@ -1263,8 +1261,13 @@ def resolve_base(args):
     if repo is not None:
         hub.verify(repo, fam)
         fam = hub.serve_family(fam, repo)
-        # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
-        args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
+        if repo.tuned:
+            # a tuned model reads differently from the checkpoint it came from: its tasks are its own, named for the
+            # repository and its defaults, so a task fitted on the base is not applied to it and the other way round
+            args.model_identity = f"{os.path.basename(os.path.normpath(repo.name))}@{repo.defaults_sha256[:12]}"
+        else:
+            # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
+            args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
         args.repository = repo.facts()
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
@@ -1280,9 +1283,48 @@ def resolve_base(args):
         args.noul_rendering = fam.noul_rendering
     if args.temperature is None:
         args.temperature = fam.temperature
+    apply_repository_defaults(args, repo)
     if args.temperature_choice is None:
         args.temperature_choice = fam.choice_temperature
     return fam, fmt
+
+
+def apply_repository_defaults(args, repo) -> None:
+    """What a tuned repository (`/2`) gives a plain request: its temperatures, choice bands and commit setting, where
+    the command line gave none. Precedence: a flag, then the repository's `defaults`, then the base's profile. Sets
+    `args.choice_bands` ({} when none), `args.noul_commit` (a bool) and `args.repository_defaults` (what was applied,
+    for the start-up line and /health). `--temperature-choice X` is one number for every choice question, so it drops
+    the repository's bands."""
+    args.choice_bands = {}
+    args.repository_defaults = None
+    defaults = repo.defaults if repo is not None else None
+    choice_given = getattr(args, "temperature_choice", None) is not None
+    applied: dict = {}
+    if defaults is not None:
+        applied = {"repository": repo.name, "revision": repo.revision, "defaults_sha256": repo.defaults_sha256}
+        for qtype, flag in (
+            ("choice", "temperature_choice"),
+            ("noul", "temperature_noul"),
+            ("score", "temperature_score"),
+        ):
+            given = getattr(args, flag, None)
+            if given is None and qtype in defaults["temperatures"]:
+                setattr(args, flag, float(defaults["temperatures"][qtype]))
+                applied.setdefault("temperatures", {})[qtype] = float(defaults["temperatures"][qtype])
+        bands = defaults.get("choice_bands") or {}
+        if bands and not choice_given:
+            args.choice_bands = {b: float(t) for b, t in bands.items()}
+            applied["choice_bands"] = dict(args.choice_bands)
+        elif bands:
+            applied["choice_bands_dropped_by"] = "--temperature-choice"
+        if getattr(args, "noul_commit", None) is None:
+            args.noul_commit = bool(defaults["noul_commit"])
+            applied["noul_commit"] = args.noul_commit
+        else:
+            applied["noul_commit_set_by"] = "--noul-commit" if args.noul_commit else "--no-noul-commit"
+        args.repository_defaults = applied
+    if getattr(args, "noul_commit", None) is None:
+        args.noul_commit = False
 
 
 def build_parser():
@@ -1568,10 +1610,11 @@ def build_parser():
         )
     ap.add_argument(
         "--noul-commit",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=None,
         help="/v1/systemone: an output transform on yes/no answers: P(yes) strictly between 0.20 and 0.80 is reported "
-        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does; off by "
-        "default",
+        "as 0.80 above 0.5 and 0.20 at or below it; the answer never changes, its calibration does. Off by default; "
+        "a tuned repository's defaults state their own setting, and --noul-commit / --no-noul-commit override it",
     )
     ap.add_argument(
         "--tasks",
@@ -1668,6 +1711,8 @@ def main():
         ap.error(str(e))
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
+    if args.repository_defaults:
+        print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
     args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
@@ -1818,6 +1863,7 @@ def main():
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     engine.repository = args.repository
+    engine.repository_defaults = args.repository_defaults
     print(
         "ENGINE",
         json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),
@@ -1957,6 +2003,7 @@ def main():
             "score": args.temperature_score,
         },
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
+        choice_bands=args.choice_bands,
     )
     # one engine state for every engine of this server: a dead engine refuses requests, turns /health to 503 and ends
     # the process with code 70, so that a restart policy starts a new server (decisio.serve.engine_health)

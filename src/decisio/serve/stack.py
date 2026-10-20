@@ -124,7 +124,17 @@ def stack_facts(
     return {
         "decisio": decisio_version,
         "base": facts.get("base"),
-        "repository": {"name": repo.get("name"), "revision": repo.get("revision")} if repo else None,
+        "repository": (
+            {
+                "name": repo.get("name"),
+                "revision": repo.get("revision"),
+                # a tuned repository (decisio.hub, schema /2): the digest of its tuned and defaults sections, so that
+                # a directory (no revision) and a changed default are told apart too
+                **({"defaults_sha256": repo["defaults_sha256"]} if repo.get("defaults_sha256") else {}),
+            }
+            if repo
+            else None
+        ),
         "engine": {k: _name(facts[k]) for k in ENGINE_KEYS if k in facts},
         "prompt": {
             "probe_sha256": probe_sha256 if probe_sha256 is not None else probe_digest(engine),
