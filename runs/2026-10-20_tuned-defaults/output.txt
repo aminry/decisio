@@ -1,0 +1,20 @@
+null merge equals convert byte for byte: True; loader changed 0 weights
+merge: 13 adapter pairs applied (text layout), 0 dropped, 8 groups, written against loaded: identical
+adapter kept: fp32 sum differs from the weight in 60 of 60 entries, a bf16 round trip in 0 (a change of 0.05 percent)
+wrote merged/decision_config.json: defaults sha256 083a8dc5f8718d0d164a919714d1e0e8a26792f83849843a8c5d89eb0b13d0b8
+tuned-config exit 0; schema decisio.decision_config/2; defaults sha256 083a8dc5f8718d0d...
+agrees with the installed profile
+check: exit 0
+resolve_base: choice 1.6, yes/no 4.2, score 6.2, bands {'2-10': 2.4, '11-26': 1.7, '27-255': 1.3}, noul_commit True, task identity merged@083a8dc5f871
+with --temperature-choice 3.0 --no-noul-commit: choice 3.0, bands {}, noul_commit False
+choice, 3 options: T = 2.4
+choice, 10 options: T = 2.4
+choice, 11 options: T = 1.7
+choice, 26 options: T = 1.7
+choice, 27 options: T = 1.3
+choice, 255 options: T = 1.3
+yes/no: T = 4.2; P(yes) 0.5503 -> committed 0.80
+score: T = 6.2
+largest difference of the served choice probabilities from softmax(log p / T): 4.4e-16
+files: MERGE_FP8.json, config.json, expected_loaded.json ... 7 listed by sha256
+sha256 of pipeline.py: a0017a5ded17bd8c
