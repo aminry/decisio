@@ -212,6 +212,9 @@ class LettersEngine:
     # the server's EngineHealth (decisio.serve.engine_health), shared with the other engines; None in library use
     health = None
     fmt = DEFAULT_FORMAT  # the prompt format (decisio.readout.letters.PromptFormat); the server sets it from its flags
+    over_limit_tokens = (
+        None  # --over-limit-tokens: the prompt ceiling a truncating server cuts to, where it is not the context
+    )
 
     def __init__(
         self,
@@ -386,6 +389,16 @@ class LettersEngine:
             self.llm.encode(prompt, pooling_task="token_classify", use_tqdm=False)
         else:
             self.llm.generate(prompt, SamplingParams(max_tokens=1, temperature=0.0, detokenize=False), use_tqdm=False)
+
+    def prompt_limit(self) -> int | None:
+        """The longest prompt in tokens the engine answers (decisio.serve.over_limit): `--over-limit-tokens` where
+        given, else the served context less the one generated token; None where the engine has no ceiling to read (an
+        engine without vLLM's configuration: the MLX build, whose limit is a memory budget)."""
+        if self.over_limit_tokens:
+            return int(self.over_limit_tokens)
+        llm = getattr(self, "llm", None)
+        config = getattr(getattr(llm, "llm_engine", None), "vllm_config", None)
+        return int(config.model_config.max_model_len) - 1 if config is not None else None
 
     def facts(self):
         import torch
@@ -864,6 +877,11 @@ def make_app(engine, systemone=None, health=None):
                     "describe_options": systemone.describe_options,
                     "noul_rendering": systemone.noul_rendering,
                     "noul_commit": systemone.noul_commit,
+                    "over_limit": {
+                        "mode": systemone.over_limit,
+                        "prompt_limit": getattr(engine, "prompt_limit", lambda: None)(),
+                        **systemone.truncated,
+                    },
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
                         t["id"]: (t.get("config") or {}).get("threshold") for t in systemone.tasks.values()
@@ -1322,9 +1340,17 @@ def apply_repository_defaults(args, repo) -> None:
             applied["noul_commit"] = args.noul_commit
         else:
             applied["noul_commit_set_by"] = "--noul-commit" if args.noul_commit else "--no-noul-commit"
+        if "over_limit" in defaults:
+            if getattr(args, "over_limit", None) is None:
+                args.over_limit = defaults["over_limit"]
+                applied["over_limit"] = args.over_limit
+            else:
+                applied["over_limit_set_by"] = f"--over-limit {args.over_limit}"
         args.repository_defaults = applied
     if getattr(args, "noul_commit", None) is None:
         args.noul_commit = False
+    if getattr(args, "over_limit", None) is None:
+        args.over_limit = "refuse"
 
 
 def build_parser():
@@ -1617,6 +1643,23 @@ def build_parser():
         "a tuned repository's defaults state their own setting, and --noul-commit / --no-noul-commit override it",
     )
     ap.add_argument(
+        "--over-limit",
+        choices=("refuse", "truncate"),
+        default=None,
+        help="/v1/systemone: a state over the engine's prompt ceiling. refuse (the default): a 422 that says so. "
+        "truncate: the state, never a question, is cut once per request to its start, the response says what was cut "
+        "(header x-decisio-state-truncated, body state_truncated) and none of the request's answers is certified; a "
+        "request's \"over_limit\" field decides for that request, and a tuned repository's defaults state their own "
+        "setting",
+    )
+    ap.add_argument(
+        "--over-limit-tokens",
+        type=int,
+        default=None,
+        help="the prompt ceiling in tokens a truncating server cuts to, where it is not the served context less one "
+        "(default: that; the MLX build, whose limit is a memory budget, needs it for --over-limit truncate)",
+    )
+    ap.add_argument(
         "--tasks",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -1864,6 +1907,11 @@ def main():
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults
+    engine.over_limit_tokens = args.over_limit_tokens
+    if args.over_limit == "truncate" and engine.prompt_limit() is None:
+        raise SystemExit(
+            "--over-limit truncate: this engine has no prompt ceiling to cut to; give --over-limit-tokens N"
+        )
     print(
         "ENGINE",
         json.dumps({**engine.facts(), "pad_policy": args.pad_policy, "multi_question": args.multi_question}),
@@ -1989,6 +2037,7 @@ def main():
         describe_options=args.describe_options,
         noul_rendering=args.noul_rendering,
         noul_commit=args.noul_commit,
+        over_limit=args.over_limit,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
