@@ -131,6 +131,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-state-truncated": {
+                "description": "`kept=N; of=M; part=start`, when the state was cut (`over_limit`).",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-stages": {
                 "description": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
                 "schema": {
@@ -1287,6 +1293,20 @@
             "default": null,
             "description": "The adapter that answered, when the request named one.",
             "title": "Adapter"
+          },
+          "state_truncated": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When the state was cut (`over_limit: truncate`): `kept_tokens`, `of_tokens`, `part` (`start`) and `limit`. No answer of a truncated state is certified.",
+            "title": "State Truncated"
           }
         },
         "required": [

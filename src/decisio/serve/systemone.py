@@ -37,6 +37,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.serve import over_limit as over
 from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
 from decisio.serve.temperature import apply_temperature
@@ -557,6 +558,7 @@ class SystemOne:
         temperatures: dict | None = None,
         adapter_temperatures: dict | None = None,
         choice_bands: dict | None = None,
+        over_limit: str = "refuse",
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -566,6 +568,10 @@ class SystemOne:
             raise ValueError(f"noul_rendering must be one of {NOUL_RENDERINGS}")
         self.noul_rendering = noul_rendering  # how a yes/no question is asked (noul_as_letters); words by default
         self.noul_commit = bool(noul_commit)  # an output transform on yes/no answers (commit_noul); off by default
+        # a state over the engine's prompt ceiling: refused (the engine's 422) or cut to its start (decisio.serve.
+        # over_limit); a request's "over_limit" field decides for that request. Counted in /health.
+        self.over_limit = over.check_mode(over_limit, "over_limit")
+        self.truncated = {"requests": 0, "largest_state_tokens": 0}
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -625,14 +631,49 @@ class SystemOne:
         n = len(tok.encode(fmt_state(state), add_special_tokens=False))
         return n + sum(len(tok.encode(question_text(tok, q, fmt)[0], add_special_tokens=False)) for q in qs)
 
+    def truncated_request(self, req: SystemOneRequest, qs: list[dict], engine) -> tuple[SystemOneRequest, dict | None]:
+        """(the request, the report): the request with its state cut to its start where a row would be over the
+        engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
+        decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves."""
+        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state
+        from decisio.serve.vllm_engine import question_text, user_turn
+
+        limit = getattr(engine, "prompt_limit", lambda: None)()
+        if limit is None:
+            raise over.OverLimit(
+                "this engine has no prompt ceiling to cut to; start the server with --over-limit-tokens N, or send "
+                'the request without "over_limit": "truncate"'
+            )
+        tok, fmt = engine.tok, getattr(engine, "fmt", DEFAULT_FORMAT)
+        enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
+        overhead = max(len(enc(user_turn(tok, f"\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
+        text, report = over.fit_state(
+            tok, fmt_state(req.state), overhead, limit, reserve=int(getattr(engine, "pad_unit", 0) or 0)
+        )
+        if report is None:
+            return req, None
+        self.truncated["requests"] += 1
+        self.truncated["largest_state_tokens"] = max(self.truncated["largest_state_tokens"], report["of_tokens"])
+        return req.model_copy(update={"state": text}), report
+
     def answer(
-        self, req: SystemOneRequest, adapter=None, images=None, imajev_ext=False, route=None, debug=None
+        self,
+        req: SystemOneRequest,
+        adapter=None,
+        images=None,
+        imajev_ext=False,
+        route=None,
+        debug=None,
+        over_limit=None,
     ) -> dict:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
         the letters readout has no unknown outcome); `route="image"` sends a text request to the image engine (the
         paired check). `adapter`: the name of a loaded LoRA adapter (a request's `"adapter"` field), served on the
-        text route; the registered tasks were fitted on the base's readout, so a question one matches is refused."""
+        text route; the registered tasks were fitted on the base's readout, so a question one matches is refused.
+        `over_limit`: this request's choice for a state over the engine's prompt ceiling ("refuse" or "truncate"; the
+        server's own when absent). A truncated state is cut to its start, reported as `state_truncated`, and none of
+        the request's answers is certified."""
         images = list(images or [])
         use_image = bool(images) or route == "image"
         if use_image and self.image_engine is None:
@@ -671,6 +712,9 @@ class SystemOne:
                 raise ValueError("the abstain option is served with one order only")
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
+        cut = None
+        if (over_limit or self.over_limit) == "truncate" and not use_image:
+            req, cut = self.truncated_request(req, qs, engine)
         if adapter is not None:
             # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
             # would be applied to another one: refuse rather than answer with a correction that does not fit
@@ -809,7 +853,12 @@ class SystemOne:
             if self.noul_commit and q.type == "noul" and i not in served:  # served rows are committed already
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
-            if t is not None and t.get("certificate") and q.type != "score":
+            if cut is not None and t is not None and t.get("certificate") and q.type != "score":
+                # the promise is for whole inputs like the examples; the monitor does not see a cut state's answer
+                answers[name].update(
+                    {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "state_truncated"}
+                )
+            elif t is not None and t.get("certificate") and q.type != "score":
                 answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p)))
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
@@ -860,6 +909,8 @@ class SystemOne:
         }
         if adapter is not None:
             out["adapter"] = adapter  # which adapter answered; absent when the base did
+        if cut is not None:
+            out["state_truncated"] = cut  # absent when the whole state was read
         if debug and self.debug_readout:
             out[DEBUG_KEY] = dbg
         return out
@@ -1741,10 +1792,15 @@ def add_routes(app, systemone: SystemOne):
         adapter = (req.model_extra or {}).get("adapter")
         if adapter is not None and not isinstance(adapter, str):
             raise HTTPException(422, '"adapter" must be the name of a loaded adapter, or null')
+        over_limit = (req.model_extra or {}).get("over_limit")
+        if over_limit is not None and over_limit not in over.MODES:
+            raise HTTPException(422, f'"over_limit" must be one of {list(over.MODES)}, or null')
         try:
-            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug)
+            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug, over_limit)
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
+        except over.OverLimit as e:
+            raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         except Exception as e:
@@ -1760,6 +1816,9 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
+        if out.get("state_truncated"):
+            cut = out["state_truncated"]
+            headers[header("state-truncated")] = f"kept={cut['kept_tokens']}; of={cut['of_tokens']}; part={cut['part']}"
         # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
         if timing.get("stages"):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
@@ -1848,9 +1907,16 @@ def add_routes(app, systemone: SystemOne):
         "and the field would be ignored"
     )
 
+    NO_OVER_LIMIT = (
+        '"over_limit" is not accepted when registering or certifying a task: registration never truncates a state, '
+        "a certificate is made on whole inputs only"
+    )
+
     def refuse_adapter(body, where="body"):
         if isinstance(body, dict) and body.get("adapter") is not None:
             raise HTTPException(422, f"{where}: {NO_ADAPTER}")
+        if isinstance(body, dict) and body.get("over_limit") is not None:
+            raise HTTPException(422, f"{where}: {NO_OVER_LIMIT}")
 
     def parse_examples(items, where="example"):
         examples = []

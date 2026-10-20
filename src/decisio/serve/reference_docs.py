@@ -90,6 +90,11 @@ class SystemOneResponse(BaseModel):
     answers: dict[str, Answer] = Field(description="By the request's question names.")
     usage: Usage
     adapter: str | None = Field(None, description="The adapter that answered, when the request named one.")
+    state_truncated: dict[str, Any] | None = Field(
+        None,
+        description="When the state was cut (`over_limit: truncate`): `kept_tokens`, `of_tokens`, `part` (`start`) and "
+        "`limit`. No answer of a truncated state is certified.",
+    )
 
 
 class ModelEntry(BaseModel):
@@ -214,6 +219,7 @@ RESPONSE_HEADERS = {
     "x-decisio-route": "The route that served it: `text` or `image`.",
     "x-decisio-tasks": "The registered tasks applied, when any were.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
+    "x-decisio-state-truncated": "`kept=N; of=M; part=start`, when the state was cut (`over_limit`).",
     "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
 }
