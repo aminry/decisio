@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve import over_limit as over
+from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
 from decisio.serve.temperature import apply_temperature
@@ -559,6 +560,9 @@ class SystemOne:
         adapter_temperatures: dict | None = None,
         choice_bands: dict | None = None,
         over_limit: str = "refuse",
+        think: bool = False,
+        think_factor: float = thinking.DEFAULT_FACTOR,
+        think_budget: int = thinking.DEFAULT_BUDGET,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
@@ -572,6 +576,12 @@ class SystemOne:
         # over_limit); a request's "over_limit" field decides for that request. Counted in /health.
         self.over_limit = over.check_mode(over_limit, "over_limit")
         self.truncated = {"requests": 0, "largest_state_tokens": 0}
+        # think when unsure (decisio.serve.think): the server's default (a request's "think" field decides for that
+        # request), the factor on the type thresholds and the token budget; counted in /health
+        self.think = bool(think)
+        self.think_factor = thinking.check_factor(think_factor, "think_factor")
+        self.think_budget = thinking.check_budget(think_budget, "think_budget")
+        self.thought = {"requests": 0, "questions": 0, "tokens": 0, "ms": 0.0}
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -631,6 +641,77 @@ class SystemOne:
         n = len(tok.encode(fmt_state(state), add_special_tokens=False))
         return n + sum(len(tok.encode(question_text(tok, q, fmt)[0], add_special_tokens=False)) for q in qs)
 
+    def think_pass(
+        self,
+        state,
+        names,
+        wire,
+        mapped,
+        swapped,
+        qs,
+        at,
+        probs,
+        plans,
+        rts,
+        orders,
+        abstain,
+        use_image,
+        adapter,
+        engine,
+    ):
+        """({question index: log-probabilities of the second read in the question's own option order}, the report, ms):
+        every question that is unsure at its served confidence (decisio.serve.think) is read again after the served
+        model has written its reasoning, in one call of the engine. A question a registered task answers, an abstention
+        or an image request, a request of two orders and a question of more than 16 options stay at one read."""
+        if not (use_image or orders != 1 or abstain) and not getattr(engine, "can_think", lambda: False)():
+            raise thinking.ThinkUnavailable(
+                "this server's engine cannot write reasoning (think needs the vLLM engine); send the request without "
+                '"think": true'
+            )
+        why, cand = {}, []
+        for i, name in enumerate(names):
+            if use_image or orders != 1 or abstain or plans[i]:
+                why[name] = thinking.NOT_COMBINED
+            elif rts[i] is not None or i not in at:
+                why[name] = thinking.REGISTERED_TASK
+            elif len(mapped[i][1]) > thinking.MAX_OPTIONS:
+                why[name] = thinking.TOO_MANY_OPTIONS
+            else:
+                p = np.asarray(probs[at[i]], dtype=np.float64)
+                p = p[::-1].copy() if swapped[i] else p
+                t_q = self.temperature_of(wire[i].type, adapter, len(p))
+                served = apply_temperature(p, t_q) if t_q != 1.0 else p
+                if thinking.is_unsure(served, wire[i].type, self.think_factor):
+                    cand.append(i)
+                else:
+                    why[name] = thinking.SURE
+        second, per_question, tokens, ms = {}, {}, 0, 0.0
+        if cand:
+            t = time.perf_counter()
+            lps, counts, parts = engine.think(state, [qs[i] for i in cand], adapter, self.think_budget)
+            wall = (time.perf_counter() - t) * 1000
+            ms = float(parts.get("generate_ms", 0.0) + parts.get("read_ms", 0.0)) or wall  # the engine's own timing
+            tokens = sum(counts)
+            for i, lp, n in zip(cand, lps, counts):
+                second[i] = np.asarray(lp)[::-1].copy() if swapped[i] else np.asarray(lp)
+                per_question[names[i]] = {"thought": True, "tokens": n}
+        for name, reason in why.items():
+            per_question[name] = {"thought": False, "why": reason}
+        self.thought["requests"] += 1
+        self.thought["questions"] += len(cand)
+        self.thought["tokens"] += tokens
+        self.thought["ms"] += ms
+        report = {
+            "questions": len(cand),
+            "of": len(names),
+            "tokens": tokens,
+            "ms": round(ms, 1),
+            "factor": self.think_factor,
+            "budget": self.think_budget,
+            "per_question": {n: per_question[n] for n in names},
+        }
+        return second, report, ms
+
     def truncated_request(self, req: SystemOneRequest, qs: list[dict], engine) -> tuple[SystemOneRequest, dict | None]:
         """(the request, the report): the request with its state cut to its start where a row would be over the
         engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
@@ -665,6 +746,7 @@ class SystemOne:
         route=None,
         debug=None,
         over_limit=None,
+        think=None,
     ) -> dict:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
@@ -673,7 +755,9 @@ class SystemOne:
         text route; the registered tasks were fitted on the base's readout, so a question one matches is refused.
         `over_limit`: this request's choice for a state over the engine's prompt ceiling ("refuse" or "truncate"; the
         server's own when absent). A truncated state is cut to its start, reported as `state_truncated`, and none of
-        the request's answers is certified."""
+        the request's answers is certified. `think`: this request's choice for think when unsure (True or False; the
+        server's own when None): an unsure question is read again after the served model has written its reasoning,
+        and the response's `thinking` says which questions did and what it cost."""
         images = list(images or [])
         use_image = bool(images) or route == "image"
         if use_image and self.image_engine is None:
@@ -770,6 +854,13 @@ class SystemOne:
             else:
                 probs, info = engine.answer(req.state, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
+        effective_think = self.think if think is None else bool(think)
+        second, think_report, think_ms = {}, None, 0.0
+        if effective_think:
+            second, think_report, think_ms = self.think_pass(
+                req.state, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
+                adapter, engine,
+            )  # fmt: skip
         hidden = dict(zip(head, self.hidden_engine.readout(req.state, [qs[i] for i in head]))) if head else {}
         dbg = {}
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
@@ -795,6 +886,10 @@ class SystemOne:
                 p = np.asarray(probs[at[i]], dtype=np.float64)
                 if swapped[i]:  # read false first; from here on (yes, no), as every yes/no readout
                     p, keys = p[::-1].copy(), ["yes", "no"]
+                if i in second:  # an unsure question: the plain read and the read after reasoning, mixed in log space
+                    if debug:
+                        dbg.setdefault(name, {}).update(think_p1=p.tolist(), think_lp2=second[i].tolist())
+                    p = thinking.mix(p, second[i])
                 p2, corrected = None, False
                 if orders == 2:
                     j, perm = plan[i]
@@ -886,6 +981,9 @@ class SystemOne:
             "input_tokens": self.usage_tokens(req.state, qs) + sum(info.get("image_tokens") or []),
             "output_tokens": len(names),
         }
+        if think_report is not None:  # the generated tokens are output tokens, and said so
+            usage["output_tokens"] += think_report["tokens"]
+            usage["thinking_tokens"] = think_report["tokens"]
         out = {
             "model": req.model or self.name,
             "answers": answers,
@@ -911,6 +1009,11 @@ class SystemOne:
             out["adapter"] = adapter  # which adapter answered; absent when the base did
         if cut is not None:
             out["state_truncated"] = cut  # absent when the whole state was read
+        if think_report is not None:
+            out["thinking"] = think_report  # present when thinking was on for the request
+            out["_timing"]["think_ms"] = think_ms
+            out["_timing"]["think_tokens"] = think_report["tokens"]
+            out["_timing"]["stages"]["think"] = think_ms
         if debug and self.debug_readout:
             out[DEBUG_KEY] = dbg
         return out
@@ -1201,6 +1304,10 @@ class SystemOne:
                 "abstention": self.abstention,
                 "abstain_option": self.abstain_option,
                 "head_engine": self.hidden_engine is not None,
+                # the server's think default and procedure, only when on, so that every other server's fingerprint is
+                # what it was; a certificate made with thinking off is suspended by a server that thinks, and the
+                # other way round (`think_mode_changed`)
+                **({"think": self.think_facts()} if self.think else {}),
             }
             self._stack = stack.stack_facts(
                 self.engine,
@@ -1215,6 +1322,18 @@ class SystemOne:
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
             )
         return self._stack
+
+    def think_facts(self) -> dict:
+        """What identifies how this server thinks: the factor, the budget and the procedure (prefix, suffix, thresholds,
+        option limit), the last as a digest."""
+        proc = json.dumps(
+            [thinking.PREFIX, thinking.SUFFIX, thinking.TAU, thinking.MAX_OPTIONS], sort_keys=True, ensure_ascii=False
+        )
+        return {
+            "factor": self.think_factor,
+            "budget": self.think_budget,
+            "procedure_sha256": hashlib.sha256(proc.encode()).hexdigest()[:16],
+        }
 
     def stack_with_fit(self, t) -> dict:
         s = self.stack_facts()
@@ -1411,7 +1530,14 @@ class SystemOne:
         """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not."""
         cert = t["certificate"]
         if self.stack_sha(t) != cert["stack_sha256"]:
-            reason = "serving_stack_changed"
+            from decisio.serve import stack
+
+            # a stack that differs only in how the server thinks is its own reason: a task certified one-pass is not
+            # served as certified by a server that thinks, and the other way round
+            only_think = set(stack.differences(cert["stack"], self.stack_with_fit(t))) <= {"serving.think"} | {
+                f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")
+            }
+            reason = "think_mode_changed" if only_think else "serving_stack_changed"
         elif orders != cert["stack"]["serving"]["orders"]:
             reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
         elif cert["threshold"] is None:
@@ -1795,11 +1921,14 @@ def add_routes(app, systemone: SystemOne):
         over_limit = (req.model_extra or {}).get("over_limit")
         if over_limit is not None and over_limit not in over.MODES:
             raise HTTPException(422, f'"over_limit" must be one of {list(over.MODES)}, or null')
+        think = (req.model_extra or {}).get("think")
+        if think is not None and not isinstance(think, bool):
+            raise HTTPException(422, '"think" must be true, false or null')
         try:
-            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug, over_limit)
+            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug, over_limit, think)
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
-        except over.OverLimit as e:
+        except (over.OverLimit, thinking.ThinkUnavailable) as e:
             raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
@@ -1816,6 +1945,9 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
+        if timing.get("think_tokens") is not None and "thinking" in out:
+            headers[header("think-ms")] = f"{timing['think_ms']:.1f}"
+            headers[header("think-tokens")] = str(timing["think_tokens"])
         if out.get("state_truncated"):
             cut = out["state_truncated"]
             headers[header("state-truncated")] = f"kept={cut['kept_tokens']}; of={cut['of_tokens']}; part={cut['part']}"

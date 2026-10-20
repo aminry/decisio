@@ -3,9 +3,11 @@
 """The facts SECURITY.md relies on to say the four vLLM advisories fixed in 0.31.0 are not reachable through a
 decisio server, checked in the source (no vLLM, no model):
 
-X1  every `SamplingParams(...)` sets `max_tokens=1` and none sets `min_tokens` (GHSA-4xqp-c3mv-qff7)
-X2  every sampling call sets `allowed_token_ids` except the prefix warm-up (`send_warm`) and the health probe, the
-    only requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
+X1  every `SamplingParams(...)` sets `max_tokens=1` and none sets `min_tokens` (GHSA-4xqp-c3mv-qff7), except `think`
+    (think when unsure), whose `max_tokens` is its `budget` argument, a server setting validated to 16..4096 and never
+    a request field
+X2  every sampling call sets `allowed_token_ids` except the prefix warm-up (`send_warm`), the health probe and `think`
+    (free text), the requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
 X3  no source names `mm_processor_kwargs`, `trust_remote_code`, `min_tokens` or vLLM's entrypoints, and decisio never
     starts `vllm serve` (GHSA-h3rc-6mm3-gc2m, GHSA-4xqp-c3mv-qff7)
 X4  the multimodal ids sent to vLLM are the ones the image engine computes from the decoded pixels, not a request
@@ -17,7 +19,8 @@ import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "decisio"
-UNCONSTRAINED = {"send_warm", "probe"}
+UNCONSTRAINED = {"send_warm", "probe", "think"}
+FREE_LENGTH = {"think"}  # the one call that writes text; its length is `budget`, a validated server setting
 
 
 def sampling_calls():
@@ -55,7 +58,10 @@ def test_X1_max_tokens_is_one_and_min_tokens_is_never_set():
         kw = {k.arg: k.value for k in call.keywords}
         where = f"{path.name}:{call.lineno} ({name})"
         assert "min_tokens" not in kw, where
-        assert isinstance(kw.get("max_tokens"), ast.Constant) and kw["max_tokens"].value == 1, where
+        if name in FREE_LENGTH:
+            assert isinstance(kw.get("max_tokens"), ast.Name) and kw["max_tokens"].id == "budget", where
+        else:
+            assert isinstance(kw.get("max_tokens"), ast.Constant) and kw["max_tokens"].value == 1, where
 
 
 def test_X2_only_the_warm_up_and_the_probe_leave_the_allowed_tokens_unset():
@@ -69,6 +75,24 @@ def test_X2_only_the_warm_up_and_the_probe_leave_the_allowed_tokens_unset():
             assert not (isinstance(kw["allowed_token_ids"], ast.Constant) and kw["allowed_token_ids"].value is None), (
                 where
             )
+
+
+def test_X1b_the_budget_is_a_validated_server_setting_not_a_request_field():
+    from decisio.serve import think
+
+    assert think.MAX_BUDGET == 4096 and think.check_budget(4096, "b") == 4096
+    for bad in (4097, 15, True, "512", 512.0):
+        try:
+            think.check_budget(bad, "b")
+        except ValueError:
+            continue
+        raise AssertionError(bad)
+    route = (SRC / "serve" / "systemone.py").read_text()
+    assert (
+        "self.think_budget" in route
+        and 'get("think")' in route
+        and "budget" not in route.split('get("think")')[1][:200]
+    )
 
 
 def test_X3_no_request_controlled_engine_options_and_no_vllm_server():

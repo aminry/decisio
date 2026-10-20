@@ -64,6 +64,8 @@ Where the columns differ, the value is the base's.
 | `--temperature-noul` | the global one | the global one | the global one | the temperature for yes/no questions |
 | `--temperature-score` | the global one | the global one | the global one | the temperature for score questions |
 | `--noul-commit`, `--no-noul-commit` | off | off | off | report an uncommitted yes/no probability at the band's edge (below); a tuned repository's `defaults` state their own setting, and either flag overrides it |
+| `--think`, `--no-think` | off | off | off | think when unsure ([running.md](running.md#thinking-when-unsure)): a question below its type's threshold times `--think-factor` is read again after the served model has written up to `--think-budget` tokens; a request's `think` field decides for that request, a tuned repository's `defaults.think` turns it on, and `--no-think` turns that off |
+| `--think-factor`, `--think-budget` | 1, 512 | 1, 512 | 1, 512 | the factor on the thresholds (choice 0.75, yes/no 0.92, score 0.70) and the most reasoning tokens per question; a tuned repository's defaults state their own |
 | `--over-limit` | refuse | refuse | refuse | a state over the engine's prompt ceiling: `refuse` answers 422, `truncate` cuts the state to its start and answers (never certified; [running.md](running.md#states-over-the-limit)); a request's `over_limit` field decides for that request, and a tuned repository's `defaults` state their own setting |
 | `--over-limit-tokens` | the context less 1 | the context less 1 | the context less 1 | the prompt ceiling a truncating server cuts to; needed on the MLX build, which has no context length to read |
 | `--orders` | 1 | 1 | 1 | 2: two-order averaging, each question also read in a second option order |
