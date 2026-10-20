@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# TEMPORARY (removed before merge): why the SBOM scan of the released image fails with "disk quota exceeded" on a runner with
+# 120 GB free. Scans the 0.21.1 image on a pull request, with and without TMPDIR moved.
+name: sbom-debug
+on:
+  pull_request:
+    paths: [".github/workflows/sbom-debug.yml"]
+permissions: {}
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        tmp: ["default", "runner"]
+    permissions:
+      contents: read
+    steps:
+      - name: Where /tmp is
+        run: |
+          df -h / /tmp "$RUNNER_TEMP" || true
+          mount | grep -E " /tmp | / " || true
+          (ulimit -a; id; quota -s 2>&1 || true) | head -30
+          echo "TMPDIR=$TMPDIR RUNNER_TEMP=$RUNNER_TEMP"
+      - name: Free disk space
+        run: |
+          sudo swapoff -a || true
+          sudo rm -rf /mnt/swapfile /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/microsoft /opt/az /usr/local/.ghcup \
+            /usr/share/swift /usr/lib/jvm /usr/local/share/boost /usr/local/share/powershell /usr/local/julia* \
+            /usr/share/miniconda /usr/lib/google-cloud-sdk /usr/local/lib/node_modules /usr/local/share/chromium /usr/lib/firefox
+          docker image prune --all --force > /dev/null
+          df -h /
+      - name: Point TMPDIR at the runner's temp directory
+        if: matrix.tmp == 'runner'
+        run: echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - name: Generate the SBOM
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          image: ghcr.io/aminry/decisio@sha256:19efef3b77b9098da76cb1c848308b9d9a8801a2d11fc744481ebe512d2176b3
+          format: cyclonedx-json
+          output-file: sbom.cdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - run: ls -l sbom.cdx.json; df -h / /tmp
