@@ -352,6 +352,11 @@ def check_tuned(tuned) -> None:
         raise ValueError(
             "tuned.merge.adapted_tensors must be the number of adapter tensors the merge applied (at least 1)"
         )
+    dropped = merge.get("dropped_k_eq_v_pairs", 0)
+    if not isinstance(dropped, int) or isinstance(dropped, bool) or dropped < 0:
+        raise ValueError(
+            "tuned.merge.dropped_k_eq_v_pairs must be how many adapter pairs the merge left out (0 or more)"
+        )
     if merge.get("adapter_sha256") not in (None, adapter["weights_sha256"]):
         raise ValueError(
             "tuned.merge.adapter_sha256 is not tuned.adapter.weights_sha256: the merge report is of another adapter"
@@ -404,6 +409,7 @@ def merge_facts(report: dict) -> dict:
         "adapter_sha256": report.get("adapter_sha256"),
         "adapter_scale": report.get("adapter_scale"),
         "adapted_tensors": report.get("adapted_tensors"),
+        "dropped_k_eq_v_pairs": report.get("dropped_k_eq_v_pairs", 0),
         "groups": report.get("groups"),
     }
 

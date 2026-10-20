@@ -29,6 +29,18 @@ with `compare`) say whether that prediction holds on a card.
     python -m decisio.hub_fp8 expected --source <bf16 dir> --out online.json     # what quantizing on load holds
     python -m decisio.hub_fp8 expected --checkpoint <dir> --out loaded.json     # what loading the checkpoint holds
     python -m decisio.hub_fp8 compare a.json b.json                            # tensors that differ
+    python -m decisio.hub_fp8 merge --source <bf16 dir> --adapter <peft dir> --out <dir> [--device cuda] [--null]
+
+`merge` makes the FP8 checkpoint of a tuned model: a LoRA adapter merged into the bf16 base in fp32 and quantized ONCE
+(`W + scale * (B @ A)`, no bf16 anywhere between), with the adapter's change inside the amax of each fused group and
+inside the rounding. The base weights are already on the bf16 grid and the adapter's change is 0.04 to 0.09 percent of a
+weight, so `(W + delta).to(bf16)` rounds back to W for 81 to 91 percent of the entries and a merge through bf16 keeps
+about half of the adapter; the fp32 merge keeps 99 percent of its effect (measured on a tuned 31B,
+2026-10-13). Every adapter pair must land on a tensor of a quantized group: a pair that finds no tensor is an error,
+never a merge of nothing. `--null` merges an adapter of scale 0, which must equal `convert` of the base byte for byte
+(the pipeline alone). Writes `MERGE_FP8.json` (what `decisio.hub tuned-config` reads), `expected_written.json` and
+`expected_loaded.json` beside the checkpoint; exits 1 if the loader would change a weight or the two fingerprints
+differ.
 """
 
 from __future__ import annotations
@@ -305,6 +317,214 @@ def convert(
     return report
 
 
+LORA_KEY = re.compile(r"^base_model\.model\.(?P<name>.*)\.lora_(?P<half>[AB])\.weight$")
+
+
+def base_name(adapter_name: str, names) -> str:
+    """The base checkpoint's tensor for an adapter module name. A PEFT adapter of the text-only layout names the text
+    model `model.layers.N...`; the base checkpoint of a multimodal Gemma 4 names it `model.language_model.layers.N...`
+    (decisio.serve.adapters serves both layouts). The weight is whichever of the two spellings the base has."""
+    for candidate in (adapter_name, adapter_name.replace("model.layers.", "model.language_model.layers.", 1)):
+        if f"{candidate}.weight" in names:
+            return f"{candidate}.weight"
+    raise ValueError(f"{adapter_name}: no such tensor in the base (neither as it is nor in the multimodal layout)")
+
+
+K_EQ_V_V = re.compile(r"^(?P<layer>.*layers\.\d+)\.self_attn\.v_proj$")
+
+
+def load_adapter(adapter_dir: Path, names) -> tuple[dict, float, str, str, dict]:
+    """({base tensor name: (A fp32 [r, in], B fp32 [out, r])}, scale = alpha / r, the weights file's sha256, the layout
+    the adapter's names are in ("text" or "multimodal"), and the pairs with no base tensor that are `v_proj` of a
+    full-attention layer which ships no `v_proj` (attention_k_eq_v: V is K), {module name: (A, B)}). Any other pair
+    with no base tensor is an error."""
+    from safetensors import safe_open
+
+    d = Path(adapter_dir)
+    cfg = json.loads((d / "adapter_config.json").read_text())
+    if cfg.get("use_rslora") or cfg.get("use_dora"):
+        raise ValueError("this merge handles plain LoRA only (use_rslora and use_dora are off in the trained adapters)")
+    if cfg.get("rank_pattern") or cfg.get("alpha_pattern"):
+        raise ValueError("this merge handles one rank and one alpha for every module (rank_pattern / alpha_pattern)")
+    scale = cfg["lora_alpha"] / cfg["r"]
+    parts: dict[str, dict[str, torch.Tensor]] = {}
+    orphans: dict[str, dict[str, torch.Tensor]] = {}
+    layout = set()
+    f = d / "adapter_model.safetensors"
+    with safe_open(str(f), "pt") as g:
+        for key in g.keys():  # noqa: SIM118
+            m = LORA_KEY.match(key)
+            if not m:
+                raise ValueError(f"unexpected adapter tensor {key}")
+            layout.add("multimodal" if ".language_model.layers." in m["name"] else "text")
+            tensor = g.get_tensor(key).to(torch.float32)
+            try:
+                parts.setdefault(base_name(m["name"], names), {})[m["half"]] = tensor
+            except ValueError:
+                v = K_EQ_V_V.match(m["name"])
+                k_name = v and (v["layer"] + ".self_attn.k_proj")
+                if not (
+                    v
+                    and any(
+                        f"{c}.weight" in names
+                        for c in (k_name, k_name.replace("model.layers.", "model.language_model.layers.", 1))
+                    )
+                ):
+                    raise
+                orphans.setdefault(m["name"], {})[m["half"]] = tensor
+    bad = [n for n, p in {**parts, **orphans}.items() if set(p) != {"A", "B"}]
+    if bad:
+        raise ValueError(f"{bad[0]}: a LoRA pair is missing one half")
+    if not parts:
+        raise ValueError(f"{f}: no LoRA pairs")
+    if len(layout) != 1:
+        raise ValueError(f"{f}: the adapter mixes the text-only and the multimodal layout")
+    sha = hashlib.sha256(f.read_bytes()).hexdigest()
+    return (
+        {n: (p["A"], p["B"]) for n, p in parts.items()},
+        scale,
+        sha,
+        layout.pop(),
+        {n: (p["A"], p["B"]) for n, p in orphans.items()},
+    )
+
+
+def k_copy_difference(name: str, ab, deltas: dict) -> str | None:
+    """None when the `v_proj` pair `ab` of module `name` is bit for bit its layer's `k_proj` pair in `deltas`, else why
+    not (the largest absolute difference of each half, or that the layer has no `k_proj` pair)."""
+    k = K_EQ_V_V.match(name)["layer"] + ".self_attn.k_proj"
+    for cand in (k, k.replace("model.layers.", "model.language_model.layers.", 1)):
+        if f"{cand}.weight" in deltas:
+            ka = deltas[f"{cand}.weight"]
+            if all(torch.equal(x, y) for x, y in zip(ab, ka, strict=True)):
+                return None
+            return "A differs by up to {:.3g}, B by up to {:.3g}".format(
+                *((x - y).abs().max().item() for x, y in zip(ab, ka, strict=True))
+            )
+    return "the layer's k_proj has no pair in the adapter"
+
+
+def merged32(w: torch.Tensor, ab, scale: float, device: str) -> torch.Tensor:
+    """W + scale * (B @ A) in fp32 on `device` (W alone if the weight has no adapter); no TF32, no bf16 anywhere."""
+    w32 = w.to(device=device, dtype=torch.float32)
+    if ab is None or scale == 0.0:
+        return w32
+    a, b = ab[0].to(device), ab[1].to(device)
+    return w32 + scale * (b @ a)
+
+
+def merge(
+    source: Path,
+    adapter: Path,
+    out: Path,
+    device: str = "cpu",
+    null: bool = False,
+    shard_bytes: int = 4 << 30,
+    progress=None,
+) -> dict:
+    """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) with the LoRA adapter in `adapter` merged in
+    fp32 and quantized once; the report (`MERGE_FP8.json`). Raises ValueError if an adapter pair finds no quantized
+    tensor.
+
+    A full-attention layer with `attention_k_eq_v` ships no `v_proj` (V is K), so an adapter's `v_proj` pair there has
+    no tensor to merge into, and a checkpoint of this layout cannot hold a V that differs from K. Where each such pair
+    is bit for bit the layer's `k_proj` pair (the trainer's export copies it), merging the `k_proj` delta already gives
+    V that delta, so the copy is left out and the report counts it (`dropped_k_eq_v_pairs`): nothing of the adapter is
+    lost. A pair that differs from its layer's `k_proj` pair is an error: it asks for a V that differs from K."""
+    src = Source(source)
+    deltas, scale, sha, layout, orphans = load_adapter(adapter, src.map)
+    differ = {n: d for n, ab in orphans.items() if (d := k_copy_difference(n, ab, deltas)) is not None}
+    if differ:
+        raise ValueError(
+            f"{len(differ)} adapter pairs are v_proj of full-attention layers that ship no v_proj (attention_k_eq_v: "
+            "V is K) and are not copies of the layer's k_proj pair, so they ask for a V that differs from K, which "
+            "this checkpoint layout cannot hold: " + "; ".join(f"{n}: {d}" for n, d in sorted(differ.items())[:5])
+        )
+    scale = 0.0 if null else scale
+    groups = find_groups(src.map, src.k_eq_v())
+    if not groups:
+        raise ValueError(f"{source}: no text-model projections found")
+    quantized = {n for g in groups for n in g.names}
+    uncovered = [n for n in deltas if n not in quantized]
+    if uncovered:
+        raise ValueError(f"{len(uncovered)} adapter weights are not in a quantized group, e.g. {uncovered[0]}")
+    out = Path(out)
+    out.mkdir(parents=True, exist_ok=True)
+    writer = Writer(out, shard_bytes)
+    report = {
+        "scheme": "compressed-tensors",
+        "merged": True,
+        "groups": {},
+        "loader_changed_elements": 0,
+        "smallest_amax": None,
+    }
+    expected: dict = {}
+    applied = 0
+    for i, g in enumerate(groups):
+        t32 = {n: merged32(src.get(n), deltas.get(n), scale, device) for n in dict.fromkeys(g.fused)}
+        applied += sum(1 for n in g.names if n in deltas)
+        bad = [n for n, t in t32.items() if t.dim() != 2]
+        if bad:
+            raise ValueError(f"{bad[0]}: expected a 2-D weight")
+        amax = torch.stack([t.abs().max() for t in t32.values()]).max().cpu()
+        sc = scale_of(amax)
+        # the FP8 cast on the CPU: every device's float8 support differs, the bytes do not
+        q = {n: quantize(t.cpu(), sc) for n, t in t32.items()}
+        fused_q = torch.cat([q[n] for n in g.fused])
+        loaded = torch.cat([loader_requantize(q[n], sc, sc.max()) for n in g.fused])
+        changed = int((loaded.view(torch.uint8) != fused_q.view(torch.uint8)).sum())
+        for n in t32:
+            writer.add(n, q[n])
+            writer.add(n[: -len(".weight")] + ".weight_scale", sc.clone())
+        expected[g.key] = fingerprint(fused_q, sc)
+        report["groups"][g.key] = {
+            "amax": float(amax),
+            "scale": float(sc),
+            "shape": list(fused_q.shape),
+            "loader_changed": changed,
+            "sha256_online": expected[g.key]["sha256"],
+            "sha256_loaded": digest(loaded),
+        }
+        report["loader_changed_elements"] += changed
+        a = float(amax)
+        report["smallest_amax"] = a if report["smallest_amax"] is None else min(report["smallest_amax"], a)
+        if progress and (i + 1) % 20 == 0:
+            progress(f"{i + 1}/{len(groups)} groups")
+    if applied != len(deltas):  # a pair in no group's names would have been caught above; a repeated tensor, here
+        raise ValueError(f"{len(deltas)} adapter pairs, {applied} applied: the merge would drop some of the adapter")
+    for name in sorted(set(src.map) - quantized):
+        writer.add(name, src.get(name))
+    weight_map = writer.finish()
+    (out / INDEX).write_text(json.dumps({"metadata": {}, "weight_map": weight_map}, indent=2, sort_keys=True))
+    cfg = src.config()
+    cfg["quantization_config"] = quantization_config("compressed-tensors")
+    (out / "config.json").write_text(json.dumps(cfg, indent=2))
+    for f in src.dir.iterdir():  # tokenizer, chat template, generation and processor files: the base's own
+        if f.is_file() and not WEIGHTS.match(f.name) and f.name not in (INDEX, "config.json"):
+            shutil.copy2(f, out / f.name)
+    report["tensors"] = len(weight_map)
+    (out / "fp8_conversion.json").write_text(json.dumps(report, indent=1))
+    (out / "expected_written.json").write_text(json.dumps(expected, indent=1, sort_keys=True))
+    loaded_fp = expected_loaded(out)
+    (out / "expected_loaded.json").write_text(json.dumps(loaded_fp, indent=1, sort_keys=True))
+    differ = compare(expected, loaded_fp)
+    meta = {
+        "kind": "fp32 merge to FP8",
+        "adapter_sha256": sha,
+        "adapter_scale": scale,
+        "adapter_layout": layout,
+        "adapted_tensors": len(deltas),
+        "dropped_k_eq_v_pairs": len(orphans),
+        "null": null,
+        "groups": len(groups),
+        "written_vs_loaded_differ": differ,
+        "loader_changed_elements": report["loader_changed_elements"],
+        "smallest_amax": report["smallest_amax"],
+    }
+    (out / "MERGE_FP8.json").write_text(json.dumps(meta, indent=1) + "\n")
+    return meta
+
+
 def expected_online(source: Path) -> dict:
     """What the engine holds after quantizing `source` on load: per module, the fused weight's bytes and scale."""
     src = Source(source)
@@ -340,6 +560,16 @@ def main(argv=None) -> int:
     ex.add_argument("--source", help="a bf16 directory: after quantizing on load")
     ex.add_argument("--checkpoint", help="a converted directory: after loading it")
     ex.add_argument("--out", required=True)
+    mg = sub.add_parser("merge", help="write the FP8 checkpoint of a base with a LoRA adapter merged in fp32")
+    mg.add_argument("--source", required=True, help="the bf16 base directory")
+    mg.add_argument("--adapter", required=True, help="the PEFT adapter directory")
+    mg.add_argument("--out", required=True)
+    mg.add_argument(
+        "--device", default="cpu", help="where the fp32 merge runs (cuda for the 31B); the FP8 cast is on the CPU"
+    )
+    mg.add_argument(
+        "--null", action="store_true", help="merge an adapter of scale 0: must equal `convert` byte for byte"
+    )
     cp = sub.add_parser("compare", help="the modules at which two fingerprint files differ")
     cp.add_argument("a")
     cp.add_argument("b")
@@ -349,6 +579,24 @@ def main(argv=None) -> int:
         changed, smallest = r["loader_changed_elements"], r["smallest_amax"]
         print(f"{r['tensors']} tensors; the loader would change {changed} weights; smallest amax {smallest:.4g}")
         return 1 if changed else 0
+    if a.cmd == "merge":
+        meta = merge(
+            Path(a.source),
+            Path(a.adapter),
+            Path(a.out),
+            a.device,
+            a.null,
+            progress=lambda m: print(m, flush=True),
+        )
+        differ = meta["written_vs_loaded_differ"]
+        print(
+            f"{meta['groups']} groups, {meta['adapted_tensors']} adapter pairs applied "
+            f"({meta['adapter_layout']} layout, {meta['dropped_k_eq_v_pairs']} v_proj copies of k_proj pairs left "
+            "out); "
+            f"the loader would change {meta['loader_changed_elements']} weights; written against loaded fingerprints: "
+            + ("identical" if not differ else f"{len(differ)} differ: " + ", ".join(differ[:20]))
+        )
+        return 1 if (meta["loader_changed_elements"] or differ) else 0
     if a.cmd == "expected":
         if bool(a.source) == bool(a.checkpoint):
             ap.error("give --source or --checkpoint")

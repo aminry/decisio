@@ -1,0 +1,9 @@
+{
+ "what": "the shipping path of a tuned model on a synthetic tiny checkpoint, CPU",
+ "decisio_base_commit": "8f228e05988e10b2746b1c86566cec1c84da5e5a",
+ "files": {
+  "README.md": "86d438c7523da2d9a5d1588d7a609d1ee64b0ab27e6dfb8669c9bee68e33cdf8",
+  "output.txt": "4094eb834bc2351dad81353d9a91f4398d5d6c0b4e6e73a338a42de1002f5810",
+  "pipeline.py": "a0017a5ded17bd8c2433e60a2a709afc37757e46f7574e6395013d3854989a5e"
+ }
+}
