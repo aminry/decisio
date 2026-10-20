@@ -8,6 +8,27 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.21.0: think when unsure
+
+### What changed
+
+- **A server can read an unsure question again after the served model has written its own reasoning** ([running.md](running.md#thinking-when-unsure)).
+  It is off unless asked: `--think`, a request's `"think": true`, or a tuned repository's `defaults.think` (its factor and budget).
+  A question below its type's threshold times `--think-factor` (choice 0.75, yes/no 0.92, score 0.70) with at most 16 options is sent again with a fixed prefix, the same model writes up to `--think-budget` (512) tokens, a fixed suffix follows and the options are read again; the two reads are mixed in log space and go through the temperature a single read gets.
+- **New fields when it is on:** `thinking` in the response, `usage.thinking_tokens` (and `usage.output_tokens` counts the reasoning tokens), `x-decisio-think-ms` and `x-decisio-think-tokens`, and `systemone.think` in `/health`.
+- **A new certificate reason, `think_mode_changed`:** the server's think setting is part of the serving-stack fingerprint when it is on, so a task certified one-pass is not served as certified by a server that thinks, and the other way round.
+  Questions of a registered task are always answered at one read.
+- **One more kind of vLLM call:** thinking is the only call that generates text; its length is a server setting, never a request field ([SECURITY.md](../SECURITY.md)).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A server without `--think` and a request without `think` | Nothing changes | Nothing |
+| A tuned repository whose `defaults` carry `think` | Needs 0.21.0 or later; 0.20.0 refuses the file | Run 0.21.0 or later |
+| Certified tasks on a server you start with `--think` | Suspended (`think_mode_changed`) | Run without `--think`, or certify the task again |
+| The MLX build | `--think` is refused at start | Nothing |
+
 ## 0.20.0: tuned repositories, and states over the prompt limit
 
 ### What changed
