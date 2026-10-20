@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.21.2](https://github.com/aminry/decisio/compare/v0.21.1...v0.21.2) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ci:** scan the image for its SBOM with TMPDIR on the root volume, not the 8 GB /tmp tmpfs ([#258](https://github.com/aminry/decisio/issues/258)) ([2c30460](https://github.com/aminry/decisio/commit/2c30460bef49cc56ea3db9c79832798feed2cef8))
+
+## [0.21.1](https://github.com/aminry/decisio/compare/v0.21.0...v0.21.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* **ci:** free disk space before the image is scanned for its SBOM ([#252](https://github.com/aminry/decisio/issues/252)) ([e465c8a](https://github.com/aminry/decisio/commit/e465c8a846c799daaf0f84b31cf786e05848fbd1))
+
 ## [0.21.0](https://github.com/aminry/decisio/compare/v0.20.0...v0.21.0) (2026-10-20)
 
 

@@ -236,10 +236,10 @@ Measured on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwel
 ### With Docker
 
 ```bash
-docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:df3cb3165d963593075e765fad570477c9caf2f2bf913365777756983972abd2
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:95880b9251b87e37c6b3eb9ef1c2e38777012895dcd522eeb2d993607e7b036d
 ```
 
-That digest is the 0.20.0 image (`ghcr.io/aminry/decisio:0.20.0`); the release notes of every release give theirs, and `gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio` checks it.
+That digest is the 0.21.2 image (`ghcr.io/aminry/decisio:0.21.2`); the release notes of every release give theirs, and `gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio` checks it.
 [Docker](#docker) has the compose file.
 The same `curl` as above, with `/v1/systemone` on port 8000 and no `model` field, asks the server you started.
 
@@ -477,7 +477,7 @@ Linux, one NVIDIA card, a driver that supports CUDA 13.0, Python 3.12 and [uv](h
 
 <!-- x-release-please-start-version -->
 ```bash
-git clone --branch v0.21.0 https://github.com/aminry/decisio
+git clone --branch v0.21.2 https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
 uv run python -m decisio.serve.vllm_engine

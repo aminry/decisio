@@ -196,14 +196,32 @@ jobs:
       attestations: write
       packages: write
     steps:
+      # syft saves the 9 GB (25 GB unpacked) image under /tmp on the runner; v0.21.0's two attempts ran out of disk
+      # ("disk quota exceeded") on the runner image as it now ships, where v0.20.0's had not. Free what this job does not need.
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo swapoff -a || true
+          sudo rm -rf /mnt/swapfile /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/microsoft /opt/az /usr/local/.ghcup \
+            /usr/share/swift /usr/lib/jvm /usr/local/share/boost /usr/local/share/powershell /usr/local/julia* \
+            /usr/share/miniconda /usr/lib/google-cloud-sdk /usr/local/lib/node_modules /usr/local/share/chromium /usr/lib/firefox
+          docker image prune --all --force > /dev/null
+          df -h /
+
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # syft unpacks the image under TMPDIR, and /tmp on the runner is an 8 GB tmpfs: the 9 GB image does not fit there
+      # ("disk quota exceeded" with 120 GB free on the root volume; found by scanning the 0.21.1 image on a pull request
+      # with and without TMPDIR moved). The runner's own temp directory is on the root volume. The disk-space step above
+      # is kept: the scan that passed had run it.
       - name: Generate the SBOM
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        env:
+          TMPDIR: ${{ runner.temp }}
         with:
           image: ${{ env.IMAGE }}@${{ needs.image.outputs.digest }}
           # CycloneDX, not SPDX: the SPDX document of this 9 GB image is 49 MB and attest-sbom accepts 16 MiB (measured with
