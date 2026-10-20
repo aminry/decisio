@@ -1,0 +1,4 @@
+adapter e7c43def311c, scale 2.0, multimodal layout: 328 adapted tensors, 8 v_proj copies of k_proj pairs left out
+10,899,947,520 entries in the adapted tensors
+entries unchanged from the base:   rounding to nearest 0.5581   stochastic 0.4990
+share of the adapter's change kept: rounding to nearest 0.8813   stochastic 1.0000
