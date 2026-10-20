@@ -109,7 +109,7 @@ def test_a2_an_older_decisio_and_a_mislabelled_file_are_refused(tmp_path):
         (lambda c: c["defaults"].pop("noul_commit"), "noul_commit must be true or false"),
         (lambda c: c["defaults"].pop("noul_commit_basis"), "noul_commit_basis must say why"),
         (lambda c: c["defaults"].update(extra=1), "unknown keys"),
-        (lambda c: c["defaults"]["fit"].pop("data"), "defaults.fit.data"),
+        (lambda c: c["defaults"]["fit"].pop("method"), "defaults.fit.method"),
         (lambda c: c["tuned"]["adapter"].update(weights_sha256="abc"), "tuned.adapter.weights_sha256 must be a sha256"),
         (lambda c: c["tuned"]["adapter"].pop("revision"), "tuned.adapter.revision"),
         (lambda c: c["tuned"]["merge"].update(precision="bf16"), "must be 'fp32'"),
@@ -118,7 +118,7 @@ def test_a2_an_older_decisio_and_a_mislabelled_file_are_refused(tmp_path):
         (lambda c: c["tuned"].update(files={}), "tuned.files must list"),
         (lambda c: c["tuned"]["files"].update(x="nothex"), "tuned.files['x'] must be a sha256"),
         (lambda c: c["weights"].update(modified=False), "weights.modified must be true"),
-        (lambda c: c.update(base="gemma-4-12b"), "tuned repositories are made for gemma-4-31b"),
+        (lambda c: c.update(base="qwen3.6-35b-a3b"), "tuned repositories are made for gemma-4-31b, gemma-4-12b"),
     ],
 )
 def test_a3_a_malformed_file_is_named_by_its_path(tmp_path, mutate, message):

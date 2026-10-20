@@ -1,0 +1,9 @@
+{
+ "what": "the bf16 merge on the real 12B and a real adapter of it, CPU: what each rounding keeps of the change in weight space",
+ "decisio_base_commit": "96fc77badf37d46e0697d69a5f2abd33625ca19f",
+ "files": {
+  "README.md": "3fd34e52cb4fd3bbeabc3e4526545b53bccf7987bfaa8a7bc4eee2bcc709b739",
+  "output.txt": "d027667132dce6cba0b553f186011b574793c6f43f027c1b66ded091e3186d92",
+  "weight_space.py": "c54851f6dff55120a74698d3e0739fee529c3ea0bcf29b3fa7f8b6fd4eda0c88"
+ }
+}
