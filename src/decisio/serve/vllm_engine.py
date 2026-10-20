@@ -1217,6 +1217,11 @@ def resolve_base(args):
         if args.model is not None:
             raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
         repo = hub.open_repository(args.base, args.revision)
+        if repo.tuned:  # 3a reads the file; 3b serves its defaults. Until then, never serve it at the base's settings
+            raise ValueError(
+                f"{repo.name} is a tuned model's repository ({repo.config['schema']}); this build reads the file but "
+                "does not yet apply its defaults, so it refuses to serve it"
+            )
         if args.backend == "mlx" and repo.config.get("weights", {}).get("dtype") == "fp8_e4m3":
             raise ValueError(
                 f"--backend mlx cannot load {repo.name}: its weights are FP8, vLLM's format; "
