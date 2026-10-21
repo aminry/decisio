@@ -82,6 +82,8 @@ from decisio.serve import adapter_temperatures, engine_stream  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
+from decisio.serve.combine import MAX_REQUESTS, Combiner, FairLock, Waiting, reads_serial  # noqa: E402
+from decisio.serve.combine import MODES as CONCURRENCY_MODES  # noqa: E402
 from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
@@ -199,6 +201,9 @@ def user_turn(tok, content, fmt=DEFAULT_FORMAT):
     """One question's chat prompt (decisio.readout.letters.chat_turn); under the default format exactly as evaluation
     renders a letters prompt (thinking disabled, "Answer:")."""
     return chat_turn(tok, content, fmt)
+
+
+_COMBINER_LOCK = threading.Lock()
 
 
 class LettersEngine:
@@ -333,7 +338,7 @@ class LettersEngine:
 
             for i, (name, path) in enumerate(self.adapter_paths.items(), start=1):
                 self.adapters[name] = LoRARequest(name, i, str(path))
-        self._lock = threading.Lock()  # one request at a time through the engine
+        self._lock = FairLock()  # one request at a time through the engine, first come first served
         self._warm_up()
 
     def _settle_context(self, auto):
@@ -466,26 +471,15 @@ class LettersEngine:
         # arrived: under `after` a request that follows another waits behind the previous state's registration
         # (decisio #132); ran_before counts only a registration this request sends itself
         behind = bool(registrar is not None and registrar.running)
-        t_arrived = time.perf_counter()
+        reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
         try:
-            with self._lock:
-                t0 = time.perf_counter()
-                waited_ms = (t0 - t_arrived) * 1000
-                # registrations already due go before this request's questions, so a question sent after an answer
-                # about the same state reads the state from the cache
-                ran, ran_ms = registrar.run_due() if registrar is not None else (0, 0.0)
-                reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
-                if self.mode == "separate":
-                    probs, info = self._answer_separate(reqs, adapter)
-                else:
-                    if adapter:
-                        raise ValueError("adapters are served in separate mode")
-                    probs, info = self._answer_packed(reqs)
-                if ran:
-                    info.setdefault("state_boundary", {}).update(ran_before=ran, ran_before_ms=ran_ms)
-                info["server_ms"] = (time.perf_counter() - t0) * 1000
-                info["waited_ms"] = waited_ms
-                info["waited_behind_registration"] = behind
+            if self.concurrency == "batched" and not reads_serial():
+                # the engine thread scores this call together with every other one waiting (decisio.serve.combine)
+                probs, info = self.combiner.submit(reqs, adapter, current_ticket(), behind)
+            else:
+                waiting = Waiting(reqs, adapter, None, behind)  # None: deferred to this thread's own ticket
+                with self._lock:
+                    ((probs, info),) = self._engine_call([waiting])
         finally:
             if own:
                 close_ticket(ticket, token)
@@ -498,6 +492,72 @@ class LettersEngine:
                 out[i] = np.array([p, 1.0 - p])
             results.append([out[i] for i in range(len(questions))])
         return results, info
+
+    # the requests in one engine call, and where they came from (--concurrency: decisio.serve.combine); the server
+    # sets both from its flags
+    concurrency = "serial"
+    batch_max_requests = MAX_REQUESTS
+
+    @property
+    def combiner(self) -> Combiner:
+        with _COMBINER_LOCK:  # two first requests at once must not make two engine threads
+            if "_combiner" not in self.__dict__:
+                self._combiner = Combiner(self, self.batch_max_requests)
+        return self._combiner
+
+    def concurrency_facts(self) -> dict:
+        """What /health says of --concurrency: the mode, and in batched mode the batches seen."""
+        if self.concurrency != "batched":
+            return {"mode": "serial"}
+        return self.combiner.facts()
+
+    def _combined_call(self, batch):
+        """The engine thread's call (the engine's lock held): every waiting call of `batch` in one engine call."""
+        return self._engine_call(batch)
+
+    def _engine_call(self, batch):
+        """One engine call for the `answer_many` calls in `batch` (decisio.serve.combine.Waiting), the engine's lock
+        held: the due boundary registrations first, then every request's rows. A batch of one is what a serial server
+        does for its request; several are scored together, every row in one call whatever --multi-question says, and
+        each call gets its own probabilities and the facts of its own rows. [(probs, info)] in `batch`'s order."""
+        t0 = time.perf_counter()
+        registrar = self.__dict__.get("_registrar")
+        # registrations already due go before this call's questions, so a question sent after an answer about the
+        # same state reads the state from the cache
+        ran, ran_ms = registrar.run_due() if registrar is not None else (0, 0.0)
+        reqs = [r for w in batch for r in w.requests]
+        together = len(batch) > 1
+        if self.mode == "separate":
+            # each request's deferred registrations go to its own ticket (None: the calling thread's, serially)
+            tickets = None if batch[0].ticket is None else [w.ticket for w in batch for _ in w.requests]
+            # the serial call exactly as before (an engine may override _answer_separate: the MLX build)
+            kw = {"together": together, "tickets": tickets} if together or tickets is not None else {}
+            probs, info = self._answer_separate(reqs, batch[0].adapter, **kw)
+        else:
+            if batch[0].adapter:
+                raise ValueError("adapters are served in separate mode")
+            probs, info = self._answer_packed(reqs)
+        if ran:
+            info.setdefault("state_boundary", {}).update(ran_before=ran, ran_before_ms=ran_ms)
+        info["server_ms"] = (time.perf_counter() - t0) * 1000
+        if not together:
+            info.pop("_row_spans", None)
+            info.pop("_state_boundary_each", None)
+            info["waited_ms"] = (t0 - batch[0].arrived) * 1000
+            info["waited_behind_registration"] = batch[0].behind
+            return [(probs, info)]
+        out, at = [], 0
+        for i, w in enumerate(batch):
+            n = len(w.requests)
+            mine = split_info(info, at, at + n, rows_total=sum(len(p) for p in probs))
+            mine.update(
+                waited_ms=(t0 - w.arrived) * 1000,
+                waited_behind_registration=w.behind,
+                batch={"calls": len(batch), "requests": len(reqs), "rows": info.get("questions"), "position": i},
+            )
+            out.append((probs[at : at + n], mine))
+            at += n
+        return out
 
     # ---- separate mode --------------------------------------------------------------------------
 
@@ -725,8 +785,12 @@ class LettersEngine:
         data = np.asarray(ids, dtype=np.int64).tobytes() + str(adapter).encode()
         return hashlib.blake2b(data, digest_size=16).digest()
 
-    def _answer_separate(self, requests, adapter):
+    def _answer_separate(self, requests, adapter, together=False, tickets=None):
+        """`together`: several callers' requests in one engine call (--concurrency batched), every row scored at once
+        even under --multi-question sequential. `tickets`: per request, the ticket its deferred boundary registrations
+        go to (None: the calling thread's)."""
         rows, warm, spans, shared = [], [], [], []
+        each = []  # per request: its boundary counts, so each caller of a batched call gets its own
         unit = min(self.match_unit, self.pad_unit or self.match_unit)
         # a single question registers its state's boundary too, on a base whose requests would not keep it otherwise
         # (decisio.families, register_state_boundary); the hit unit tells whether a later request found it
@@ -737,8 +801,10 @@ class LettersEngine:
         after = mode == "after"
         # (key) for the warm-ups sent; (key, row, whole hit units) for the others; (key, warm-up) for those deferred
         registering, checking, deferring = [], [], []
+        warmed = set()  # the warm-ups already in this call (two requests about one new state send one)
         t = time.perf_counter()
-        for state, questions in requests:
+        for k, (state, questions) in enumerate(requests):
+            each.append({"registered": 0, "found": 0, "deferred": 0})
             r, P = self._prepare_separate(state, questions)
             # a warm-up pays only when several questions can reuse a registered boundary; --multi-question batch
             # sends the questions without it, each prefilling the state itself, in one engine call
@@ -748,22 +814,30 @@ class LettersEngine:
                 # one question: the warm-up only when this engine has not registered the state's boundary, or a
                 # request since found it gone (evicted), so a repeated question costs no extra engine call
                 key = self._boundary_key(r[0][0][:P], adapter)
-                if key in self._boundaries:
+                if together and key in warmed:  # another request of this call sends the state's warm-up first
+                    registering.append(key)
+                    each[k]["registered"] += 1
+                elif key in self._boundaries:
                     self._boundaries.move_to_end(key)
                     checking.append((key, len(rows), (P // hit) * hit))
+                    each[k]["found"] += 1
                 elif after and not self.registrar.take(key):
                     # --register-boundary after: answered without the warm-up, which is sent once the response is out
-                    deferring.append((key, r[0][0][: P + 1]))
+                    deferring.append((key, r[0][0][: P + 1], k))
+                    each[k]["deferred"] += 1
                 else:
                     # before (0.8.1), or this state's warm-up is still pending behind a response not yet sent (two
                     # questions about a new state sent together): sent ahead of the question
-                    warm.append(r[0][0][: P + 1])
+                    if not (together and key in warmed):  # a serial call of several requests sends each its own
+                        warm.append(r[0][0][: P + 1])
+                        warmed.add(key)
                     registering.append(key)
+                    each[k]["registered"] += 1
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
         prepare_ms = (time.perf_counter() - t) * 1000
-        if self.multi_question == "sequential" and len(rows) > 1:
+        if self.multi_question == "sequential" and len(rows) > 1 and not together:
             probs, info = self._score_one_at_a_time(rows, adapter, warm)
         else:
             probs, info = self.score_prompts(rows, adapter, warm)
@@ -773,15 +847,17 @@ class LettersEngine:
                 if row < len(cached) and cached[row] < whole:
                     self._boundaries.pop(key, None)  # evicted: the next request on this state registers it again
             self.boundaries_registered(registering)
-            for key, w in deferring:
-                self.registrar.defer(key, w, adapter)
+            for key, w, k in deferring:
+                self.registrar.defer(key, w, adapter, ticket=None if tickets is None else tickets[k])
             info["state_boundary"] = {
                 "registered": len(registering),
                 "found": len(checking),
                 "deferred": len(deferring),
             }
+            info["_state_boundary_each"] = each
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
         info["prepare_ms"] = prepare_ms
+        info["_row_spans"] = spans
         return [probs[a:b] for a, b in spans], info
 
     @property
@@ -864,6 +940,37 @@ class LettersEngine:
         res, info = self.score_packed(packs)
         info.update(packs=len(packs), questions=sum(len(q) for _, q in requests))
         return [[p for pack in res[a:b] for p in pack] for a, b in spans], info
+
+
+# the facts of an engine call that are per row (each request of a batched call gets its own rows' values)
+ROW_KEYS = ("engine_timing", "engine_prompt_tokens", "cached_tokens", "label_token_logprobs")
+
+
+def split_info(info, first, last, rows_total):
+    """The facts of requests `first` to `last` (exclusive) of a batched engine call: their own rows' per-row values,
+    their own prefix and boundary counts; the call's timings and totals as they are (they are the call's)."""
+    spans = info.get("_row_spans") or []
+    a, b = spans[first][0], spans[last - 1][1]
+    mine = {k: v for k, v in info.items() if not k.startswith("_")}
+    for k in ROW_KEYS:
+        v = info.get(k)
+        if isinstance(v, list) and len(v) == rows_total:  # engine_timing can be shorter: then it is the call's
+            mine[k] = v[a:b]
+    if isinstance(mine.get("cached_tokens"), list):
+        mine["cached_tokens_mean"] = float(np.mean(mine["cached_tokens"])) if mine["cached_tokens"] else 0.0
+    if isinstance(mine.get("engine_prompt_tokens"), list):
+        mine["prompt_tokens"] = int(sum(mine["engine_prompt_tokens"]))
+    shared = info.get("shared_prefix_tokens")
+    if isinstance(shared, list):
+        mine["shared_prefix_tokens"] = shared[first] if last - first == 1 else shared[first:last]
+    mine["questions"] = b - a
+    each = info.get("_state_boundary_each")
+    if each is not None:
+        sb = {k: sum(e[k] for e in each[first:last]) for k in ("registered", "found", "deferred")}
+        if first == 0 and "ran_before" in (info.get("state_boundary") or {}):  # the call's, said once
+            sb.update({k: info["state_boundary"][k] for k in ("ran_before", "ran_before_ms")})
+        mine["state_boundary"] = sb
+    return mine
 
 
 # ---- HTTP endpoint ------------------------------------------------------------------------------
@@ -963,6 +1070,9 @@ def make_app(engine, systemone=None, health=None):
         # registrations deferred until after their responses: pending, and counted (decisio.serve.boundary)
         if facts_register_boundary(engine) == "after" and getattr(engine, "cache_hit_unit", None):
             so["state_boundary"] = engine.registrar.facts()
+        # one request at a time through the engine, or the waiting ones together (decisio.serve.combine)
+        if hasattr(engine, "concurrency_facts"):
+            so["concurrency"] = engine.concurrency_facts()
         return {
             "ok": True,
             **engine.facts(),
@@ -1491,6 +1601,24 @@ def build_parser():
         "each prefilling the state itself, no warm-up",
     )
     ap.add_argument(
+        "--concurrency",
+        default="serial",
+        choices=list(CONCURRENCY_MODES),
+        help="serial (the default): one request at a time through the engine, so a request's answer is a function of "
+        "the request alone, whatever else the server is sent; batched: the requests waiting for the engine are scored "
+        "together in one engine call (up to --batch-max-requests), more throughput under concurrent load, but an "
+        "answer can differ slightly with the traffic it arrived with (docs/running.md, 'Concurrency'). A lone request "
+        "is scored as a serial server scores it. The mode is in /health and in the serving-stack fingerprint: a "
+        "certificate made under one mode is not served as certified under the other",
+    )
+    ap.add_argument(
+        "--batch-max-requests",
+        type=int,
+        default=MAX_REQUESTS,
+        help=f"--concurrency batched: the most requests in one engine call (default {MAX_REQUESTS}); it counts "
+        "requests, not rows, and the oldest waiting request is always taken, however many questions it has",
+    )
+    ap.add_argument(
         "--register-boundary",
         default=None,
         choices=["after", "before", "off"],
@@ -1861,6 +1989,7 @@ def main():
                 ("--adapter-temperatures", args.adapter_temperatures),
                 ("--mode packed", args.mode == "packed"),
                 (f"--multi-question {args.multi_question}", args.multi_question not in (None, "sequential")),
+                ("--concurrency batched", args.concurrency == "batched"),
             )
             if given
         ]
@@ -1870,6 +1999,10 @@ def main():
         ap.error("--tokenizer is for --backend mlx (vLLM and the CPU stand-in use the model's own)")
     elif args.prefix_cache_mb is not None:
         ap.error("--prefix-cache-mb is for --backend mlx (vLLM has its own prefix cache)")
+    if args.concurrency == "batched" and args.mode == "packed":
+        ap.error("--concurrency batched scores the rows of separate mode together; --mode packed is one request each")
+    if args.batch_max_requests < 1:
+        ap.error("--batch-max-requests must be at least 1")
     for flag, value in (
         ("--mlx-memory-limit-gb", args.mlx_memory_limit_gb),
         ("--mlx-cache-limit-gb", args.mlx_cache_limit_gb),
@@ -1996,6 +2129,7 @@ def main():
         )
     engine.fmt = fmt
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
+    engine.concurrency, engine.batch_max_requests = args.concurrency, args.batch_max_requests
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults

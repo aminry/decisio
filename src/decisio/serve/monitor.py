@@ -159,14 +159,23 @@ class MixMonitor:
         if c:
             self._up = math.log(c["p_bad"] / c["p_ok"])
             self._down = math.log((1 - c["p_bad"]) / (1 - c["p_ok"]))
+        self.shared_skipped = 0  # answers scored in a shared engine call (--concurrency batched), not observed
         self._lock = threading.Lock()
 
     @property
     def alerting(self) -> bool:
         return self.mix_alerting or self.conf_alerting
 
-    def observe(self, index: int, certified: bool = False, confidence: float | None = None) -> None:
+    def observe(
+        self, index: int, certified: bool = False, confidence: float | None = None, shared: bool = False
+    ) -> None:
+        """Count one answer of the task. `shared`: it was scored in an engine call shared with other requests
+        (--concurrency batched), a function of the traffic, while the baseline was read one request at a time: it is
+        counted as skipped, not observed."""
         with self._lock:
+            if shared:
+                self.shared_skipped += 1
+                return
             if len(self._ring) == self._ring.maxlen:
                 self._counts[self._ring[0]] -= 1
             self._ring.append(int(index))
@@ -207,6 +216,7 @@ class MixMonitor:
                     n for n, on in (("answer_mix", self.mix_alerting), ("confidence", self.conf_alerting)) if on
                 ],
                 "first_alert_at": self.first_alert_at,
+                **({"shared_skipped": self.shared_skipped} if self.shared_skipped else {}),
             }
             if self._conf:
                 out["confidence"] = {

@@ -14,12 +14,12 @@ is no prefix cache, so `cached_tokens_mean` is always 0. Not for measurement.
 
 from __future__ import annotations
 
-import threading
 import time
 
 import numpy as np
 
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
+from decisio.serve.combine import FairLock
 from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
@@ -40,7 +40,7 @@ class HFLettersEngine(LettersEngine):
         self.model_name, self.revision = model, revision
         self.block_size = self.match_unit = block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
-        self._lock = threading.Lock()
+        self._lock = FairLock()  # as the vLLM engine's
         self.scored_rows = []  # every (token ids, label ids) scored, for the smoke test's prompt checks
         if warm_up:
             self._warm_up()
@@ -137,7 +137,7 @@ class HFImageLettersEngine:
                 self.model_name = model
                 self.block_size = self.match_unit = block_size
                 self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
-                self._lock = threading.Lock()
+                self._lock = FairLock()
                 self.scored_rows = []
                 self._image_setup(model)
                 self._warm_up()

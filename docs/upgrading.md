@@ -8,6 +8,26 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.23.0: batching concurrent requests (opt-in)
+
+### What changed
+
+- **`--concurrency batched`** scores the requests waiting for the engine together, in one engine call, up to `--batch-max-requests` (16) ([running.md](running.md#concurrency)).
+  The default stays `--concurrency serial`, one request at a time, unchanged.
+  On a batched server a certified task's questions and every task registration and certification read still take the serial path; the other answers can move slightly with the traffic they arrived with.
+- **New fields:** `concurrency` in `/health` (`{"mode": "serial"}` on a serial server; the calls and requests per call on a batched one), the header `x-decisio-batch` and `timing.batch` on `/v1/answer` when a request shared a call, and `shared_skipped` in a task monitor's facts when the monitor skipped answers scored in a shared call.
+- **A new certificate reason, `concurrency_changed`:** on a batched server the mode is part of the serving-stack fingerprint, so a task certified on a serial server is not served as certified by a batched one, and the other way round.
+  The response schema (`docs/reference/openapi.json`) now lists every `certified_reason` the server gives; `state_truncated` and `think_mode_changed` were missing from it.
+- **The engine's lock is first come, first served** on the vLLM engine and the CPU stand-in, on every server: under load a request waits for the requests that arrived before it, in order.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A serial server (the default) | Nothing changes: the same answers and serving-stack fingerprint; `/health` has one more field | Nothing |
+| `--concurrency batched` | Uncertified answers can depend on the traffic; certified tasks made on a serial server are suspended (`concurrency_changed`) | Certify the tasks again on the batched server, or keep serial |
+| A client that reads `certified_reason` | A new value, `concurrency_changed`, only from a batched server | Treat it as the other suspension reasons |
+
 ## 0.22.0: a tuned 12B repository
 
 ### What changed
