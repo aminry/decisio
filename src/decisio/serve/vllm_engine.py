@@ -1459,6 +1459,14 @@ def resolve_base(args):
                 raise ValueError(
                     f"--base {args.base}, but --model {args.model} declares FP8 weights: serve it with --base {fp8.key}"
                 )
+            if repo is not None and fam.precision == "fp8" and not declares_fp8(cfg):
+                # its file says FP8 weights stored, so the repository path would not quantize them on load: bf16
+                # weights would then be served, keyed and certified as the FP8 base
+                bf16 = next(f.key for f in FAMILIES if f.model == fam.model and f.precision == "bf16")
+                raise ValueError(
+                    f"{repo.name}: its {hub.FILE} is a {fam.key} repository, but its config.json declares no FP8 "
+                    f"weights: a bf16 checkpoint is served as {bf16}"
+                )
             fam = as_loaded(fam, cfg)  # a stored FP8 checkpoint is not quantized again on load
     else:
         if args.model is None:

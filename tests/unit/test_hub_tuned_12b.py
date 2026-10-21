@@ -4,8 +4,8 @@
 (defaults served, bands, the commit setting, over_limit, think), read from a repository directory.
 
 C1  the file: bf16 weights (not FP8), the merge facts of `hub_bf16` (output, stochastic rounding, seed), the 12B's
-    profile unchanged; a 12B with an FP8 merge, a 31B with a bf16 merge, a wrong weights dtype and a missing seed
-    are refused
+    profile unchanged; a 12B with an FP8 merge (named as gemma-4-12b-fp8's), a 31B with a bf16 merge, a wrong weights
+    dtype and a missing seed are refused (the 12B in FP8: test_hub_tuned_12b_fp8.py)
 C2  `tuned-config --base gemma-4-12b` writes a file `check` accepts, from a real (tiny) merge report
 C3  served from a directory: the family is the 12B, the repository's temperatures, bands, commit setting, over_limit
     and think reach the arguments, a flag beats them, the identity is the repository's and differs from the 31B's with
@@ -71,13 +71,13 @@ def test_c1_the_file_is_bf16_with_the_rounding_stated():
     assert c["weights"] == {**c["weights"], "modified": True, "dtype": "bfloat16", "quantization": None}
     assert "stochastically" in c["weights"]["method"] and c["tuned"]["merge"]["seed"] == 7
     assert c["defaults"]["over_limit"] == "truncate" and c["defaults"]["think"] == {"factor": 0.79}
-    assert hub.TUNED_BASES == ("gemma-4-31b", "gemma-4-12b")
+    assert hub.TUNED_BASES == ("gemma-4-31b", "gemma-4-12b", "gemma-4-12b-fp8")
 
 
 @pytest.mark.parametrize(
     ("mutate", "message"),
     [
-        (lambda m: m.update(output="fp8 compressed-tensors"), "must say output 'bf16' and rounding 'stochastic'"),
+        (lambda m: m.update(output="fp8 compressed-tensors"), "a tuned 12B in FP8 is the base gemma-4-12b-fp8"),
         (lambda m: m.update(rounding="nearest"), "must say output 'bf16' and rounding 'stochastic'"),
         (lambda m: m.pop("seed"), "tuned.merge.seed must be the rounding's seed"),
         (lambda m: m.update(seed=True), "tuned.merge.seed must be the rounding's seed"),

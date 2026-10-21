@@ -33,7 +33,8 @@ The schema, `decisio.decision_config/1`:
 `source` and `weights` describe the repository; everything from `model_types` down is the profile, compared with the
 installed one.
 
-A repository of a **tuned** model (an adapter merged into the base, `python -m decisio.hub_fp8 merge`) has schema
+A repository of a **tuned** model (an adapter merged into the base: `python -m decisio.hub_fp8 merge` for the 31B and
+gemma-4-12b-fp8, `python -m decisio.hub_bf16 merge` for gemma-4-12b) has schema
 `decisio.decision_config/2`: the same sections, a `weights` section that says the tensors were modified by a merge, and
 two more.
 
@@ -73,8 +74,9 @@ SCHEMA = "decisio.decision_config/1"  # a base's repository: the profile, unchan
 SCHEMA_TUNED = "decisio.decision_config/2"  # a tuned model's: the profile plus `tuned` and `defaults`
 SCHEMAS = (SCHEMA, SCHEMA_TUNED)
 FILE = "decision_config.json"
-# the bases a merge exists for: the 31B is stored in FP8 (`hub_fp8 merge`), the 12B in bf16 (`hub_bf16 merge`)
-TUNED_BASES = ("gemma-4-31b", "gemma-4-12b")
+# the bases a merge exists for: the 31B is stored in FP8 (`hub_fp8 merge`), the 12B in bf16 (`hub_bf16 merge`) as
+# gemma-4-12b or in FP8 (`hub_fp8 merge`) as gemma-4-12b-fp8
+TUNED_BASES = ("gemma-4-31b", "gemma-4-12b", "gemma-4-12b-fp8")
 LICENSE = "apache-2.0"  # Qwen3.6 and Gemma 4 (RLCD experiments/2026-10-07_sd_hf_model_repos/PLAN.md)
 QWEN = "qwen3.6-35b-a3b"
 
@@ -208,7 +210,7 @@ def profile_of(fam: Family) -> dict:
 
 def weights_of_tuned(base: str, quantization: str | None = None) -> dict:
     """The `weights` section of a tuned model's repository: the base's checkpoint with an adapter merged in (FP8 for
-    the 31B, bf16 for the 12B)."""
+    the 31B and for gemma-4-12b-fp8, bf16 for gemma-4-12b)."""
     if base not in TUNED_BASES:
         raise ValueError(f"a tuned repository is made for {', '.join(TUNED_BASES)}, not {base}")
     if base == "gemma-4-12b":
@@ -220,6 +222,18 @@ def weights_of_tuned(base: str, quantization: str | None = None) -> dict:
                 "a LoRA adapter merged into the bf16 base in fp32 and rounded once to bf16, stochastically and seeded, "
                 "by decisio's merge (`python -m decisio.hub_bf16 merge`); every other tensor is the base's, byte for "
                 "byte; the adapter, its revision, the rounding seed and the merged files are listed in `tuned`"
+            ),
+            "quantized_on_load": False,
+        }
+    if base == "gemma-4-12b-fp8":
+        return {
+            "modified": True,
+            "dtype": "fp8_e4m3",
+            "quantization": quantization or "compressed-tensors",
+            "method": (
+                "a LoRA adapter merged into the 12B's bf16 base in fp32 and quantized once to FP8 by decisio's merge "
+                "(`python -m decisio.hub_fp8 merge`), as the 31B's; every other tensor is the 12B's FP8 export; the "
+                "adapter, its revision and the merged files are listed in `tuned`"
             ),
             "quantized_on_load": False,
         }
@@ -387,7 +401,13 @@ def check_tuned(tuned, base_key: str | None = None) -> None:
             "tuned.merge.precision must be 'fp32' (the merge is made in fp32 and quantized once), "
             f"got {merge.get('precision')!r}"
         )
+    output = str(merge.get("output", ""))
     if base_key == "gemma-4-12b":
+        if output.startswith("fp8"):
+            raise ValueError(
+                f"tuned.merge.output is {merge.get('output')!r}, an FP8 merge (`hub_fp8 merge`): a tuned 12B in FP8 is "
+                "the base gemma-4-12b-fp8, not gemma-4-12b (bf16)"
+            )
         if merge.get("output") != "bf16" or merge.get("rounding") != "stochastic":
             raise ValueError(
                 "tuned.merge of a 12B must say output 'bf16' and rounding 'stochastic' (the merge is rounded once, "
@@ -395,7 +415,14 @@ def check_tuned(tuned, base_key: str | None = None) -> None:
             )
         if not isinstance(merge.get("seed"), int) or isinstance(merge["seed"], bool):
             raise ValueError("tuned.merge.seed must be the rounding's seed (a whole number)")
-    elif base_key == "gemma-4-31b" and not str(merge.get("output", "")).startswith("fp8"):
+    elif base_key == "gemma-4-12b-fp8":
+        if not output.startswith("fp8") or merge.get("rounding") is not None or "seed" in merge:
+            raise ValueError(
+                "tuned.merge of gemma-4-12b-fp8 must say output 'fp8' (`hub_fp8 merge`: quantized once, no stochastic "
+                f"rounding or seed), got output {merge.get('output')!r} and rounding {merge.get('rounding')!r}: a bf16 "
+                "merge of the 12B (`hub_bf16 merge`) is the base gemma-4-12b"
+            )
+    elif base_key == "gemma-4-31b" and not output.startswith("fp8"):
         raise ValueError(f"tuned.merge.output of a 31B must be fp8, got {merge.get('output')!r}")
     if not isinstance(merge.get("adapted_tensors"), int) or merge["adapted_tensors"] < 1:
         raise ValueError(
@@ -453,6 +480,26 @@ def file_digests(directory: Path) -> dict:
                     h.update(chunk)
             out[f.name] = h.hexdigest()
     return out
+
+
+def check_weights_precision(base: str, directory: Path) -> None:
+    """Refuse a weights directory whose config.json declares another precision than the base's, where one checkpoint
+    is served in two (the 12B): a checkpoint that declares FP8 weights is a gemma-4-12b-fp8 one, any other a
+    gemma-4-12b one. Other bases have one precision, and their checkpoints are not checked here."""
+    from decisio.families import declares_fp8
+
+    fam = BASES.get(base)
+    if fam is None or fam.precision is None:
+        return
+    path = Path(directory) / "config.json"
+    fp8 = declares_fp8(json.loads(path.read_text())) if path.exists() else False
+    if fp8 == (fam.precision == "fp8"):
+        return
+    other = next(f for f in BASES.values() if f.model == fam.model and f.precision == ("fp8" if fp8 else "bf16"))
+    raise ValueError(
+        f"{directory}: its config.json declares {'FP8' if fp8 else 'no FP8'} weights, so it is a {other.key} "
+        f"checkpoint, not {base}"
+    )
 
 
 def merge_facts(report: dict) -> dict:
@@ -638,7 +685,9 @@ def main(argv=None) -> int:
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
     tc.add_argument("--adapter-repository", required=True)
     tc.add_argument("--adapter-revision", required=True)
-    tc.add_argument("--merge-report", required=True, help="MERGE_FP8.json of the merge")
+    tc.add_argument(
+        "--merge-report", required=True, help="the merge's report: MERGE_FP8.json (hub_fp8), MERGE_BF16.json (hub_bf16)"
+    )
     tc.add_argument("--weights-dir", required=True, help="the merged model's directory: its files are listed by sha256")
     tc.add_argument("--out", required=True, help="where to write decision_config.json")
     tc.add_argument("--decisio-version")
@@ -651,6 +700,7 @@ def main(argv=None) -> int:
             if config.get("schema") not in SCHEMAS:
                 raise ValueError(f"schema {config.get('schema')!r}")
             if a.weights_dir:
+                check_weights_precision(config.get("base"), Path(a.weights_dir))
                 have, want = file_digests(Path(a.weights_dir)), (config.get("tuned") or {}).get("files") or {}
                 bad = sorted(n for n in set(have) | set(want) if have.get(n) != want.get(n))
                 if bad:
@@ -679,6 +729,7 @@ def main(argv=None) -> int:
         if basis and os.path.isfile(basis):
             basis = json.loads(Path(basis).read_text())
         try:
+            check_weights_precision(a.base, Path(a.weights_dir))
             config = tuned_config(
                 fam,
                 temperatures=t["temperatures"],

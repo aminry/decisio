@@ -60,7 +60,13 @@ def repo_dir(tmp_path, base, mutate=None, name="repo"):
     if mutate:
         mutate(config)
     (d / hub.FILE).write_text(json.dumps(config))
-    (d / "config.json").write_text(json.dumps({"model_type": MODEL_TYPE[base]}))
+    cfg = {"model_type": MODEL_TYPE[base]}
+    if BASES[base].precision == "fp8":  # the 12B's FP8 repository holds `hub_fp8 convert`'s checkpoint, which says so
+        cfg["quantization_config"] = {
+            "quant_method": "compressed-tensors",
+            "config_groups": {"group_0": {"weights": {"type": "float", "num_bits": 8, "strategy": "tensor"}}},
+        }
+    (d / "config.json").write_text(json.dumps(cfg))
     return d
 
 
