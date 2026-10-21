@@ -8,6 +8,23 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.22.0: a tuned 12B repository
+
+### What changed
+
+- **The Gemma 4 12B can be shipped as a tuned repository** (`decisio.decision_config/2`), stored in bf16 as the 12B is served ([running.md](running.md#shipping-a-tuned-model)).
+  `python -m decisio.hub_bf16 merge` adds the adapter in fp32 and rounds once to bf16, stochastically and seeded (the seed is in the report and the repository's file); every other tensor is the base's, byte for byte. `python -m decisio.hub tuned-config --base gemma-4-12b` writes the file.
+  A tuned 12B is served at its repository's defaults exactly as a tuned 31B is: temperatures and choice bands, the commit setting, `over_limit`, and `think`.
+- **A tuned repository's file no longer says anything about the data.** `tuned-config` keeps the method of the temperature fit and drops the fit tools' notes on data, counts and details; `defaults.fit.data` is no longer required (files that have it still load).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The bases and `/1` repositories | Nothing changes | Nothing |
+| A tuned 31B repository | Nothing changes; a new `tuned-config` writes a `fit` without `data` | Nothing |
+| A tuned 12B repository | Needs 0.22.0 or later; an older decisio refuses it by its schema | Run 0.22.0 or later |
+
 ## 0.21.0: think when unsure
 
 ### What changed
