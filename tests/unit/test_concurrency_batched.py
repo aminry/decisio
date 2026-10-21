@@ -650,3 +650,66 @@ def test_b9_a_serial_call_of_several_requests_sends_each_its_warm_up_as_before()
     eng.register_boundary = "before"
     eng.answer_many([("the same new state, long", Q), ("the same new state, long", Q)])
     assert eng.calls[0]["warm"] == 2  # no de-duplication outside a batched call
+
+
+@pytest.mark.slow
+def test_b10_one_engine_images_and_text_on_a_batched_server():
+    """`--one-engine`: one engine serves the text and the image route. On a batched server the image request takes the
+    engine's fair lock while text requests around it batch: it waits at most for the call in progress and one queued,
+    the text clients keep being served, and every answer, the image's and the text's, is the one a serial server gives
+    (the stand-in scores each row alone)."""
+    import os
+
+    from PIL import Image
+
+    from decisio.serve.hf_letters import HFImageLettersEngine
+
+    model = os.environ.get("DECISIO_IMAGE_TEST_MODEL", "Qwen/Qwen3.5-0.8B-Base")
+    eng = HFImageLettersEngine(model, pad_to="block", pad_where="front")
+    assert isinstance(eng._lock, FairLock)
+    rng = np.random.default_rng(0)
+    picture = Image.fromarray(rng.integers(0, 255, (64, 96, 3), dtype=np.uint8), "RGB")
+    iq = [{"kind": "noul", "instructions": "Does the photo show a red item?"}]
+    tq = [{"kind": "choice", "instructions": "Which team?", "options": ["billing", "technical", "sales"]}]
+    states = [f"Ticket {i}: the invoice for order {i} was charged twice." for i in range(6)]
+    serial_image = eng.answer("A photo from a listing.", iq, images=[picture])[0]
+    serial_text = {s: eng.answer(s, tq)[0] for s in states}
+
+    calls = []
+    score = eng.score_prompts
+
+    def slowed(rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
+        if not mm:  # a text call: long enough for requests to queue behind it
+            calls.append(len(rows))
+            time.sleep(0.03)
+        return score(rows, adapter, warm, skip_cache, mm, mm_uuids)
+
+    eng.score_prompts = slowed
+    eng.concurrency = "batched"
+    stop, got, bad = threading.Event(), [], []
+
+    def client(s):
+        while not stop.is_set():
+            p = eng.answer(s, tq)[0]
+            got.append(s)
+            if [x.tobytes() for x in p] != [x.tobytes() for x in serial_text[s]]:
+                bad.append(s)
+
+    clients = [threading.Thread(target=client, args=(s,)) for s in states]
+    for c in clients:
+        c.start()
+    deadline = time.monotonic() + 30
+    while len(calls) < 10 and time.monotonic() < deadline:
+        time.sleep(0.005)
+    before = len(calls)
+    image = eng.answer("A photo from a listing.", iq, images=[picture])[0]
+    meanwhile = len(calls) - before
+    served_after = len(got)
+    time.sleep(0.2)  # the text clients go on after the image request
+    stop.set()
+    for c in clients:
+        c.join(30)
+    assert [x.tobytes() for x in image] == [x.tobytes() for x in serial_image]
+    assert meanwhile <= 2  # the call in progress and at most one queued before it
+    assert not bad and len(got) > served_after  # text answers unchanged, and still served after the image
+    assert max(calls) > 1  # the text requests did batch
