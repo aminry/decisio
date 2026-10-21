@@ -1589,7 +1589,8 @@ def build_parser():
         default=None,
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b "
         "(the default; served from its FP8 repository, tachara-ai/decisio-gemma-4-31b), qwen3.6-35b-a3b "
-        "(Qwen/Qwen3.6-35B-A3B-FP8) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision; or a decisio "
+        "(Qwen/Qwen3.6-35B-A3B-FP8), gemma-4-12b (google/gemma-4-12B-it, bf16) or gemma-4-12b-fp8 (the same "
+        "checkpoint quantized to FP8 on load, the 12B's second precision), each at a pinned revision; or a decisio "
         "repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",

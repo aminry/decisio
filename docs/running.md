@@ -28,6 +28,7 @@ uv run python -m decisio.serve.vllm_engine
   That is the board's own account of its run of 2026-10-06 on the v1.6.0/v1.6.1 pool, in the row `decisio-gemma-4-31b-v080` (JevBench v1.6.1, `https://benchmarkheaven.com/api/jevbench/v1.6.1`); we did not run it. It agrees with our own 80 GB record ("The context length" below): the 31B is measured in full on a 96 GB card, and it also runs on an 80 GB H100.
   The row also notes that 23 of the pool's items, of about 80,000 tokens, are over the 32,768-token context.
 - `--base qwen3.6-35b-a3b` serves `Qwen/Qwen3.6-35B-A3B-FP8` and `--base gemma-4-12b` serves `google/gemma-4-12B-it`, each at its pinned revision and with its own settings (the README's "Choosing a base"; `docs/cli.md` lists every setting per base).
+  `--base gemma-4-12b-fp8` serves the same 12B checkpoint in FP8 ([The 12B in two precisions](#the-12b-in-two-precisions)).
 - With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`, so a local copy of any base's checkpoint brings its own settings; a base's pinned revision applies whenever `--model` names the base's own Hugging Face repository and `--revision` is not given.
 - The first start downloads the checkpoint into the Hugging Face cache and warms the engine: about 31 GB for the 31B's FP8 repository (62 GB for Google's bf16 weights) and about 36 GB for the Qwen base (`runs/2026-10-01_docker-first-gpu-start/`); `/health` answers once it is ready.
 - Upgrade notes: `docs/upgrading.md`.
@@ -125,33 +126,65 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b
   `tests/gpu/fp8_fingerprints.py` reads the FP8 weights an engine holds, and `python -m decisio.hub_fp8 expected|compare` predict and compare them.
 - The three repositories are public on the Hub, at revisions pinned in `decisio.hub.PINNED_REVISIONS`: `tachara-ai/decisio-gemma-4-31b`, `tachara-ai/decisio-gemma-4-12b` and `tachara-ai/decisio-qwen3.6-35b-a3b`.
   Each carries the licence, a card and `SHA256SUMS`; the 12B and Qwen files are byte-for-byte copies of Google's and Qwen's, and the 31B's text model is quantized to FP8 (its card says so).
+- The 12B's FP8 conversion has a repository of its own, `tachara-ai/decisio-gemma-4-12b-fp8`, served with `--base tachara-ai/decisio-gemma-4-12b-fp8` once a release pins its revision ([The 12B in two precisions](#the-12b-in-two-precisions)).
+  `--base gemma-4-12b-fp8` alone keeps quantizing Google's bf16 weights on load, to the same tensors.
+
+## The 12B in two precisions
+
+The Gemma 4 12B is served in bf16 (`--base gemma-4-12b`) or in FP8 (`--base gemma-4-12b-fp8`), from the same checkpoint.
+bf16 is the default and the precision of every 12B record in this repository: the figures in the README, `EVAL_CARD.md` and `runs/` are bf16 unless they say otherwise.
+FP8 is a second base beside it, for a smaller footprint: its linear layers are quantized to FP8 when they load, per tensor with per-token activations, as the 31B's are.
+
+```bash
+uv run python -m decisio.serve.vllm_engine --base gemma-4-12b-fp8                                   # Google's weights, quantized on load
+uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-12b-fp8                # the stored conversion, once pinned
+uv run python -m decisio.hub_fp8 convert --source <bf16 12B dir> --out <converted dir>
+uv run python -m decisio.serve.vllm_engine --base gemma-4-12b-fp8 --model <converted dir>           # a local conversion
+```
+
+- `--base gemma-4-12b-fp8` alone serves `google/gemma-4-12B-it` at its pinned revision and quantizes it on load.
+- The stored conversion, made by `python -m decisio.hub_fp8 convert` as the 31B's is, holds the same tensors: on the real 12B the conversion predicts that loading it changes 0 weights in all 192 fused layers and that the tensors it loads to are the ones quantizing on load makes (`fp8_conversion.json` beside it; the check of the engine's own tensors on a card is the 31B's, `tests/gpu/fp8_fingerprints.py`, and is not yet run for the 12B).
+  It is 12.13 GiB on disk, against 22.3 GiB for the bf16 checkpoint, and it is loaded as stored, not quantized again.
+  The repository `tachara-ai/decisio-gemma-4-12b-fp8` holds it once a release pins its revision; until then `--model <converted dir>` with `--base gemma-4-12b-fp8` serves a local conversion.
+- Without `--base`, a 12B checkpoint is served as `gemma-4-12b` (bf16) unless its `config.json` declares FP8 weights, which makes it `gemma-4-12b-fp8`, loaded as stored.
+  `--base gemma-4-12b` with an FP8 checkpoint is refused, naming the FP8 base, and a repository whose file names the FP8 base over a checkpoint that declares no FP8 weights is refused too.
+  The start prints a `BASE` line with the base, its precision and how it is loaded (for example `BASE gemma-4-12b-fp8 (fp8, quantized to FP8 on load) from google/gemma-4-12B-it`).
+
+What changes with FP8:
+- **The answers.** FP8 weights and activations are not the same function as bf16, so the FP8 12B's answers are not the bf16 12B's, and no 12B figure here was measured on it.
+- **The stack identity.** The FP8 12B has its own served name (`decisio-gemma-4-12b-it-fp8-letters`), task fingerprint and serving stack: a task registered on the bf16 12B does not apply to it, and a certificate made on bf16 is suspended on it (`serving_stack_changed`, [tasks.md](tasks.md#where-it-stops)). Register and certify again on the FP8 base.
+- **The temperatures** are the bf16 12B's (3.592 for every question type) until they are refitted on FP8 reads.
+- **The context length** follows the same rule as the bf16 12B, with more room for the KV cache ([The context length](#the-context-length)).
+- **MLX does not serve it:** FP8 is vLLM's format, and `--backend mlx` refuses the FP8 base; on a Mac, serve an MLX conversion of the bf16 12B ([Mac with MLX](#mac-with-mlx)).
 
 ## Shipping a tuned model
 
-A model made by merging a LoRA adapter into the Gemma 4 31B (stored in FP8) or the Gemma 4 12B (stored in bf16, as it is served) is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
+A model made by merging a LoRA adapter into the Gemma 4 31B (stored in FP8) or the Gemma 4 12B (stored in bf16 as `gemma-4-12b`, or in FP8 as `gemma-4-12b-fp8`) is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
 A plain request to it, with no flag and no `adapter` field, is already fixed: the repository carries the temperatures, the choice bands and the yes/no commit setting that the adapter needs, and the server applies them.
 This is how a harness that sends no adapter field and no flag reaches a tuned model: it is told `--base owner/name`.
-`--base gemma-4-31b` and `--base gemma-4-12b` are still the bases' repositories.
+`--base gemma-4-31b`, `--base gemma-4-12b` and `--base gemma-4-12b-fp8` are still the bases' own checkpoints.
 
 **Making it**, on any machine that holds the bf16 base and the adapter's directory:
 
 ```bash
-# 1. merge in fp32 and round once: the 31B to FP8, the 12B to bf16 (a card is not needed; --device cuda is faster)
-uv run python -m decisio.hub_fp8 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>      # 31B
-uv run python -m decisio.hub_bf16 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>     # 12B
+# 1. merge in fp32 and round once: the 31B to FP8, the 12B to bf16 or to FP8 (a card is not needed; --device cuda is faster)
+uv run python -m decisio.hub_fp8 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>      # 31B, 12B in FP8
+uv run python -m decisio.hub_bf16 merge --source <bf16 base dir> --adapter <peft dir> --out <merged dir>     # 12B in bf16
 # 2. fit the temperatures on the MERGED model's own reads of items that are not a benchmark's
 uv run python -m decisio.serve.adapter_temperatures fit-split --h H.jsonl.gz --h-keys h.json --dev D.jsonl.gz --dev-keys d.json --variant dev --out temperatures.json
 # 3. write the repository's file, stating the commit setting, and check it
 uv run python -m decisio.hub tuned-config --base gemma-4-31b --temperatures temperatures.json --noul-commit \
     --noul-commit-basis basis.json --adapter-dir <peft dir> --adapter-repository <owner/adapter> --adapter-revision <commit> \
     --merge-report <merged dir>/MERGE_FP8.json --weights-dir <merged dir> --out <merged dir>/decision_config.json
-#    for the 12B: --base gemma-4-12b and --merge-report <merged dir>/MERGE_BF16.json; --think-factor F turns thinking
-#    on for the model and --over-limit truncate answers states over its prompt ceiling from their start
+#    for the 12B in bf16: --base gemma-4-12b and --merge-report <merged dir>/MERGE_BF16.json; in FP8: --base
+#    gemma-4-12b-fp8 and MERGE_FP8.json; --think-factor F turns thinking on for the model and --over-limit truncate
+#    answers states over its prompt ceiling from their start
 uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-dir <merged dir>
 ```
 
 - **The 12B's merge** (`hub_bf16`) adds the same change in fp32 and rounds once to bf16, **stochastically**: each entry goes to one of its two bf16 neighbours with the probability that makes its expected value the fp32 value, with noise seeded per tensor (`sha256(seed | tensor name)`, so the result is repeatable and independent of the order; `--seed`, default 0, goes in the report and the repository's file). Rounding to nearest cannot carry a small adapter: the base is already on the bf16 grid, so it rounds the change away for most entries (it kept 0.88 of one real 12B adapter's change in weight space, and about half of a smaller one on the 31B); the stochastic merge kept 1.0000 of the 12B's (`runs/2026-10-20_tuned-12b-merge/`). Every other tensor is copied byte for byte, `--null` equals the source byte for byte, and the K=V rule below holds. The repository is bf16 (22 GB) and nothing is quantized on load.
-- **The 31B's merge** adds `scale * (B @ A)` to each weight in fp32 and quantizes once, with the adapter's change inside each fused group's amax; a merge through bf16 would round most of a small change away. Every pair of the adapter must land on a tensor of a quantized group. `--null` merges an adapter of scale 0, which must equal `hub_fp8 convert` byte for byte. The full-attention layers of the 31B ship no `v_proj` (`attention_k_eq_v`: V is K), so an adapter's `v_proj` pair there has no tensor to land on. The trainer's export writes such a pair as a copy of the layer's `k_proj` pair; the merge checks that it is bit for bit that copy (both halves), leaves it out, and counts it in the report and the repository's file (`dropped_k_eq_v_pairs`): merging the `k_proj` delta already gives V that delta, so nothing of the adapter is lost. A `v_proj` pair that differs from its layer's `k_proj` pair asks for a V that differs from K, which this layout cannot hold, and the merge refuses with the difference.
+- **The 12B's merge to FP8** is the 31B's (`hub_fp8 merge`, below) on the 12B's bf16 base, and its repository is a `gemma-4-12b-fp8` one: FP8 weights, not quantized on load, its own identity beside the bf16 tuned 12B's. Each 12B refuses the other's facts: `tuned-config --base gemma-4-12b` refuses an FP8 merge report or a weights directory whose `config.json` declares FP8, and `--base gemma-4-12b-fp8` a bf16 one (output bf16, stochastic rounding, a seed), each naming the base they belong to; `check --weights-dir` refuses a directory of the other precision. A tuned 12B's gates and temperatures read on bf16 do not carry over to its FP8 merge: they are read again on the FP8 model.
+- **The 31B's merge** adds `scale * (B @ A)` to each weight in fp32 and quantizes once, with the adapter's change inside each fused group's amax; a merge through bf16 would round most of a small change away. Every pair of the adapter must land on a tensor of a quantized group. `--null` merges an adapter of scale 0, which must equal `hub_fp8 convert` byte for byte. The full-attention layers of the 31B and of the 12B ship no `v_proj` (`attention_k_eq_v`: V is K), so an adapter's `v_proj` pair there has no tensor to land on. The trainer's export writes such a pair as a copy of the layer's `k_proj` pair; the merge checks that it is bit for bit that copy (both halves), leaves it out, and counts it in the report and the repository's file (`dropped_k_eq_v_pairs`): merging the `k_proj` delta already gives V that delta, so nothing of the adapter is lost. A `v_proj` pair that differs from its layer's `k_proj` pair asks for a V that differs from K, which this layout cannot hold, and the merge refuses with the difference.
 - **The file** keeps the base's profile exactly (a repository cannot change how the base is read) and adds `tuned` (the base, the adapter with its digests and revision, the merge report, every file by sha256) and `defaults` (`temperatures` per question type, `choice_bands`, `noul_commit` always stated true or false with its basis, `over_limit` and `think` when the model says them, and how the temperatures were fitted: the method only. `tuned-config` drops the fit tools' notes on data, counts and details, so neither the file nor anything generated from it says what a model was trained or calibrated on; the repository's card carries one generic data statement of its own).
 - **Precedence at start:** a flag, then the repository's `defaults`, then the base's profile. `--temperature-choice X` is one number for every choice question, so it drops the repository's bands. `--noul-commit` and `--no-noul-commit` override the commit setting either way. The start prints `REPOSITORY DEFAULTS ...` with what was applied, and `/health` reports it under `systemone.repository_defaults` with the digest of `tuned` and `defaults`.
 - **Fingerprint and tasks:** the digest and the bands are in the serving-stack fingerprint, so a certificate made on the tuned model is suspended by any change of either. Tasks are named for the repository and its defaults, so a task fitted on the base is not applied to the tuned model, nor the other way round.
@@ -344,6 +377,7 @@ Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest 
 | --- | --- | ---: |
 | `qwen3.6-35b-a3b` | 32,768 | 32,768 |
 | `gemma-4-12b` | the largest that fits the card, 32,768 to 65,536 | 65,536 |
+| `gemma-4-12b-fp8` | the largest that fits the card, 32,768 to 65,536 (KV room below: an estimate) | 65,536 |
 | `gemma-4-31b` | the largest that fits the card, 32,768 to 98,304 | 98,304 |
 
 **How the length is chosen.** At start-up the server asks vLLM for the longest single request that fits the card (`max_model_len=-1`: vLLM profiles the card, takes the KV cache memory it reports and searches the longest length that fits), then serves the largest multiple of 8,192 not above that and not above the ceiling. It is one start of the engine, not a trial. If even 32,768 does not fit, the start fails with a message that names the length that fits, as a fixed 32,768 failed before.
@@ -359,6 +393,16 @@ Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest 
 | 0.55 | 6.71 GiB | 7,968 | does not start |
 
 The fit is not linear in the KV memory: 12% less KV cache (0.90 to 0.85) halved it, and the 31B's cache has several groups (vLLM's hybrid KV cache manager) that all have to fit, so the length cannot be estimated from one measurement or from a card's size alone. On the same 80 GB card the 12B served its ceiling of 65,536 at the default share (43.28 GiB of KV cache). Read `/health` for what a server chose, and give `--max-model-len` to fix a length. Where 32,768 does not fit the server does not start (as a fixed 32,768 did not): raise the share, start a smaller base, or give a `--max-model-len` below 32,768.
+
+**The FP8 12B's room for the KV cache is an estimate until a card measures it.** FP8 roughly halves the 12B's weights, and what it frees goes to the KV cache. The arithmetic: 0.90 of the card, less the weights (the bf16 checkpoint's 22.3 GiB, about 12.5 GiB in FP8), less about 2.5 GiB for activations and graphs.
+
+| Card | bf16 12B, by the arithmetic | FP8 12B, by the arithmetic (an estimate) |
+| --- | --- | --- |
+| 32 GiB | 4.0 GiB; it did not start with the engine's share cut to 0.90 of 32 GB (simulated, `EVAL_CARD.md` 6.6) | 13.8 GiB |
+| 48 GiB | 18.4 GiB | 28.2 GiB |
+| 96 GiB | 61.6 GiB | 71.4 GiB |
+
+The one measured point says the arithmetic runs high: on an 80 GB H100 it gives about 46.9 GiB for the bf16 12B, where vLLM reported 43.28 GiB, so read both columns as upper bounds. The 12B's KV cache is small (about 0.34 GiB a sequence for its sliding-window layers plus about 16 KB a token for its 8 full-attention layers), so the extra room buys concurrent sequences and prefix cache, not a longer single request: the context still stops at the 12B's ceiling, which both precisions reach on a 96 GB card.
 
 **Where it does not apply.** With `--max-model-len` the server serves exactly that length (above 32,768 only up to the ceiling; beyond it the server refuses to start, as before), and so with a `max_model_len` in `--engine`. The default stays 32,768 with `--image-model` (the image engine serves 32,768), a second engine (`--head-engine`), `--engine-process separate` (the fit is read from the engine's configuration in the server's own process), `--backend mlx` and `--backend hf`.
 To keep one length on every card, give `--max-model-len`.
