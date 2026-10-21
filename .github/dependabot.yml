@@ -36,3 +36,10 @@ updates:
           - version-update:semver-major
           - version-update:semver-minor
           - version-update:semver-patch
+  - package-ecosystem: npm
+    # the pong demo is the only Node project; its lockfile is not part of the wheel or the image
+    directory: /examples/demos/pong
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "chore(deps)"
