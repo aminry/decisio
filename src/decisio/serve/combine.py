@@ -32,12 +32,24 @@ Standard library only.
 from __future__ import annotations
 
 import atexit
+import copy
 import threading
 import time
 from collections import Counter, deque
 
 MODES = ("serial", "batched")
 MAX_REQUESTS = 16  # --batch-max-requests' default: the most requests in one engine call
+
+
+def is_engine_failure(engine, error) -> bool:
+    """Whether a failed engine call failed for the engine (it is dead, or the error is not one a request causes) rather
+    than for one of its requests."""
+    from decisio.serve.engine_health import EngineDead, client_error
+
+    health = getattr(engine, "health", None)
+    if isinstance(error, EngineDead) or (health is not None and health.dead):
+        return True
+    return not (isinstance(error, (KeyError, ValueError, AssertionError)) or client_error(error) is not None)
 
 
 class Waiting:
@@ -97,7 +109,8 @@ class Combiner:
             self._cond.notify_all()
         w.done.wait()
         if w.error is not None:
-            raise w.error
+            # each waiter raises its own copy: several threads raising one object would interleave its traceback
+            raise copy.copy(w.error) from w.error
         return w.result
 
     def take(self) -> list[Waiting]:
@@ -134,9 +147,18 @@ class Combiner:
                     results = self.engine._combined_call(batch)
                     for w, r in zip(batch, results):
                         w.result = r
-                except BaseException as e:  # noqa: BLE001 - every request of the call gets the call's failure
-                    for w in batch:
-                        w.error = e
+                except BaseException as e:  # noqa: BLE001
+                    if len(batch) == 1 or is_engine_failure(self.engine, e):
+                        for w in batch:  # the engine failed: every request of the call gets the failure
+                            w.error = e
+                    else:
+                        # a request's own error (a state over the context, a question that merges with the state)
+                        # fails that request only, as on a serial server: each is scored again alone
+                        for w in batch:
+                            try:
+                                (w.result,) = self.engine._combined_call([w])
+                            except BaseException as one:  # noqa: BLE001
+                                w.error = one
                 finally:
                     with self._cond:
                         self.calls += 1
@@ -145,6 +167,9 @@ class Combiner:
                         self.sizes[n] += 1
                     for w in batch:
                         w.done.set()
+            # let a thread waiting for the engine's lock (a thinking request, the image route, the hidden-state
+            # readout) take it before the next call: the lock is not fair, and this thread would take it back at once
+            time.sleep(0)
 
     def close(self) -> None:
         """At exit: no call starts any more, the waiting requests fail, and a call in progress is waited for (at most

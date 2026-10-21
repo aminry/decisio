@@ -996,7 +996,7 @@ class SystemOne:
                 **{
                     k: v
                     for k, v in info.items()
-                    if k in ("cached_tokens_mean", "image_tokens", "waited_behind_registration")
+                    if k in ("cached_tokens_mean", "image_tokens", "waited_behind_registration", "batch")
                 },
                 # where the engine's time went, for the x-decisio-stages header (milliseconds)
                 "stages": {
@@ -1972,6 +1972,9 @@ def add_routes(app, systemone: SystemOne):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
         if timing.get("waited_behind_registration"):  # the wait in `stages` was behind a boundary registration (#132)
             headers[header("wait-behind")] = "registration"
+        if timing.get("batch"):  # --concurrency batched: the engine call this request shared with others
+            b = timing["batch"]
+            headers[header("batch")] = f"requests={b['requests']}; rows={b['rows']}"
         return JSONResponse(out, headers=headers)
 
     def debug_of(request):

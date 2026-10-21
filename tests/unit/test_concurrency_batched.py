@@ -448,3 +448,81 @@ def test_b8_concurrent_clients_on_the_stand_in_get_the_serial_answers_in_fewer_c
     assert got == serial  # the stand-in scores each row alone: batching changes nothing but the number of calls
     assert len(calls) < len(states)
     assert client.get("/health").json()["concurrency"]["mode"] == "batched"
+
+
+# ---- review fixes ---------------------------------------------------------------------------------------------------
+
+
+class Override(Rows):
+    """An engine that overrides _answer_separate with the old signature, as the MLX build does."""
+
+    def _answer_separate(self, requests, adapter):
+        return super()._answer_separate(requests, adapter)
+
+
+def test_b1_an_engine_with_its_own_answer_separate_is_served_serially_as_before():
+    probs, _ = Override("serial").answer("a short state", Q3)
+    assert len(probs) == 3
+
+
+def test_b4_a_request_that_fails_for_itself_fails_alone():
+    eng = Rows("batched")
+    prepare = eng._prepare_separate
+
+    def poisoned(state, questions):
+        if state.startswith("bad"):
+            raise ValueError("a question's text merges with the state's last token")
+        return prepare(state, questions)
+
+    eng._prepare_separate = poisoned
+    first = hold_first(eng, lambda: eng.answer("held", Q))
+    out = {}
+
+    def send(name):
+        try:
+            out[name] = eng.answer(f"{name} state", Q)[0]
+        except ValueError as e:
+            out[name] = e
+
+    threads = [threading.Thread(target=send, args=(n,)) for n in ("good1", "bad", "good2")]
+    for th in threads:
+        th.start()
+    wait_for_waiting(eng, 3)
+    eng.gate.set()
+    for th in threads + [first]:
+        th.join(10)
+    assert isinstance(out["bad"], ValueError)
+    want = Rows("serial")
+    for name in ("good1", "good2"):
+        assert [p.tobytes() for p in out[name]] == [p.tobytes() for p in want.answer(f"{name} state", Q)[0]]
+
+
+def test_b5_two_requests_about_one_new_state_send_one_warm_up_before():
+    eng = Rows("batched", register=True)
+    eng.register_boundary = "before"
+    first = hold_first(eng, lambda: eng.answer("held", Q))
+    threads = [threading.Thread(target=eng.answer, args=("the same new state, long", Q)) for _ in range(2)]
+    for th in threads:
+        th.start()
+    wait_for_waiting(eng, 2)
+    eng.gate.set()
+    for th in threads + [first]:
+        th.join(10)
+    assert eng.calls[-1]["warm"] == 1 and len(eng.warms[-1]) == 1  # one warm-up for both
+    assert eng.registrar.facts()["deferred"] == 0  # nothing left pending for the second
+
+
+def test_b2_the_systemone_response_says_the_batch():
+    class Shared(Batched):
+        def answer(self, state, questions, adapter=None):
+            probs, _ = super().answer(state, questions, adapter)
+            return probs, {"batch": {"calls": 2, "requests": 3, "rows": 4, "position": 1}}
+
+    eng = Shared()
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"))
+    app = FastAPI()
+    add_routes(app, so)
+    r = TestClient(app).post("/v1/systemone", json=wire("0:0.9:x"))
+    assert r.status_code == 200 and r.headers["x-decisio-batch"] == "requests=3; rows=4"
+    alone = make()[0].post("/v1/systemone", json=wire("0:0.9:x"))
+    assert "x-decisio-batch" not in alone.headers

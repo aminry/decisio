@@ -203,6 +203,9 @@ def user_turn(tok, content, fmt=DEFAULT_FORMAT):
     return chat_turn(tok, content, fmt)
 
 
+_COMBINER_LOCK = threading.Lock()
+
+
 class LettersEngine:
     # the served defaults (--pad-policy, --multi-question); the server sets both from its flags
     pad_policy = "always"
@@ -497,8 +500,9 @@ class LettersEngine:
 
     @property
     def combiner(self) -> Combiner:
-        if "_combiner" not in self.__dict__:
-            self._combiner = Combiner(self, self.batch_max_requests)
+        with _COMBINER_LOCK:  # two first requests at once must not make two engine threads
+            if "_combiner" not in self.__dict__:
+                self._combiner = Combiner(self, self.batch_max_requests)
         return self._combiner
 
     def concurrency_facts(self) -> dict:
@@ -526,7 +530,9 @@ class LettersEngine:
         if self.mode == "separate":
             # each request's deferred registrations go to its own ticket (None: the calling thread's, serially)
             tickets = None if batch[0].ticket is None else [w.ticket for w in batch for _ in w.requests]
-            probs, info = self._answer_separate(reqs, batch[0].adapter, together=together, tickets=tickets)
+            # the serial call exactly as before (an engine may override _answer_separate: the MLX build)
+            kw = {"together": together, "tickets": tickets} if together or tickets is not None else {}
+            probs, info = self._answer_separate(reqs, batch[0].adapter, **kw)
         else:
             if batch[0].adapter:
                 raise ValueError("adapters are served in separate mode")
@@ -808,7 +814,10 @@ class LettersEngine:
                 # one question: the warm-up only when this engine has not registered the state's boundary, or a
                 # request since found it gone (evicted), so a repeated question costs no extra engine call
                 key = self._boundary_key(r[0][0][:P], adapter)
-                if key in self._boundaries:
+                if key in warmed:  # another request of this call sends this state's warm-up ahead of the questions
+                    registering.append(key)
+                    each[k]["registered"] += 1
+                elif key in self._boundaries:
                     self._boundaries.move_to_end(key)
                     checking.append((key, len(rows), (P // hit) * hit))
                     each[k]["found"] += 1
@@ -958,7 +967,7 @@ def split_info(info, first, last, rows_total):
     each = info.get("_state_boundary_each")
     if each is not None:
         sb = {k: sum(e[k] for e in each[first:last]) for k in ("registered", "found", "deferred")}
-        if "ran_before" in (info.get("state_boundary") or {}):
+        if first == 0 and "ran_before" in (info.get("state_boundary") or {}):  # the call's, said once
             sb.update({k: info["state_boundary"][k] for k in ("ran_before", "ran_before_ms")})
         mine["state_boundary"] = sb
     return mine
