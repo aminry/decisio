@@ -1382,13 +1382,37 @@ def served_profile(engine, systemone) -> dict:
     }
 
 
+def base_line(fam, model, backend="vllm") -> str:
+    """The start-up line that says which base, and in which precision, the server serves: where one checkpoint has two
+    precisions (the 12B), a wrong pick would otherwise serve the other one without a word."""
+    if backend != "vllm":
+        how = f"as {backend} loads it"
+    elif fam.quantization:
+        how = f"quantized to {fam.quantization.upper()} on load"
+    elif fam.precision == "fp8":
+        how = "stored FP8, loaded as stored"
+    else:
+        how = "as the checkpoint stores it"
+    precision = f"{fam.precision}, " if fam.precision else ""
+    return f"BASE {fam.key} ({precision}{how}) from {model}"
+
+
 def resolve_base(args):
     """(family, PromptFormat) from the command line (decisio.families): --base, else the base --model's config.json
     names; the base's checkpoint when --model is not given; its pinned revision whenever the checkpoint is the base's
     own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
     from decisio import hub
-    from decisio.families import BASES, DEFAULT_BASE, FAMILIES, declares_fp8, family_of, pinned_revision, read_config
+    from decisio.families import (
+        BASES,
+        DEFAULT_BASE,
+        FAMILIES,
+        as_loaded,
+        declares_fp8,
+        family_of,
+        pinned_revision,
+        read_config,
+    )
 
     repo = None
     if args.base is not None and args.base not in BASES:
@@ -1423,15 +1447,29 @@ def resolve_base(args):
             args.model = fam.model
         args.revision = pinned_revision(args.model, args.revision)
         if given:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
-            mt = read_config(args.model, args.revision).get("model_type")
-            other = next((f for f in FAMILIES if mt in f.model_types and f is not fam), None)
+            cfg = read_config(args.model, args.revision)
+            mt = cfg.get("model_type")
+            # the same checkpoint in another precision (the 12B's two) is not another base's
+            other = next((f for f in FAMILIES if mt in f.model_types and f.model != fam.model), None)
             if other is not None:
                 raise ValueError(f"--base {args.base}, but --model {args.model} is a {other.key} checkpoint ({mt})")
+            fp8 = next((f for f in FAMILIES if f.model == fam.model and f.precision == "fp8"), None)
+            if fam.precision == "bf16" and fp8 is not None and declares_fp8(cfg):
+                # served under the bf16 profile, its FP8 weights would be reported, keyed and certified as bf16
+                raise ValueError(
+                    f"--base {args.base}, but --model {args.model} declares FP8 weights: serve it with --base {fp8.key}"
+                )
+            fam = as_loaded(fam, cfg)  # a stored FP8 checkpoint is not quantized again on load
     else:
         if args.model is None:
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision, lenient=args.backend == "hf")  # the stand-in takes any small model
+    if args.backend == "mlx" and fam.precision == "fp8":
+        raise ValueError(
+            f"--backend mlx does not serve {fam.key}: FP8 is vLLM's format; serve an MLX conversion of the 12B with "
+            "--base gemma-4-12b (docs/running.md)"
+        )
     if args.backend == "mlx" and repo is None and declares_fp8(read_config(args.model, args.revision)):
         # a repository was checked by its decision_config.json above; any other checkpoint, by its own config.json
         raise ValueError(
@@ -1974,6 +2012,7 @@ def main():
         args.family, fmt = resolve_base(args)
     except ValueError as e:
         ap.error(str(e))
+    print(base_line(args.family, args.model, args.backend), flush=True)
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     if args.repository_defaults:

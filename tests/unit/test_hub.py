@@ -41,9 +41,15 @@ HUB = Path(__file__).resolve().parents[2] / "hub"
 FINGERPRINTS = {
     "qwen3.6-35b-a3b": '{"desnake_labels": true, "hide_index_keys": true, "model": "Qwen3.6-35B-A3B-FP8", "pad_to": "block", "pad_where": "front", "prompt_format": {"slot": "prefill", "tail": "spaced", "variants": "single"}, "served_name": "decisio-qwen3.6-35b-a3b-letters"}',  # noqa: E501
     "gemma-4-12b": '{"base": "gemma-4-12b", "desnake_labels": true, "hide_index_keys": true, "model": "gemma-4-12B-it", "pad_to": "none", "pad_where": "front", "prompt_format": {"slot": "template", "system_prompt": true, "tail": "spaced", "variants": "summed"}, "served_name": "decisio-gemma-4-12b-it-letters"}',  # noqa: E501
+    "gemma-4-12b-fp8": '{"base": "gemma-4-12b-fp8", "desnake_labels": true, "hide_index_keys": true, "model": "gemma-4-12B-it", "pad_to": "none", "pad_where": "front", "prompt_format": {"slot": "template", "system_prompt": true, "tail": "spaced", "variants": "summed"}, "served_name": "decisio-gemma-4-12b-it-fp8-letters"}',  # noqa: E501
     "gemma-4-31b": '{"base": "gemma-4-31b", "desnake_labels": true, "hide_index_keys": true, "model": "gemma-4-31B-it", "pad_to": "none", "pad_where": "front", "prompt_format": {"slot": "template", "system_prompt": true, "tail": "spaced", "variants": "summed"}, "served_name": "decisio-gemma-4-31b-it-letters"}',  # noqa: E501
 }
-MODEL_TYPE = {"qwen3.6-35b-a3b": "qwen3_5_moe", "gemma-4-12b": "gemma4_unified", "gemma-4-31b": "gemma4"}
+MODEL_TYPE = {
+    "qwen3.6-35b-a3b": "qwen3_5_moe",
+    "gemma-4-12b": "gemma4_unified",
+    "gemma-4-12b-fp8": "gemma4_unified",
+    "gemma-4-31b": "gemma4",
+}
 
 
 def repo_dir(tmp_path, base, mutate=None, name="repo"):

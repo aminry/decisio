@@ -87,11 +87,14 @@ PROFILE_KEYS = ("model_types", "moe", "classes", "prompt", "readout", "temperatu
 REPOSITORIES = {
     "gemma-4-31b": "tachara-ai/decisio-gemma-4-31b",
     "gemma-4-12b": "tachara-ai/decisio-gemma-4-12b",
+    # the 12B's FP8 conversion (`python -m decisio.hub_fp8 convert`), a second precision beside the bf16 copy; served by
+    # `--base tachara-ai/decisio-gemma-4-12b-fp8` once its revision is pinned (the bare key quantizes on load)
+    "gemma-4-12b-fp8": "tachara-ai/decisio-gemma-4-12b-fp8",
     QWEN: "tachara-ai/decisio-qwen3.6-35b-a3b",
 }
 # the repositories were made under aminry/ for 0.10.0 and moved to tachara-ai/ (Tachara AI Lab) for 0.11.0; the Hub
 # redirects the old names, and a server given one serves the repository under its new name, at the new pin
-RENAMED = {f"aminry/{name.split('/')[1]}": name for name in REPOSITORIES.values()}
+RENAMED = {f"aminry/{REPOSITORIES[k].split('/')[1]}": REPOSITORIES[k] for k in ("gemma-4-31b", "gemma-4-12b", QWEN)}
 # the revision of each repository that a decisio release serves when none is given (--base owner/name@revision wins)
 PINNED_REVISIONS: dict[str, str] = {
     "tachara-ai/decisio-gemma-4-31b": "eaf1e4fa30a351ab87d07803ca60f1fa5606f882",
@@ -123,6 +126,20 @@ def weights_of(base: str, quantization: str | None = None) -> dict:
                 "on 0.31.0 the answers of the two differ by restart-sized amounts through the compiled path and are "
                 "identical with eager execution (see the card); activations are quantized per token at run "
                 "time; every other tensor, the vision tower included, is the source's; nothing was trained"
+            ),
+            "quantized_on_load": False,
+        }
+    if base == "gemma-4-12b-fp8":
+        return {
+            "modified": True,
+            "dtype": "fp8_e4m3",
+            "quantization": quantization or "compressed-tensors",
+            "method": (
+                "the 12B's bf16 weights quantized to FP8 by decisio's export (per-tensor scales stored beside the "
+                "weights), predicted on a CPU to be the same bytes as the tensors vLLM 0.31.0 holds after quantizing "
+                "them on load (192 fused groups, the loader changing 0 weights); activations are quantized per token "
+                "at run time; every other tensor, the vision and audio towers included, is the source's; nothing was "
+                "trained"
             ),
             "quantized_on_load": False,
         }
