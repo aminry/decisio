@@ -140,7 +140,7 @@ def weights_of(base: str, quantization: str | None = None) -> dict:
                 "the 12B's bf16 weights quantized to FP8 by decisio's export (per-tensor scales stored beside the "
                 "weights), predicted on a CPU to be the same bytes as the tensors vLLM 0.31.0 holds after quantizing "
                 "them on load (192 fused groups, the loader changing 0 weights); activations are quantized per token "
-                "at run time; every other tensor, the vision and audio towers included, is the source's; nothing was "
+                "at run time; every other tensor, the embeddings and the vision embedder included, is the source's; nothing was "
                 "trained"
             ),
             "quantized_on_load": False,

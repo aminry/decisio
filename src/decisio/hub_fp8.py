@@ -68,7 +68,17 @@ PROJ = re.compile(
 FUSED = {"self_attn": ("q_proj", "k_proj", "v_proj"), "mlp": ("gate_proj", "up_proj")}
 FUSED_NAME = {"self_attn": "qkv_proj", "mlp": "gate_up_proj"}
 SINGLE = ("o_proj", "down_proj")
-IGNORED = ["lm_head", "re:.*vision_tower.*", "re:.*audio_tower.*", "re:.*embed_vision.*", "re:.*embed_audio.*"]
+# the 12B's vision embedder (gemma4_unified) has a linear layer of its own, `patch_dense`, which vLLM builds with the
+# checkpoint's quantization config: left out of the ignore list, loading the stored checkpoint would look for an FP8
+# weight and scale the conversion never wrote (it converts the text model's layers only)
+IGNORED = [
+    "lm_head",
+    "re:.*vision_tower.*",
+    "re:.*audio_tower.*",
+    "re:.*embed_vision.*",
+    "re:.*embed_audio.*",
+    "re:.*vision_embedder.*",
+]
 
 
 @dataclass
