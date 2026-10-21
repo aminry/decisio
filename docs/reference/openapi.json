@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "decisio",
-    "version": "0.22.0",
+    "version": "0.23.0",
     "description": "The HTTP API of a decisio server: TypeSafe's System One wire on `POST /v1/systemone`, with routes for tasks, abstention, health and metrics. Generated from the server's code; `docs/api.md` is the prose.",
     "license": {
       "name": "Apache-2.0",
