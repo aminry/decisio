@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.0](https://github.com/aminry/decisio/compare/v0.22.0...v0.23.0) (2026-10-21)
+
+
+### Features
+
+* **serve:** --concurrency batched, the requests waiting for the engine scored together ([#270](https://github.com/aminry/decisio/issues/270)) ([8eb8392](https://github.com/aminry/decisio/commit/8eb839223c8d2312ca23ee383a91b348b66411e2))
+
 ## [0.22.0](https://github.com/aminry/decisio/compare/v0.21.2...v0.22.0) (2026-10-20)
 
 
