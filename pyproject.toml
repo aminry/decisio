@@ -40,7 +40,7 @@ dependencies = [
 serve = ["vllm==0.31.0; sys_platform == 'linux'"]
 # the benchmark stage (benchmarks/): the conformance client and the HTTP drivers; the JevBench harness and the
 # Decision Index kit are fetched at pinned commits by benchmarks/fetch_harnesses.sh
-bench = ["httpx>=0.28", "typesafe-sdk==0.7.4"]
+bench = ["httpx>=0.28", "typesafe-sdk==0.7.5"]
 # httpx2: the client Starlette's TestClient runs on (with httpx alone it warns that httpx is deprecated there)
 dev = ["httpx>=0.28", "httpx2>=2.13", "pytest==9.1.1", "ruff==0.17.0"]
 # Apple silicon: the MLX engine (decisio.serve.mlx_engine, `--backend mlx`), the text route on a Mac
