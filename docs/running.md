@@ -187,6 +187,31 @@ Refuse stays the default. A refusal says what is wrong and costs the caller one 
 
 On the MLX build the limit is a memory budget, not a context length: give the ceiling to cut to with `--over-limit-tokens N`.
 
+## Concurrency
+
+By default (`--concurrency serial`) the server takes one request at a time through the engine: concurrent requests queue behind the engine's lock and are answered in turn.
+So a request's rows are always scheduled alone, and its answer is a function of the request: the same request gives the same bytes whatever else the server is sent at the time.
+That is what certificates promise ([tasks.md](tasks.md#certified-answers)) and what makes two runs of a benchmark comparable request by request.
+
+`--concurrency batched` trades that for throughput under concurrent load.
+One engine thread takes every request waiting at that moment, up to `--batch-max-requests` (16), and scores all their rows in one engine call, so concurrent requests share forward passes.
+
+What it guarantees:
+
+- **A lone request is served as on a serial server.** Nothing waits on purpose: a request that arrives at an idle server is scored at once, alone, through the same engine call (the same rows, and under `--multi-question sequential` the same one call per question), so its answer is the serial answer byte for byte and single-stream latency is unchanged. A benchmark that sends one request at a time sees no difference.
+- **Each request gets its own answers and facts.** A request's probabilities, its `cached_tokens` and label forms are its own rows'; its timing says which call it was in (`batch`: the requests and rows of the call and its place in it), and `wait=` in `x-decisio-stages` is the time it waited for the call.
+- **One adapter per call.** A call holds the requests of one adapter (or of the weights as loaded) only: the oldest waiting request's, oldest first.
+- **The prefix cache keeps working.** Each request's boundary registration (`--register-boundary`) is deferred to its own response, due registrations still go before the next call's questions, and two requests about one new state in a call send one warm-up.
+
+What it does not guarantee:
+
+- **An answer can depend on the traffic it arrived with.** A question scored beside other requests' rows can differ slightly from the same question scored alone, because the engine's kernels choose their tiling and reduction order by the shape of the batch. Measured with the questions of one request scored together against each question alone (`--multi-question warm`, the same mechanism, vLLM 0.30.0, one RTX PRO 6000; `runs/2026-10-05_engine-process/`), on 272 four-question requests: the Gemma 4 31B changed no choice, at most 0.0046 on 6 of the 1,088 questions; the Gemma 4 12B changed 3 and 5 choices of 272 on two of the questions; the Qwen base 11 to 25 per question, every request differing, by up to 0.39 ([EVAL_CARD.md](../EVAL_CARD.md) section 4). None of them lost accuracy measurably against the demo's acceptable actions. Requests batched across clients on vLLM 0.31.0 are not measured yet.
+- **Certificates are per mode.** The mode is part of the serving-stack fingerprint when it is batched (a serial server's fingerprint is what it was before the flag existed): a certificate made one request at a time is `certified: false` with the reason `concurrency_changed` on a batching server, and the other way round, until the task is certified again under the mode it is served in. A certificate made on a batching server is made and checked on reads that may share calls with other traffic, so its promise carries that traffic's variation.
+- **Thinking and the hidden-state readout stay one request at a time.** A thinking request (`--think`) and a request a task with an intent head answers still take the engine alone, and the batched calls wait for them.
+
+`/health` reports the mode under `concurrency`, and in batched mode the calls made, the requests in them, the largest and how many requests each call held (`requests_per_call`).
+Batched mode needs the vLLM engine or the CPU stand-in, in separate mode; MLX and `--mode packed` refuse it at start.
+
 ## Docker
 
 ```bash

@@ -1309,6 +1309,10 @@ class SystemOne:
                 # what it was; a certificate made with thinking off is suspended by a server that thinks, and the
                 # other way round (`think_mode_changed`)
                 **({"think": self.think_facts()} if self.think else {}),
+                # --concurrency, only when batched, so that a serial server's fingerprint is what it was; a certificate
+                # made one request at a time is suspended by a batching server, and the other way round
+                # (`concurrency_changed`): a batched answer depends on the traffic it was scored with
+                **({"concurrency": self.concurrency_facts()} if self.batched else {}),
             }
             self._stack = stack.stack_facts(
                 self.engine,
@@ -1323,6 +1327,14 @@ class SystemOne:
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
             )
         return self._stack
+
+    @property
+    def batched(self) -> bool:
+        return getattr(self.engine, "concurrency", "serial") == "batched"
+
+    def concurrency_facts(self) -> dict:
+        """What identifies how this server batches requests: the mode and the most requests in one engine call."""
+        return {"mode": "batched", "max_requests": getattr(self.engine, "batch_max_requests", None)}
 
     def think_facts(self) -> dict:
         """What identifies how this server thinks: the factor, the budget and the procedure (prefix, suffix, thresholds,
@@ -1534,11 +1546,14 @@ class SystemOne:
             from decisio.serve import stack
 
             # a stack that differs only in how the server thinks is its own reason: a task certified one-pass is not
-            # served as certified by a server that thinks, and the other way round
-            only_think = set(stack.differences(cert["stack"], self.stack_with_fit(t))) <= {"serving.think"} | {
-                f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")
-            }
-            reason = "think_mode_changed" if only_think else "serving_stack_changed"
+            # served as certified by a server that thinks, and the other way round; the same for how it batches
+            diff = set(stack.differences(cert["stack"], self.stack_with_fit(t)))
+            if diff <= {"serving.think"} | {f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")}:
+                reason = "think_mode_changed"
+            elif diff <= {"serving.concurrency"} | {f"serving.concurrency.{k}" for k in ("mode", "max_requests")}:
+                reason = "concurrency_changed"
+            else:
+                reason = "serving_stack_changed"
         elif orders != cert["stack"]["serving"]["orders"]:
             reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
         elif cert["threshold"] is None:

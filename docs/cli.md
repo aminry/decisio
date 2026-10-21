@@ -77,6 +77,8 @@ Where the columns differ, the value is the base's.
 | --- | --- | --- | --- | --- |
 | `--multi-question` | `sequential` | `sequential` | `warm` with the engine in the server's process, else `sequential` | how a request's questions are scored (below) |
 | `--register-boundary` | not used (no registration needed) | `before` | `before` | when a single question on a new state registers its boundary for the next question: `after`, once the response is out; `before`, ahead of the question; `off`, never (`docs/running.md`) |
+| `--concurrency` | `serial` | `serial` | `serial` | `serial`: one request at a time through the engine, an answer a function of its request alone; `batched`: the requests waiting for the engine scored together in one call, more throughput under concurrent load, an answer can move slightly with its traffic (`docs/running.md`, "Concurrency") |
+| `--batch-max-requests` | 16 | 16 | 16 | with `--concurrency batched`, the most requests in one engine call |
 | `--engine-process` | `in` (`separate` with a second engine) | `in` (`separate` with a second engine) | `in` | where vLLM's engine runs: `in`, the server's process; `separate`, a process of its own (vLLM's arrangement) (below) |
 | `--pad-policy` | `always` | `always` | `always` | `always`: pad every state; `shared`: pad only requests with more than one question; `row`: pad a single-question request's whole row (below); `none`: never pad (the default with `--backend mlx`) |
 | `--pad-to` | `block` | `none` | `none` | what a state is padded to: the KV cache block, a token count, or nothing |
@@ -147,6 +149,7 @@ Across server restarts, single-question answers have matched an earlier record o
 For the 31B, on one machine, two fresh starts gave the same 200 single-question answers on all 200 items, but asking the same 200 again on the server that had just answered them changed 5 (largest 0.031, no top answer changed); on other machines the same requests differed from an earlier machine's record on every item (median 4.3e-3, largest 0.379, 4 top answers changed). So the 31B repeats exactly on a freshly started server on one machine, and nothing is promised across machines (`EVAL_CARD.md` section 7.5).
 The 12B returns the same choice with probabilities that can move slightly (`EVAL_CARD.md` section 6.5).
 Any change of rounding moves this model's answers, the batch, the padding or where a long row is split, so every bit-identity claim holds for a fixed configuration and request form.
+Every claim here is for the default `--concurrency serial`; with `batched`, an answer also depends on the other requests scored in its engine call (`docs/running.md`, "Concurrency").
 Measurements: `EVAL_CARD.md` sections 4 and 6.5.
 
 ### Committed yes/no answers (`--noul-commit`)

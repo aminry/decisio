@@ -32,7 +32,15 @@ from pydantic import BaseModel, ConfigDict, Field
 import decisio
 from decisio.serve.systemone import SystemOneRequest
 
-CERTIFIED_REASONS = ("below_threshold", "nothing_certified", "serving_stack_changed", "traffic_changed")
+CERTIFIED_REASONS = (
+    "below_threshold",
+    "nothing_certified",
+    "serving_stack_changed",
+    "traffic_changed",
+    "state_truncated",
+    "think_mode_changed",
+    "concurrency_changed",
+)
 
 
 # ---- the wire, as models ----------------------------------------------------------------------------------------------
@@ -57,7 +65,16 @@ class _Answer(BaseModel):
     )
     certificate: str | None = Field(None, description="The certificate's id, with `certified`.")
     certified_reason: (
-        Literal["below_threshold", "nothing_certified", "serving_stack_changed", "traffic_changed"] | None
+        Literal[
+            "below_threshold",
+            "nothing_certified",
+            "serving_stack_changed",
+            "traffic_changed",
+            "state_truncated",
+            "think_mode_changed",
+            "concurrency_changed",
+        ]
+        | None
     ) = Field(None, description="Why `certified` is false.")
     unknown_probability: float | None = Field(
         None, description="imajev's extension (its encodings only): the probability of an unknown outcome."

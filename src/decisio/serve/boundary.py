@@ -128,9 +128,10 @@ class Registrar:
             # a caller that waits for the registrar to be idle waits for pending == 0 and not running
             return {"pending": len(self._pending), "running": self.running, **self.counts}
 
-    def defer(self, key: bytes, warm, adapter) -> None:
+    def defer(self, key: bytes, warm, adapter, ticket: Ticket | None = None) -> None:
         """Keep the warm-up of a state answered without it (the engine's lock held); due when the request's ticket is
-        released."""
+        released: `ticket`, or the calling thread's (a batched engine call is made on the engine thread for several
+        requests, each with its own ticket: decisio.serve.combine)."""
         with self._cond:
             if key in self._pending:
                 self._pending.move_to_end(key)
@@ -141,7 +142,7 @@ class Registrar:
                 _, (_, _, due) = self._pending.popitem(last=False)
                 self._due -= due
                 self.counts["dropped"] += 1
-        ticket = current_ticket()
+        ticket = ticket if ticket is not None else current_ticket()
         if ticket is not None:
             ticket.add(self, key)
         else:
