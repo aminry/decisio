@@ -713,3 +713,29 @@ def test_b10_one_engine_images_and_text_on_a_batched_server():
     assert meanwhile <= 2  # the call in progress and at most one queued before it
     assert not bad and len(got) > served_after  # text answers unchanged, and still served after the image
     assert max(calls) > 1  # the text requests did batch
+
+
+def test_b9_a_release_hands_the_lock_to_the_oldest_waiter_directly():
+    """The lock passes to the waiter at release, so the releasing thread cannot take it back first, and one release
+    wakes one waiter (a release that woke every waiter cost a serial server 7 percent at 16 clients on a card)."""
+    from decisio.serve.combine import FairLock
+
+    lock, got = FairLock(), []
+    lock.acquire()
+    waiter = threading.Thread(target=lambda: (lock.acquire(), got.append("waiter")))
+    waiter.start()
+    deadline = time.monotonic() + 5
+    while lock.waiting() < 1 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    lock.release()
+    assert not lock.acquire(blocking=False)  # already the waiter's, before it has even run
+    waiter.join(5)
+    assert got == ["waiter"] and lock.locked()
+    lock.release()
+    assert not lock.locked() and lock.acquire(blocking=False)
+    lock.release()
+    # a waiter that times out leaves no trace, and a later release does not hand the lock to it
+    lock.acquire()
+    assert lock.acquire(timeout=0.02) is False and lock.waiting() == 0
+    lock.release()
+    assert not lock.locked()

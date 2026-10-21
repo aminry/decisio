@@ -68,48 +68,48 @@ def reads_serial() -> bool:
 class FairLock:
     """The engine's lock: first come, first served. `threading.Lock` is not fair: the engine thread of a batched server
     releases it and takes it back at once, so a thinking request, an image request or the hidden-state readout waiting
-    on it could wait for ever under constant load. Here a release hands the lock to the oldest waiter. The interface is
-    `threading.Lock`'s (acquire with blocking and timeout, release, the context manager, locked)."""
+    on it could wait for ever under constant load. Here a release hands the lock to the oldest waiter directly: the
+    lock stays held, now by that waiter, and only that waiter is woken (one Event each). Waking every waiter on each
+    release, as the first version did, cost a serial server 7 percent of its throughput at 16 clients on an RTX 5090
+    (RLCD experiments/2026-10-21_throughput/session1, S7). The interface is `threading.Lock`'s (acquire with blocking
+    and timeout, release, the context manager, locked)."""
 
     def __init__(self):
-        self._cond = threading.Condition(threading.Lock())
+        self._mutex = threading.Lock()
         self._held = False
-        self._queue: deque = deque()
+        self._queue: deque[threading.Event] = deque()
 
     def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
-        with self._cond:
+        with self._mutex:
             if not self._held and not self._queue:
                 self._held = True
                 return True
             if not blocking:
                 return False
-            me = object()
-            self._queue.append(me)
-            deadline = None if timeout is None or timeout < 0 else time.monotonic() + timeout
-            while self._held or self._queue[0] is not me:
-                left = None if deadline is None else deadline - time.monotonic()
-                if left is not None and left <= 0:
-                    self._queue.remove(me)
-                    self._cond.notify_all()  # the next in line may be free to take it now
-                    return False
-                self._cond.wait(left)
-            self._queue.popleft()
-            self._held = True
-            return True
+            turn = threading.Event()
+            self._queue.append(turn)
+        turn.wait(None if timeout is None or timeout < 0 else timeout)
+        with self._mutex:
+            if turn.is_set():  # handed over (also when the hand-off raced the timeout)
+                return True
+            self._queue.remove(turn)  # timed out, never handed the lock
+            return False
 
     def release(self) -> None:
-        with self._cond:
+        with self._mutex:
             if not self._held:
                 raise RuntimeError("release of an unheld FairLock")
-            self._held = False
-            self._cond.notify_all()
+            if self._queue:
+                self._queue.popleft().set()  # held still, by the oldest waiter
+            else:
+                self._held = False
 
     def locked(self) -> bool:
-        with self._cond:
+        with self._mutex:
             return self._held
 
     def waiting(self) -> int:
-        with self._cond:
+        with self._mutex:
             return len(self._queue)
 
     def __enter__(self):
