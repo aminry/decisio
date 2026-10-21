@@ -102,6 +102,9 @@ PINNED_REVISIONS: dict[str, str] = {
     "tachara-ai/decisio-gemma-4-31b": "eaf1e4fa30a351ab87d07803ca60f1fa5606f882",
     "tachara-ai/decisio-gemma-4-12b": "e857da2281e90719750a0a6f21707f7c07bbaa2d",
     "tachara-ai/decisio-qwen3.6-35b-a3b": "9187ed0012979321d25a054c897e8fe48e626dfc",
+    # uploaded private 2026-10-21 after the card checks (identity of the engine's FP8 tensors and a served read, on an
+    # RTX 5090), every file read back by sha256; made for 0.24.0
+    "tachara-ai/decisio-gemma-4-12b-fp8": "eed25b6fab0d4903392536230c8837b6a0dcfa77",
 }
 # the bases whose own key is served from a decisio repository rather than from the source's weights, once that
 # repository's revision is pinned: the 31B's FP8 checkpoint saves quantizing Google's bf16 weights at every start
