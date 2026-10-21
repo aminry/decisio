@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.22.0](https://github.com/aminry/decisio/compare/v0.21.2...v0.22.0) (2026-10-20)
+
+
+### Features
+
+* **hub:** a tuned 12B repository - the adapter merged in fp32 and rounded once to bf16, stochastically ([#254](https://github.com/aminry/decisio/issues/254)) ([0d10978](https://github.com/aminry/decisio/commit/0d109789f62ae5a085b682afed46d6fb772ce2ba))
+
 ## [0.21.2](https://github.com/aminry/decisio/compare/v0.21.1...v0.21.2) (2026-10-20)
 
 
