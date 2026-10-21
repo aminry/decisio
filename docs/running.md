@@ -187,6 +187,36 @@ Refuse stays the default. A refusal says what is wrong and costs the caller one 
 
 On the MLX build the limit is a memory budget, not a context length: give the ceiling to cut to with `--over-limit-tokens N`.
 
+## Concurrency
+
+By default (`--concurrency serial`) the server takes one request at a time through the engine: concurrent requests queue behind the engine's lock and are answered in turn.
+So a request's rows are always scheduled alone, and its answer is a function of the request: the same request gives the same bytes whatever else the server is sent at the time.
+That is what certificates promise ([tasks.md](tasks.md#certified-answers)) and what makes two runs of a benchmark comparable request by request.
+
+`--concurrency batched` trades that for throughput under concurrent load, for questions no certified task answers.
+One engine thread takes every request waiting at that moment, up to `--batch-max-requests` (16, counted in requests, not rows; the oldest waiting request is always taken), and scores all their rows in one engine call, so concurrent requests share forward passes.
+
+What it does not guarantee, first:
+
+- **An uncertified answer can depend on the traffic it arrived with.** A question scored beside other requests' rows can differ slightly from the same question scored alone, because the engine's kernels choose their tiling and reduction order by the shape of the batch.
+  Requests batched across clients have not been measured yet on vLLM 0.31.0.
+  The nearest measurement is of the questions of one request scored together (`--multi-question warm`, the same mechanism within one request, not across clients; vLLM 0.30.0, one RTX PRO 6000, 272 four-question requests; `runs/2026-10-05_engine-process/`): against each question scored alone, the Gemma 4 31B changed no choice, its answers differing on 6 of the 272 select questions by at most 0.0046; the Gemma 4 12B changed 3 and 5 choices of 272 on two of the questions; the Qwen base changed 11 to 25 per question, every request differing, by up to 0.39 ([EVAL_CARD.md](../EVAL_CARD.md) section 4).
+  Against the demo's acceptable actions no loss was measurable at 272 steps, except that the Qwen base's click target was -3.5 points with an interval ending at zero, [-7.5, +0.0].
+- **A batched server's certificates are its own.** The mode is part of the serving-stack fingerprint when it is batched (a serial server's fingerprint is what it was before the flag existed): a certificate made on a serial server is `certified: false` with the reason `concurrency_changed` on a batching server, and the other way round, until the task is certified again where it is served.
+
+What it guarantees:
+
+- **Certified answers stay a function of the request.** A certified task's questions, and a task's registration and certification reads, take the serial path on a batched server too: one request at a time, never sharing an engine call with other traffic. So a certificate made on a batching server is made and served on the reads a serial server would make, and the drift above is confined to questions no certified task answers.
+  The monitor counts only such reads: an answer of a certified task scored in a shared call (a request of two orders, which is not certified) is counted as `shared_skipped` and not observed against the certificate's baseline.
+- **A lone request is scored as on a serial server.** Nothing waits on purpose: a request that arrives at an idle server is scored at once, alone, by the same engine call a serial server makes (the same rows, and under `--multi-question sequential` one call per question), so single-stream latency is unchanged; whether its answer is the serial answer bit for bit on a card is part of the card check, not yet run.
+- **Each request gets its own answers and facts.** A request's probabilities, its `cached_tokens` and label forms are its own rows'; when it shared a call, the header `x-decisio-batch` says with how many requests and rows (`timing.batch` on `/v1/answer`, with its place in the call), `wait=` in `x-decisio-stages` is the time it waited for the call, and its `questions=` is the whole call's time. A request that fails for itself (a state over the context, a malformed question) fails alone: the call's other requests are scored again without it.
+- **One adapter per call.** A call holds the requests of one adapter (or of the weights as loaded) only: the oldest waiting request's, oldest first.
+- **The prefix cache keeps working.** Each request's boundary registration (`--register-boundary`) is deferred to its own response and due registrations still go before the next call's questions; within one batched call, two requests about one new state send one warm-up (a serial call sends each request's own, as before).
+- **Thinking, the image route and the hidden-state readout are not starved.** A thinking request (`--think`), an image request and a request a task with an intent head answers take the engine alone; the engine's lock is first come, first served, so they take it after the call in progress, whatever the load.
+
+`/health` reports the mode under `concurrency`, and in batched mode the calls made, the requests in them, the largest and how many requests each call held (`requests_per_call`).
+Batched mode needs the vLLM engine or the CPU stand-in, in separate mode; MLX and `--mode packed` refuse it at start.
+
 ## Docker
 
 ```bash

@@ -960,7 +960,10 @@
                   "below_threshold",
                   "nothing_certified",
                   "serving_stack_changed",
-                  "traffic_changed"
+                  "traffic_changed",
+                  "state_truncated",
+                  "think_mode_changed",
+                  "concurrency_changed"
                 ],
                 "type": "string"
               },
@@ -1067,7 +1070,10 @@
                   "below_threshold",
                   "nothing_certified",
                   "serving_stack_changed",
-                  "traffic_changed"
+                  "traffic_changed",
+                  "state_truncated",
+                  "think_mode_changed",
+                  "concurrency_changed"
                 ],
                 "type": "string"
               },
@@ -1159,7 +1165,10 @@
                   "below_threshold",
                   "nothing_certified",
                   "serving_stack_changed",
-                  "traffic_changed"
+                  "traffic_changed",
+                  "state_truncated",
+                  "think_mode_changed",
+                  "concurrency_changed"
                 ],
                 "type": "string"
               },

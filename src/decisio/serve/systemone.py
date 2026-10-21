@@ -530,6 +530,22 @@ def option_keys(q) -> str:
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
 
 
+def _serial(method):
+    """A method whose engine reads take the serial path on a batched server (decisio.serve.combine.serial_reads): a
+    certified task's answers and a task's registration and certification reads stay a function of the request alone,
+    so a certificate is made and served on reads no other traffic shares."""
+    import functools
+
+    from decisio.serve.combine import serial_reads
+
+    @functools.wraps(method)
+    def run(*args, **kwargs):
+        with serial_reads():
+            return method(*args, **kwargs)
+
+    return run
+
+
 class SystemOne:
     """Serves the wire format on a text engine and, optionally, an image engine (decisio.serve.image_engine): requests
     with images go to the image engine, every other request to the text engine."""
@@ -955,7 +971,10 @@ class SystemOne:
                     {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "state_truncated"}
                 )
             elif t is not None and t.get("certificate") and q.type != "score":
-                answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p)))
+                # an answer scored in an engine call shared with other requests (--concurrency batched; never a
+                # certified task's own read, which is serial) is not observed against the certificate's baseline
+                shared = i not in served and bool(info.get("batch"))
+                answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p), shared))
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
                 if stale is not None:  # fitted under another model or rendering: not applied, so not certified
@@ -996,7 +1015,7 @@ class SystemOne:
                 **{
                     k: v
                     for k, v in info.items()
-                    if k in ("cached_tokens_mean", "image_tokens", "waited_behind_registration")
+                    if k in ("cached_tokens_mean", "image_tokens", "waited_behind_registration", "batch")
                 },
                 # where the engine's time went, for the x-decisio-stages header (milliseconds)
                 "stages": {
@@ -1083,6 +1102,7 @@ class SystemOne:
         t = store.by_key.get(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
         return t if t is not None and t.get("certificate") and store.lookup(t["key"]) is None else None
 
+    @_serial
     def register_readout_task(
         self, task_id: str, examples: list[tuple], certify: dict | None = None, certify_examples=None
     ):
@@ -1245,6 +1265,7 @@ class SystemOne:
         }
         return fit_ex, cert_ex, split
 
+    @_serial
     def served_rows(self, t, pairs) -> list[np.ndarray]:
         """The distribution this server serves for each (state, question), through the task `t`: what a
         certification is made on and an answer is checked against."""
@@ -1309,6 +1330,10 @@ class SystemOne:
                 # what it was; a certificate made with thinking off is suspended by a server that thinks, and the
                 # other way round (`think_mode_changed`)
                 **({"think": self.think_facts()} if self.think else {}),
+                # --concurrency, only when batched, so that a serial server's fingerprint is what it was; a certificate
+                # made one request at a time is suspended by a batching server, and the other way round
+                # (`concurrency_changed`): a batched answer depends on the traffic it was scored with
+                **({"concurrency": self.concurrency_facts()} if self.batched else {}),
             }
             self._stack = stack.stack_facts(
                 self.engine,
@@ -1323,6 +1348,14 @@ class SystemOne:
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
             )
         return self._stack
+
+    @property
+    def batched(self) -> bool:
+        return getattr(self.engine, "concurrency", "serial") == "batched"
+
+    def concurrency_facts(self) -> dict:
+        """What identifies how this server batches requests: the mode and the most requests in one engine call."""
+        return {"mode": "batched", "max_requests": getattr(self.engine, "batch_max_requests", None)}
 
     def think_facts(self) -> dict:
         """What identifies how this server thinks: the factor, the budget and the procedure (prefix, suffix, thresholds,
@@ -1473,6 +1506,7 @@ class SystemOne:
             "serving stack."
         )
 
+    @_serial
     def recertify_task(self, task_id: str, examples: list[tuple], spec: dict | None):
         """Make the certificate of a stored task again, under this server's stack, on new labelled examples (the fit is
         kept; the examples must not share an input with the fit's)."""
@@ -1527,18 +1561,21 @@ class SystemOne:
         self.check_served(new, cert_ex, *registered)
         return new
 
-    def certified_fields(self, t, q, keys, p, orders: int, chosen: int) -> dict:
+    def certified_fields(self, t, q, keys, p, orders: int, chosen: int, shared: bool = False) -> dict:
         """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not."""
         cert = t["certificate"]
         if self.stack_sha(t) != cert["stack_sha256"]:
             from decisio.serve import stack
 
             # a stack that differs only in how the server thinks is its own reason: a task certified one-pass is not
-            # served as certified by a server that thinks, and the other way round
-            only_think = set(stack.differences(cert["stack"], self.stack_with_fit(t))) <= {"serving.think"} | {
-                f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")
-            }
-            reason = "think_mode_changed" if only_think else "serving_stack_changed"
+            # served as certified by a server that thinks, and the other way round; the same for how it batches
+            diff = set(stack.differences(cert["stack"], self.stack_with_fit(t)))
+            if diff <= {"serving.think"} | {f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")}:
+                reason = "think_mode_changed"
+            elif diff <= {"serving.concurrency"} | {f"serving.concurrency.{k}" for k in ("mode", "max_requests")}:
+                reason = "concurrency_changed"
+            else:
+                reason = "serving_stack_changed"
         elif orders != cert["stack"]["serving"]["orders"]:
             reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
         elif cert["threshold"] is None:
@@ -1551,7 +1588,7 @@ class SystemOne:
         if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", SUSPEND_ON_ALERT):
             reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
         if m is not None and not getattr(self._probe, "on", False):
-            m.observe(chosen, reason is None, float(max(p)))
+            m.observe(chosen, reason is None, float(max(p)), **({"shared": True} if shared else {}))
         out = {"certified": reason is None, "certificate": cert["id"]}
         if reason is not None:
             out["certified_reason"] = reason
@@ -1591,6 +1628,8 @@ class SystemOne:
                 )
         else:
             text = "ok"
+        if f and self.batched:  # which reads the monitor counts on a batched server
+            f = {**f, "concurrency": "batched: answers scored in a shared engine call are not observed"}
         return {"state": state, "text": text, **({"monitor": f} if f else {})}
 
     def metrics_text(self) -> str:
@@ -1717,6 +1756,7 @@ class SystemOne:
         T = 1.0 if images else self.temperature
         return (q, apply_temperature(probs[1], T), len(keys2) - 1, keys2, apply_temperature(probs[0], T), keys)
 
+    @_serial
     def register_task(self, task_id: str, option: dict, match: str, examples: list[tuple]) -> dict:
         """Fit and store a task from labelled examples [(request, images, imajev_ext, gold)], gold None for
         unanswerable (decisio.serve.abstention.fit, its acceptance rule)."""
@@ -1957,6 +1997,9 @@ def add_routes(app, systemone: SystemOne):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
         if timing.get("waited_behind_registration"):  # the wait in `stages` was behind a boundary registration (#132)
             headers[header("wait-behind")] = "registration"
+        if timing.get("batch"):  # --concurrency batched: the engine call this request shared with others
+            b = timing["batch"]
+            headers[header("batch")] = f"requests={b['requests']}; rows={b['rows']}"
         return JSONResponse(out, headers=headers)
 
     def debug_of(request):
