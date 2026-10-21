@@ -68,17 +68,17 @@ PROJ = re.compile(
 FUSED = {"self_attn": ("q_proj", "k_proj", "v_proj"), "mlp": ("gate_proj", "up_proj")}
 FUSED_NAME = {"self_attn": "qkv_proj", "mlp": "gate_up_proj"}
 SINGLE = ("o_proj", "down_proj")
-# the 12B's vision embedder (gemma4_unified) has a linear layer of its own, `patch_dense`, which vLLM builds with the
+IGNORED = ["lm_head", "re:.*vision_tower.*", "re:.*audio_tower.*", "re:.*embed_vision.*", "re:.*embed_audio.*"]
+# the 12B's (gemma4_unified) vision embedder has a linear layer of its own, `patch_dense`, which vLLM builds with the
 # checkpoint's quantization config: left out of the ignore list, loading the stored checkpoint would look for an FP8
-# weight and scale the conversion never wrote (it converts the text model's layers only)
-IGNORED = [
-    "lm_head",
-    "re:.*vision_tower.*",
-    "re:.*audio_tower.*",
-    "re:.*embed_vision.*",
-    "re:.*embed_audio.*",
-    "re:.*vision_embedder.*",
-]
+# weight and scale the conversion never wrote (it converts the text model's layers only). Only for that model type, so
+# a 31B conversion writes the ignore list its published repository holds
+IGNORED_BY_TYPE = {"gemma4_unified": ["re:.*vision_embedder.*"]}
+
+
+def ignored_for(config: dict) -> list[str]:
+    """The modules a conversion of this checkpoint leaves unquantized, by its config.json's model type."""
+    return IGNORED + IGNORED_BY_TYPE.get(config.get("model_type"), [])
 
 
 @dataclass
@@ -233,10 +233,12 @@ class Writer:
         return self.map
 
 
-def quantization_config(scheme: str) -> dict:
-    """The `quantization_config` that tells vLLM the checkpoint is FP8 per tensor with dynamic activations."""
+def quantization_config(scheme: str, ignored=None) -> dict:
+    """The `quantization_config` that tells vLLM the checkpoint is FP8 per tensor with dynamic activations; `ignored`
+    the modules left unquantized (ignored_for the checkpoint's config; the base list when not given)."""
+    ignored = IGNORED if ignored is None else ignored
     if scheme == "fp8":
-        return {"quant_method": "fp8", "activation_scheme": "dynamic", "fmt": "e4m3", "modules_to_not_convert": IGNORED}
+        return {"quant_method": "fp8", "activation_scheme": "dynamic", "fmt": "e4m3", "modules_to_not_convert": ignored}
     if scheme == "compressed-tensors":
         return {
             "quant_method": "compressed-tensors",
@@ -244,7 +246,7 @@ def quantization_config(scheme: str) -> dict:
             "quantization_status": "compressed",
             "global_compression_ratio": None,
             "kv_cache_scheme": None,
-            "ignore": IGNORED,
+            "ignore": ignored,
             "config_groups": {
                 "group_0": {
                     "targets": ["Linear"],
@@ -317,7 +319,7 @@ def convert(
     weight_map = writer.finish()
     (out / INDEX).write_text(json.dumps({"metadata": {}, "weight_map": weight_map}, indent=2, sort_keys=True))
     cfg = src.config()
-    cfg["quantization_config"] = quantization_config(scheme)
+    cfg["quantization_config"] = quantization_config(scheme, ignored_for(cfg))
     (out / "config.json").write_text(json.dumps(cfg, indent=2))
     for f in src.dir.iterdir():  # tokenizer, chat template, generation and processor configs: as they are
         if f.is_file() and not WEIGHTS.match(f.name) and f.name not in (INDEX, "config.json"):
@@ -507,7 +509,7 @@ def merge(
     weight_map = writer.finish()
     (out / INDEX).write_text(json.dumps({"metadata": {}, "weight_map": weight_map}, indent=2, sort_keys=True))
     cfg = src.config()
-    cfg["quantization_config"] = quantization_config("compressed-tensors")
+    cfg["quantization_config"] = quantization_config("compressed-tensors", ignored_for(cfg))
     (out / "config.json").write_text(json.dumps(cfg, indent=2))
     for f in src.dir.iterdir():  # tokenizer, chat template, generation and processor files: the base's own
         if f.is_file() and not WEIGHTS.match(f.name) and f.name not in (INDEX, "config.json"):

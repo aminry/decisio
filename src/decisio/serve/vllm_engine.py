@@ -1382,7 +1382,7 @@ def served_profile(engine, systemone) -> dict:
     }
 
 
-def base_line(fam, model, backend="vllm") -> str:
+def base_line(fam, model, backend="vllm", tuned=False) -> str:
     """The start-up line that says which base, and in which precision, the server serves: where one checkpoint has two
     precisions (the 12B), a wrong pick would otherwise serve the other one without a word."""
     if backend != "vllm":
@@ -1394,7 +1394,12 @@ def base_line(fam, model, backend="vllm") -> str:
     else:
         how = "as the checkpoint stores it"
     precision = f"{fam.precision}, " if fam.precision else ""
-    return f"BASE {fam.key} ({precision}{how}) from {model}"
+    line = f"BASE {fam.key} ({precision}{how}) from {model}"
+    # served at the base's own temperatures (a tuned repository brings its own, fitted on its reads): nobody should
+    # read these answers as calibrated on FP8
+    if fam.precision == "fp8" and not tuned:
+        line += f"; temperatures {fam.temperature} fitted on the bf16 12B's reads, not refitted on FP8"
+    return line
 
 
 def resolve_base(args):
@@ -2021,7 +2026,8 @@ def main():
         args.family, fmt = resolve_base(args)
     except ValueError as e:
         ap.error(str(e))
-    print(base_line(args.family, args.model, args.backend), flush=True)
+    tuned = bool((args.repository or {}).get("tuned"))
+    print(base_line(args.family, args.model, args.backend, tuned), flush=True)
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     if args.repository_defaults:

@@ -114,15 +114,20 @@ def test_p2_the_command_line(tmp_path, monkeypatch):
 
 def test_p3_the_start_up_line_says_the_precision():
     stored = dataclasses.replace(GEMMA4_FP8, quantization=None)
+    note = "; temperatures 3.592 fitted on the bf16 12B's reads, not refitted on FP8"
     assert sv.base_line(GEMMA4_FP8, GEMMA4.model) == (
-        "BASE gemma-4-12b-fp8 (fp8, quantized to FP8 on load) from google/gemma-4-12B-it"
+        "BASE gemma-4-12b-fp8 (fp8, quantized to FP8 on load) from google/gemma-4-12B-it" + note
     )
-    assert sv.base_line(stored, "/c/fp8") == "BASE gemma-4-12b-fp8 (fp8, stored FP8, loaded as stored) from /c/fp8"
+    assert sv.base_line(stored, "/c/fp8") == (
+        "BASE gemma-4-12b-fp8 (fp8, stored FP8, loaded as stored) from /c/fp8" + note
+    )
     assert sv.base_line(GEMMA4, GEMMA4.model) == (
         "BASE gemma-4-12b (bf16, as the checkpoint stores it) from google/gemma-4-12B-it"
     )
     assert sv.base_line(GEMMA4_31B, "x").startswith("BASE gemma-4-31b (quantized to FP8 on load)")
     assert sv.base_line(GEMMA4, "/m", backend="mlx") == "BASE gemma-4-12b (bf16, as mlx loads it) from /m"
+    # a tuned repository's own temperatures: no note
+    assert "temperatures" not in sv.base_line(stored, "/t", tuned=True)
 
 
 def test_p4_its_own_stack_otherwise_the_12b():
@@ -171,3 +176,43 @@ def test_p5_the_engine_quantizes_on_load_only_a_bf16_checkpoint(monkeypatch):
     assert "quantization" not in FakeLLM.kw
     sv.LettersEngine("stand-in", family=GEMMA4, max_model_len=32768)
     assert "quantization" not in FakeLLM.kw
+
+
+def test_p6_the_31b_with_a_local_fp8_directory_is_loaded_as_stored_and_its_default_is_unchanged(tmp_path, monkeypatch):
+    """as_loaded also covers the 31B: `--model <a stored FP8 directory>` is not handed to vLLM with quantization=fp8
+    again (vLLM 0.31.0 refuses a compressed-tensors checkpoint with that argument); a bf16 checkpoint keeps quantizing
+    on load; the default start (its pinned repository) is what it was: no quantization on load."""
+    assert as_loaded(GEMMA4_31B, {"quantization_config": FP8_QUANT}).quantization is None
+    assert as_loaded(GEMMA4_31B, {"model_type": "gemma4"}) is GEMMA4_31B and GEMMA4_31B.quantization == "fp8"
+    stored = checkpoint(tmp_path, "s31", model_type="gemma4", fp8=True)
+    assert sv.resolve_base(args(base="gemma-4-31b", model=stored))[0].quantization is None
+    g31 = tmp_path / "repo31"
+    g31.mkdir()
+    (g31 / hub.FILE).write_text(json.dumps(hub.export_decision_config(GEMMA4_31B, "0.10.0")))
+    monkeypatch.setattr("huggingface_hub.hf_hub_download", lambda name, filename, revision=None: str(g31 / filename))
+    a = args(base="gemma-4-31b")
+    fam, _ = sv.resolve_base(a)
+    assert fam.quantization is None and a.repository["name"] == hub.REPOSITORIES["gemma-4-31b"]
+    assert sv.base_line(fam, a.model) == f"BASE gemma-4-31b (as the checkpoint stores it) from {a.model}"
+
+
+def test_p7_the_vision_embedder_is_left_unquantized_on_the_12b_only():
+    """vLLM builds the 12B's vision_embedder.patch_dense with the checkpoint's quantization config, so a 12B conversion
+    names it in the ignore list; a 31B conversion writes the list its published repository holds."""
+    from decisio import hub_fp8
+
+    twelve = hub_fp8.quantization_config("compressed-tensors", hub_fp8.ignored_for({"model_type": "gemma4_unified"}))
+    thirty_one = hub_fp8.quantization_config("compressed-tensors", hub_fp8.ignored_for({"model_type": "gemma4"}))
+    assert twelve["ignore"] == hub_fp8.IGNORED + ["re:.*vision_embedder.*"]
+    assert (
+        thirty_one["ignore"]
+        == hub_fp8.IGNORED
+        == [
+            "lm_head",
+            "re:.*vision_tower.*",
+            "re:.*audio_tower.*",
+            "re:.*embed_vision.*",
+            "re:.*embed_audio.*",
+        ]
+    )
+    assert hub_fp8.quantization_config("fp8")["modules_to_not_convert"] == hub_fp8.IGNORED

@@ -362,7 +362,10 @@ def test_d6_served_from_the_directory(merged12, tmp_path):
     assert fam.key == "gemma-4-12b-fp8" and fam.precision == "fp8" and fam.quantization is None  # stored FP8
     assert args.served_name == FAM.served_name and args.temperature_choice == TEMPS["temperatures"]["choice"]
     assert args.model_identity.startswith(f"{os.path.basename(out)}@")
-    assert base_line(fam, args.model) == f"BASE gemma-4-12b-fp8 (fp8, stored FP8, loaded as stored) from {out}"
+    assert args.repository["tuned"]  # its own temperatures, fitted on its reads: the start line has no bf16 note
+    assert base_line(fam, args.model, tuned=True) == (
+        f"BASE gemma-4-12b-fp8 (fp8, stored FP8, loaded as stored) from {out}"
+    )
     # the bf16 12B with the same defaults is another model
     d12 = write12(tmp_path, build12(), name=os.path.basename(out) + "-bf16")
     a12 = args_for(str(d12))

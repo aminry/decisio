@@ -127,7 +127,7 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b
 - The three repositories are public on the Hub, at revisions pinned in `decisio.hub.PINNED_REVISIONS`: `tachara-ai/decisio-gemma-4-31b`, `tachara-ai/decisio-gemma-4-12b` and `tachara-ai/decisio-qwen3.6-35b-a3b`.
   Each carries the licence, a card and `SHA256SUMS`; the 12B and Qwen files are byte-for-byte copies of Google's and Qwen's, and the 31B's text model is quantized to FP8 (its card says so).
 - The 12B's FP8 conversion has a repository of its own, `tachara-ai/decisio-gemma-4-12b-fp8`, served with `--base tachara-ai/decisio-gemma-4-12b-fp8` once a release pins its revision ([The 12B in two precisions](#the-12b-in-two-precisions)).
-  `--base gemma-4-12b-fp8` alone keeps quantizing Google's bf16 weights on load, to the same tensors.
+  `--base gemma-4-12b-fp8` alone keeps quantizing Google's bf16 weights on load, predicted to the same tensors (the check on a card is not yet run for the 12B).
 
 ## The 12B in two precisions
 
@@ -143,7 +143,7 @@ uv run python -m decisio.serve.vllm_engine --base gemma-4-12b-fp8 --model <conve
 ```
 
 - `--base gemma-4-12b-fp8` alone serves `google/gemma-4-12B-it` at its pinned revision and quantizes it on load.
-- The stored conversion, made by `python -m decisio.hub_fp8 convert` as the 31B's is, holds the same tensors: on the real 12B the conversion predicts that loading it changes 0 weights in all 192 fused layers and that the tensors it loads to are the ones quantizing on load makes (`fp8_conversion.json` beside it; the check of the engine's own tensors on a card is the 31B's, `tests/gpu/fp8_fingerprints.py`, and is not yet run for the 12B).
+- The stored conversion, made by `python -m decisio.hub_fp8 convert` as the 31B's is, is predicted to hold the same tensors: on the real 12B the conversion predicts that loading it changes 0 weights in all 192 fused layers and that the tensors it loads to are the ones quantizing on load makes (`fp8_conversion.json` beside it; the check of the engine's own tensors on a card is the 31B's, `tests/gpu/fp8_fingerprints.py`, and is not yet run for the 12B).
   It is 12.13 GiB on disk, against 22.3 GiB for the bf16 checkpoint, and it is loaded as stored, not quantized again.
   The repository `tachara-ai/decisio-gemma-4-12b-fp8` holds it once a release pins its revision; until then `--model <converted dir>` with `--base gemma-4-12b-fp8` serves a local conversion.
 - Without `--base`, a 12B checkpoint is served as `gemma-4-12b` (bf16) unless its `config.json` declares FP8 weights, which makes it `gemma-4-12b-fp8`, loaded as stored.
