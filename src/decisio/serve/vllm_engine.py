@@ -82,7 +82,7 @@ from decisio.serve import adapter_temperatures, engine_stream  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
-from decisio.serve.combine import MAX_REQUESTS, Combiner, Waiting  # noqa: E402
+from decisio.serve.combine import MAX_REQUESTS, Combiner, FairLock, Waiting, reads_serial  # noqa: E402
 from decisio.serve.combine import MODES as CONCURRENCY_MODES  # noqa: E402
 from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
@@ -338,7 +338,7 @@ class LettersEngine:
 
             for i, (name, path) in enumerate(self.adapter_paths.items(), start=1):
                 self.adapters[name] = LoRARequest(name, i, str(path))
-        self._lock = threading.Lock()  # one request at a time through the engine
+        self._lock = FairLock()  # one request at a time through the engine, first come first served
         self._warm_up()
 
     def _settle_context(self, auto):
@@ -473,7 +473,7 @@ class LettersEngine:
         behind = bool(registrar is not None and registrar.running)
         reqs = [(st, [qs[i] for i in td]) for (st, qs), td in zip(requests, todo)]
         try:
-            if self.concurrency == "batched":
+            if self.concurrency == "batched" and not reads_serial():
                 # the engine thread scores this call together with every other one waiting (decisio.serve.combine)
                 probs, info = self.combiner.submit(reqs, adapter, current_ticket(), behind)
             else:
@@ -814,7 +814,7 @@ class LettersEngine:
                 # one question: the warm-up only when this engine has not registered the state's boundary, or a
                 # request since found it gone (evicted), so a repeated question costs no extra engine call
                 key = self._boundary_key(r[0][0][:P], adapter)
-                if key in warmed:  # another request of this call sends this state's warm-up ahead of the questions
+                if together and key in warmed:  # another request of this call sends the state's warm-up first
                     registering.append(key)
                     each[k]["registered"] += 1
                 elif key in self._boundaries:
@@ -828,7 +828,7 @@ class LettersEngine:
                 else:
                     # before (0.8.1), or this state's warm-up is still pending behind a response not yet sent (two
                     # questions about a new state sent together): sent ahead of the question
-                    if key not in warmed:
+                    if not (together and key in warmed):  # a serial call of several requests sends each its own
                         warm.append(r[0][0][: P + 1])
                         warmed.add(key)
                     registering.append(key)
@@ -1615,7 +1615,8 @@ def build_parser():
         "--batch-max-requests",
         type=int,
         default=MAX_REQUESTS,
-        help=f"--concurrency batched: the most requests in one engine call (default {MAX_REQUESTS})",
+        help=f"--concurrency batched: the most requests in one engine call (default {MAX_REQUESTS}); it counts "
+        "requests, not rows, and the oldest waiting request is always taken, however many questions it has",
     )
     ap.add_argument(
         "--register-boundary",

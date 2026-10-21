@@ -530,6 +530,22 @@ def option_keys(q) -> str:
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False).encode()).hexdigest()
 
 
+def _serial(method):
+    """A method whose engine reads take the serial path on a batched server (decisio.serve.combine.serial_reads): a
+    certified task's answers and a task's registration and certification reads stay a function of the request alone,
+    so a certificate is made and served on reads no other traffic shares."""
+    import functools
+
+    from decisio.serve.combine import serial_reads
+
+    @functools.wraps(method)
+    def run(*args, **kwargs):
+        with serial_reads():
+            return method(*args, **kwargs)
+
+    return run
+
+
 class SystemOne:
     """Serves the wire format on a text engine and, optionally, an image engine (decisio.serve.image_engine): requests
     with images go to the image engine, every other request to the text engine."""
@@ -955,7 +971,10 @@ class SystemOne:
                     {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "state_truncated"}
                 )
             elif t is not None and t.get("certificate") and q.type != "score":
-                answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p)))
+                # an answer scored in an engine call shared with other requests (--concurrency batched; never a
+                # certified task's own read, which is serial) is not observed against the certificate's baseline
+                shared = i not in served and bool(info.get("batch"))
+                answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p), shared))
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
                 if stale is not None:  # fitted under another model or rendering: not applied, so not certified
@@ -1083,6 +1102,7 @@ class SystemOne:
         t = store.by_key.get(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
         return t if t is not None and t.get("certificate") and store.lookup(t["key"]) is None else None
 
+    @_serial
     def register_readout_task(
         self, task_id: str, examples: list[tuple], certify: dict | None = None, certify_examples=None
     ):
@@ -1245,6 +1265,7 @@ class SystemOne:
         }
         return fit_ex, cert_ex, split
 
+    @_serial
     def served_rows(self, t, pairs) -> list[np.ndarray]:
         """The distribution this server serves for each (state, question), through the task `t`: what a
         certification is made on and an answer is checked against."""
@@ -1485,6 +1506,7 @@ class SystemOne:
             "serving stack."
         )
 
+    @_serial
     def recertify_task(self, task_id: str, examples: list[tuple], spec: dict | None):
         """Make the certificate of a stored task again, under this server's stack, on new labelled examples (the fit is
         kept; the examples must not share an input with the fit's)."""
@@ -1539,7 +1561,7 @@ class SystemOne:
         self.check_served(new, cert_ex, *registered)
         return new
 
-    def certified_fields(self, t, q, keys, p, orders: int, chosen: int) -> dict:
+    def certified_fields(self, t, q, keys, p, orders: int, chosen: int, shared: bool = False) -> dict:
         """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not."""
         cert = t["certificate"]
         if self.stack_sha(t) != cert["stack_sha256"]:
@@ -1566,7 +1588,7 @@ class SystemOne:
         if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", SUSPEND_ON_ALERT):
             reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
         if m is not None and not getattr(self._probe, "on", False):
-            m.observe(chosen, reason is None, float(max(p)))
+            m.observe(chosen, reason is None, float(max(p)), **({"shared": True} if shared else {}))
         out = {"certified": reason is None, "certificate": cert["id"]}
         if reason is not None:
             out["certified_reason"] = reason
@@ -1606,6 +1628,8 @@ class SystemOne:
                 )
         else:
             text = "ok"
+        if f and self.batched:  # which reads the monitor counts on a batched server
+            f = {**f, "concurrency": "batched: answers scored in a shared engine call are not observed"}
         return {"state": state, "text": text, **({"monitor": f} if f else {})}
 
     def metrics_text(self) -> str:
@@ -1732,6 +1756,7 @@ class SystemOne:
         T = 1.0 if images else self.temperature
         return (q, apply_temperature(probs[1], T), len(keys2) - 1, keys2, apply_temperature(probs[0], T), keys)
 
+    @_serial
     def register_task(self, task_id: str, option: dict, match: str, examples: list[tuple]) -> dict:
         """Fit and store a task from labelled examples [(request, images, imajev_ext, gold)], gold None for
         unanswerable (decisio.serve.abstention.fit, its acceptance rule)."""

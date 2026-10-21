@@ -24,7 +24,10 @@ served as certified under the other (`concurrency_changed`), and the batch an an
 What does not change: within one engine call the rows are the ones a serial server builds (the same tokenization,
 padding and labels); the boundary registrations of each request are deferred to that request's own response
 (decisio.serve.boundary, the ticket the request was given), and every due registration is still sent before the next
-call's questions; think mode and the hidden-state readout stay one request at a time on the engine's lock.
+call's questions; think mode, the image route and the hidden-state readout stay one request at a time on the engine's
+lock, which is first come, first served (`FairLock`), so they take the engine between batched calls whatever the load.
+A certified task's reads, and a task's registration and certification reads, take the serial path on a batched server
+too (`serial_reads`): a certificate is made and served on reads that are a function of the request alone.
 
 Standard library only.
 """
@@ -32,13 +35,88 @@ Standard library only.
 from __future__ import annotations
 
 import atexit
+import contextlib
+import contextvars
 import copy
 import threading
 import time
 from collections import Counter, deque
 
 MODES = ("serial", "batched")
-MAX_REQUESTS = 16  # --batch-max-requests' default: the most requests in one engine call
+MAX_REQUESTS = 16  # --batch-max-requests' default: the most requests in one engine call, counted in requests
+
+# reads that must be a function of the request alone on any server: a certified task's answers, a task's registration
+# and certification reads (decisio.serve.systemone). Inside `serial_reads()` a batched server takes them one at a time,
+# as a serial server does, so a certificate is made and served on reads no other traffic shares
+_SERIAL: contextvars.ContextVar[bool] = contextvars.ContextVar("decisio_serial_reads", default=False)
+
+
+@contextlib.contextmanager
+def serial_reads():
+    token = _SERIAL.set(True)
+    try:
+        yield
+    finally:
+        _SERIAL.reset(token)
+
+
+def reads_serial() -> bool:
+    return _SERIAL.get()
+
+
+class FairLock:
+    """The engine's lock: first come, first served. `threading.Lock` is not fair: the engine thread of a batched server
+    releases it and takes it back at once, so a thinking request, an image request or the hidden-state readout waiting
+    on it could wait for ever under constant load. Here a release hands the lock to the oldest waiter. The interface is
+    `threading.Lock`'s (acquire with blocking and timeout, release, the context manager, locked)."""
+
+    def __init__(self):
+        self._cond = threading.Condition(threading.Lock())
+        self._held = False
+        self._queue: deque = deque()
+
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        with self._cond:
+            if not self._held and not self._queue:
+                self._held = True
+                return True
+            if not blocking:
+                return False
+            me = object()
+            self._queue.append(me)
+            deadline = None if timeout is None or timeout < 0 else time.monotonic() + timeout
+            while self._held or self._queue[0] is not me:
+                left = None if deadline is None else deadline - time.monotonic()
+                if left is not None and left <= 0:
+                    self._queue.remove(me)
+                    self._cond.notify_all()  # the next in line may be free to take it now
+                    return False
+                self._cond.wait(left)
+            self._queue.popleft()
+            self._held = True
+            return True
+
+    def release(self) -> None:
+        with self._cond:
+            if not self._held:
+                raise RuntimeError("release of an unheld FairLock")
+            self._held = False
+            self._cond.notify_all()
+
+    def locked(self) -> bool:
+        with self._cond:
+            return self._held
+
+    def waiting(self) -> int:
+        with self._cond:
+            return len(self._queue)
+
+    def __enter__(self):
+        self.acquire()
+        return self
+
+    def __exit__(self, *exc):
+        self.release()
 
 
 def is_engine_failure(engine, error) -> bool:
@@ -167,9 +245,6 @@ class Combiner:
                         self.sizes[n] += 1
                     for w in batch:
                         w.done.set()
-            # let a thread waiting for the engine's lock (a thinking request, the image route, the hidden-state
-            # readout) take it before the next call: the lock is not fair, and this thread would take it back at once
-            time.sleep(0)
 
     def close(self) -> None:
         """At exit: no call starts any more, the waiting requests fail, and a call in progress is waited for (at most

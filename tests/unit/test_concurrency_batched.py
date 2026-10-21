@@ -35,7 +35,7 @@ from test_certified_answers import examples, post_task, wire
 from decisio.families import BASES
 from decisio.serve import boundary
 from decisio.serve import vllm_engine as sv
-from decisio.serve.combine import Combiner
+from decisio.serve.combine import Combiner, FairLock
 from decisio.serve.systemone import SystemOne, add_routes
 from decisio.serve.tasks import TaskStore
 
@@ -54,7 +54,7 @@ class Rows(sv.LettersEngine):
         self.family = BASES["gemma-4-12b"] if register else None
         self.cache_hit_unit = 16 if register else None
         self.register_boundary = "after"
-        self._lock = threading.Lock()
+        self._lock = FairLock()  # as LettersEngine.__init__ and the stand-in make it
         self.calls, self.warms = [], []
         self.gate, self.started, self.fail = threading.Event(), threading.Event(), None
         self.gate.set()
@@ -426,6 +426,7 @@ def test_b8_concurrent_clients_on_the_stand_in_get_the_serial_answers_in_fewer_c
 
     model = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
     eng = HFLettersEngine(model)
+    assert isinstance(eng._lock, FairLock)
     calls = []
     score = eng.score_prompts
 
@@ -526,3 +527,126 @@ def test_b2_the_systemone_response_says_the_batch():
     assert r.status_code == 200 and r.headers["x-decisio-batch"] == "requests=3; rows=4"
     alone = make()[0].post("/v1/systemone", json=wire("0:0.9:x"))
     assert "x-decisio-batch" not in alone.headers
+
+
+# ---- Serve's review -------------------------------------------------------------------------------------------------
+
+
+def test_b9_the_engine_lock_is_first_come_first_served():
+    from decisio.serve.combine import FairLock
+
+    lock, order = FairLock(), []
+    lock.acquire()
+    threads = []
+    for i in range(5):
+        threads.append(threading.Thread(target=lambda i=i: (lock.acquire(), order.append(i), lock.release())))
+        threads[-1].start()
+        deadline = time.monotonic() + 5
+        while lock.waiting() < i + 1 and time.monotonic() < deadline:
+            time.sleep(0.001)
+    lock.release()
+    for th in threads:
+        th.join(5)
+    assert order == [0, 1, 2, 3, 4]
+    assert lock.acquire(timeout=0.01) and not lock.acquire(blocking=False)
+    t = threading.Thread(target=lambda: order.append(lock.acquire(timeout=0.05)))
+    t.start()
+    t.join(5)
+    assert order[-1] is False and lock.waiting() == 0  # a waiter that timed out leaves the queue
+    lock.release()
+    with pytest.raises(RuntimeError):
+        lock.release()
+
+
+def test_b9_a_thinking_request_takes_the_engine_under_constant_batched_load():
+    eng = Rows("batched")
+    score = eng.score_prompts
+
+    def slow(rows, *a, **kw):
+        time.sleep(0.005)
+        return score(rows, *a, **kw)
+
+    eng.score_prompts = slow
+    stop = threading.Event()
+
+    def load(i):
+        while not stop.is_set():
+            eng.answer(f"load {i}", Q)
+
+    clients = [threading.Thread(target=load, args=(i,)) for i in range(8)]
+    for c in clients:
+        c.start()
+    deadline = time.monotonic() + 5
+    while len(eng.calls) < 20 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    before = len(eng.calls)
+    t0 = time.monotonic()
+    with eng._lock:  # what think(), the image route and the hidden-state readout do
+        waited, calls_meanwhile = time.monotonic() - t0, len(eng.calls) - before
+    stop.set()
+    for c in clients:
+        c.join(10)
+    assert calls_meanwhile <= 2 and waited < 1.0  # at most the call in progress and one already queued
+
+
+def test_b9_reads_inside_serial_reads_take_the_serial_path_on_a_batched_server():
+    from decisio.serve.combine import serial_reads
+
+    eng = Rows("batched")
+    with serial_reads():
+        probs, info = eng.answer("a certified read", Q)
+    assert "_combiner" not in eng.__dict__ and "batch" not in info  # the combiner never saw it
+    eng.answer("an ordinary read", Q)
+    assert eng.combiner.facts()["requests"] == 1
+
+
+class Recorded(Batched):
+    """Records, for every engine read, whether it was asked to take the serial path."""
+
+    def __init__(self):
+        super().__init__()
+        self.serial = []
+
+    def answer(self, state, questions, adapter=None):
+        from decisio.serve.combine import reads_serial
+
+        self.serial.append(reads_serial())
+        return super().answer(state, questions, adapter)
+
+
+def test_b9_a_certified_tasks_reads_registration_and_certification_are_serial_and_the_rest_is_not():
+    eng = Recorded()
+    eng.concurrency = "batched"
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"))
+    app = FastAPI()
+    add_routes(app, so)
+    client = TestClient(app)
+    r = post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}})
+    assert r.status_code == 200 and r.json()["certificate"]["certified"], r.text
+    assert eng.serial and all(eng.serial)  # every registration and certification read
+    eng.serial.clear()
+    a = client.post("/v1/systemone", json=wire("0:0.99:x")).json()["answers"]["q1"]
+    assert a["certified"] is True and eng.serial == [True]  # the certified task's own read
+    eng.serial.clear()
+    other = {"type": "choice", "instructions": "Which colour?", "criteria": {"option_0": "red", "option_1": "blue"}}
+    body = {"state": {"message": "1:0.8:x"}, "model": "m", "questions": {"q1": other}}
+    assert client.post("/v1/systemone", json=body).status_code == 200 and eng.serial == [False]
+
+
+def test_b9_the_monitor_skips_answers_scored_in_a_shared_call():
+    from decisio.serve.monitor import MixMonitor
+
+    base = {"option_counts": [5, 5], "window": 10, "step": 5, "line": 0.5}
+    m = MixMonitor(base)
+    m.observe(0, True, 0.9)
+    m.observe(1, True, 0.9, shared=True)
+    f = m.facts()
+    assert f["answers"] == 1 and f["shared_skipped"] == 1 and f["option_counts"] == [1, 0]
+    assert "shared_skipped" not in MixMonitor(base).facts()  # a serial server's facts are what they were
+
+
+def test_b9_a_serial_call_of_several_requests_sends_each_its_warm_up_as_before():
+    eng = Rows("serial", register=True)
+    eng.register_boundary = "before"
+    eng.answer_many([("the same new state, long", Q), ("the same new state, long", Q)])
+    assert eng.calls[0]["warm"] == 2  # no de-duplication outside a batched call
