@@ -24,7 +24,9 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - **Thinking now reasons on a default server.** Think mode (0.21.0 to 0.23.x) did not reason on a default server: decisio's hidden-readout class writes the hidden state into reserved logit columns on every row, a read allows only its labels and never saw them, but the greedy writing of reasoning may sample any token, took those columns, and wrote reserved token ids for the whole budget.
   Every thinking question ran to `--think-budget` tokens and the read after it followed junk; answers that thought in those releases are not what thinking is meant to give.
   The writing call now runs with those columns switched off.
-  Card evidence so far is five questions on one RTX 5090 (four clean, three stopping on their own at 437 to 442 tokens, one id in the range that was an ordinary word); a fuller check follows.
+  Measured on one RTX 5090 (vLLM 0.31.0, decisio 0.24.0, the 12B in FP8, 20 questions one at a time, 2026-10-21): real reasoning on all 20, 15 stopped on their own at the end of the turn (median 402 tokens), 5 hard items ran to the 512-token budget, no request failed.
+  Ten ids of the readout range appeared in 6,348 written tokens; each is an ordinary word in coherent text (the range holds real vocabulary tokens as well as the hidden-state columns), not a leak (`runs/2026-10-21_5090-think24/`).
+  That shows the mechanism works on one card and base, not how much thinking helps.
   A question whose reasoning comes back unusable (mostly reserved ids) is answered at its single pass, marked `thinking: unavailable` with the reason in the response, logged, and counted in `/health` under `systemone.think.unavailable`; the request does not fail.
   Thinking with decisio's hidden-readout class needs the engine in the server's process (`--engine-process in`, the default); with `--engine-process separate`, `--think` is refused at start with the reason (serve a text-only class with a second engine for the head to think there).
 
