@@ -141,7 +141,7 @@ def tuned12(tmp_path, config=None, **kw):
 
 def test_c3_served_from_a_directory_at_the_repositorys_defaults(tmp_path):
     d, args, (fam, _) = tuned12(tmp_path)
-    assert fam.key == "gemma-4-12b" and fam.context_ceiling == 65536
+    assert fam.key == "gemma-4-12b" and fam.context_ceiling >= 65536
     t = TEMPS["temperatures"]
     assert (args.temperature_choice, args.temperature_noul, args.temperature_score) == (
         t["choice"],

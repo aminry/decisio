@@ -34,7 +34,7 @@ Every number is on the base's served settings as they were when it was measured 
 - An opt-in abstention threshold per task (`POST /v1/abstention/tasks`), on a declared or appended "can't tell" option.
 - Image input: as many images per request as the context holds (up to `--max-images`, 128 by default) (PNG, JPEG or WebP, up to 20 MB each), as data URLs, multipart, or inside the state.
 - Two-order averaging, opt-in (`--orders 2` or a request's `orders`), with the two orders' disagreement logged per question.
-- Context: every record here was measured at 32,768 tokens per prompt. The Gemma bases serve the largest context that fits the card, up to 98,304 (31B) and 65,536 (12B); the Qwen base stays at 32,768 (`docs/running.md`, "The context length").
+- Context: every record here was measured at 32,768 tokens per prompt. The Gemma bases serve the largest context that fits the card, up to 98,304 (31B) and 98,304 (12B); the Qwen base stays at 32,768 (`docs/running.md`, "The context length").
 
 ## 3. Numbers
 
