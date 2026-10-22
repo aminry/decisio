@@ -2011,6 +2011,35 @@ def build_parser():
         "(docs/tasks.md)",
     )
     ap.add_argument(
+        "--task-store",
+        default=None,
+        metavar="URL",
+        help="a store of taught tasks that replicas share (s3://bucket/prefix, gs://, az://; needs the obstore "
+        "package, pip install 'decisio[task-store]'): a task taught on one replica is published as its exact fitted "
+        "record and the others apply it within --task-store-poll-seconds, without fitting it again; a write names the "
+        "version it replaces and fails with 409 if the store holds another (?replace=1 overrides); credentials come "
+        "from the provider's usual chain or environment. An alternative to --tasks-dir (docs/tasks.md, "
+        "docs/operating.md)",
+    )
+    ap.add_argument(
+        "--task-store-endpoint",
+        default=None,
+        metavar="URL",
+        help="--task-store: the endpoint of an S3-compatible service other than AWS (MinIO, R2, GCS interoperability)",
+    )
+    ap.add_argument(
+        "--task-store-poll-seconds",
+        type=float,
+        default=5.0,
+        help="--task-store: how often a replica checks the store for tasks taught elsewhere (default %(default)s)",
+    )
+    ap.add_argument(
+        "--task-store-readonly",
+        action="store_true",
+        help="--task-store: this replica applies tasks from the store and does not teach them: registration, "
+        "certification, import and removal answer 409 (send them to the designated replica)",
+    )
+    ap.add_argument(
         "--require-tasks",
         type=int,
         default=None,
@@ -2093,7 +2122,24 @@ def load_tasks(args, store):
         data = json.loads(Path(args.abstention_tasks).read_text())
         file_abstention = data["tasks"] if isinstance(data, dict) else data
     backend = None
-    if args.tasks_dir:
+    if args.tasks_dir and args.task_store:
+        raise SystemExit("--tasks-dir and --task-store are alternatives: a replica keeps its tasks in one of them")
+    if args.task_store:
+        from decisio.serve import task_store_shared as shared
+
+        try:
+            backend = shared.ObjectBackend(
+                shared.open_store(args.task_store, args.task_store_endpoint),
+                shared.sanitized(args.task_store),
+                readonly=args.task_store_readonly,
+                poll_seconds=args.task_store_poll_seconds,
+            )
+            if not args.task_store_readonly:
+                backend.probe()
+            abstention_records, task_report = task_backends.load_at_start(store, backend, file_tasks, file_abstention)
+        except task_backends.TaskPersistError as e:
+            raise SystemExit(f"--task-store: {e}")
+    elif args.tasks_dir:
         try:
             backend = task_backends.DirBackend(args.tasks_dir)
             abstention_records, task_report = task_backends.load_at_start(store, backend, file_tasks, file_abstention)
@@ -2107,11 +2153,16 @@ def load_tasks(args, store):
     usable = task_backends.usable(store, abstention_records, args.served_name)
     task_report["usable"] = usable
     print("TASKS", json.dumps(task_report), flush=True)
+    held = task_report.get("from_dir") or task_report.get("from_store")
     refusal = task_backends.start_refusal(
         usable,
         args.require_tasks,
-        sum(task_report["from_dir"].values()) if "from_dir" in task_report else None,
-        args.tasks_dir,
+        sum(held.values()) if held else None,
+        f"the directory {args.tasks_dir}"
+        if args.tasks_dir
+        else f"the task store {task_report['saved_to']['url']}"
+        if args.task_store
+        else None,
     )
     if refusal:
         if backend is not None:
@@ -2458,6 +2509,10 @@ def main():
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
         choice_bands=args.choice_bands,
     )
+    if backend is not None and hasattr(backend, "sync_once"):
+        from decisio.serve.task_store_shared import TaskSync
+
+        TaskSync(backend).start()  # follows the shared store; the replica keeps serving if the store goes away
     # one engine state for every engine of this server: a dead engine refuses requests, turns /health to 503 and ends
     # the process with code 70, so that a restart policy starts a new server (decisio.serve.engine_health)
     health = EngineHealth()

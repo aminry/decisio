@@ -15,16 +15,16 @@ LABEL org.opencontainers.image.title="decisio" \
       org.opencontainers.image.source="https://github.com/aminry/decisio" \
       org.opencontainers.image.licenses="Apache-2.0"
 
-# The wheel and its one new dependency (scipy). Everything already in the image is held at its version: scipy is installed
+# The wheel and its new dependencies (scipy, and obstore for the shared task store, --task-store). Everything already in the image is held at its version: they are installed
 # with the image's packages as constraints, the wheel with --no-deps (a resolver would re-read vLLM's own metadata and
 # could replace torch), and check_requirements.py then confirms that decisio[serve] is satisfied by what the image ships.
 COPY dist/decisio-*.whl /tmp/wheel/
 COPY docker/pin_installed.py docker/check_requirements.py docker/constraints.txt /tmp/docker/
 RUN python3 /tmp/docker/pin_installed.py > /tmp/pins.txt \
- && uv pip install --system --break-system-packages --no-cache -c /tmp/pins.txt -c /tmp/docker/constraints.txt scipy \
+ && uv pip install --system --break-system-packages --no-cache -c /tmp/pins.txt -c /tmp/docker/constraints.txt scipy obstore \
  && uv pip install --system --break-system-packages --no-cache --no-deps /tmp/wheel/decisio-*.whl \
  && python3 /tmp/docker/check_requirements.py \
- && python3 -c "import decisio, decisio.vllm_plugin, scipy" \
+ && python3 -c "import decisio, decisio.vllm_plugin, scipy, obstore" \
  && rm -rf /tmp/wheel /tmp/pins.txt /tmp/docker
 
 # The optional patch series, dry-run first; a series that does not apply fails the build.

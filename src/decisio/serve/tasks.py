@@ -250,8 +250,13 @@ class TaskStore:
             task["fit_sha256"] = fit_digest(task)
         if persist:
             self.persist_task(task)
-        self._drop(task["id"])
+        # the new record goes in before the old one goes out, so a reader never finds the task missing (a replica
+        # applying another replica's version while it serves)
+        old = [k for k, t in self.by_key.items() if t["id"] == task["id"] and k != task["key"]]
         self.by_key[task["key"]] = task
+        for k in old:
+            self.by_key.pop(k, None)
+        self.monitors.pop(task["id"], None)
         if task.get("monitor"):
             self.monitors[task["id"]] = MixMonitor(task["monitor"])
 

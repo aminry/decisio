@@ -3,8 +3,7 @@
 
 # Design: a shared task store for replicas
 
-Status: proposal, nothing built. Part B (`--tasks-dir`, one server, one directory) is a separate change; this is part C.
-It asks for four decisions (backend, propagation, conflict rule, who may register), each with a recommendation, in "Decisions" below.
+Status: accepted and built (part C of the task-persistence work; part B, `--tasks-dir`, is separate). Amin accepted all four recommendations in "Decisions asked for" below. What the build settled beyond the proposal is under "As built" at the end; the user documentation is `tasks.md` ("Replicas: a shared store").
 
 ## The problem
 
@@ -110,3 +109,12 @@ Docs: `tasks.md` (the shared store), `operating.md` (the replicas section: what 
 4. **Who registers**: any replica, with `--task-store-readonly` available for a designated teacher (recommended), against making one replica the only writer.
 
 Also to confirm: tombstone retention (7 days), that an unreachable store at start is a refusal, and that mixed-card fleets lose certificates on the replicas whose stack differs (stated, not worked around).
+
+## As built
+
+- **Client:** `obstore` 0.12 (abi3 wheels for Linux x86_64 and aarch64 and macOS arm64, Python 3.11 and later), an optional extra `decisio[task-store]`, installed in the image. Its in-memory store enforces create-only writes, ETag compare-and-swap and conditional GETs, so the tests exercise the real semantics; `boto3` was not needed. A local filesystem store (`file://`) does not implement conditional writes and is refused by the start-up probe.
+- **Checked on** a running RustFS (the two-replica test, `DECISIO_TEST_S3_ENDPOINT`) and SeaweedFS (the probe). MinIO's images could not be pulled (Docker Hub's `minio/minio` is gone, quay.io refused), and AWS S3, R2, GCS and Azure were not available; the probe is the user's check.
+- **The version a write names** is, by default, the version the replica serves; a caller may name the one it was shown (`x-decisio-replaces`), or replace whatever the store holds (`?replace=1`). The check runs before the fit (a cheap manifest read) and again inside the compare-and-swap, so a race during a long fit is caught. A removal obeys the same rule; a task removed before a replica ever saw it is not a conflict.
+- **A replica's start** loads everything the manifest names, and seeds the store from `--tasks-file` / `--abstention-tasks` only for ids the store lacks; a seed lost to another replica, or refused by a read-only replica, is reported (`file_tasks_not_saved`) and is not an error.
+- **Garbage:** superseded objects are not deleted automatically; `python -m decisio.serve.task_store_shared gc` removes unreferenced ones older than a day.
+- **Not built:** a local cache of the shared store (so a restart works while the store is down), a database backend, push notification, fleet monitoring.
