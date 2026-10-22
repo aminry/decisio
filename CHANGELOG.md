@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.24.0](https://github.com/aminry/decisio/compare/v0.23.0...v0.24.0) (2026-10-22)
+
+
+### Features
+
+* **serve:** the Gemma 4 12B in FP8 beside bf16 (gemma-4-12b-fp8) ([#269](https://github.com/aminry/decisio/issues/269)) ([c935b72](https://github.com/aminry/decisio/commit/c935b72751d900410c46b9de9425d7fa523d03ff))
+
+
+### Bug Fixes
+
+* **deps:** vite 8.3.5 in the pong demo, and Dependabot for its npm lockfile ([#271](https://github.com/aminry/decisio/issues/271)) ([3835323](https://github.com/aminry/decisio/commit/3835323cf51d5d9e0de9832d60167c2a08843a02))
+* **serve:** batched mode stalled because vLLM's tokenizer pool deep-copied the tokenizer; the engine's tokenizer, one call at a time ([#280](https://github.com/aminry/decisio/issues/280)) ([2a0bc95](https://github.com/aminry/decisio/commit/2a0bc95f1f195e8b0181b6bde867520af4cfbc62))
+* **serve:** thinking wrote reserved readout token ids instead of reasoning on the default engine ([#279](https://github.com/aminry/decisio/issues/279)) ([787acc1](https://github.com/aminry/decisio/commit/787acc1e9af5da027e733a7737d8f2d703a29a86))
+
 ## [0.23.0](https://github.com/aminry/decisio/compare/v0.22.0...v0.23.0) (2026-10-21)
 
 
