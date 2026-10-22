@@ -1,0 +1,197 @@
+{
+ "what": "think mode on decisio 0.24.0, the default server (hidden-readout class), one RTX 5090, vLLM 0.31.0, the 12B quantized to FP8 on load, --think --think-factor 1.5, budget 512, engine in the server's process; 20 questions, one at a time, 2026-10-21",
+ "sampling": {
+  "max_tokens": 512,
+  "temperature": 0.0,
+  "stop_token_ids": [
+   1,
+   106
+  ],
+  "skip_special_tokens": true,
+  "detokenize": false
+ },
+ "summary": {
+  "questions": 20,
+  "stopped_at_end_of_turn": 15,
+  "ran_to_the_budget": 5,
+  "tokens_median": 402,
+  "tokens_written": 6348,
+  "requests_failed": 0,
+  "thinking_unavailable": 0,
+  "reserved_range_ids": 10,
+  "worst_sequence_reserved_share": 0.0116
+ },
+ "reserved_range_ids_are_ordinary_words": {
+  "note": "the 10 ids are 6 distinct token ids; each decodes to an ordinary English vocabulary word and sits in coherent text (checked with its context)",
+  "distinct_token_ids": [
+   171036,
+   172554,
+   172669,
+   174193,
+   175214,
+   177586
+  ]
+ },
+ "per_question": [
+  {
+   "question": 0,
+   "tokens": 437,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 1,
+   "tokens": 512,
+   "finish_reason": "length",
+   "stopped_at_end_of_turn": false,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 2,
+   "tokens": 512,
+   "finish_reason": "length",
+   "stopped_at_end_of_turn": false,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 3,
+   "tokens": 442,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 4,
+   "tokens": 511,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 1,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 5,
+   "tokens": 512,
+   "finish_reason": "length",
+   "stopped_at_end_of_turn": false,
+   "reserved_range_ids": 1,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 6,
+   "tokens": 512,
+   "finish_reason": "length",
+   "stopped_at_end_of_turn": false,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 0.769
+  },
+  {
+   "question": 7,
+   "tokens": 364,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 8,
+   "tokens": 512,
+   "finish_reason": "length",
+   "stopped_at_end_of_turn": false,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 0.999
+  },
+  {
+   "question": 9,
+   "tokens": 422,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 10,
+   "tokens": 86,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 1,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 11,
+   "tokens": 69,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 12,
+   "tokens": 56,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 13,
+   "tokens": 47,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 14,
+   "tokens": 234,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 2,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 15,
+   "tokens": 402,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 1,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 16,
+   "tokens": 93,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 17,
+   "tokens": 88,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 0,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 18,
+   "tokens": 261,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 2,
+   "second_read_top_probability": 1.0
+  },
+  {
+   "question": 19,
+   "tokens": 276,
+   "finish_reason": "stop",
+   "stopped_at_end_of_turn": true,
+   "reserved_range_ids": 2,
+   "second_read_top_probability": 1.0
+  }
+ ]
+}

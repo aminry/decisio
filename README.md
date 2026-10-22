@@ -496,7 +496,7 @@ docker compose up --build          # needs the NVIDIA Container Toolkit
 curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
 ```
 
-The container serves the default base, Gemma 4 31B; `DECISIO_BASE=qwen3.6-35b-a3b docker compose up` (or `gemma-4-12b`) serves another.
+The container serves the default base, Gemma 4 31B; `DECISIO_BASE=qwen3.6-35b-a3b docker compose up` (or `gemma-4-12b`, or `gemma-4-12b-fp8`) serves another.
 Release images are published to `ghcr.io/aminry/decisio`, with their digest in the release notes.
 
 ### Mac with MLX
