@@ -1,0 +1,19 @@
+== batched: 14 holds over 150 ms, total 56.0 s, longest 11601 ms; 39 collections over 20 ms, total 15.9 s, longest 946 ms
+     15  AnyIO worker thread: tokenization_utils_tokenizers.py:1124 _encode_plus <- tokenization_utils_base.py:2291 encode <- hf.py:88 encode
+     14  decisio-engine-watch: engine_health.py:289 run <- threading.py:1010 run <- threading.py:1073 _bootstrap_inner
+     14  Thread-1 (_report_usage_worker): usage_lib.py:255 _report_continuous_usage <- usage_lib.py:173 _report_usage_worker <- threading.py:1010 run
+     14  MainThread: runners.py:118 run <- runners.py:194 run <- server.py:86 run
+      9  AnyIO worker thread: copy.py:214 _deepcopy_tuple <- copy.py:168 deepcopy <- copy.py:196 _deepcopy_list
+      8  AnyIO worker thread: copy.py:168 deepcopy <- copy.py:214 _deepcopy_tuple <- copy.py:168 deepcopy
+      5  decisio-combiner: attention.py:784 unified_attention_with_output <- kv_transfer_utils.py:40 wrapper <- _ops.py:1279 __call__
+      4  AnyIO worker thread: copy.py:214 _deepcopy_tuple <- copy.py:168 deepcopy <- copy.py:197 _deepcopy_list
+== batched_nogc: 4 holds over 150 ms, total 16.7 s, longest 5034 ms; 30 collections over 20 ms, total 8.2 s, longest 658 ms
+      4  decisio-engine-watch: engine_health.py:289 run <- threading.py:1010 run <- threading.py:1073 _bootstrap_inner
+      4  Thread-1 (_report_usage_worker): usage_lib.py:255 _report_continuous_usage <- usage_lib.py:173 _report_usage_worker <- threading.py:1010 run
+      4  MainThread: runners.py:118 run <- runners.py:194 run <- server.py:86 run
+      3  AnyIO worker thread: copy.py:214 _deepcopy_tuple <- copy.py:168 deepcopy <- copy.py:196 _deepcopy_list
+      2  AnyIO worker thread: copy.py:168 deepcopy <- copy.py:214 _deepcopy_tuple <- copy.py:168 deepcopy
+      1  AnyIO worker thread: tokenization_utils_tokenizers.py:1124 _encode_plus <- tokenization_utils_base.py:2291 encode <- hf.py:88 encode
+      1  AnyIO worker thread: copy.py:168 deepcopy <- copy.py:221 _deepcopy_dict <- copy.py:136 deepcopy
+      1  decisio-combiner: tokenization_utils_tokenizers.py:1124 _encode_plus <- tokenization_utils_base.py:2291 encode <- hf.py:88 encode
+== serial: 0 holds over 150 ms, total 0.0 s, longest 0 ms; 29 collections over 20 ms, total 8.4 s, longest 671 ms

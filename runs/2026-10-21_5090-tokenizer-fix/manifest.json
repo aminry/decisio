@@ -1,0 +1,18 @@
+{
+ "what": "the batched-mode stall (vLLM 0.31.0's tokenizer pool deep-copying the tokenizer for concurrent callers) and the fix (the engine's tokenizer one call at a time), FP8 12B on one RTX 5090",
+ "decisio_commit": "c055c2a (#269) merged with 568526b (#270), local (7b7f2351fa49cc5096509d651dc32314b673c795), plus decisio/serve/tokenizer_lock.py and the one line in LettersEngine.__init__",
+ "checkpoints": {
+  "tachara-ai/decisio-gemma-4-12b-fp8": "eed25b6fab0d4903392536230c8837b6a0dcfa77"
+ },
+ "card": "NVIDIA GeForce RTX 5090, 32,607 MiB, driver 580.173.02, power limit 600 W",
+ "vllm": "0.31.0",
+ "files": {
+  "README.md": "1f49d545730dbb3e8b94e28167c663d87208da95454196977d16ffe2d29a3e1a",
+  "batched_fix_load_16.json": "5e629c5acc34bc049e5a04b4312f363eba80abcffeb28850570d72ea6fe95f75",
+  "batched_fix_load_8.json": "70b720dcc56d5ad48a56ccffe24f55244362c8bd249432084c93798aebe6bd06",
+  "batched_load_16.json": "57a4f8828062a239b32f7ab735842a06c120bb98562e80025db79ee75273d574",
+  "batched_load_8.json": "6d4d16a1c4563ce881b3abed82fb555fe89477fa8b237d1befd5bb2b0c33fdba",
+  "holds_summary.txt": "34b898fad4cc7c70f928067475094bc8e5475cfa84d21d0f30f862bd19e4fdf4",
+  "serial_load_16.json": "0eaecbdeef0641da130041de3be5d4b7f99a7313111a74ea5b371b720e5d301a"
+ }
+}

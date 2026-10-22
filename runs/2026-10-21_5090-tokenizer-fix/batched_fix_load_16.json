@@ -1,0 +1,54 @@
+{
+ "label": "s8_batched_fix",
+ "kind": "fresh",
+ "clients": 16,
+ "n": 96,
+ "ok": 96,
+ "errors": 0,
+ "wall_s": 10.46307670022361,
+ "requests_per_s": 9.17512150111146,
+ "server_ms_p50": 1738.8,
+ "server_ms_p95": 1774.5,
+ "wall_ms_p50": 1741.9068650342524,
+ "wall_ms_p95": 1778.7904979195446,
+ "prompt_tokens_mean": 1448.53125,
+ "batched_requests": 90,
+ "health_before": {
+  "concurrency": {
+   "mode": "batched",
+   "max_requests": 16,
+   "calls": 12,
+   "requests": 48,
+   "waiting": 0,
+   "largest": 7,
+   "requests_per_call": {
+    "1": 6,
+    "7": 6
+   }
+  },
+  "state_boundary": null,
+  "base": "gemma-4-12b-fp8",
+  "quantization": "compressed-tensors",
+  "max_model_len": 4096
+ },
+ "health_after_registering": null,
+ "health_after": {
+  "concurrency": {
+   "mode": "batched",
+   "max_requests": 16,
+   "calls": 24,
+   "requests": 144,
+   "waiting": 0,
+   "largest": 15,
+   "requests_per_call": {
+    "1": 12,
+    "7": 6,
+    "15": 6
+   }
+  },
+  "state_boundary": null,
+  "base": "gemma-4-12b-fp8",
+  "quantization": "compressed-tensors",
+  "max_model_len": 4096
+ }
+}

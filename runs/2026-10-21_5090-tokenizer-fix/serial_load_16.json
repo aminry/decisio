@@ -1,0 +1,35 @@
+{
+ "label": "s8_serial",
+ "kind": "fresh",
+ "clients": 16,
+ "n": 96,
+ "ok": 96,
+ "errors": 0,
+ "wall_s": 13.359501713886857,
+ "requests_per_s": 7.185896753934354,
+ "server_ms_p50": 2211.8,
+ "server_ms_p95": 2272.2,
+ "wall_ms_p50": 2214.1105202026665,
+ "wall_ms_p95": 2274.7797479387373,
+ "prompt_tokens_mean": 1448.53125,
+ "batched_requests": 0,
+ "health_before": {
+  "concurrency": {
+   "mode": "serial"
+  },
+  "state_boundary": null,
+  "base": "gemma-4-12b-fp8",
+  "quantization": "compressed-tensors",
+  "max_model_len": 4096
+ },
+ "health_after_registering": null,
+ "health_after": {
+  "concurrency": {
+   "mode": "serial"
+  },
+  "state_boundary": null,
+  "base": "gemma-4-12b-fp8",
+  "quantization": "compressed-tensors",
+  "max_model_len": 4096
+ }
+}
