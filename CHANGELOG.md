@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.25.0](https://github.com/aminry/decisio/compare/v0.24.0...v0.25.0) (2026-10-22)
+
+
+### Features
+
+* **serve:** a shared task store for replicas (--task-store), on object storage ([#287](https://github.com/aminry/decisio/issues/287)) ([931367f](https://github.com/aminry/decisio/commit/931367f39a2d63ab6ebf058790111740dc48c177))
+* **serve:** taught tasks saved to disk (--tasks-dir), abstention tasks importable and removable, --require-tasks ([#284](https://github.com/aminry/decisio/issues/284)) ([8fae197](https://github.com/aminry/decisio/commit/8fae197aee713f74da56d365f74cce03040ef497))
+
 ## [0.24.0](https://github.com/aminry/decisio/compare/v0.23.0...v0.24.0) (2026-10-22)
 
 
