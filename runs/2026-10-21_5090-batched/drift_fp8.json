@@ -1,0 +1,64 @@
+{
+ "ref": "sB",
+ "pairs": {
+  "c4": {
+   "n": 200,
+   "bitwise_equal": 196,
+   "bitwise_equal_share": 0.98,
+   "largest_dp": 7.52818837765545e-05,
+   "choices_changed": 0,
+   "changed": [],
+   "requests_in_real_batches": 150,
+   "largest_batch_requests": 3,
+   "requests_per_call_after": {
+    "1": 450,
+    "3": 50
+   }
+  },
+  "c16": {
+   "n": 200,
+   "bitwise_equal": 194,
+   "bitwise_equal_share": 0.97,
+   "largest_dp": 0.00037568584540550315,
+   "choices_changed": 0,
+   "changed": [],
+   "requests_in_real_batches": 187,
+   "largest_batch_requests": 15,
+   "requests_per_call_after": {
+    "1": 463,
+    "3": 50,
+    "7": 1,
+    "15": 12
+   }
+  },
+  "sC": {
+   "n": 200,
+   "bitwise_equal": 200,
+   "bitwise_equal_share": 1.0,
+   "largest_dp": 0.0,
+   "choices_changed": 0,
+   "changed": [],
+   "requests_in_real_batches": 0,
+   "largest_batch_requests": 0,
+   "requests_per_call_after": {
+    "1": 663,
+    "3": 50,
+    "7": 1,
+    "15": 12
+   }
+  },
+  "sA": {
+   "n": 200,
+   "bitwise_equal": 200,
+   "bitwise_equal_share": 1.0,
+   "largest_dp": 0.0,
+   "choices_changed": 0,
+   "changed": [],
+   "requests_in_real_batches": 0,
+   "largest_batch_requests": 0,
+   "requests_per_call_after": {
+    "1": 200
+   }
+  }
+ }
+}

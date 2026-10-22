@@ -1,0 +1,29 @@
+bf16 fresh x1: serial 4.67 req/s, batched 4.64 req/s, 0.99x
+bf16 fresh x4: serial 4.61 req/s, batched 3.38 req/s, 0.73x
+bf16 fresh x8: serial 4.70 req/s, batched 2.15 req/s, 0.46x
+bf16 fresh x16: serial 4.60 req/s, batched 1.83 req/s, 0.40x
+bf16 fresh x32: serial 4.58 req/s, batched 2.79 req/s, 0.61x
+bf16 mix x1: serial 4.88 req/s, batched 4.93 req/s, 1.01x
+bf16 mix x4: serial 4.84 req/s, batched 5.18 req/s, 1.07x
+bf16 mix x8: serial 4.87 req/s, batched 5.50 req/s, 1.13x
+bf16 mix x16: serial 4.77 req/s, batched 3.34 req/s, 0.70x
+bf16 mix x32: serial 4.72 req/s, batched 3.27 req/s, 0.69x
+fp8 fresh x1: serial 7.20 req/s, batched 7.05 req/s, 0.98x
+fp8 fresh x4: serial 6.73 req/s, batched 3.64 req/s, 0.54x
+fp8 fresh x8: serial 6.66 req/s, batched 3.75 req/s, 0.56x
+fp8 fresh x16: serial 6.68 req/s, batched 2.94 req/s, 0.44x
+fp8 fresh x32: serial 6.66 req/s, batched 8.56 req/s, 1.28x
+fp8 mix x1: serial 12.81 req/s, batched 12.10 req/s, 0.94x
+fp8 mix x4: serial 10.75 req/s, batched 14.99 req/s, 1.39x
+fp8 mix x8: serial 11.01 req/s, batched 5.38 req/s, 0.49x
+fp8 mix x16: serial 11.01 req/s, batched 11.87 req/s, 1.08x
+fp8 mix x32: serial 10.91 req/s, batched 17.07 req/s, 1.56x
+lock fp8 fresh x1: 0.22.0 7.23 req/s, branch 7.20, 7.20 req/s, 0.22.0/branch 1.00, branch drift 0.1%
+lock fp8 fresh x4: 0.22.0 6.78 req/s, branch 6.73, 6.71 req/s, 0.22.0/branch 1.01, branch drift 0.3%
+lock fp8 fresh x8: 0.22.0 6.95 req/s, branch 6.66, 6.73 req/s, 0.22.0/branch 1.04, branch drift 1.1%
+lock fp8 fresh x16: 0.22.0 7.19 req/s, branch 6.68, 6.69 req/s, 0.22.0/branch 1.07, branch drift 0.1%
+lock fp8 fresh x32: 0.22.0 6.87 req/s, branch 6.66, 6.68 req/s, 0.22.0/branch 1.03, branch drift 0.3%
+fp8: batched server alone vs serial server (two fresh starts): 200/200 bitwise equal, largest |dp| 0
+fp8: S6's batched server, first one-at-a-time pass, vs this serial server (two fresh starts): 200/200 bitwise equal, largest |dp| 0
+bf16: batched server alone vs serial server (two fresh starts): 200/200 bitwise equal, largest |dp| 0
+bf16: S6's batched server, first one-at-a-time pass, vs this serial server (two fresh starts): 200/200 bitwise equal, largest |dp| 0
