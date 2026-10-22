@@ -19,6 +19,7 @@ gives, bit for bit.
 from __future__ import annotations
 
 import os
+from contextlib import contextmanager
 
 ENV_START = "DECISIO_HIDDEN_READOUT_START"
 DEFAULT_START = 100_000  # Qwen3.6's tokenizer: no letter label and no " yes" / " no" in [100000, 102048]
@@ -67,9 +68,38 @@ def check_reserved(hidden_size: int, vocab_size: int, label_ids, start: int | No
     return ids
 
 
+_columns_off = 0  # > 0 while `columns_off()` is active in this process
+
+
+@contextmanager
+def columns_off():
+    """The reserved columns are left as the model computed them while this is active (in this process: the engine must
+    run in the server's process, `--engine-process in`). Reserved ids carry the hidden state, which is far larger than
+    a real logit: a request that may sample any token (greedy writing of reasoning, `decisio.serve.think`) would pick
+    them every step. A request that allows only some ids (every read) never sees them either way."""
+    global _columns_off
+    _columns_off += 1
+    try:
+        yield
+    finally:
+        _columns_off -= 1
+
+
+def columns_on() -> bool:
+    return _columns_off == 0
+
+
+def reserved_range(hidden_size: int, start: int | None = None) -> range:
+    """The reserved token ids as a range, for membership tests."""
+    start = readout_start() if start is None else start
+    return range(start, start + hidden_size + 1)
+
+
 def write_hidden_columns(logits, hidden_states, start: int | None = None):
     """Overwrite, in place, the reserved columns of `logits` (rows x vocab) with [0, hidden_states] (rows x d).
-    Works on torch tensors; every other column is untouched."""
+    Works on torch tensors; every other column is untouched. Does nothing while `columns_off()` is active."""
+    if _columns_off:
+        return logits
     start = readout_start() if start is None else start
     d = hidden_states.shape[-1]
     if start + d + 1 > logits.shape[-1]:

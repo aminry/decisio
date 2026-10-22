@@ -27,6 +27,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 import random
 import re
 import threading
@@ -53,6 +54,9 @@ SUPPLIED_RULE = "the certification examples were supplied separately and share n
 
 
 # ---- wire schema (TypeSafe's SystemOneRequest and its questions) -----------------------------------------------------
+
+
+logger = logging.getLogger(__name__)
 
 
 class NoulCriteria(BaseModel):
@@ -597,7 +601,7 @@ class SystemOne:
         self.think = bool(think)
         self.think_factor = thinking.check_factor(think_factor, "think_factor")
         self.think_budget = thinking.check_budget(think_budget, "think_budget")
-        self.thought = {"requests": 0, "questions": 0, "tokens": 0, "ms": 0.0}
+        self.thought = {"requests": 0, "questions": 0, "unavailable": 0, "tokens": 0, "ms": 0.0}
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
         self.abstain_option = abstain_option
@@ -701,7 +705,7 @@ class SystemOne:
                     cand.append(i)
                 else:
                     why[name] = thinking.SURE
-        second, per_question, tokens, ms = {}, {}, 0, 0.0
+        second, per_question, tokens, ms, unavailable = {}, {}, 0, 0.0, 0
         if cand:
             t = time.perf_counter()
             asked = [qs[i] for i in sorted(at, key=at.get)]  # the questions as the first read had them
@@ -709,17 +713,26 @@ class SystemOne:
             wall = (time.perf_counter() - t) * 1000
             ms = float(parts.get("generate_ms", 0.0) + parts.get("read_ms", 0.0)) or wall  # the engine's own timing
             tokens = sum(counts)
-            for i, lp, n in zip(cand, lps, counts):
+            bad = parts.get("unavailable") or {}
+            for k, (i, lp, n) in enumerate(zip(cand, lps, counts)):
+                if lp is None or k in bad:  # no usable reasoning: this question keeps its single-pass answer
+                    cause = bad.get(k, "no second read")
+                    per_question[names[i]] = {"thought": False, "thinking": "unavailable", "why": cause}
+                    unavailable += 1
+                    logger.warning("think unavailable for %r: %s; its single-pass answer is served", names[i], cause)
+                    continue
                 second[i] = np.asarray(lp)[::-1].copy() if swapped[i] else np.asarray(lp)
                 per_question[names[i]] = {"thought": True, "tokens": n}
         for name, reason in why.items():
             per_question[name] = {"thought": False, "why": reason}
         self.thought["requests"] += 1
-        self.thought["questions"] += len(cand)
+        self.thought["questions"] += len(cand) - unavailable
+        self.thought["unavailable"] += unavailable
         self.thought["tokens"] += tokens
         self.thought["ms"] += ms
         report = {
-            "questions": len(cand),
+            "questions": len(cand) - unavailable,
+            **({"unavailable": unavailable} if unavailable else {}),
             "of": len(names),
             "tokens": tokens,
             "ms": round(ms, 1),

@@ -8,6 +8,36 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.24.0: the 12B in FP8, batching that batches, thinking that reasons
+
+### What changed
+
+- **The Gemma 4 12B in FP8, as a second precision** (`--base gemma-4-12b-fp8`, [running.md](running.md#the-12b-in-two-precisions-bf16-and-fp8)).
+  The bf16 12B stays the 12B's default and the base every 12B record was measured on.
+  FP8 is its own function (on 200 requests the top answer was the same as bf16's on 96%, the largest difference 0.438), with its own served name, task fingerprint and certificates, and it takes the full 65,536-token context on a 32 GB card where the bf16 12B starts only at 4,096.
+  A stored FP8 checkpoint is loaded as stored on either Gemma base; `--base gemma-4-12b` with an FP8 checkpoint is refused, naming the FP8 base.
+- **`--concurrency batched` no longer stalls.** In 0.23.0 it was slower than serial on requests about new states, because vLLM's tokenizer pool deep-copied the whole tokenizer for each thread tokenizing at once.
+  The engine's tokenizer is now used one call at a time.
+  Measured on one RTX 5090 with the FP8 12B and new states of about 1,000 tokens: 8.9 and 9.2 requests a second at 8 and 16 clients against 7.2 serial.
+  Other bases, client counts and traffic were not re-measured; measure on your own.
+  Serial servers are unaffected.
+- **Thinking now reasons on a default server.** Think mode (0.21.0 to 0.23.x) did not reason on a default server: decisio's hidden-readout class writes the hidden state into reserved logit columns on every row, a read allows only its labels and never saw them, but the greedy writing of reasoning may sample any token, took those columns, and wrote reserved token ids for the whole budget.
+  Every thinking question ran to `--think-budget` tokens and the read after it followed junk; answers that thought in those releases are not what thinking is meant to give.
+  The writing call now runs with those columns switched off.
+  Card evidence so far is five questions on one RTX 5090 (four clean, three stopping on their own at 437 to 442 tokens, one id in the range that was an ordinary word); a fuller check follows.
+  A question whose reasoning comes back unusable (mostly reserved ids) is answered at its single pass, marked `thinking: unavailable` with the reason in the response, logged, and counted in `/health` under `systemone.think.unavailable`; the request does not fail.
+  Thinking with decisio's hidden-readout class needs the engine in the server's process (`--engine-process in`, the default); with `--engine-process separate`, `--think` is refused at start with the reason (serve a text-only class with a second engine for the head to think there).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `--base gemma-4-12b-fp8` (new) | A second 12B, in FP8; its answers differ slightly from bf16's | Choose it for memory and speed; refit temperatures on FP8 reads before relying on them |
+| `--concurrency batched` | Throughput on new states is now above serial where measured; answers are unchanged | Measure on your traffic |
+| A server with `--think`, a request's `"think": true`, or a repository whose `defaults.think` is on | Thinking answers change: the reasoning is text now, usually shorter than the budget, so they are also faster | Check your factor against measured answers; certify tasks again if you certify under thinking |
+| `--think` with `--engine-process separate` | Refused at start, with the reason | Use the default engine process, or a text-only class with a second engine |
+| Everything else | Nothing changes | Nothing |
+
 ## 0.23.0: batching concurrent requests (opt-in)
 
 ### What changed

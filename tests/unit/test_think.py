@@ -315,7 +315,7 @@ def test_k6_the_response_the_usage_and_the_headers_report_what_thinking_cost():
     assert out["usage"]["thinking_tokens"] == 81 and out["usage"]["output_tokens"] == 2 + 81
     assert r.headers["x-decisio-think-tokens"] == "81" and float(r.headers["x-decisio-think-ms"]) > 0
     assert "think=" in r.headers["x-decisio-stages"]
-    assert so.thought == {"requests": 1, "questions": 2, "tokens": 81, "ms": so.thought["ms"]}
+    assert so.thought == {"requests": 1, "questions": 2, "unavailable": 0, "tokens": 81, "ms": so.thought["ms"]}
 
 
 def test_k6_health_says_the_setting_and_the_counts():
