@@ -304,6 +304,7 @@
     "/v1/abstention/tasks": {
       "get": {
         "summary": "List per-task abstention thresholds",
+        "description": "Every abstention task, in the form `POST /v1/abstention/tasks/import` and `--abstention-tasks` load.",
         "operationId": "tasks_v1_abstention_tasks_get",
         "responses": {
           "200": {
@@ -335,6 +336,82 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/AbstentionRegistration"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/abstention/tasks/import": {
+      "post": {
+        "summary": "Import Abstention Tasks",
+        "description": "Load abstention tasks as `GET /v1/abstention/tasks` returns them (no re-scoring); refused when fitted for\nanother served model.",
+        "operationId": "import_abstention_tasks_v1_abstention_tasks_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/abstention/tasks/{task_id}": {
+      "delete": {
+        "summary": "Remove Abstention Task",
+        "operationId": "remove_abstention_task_v1_abstention_tasks__task_id__delete",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }

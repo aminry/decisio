@@ -8,6 +8,25 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Next release: taught tasks saved to disk
+
+### What changed
+
+- **`--tasks-dir PATH`** keeps every taught task (calibration and head tasks, and abstention tasks) in a directory, written through atomically before the response and loaded at start ([tasks.md](tasks.md#saved-to-disk---tasks-dir)).
+  A write that fails fails the request (500) and nothing is registered.
+  **`--require-tasks N`** refuses to start with fewer than N usable tasks, so a lost store cannot silently become untaught answers.
+- **Abstention tasks** can be imported (`POST /v1/abstention/tasks/import`) and removed (`DELETE /v1/abstention/tasks/{id}`), and `GET /v1/abstention/tasks` is their export.
+  An abstention task now applies only on the served name it was fitted for; a task fitted under another served name is kept and not applied.
+- `GET /v1/tasks`, `GET /v1/abstention/tasks` and `/health` say where tasks are saved and how many are loaded and apply.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| No `--tasks-dir` | Nothing changes, except that an abstention task fitted under another served name is no longer applied | Nothing; re-register such a task under the served name |
+| `--tasks-dir` (new) | Tasks survive a restart; one directory belongs to one server | Put it on a volume that outlives the container; add `--require-tasks N` |
+| Several replicas | Each is its own server; `--tasks-dir` does not share tasks between them | Give each its own directory, or wait for a shared store |
+
 ## 0.24.0: the 12B in FP8, batching that batches, thinking that reasons
 
 ### What changed

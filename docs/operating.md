@@ -132,5 +132,5 @@ spec:
 ```
 
 Both probes read the same route: `/health` answers 200 once the engine is loaded and 503 with `{"ok": false, "engine": "dead", ...}` from the moment the engine is declared dead.
-A readiness probe on `/health` is not needed for one replica; with several, remember that each replica is a separate server with its own registered tasks, which live in memory ([`tasks.md`](tasks.md)).
+A readiness probe on `/health` is not needed for one replica; with several, remember that each replica is a separate server with its own registered tasks ([`tasks.md`](tasks.md)): a task taught on one is not on the others. `--tasks-dir` makes one server's tasks survive its restart (put the directory on a volume that outlives the container, and start with `--require-tasks N` so that a volume that failed to mount stops the server instead of leaving it untaught); it does not share tasks between replicas, and one directory belongs to one server.
 Do not put a request on the probe path: `/health` costs nothing, and a question costs an engine call.

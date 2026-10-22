@@ -151,6 +151,10 @@ class TaskStore:
         self.fingerprint = fingerprint
         self.by_key: dict[str, dict] = {}
         self.monitors: dict[str, MixMonitor] = {}  # the answer-mix window of each certified task, by task id
+        # where tasks are kept across restarts (decisio.serve.task_backends); None: in memory only. A task is written
+        # before it is stored in memory and removed from the backend before it is dropped, so a write that fails leaves
+        # the store as it was and the caller learns it (TaskPersistError)
+        self.backend = None
 
     def lookup(self, key):
         t = self.by_key.get(key)
@@ -238,22 +242,50 @@ class TaskStore:
             self.put(task)
         return task, {"lps": lps, "labels": labels, "readout": readout}
 
-    def put(self, task) -> None:
+    def put(self, task, persist: bool = True) -> None:
         """Store a task, replacing the task of the same id whatever its list; start its monitor when it has a
-        baseline."""
-        self.remove(task["id"])
+        baseline. With a backend the task is written first (`persist=False`: the caller writes it with `persist_task`
+        once it has finished with the record, and rolls back with `rollback` if that fails)."""
         if task.get("certificate"):  # the certificate names the fit it was made for; recomputed here, never trusted
             task["fit_sha256"] = fit_digest(task)
+        if persist:
+            self.persist_task(task)
+        self._drop(task["id"])
         self.by_key[task["key"]] = task
         if task.get("monitor"):
             self.monitors[task["id"]] = MixMonitor(task["monitor"])
 
-    def remove(self, task_id) -> bool:
+    def persist_task(self, task) -> None:
+        """Write the task's record to the backend, if there is one. Raises TaskPersistError."""
+        if self.backend is not None:
+            self.backend.save("readout", self.public(task, full=True))
+
+    def snapshot(self, task_id):
+        """The stored task of this id (or None), for `rollback`."""
+        return next((t for t in self.by_key.values() if t["id"] == task_id), None)
+
+    def rollback(self, task_id, previous) -> None:
+        """Put memory back as it was before a `put(..., persist=False)` whose write failed."""
+        self._drop(task_id)
+        if previous is not None:
+            self.by_key[previous["key"]] = previous
+            if previous.get("monitor"):
+                self.monitors[task_id] = MixMonitor(previous["monitor"])
+
+    def _drop(self, task_id) -> bool:
         keys = [k for k, t in self.by_key.items() if t["id"] == task_id]
         for k in keys:
             del self.by_key[k]
         self.monitors.pop(task_id, None)
         return bool(keys)
+
+    def remove(self, task_id, persist: bool = True) -> bool:
+        """Remove the task (and its saved record, first). False when there is no such task."""
+        if not any(t["id"] == task_id for t in self.by_key.values()):
+            return False
+        if persist and self.backend is not None:
+            self.backend.delete("readout", task_id)
+        return self._drop(task_id)
 
     # ---- persistence: JSON with the head's arrays as base64 float32 ---------------------------------------------
 
@@ -271,9 +303,11 @@ class TaskStore:
             out["certificate"] = {**cert, "split": split}
         return out
 
-    def load(self, tasks):
+    def load(self, tasks, persist: bool = True):
         """Load task records as `public(task, full=True)` writes them; records written before the rename (the `rlcd-*/1`
-        formats) load unchanged. A record of another kind is refused before anything is stored."""
+        formats) load unchanged. A record of another kind is refused before anything is stored. With a backend they are
+        saved as they load (`persist=False`: they came from it); one that cannot be saved stops the load, the ones
+        before it stay loaded and saved."""
         for t in tasks:
             what = f"task {t.get('id')!r}" if isinstance(t, dict) else "task"
             check_format(t, "task", what)
@@ -290,7 +324,7 @@ class TaskStore:
                 raise ValueError(f"task {t['id']!r}: an applied head without its arrays (export with ?full=1)")
             task = {**t, "head": head}
             task.pop("fit_sha256", None)  # recomputed in `put` from what was loaded
-            self.put(task)
+            self.put(task, persist=persist)
 
 
 def _render(x):
