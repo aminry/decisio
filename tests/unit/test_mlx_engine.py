@@ -370,9 +370,9 @@ def test_official_tokenizer_by_base():
     from decisio.families import FAMILIES, GEMMA4, QWEN
     from decisio.serve.mlx_engine import OFFICIAL_TOKENIZER, TOKENIZER_SHA256, split_revision
 
-    # every base has its tokenizer's sha256 (the two Gemma 4 bases' files are identical); the tokenizer is the base's
-    # own checkpoint at its revision
-    served = sorted(f.key for f in FAMILIES)
+    # every base MLX serves has its tokenizer's sha256 (the Gemma 4 bases' files are identical; the 12B in FP8 is
+    # vLLM's format, refused on MLX); the tokenizer is the base's own checkpoint at its revision
+    served = sorted(f.key for f in FAMILIES if f.precision != "fp8")
     assert sorted(TOKENIZER_SHA256) == served and OFFICIAL_TOKENIZER == QWEN.model
     assert (GEMMA4.model, GEMMA4.revision) == ("google/gemma-4-12B-it", "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7")
     assert split_revision("google/gemma-4-12B-it@707f0a3b") == ("google/gemma-4-12B-it", "707f0a3b")

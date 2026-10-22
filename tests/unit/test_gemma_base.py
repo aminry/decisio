@@ -173,7 +173,7 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     assert sv.resolve_base(_args())[0].key == "gemma-4-31b"
     with pytest.raises(ValueError, match="--model or --base"):
         sv.resolve_base(_args(backend="hf"))
-    assert sorted(BASES) == ["gemma-4-12b", "gemma-4-31b", "qwen3.6-35b-a3b"]
+    assert sorted(BASES) == ["gemma-4-12b", "gemma-4-12b-fp8", "gemma-4-31b", "qwen3.6-35b-a3b"]
 
 
 def _gemma4_checkpoint(tmp_path, name, moe):
@@ -308,7 +308,10 @@ def test_b8_the_pin_follows_the_checkpoint(fam, base, backend, monkeypatch):
     calls = _config_reader(monkeypatch)
     a = _args(base=fam.key if base else None, model=fam.model, backend=backend)
     got, _ = sv.resolve_base(a)
-    assert got is fam and (a.model, a.revision) == (fam.model, fam.revision)
+    # without --base, the 12B's bf16 checkpoint is the bf16 base (FP8 is chosen by --base, or by a checkpoint that
+    # declares it)
+    want = GEMMA4 if fam.precision == "fp8" and not base else fam
+    assert got is want and (a.model, a.revision) == (fam.model, fam.revision)
     assert all(c == (fam.model, fam.revision) for c in calls)
     # an explicit --revision wins, and is what the config is read at
     calls.clear()

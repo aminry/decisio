@@ -573,6 +573,7 @@ Three base models are served behind the same routes, wire format and features, o
 uv run python -m decisio.serve.vllm_engine                          # gemma-4-31b, the default
 uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
 uv run python -m decisio.serve.vllm_engine --base gemma-4-12b
+uv run python -m decisio.serve.vllm_engine --base gemma-4-12b-fp8                  # the 12B in FP8
 ```
 
 `--base` brings its checkpoint at a pinned revision and every setting below; a flag given explicitly overrides the base's value.
@@ -584,6 +585,7 @@ A checkpoint named with `--model` and no `--base` brings the base its `config.js
 | `gemma-4-31b` (default) | `tachara-ai/decisio-gemma-4-31b`: Google's `google/gemma-4-31B-it` at `842da379`, stored as FP8, 30.6 GiB in memory; `--model google/gemma-4-31B-it` serves Google's weights at the same revision instead, quantized to FP8 when they load (measured on vLLM 0.30.0; the server now pins 0.31.0) | Official checkpoint from Google, at a pinned revision, quantized to FP8 once with the arithmetic vLLM uses on load (`python -m decisio.hub_fp8`); no training or fine-tuning by us; the repository's card states the check that its tensors equal the ones made on load |
 | `qwen3.6-35b-a3b` | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
 | `gemma-4-12b` | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-12b-fp8` | the same checkpoint in FP8, quantized when it loads (12.13 GiB as a stored conversion, 12.74 GiB in memory on vLLM 0.31.0); a second precision of the 12B, whose default and records stay bf16 ([`docs/running.md`](docs/running.md#the-12b-in-two-precisions)) | As `gemma-4-12b`, its linear layers quantized to FP8 with the arithmetic vLLM uses on load; its own task fingerprint and serving stack, and the bf16 12B's temperatures until they are refitted |
 
 A base that is a third-party fine-tune names its publisher in the provenance column and states what it was trained on.
 
@@ -608,6 +610,7 @@ In plain words:
 - **Gemma 4 12B for machines smaller than the 31B's.**
   It runs on a 32 GB Mac from its MLX conversion ([Mac with MLX](#mac-with-mlx)), and its Ollama listing takes 8.6 GB loaded ([Ollama](#ollama)).
   On vLLM its weights are the smallest of the three (22.8 GiB), but it did not start on a card limited to 32 GB; on an 80 GB H100 it served its ceiling of 65,536 tokens at the default share (`docs/running.md`), and cards between 32 and 80 GB were not measured (`EVAL_CARD.md` 6.6).
+  In FP8 (`--base gemma-4-12b-fp8`) it serves its full 65,536 tokens on a 32 GB RTX 5090 (12.74 GiB of weights, 11.66 GiB of KV cache) at 0.64 times the bf16 12B's server time, with its own answers: the top answer is the bf16 12B's on 96% of 200 requests ([`docs/running.md`](docs/running.md#the-12b-in-two-precisions)).
 - On JevBench's published items the 12B and Qwen are level (200 of 231 each).
 
 What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, each base with its own defaults, paired over the same items (95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):

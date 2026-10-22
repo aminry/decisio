@@ -35,6 +35,7 @@ def test_l1_the_default_is_the_largest_that_fits_up_to_the_ceiling():
     assert {k: f.context_ceiling for k, f in BASES.items()} == {
         "qwen3.6-35b-a3b": 32768,
         "gemma-4-12b": 65536,
+        "gemma-4-12b-fp8": 65536,
         "gemma-4-31b": 98304,
     }
 

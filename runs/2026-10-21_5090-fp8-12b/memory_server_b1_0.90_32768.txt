@@ -1,0 +1,5 @@
+INFO 10-21 21:30:13 [api_utils.py:286] non-default args: {'max_model_len': 32768, 'enable_prefix_caching': True, 'gpu_memory_utilization': 0.9, 'max_num_seqs': 256, 'max_logprobs': 1024, 'logprobs_mode': 'processed_logprobs', 'disable_log_stats': True, 'hf_overrides': {'architectures': ['DecisioGemma4UnifiedHiddenReadout']}, 'limit_mm_per_prompt': {'image': 0, 'video': 0, 'audio': 0}, 'compilation
+INFO 10-21 21:30:25 [model_runner.py:407] Model loading took 22.83 GiB memory and 4.668396 seconds
+INFO 10-21 21:32:17 [gpu_worker.py:692] Available KV cache memory: 0.48 GiB
+    raise ValueError(
+ValueError: To serve at least one request with the model's max seq len (32768), (5.82 GiB KV cache is needed, which is larger than the available KV cache memory (0.48 GiB). Based on the available memory, the estimated maximum model length is 1472. Try increasing `gpu_memory_utilization` (which also controls CPU memory on the CPU backend) or decreasing `max_model_len` when initializing the engine. 

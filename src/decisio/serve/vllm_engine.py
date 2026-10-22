@@ -1382,13 +1382,42 @@ def served_profile(engine, systemone) -> dict:
     }
 
 
+def base_line(fam, model, backend="vllm", tuned=False) -> str:
+    """The start-up line that says which base, and in which precision, the server serves: where one checkpoint has two
+    precisions (the 12B), a wrong pick would otherwise serve the other one without a word."""
+    if backend != "vllm":
+        how = f"as {backend} loads it"
+    elif fam.quantization:
+        how = f"quantized to {fam.quantization.upper()} on load"
+    elif fam.precision == "fp8":
+        how = "stored FP8, loaded as stored"
+    else:
+        how = "as the checkpoint stores it"
+    precision = f"{fam.precision}, " if fam.precision else ""
+    line = f"BASE {fam.key} ({precision}{how}) from {model}"
+    # served at the base's own temperatures (a tuned repository brings its own, fitted on its reads): nobody should
+    # read these answers as calibrated on FP8
+    if fam.precision == "fp8" and not tuned:
+        line += f"; temperatures {fam.temperature} fitted on the bf16 12B's reads, not refitted on FP8"
+    return line
+
+
 def resolve_base(args):
     """(family, PromptFormat) from the command line (decisio.families): --base, else the base --model's config.json
     names; the base's checkpoint when --model is not given; its pinned revision whenever the checkpoint is the base's
     own and no --revision was given, however the checkpoint was named; and the base's value for every setting left
     unset (--pad-to, --served-name, --noul-rendering, the prompt format, the temperatures)."""
     from decisio import hub
-    from decisio.families import BASES, DEFAULT_BASE, FAMILIES, declares_fp8, family_of, pinned_revision, read_config
+    from decisio.families import (
+        BASES,
+        DEFAULT_BASE,
+        FAMILIES,
+        as_loaded,
+        declares_fp8,
+        family_of,
+        pinned_revision,
+        read_config,
+    )
 
     repo = None
     if args.base is not None and args.base not in BASES:
@@ -1423,15 +1452,37 @@ def resolve_base(args):
             args.model = fam.model
         args.revision = pinned_revision(args.model, args.revision)
         if given:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
-            mt = read_config(args.model, args.revision).get("model_type")
-            other = next((f for f in FAMILIES if mt in f.model_types and f is not fam), None)
+            cfg = read_config(args.model, args.revision)
+            mt = cfg.get("model_type")
+            # the same checkpoint in another precision (the 12B's two) is not another base's
+            other = next((f for f in FAMILIES if mt in f.model_types and f.model != fam.model), None)
             if other is not None:
                 raise ValueError(f"--base {args.base}, but --model {args.model} is a {other.key} checkpoint ({mt})")
+            fp8 = next((f for f in FAMILIES if f.model == fam.model and f.precision == "fp8"), None)
+            if fam.precision == "bf16" and fp8 is not None and declares_fp8(cfg):
+                # served under the bf16 profile, its FP8 weights would be reported, keyed and certified as bf16
+                raise ValueError(
+                    f"--base {args.base}, but --model {args.model} declares FP8 weights: serve it with --base {fp8.key}"
+                )
+            if repo is not None and fam.precision == "fp8" and not declares_fp8(cfg):
+                # its file says FP8 weights stored, so the repository path would not quantize them on load: bf16
+                # weights would then be served, keyed and certified as the FP8 base
+                bf16 = next(f.key for f in FAMILIES if f.model == fam.model and f.precision == "bf16")
+                raise ValueError(
+                    f"{repo.name}: its {hub.FILE} is a {fam.key} repository, but its config.json declares no FP8 "
+                    f"weights: a bf16 checkpoint is served as {bf16}"
+                )
+            fam = as_loaded(fam, cfg)  # a stored FP8 checkpoint is not quantized again on load
     else:
         if args.model is None:
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision, lenient=args.backend == "hf")  # the stand-in takes any small model
+    if args.backend == "mlx" and fam.precision == "fp8":
+        raise ValueError(
+            f"--backend mlx does not serve {fam.key}: FP8 is vLLM's format; serve an MLX conversion of the 12B with "
+            "--base gemma-4-12b (docs/running.md)"
+        )
     if args.backend == "mlx" and repo is None and declares_fp8(read_config(args.model, args.revision)):
         # a repository was checked by its decision_config.json above; any other checkpoint, by its own config.json
         raise ValueError(
@@ -1543,7 +1594,8 @@ def build_parser():
         default=None,
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b "
         "(the default; served from its FP8 repository, tachara-ai/decisio-gemma-4-31b), qwen3.6-35b-a3b "
-        "(Qwen/Qwen3.6-35B-A3B-FP8) or gemma-4-12b (google/gemma-4-12B-it), each at a pinned revision; or a decisio "
+        "(Qwen/Qwen3.6-35B-A3B-FP8), gemma-4-12b (google/gemma-4-12B-it, bf16) or gemma-4-12b-fp8 (the same "
+        "checkpoint quantized to FP8 on load, the 12B's second precision), each at a pinned revision; or a decisio "
         "repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",
@@ -1975,6 +2027,8 @@ def main():
         args.family, fmt = resolve_base(args)
     except ValueError as e:
         ap.error(str(e))
+    tuned = bool((args.repository or {}).get("tuned"))
+    print(base_line(args.family, args.model, args.backend, tuned), flush=True)
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")
     if args.repository_defaults:
