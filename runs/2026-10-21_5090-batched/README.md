@@ -21,7 +21,7 @@ On the bf16 12B consecutive passes alternate between two states whatever the mod
 
 ## Throughput (`throughput.json`, `throughput.txt`)
 
-Requests per second from N concurrent clients; fresh: every request about a new state of about 1,000 tokens; mix: half about one of 8 states already in the cache.
+Requests per second from N concurrent clients; fresh: every request about a new state of about 1,000 tokens; mix (in brackets): half the requests about a new state, half about one of 8 states already in the cache.
 
 | Clients | FP8 serial | FP8 batched | bf16 serial | bf16 batched |
 | ---: | ---: | ---: | ---: | ---: |
@@ -33,5 +33,6 @@ Requests per second from N concurrent clients; fresh: every request about a new 
 
 Serial throughput is flat with the clients and its 95th-percentile server time stays within about 2 percent of the median.
 Batched mode is slower than serial on fresh states at 4 to 16 clients: some engine calls take seconds (up to 29 s for one call of one request) while the card is idle, and every request waiting behind them waits.
-In those stalls one server thread uses a full core while the others wait on Python's interpreter lock; full garbage collections of 250 to 520 ms are part of it (and are not removed by `gc.freeze()` after start-up), turning vLLM's asynchronous scheduling off or the boundary registration off does not change it, and no kernel is compiled during them.
-The rest of the cause is not found yet.
+The stalls are CPU work in the server's process under Python's interpreter lock: one server thread uses a full core while the others wait on it; full garbage collections of 250 to 520 ms are part of it (and are not removed by `gc.freeze()` after start-up); turning vLLM's asynchronous scheduling off or the boundary registration off does not change it, and no kernel is compiled during them.
+The rest of the cause is not found.
+On the mix, batched mode was faster at some client counts and slower at others (the FP8 12B slower at 8 clients, the bf16 12B at 16 and 32).

@@ -1,6 +1,6 @@
 {
  "what": "--concurrency batched on one RTX 5090 (vLLM 0.31.0): drift across clients, a lone request against serial, throughput serial against batched, Gemma 4 12B FP8 and bf16",
- "decisio_commit": "7b7f2351fa49cc5096509d651dc32314b673c795 (0.23.0's batched mode with the FP8 12B base of the next release, merged for the session)",
+ "decisio_commit": "c055c2a (#269) merged with 568526b (#270), local (7b7f2351fa49cc5096509d651dc32314b673c795, not pushed)",
  "checkpoints": {
   "google/gemma-4-12B-it": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
   "tachara-ai/decisio-gemma-4-12b-fp8": "eed25b6fab0d4903392536230c8837b6a0dcfa77"
@@ -8,7 +8,7 @@
  "card": "NVIDIA GeForce RTX 5090, 32,607 MiB, driver 615.71.09, power limit 575 W",
  "vllm": "0.31.0",
  "files": {
-  "README.md": "4a45af8aaedf8e1e183bc4c39b1ec6c58cc814d7b36bd5d0b0cfac1d915b7a5e",
+  "README.md": "a29c4c84fc1a897ea30e37ac7d3a612fcbf0b377c39c2fc25278f94de0330e91",
   "drift_and_g2.txt": "43ececb6a7e6c5213caf199117595ac333f5f79b6e067ac2b31d807678a782ae",
   "drift_bf16.json": "247420800b734849b6da09a5d4f25b93d61659bb8f50350684cd8979543d6831",
   "drift_fp8.json": "ea8b0910659a0a6b98796149e5438852e328f22ce9c3097b206f314b4d477dbb",
