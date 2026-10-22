@@ -319,6 +319,10 @@ class LettersEngine:
             arch = overrides.get("architectures")
             arch = "ForCausalLM" if arch else (read_config(model, revision).get("architectures") or [""])[0]
             self.adapter_paths, self.adapter_names = prepare_adapters(adapters, arch)
+        # decisio's hidden-readout class writes the hidden state into reserved logit columns on every row; a request
+        # that may sample any token must not see them (think(), `hidden.columns_off`): the engine runs in this process
+        archs = ((kw.get("hf_overrides") or {}).get("architectures")) or []
+        self.hidden_class = any("HiddenReadout" in str(a) for a in archs)
         self.llm = LLM(**kw)
         if auto is not None:
             self._settle_context(auto)
@@ -703,7 +707,21 @@ class LettersEngine:
 
     def can_think(self) -> bool:
         """Whether this engine can write reasoning (decisio.serve.think): the vLLM engine, not the MLX build."""
-        return getattr(self, "llm", None) is not None and getattr(self, "mode", "separate") == "separate"
+        return self.think_blocked() is None
+
+    def think_blocked(self) -> str | None:
+        """Why this engine cannot write reasoning, or None. The hidden-readout class puts the hidden state in reserved
+        logit columns, which greedy writing would sample; they are switched off for the call
+        (`decisio.vllm_plugin.hidden.columns_off`), possible only when the engine runs in this process."""
+        if getattr(self, "llm", None) is None or getattr(self, "mode", "separate") != "separate":
+            return "think needs the vLLM engine"
+        if getattr(self, "hidden_class", False) and getattr(self, "engine_process", "in") != "in":
+            return (
+                "think with decisio's hidden-readout class needs the engine in the server's process (--engine-process "
+                "in): the reserved logit columns cannot be switched off in another process; or serve a text-only class "
+                "with a second engine for the head (--model-class text-only --head-engine)"
+            )
+        return None
 
     def think(self, state, questions, adapter=None, budget=512, subset=None):
         """The second read of each question after reasoning (decisio.serve.think): for each question the served model
@@ -717,6 +735,7 @@ class LettersEngine:
         from vllm.inputs import TokensPrompt
 
         from decisio.serve import think as T
+        from decisio.vllm_plugin import hidden
 
         if self.health is not None:
             self.health.check()
@@ -730,16 +749,30 @@ class LettersEngine:
                 max_tokens=budget, temperature=0.0, detokenize=False, stop_token_ids=T.stop_ids(self.tok)
             )
             t = time.perf_counter()
-            outs = guarded(
-                self,
-                self.llm.generate,
-                [TokensPrompt(prompt_token_ids=ids + pre) for ids, _ in rows],
-                sp,
-                lora_request=lora,
-                use_tqdm=False,
-            )
+            reason = self.think_blocked()
+            if reason is not None:
+                raise ValueError(reason)
+            with (
+                hidden.columns_off()
+            ):  # the reserved columns hold the hidden state: greedy writing must not sample them
+                outs = guarded(
+                    self,
+                    self.llm.generate,
+                    [TokensPrompt(prompt_token_ids=ids + pre) for ids, _ in rows],
+                    sp,
+                    lora_request=lora,
+                    use_tqdm=False,
+                )
             generate_ms = (time.perf_counter() - t) * 1000
             gens = [list(o.outputs[0].token_ids) for o in outs]
+            if getattr(self, "hidden_class", False):  # a regression tripwire: reasoning must never be reserved ids
+                start = hidden.readout_start()
+                leaked = [x for g in gens for x in g if start <= x < start + HIDDEN_SIZE_MAX]
+                if leaked:
+                    raise RuntimeError(
+                        f"think wrote {len(leaked)} reserved readout token ids (first {leaked[0]}): the hidden-state "
+                        "columns reached sampling, so the reasoning is not text; no read is returned"
+                    )
             t = time.perf_counter()
             probs, _ = self.score_prompts([(ids + pre + g + suf, lab) for (ids, lab), g in zip(rows, gens)], adapter)
             read_ms = (time.perf_counter() - t) * 1000
@@ -1353,6 +1386,9 @@ def facts_register_boundary(engine):
     """Where a single question registers its state's boundary (--register-boundary), or None on a base that does not."""
     fam = getattr(engine, "family", None)
     return getattr(engine, "register_boundary", None) if getattr(fam, "register_state_boundary", False) else None
+
+
+HIDDEN_SIZE_MAX = 8192  # wider than any served base's hidden size: the tripwire's window above `hidden_start`
 
 
 def served_profile(engine, systemone) -> dict:
@@ -2137,7 +2173,8 @@ def main():
     engine.repository_defaults = args.repository_defaults
     engine.over_limit_tokens = args.over_limit_tokens
     if args.think and not engine.can_think():
-        raise SystemExit("--think needs the vLLM engine: this engine cannot write reasoning")
+        why = getattr(engine, "think_blocked", lambda: None)() or "think needs the vLLM engine"
+        raise SystemExit(f"--think: this engine cannot write reasoning ({why})")
     if args.over_limit == "truncate" and engine.prompt_limit() is None:
         raise SystemExit(
             "--over-limit truncate: this engine has no prompt ceiling to cut to; give --over-limit-tokens N"

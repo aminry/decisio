@@ -8,6 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Next release: thinking writes reasoning
+
+### What changed
+
+- **Think mode did not reason on a default server before this release.** decisio's served default engine runs its hidden-readout class, which writes the hidden state into reserved logit columns on every row. A read allows only its labels and never saw them, but the greedy writing of reasoning may sample any token, took those columns, and wrote reserved token ids for the whole budget (every thinking question ran to `--think-budget` tokens and the read after it followed junk).
+  The writing call now runs with those columns switched off, and raises if a reserved id is ever among the tokens it wrote.
+- **What it needs:** the engine in the server's process (`--engine-process in`, the default).
+  With `--engine-process separate` and the hidden-readout class, `--think` is refused at start with the reason; serve a text-only class with a second engine for the head (`--model-class text-only --head-engine`) to think there.
+- **Answers that thought change.** A thinking answer from an earlier release came from a read after junk, so it differs from one made now.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A server with `--think`, a request's `"think": true`, or a repository whose `defaults.think` is on | Thinking answers change: the reasoning is text now, usually shorter than the budget, so they are also faster | Check your factor against measured answers; certify tasks again if you certify under thinking |
+| `--think` with `--engine-process separate` | Refused at start, with the reason | Use the default engine process, or a text-only class with a second engine |
+| No thinking | Nothing changes | Nothing |
+
 ## 0.23.0: batching concurrent requests (opt-in)
 
 ### What changed
