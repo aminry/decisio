@@ -1,0 +1,4 @@
+INFO 10-21 21:21:27 [api_utils.py:286] non-default args: {'max_model_len': -1, 'enable_prefix_caching': True, 'gpu_memory_utilization': 0.9, 'max_num_seqs': 256, 'max_logprobs': 1024, 'logprobs_mode': 'processed_logprobs', 'disable_log_stats': True, 'hf_overrides': {'architectures': ['DecisioGemma4UnifiedHiddenReadout']}, 'limit_mm_per_prompt': {'image': 0, 'video': 0, 'audio': 0}, 'compilation_co
+INFO 10-21 21:21:38 [model_runner.py:407] Model loading took 12.74 GiB memory and 3.857718 seconds
+INFO 10-21 21:22:24 [gpu_worker.py:692] Available KV cache memory: 11.66 GiB
+INFO 10-21 21:22:24 [kv_cache_utils.py:2464] GPU KV cache size: 328,002 tokens, Maximum concurrency for 262,144 tokens per request: 1.25x

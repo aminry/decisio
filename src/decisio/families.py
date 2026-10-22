@@ -12,14 +12,22 @@
                    every single-token form of a label summed, yes/no as a two-option letter choice, and its own
                    temperature, all measured as one configuration (EVAL_CARD.md).
 
+  gemma-4-12b-fp8  the 12B in FP8, a second precision beside the bf16 one (which stays the 12B's default and the one
+                   every 12B record was measured on): the same checkpoint and prompt, its linear layers quantized to
+                   FP8 on load (per-tensor weight scales, per-token activations, as the 31B), or a stored FP8
+                   conversion of it (`python -m decisio.hub_fp8 convert`), which loads to the same tensors. Its own key
+                   and served name, so its tasks, certificates and stack are its own; its temperatures are the bf16
+                   12B's until they are refitted on FP8 reads.
+
   gemma-4-31b      google/gemma-4-31B-it at a pinned revision: dense attention, read through vLLM's text class of the
                    multimodal checkpoint with the vision tower left out at load, quantized to FP8 on load; the 12B's
                    prompt (system turn, spaced layout at the template's answer slot, summed label forms, yes/no as
                    letters) with its own temperatures (EVAL_CARD.md).
 
 Without `--base`, the base is detected from the checkpoint's config.json (`model_type`, and for `gemma4` checkpoints the
-mixture-of-experts flag: only the dense one is the 31B base); anything unknown is served as the Qwen base, as before
-(the CPU stand-in's small models included).
+mixture-of-experts flag: only the dense one is the 31B base); where two bases share a checkpoint in two precisions (the
+12B), the one whose precision the checkpoint declares: FP8 only for a checkpoint whose config.json declares FP8 weights,
+bf16 otherwise. Anything unknown is refused (the CPU stand-in keeps the Qwen base for its small models).
 
 Standard library only.
 """
@@ -28,7 +36,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from decisio.names import SERVED_NAME
@@ -99,6 +107,10 @@ class Family:
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
+    # where one checkpoint is served in two precisions (the 12B: "bf16" and "fp8"), which this base is; detection
+    # without --base takes "fp8" only for a checkpoint that declares FP8 weights (declares_fp8), "bf16" otherwise.
+    # None: the base's only precision (as `quantization` and the checkpoint say)
+    precision: str | None = None
 
 
 QWEN = Family(
@@ -159,6 +171,18 @@ GEMMA4 = Family(
     # 8,000: two thirds of a 32 GiB Mac (22.906 GB) less the 15.125 GB peak at 32k tokens leaves 7.781 GB = 7,421 MiB
     mlx_prefix_cache_mb=7400,
     mlx_working_gb=6,
+    precision="bf16",
+)
+
+GEMMA4_FP8 = replace(
+    GEMMA4,
+    key="gemma-4-12b-fp8",
+    served_name="decisio-gemma-4-12b-it-fp8-letters",
+    # FP8 on load, as the 31B (vLLM 0.31.0's online per-tensor FP8); a stored conversion that declares FP8 is loaded
+    # as stored (as_loaded) and holds the same tensors (RLCD experiments/2026-10-21_serve_12b_fp8/results/convert_12b:
+    # 192 fused groups, the loader changes 0 weights)
+    quantization="fp8",
+    precision="fp8",
 )
 
 GEMMA4_31B = Family(
@@ -200,7 +224,7 @@ GEMMA4_31B = Family(
     mlx_working_gb=9,
 )
 
-FAMILIES = (QWEN, GEMMA4, GEMMA4_31B)
+FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B)
 BASES = {f.key: f for f in FAMILIES}
 # the base a vLLM server serves when neither --base nor --model is given (0.10.0; before, the server refused to start
 # and the container served the Qwen base); a --model alone still brings the base its checkpoint declares
@@ -268,7 +292,11 @@ def family_of(model: str | None, revision: str | None = None, lenient: bool = Fa
     cfg = read_config(model, revision)
     mt = cfg.get("model_type")
     moe = bool((cfg.get("text_config") or cfg).get("enable_moe_block"))
-    found = next((f for f in FAMILIES if mt in f.model_types and (f.moe is None or f.moe == moe)), None)
+    found = [f for f in FAMILIES if mt in f.model_types and (f.moe is None or f.moe == moe)]
+    if len(found) > 1:  # one checkpoint in two precisions (the 12B): the one the checkpoint declares, bf16 unless FP8
+        precision = "fp8" if declares_fp8(cfg) else "bf16"
+        found = [f for f in found if f.precision == precision]
+    found = found[0] if found else None
     if found is None and lenient:
         return QWEN
     if found is None:
@@ -277,4 +305,13 @@ def family_of(model: str | None, revision: str | None = None, lenient: bool = Fa
             f"--model {model}: {what}, which no supported base serves (the bases: {', '.join(sorted(BASES))}). "
             "Give --base <key> with --model to serve a checkpoint as that base's profile, if it is one."
         )
-    return found
+    return as_loaded(found, cfg)
+
+
+def as_loaded(fam: Family, config: dict) -> Family:
+    """The profile a checkpoint is loaded under: a base that quantizes to FP8 on load does not quantize a checkpoint
+    whose config.json already declares FP8 weights (a stored conversion, `python -m decisio.hub_fp8 convert`); vLLM
+    loads it as stored. Everything else is the base's."""
+    if fam.quantization == "fp8" and declares_fp8(config):
+        return replace(fam, quantization=None)
+    return fam

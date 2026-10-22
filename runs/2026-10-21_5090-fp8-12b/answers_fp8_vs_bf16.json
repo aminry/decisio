@@ -1,0 +1,265 @@
+{
+ "labels": [
+  "b1",
+  "b2",
+  "f1",
+  "f2"
+ ],
+ "errors": {
+  "b1": 0,
+  "b2": 0,
+  "f1": 0,
+  "f2": 0
+ },
+ "pairs": {
+  "b1-b2": {
+   "n": 200,
+   "exactly_equal": 200,
+   "top_agreement": 1.0,
+   "largest_dp": 0.0,
+   "mean_dp": 0.0,
+   "top_changes": []
+  },
+  "f1-f2": {
+   "n": 200,
+   "exactly_equal": 200,
+   "top_agreement": 1.0,
+   "largest_dp": 0.0,
+   "mean_dp": 0.0,
+   "top_changes": []
+  },
+  "f1-b1": {
+   "n": 200,
+   "exactly_equal": 0,
+   "top_agreement": 0.96,
+   "largest_dp": 0.4376121654545324,
+   "mean_dp": 0.030868603079714445,
+   "top_changes": [
+    [
+     "mmlu:46",
+     "q",
+     0.509
+    ],
+    [
+     "mmlu:58",
+     "q",
+     0.183
+    ],
+    [
+     "mmlu_pro_text:10",
+     "q",
+     0.075
+    ],
+    [
+     "mmlu:95",
+     "q",
+     0.065
+    ],
+    [
+     "banking77:93",
+     "q",
+     0.054
+    ],
+    [
+     "mmlu_pro_text:111",
+     "q",
+     0.051
+    ],
+    [
+     "mmlu_pro_text:127",
+     "q",
+     0.033
+    ],
+    [
+     "mmlu_pro_text:54",
+     "q",
+     0.026
+    ]
+   ]
+  },
+  "f1-b2": {
+   "n": 200,
+   "exactly_equal": 0,
+   "top_agreement": 0.96,
+   "largest_dp": 0.4376121654545324,
+   "mean_dp": 0.030868603079714445,
+   "top_changes": [
+    [
+     "mmlu:46",
+     "q",
+     0.509
+    ],
+    [
+     "mmlu:58",
+     "q",
+     0.183
+    ],
+    [
+     "mmlu_pro_text:10",
+     "q",
+     0.075
+    ],
+    [
+     "mmlu:95",
+     "q",
+     0.065
+    ],
+    [
+     "banking77:93",
+     "q",
+     0.054
+    ],
+    [
+     "mmlu_pro_text:111",
+     "q",
+     0.051
+    ],
+    [
+     "mmlu_pro_text:127",
+     "q",
+     0.033
+    ],
+    [
+     "mmlu_pro_text:54",
+     "q",
+     0.026
+    ]
+   ]
+  },
+  "f2-b1": {
+   "n": 200,
+   "exactly_equal": 0,
+   "top_agreement": 0.96,
+   "largest_dp": 0.4376121654545324,
+   "mean_dp": 0.030868603079714445,
+   "top_changes": [
+    [
+     "mmlu:46",
+     "q",
+     0.509
+    ],
+    [
+     "mmlu:58",
+     "q",
+     0.183
+    ],
+    [
+     "mmlu_pro_text:10",
+     "q",
+     0.075
+    ],
+    [
+     "mmlu:95",
+     "q",
+     0.065
+    ],
+    [
+     "banking77:93",
+     "q",
+     0.054
+    ],
+    [
+     "mmlu_pro_text:111",
+     "q",
+     0.051
+    ],
+    [
+     "mmlu_pro_text:127",
+     "q",
+     0.033
+    ],
+    [
+     "mmlu_pro_text:54",
+     "q",
+     0.026
+    ]
+   ]
+  },
+  "f2-b2": {
+   "n": 200,
+   "exactly_equal": 0,
+   "top_agreement": 0.96,
+   "largest_dp": 0.4376121654545324,
+   "mean_dp": 0.030868603079714445,
+   "top_changes": [
+    [
+     "mmlu:46",
+     "q",
+     0.509
+    ],
+    [
+     "mmlu:58",
+     "q",
+     0.183
+    ],
+    [
+     "mmlu_pro_text:10",
+     "q",
+     0.075
+    ],
+    [
+     "mmlu:95",
+     "q",
+     0.065
+    ],
+    [
+     "banking77:93",
+     "q",
+     0.054
+    ],
+    [
+     "mmlu_pro_text:111",
+     "q",
+     0.051
+    ],
+    [
+     "mmlu_pro_text:127",
+     "q",
+     0.033
+    ],
+    [
+     "mmlu_pro_text:54",
+     "q",
+     0.026
+    ]
+   ]
+  }
+ },
+ "health": {
+  "b1": {
+   "base": "gemma-4-12b",
+   "quantization": "None",
+   "max_model_len": 4096,
+   "vllm": "0.31.0",
+   "gpu": "NVIDIA GeForce RTX 5090",
+   "attention_backend": "AttentionBackendEnum.TRITON_ATTN"
+  },
+  "b2": {
+   "base": "gemma-4-12b",
+   "quantization": "None",
+   "max_model_len": 4096,
+   "vllm": "0.31.0",
+   "gpu": "NVIDIA GeForce RTX 5090",
+   "attention_backend": "AttentionBackendEnum.TRITON_ATTN"
+  },
+  "f1": {
+   "base": "gemma-4-12b-fp8",
+   "quantization": "compressed-tensors",
+   "max_model_len": 4096,
+   "vllm": "0.31.0",
+   "gpu": "NVIDIA GeForce RTX 5090",
+   "attention_backend": "AttentionBackendEnum.TRITON_ATTN"
+  },
+  "f2": {
+   "base": "gemma-4-12b-fp8",
+   "quantization": "compressed-tensors",
+   "max_model_len": 4096,
+   "vllm": "0.31.0",
+   "gpu": "NVIDIA GeForce RTX 5090",
+   "attention_backend": "AttentionBackendEnum.TRITON_ATTN"
+  }
+ },
+ "reading": "BEYOND START NOISE: an FP8-bf16 pair exceeds largest |dp| 0.0600 or top agreement 0.995",
+ "bar_largest_dp": 0.06,
+ "bar_top_agreement": 0.995
+}
