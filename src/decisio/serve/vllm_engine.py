@@ -1608,8 +1608,8 @@ def build_parser():
         choices=list(CONCURRENCY_MODES),
         help="serial (the default): one request at a time through the engine, so a request's answer is a function of "
         "the request alone, whatever else the server is sent; batched: the requests waiting for the engine are scored "
-        "together in one engine call (up to --batch-max-requests), more throughput under concurrent load (measured on the "
-        "FP8 12B, new 1,000-token states, 8 and 16 clients; measure on your own traffic), but an "
+        "together in one engine call (up to --batch-max-requests), more throughput under concurrent load (measured on "
+        "the FP8 12B, new 1,000-token states, 8 and 16 clients; measure on your own traffic), but an "
         "answer can differ slightly with the traffic it arrived with (docs/running.md, 'Concurrency'). A lone request "
         "is scored as a serial server scores it. The mode is in /health and in the serving-stack fingerprint: a "
         "certificate made under one mode is not served as certified under the other",
