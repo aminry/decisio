@@ -78,7 +78,7 @@ def options_listing(tok, options):
 
 
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
-from decisio.serve import adapter_temperatures, engine_stream  # noqa: E402
+from decisio.serve import adapter_temperatures, engine_stream, task_backends  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
@@ -1108,6 +1108,7 @@ def make_app(engine, systemone=None, health=None):
                     "choice_bands": systemone.choice_bands,
                     "repository_defaults": getattr(engine, "repository_defaults", None),
                     "adapter_temperatures": systemone.adapter_temperatures,
+                    "task_store": systemone.task_store_report(),
                     "readout_tasks": {
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),
@@ -2000,6 +2001,24 @@ def build_parser():
     )
     ap.add_argument("--tasks-file", default=None, help="a JSON list of tasks to load at start (GET /v1/tasks?full=1)")
     ap.add_argument(
+        "--tasks-dir",
+        default=None,
+        help="a directory where taught tasks are kept, one file each, so that a restart does not lose them: every "
+        "registration, import, certification and removal (calibration tasks and abstention tasks) is written "
+        "through, atomically, before it is reported, and a write that fails fails the request; everything in it "
+        "loads at start. With --tasks-file / --abstention-tasks, a task of the file whose id the directory does not "
+        "hold is saved to it; one it holds stays as the directory has it. One server owns a directory "
+        "(docs/tasks.md)",
+    )
+    ap.add_argument(
+        "--require-tasks",
+        type=int,
+        default=None,
+        metavar="N",
+        help="refuse to start unless at least N tasks (calibration tasks of this server's stack, abstention tasks of "
+        "its served model) are loaded: a lost or empty store must not become untaught answers silently",
+    )
+    ap.add_argument(
         "--head-engine",
         action="store_true",
         help="read the intent head's hidden state from a second engine "
@@ -2059,6 +2078,46 @@ def build_parser():
     )
     ap.add_argument("--port", type=int, default=8000)
     return ap
+
+
+def load_tasks(args, store):
+    """Fill the task store at start (`--tasks-file`, `--abstention-tasks`, `--tasks-dir`) and apply `--require-tasks`;
+    returns (the abstention task records to serve, the backend or None, the report of what loaded from where). Stops the
+    start (SystemExit) when the directory cannot be used or the store holds fewer usable tasks than required."""
+    file_tasks = None
+    if args.tasks_file:
+        data = json.loads(Path(args.tasks_file).read_text())
+        file_tasks = data["tasks"] if isinstance(data, dict) else data
+    file_abstention = None
+    if args.abstention_tasks:
+        data = json.loads(Path(args.abstention_tasks).read_text())
+        file_abstention = data["tasks"] if isinstance(data, dict) else data
+    backend = None
+    if args.tasks_dir:
+        try:
+            backend = task_backends.DirBackend(args.tasks_dir)
+            abstention_records, task_report = task_backends.load_at_start(store, backend, file_tasks, file_abstention)
+        except task_backends.TaskPersistError as e:
+            raise SystemExit(f"--tasks-dir: {e}")
+    else:
+        abstention_records, task_report = task_backends.load_at_start(store, None, file_tasks, file_abstention)
+    stale = [t["id"] for t in store.by_key.values() if not same_fingerprint(t["fingerprint"], store.fingerprint)]
+    if stale:
+        print(f"WARNING: tasks fitted under another model or rendering are not applied: {stale}", flush=True)
+    usable = task_backends.usable(store, abstention_records, args.served_name)
+    task_report["usable"] = usable
+    print("TASKS", json.dumps(task_report), flush=True)
+    refusal = task_backends.start_refusal(
+        usable,
+        args.require_tasks,
+        sum(task_report["from_dir"].values()) if "from_dir" in task_report else None,
+        args.tasks_dir,
+    )
+    if refusal:
+        if backend is not None:
+            backend.close()
+        raise SystemExit(refusal)
+    return abstention_records, backend, task_report
 
 
 def main():
@@ -2182,6 +2241,26 @@ def main():
         )
     args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
+    from decisio.serve.tasks import TaskStore
+
+    # a task is valid only for the model and the rendering it was fitted under
+    store = TaskStore(
+        fingerprint=task_fingerprint(
+            served_name=args.served_name,
+            # a decisio repository's copy of a checkpoint is named by its source: tasks fitted on one serve on both
+            model=getattr(args, "model_identity", None) or os.path.basename(os.path.normpath(args.model)),
+            pad_to=args.pad_to,
+            pad_where=args.pad_where,
+            hide_index_keys=args.hide_index_keys,
+            desnake_labels=args.desnake_labels,
+            pad_policy=args.pad_policy,
+            prompt_format=None if fmt.is_default() else fmt.facts(),
+            # a base other than Qwen (whose fingerprints predate bases)
+            base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
+        )
+    )
+    abstention_records, backend, task_report = load_tasks(args, store)
+
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
         pad_to = None if args.pad_to == "none" else args.pad_to
         if args.backend == "hf":
@@ -2345,30 +2424,7 @@ def main():
     import uvicorn
 
     from decisio.serve.systemone import SystemOne
-    from decisio.serve.tasks import TaskStore
 
-    # a task is valid only for the model and the rendering it was fitted under
-    store = TaskStore(
-        fingerprint=task_fingerprint(
-            served_name=args.served_name,
-            # a decisio repository's copy of a checkpoint is named by its source: tasks fitted on one serve on both
-            model=getattr(args, "model_identity", None) or os.path.basename(os.path.normpath(args.model)),
-            pad_to=args.pad_to,
-            pad_where=args.pad_where,
-            hide_index_keys=args.hide_index_keys,
-            desnake_labels=args.desnake_labels,
-            pad_policy=args.pad_policy,
-            prompt_format=None if fmt.is_default() else fmt.facts(),
-            # a base other than Qwen (whose fingerprints predate bases)
-            base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
-        )
-    )
-    if args.tasks_file:
-        data = json.loads(Path(args.tasks_file).read_text())
-        store.load(data["tasks"] if isinstance(data, dict) else data)
-        stale = [t["id"] for t in store.by_key.values() if not same_fingerprint(t["fingerprint"], store.fingerprint)]
-        if stale:
-            print(f"WARNING: tasks fitted under another model or rendering are not applied: {stale}", flush=True)
     so = SystemOne(
         engine,
         args.served_name,
@@ -2386,7 +2442,9 @@ def main():
         think_budget=args.think_budget,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
-        abstention_tasks=(json.loads(Path(args.abstention_tasks).read_text()) if args.abstention_tasks else None),
+        abstention_tasks=abstention_records,
+        task_backend=backend,
+        task_report=task_report,
         tasks_enabled=args.tasks,
         task_store=store,
         hidden_engine=hidden_engine,

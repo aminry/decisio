@@ -42,6 +42,7 @@ from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
+from decisio.serve.task_backends import TaskPersistError
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
@@ -571,6 +572,8 @@ class SystemOne:
         noul_commit: bool = False,
         abstention: bool = True,
         abstention_tasks: list[dict] | None = None,
+        task_backend=None,
+        task_report: dict | None = None,
         tasks_enabled: bool = True,
         task_store=None,
         hidden_engine=None,
@@ -611,6 +614,12 @@ class SystemOne:
         for t in abstention_tasks or []:  # records written before the rename load unchanged
             check_format(t.get("config"), "abstention", f"abstention task {t.get('id')!r}")
         self.tasks: dict[str, dict] = {t["id"]: t for t in (abstention_tasks or [])}
+        # where taught tasks survive a restart (decisio.serve.task_backends; docs/tasks.md): both kinds are written
+        # through before they are stored in memory; None keeps them in memory only. `task_report`: what the start loaded
+        self.task_backend = task_backend
+        if task_store is not None:
+            task_store.backend = task_backend
+        self.task_report = task_report or {}
         # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): registered by
         # POST /v1/tasks, applied to text-route questions whose option list matches; the head needs the hidden-state
         # engine (decisio.serve.hidden_engine); `debug_readout` lets a request ask for its raw readout (verification)
@@ -1166,8 +1175,14 @@ class SystemOne:
             return result
         task, fitted = result
         registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
-        self.task_store.put(task)
+        previous = self.task_store.snapshot(task["id"])
+        self.task_store.put(task, persist=False)  # served from memory for the check below, written once it has run
         self.check_served(task, cert_ex, *registered)
+        try:
+            self.task_store.persist_task(task)
+        except Exception:
+            self.task_store.rollback(task["id"], previous)  # not saved: not registered
+            raise
         return task, fitted
 
     def with_readout_task(self, state, q, eq, p):
@@ -1570,8 +1585,14 @@ class SystemOne:
         }
         new = {k: v for k, v in t.items() if k not in ("certificate", "monitor")}
         registered = self.attach_certificate(new, cert_ex, settings, split)
-        store.put(new)
+        previous = store.snapshot(new["id"])
+        store.put(new, persist=False)  # served from memory for the check below, written once it has run
         self.check_served(new, cert_ex, *registered)
+        try:
+            store.persist_task(new)
+        except Exception:
+            store.rollback(new["id"], previous)  # not saved: the previous certificate stays
+            raise
         return new
 
     def certified_fields(self, t, q, keys, p, orders: int, chosen: int, shared: bool = False) -> dict:
@@ -1700,10 +1721,14 @@ class SystemOne:
         fp = option_set(q, self.described(q)) if q.type == "choice" else None
         kp = option_keys(q) if q.type == "choice" else None
         for t in self.tasks.values():  # the exact option set first, then the imajev extension
+            if not self.abstention_applies(t):
+                continue
             m = t["match"]
             if (m.get("option_set") and m["option_set"] == fp) or (m.get("imajev_extension") and imajev_ext):
                 return t
         for t in self.tasks.values():  # then the key set alone: the most general match, so the last
+            if not self.abstention_applies(t):
+                continue
             if kp is not None and t["match"].get("option_keys") == kp:
                 return t
         return None
@@ -1820,8 +1845,60 @@ class SystemOne:
             "config": cfg,
             "model": self.name,
         }
+        self.save_abstention(task)
         self.tasks[task_id] = task
         return task
+
+    def save_abstention(self, task: dict) -> None:
+        """Write an abstention task through to the backend, if there is one (TaskPersistError when it fails)."""
+        if self.task_backend is not None:
+            self.task_backend.save("abstention", task)
+
+    def remove_abstention(self, task_id: str) -> bool:
+        if task_id not in self.tasks:
+            return False
+        if self.task_backend is not None:
+            self.task_backend.delete("abstention", task_id)
+        del self.tasks[task_id]
+        return True
+
+    def load_abstention(self, records: list, persist: bool = True) -> list[str]:
+        """Load abstention task records as `GET /v1/abstention/tasks` returns them. Validated first, so a bad record
+        stores nothing; saved as they load (`persist=False`: they came from the backend)."""
+        for t in records:
+            if not isinstance(t, dict) or not t.get("id") or not isinstance(t.get("option"), dict):
+                raise ValueError("an abstention task record has an id and an option")
+            if not isinstance(t.get("match"), dict):
+                raise ValueError(f"abstention task {t['id']!r}: no match")
+            check_format(t.get("config"), "abstention", f"abstention task {t.get('id')!r}")
+        for t in records:
+            if persist:
+                self.save_abstention(t)
+            self.tasks[t["id"]] = t
+        return [t["id"] for t in records]
+
+    def abstention_applies(self, t: dict) -> bool:
+        """A task fitted under another served model is kept but not applied (its threshold is for that model's
+        probabilities); records written before the field carry no model and apply."""
+        return t.get("model") in (None, self.name)
+
+    def task_store_report(self) -> dict:
+        """What /health and GET /v1/tasks say about the saved tasks: where they are kept, how many are loaded, how
+        many of those apply to this server's stack, and what the start loaded from where."""
+        store = self.task_store
+        readout = list(store.by_key.values()) if store else []
+        applied = sum(1 for t in readout if same_fingerprint(t["fingerprint"], store.fingerprint))
+        a_applied = sum(1 for t in self.tasks.values() if self.abstention_applies(t))
+        return {
+            "saved_to": self.task_backend.describe() if self.task_backend is not None else None,
+            "readout": {"loaded": len(readout), "applied": applied, "other_stack": len(readout) - applied},
+            "abstention": {
+                "loaded": len(self.tasks),
+                "applied": a_applied,
+                "other_model": len(self.tasks) - a_applied,
+            },
+            "at_start": self.task_report,
+        }
 
 
 def gold_key_of(q, gold):
@@ -2032,6 +2109,10 @@ def add_routes(app, systemone: SystemOne):
     system_one.__annotations__["request"] = Request
     app.post("/v1/systemone")(system_one)
 
+    def not_saved(e: Exception) -> HTTPException:
+        """A task that could not be written: nothing was registered (or removed), and the caller is told so."""
+        return HTTPException(500, f"{e}; the change was not made")
+
     # per-task abstention (decisio.serve.abstention; docs/handoffs/tasks.md): register a task from labelled
     # examples, each a /v1/systemone request (JSON, images as data URLs) with its answer (null: unanswerable)
     async def register(request: Request):
@@ -2077,6 +2158,8 @@ def add_routes(app, systemone: SystemOne):
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
+        except TaskPersistError as e:
+            raise not_saved(e)
         except Exception as e:
             raise_client_error(e)
             raise
@@ -2087,7 +2170,40 @@ def add_routes(app, systemone: SystemOne):
 
     @app.get("/v1/abstention/tasks")
     def tasks():
-        return {"enabled": systemone.abstention, "tasks": list(systemone.tasks.values())}
+        """Every abstention task, in the form `POST /v1/abstention/tasks/import` and `--abstention-tasks` load."""
+        return {
+            "enabled": systemone.abstention,
+            "tasks": list(systemone.tasks.values()),
+            "store": systemone.task_store_report(),
+        }
+
+    @app.post("/v1/abstention/tasks/import")
+    def import_abstention_tasks(body: dict):
+        """Load abstention tasks as `GET /v1/abstention/tasks` returns them (no re-scoring); refused when fitted for
+        another served model."""
+        records = body.get("tasks") if isinstance(body, dict) else None
+        if not isinstance(records, list):
+            raise HTTPException(422, "body: {'tasks': [<task as GET /v1/abstention/tasks returns it>]}")
+        other = [t.get("id") for t in records if isinstance(t, dict) and t.get("model") not in (None, systemone.name)]
+        if other:
+            raise HTTPException(422, f"fitted for another served model than {systemone.name!r}: {other}")
+        try:
+            loaded = systemone.load_abstention(records)
+        except (KeyError, TypeError, ValueError) as e:
+            raise HTTPException(422, f"not an abstention task record: {e}")
+        except TaskPersistError as e:
+            raise not_saved(e)
+        return {"loaded": loaded}
+
+    @app.delete("/v1/abstention/tasks/{task_id}")
+    def remove_abstention_task(task_id: str):
+        try:
+            removed = systemone.remove_abstention(task_id)
+        except TaskPersistError as e:
+            raise not_saved(e)
+        if not removed:
+            raise HTTPException(404, f"no abstention task {task_id!r}")
+        return {"removed": task_id}
 
     # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): register a task from
     # labelled examples, each a text /v1/systemone request with one question and its answer
@@ -2161,6 +2277,8 @@ def add_routes(app, systemone: SystemOne):
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
+        except TaskPersistError as e:
+            raise not_saved(e)
         except Exception as e:
             raise_client_error(e)
             raise
@@ -2193,6 +2311,7 @@ def add_routes(app, systemone: SystemOne):
             "enabled": systemone.tasks_enabled,
             "head_engine": systemone.hidden_engine is not None,
             "fingerprint": store.fingerprint if store else None,
+            "store": systemone.task_store_report(),
             "tasks": listed,
         }
 
@@ -2230,6 +2349,8 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(404, f"no task {task_id!r}")
         except ValueError as e:
             raise HTTPException(422, str(e))
+        except TaskPersistError as e:
+            raise not_saved(e)
         except Exception as e:
             raise_client_error(e)
             raise
@@ -2264,11 +2385,17 @@ def add_routes(app, systemone: SystemOne):
             store.load(tasks)
         except (KeyError, TypeError, ValueError) as e:
             raise HTTPException(422, f"not a task record: {e}")
+        except TaskPersistError as e:
+            raise not_saved(e)
         return {"loaded": [t["id"] for t in tasks]}
 
     @app.delete("/v1/tasks/{task_id}")
     def remove_readout_task(task_id: str):
-        if systemone.task_store is None or not systemone.task_store.remove(task_id):
+        try:
+            removed = systemone.task_store is not None and systemone.task_store.remove(task_id)
+        except TaskPersistError as e:
+            raise not_saved(e)
+        if not removed:
             raise HTTPException(404, f"no task {task_id!r}")
         return {"removed": task_id}
 

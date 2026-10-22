@@ -16,7 +16,8 @@ A malformed request is answered with status 422 and a `detail` naming what is wr
 | `POST /v1/tasks/import` | loads tasks exported with `GET /v1/tasks?full=1` |
 | `GET /v1/tasks/{id}`, `POST /v1/tasks/{id}/certify` | one task with its status; makes a certified task's certificate again on new labelled examples |
 | `GET /metrics` | Prometheus text: per certified task its state, answers, certified answers and answer-mix distance |
-| `POST /v1/abstention/tasks`, `GET /v1/abstention/tasks` | registers and lists per-task abstention thresholds |
+| `POST /v1/abstention/tasks`, `GET /v1/abstention/tasks`, `DELETE /v1/abstention/tasks/{id}` | registers, lists (the export form) and removes per-task abstention thresholds |
+| `POST /v1/abstention/tasks/import` | loads abstention tasks exported with `GET /v1/abstention/tasks` |
 | `GET /health` | what the server is serving |
 | `POST /v1/answer` | the engine's own letters route, for the conformance gates and benchmarks |
 
@@ -178,6 +179,8 @@ Every later question with the same option list is answered with the task applied
 
 - `GET /v1/tasks` lists the registered tasks, whether tasks are applied (`--tasks`, on by default), whether the server can serve intent heads (`head_engine`), and the server's fingerprint (the model and rendering tasks are fitted under).
 - `GET /v1/tasks?full=1` includes the heads' arrays: the form `--tasks-file` loads at start and `POST /v1/tasks/import` takes.
+- A write that fails under `--tasks-dir` (disk full, read-only) answers 500 on registration, certification, import and removal, and the change is not made (`docs/tasks.md`, "Saved to disk").
+- `GET /v1/tasks` and `GET /v1/abstention/tasks` carry a `store` object: where tasks are saved, how many are loaded and apply, what the start loaded from where.
 - `POST /v1/tasks/import` with `{"tasks": [...]}` loads tasks without fitting them again; tasks fitted under another model or rendering are refused and must be registered again from their examples.
 - `DELETE /v1/tasks/{id}` removes a task (404 when there is none of that id).
 

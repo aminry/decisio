@@ -177,4 +177,5 @@ def test_r5_the_post_routes_are_pinned():
         "/v1/tasks/{task_id}/certify",  # certification: an adapter field is refused
         "/v1/tasks/import",  # imports a task export: no request, so no adapter
         "/v1/abstention/tasks",  # registration: an adapter field is refused
+        "/v1/abstention/tasks/import",  # imports an abstention task export: no request, so no adapter
     }, "a new POST route: say what it does with a request's adapter, test it, and add it here"
