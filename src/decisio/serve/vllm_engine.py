@@ -765,19 +765,39 @@ class LettersEngine:
                 )
             generate_ms = (time.perf_counter() - t) * 1000
             gens = [list(o.outputs[0].token_ids) for o in outs]
-            if getattr(self, "hidden_class", False):  # a regression tripwire: reasoning must never be reserved ids
+            # a regression tripwire, per question: the hidden-state columns hold ids that are ordinary words of the
+            # vocabulary too (a rare "Torque" may be written legitimately), so one such id proves nothing; reasoning
+            # that is mostly reserved ids is the old bug (every step took one). Such a question gets no second read.
+            unavailable = {}
+            if getattr(self, "hidden_class", False):
                 start = hidden.readout_start()
-                leaked = [x for g in gens for x in g if start <= x < start + HIDDEN_SIZE_MAX]
-                if leaked:
-                    raise RuntimeError(
-                        f"think wrote {len(leaked)} reserved readout token ids (first {leaked[0]}): the hidden-state "
-                        "columns reached sampling, so the reasoning is not text; no read is returned"
-                    )
+                for k, g in enumerate(gens):
+                    n = sum(1 for x in g if start <= x < start + HIDDEN_SIZE_MAX)
+                    if n >= RESERVED_MIN and n * 2 >= len(g):
+                        unavailable[k] = (
+                            f"the reasoning was {n} of {len(g)} reserved readout token ids (the hidden-state columns "
+                            "reached sampling), not text"
+                        )
+            good = [k for k in range(len(gens)) if k not in unavailable]
             t = time.perf_counter()
-            probs, _ = self.score_prompts([(ids + pre + g + suf, lab) for (ids, lab), g in zip(rows, gens)], adapter)
+            probs = (
+                self.score_prompts(
+                    [(rows[k][0] + pre + gens[k] + suf, rows[k][1]) for k in good],
+                    adapter,
+                )[0]
+                if good
+                else []
+            )
             read_ms = (time.perf_counter() - t) * 1000
-        lps = [np.log(np.maximum(np.asarray(p, dtype=np.float64), 1e-300)) for p in probs]
-        return lps, [len(g) for g in gens], {"generate_ms": generate_ms, "read_ms": read_ms}
+        by = dict(zip(good, probs))
+        lps = [
+            np.log(np.maximum(np.asarray(by[k], dtype=np.float64), 1e-300)) if k in by else None
+            for k in range(len(gens))
+        ]
+        parts = {"generate_ms": generate_ms, "read_ms": read_ms}
+        if unavailable:
+            parts["unavailable"] = unavailable
+        return lps, [len(g) for g in gens], parts
 
     def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
         """Prefill token lists in one batch, one generated token each, so their states are registered in the prefix
@@ -1388,6 +1408,7 @@ def facts_register_boundary(engine):
     return getattr(engine, "register_boundary", None) if getattr(fam, "register_state_boundary", False) else None
 
 
+RESERVED_MIN = 8  # reserved ids a question's reasoning must hold, and be half of it, to count as the readout bug
 HIDDEN_SIZE_MAX = 8192  # wider than any served base's hidden size: the tripwire's window above `hidden_start`
 
 

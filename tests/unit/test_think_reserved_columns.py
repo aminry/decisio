@@ -10,7 +10,10 @@ text of unrelated words) from 0.21.0 until this fix. A probe of what think() ask
 R1  the columns: on, a greedy argmax over a realistic logits row lands in the reserved range; off, the row is as
     the model computed it; nesting and an exception leave them on afterwards
 R2  think() writes with the columns off, restores them, and a read after it sees them on
-R3  the tripwire: reserved ids among the written tokens raise instead of returning a read after junk
+R3  the tripwire, per question: reasoning that is mostly reserved ids gets no second read; one reserved id among text
+    (an ordinary word of the vocabulary) is not a leak
+R5  the server: such a question is answered at its single pass, the response says thinking is unavailable and why, and
+    /health counts it; the request does not fail
 R4  an engine whose class is hidden-readout and whose engine runs in another process cannot think, and says why; every
     other engine is unaffected
 
@@ -124,14 +127,25 @@ def test_r2_columns_are_restored_when_the_engine_fails_while_writing(monkeypatch
     assert hidden.columns_on()
 
 
-def test_r3_reserved_ids_among_the_written_tokens_raise_instead_of_returning_a_read(monkeypatch):
+def test_r3_a_question_whose_reasoning_is_mostly_reserved_ids_gets_no_second_read(monkeypatch):
     start = hidden.readout_start()
-    eng, _ = make_engine(monkeypatch, written=[7, start + 801, start + 12, 105])
-    with pytest.raises(RuntimeError, match="reserved readout token ids"):
-        eng.think("s", [{"kind": "choice", "options": ["a", "b", "c"]}], None, 64)
+    junk = [7] + [start + 800 + i % 40 for i in range(30)] + [105]
+    eng, _ = make_engine(monkeypatch, written=junk)
+    lps, counts, parts = eng.think("s", [{"kind": "choice", "options": ["a", "b", "c"]}], None, 64)
+    assert lps == [None] and counts == [len(junk)] and "reserved readout token ids" in parts["unavailable"][0]
     assert hidden.columns_on()
-    plain, _ = make_engine(monkeypatch, written=[7, start + 801], hidden_class=False)  # no such class: nothing to guard
-    assert plain.think("s", [{"kind": "choice", "options": ["a", "b", "c"]}], None, 64)[1] == [2]
+    # the reads are not made for it
+    assert len(eng.llm.sent) == 1
+
+
+def test_r3_one_reserved_id_among_ordinary_text_is_a_word_not_a_leak(monkeypatch):
+    # the hidden-state ids are ordinary vocabulary words too (171036 is "Torque"): a card run wrote one legitimately
+    start = hidden.readout_start()
+    eng, _ = make_engine(monkeypatch, written=[7, 8, start + 1036, 9, 105])
+    lps, counts, parts = eng.think("s", [{"kind": "choice", "options": ["a", "b", "c"]}], None, 64)
+    assert lps[0] is not None and "unavailable" not in parts and counts == [5]
+    plain, _ = make_engine(monkeypatch, written=[7, start + 801] * 20, hidden_class=False)  # no such class: no check
+    assert plain.think("s", [{"kind": "choice", "options": ["a", "b", "c"]}], None, 64)[0][0] is not None
 
 
 def test_r4_a_hidden_readout_engine_in_another_process_cannot_think_and_says_why(monkeypatch):
@@ -142,3 +156,26 @@ def test_r4_a_hidden_readout_engine_in_another_process_cannot_think_and_says_why
     other, _ = make_engine(monkeypatch, hidden_class=False, engine_process="separate")  # a text-only class: unaffected
     assert other.can_think() and other.think_blocked() is None
     assert vllm_engine.LettersEngine.__new__(vllm_engine.LettersEngine).think_blocked() == "think needs the vLLM engine"
+
+
+def test_r5_the_server_answers_such_a_question_at_its_single_pass_and_says_so():
+    import logging  # noqa: F401
+
+    from test_think import ask, first_read, make, probs_of
+
+    client, so, eng = make(think=True)
+    real = eng.think
+
+    def think(state, questions, adapter=None, budget=512, subset=None):
+        lps, counts, parts = real(state, questions, adapter, budget, subset)
+        return [None] * len(lps), counts, {**parts, "unavailable": {0: "the reasoning was 30 of 31 reserved ids"}}
+
+    eng.think = think
+    r = ask(client, "0:0.5:x:1")  # unsure: it asks to think
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert np.allclose(probs_of(body["answers"]["q"], 3), first_read(0, 0.5, 3))  # the single-pass answer
+    pq = body["thinking"]["per_question"]["q"]
+    assert pq["thought"] is False and pq["thinking"] == "unavailable" and "reserved ids" in pq["why"]
+    assert body["thinking"]["unavailable"] == 1 and body["thinking"]["questions"] == 0
+    assert so.thought["unavailable"] == 1 and so.thought["questions"] == 0
