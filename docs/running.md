@@ -151,10 +151,11 @@ uv run python -m decisio.serve.vllm_engine --base gemma-4-12b-fp8 --model <conve
   The start prints a `BASE` line with the base, its precision and how it is loaded (for example `BASE gemma-4-12b-fp8 (fp8, quantized to FP8 on load) from google/gemma-4-12B-it`).
 
 What changes with FP8:
-- **The answers.** FP8 weights and activations are not the same function as bf16, so the FP8 12B's answers are not the bf16 12B's, and no 12B figure here was measured on it.
+- **The answers.** FP8 weights and activations are not the same function as bf16, so the FP8 12B's answers are not the bf16 12B's. Measured on an RTX 5090 (vLLM 0.31.0, both at 4,096 tokens and 0.95 of the card, 200 single-question requests, `runs/2026-10-21_5090-fp8-12b/`): the top answer was the bf16 12B's on 96% of them (8 changed), the largest probability difference 0.438 and the mean 0.031, where two fresh starts of either precision were bit for bit the same. Every other 12B figure in this repository is bf16.
+- **The speed.** On the same card and length its server time for one question was 0.64 times the bf16 12B's (median 88.4 against 135.2 ms, paired on 40 texts).
 - **The stack identity.** The FP8 12B has its own served name (`decisio-gemma-4-12b-it-fp8-letters`), task fingerprint and serving stack: a task registered on the bf16 12B does not apply to it, and a certificate made on bf16 is suspended on it (`serving_stack_changed`, [tasks.md](tasks.md#where-it-stops)). Register and certify again on the FP8 base.
 - **The temperatures** are the bf16 12B's (3.592 for every question type) until they are refitted on FP8 reads.
-- **The context length** follows the same rule as the bf16 12B, with more room for the KV cache ([The context length](#the-context-length)).
+- **The context length** follows the same rule as the bf16 12B, with more room for the KV cache: on a 32 GB RTX 5090 at the default share the FP8 12B serves its full 65,536 tokens, where the bf16 12B does not start at 32,768 and starts at 0.95 of the card only at 4,096 ([The context length](#the-context-length)).
 - **MLX does not serve it:** FP8 is vLLM's format, and `--backend mlx` refuses the FP8 base; on a Mac, serve an MLX conversion of the bf16 12B ([Mac with MLX](#mac-with-mlx)).
 
 ## Shipping a tuned model
@@ -377,7 +378,7 @@ Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest 
 | --- | --- | ---: |
 | `qwen3.6-35b-a3b` | 32,768 | 32,768 |
 | `gemma-4-12b` | the largest that fits the card, 32,768 to 65,536 | 65,536 |
-| `gemma-4-12b-fp8` | the largest that fits the card, 32,768 to 65,536 (KV room below: an estimate) | 65,536 |
+| `gemma-4-12b-fp8` | the largest that fits the card, 32,768 to 65,536 (65,536 on a 32 GB card: below) | 65,536 |
 | `gemma-4-31b` | the largest that fits the card, 32,768 to 98,304 | 98,304 |
 
 **How the length is chosen.** At start-up the server asks vLLM for the longest single request that fits the card (`max_model_len=-1`: vLLM profiles the card, takes the KV cache memory it reports and searches the longest length that fits), then serves the largest multiple of 8,192 not above that and not above the ceiling. It is one start of the engine, not a trial. If even 32,768 does not fit, the start fails with a message that names the length that fits, as a fixed 32,768 failed before.
@@ -394,15 +395,23 @@ Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest 
 
 The fit is not linear in the KV memory: 12% less KV cache (0.90 to 0.85) halved it, and the 31B's cache has several groups (vLLM's hybrid KV cache manager) that all have to fit, so the length cannot be estimated from one measurement or from a card's size alone. On the same 80 GB card the 12B served its ceiling of 65,536 at the default share (43.28 GiB of KV cache). Read `/health` for what a server chose, and give `--max-model-len` to fix a length. Where 32,768 does not fit the server does not start (as a fixed 32,768 did not): raise the share, start a smaller base, or give a `--max-model-len` below 32,768.
 
-**The FP8 12B's room for the KV cache is an estimate until a card measures it.** FP8 roughly halves the 12B's weights, and what it frees goes to the KV cache. The arithmetic: 0.90 of the card, less the weights (the bf16 checkpoint's 22.3 GiB, about 12.5 GiB in FP8), less about 2.5 GiB for activations and graphs.
+**The 12B on a 32 GB card, measured** on an RTX 5090 (32,607 MiB), vLLM 0.31.0, 2026-10-21 (`runs/2026-10-21_5090-fp8-12b/`):
 
-| Card | bf16 12B, by the arithmetic | FP8 12B, by the arithmetic (an estimate) |
+| | bf16 12B | FP8 12B (the stored conversion) |
 | --- | --- | --- |
-| 32 GiB | 4.0 GiB; it did not start with the engine's share cut to 0.90 of 32 GB (simulated, `EVAL_CARD.md` 6.6) | 13.8 GiB |
+| Weights in memory (vLLM's "model loading took") | 22.83 GiB | 12.74 GiB |
+| KV cache at the default share (0.90) | 0.48 GiB: does not start at 32,768 (5.82 GiB needed) | 11.66 GiB: serves 65,536, the ceiling |
+| At 0.95 of the card | 2.05 to 3.05 GiB: refused at 32,768, 16,384 and 8,192; starts at 4,096 | |
+
+The bf16 12B's KV cache is dominated by its sliding-window layers, so a shorter context saves little: 16,384 tokens still needed 5.25 GiB against 5.82 at 32,768.
+For larger cards the arithmetic (0.90 of the card, less the weights, less about 2.5 GiB for activations and graphs) runs high: it gave 13.8 GiB for the FP8 12B on 32 GB, where vLLM reported 11.66, and 46.9 GiB for the bf16 12B on an 80 GB H100, where vLLM reported 43.28, so read these as upper bounds:
+
+| Card | bf16 12B, by the arithmetic | FP8 12B, by the arithmetic |
+| --- | --- | --- |
 | 48 GiB | 18.4 GiB | 28.2 GiB |
 | 96 GiB | 61.6 GiB | 71.4 GiB |
 
-The one measured point says the arithmetic runs high: on an 80 GB H100 it gives about 46.9 GiB for the bf16 12B, where vLLM reported 43.28 GiB, so read both columns as upper bounds. The 12B's KV cache is small (about 0.34 GiB a sequence for its sliding-window layers plus about 16 KB a token for its 8 full-attention layers), so the extra room buys concurrent sequences and prefix cache, not a longer single request: the context still stops at the 12B's ceiling, which both precisions reach on a 96 GB card.
+The 12B's KV cache is small per token (about 16 KB a token for its 8 full-attention layers, beside about 0.34 GiB a sequence for its sliding-window layers), so beyond the ceiling the extra room buys concurrent sequences and prefix cache, not a longer request: both precisions reach the 12B's ceiling on a 96 GB card.
 
 **Where it does not apply.** With `--max-model-len` the server serves exactly that length (above 32,768 only up to the ceiling; beyond it the server refuses to start, as before), and so with a `max_model_len` in `--engine`. The default stays 32,768 with `--image-model` (the image engine serves 32,768), a second engine (`--head-engine`), `--engine-process separate` (the fit is read from the engine's configuration in the server's own process), `--backend mlx` and `--backend hf`.
 To keep one length on every card, give `--max-model-len`.

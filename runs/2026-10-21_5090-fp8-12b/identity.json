@@ -1,0 +1,42 @@
+{
+ "verdict": "PASS",
+ "rule": "zero tensors differ in every comparison (and 192 modules for the 12B arms)",
+ "cells": {
+  "onload": "DONE",
+  "stored": "DONE",
+  "merge": "DONE",
+  "tuned": "DONE"
+ },
+ "comparisons": {
+  "merge_written_vs_loaded": {
+   "verdict": "PASS",
+   "reason": "zero tensors differ",
+   "modules_a": 192,
+   "modules_b": 192
+  },
+  "onload_vs_cpu": {
+   "verdict": "PASS",
+   "reason": "zero tensors differ",
+   "modules_a": 192,
+   "modules_b": 192
+  },
+  "onload_vs_stored": {
+   "verdict": "PASS",
+   "reason": "zero tensors differ",
+   "modules_a": 192,
+   "modules_b": 192
+  },
+  "stored_vs_cpu": {
+   "verdict": "PASS",
+   "reason": "zero tensors differ",
+   "modules_a": 192,
+   "modules_b": 192
+  },
+  "tuned_vs_merge": {
+   "verdict": "PASS",
+   "reason": "zero tensors differ",
+   "modules_a": 192,
+   "modules_b": 192
+  }
+ }
+}

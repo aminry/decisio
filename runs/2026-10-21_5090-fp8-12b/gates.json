@@ -1,0 +1,6 @@
+{
+ "identity": "PASS",
+ "G1_served": "PASS",
+ "hub_upload_and_pin_gate": "PASS",
+ "rule": "identity PASS (on-load and stored arms equal the CPU predictions and each other, zero tensors differ) and G1 PASS"
+}

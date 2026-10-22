@@ -1,0 +1,7 @@
+b1-b2: 200 answers, 200 equal, top agreement 1.0000, largest |dp| 0.0000, mean 0.00000, 0 top changes
+f1-f2: 200 answers, 200 equal, top agreement 1.0000, largest |dp| 0.0000, mean 0.00000, 0 top changes
+f1-b1: 200 answers, 0 equal, top agreement 0.9600, largest |dp| 0.4376, mean 0.03087, 8 top changes
+f1-b2: 200 answers, 0 equal, top agreement 0.9600, largest |dp| 0.4376, mean 0.03087, 8 top changes
+f2-b1: 200 answers, 0 equal, top agreement 0.9600, largest |dp| 0.4376, mean 0.03087, 8 top changes
+f2-b2: 200 answers, 0 equal, top agreement 0.9600, largest |dp| 0.4376, mean 0.03087, 8 top changes
+BEYOND START NOISE: an FP8-bf16 pair exceeds largest |dp| 0.0600 or top agreement 0.995

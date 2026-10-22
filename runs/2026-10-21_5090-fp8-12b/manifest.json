@@ -1,0 +1,23 @@
+{
+ "what": "the Gemma 4 12B in FP8 on one RTX 5090: identity of the engine's FP8 tensors, memory, answers against bf16, server time",
+ "decisio_commit": "c055c2a (#269) merged with 568526b (#270), local (7b7f2351fa49cc5096509d651dc32314b673c795, not pushed)",
+ "checkpoints": {
+  "google/gemma-4-12B-it": "707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+  "tachara-ai/decisio-gemma-4-12b-fp8": "eed25b6fab0d4903392536230c8837b6a0dcfa77"
+ },
+ "card": "NVIDIA GeForce RTX 5090, 32,607 MiB, driver 615.71.09, power limit 575 W",
+ "vllm": "0.31.0",
+ "files": {
+  "README.md": "6f16a9c44acc1679bfdcd10649c1cc3f04041559470bf64c694969e8633913c7",
+  "answers_fp8_vs_bf16.json": "847b3b71351eae21043b47bb63637038f51a94575b456e6292a9f336d517dc18",
+  "answers_fp8_vs_bf16.txt": "7de51ff7447b892e534c0ad002d84aafdb94e34527d8ea061d47551e93ee1c87",
+  "bf16_ladder.jsonl": "89701b4df81dbecdb7da749c1f9c56a43d47a008d981049441adc61781925b46",
+  "gates.json": "d096a94b6ac7503d95141905b260794639be3b678cb5770070ebf7f1f0ecf8cc",
+  "identity.json": "1efa7b1317fb428a001a68bcbdac20a1e82dfe30e45aaf1666ddcbad66307ad2",
+  "latency.json": "0db5755b0f7020db5288d7ffd4dc3d693fd6160741734d52b1ff01ca3fb86829",
+  "memory_server_b1_0.90_32768.txt": "9c508606d330b184aa89670707aabe2c719488e136bd21ea55365cf73cd5fb58",
+  "memory_server_b1_0.95_4096.txt": "3007c77b74d2807c9d0887168312ae32956746145149918a634c25e329d978b6",
+  "memory_server_f1.txt": "faba3f3cfca18dd13a9baae059b4b5b3fca1aa74c8ae6fb43257a3588b7ec475",
+  "memory_server_g1.txt": "605f4b69f3ffae6055933aa02f798c164ebb4cea377d3a4f7b16ac3db10db9f2"
+ }
+}
