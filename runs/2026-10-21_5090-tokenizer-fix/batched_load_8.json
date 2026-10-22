@@ -1,0 +1,50 @@
+{
+ "label": "s8_batched",
+ "kind": "fresh",
+ "clients": 8,
+ "n": 48,
+ "ok": 48,
+ "errors": 0,
+ "wall_s": 29.276428523939103,
+ "requests_per_s": 1.6395442483959675,
+ "server_ms_p50": 900.1,
+ "server_ms_p95": 16727.3,
+ "wall_ms_p50": 910.3024702053517,
+ "wall_ms_p95": 16857.2515710257,
+ "prompt_tokens_mean": 1449.1458333333333,
+ "batched_requests": 42,
+ "health_before": {
+  "concurrency": {
+   "mode": "batched",
+   "max_requests": 16,
+   "calls": 0,
+   "requests": 0,
+   "waiting": 0,
+   "largest": 0,
+   "requests_per_call": {}
+  },
+  "state_boundary": null,
+  "base": "gemma-4-12b-fp8",
+  "quantization": "compressed-tensors",
+  "max_model_len": 4096
+ },
+ "health_after_registering": null,
+ "health_after": {
+  "concurrency": {
+   "mode": "batched",
+   "max_requests": 16,
+   "calls": 12,
+   "requests": 48,
+   "waiting": 0,
+   "largest": 7,
+   "requests_per_call": {
+    "1": 6,
+    "7": 6
+   }
+  },
+  "state_boundary": null,
+  "base": "gemma-4-12b-fp8",
+  "quantization": "compressed-tensors",
+  "max_model_len": 4096
+ }
+}
