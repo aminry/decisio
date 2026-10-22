@@ -140,8 +140,28 @@ curl -s http://127.0.0.1:8000/v1/tasks/import -H 'Content-Type: application/json
 curl -s -X DELETE http://127.0.0.1:8000/v1/tasks/ticket-routing
 ```
 
-**Registration is per server instance, in memory.** A restart, or a second server behind a load balancer, does not see a task registered on another.
-To persist a task, export it (`GET /v1/tasks?full=1`), then either start each server with `--tasks-file tasks.json` or post the export to `POST /v1/tasks/import`.
+**Without `--tasks-dir`, registration is per server instance, in memory.** A restart, or a second server behind a load balancer, does not see a task registered on another.
+To keep a task, either start the server with `--tasks-dir` (below), or export it (`GET /v1/tasks?full=1`) and start each server with `--tasks-file tasks.json` or post the export to `POST /v1/tasks/import`.
+### Saved to disk (`--tasks-dir`)
+
+```bash
+python -m decisio.serve.vllm_engine --tasks-dir /data/tasks --require-tasks 3 ...
+```
+
+With `--tasks-dir PATH` the server keeps every taught task in that directory, one JSON file per task, and loads all of them at start.
+This covers both kinds: the calibration and head tasks (`POST /v1/tasks`) and the abstention tasks (`POST /v1/abstention/tasks`), which until now could not be loaded back except by hand-copying the listing.
+
+- **Written through, before the response.** A registration, a certification or re-certification, an import and a removal are saved first (to a temporary file in the same directory, flushed and `fsync`ed, then renamed over the task's file, then the directory is `fsync`ed), and only then stored in memory and reported. A crash leaves the previous file or the new one, never half of one.
+- **A write that fails fails the request.** The response is a 500 saying the task was not saved and the change was not made; the task is not registered (a replaced task keeps its previous version, a certificate keeps the previous certificate, a removal leaves the task). A multi-task import is not atomic: tasks saved before the failure stay.
+- **One server owns a directory.** The server takes an exclusive lock on `<dir>/.lock`; a second server on the same directory does not start. Replicas behind a load balancer each need their own directory (or, later, a shared store); do not mount one directory into several.
+- **A file that cannot be read stops the start**, naming it. Move the file away to start without it, or restore it; a damaged store must not turn into untaught answers silently.
+- **`--require-tasks N`** refuses to start unless at least N tasks apply to this server: calibration tasks of this server's stack (model and rendering) and abstention tasks of its served name. Use it where an empty or lost store would be a mistake: a store volume that failed to mount gives a server that starts, answers, and has forgotten everything.
+- **What the server says.** The start prints a `TASKS` line (the directory, how many tasks came from it and from the files, how many apply). `GET /v1/tasks`, `GET /v1/abstention/tasks` and `/health` (`systemone.task_store`) carry the same: `saved_to`, per kind `loaded`, `applied` and `other_stack` (or `other_model`), and `at_start`.
+- **Another stack.** A task saved under another model or rendering loads and is kept, and is not applied (the same rule as for a task loaded from a file); an abstention task is applied only on the served name it was fitted for. A certificate made under another serving stack (engine, version, card, settings) is suspended (`serving_stack_changed`), exactly as after an import. Nothing is deleted from the directory because the stack changed, so a return to the old stack finds its tasks.
+- **With `--tasks-file` or `--abstention-tasks`.** The directory is the store of record. A task of the file whose id the directory does not hold is saved into it at start (the file seeds the directory); a task whose id the directory holds stays as the directory has it, and the start says so (`file_tasks_left_as_saved`), because a restart must not undo a task taught since. To replace a task from a file, post it to `POST /v1/tasks/import` (or `POST /v1/abstention/tasks/import`) or delete it first.
+- **Not saved:** the answer-mix monitors' running counts (they restart from the certificate's baseline at every start, and are per server anyway) and anything about requests. The monitor's baseline is part of the task.
+- **Abstention tasks** now also have `POST /v1/abstention/tasks/import` and `DELETE /v1/abstention/tasks/{id}`; `GET /v1/abstention/tasks` is their export. They carry the served name they were fitted for.
+
 A task is valid only for the model and rendering it was fitted under (the served name, the checkpoint, padding and the rendering flags): a task fitted on another configuration is not applied, and the server says which.
 The description rule (`--describe-options`, on by default) is part of the task's key instead, and only for questions it changes: a question whose options have descriptions has another key with the rule on than off, so a task fitted under the other setting is simply not matched; a question it leaves alone (index keys, bare labels, yes/no, score) keeps its tasks either way.
 
@@ -359,6 +379,6 @@ The monitor cannot see a wrong answer, because it has no labels. The only direct
 - **Order bound.** The head learns which answer position to trust, so it is bound to the option order it was fitted on, and it is not used with two-order averaging.
 - **Options that change per input** cannot be registered: exam-style questions whose answers differ every time have no fixed list to learn, and registration refuses them.
 - **The prompt it was fitted under.** A task is fitted on the server's prompt and is applied only by a server with the same prompt and yes/no rendering. The served default changed on 2026-10-03 (the spaced layout, `--prompt-tail spaced`, with yes/no as named letters, `docs/handoffs/tasks.md`): a task registered or exported before then is not applied by the current default, and the server says so at start-up (`WARNING: tasks fitted under another model or rendering are not applied`). Register it again from the same examples; or, to keep using it unchanged, start the server with the compact layout (`--prompt-tail compact --noul-rendering words`).
-- **One task per option list per server.** Registration is in memory per server instance; persist it with an export and `--tasks-file`, as above.
+- **One task per option list per server.** Registration is per server instance; keep it with `--tasks-dir` (or an export and `--tasks-file`), as above.
 - **Single-engine or second-engine mode.** The default reads the hidden state from the serving engine at the latency cost above; `--head-engine` trades a second weight copy for speed. Both declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`), and a task registered in one mode loads in the other.
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.
