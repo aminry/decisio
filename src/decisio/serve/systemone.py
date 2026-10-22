@@ -42,7 +42,14 @@ from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
-from decisio.serve.task_backends import TaskPersistError
+from decisio.serve.task_backends import (
+    WRITE_INTENT,
+    TaskConflict,
+    TaskPersistError,
+    TaskStoreReadOnly,
+    TaskStoreUnavailable,
+    WriteIntent,
+)
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
@@ -98,6 +105,29 @@ class Asset(BaseModel):
     format: Literal["png", "jpg", "jpeg"] | None = None
     data_base64: str | None = None
     part: str | None = None
+
+
+class TaskApplier:
+    """What a shared task store applies other replicas' tasks through (decisio.serve.task_store_shared): as an import
+    does, nothing is fitted again; a record of another stack is kept and not applied, a certificate made under another
+    serving stack is suspended when it is served."""
+
+    def __init__(self, systemone):
+        self.so = systemone
+
+    def apply(self, kind: str, records: list) -> None:
+        if kind == "readout":
+            if self.so.task_store is not None:
+                self.so.task_store.load(records, persist=False)
+        else:
+            self.so.load_abstention(records, persist=False)
+
+    def drop(self, kind: str, task_id: str) -> None:
+        if kind == "readout":
+            if self.so.task_store is not None:
+                self.so.task_store.remove(task_id, persist=False)
+        else:
+            self.so.tasks.pop(task_id, None)
 
 
 class SystemOneRequest(BaseModel):
@@ -620,6 +650,8 @@ class SystemOne:
         if task_store is not None:
             task_store.backend = task_backend
         self.task_report = task_report or {}
+        if task_backend is not None and hasattr(task_backend, "applier"):
+            task_backend.applier = TaskApplier(self)  # a shared store applies other replicas' tasks through this
         # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): registered by
         # POST /v1/tasks, applied to text-route questions whose option list matches; the head needs the hidden-state
         # engine (decisio.serve.hidden_engine); `debug_readout` lets a request ask for its raw readout (verification)
@@ -1135,6 +1167,7 @@ class SystemOne:
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
+        self.task_precheck("readout", task_id)
         from decisio.serve.tasks import task_key
 
         full = [(q, s, g) for s, q, g in examples]
@@ -1542,6 +1575,7 @@ class SystemOne:
         t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
         if t is None:
             raise KeyError(task_id)
+        self.task_precheck("readout", task_id)
         if not t.get("certificate"):
             raise ValueError(
                 f"task {task_id!r} was registered without certification: register it again with a certify block"
@@ -1711,6 +1745,9 @@ class SystemOne:
                 seen.add(name)
                 out.append(f"# TYPE {name} {helps[name]}")
             out.append(f"{name}{{{labels}}} {value}")
+        metrics = getattr(self.task_backend, "metrics", None)
+        if metrics is not None:  # a shared store: is it reachable, how stale is this replica (per replica, as the rest)
+            out += metrics()
         return "\n".join(out) + ("\n" if out else "")
 
     # ---- per-task abstention -------------------------------------------------------------------------------------
@@ -1800,6 +1837,7 @@ class SystemOne:
         unanswerable (decisio.serve.abstention.fit, its acceptance rule)."""
         from decisio.serve.abstention import decide, fit
 
+        self.task_precheck("abstention", task_id)
         if bool(option.get("key") is not None) == bool(option.get("append")):
             raise ValueError("option: exactly one of {'key': <declared key>} or {'append': <text>}")
         if match not in ("option_set", "option_keys", "imajev_extension"):
@@ -1848,6 +1886,16 @@ class SystemOne:
         self.save_abstention(task)
         self.tasks[task_id] = task
         return task
+
+    def task_precheck(self, kind: str, task_id: str) -> None:
+        """Before an expensive registration: a shared store refuses now what it would refuse at the end (a replica that
+        does not teach, a task someone else changed)."""
+        if self.task_backend is not None:
+            self.task_backend.precheck(kind, task_id)
+
+    def task_version(self, kind: str, task_id: str):
+        """The shared store's version of this task as this replica holds it, or None (no shared store, or unknown)."""
+        return self.task_backend.version_of(kind, task_id) if self.task_backend is not None else None
 
     def save_abstention(self, task: dict) -> None:
         """Write an abstention task through to the backend, if there is one (TaskPersistError when it fails)."""
@@ -2110,8 +2158,43 @@ def add_routes(app, systemone: SystemOne):
     app.post("/v1/systemone")(system_one)
 
     def not_saved(e: Exception) -> HTTPException:
-        """A task that could not be written: nothing was registered (or removed), and the caller is told so."""
+        """A task that could not be written: nothing was registered (or removed), and the caller is told so. A shared
+        store adds three answers: 409 (someone changed the task since, or this replica does not teach), 503 (the store
+        cannot be reached)."""
+        if isinstance(e, TaskConflict):
+            return HTTPException(
+                409,
+                {
+                    "message": str(e),
+                    "kind": e.kind,
+                    "task": e.task_id,
+                    "store_version": e.store_version,
+                    "your_version": e.your_version,
+                },
+            )
+        if isinstance(e, TaskStoreReadOnly):
+            return HTTPException(409, str(e))
+        if isinstance(e, TaskStoreUnavailable):
+            return HTTPException(503, f"{e}; the change was not made")
         return HTTPException(500, f"{e}; the change was not made")
+
+    def set_intent(request: Request) -> None:
+        """What the caller says about the shared store's versions: `?replace=1` replaces whatever the store holds,
+        `x-decisio-replaces: N` names the version the caller was shown (a task's `store_version`). Set for the
+        request's own context, which the worker thread that registers inherits."""
+        q = request.query_params.get("replace", "").lower() in ("1", "true", "yes")
+        named = request.headers.get("x-decisio-replaces")
+        try:
+            replaces = int(named) if named is not None else None
+        except ValueError:
+            raise HTTPException(422, "x-decisio-replaces must be a whole number (a task's store_version)")
+        WRITE_INTENT.set(WriteIntent(replace=q, replaces=replaces))
+
+    def with_version(out: dict, kind: str, task_id: str) -> dict:
+        v = systemone.task_version(kind, task_id)
+        if v is not None:
+            out["store_version"] = v
+        return out
 
     # per-task abstention (decisio.serve.abstention; docs/handoffs/tasks.md): register a task from labelled
     # examples, each a /v1/systemone request (JSON, images as data URLs) with its answer (null: unanswerable)
@@ -2121,6 +2204,7 @@ def add_routes(app, systemone: SystemOne):
         body = await request.json()
         if not isinstance(body, dict) or not body.get("id") or not isinstance(body.get("examples"), list):
             raise HTTPException(422, "body: {'id', 'option', 'match', 'examples': [{'request', 'answer'}]}")
+        set_intent(request)
         refuse_adapter(body)
         examples = []
         for n, ex in enumerate(body["examples"]):
@@ -2163,7 +2247,7 @@ def add_routes(app, systemone: SystemOne):
         except Exception as e:
             raise_client_error(e)
             raise
-        return task
+        return with_version(dict(task), "abstention", task["id"])
 
     register.__annotations__["request"] = Request
     app.post("/v1/abstention/tasks")(register)
@@ -2177,10 +2261,10 @@ def add_routes(app, systemone: SystemOne):
             "store": systemone.task_store_report(),
         }
 
-    @app.post("/v1/abstention/tasks/import")
-    def import_abstention_tasks(body: dict):
+    def import_abstention_tasks(body: dict, request: Request):
         """Load abstention tasks as `GET /v1/abstention/tasks` returns them (no re-scoring); refused when fitted for
         another served model."""
+        set_intent(request)
         records = body.get("tasks") if isinstance(body, dict) else None
         if not isinstance(records, list):
             raise HTTPException(422, "body: {'tasks': [<task as GET /v1/abstention/tasks returns it>]}")
@@ -2195,8 +2279,11 @@ def add_routes(app, systemone: SystemOne):
             raise not_saved(e)
         return {"loaded": loaded}
 
-    @app.delete("/v1/abstention/tasks/{task_id}")
-    def remove_abstention_task(task_id: str):
+    import_abstention_tasks.__annotations__["request"] = Request
+    app.post("/v1/abstention/tasks/import")(import_abstention_tasks)
+
+    def remove_abstention_task(task_id: str, request: Request):
+        set_intent(request)
         try:
             removed = systemone.remove_abstention(task_id)
         except TaskPersistError as e:
@@ -2204,6 +2291,9 @@ def add_routes(app, systemone: SystemOne):
         if not removed:
             raise HTTPException(404, f"no abstention task {task_id!r}")
         return {"removed": task_id}
+
+    remove_abstention_task.__annotations__["request"] = Request
+    app.delete("/v1/abstention/tasks/{task_id}")(remove_abstention_task)
 
     # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): register a task from
     # labelled examples, each a text /v1/systemone request with one question and its answer
@@ -2256,6 +2346,7 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(
                 422, "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, 'answer': <key>}]}"
             )
+        set_intent(request)
         refuse_adapter(body)
         debug = debug_of(request)
         examples = parse_examples(body["examples"])
@@ -2282,7 +2373,7 @@ def add_routes(app, systemone: SystemOne):
         except Exception as e:
             raise_client_error(e)
             raise
-        out = TaskStore.public(task)
+        out = with_version(TaskStore.public(task), "readout", task["id"])
         if task.get("certificate"):
             out["status"] = systemone.task_status(task)
         if debug:
@@ -2303,7 +2394,11 @@ def add_routes(app, systemone: SystemOne):
         store = systemone.task_store
         listed = []
         for t in store.by_key.values() if store else []:
-            item = TaskStore.public(t, bool(full))
+            item = (
+                with_version(TaskStore.public(t, bool(full)), "readout", t["id"])
+                if not full
+                else TaskStore.public(t, True)
+            )
             if t.get("certificate") and not full:
                 item["status"] = systemone.task_status(t)
             listed.append(item)
@@ -2324,7 +2419,7 @@ def add_routes(app, systemone: SystemOne):
         t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
         if t is None:
             raise HTTPException(404, f"no task {task_id!r}")
-        out = TaskStore.public(t)
+        out = with_version(TaskStore.public(t), "readout", t["id"])
         if t.get("certificate"):
             out["status"] = systemone.task_status(t)
         return JSONResponse(json.loads(json.dumps(out, default=float)))
@@ -2340,6 +2435,7 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(
                 422, "body: {'examples': [{'request', 'answer'}], optional 'alpha', 'delta', 'min_examples'}"
             )
+        set_intent(request)
         refuse_adapter(body)
         examples = parse_examples(body["examples"])
         spec = {k: body[k] for k in ("alpha", "delta", "min_examples", "suspend_on_alert") if k in body}
@@ -2354,7 +2450,7 @@ def add_routes(app, systemone: SystemOne):
         except Exception as e:
             raise_client_error(e)
             raise
-        out = TaskStore.public(task)
+        out = with_version(TaskStore.public(task), "readout", task["id"])
         out["status"] = systemone.task_status(task)
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
@@ -2368,10 +2464,10 @@ def add_routes(app, systemone: SystemOne):
 
         return PlainTextResponse(systemone.metrics_text(), media_type="text/plain; version=0.0.4")
 
-    @app.post("/v1/tasks/import")
-    def import_readout_tasks(body: dict):
+    def import_readout_tasks(body: dict, request: Request):
         """Load tasks as `GET /v1/tasks?full=1` returns them (no re-scoring); refused when fitted under another model or
         rendering (re-register those from their examples)."""
+        set_intent(request)
         store = systemone.task_store
         if store is None:
             raise HTTPException(422, "this server has no task store")
@@ -2389,8 +2485,11 @@ def add_routes(app, systemone: SystemOne):
             raise not_saved(e)
         return {"loaded": [t["id"] for t in tasks]}
 
-    @app.delete("/v1/tasks/{task_id}")
-    def remove_readout_task(task_id: str):
+    import_readout_tasks.__annotations__["request"] = Request
+    app.post("/v1/tasks/import")(import_readout_tasks)
+
+    def remove_readout_task(task_id: str, request: Request):
+        set_intent(request)
         try:
             removed = systemone.task_store is not None and systemone.task_store.remove(task_id)
         except TaskPersistError as e:
@@ -2398,5 +2497,8 @@ def add_routes(app, systemone: SystemOne):
         if not removed:
             raise HTTPException(404, f"no task {task_id!r}")
         return {"removed": task_id}
+
+    remove_readout_task.__annotations__["request"] = Request
+    app.delete("/v1/tasks/{task_id}")(remove_readout_task)
 
     return app

@@ -24,11 +24,13 @@ Standard library only.
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import os
 import threading
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -38,6 +40,38 @@ KINDS = ("readout", "abstention")
 
 class TaskPersistError(RuntimeError):
     """A task could not be written (or removed) durably; nothing was registered (or removed)."""
+
+
+class TaskStoreUnavailable(TaskPersistError):
+    """The shared store cannot be reached: a write fails (503), serving goes on with what is applied."""
+
+
+class TaskStoreReadOnly(TaskPersistError):
+    """This replica does not teach tasks (`--task-store-readonly`); the change belongs on the designated replica."""
+
+
+class TaskConflict(TaskPersistError):
+    """The shared store holds another version of this task than the one the write names (409)."""
+
+    def __init__(self, kind: str, task_id: str, store_version: int, your_version: int):
+        self.kind, self.task_id, self.store_version, self.your_version = kind, task_id, store_version, your_version
+        super().__init__(
+            f"{kind} task {task_id!r}: the shared store holds version {store_version}, not version {your_version}: "
+            "someone taught it since; read it again and send it again, or send ?replace=1 to replace whatever the "
+            "store holds"
+        )
+
+
+@dataclass
+class WriteIntent:
+    """What a caller of a task write says about the shared store: `replace` ignores the version check, `replaces` names
+    the version it was shown (None: the version this replica serves). Set per request by the routes."""
+
+    replace: bool = False
+    replaces: int | None = None
+
+
+WRITE_INTENT: contextvars.ContextVar[WriteIntent] = contextvars.ContextVar("task_write_intent", default=WriteIntent())
 
 
 def jsonable(x):
@@ -168,6 +202,13 @@ class DirBackend:
     def describe(self) -> dict:
         return {"backend": "dir", "path": str(self.path)}
 
+    # the shared store's hooks, which a directory does not need
+    def precheck(self, kind: str, task_id: str) -> None:
+        return None
+
+    def version_of(self, kind: str, task_id: str):
+        return None
+
 
 def load_at_start(store, backend, file_tasks=None, file_abstention=None):
     """Fill `store` at start; returns (the abstention task records to serve, the report of what loaded from where).
@@ -188,15 +229,29 @@ def load_at_start(store, backend, file_tasks=None, file_abstention=None):
     saved = backend.load()
     store.load(saved["readout"], persist=False)
     have = {t["id"] for t in store.by_key.values()}
-    seed = [t for t in file_tasks if t.get("id") not in have]
-    store.load(seed)
+    # a task another replica seeded first, or a replica that does not teach, leaves the seed unsaved (not an error)
+    unsaved = []
+    seed = []
+    for t in (t for t in file_tasks if t.get("id") not in have):
+        try:
+            store.load([t])
+            seed.append(t)
+        except (TaskConflict, TaskStoreReadOnly):
+            unsaved.append(t.get("id"))
     abstention = {t["id"]: t for t in saved["abstention"]}
-    seed_a = [t for t in file_abstention if t.get("id") not in abstention]
-    for t in seed_a:
-        backend.save("abstention", t)
-        abstention[t["id"]] = t
-    report["from_dir"] = {"readout": len(saved["readout"]), "abstention": len(saved["abstention"])}
+    seed_a = []
+    for t in (t for t in file_abstention if t.get("id") not in abstention):
+        try:
+            backend.save("abstention", t)
+            abstention[t["id"]] = t
+            seed_a.append(t)
+        except (TaskConflict, TaskStoreReadOnly):
+            unsaved.append(t.get("id"))
+    held = "from_dir" if backend.describe().get("backend") == "dir" else "from_store"
+    report[held] = {"readout": len(saved["readout"]), "abstention": len(saved["abstention"])}
     report["from_file"] = {"readout": len(seed), "abstention": len(seed_a)}
+    if unsaved:
+        report["file_tasks_not_saved"] = unsaved
     kept = [t.get("id") for t in file_tasks if t.get("id") in have] + [
         t.get("id") for t in file_abstention if t.get("id") in {x["id"] for x in saved["abstention"]}
     ]
@@ -213,13 +268,12 @@ def usable(store, abstention_records, served_name) -> int:
     return n + sum(1 for t in abstention_records if t.get("model") in (None, served_name))
 
 
-def start_refusal(usable_tasks: int, required: int | None, loaded_from_dir: int | None, path=None) -> str | None:
-    """Why the server must not start (`--require-tasks`), or None."""
+def start_refusal(usable_tasks: int, required: int | None, loaded: int | None, where_held=None) -> str | None:
+    """Why the server must not start (`--require-tasks`), or None. `where_held`: "the directory /x", "the task store
+    s3://b/p"; `loaded`: how many tasks it held."""
     if required is None or usable_tasks >= required:
         return None
-    where = (
-        f" (the directory {path} held {loaded_from_dir})" if path is not None and loaded_from_dir is not None else ""
-    )
+    where = f" ({where_held} held {loaded})" if where_held is not None and loaded is not None else ""
     return (
         f"--require-tasks {required}: {usable_tasks} task(s) apply to this server{where}: a lost or empty store would "
         "otherwise serve untaught answers. Restore the store, or lower the number."

@@ -387,6 +387,10 @@ def start_args(tmp_path, **over):
         tasks_dir=str(tmp_path / "tasks"),
         require_tasks=None,
         served_name="decisio-test",
+        task_store=None,
+        task_store_endpoint=None,
+        task_store_readonly=False,
+        task_store_poll_seconds=5.0,
     )
     kw.update(over)
     return argparse.Namespace(**kw)

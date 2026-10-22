@@ -18,6 +18,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - **Abstention tasks** can be imported (`POST /v1/abstention/tasks/import`) and removed (`DELETE /v1/abstention/tasks/{id}`), and `GET /v1/abstention/tasks` is their export.
   An abstention task now applies only on the served name it was fitted for; a task fitted under another served name is kept and not applied.
 - `GET /v1/tasks`, `GET /v1/abstention/tasks` and `/health` say where tasks are saved and how many are loaded and apply.
+- **`--task-store URL`** shares taught tasks between replicas through object storage (S3 and S3-compatible services, `gs://`, `az://`; `decisio[task-store]`, in the image): a task taught on one replica reaches the others within `--task-store-poll-seconds` (5) as the exact fitted record. A write names the version it replaces and answers 409 if the store holds another (`?replace=1` overrides); `--task-store-readonly` makes a replica follow without teaching; an unreachable store stops teaching (503), not serving ([tasks.md](tasks.md#replicas-a-shared-store---task-store)).
 
 ### Who is affected
 
@@ -25,7 +26,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- |
 | No `--tasks-dir` | Nothing changes, except that an abstention task fitted under another served name is no longer applied | Nothing; re-register such a task under the served name |
 | `--tasks-dir` (new) | Tasks survive a restart; one directory belongs to one server | Put it on a volume that outlives the container; add `--require-tasks N` |
-| Several replicas | Each is its own server; `--tasks-dir` does not share tasks between them | Give each its own directory, or wait for a shared store |
+| Several replicas | Each is its own server; `--tasks-dir` does not share tasks between them | Give each its own directory, or start them all with `--task-store` |
+| `--task-store` (new) | Tasks are shared; a second registration of one task is a 409, and a certificate is suspended on a replica of another stack | Run one stack if you certify; mark all but one replica `--task-store-readonly` if fitting should stay on one |
 
 ## 0.24.0: the 12B in FP8, batching that batches, thinking that reasons
 

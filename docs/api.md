@@ -179,6 +179,7 @@ Every later question with the same option list is answered with the task applied
 
 - `GET /v1/tasks` lists the registered tasks, whether tasks are applied (`--tasks`, on by default), whether the server can serve intent heads (`head_engine`), and the server's fingerprint (the model and rendering tasks are fitted under).
 - `GET /v1/tasks?full=1` includes the heads' arrays: the form `--tasks-file` loads at start and `POST /v1/tasks/import` takes.
+- With `--task-store` a task's listing and registration response carry `store_version`; a write names the version it replaces (by default the one the replica serves; `x-decisio-replaces: N` names another) and answers **409** `{message, kind, task, store_version, your_version}` when the store holds another (`?replace=1` replaces it), 409 on a replica started `--task-store-readonly`, and **503** when the store cannot be reached; the change is not made in any of them (`docs/tasks.md`, "Replicas").
 - A write that fails under `--tasks-dir` (disk full, read-only) answers 500 on registration, certification, import and removal, and the change is not made (`docs/tasks.md`, "Saved to disk").
 - `GET /v1/tasks` and `GET /v1/abstention/tasks` carry a `store` object: where tasks are saved, how many are loaded and apply, what the start loaded from where.
 - `POST /v1/tasks/import` with `{"tasks": [...]}` loads tasks without fitting them again; tasks fitted under another model or rendering are refused and must be registered again from their examples.
