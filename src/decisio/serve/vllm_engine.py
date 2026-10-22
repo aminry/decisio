@@ -87,6 +87,7 @@ from decisio.serve.combine import MODES as CONCURRENCY_MODES  # noqa: E402
 from decisio.serve.context import FLOOR, AutoContext  # noqa: E402
 from decisio.serve.engine_health import EngineDead, EngineHealth, InFlight, client_error, guarded  # noqa: E402
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE  # noqa: E402
+from decisio.serve.tokenizer_lock import SerialTokenizer  # noqa: E402
 from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E402
 
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
@@ -324,7 +325,8 @@ class LettersEngine:
         self._stream = (
             engine_stream.capture()
         )  # the stream the engine was built and warmed up on (decisio.serve.engine_stream)
-        self.tok = self.llm.get_tokenizer()
+        # one caller at a time: vLLM's tokenizer pool deep-copies the whole tokenizer for a concurrent caller
+        self.tok = SerialTokenizer(self.llm.get_tokenizer())
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
         self.match_unit = getattr(cfg, "prefix_match_unit", None) or self.block_size
