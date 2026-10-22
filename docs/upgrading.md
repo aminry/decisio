@@ -8,13 +8,25 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Next release: read twice, as an opt-in for Decision Index runs
+## Next release: two opt-ins, read twice and think-mode temperatures
 
 ### What changed
+
+Read twice:
 
 - **`--read-twice-under N`** writes a request that read once is at most N counted input tokens (the header, the state and each question's text) twice, the second copy after `Read the same input again before answering:`; **`--read-twice-max-questions R`** reads a request with more than R questions once, whatever its size ([running.md](running.md#read-twice---read-twice-under-n---read-twice-max-questions-r-for-decision-index-runs)). Both are **off by default and read twice is never the default**: with them off every prompt, fingerprint and task key is what it was.
   On the 31B with the header: N = 2,000 is the measured choice on our own proxies (+3.2 pooled, the smallest within 0.25 points of the best) and +1.8 on a Decision Index sample with p80 latency about 866 ms; FlexDM's 3,000 gave +1.9 with p80 at or over the 1,000 ms gate. It costs about 1.5 times the computed tokens, `usage.input_tokens` counts both copies, and a JevBench row with it is over the cost cap. On the 12B the same step added nothing within noise.
 - Tasks registered, and certificates made, under one setting are not applied under another.
+
+Think-mode temperatures:
+
+- **A separate temperature for the answers that thought.** A tuned repository's `defaults.think_temperatures`, an adapter file's `think_temperatures`, and `--think-temperature-choice|noul|score` give a temperature per question type for the mix of the plain read and the read after the reasoning ([running.md](running.md#thinking-when-unsure)).
+  The single-pass temperatures and bands are unchanged, and so is which questions think: the unsure test still reads the single-pass temperature.
+  A type with no think temperature keeps its single-pass temperature, so a repository or a server that does not set them answers exactly as before.
+- **`python -m decisio.serve.adapter_temperatures fit-think`** adds them to an adapter file from labelled mixes of questions that thought.
+  `python -m decisio.hub tuned-config` carries them into a repository's `defaults` and the think fit's method (never its data).
+- **The fingerprint** of a server that thinks holds its think temperatures when it has any (`serving.think.temperatures`); a task certified under other ones is `think_mode_changed`.
+  A server that does not think, or has none, keeps the fingerprint it had.
 
 ### Who is affected
 
@@ -22,6 +34,10 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- |
 | Without the flags | Nothing changes | Nothing |
 | `--read-twice-under N` (new) | Short requests are read twice; tasks and certificates of other settings are not applied | Choose N and R from a run of your own; register and certify again under them |
+| Any server that does not use `--think` or a repository with `defaults.think` | Nothing changes | Nothing |
+| A thinking server and a repository or file without think temperatures | Nothing changes | Nothing |
+| A repository with `defaults.think_temperatures` | Needs this release or later; an older decisio refuses the file (an unknown key of `defaults`) | Run this release or later |
+| A server given think temperatures | Thinking answers are served at them; certified tasks made without them are suspended (`think_mode_changed`) | Certify the tasks again |
 
 ## 0.26.0: the Gemma bases are served with the header layout (answers change)
 

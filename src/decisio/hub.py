@@ -46,9 +46,10 @@ two more.
                 false, always stated), fit (how the temperatures were fitted: the method, never the data) and
                 noul_commit_basis (why the commit setting is what it is, with the figures) and over_limit
                 ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets) and think
-                ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think) and layout
-                ("plain" or "header", optional: the prompt layout it was trained and measured on, which a server
-                serves; none recorded means plain)
+                ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think),
+                think_temperatures (per question type, optional: the temperature of an answer that thought, which
+                replaces the type's temperature for those answers only) and layout ("plain" or "header", optional: the
+                prompt layout it was trained and measured on, which a server serves; none recorded means plain)
 
 The profile sections of a `/2` file must still equal the installed base's profile (a repository cannot change how the
 base is read); `defaults` is what the repository changes. A decisio that does not know `/2` refuses the file by its
@@ -462,6 +463,7 @@ def check_defaults(defaults) -> None:
         "over_limit",
         "think",
         "layout",
+        "think_temperatures",
     }
     unknown = sorted(set(defaults) - allowed)
     if unknown:
@@ -473,6 +475,12 @@ def check_defaults(defaults) -> None:
     _need(
         defaults["fit"].get("method"), "defaults.fit.method", str
     )  # how the temperatures were fitted; nothing about data
+    if "think_temperatures" in defaults:
+        from decisio.serve.adapter_temperatures import validate_think_temperatures
+
+        if not defaults["think_temperatures"]:
+            raise ValueError("defaults.think_temperatures must be non-empty when given (leave it out for none)")
+        validate_think_temperatures(defaults["think_temperatures"], "defaults")
     if "think" in defaults:
         from decisio.serve.think import check_settings
 
@@ -565,7 +573,8 @@ def adapter_facts(directory: Path, repository: str, revision: str) -> dict:
 
 # what `defaults.fit` may say: how the temperatures were fitted. Nothing about the data (no source, mix or size): a
 # tuned repository's card carries one generic data statement, so the fit tools' `data`, `n` and `detail` stay out
-FIT_KEYS = ("method", "objective", "read_at", "kappa_on_raw_readout", "temperature_file_sha256")
+FIT_KEYS = ("method", "objective", "read_at", "kappa_on_raw_readout", "temperature_file_sha256", "think")
+THINK_FIT_KEYS = ("objective", "read_at", "kappa_on_raw_readout")
 
 
 def tuned_config(
@@ -584,6 +593,7 @@ def tuned_config(
     over_limit: str | None = None,
     layout: str | None = None,
     think: dict | None = None,
+    think_temperatures: dict | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
@@ -597,6 +607,8 @@ def tuned_config(
         "files": files,
     }
     fit = {k: v for k, v in fit.items() if k in FIT_KEYS}
+    if isinstance(fit.get("think"), dict):  # the think fit's method and readout scale; its counts and data stay out
+        fit["think"] = {k: v for k, v in fit["think"].items() if k in THINK_FIT_KEYS}
     config["defaults"] = {
         "temperatures": temperatures,
         **({"choice_bands": choice_bands} if choice_bands else {}),
@@ -606,6 +618,7 @@ def tuned_config(
         **({"over_limit": over_limit} if over_limit is not None else {}),
         **({"layout": layout} if layout is not None else {}),
         **({"think": think} if think is not None else {}),
+        **({"think_temperatures": think_temperatures} if think_temperatures else {}),
     }
     check_sections(config)
     return config
@@ -695,6 +708,14 @@ def main(argv=None) -> int:
     )
     tc.add_argument("--think-budget", type=int, help="the most tokens of reasoning (default 512)")
     tc.add_argument(
+        "--think-temperature",
+        action="append",
+        default=[],
+        metavar="TYPE=T",
+        help="the temperature of the answers that thought for a question type (choice, noul or score), e.g. "
+        "score=4.0: written to defaults.think_temperatures, over the --temperatures file's own (repeatable)",
+    )
+    tc.add_argument(
         "--over-limit",
         choices=("refuse", "truncate"),
         help="what a server of this repository does with a state over the engine's prompt ceiling (default: not "
@@ -749,6 +770,27 @@ def main(argv=None) -> int:
         fit.setdefault(
             "method", "decisio.adapter/1 file: minimum log loss per question type and choice band, on the plain readout"
         )
+        from decisio.serve.adapter_temperatures import AdapterFileError, validate_think_temperatures
+
+        try:
+            given = {}
+            for item in a.think_temperature:
+                kind, sep, value = item.partition("=")
+                if not sep:
+                    raise AdapterFileError(
+                        f"--think-temperature {item!r} must be TYPE=TEMPERATURE, for example score=4.0"
+                    )
+                try:
+                    given[kind] = float(value)
+                except ValueError:
+                    raise AdapterFileError(f"--think-temperature {item!r}: {value!r} is not a number") from None
+            think_temperatures = {
+                **t["think_temperatures"],
+                **validate_think_temperatures(given or None, "--think-temperature"),
+            }
+        except AdapterFileError as e:
+            print(f"refused: {e}")
+            return 1
         basis = a.noul_commit_basis
         if basis and os.path.isfile(basis):
             basis = json.loads(Path(basis).read_text())
@@ -768,6 +810,7 @@ def main(argv=None) -> int:
                 quantization=a.quantization,
                 over_limit=a.over_limit,
                 layout=a.layout or t.get("layout"),
+                think_temperatures=think_temperatures or None,
                 think=(
                     {"factor": a.think_factor, **({"budget": a.think_budget} if a.think_budget else {})}
                     if a.think_factor is not None

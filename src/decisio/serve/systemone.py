@@ -612,6 +612,7 @@ class SystemOne:
         temperature: float = 1.0,
         temperatures: dict | None = None,
         adapter_temperatures: dict | None = None,
+        think_temperatures: dict | None = None,
         choice_bands: dict | None = None,
         over_limit: str = "refuse",
         think: bool = False,
@@ -668,11 +669,19 @@ class SystemOne:
         # decisio.hub); the adapter's own bands (below) come first
         self.choice_bands = {b: float(t) for b, t in (choice_bands or {}).items()}
         self._base_bands = band_table(self.choice_bands) if self.choice_bands else []
+        # per question type, the temperature of an answer that thought (the mix of the plain read and the read after the
+        # reasoning, decisio.serve.think), replacing the type's single-pass temperature for those answers only; a type
+        # without one keeps the single-pass temperature (a tuned repository's `think_temperatures`)
+        self.think_temperatures = {k: float(v) for k, v in (think_temperatures or {}).items() if v is not None}
         # per adapter, {question type: temperature} replacing the base's for a request that names the adapter
         # (decisio.serve.adapter_temperatures); a type the adapter has none for keeps the base's. A "choice_bands"
-        # entry, {"lo-hi": temperature}, is the adapter's choice temperature by the question's number of options
+        # entry, {"lo-hi": temperature}, is the adapter's choice temperature by the question's number of options; a
+        # "think" entry, {question type: temperature}, is its temperature for the answers that thought
         self.adapter_temperatures = {
-            n: {k: ({b: float(x) for b, x in v.items()} if k == "choice_bands" else float(v)) for k, v in t.items()}
+            n: {
+                k: ({b: float(x) for b, x in v.items()} if k in ("choice_bands", "think") else float(v))
+                for k, v in t.items()
+            }
             for n, t in (adapter_temperatures or {}).items()
             if t
         }
@@ -1011,7 +1020,7 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                t_q = self.temperature_of(q.type, adapter, len(p))
+                t_q = (self.think_temperature_of if i in second else self.temperature_of)(q.type, adapter, len(p))
                 if not corrected and t_q != 1.0 and not use_image:
                     p = apply_temperature(p, t_q)
                     if debug:
@@ -1126,6 +1135,25 @@ class SystemOne:
                 if lo <= options <= hi:
                     return t
         return self.temperatures.get(qtype, self.temperature)
+
+    def think_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
+        """The temperature an answer that thought is served at: the named adapter's think temperature for the type, else
+        (an adapter that has its own single-pass temperature for the type keeps it) the server's think temperature for
+        the type (--think-temperature-<type>, a tuned repository's `think_temperatures`), else the single-pass
+        temperature of `temperature_of`. Only the answer after thinking uses it; whether a question thinks is decided at
+        the single-pass temperature."""
+        if adapter is not None:
+            own = self.adapter_temperatures.get(adapter, {})
+            if qtype in own.get("think", {}):
+                return own["think"][qtype]
+            single = self.temperature_of(qtype, adapter, options)
+            if single != self.temperature_of(qtype, None, options):
+                return (
+                    single  # the adapter's own single-pass temperature, which the base's think temperature does not fit
+                )
+        if qtype in self.think_temperatures:
+            return self.think_temperatures[qtype]
+        return self.temperature_of(qtype, adapter, options)
 
     def engine_question(self, q, words: bool = False) -> tuple[dict, list[str], bool]:
         """(engine question, keys in engine order, swapped) for one wire question as this server asks it. A yes/no
@@ -1438,10 +1466,18 @@ class SystemOne:
         proc = json.dumps(
             [thinking.PREFIX, thinking.SUFFIX, thinking.TAU, thinking.MAX_OPTIONS], sort_keys=True, ensure_ascii=False
         )
+        adapters = {n: t["think"] for n, t in self.adapter_temperatures.items() if t.get("think", None)}
         return {
             "factor": self.think_factor,
             "budget": self.think_budget,
             "procedure_sha256": hashlib.sha256(proc.encode()).hexdigest()[:16],
+            # the temperatures of the answers that thought, only when there are any, so that a server without them keeps
+            # its fingerprint; they change what a thinking answer is, so a certificate made under others is suspended
+            **(
+                {"temperatures": {**self.think_temperatures, **({"adapters": adapters} if adapters else {})}}
+                if self.think_temperatures or adapters
+                else {}
+            ),
         }
 
     def stack_with_fit(self, t) -> dict:
@@ -1652,7 +1688,7 @@ class SystemOne:
             # a stack that differs only in how the server thinks is its own reason: a task certified one-pass is not
             # served as certified by a server that thinks, and the other way round; the same for how it batches
             diff = set(stack.differences(cert["stack"], self.stack_with_fit(t)))
-            if diff <= {"serving.think"} | {f"serving.think.{k}" for k in ("factor", "budget", "procedure_sha256")}:
+            if all(d == "serving.think" or d.startswith("serving.think.") for d in diff):
                 reason = "think_mode_changed"
             elif diff <= {"serving.concurrency"} | {f"serving.concurrency.{k}" for k in ("mode", "max_requests")}:
                 reason = "concurrency_changed"

@@ -41,6 +41,22 @@ flattest temperature whose score CC is within `--tolerance` points (default 1) o
 wide range of temperatures, so a tighter tolerance picks noise. The temperature is sharper than the calibrated one, so
 the distribution is no longer calibrated, and the file says which objective was used (`fit.objective`).
 
+**Think-mode temperatures.** A question that thinks (`decisio.serve.think`) is answered from the mix of its plain read
+and its read after the reasoning, and that mix is over-confident at the temperature fitted on single-pass reads (the
+reasoning read is sharper). A file can carry its own temperatures for those answers, `think_temperatures`, per question
+type, beside the single-pass ones:
+
+    "think_temperatures": {"choice": 1.9, "noul": 2.4, "score": 1.8}
+
+They apply only to a question that thought, on the mix, never to the unsure test (which reads the single-pass
+temperature, so which questions think does not move). A type with no think temperature is served at its single-pass
+one; there are no think bands. `fit-think` adds them to an existing file from labelled mixes (one row per item that
+thought: `{"type", "probs", "gold"}`, `probs` the raw mix `thinking.mix(think_p1, think_lp2)` of a `--debug-readout`
+response, temperature 1):
+
+    python -m decisio.serve.adapter_temperatures fit-think --into decisio_adapter.json --reads think_reads.jsonl \
+        --out decisio_adapter.json
+
 Standard library and numpy only.
 """
 
@@ -132,13 +148,18 @@ def fit_choice_bands(P, gold, bands, min_items: int, fit_fn) -> tuple[dict, dict
 
 def serving_temperatures(entry: dict) -> dict:
     """What the server holds for an adapter and shows in /health and the fingerprint: {type: T} and, when the file has
-    them, "choice_bands": {"lo-hi": T}."""
-    return {**entry["temperatures"], **({"choice_bands": dict(entry["choice_bands"])} if entry["choice_bands"] else {})}
+    them, "choice_bands": {"lo-hi": T} and "think": {type: T} (the think-mode temperatures)."""
+    return {
+        **entry["temperatures"],
+        **({"choice_bands": dict(entry["choice_bands"])} if entry["choice_bands"] else {}),
+        **({"think": dict(entry["think_temperatures"])} if entry.get("think_temperatures") else {}),
+    }
 
 
 def read(path) -> dict:
-    """The validated content of an adapter file: {"temperatures": {type: T}, "choice_bands": {"lo-hi": T}, "layout":
-    the prompt layout the adapter was trained and measured on or None, "fit": dict | None, "file": str}."""
+    """The validated content of an adapter file: {"temperatures": {type: T}, "choice_bands": {"lo-hi": T},
+    "think_temperatures": {type: T} (empty when the file has none), "layout": the prompt layout the adapter was trained
+    and measured on or None, "fit": dict | None, "file": str}."""
     p = Path(path)
     try:
         doc = json.loads(p.read_text())
@@ -155,7 +176,15 @@ def read(path) -> dict:
         layout = check_layout(doc.get("layout"), str(p))
     except ValueError as e:
         raise AdapterFileError(str(e)) from e
-    return {"temperatures": out, "choice_bands": bands, "layout": layout, "fit": doc.get("fit"), "file": str(p)}
+    think = validate_think_temperatures(doc.get("think_temperatures"), str(p))
+    return {
+        "temperatures": out,
+        "choice_bands": bands,
+        "think_temperatures": think,
+        "layout": layout,
+        "fit": doc.get("fit"),
+        "file": str(p),
+    }
 
 
 def validate_temperatures(temps, raw_bands, where: str) -> tuple[dict, dict]:
@@ -188,6 +217,25 @@ def validate_temperatures(temps, raw_bands, where: str) -> tuple[dict, dict]:
         for (lo, hi), key in zip(parsed, sorted(raw_bands, key=lambda b: int(b.partition("-")[0]))):
             bands[band_name(lo, hi)] = temperature(f"choice band {key}", raw_bands[key])
     return out, bands
+
+
+def validate_think_temperatures(raw, where: str) -> dict:
+    """{type: T} from a file's or a tuned repository's `think_temperatures`: None is none ({}); otherwise a non-empty
+    object of known question types (choice, noul, score) with positive finite numbers. Raises AdapterFileError."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict) or not raw:
+        raise AdapterFileError(f"{where}: `think_temperatures` must be a non-empty object of {', '.join(TYPES)}")
+    out = {}
+    for k, v in raw.items():
+        if k not in TYPES:
+            raise AdapterFileError(
+                f"{where}: unknown question type {k!r} in `think_temperatures` (expected {', '.join(TYPES)})"
+            )
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+            raise AdapterFileError(f"{where}: the {k} think temperature must be a positive number, got {v!r}")
+        out[k] = float(v)
+    return out
 
 
 def load(adapters: dict, overrides: dict | None = None) -> dict:
@@ -343,6 +391,27 @@ def fit(
     }
 
 
+def add_think(
+    doc: dict,
+    rows,
+    read_at: dict | None = None,
+    tolerance: float = 1.0,
+    data: str = "",
+    score_objective: str = LOG_LOSS,
+) -> dict:
+    """`doc` (an adapter file's content) with `think_temperatures` fitted on `rows`, the labelled mixes of the questions
+    that thought ({"type", "probs", "gold", "read_at"?}, as `fit` takes them); the fit's account goes to `fit.think`.
+    The single-pass temperatures and bands are left as they are. Raises ValueError when no row is given."""
+    fitted = fit(rows, read_at, tolerance, data, score_objective, bands=())
+    if not fitted["temperatures"]:
+        raise ValueError("no think rows: nothing to fit")
+    return {
+        **doc,
+        "think_temperatures": fitted["temperatures"],
+        "fit": {**(doc.get("fit") or {}), "think": fitted["fit"]},
+    }
+
+
 def _rows(paths):
     for p in paths:
         op = gzip.open if str(p).endswith(".gz") else open
@@ -422,16 +491,44 @@ def main(argv=None):
     sp.add_argument("--data", default="")
     bands_args(sp)
     layout_arg(sp)
+    ft = sub.add_parser("fit-think", help="add think-mode temperatures to an adapter file from labelled thinking reads")
+    ft.add_argument("--into", required=True, help="the adapter file (decisio.adapter/1) to add them to")
+    ft.add_argument(
+        "--reads",
+        action="append",
+        required=True,
+        help="a JSONL (or .gz) of {type, probs, gold}: the raw mix of each question that thought; repeatable",
+    )
+    ft.add_argument(
+        "--read-at",
+        default="",
+        help="the temperatures rows without their own `read_at` were served at, per type (default: raw mixes)",
+    )
+    ft.add_argument("--out", required=True)
+    ft.add_argument("--tolerance", type=float, default=1.0)
+    ft.add_argument("--score-objective", choices=(LOG_LOSS, EXPECTED_POSITION), default=LOG_LOSS)
+    ft.add_argument("--data", default="", help="what the items are (kept in the file's fit)")
     c = sub.add_parser("check", help="validate an adapter file and print it")
     c.add_argument("file")
     a = ap.parse_args(argv)
-    if a.cmd != "check":
+    if a.cmd not in ("check", "fit-think"):
         try:
             a.bands = parse_bands(a.choice_bands)
         except ValueError as e:
             ap.error(f"--choice-bands: {e}")
     if a.cmd == "check":
         print(json.dumps(read(a.file), indent=1))
+        return 0
+    if a.cmd == "fit-think":
+        read(a.into)  # validated first: the file it adds to must be usable
+        base = json.loads(Path(a.into).read_text())
+        read_at = {k: float(v) for k, v in (kv.split("=", 1) for kv in a.read_at.split(",") if kv)}
+        try:
+            doc = add_think(base, list(_rows(a.reads)), read_at, a.tolerance, a.data, a.score_objective)
+        except ValueError as e:
+            ap.error(str(e))
+        Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
+        print(json.dumps({"think_temperatures": doc["think_temperatures"], "fit": doc["fit"]["think"]}, indent=1))
         return 0
     if a.cmd == "fit-split":
         from decisio.serve import split_fit
