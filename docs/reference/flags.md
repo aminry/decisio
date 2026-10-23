@@ -4,7 +4,7 @@
 
 # Server flags
 
-`python -m decisio.serve.vllm_engine`, decisio 0.25.0 <!-- x-release-please-version -->.
+`python -m decisio.serve.vllm_engine`, decisio 0.26.0 <!-- x-release-please-version -->.
 A dash in the default column means the flag has no default of its own: it takes the base's value, or is off.
 `docs/cli.md` says which value each base takes.
 
@@ -47,7 +47,7 @@ A dash in the default column means the flag has no default of its own: it takes 
 | `--abstain-option` | - | text | offer this extra option (e.g. "can't tell") on every question of requests that use imajev's extension, and report its probability as unknown_probability / abstained; untrained, opt-in |
 | `--system-prompt` / `--no-system-prompt` | - | on or off | a system turn before each question (decisio.readout.system_prompt); default: the base's (Gemma: on, Qwen: off) |
 | `--prompt-tail` | - | `compact`, `spaced` | the question's layout and last line (default: the base's, spaced for both): spaced (a blank line before and after the lettered options, then one line asking for the chosen option's letter alone, decisio.readout.spaced), or compact (for tasks fitted under it; no blank lines, 'Answer with the letter only.'). Tasks registered under one are not applied under the other |
-| `--layout` | - | `plain`, `header` | the user turn's layout (default plain, the served prompt, byte for byte): header lists the request's questions before the state ('Questions that will be asked about the context:' and a '- <question>' line each), then the state and the question as plain; opt-in, as jev-brain and FlexDM read. A state cached for one set of questions is not reused for another set. Tasks fitted and certificates made under one layout are not applied under another; a model trained on the plain layout is untested on this one (docs/running.md) |
+| `--layout` | - | `plain`, `header` | the user turn's layout. header (the default of the Gemma bases) lists the request's questions before the state ('Questions that will be asked about the context:' and a '- <question>' line each), then the state and the question as plain; plain is the state then the question (the Qwen base's default, and what 0.25.0 and earlier served). Without the flag the server holds plain while it loads tasks fitted under plain, or an adapter or tuned repository that recorded no layout (the start says so). A state cached for one set of questions is not reused for another under header: a client that asks a series of questions about one state wants plain. Tasks fitted and certificates made under one layout are not applied under another (docs/running.md) |
 | `--answer-slot` | - | `prefill`, `template` | where the label is read: after 'Answer:' prefilled in the assistant turn (prefill; the Qwen base's), or at the chat template's own first assistant position (template; the Gemma base's) |
 | `--label-variants` | - | `single`, `summed` | the tokens read per label: single (the Qwen base's; one, the form the slot reads), or summed (the Gemma base's; every single-token form: ' A', 'A' and a byte-fallback token where there is one; ' yes', 'yes', ' Yes' and 'Yes'; their probabilities summed) |
 | `--temperature` | - | `float` | /v1/systemone: the global temperature on the text route's plain readout, softmax(log p / T) (decisio.serve.temperature; default: the value fitted on the suite's served readouts); a registered task's own correction replaces it; 1 switches it off (the output before it, bit for bit); never changes the most probable option |

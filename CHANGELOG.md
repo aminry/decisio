@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.26.0](https://github.com/aminry/decisio/compare/v0.25.0...v0.26.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** the 31B, the 12B and the 12B in FP8 now list the request's questions before the state, so their answers change (measured on the 31B: +5.0 points on a Decision Index sample, +4.4 on H776, +7.4 on hard390, -0.4 on dev500). A server that loads tasks, abstention tasks, or an adapter or tuned repository fitted or trained on the plain layout keeps serving plain and says so; --layout plain restores the old behaviour everywhere. Clients that ask a series of different questions about one state want --layout plain: under the header a cached state is not reused for another set of questions.
+
+### Features
+
+* **serve:** an opt-in header prompt layout (--layout header) and --temperatures-file for the base ([#290](https://github.com/aminry/decisio/issues/290)) ([c0b1c08](https://github.com/aminry/decisio/commit/c0b1c08dbeddf0e58fc2450012245ab9ba2d7b71))
+* **serve:** the Gemma bases are served with the header layout; held at plain where tasks or adapters need it ([#293](https://github.com/aminry/decisio/issues/293)) ([fdffb65](https://github.com/aminry/decisio/commit/fdffb65ffd1251455b84e8d79f2f530630d889fe))
+
 ## [0.25.0](https://github.com/aminry/decisio/compare/v0.24.0...v0.25.0) (2026-10-22)
 
 

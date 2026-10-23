@@ -82,6 +82,10 @@ class Family:
     answer_slot: str = "prefill"
     label_variants: str = "single"
     noul_rendering: str = "letters-keys"
+    # the layout of the user turn served when nothing else is said (letters.PromptFormat.layout): "header"
+    # for the Gemma bases (measured: docs/running.md, "The header layout"), "plain" for the Qwen base. Not part of the
+    # exported profile, which describes how the base is read; a server may hold it at plain (vllm_engine.decide_layout)
+    layout: str = "plain"
     # LLM(quantization=...): the precision the checkpoint is quantized to on load (None: as the checkpoint stores it)
     quantization: str | None = None
     # --multi-question's default when the engine runs in the server's process (vllm_engine.resolve_multi_question)
@@ -163,6 +167,7 @@ GEMMA4 = Family(
     answer_slot="template",
     label_variants="summed",
     noul_rendering="letters",
+    layout="header",
     # a request's latest checkpoint lies inside its question (hit unit 64), so a second, different question about a
     # state read it again (RLCD experiments/2026-10-05_t7_card_e2_e3_e4, on the 31B: 531 ms instead of 47 at 3,000
     # tokens); vLLM's retention interval would keep it too, but evicts states sooner (the same record)
@@ -208,6 +213,7 @@ GEMMA4_31B = Family(
     answer_slot="template",
     label_variants="summed",
     noul_rendering="letters",
+    layout="header",
     # FP8 on load (vLLM 0.30.0's online FP8): at bf16 the weights leave too little of one 96 GB card for a 32,768-token
     # context; a pinned FP8 checkpoint replaces this when one exists
     quantization="fp8",

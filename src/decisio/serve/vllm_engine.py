@@ -1112,6 +1112,7 @@ def make_app(engine, systemone=None, health=None):
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
                     "repository_defaults": getattr(engine, "repository_defaults", None),
+                    **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
                     **(
                         {"temperatures_file": engine.temperatures_file}
                         if getattr(engine, "temperatures_file", None)
@@ -1569,6 +1570,9 @@ def resolve_base(args):
             # tasks are named for the checkpoint a repository copies, so those fitted on either serve on both
             args.model_identity = os.path.basename(os.path.normpath(repo.config["source"]["repository"]))
         args.repository = repo.facts()
+    args.layout_default = fam.layout
+    args.layout_tuned = bool(repo is not None and repo.tuned)
+    args.layout_recorded = (repo.defaults or {}).get("layout") if args.layout_tuned else None
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
@@ -1625,6 +1629,7 @@ def apply_temperatures_file(args, given: dict) -> None:
         "file": str(path),
         "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
         "applied": applied,
+        **({"layout": doc["layout"]} if doc.get("layout") else {}),
     }
 
 
@@ -1957,11 +1962,14 @@ def build_parser():
         "--layout",
         default=None,
         choices=["plain", "header"],
-        help="the user turn's layout (default plain, the served prompt, byte for byte): header lists the request's "
-        "questions before the state ('Questions that will be asked about the context:' and a '- <question>' line "
-        "each), then the state and the question as plain; opt-in, as jev-brain and FlexDM read. A state cached for "
-        "one set of questions is not reused for another set. Tasks fitted and certificates made under one layout "
-        "are not applied under another; a model trained on the plain layout is untested on this one (docs/running.md)",
+        help="the user turn's layout. header (the default of the Gemma bases) lists the request's questions before the "
+        "state ('Questions that will be asked about the context:' and a '- <question>' line each), then the state and "
+        "the question as plain; plain is the state then the question (the Qwen base's default, and what 0.25.0 and "
+        "earlier served). Without the flag the server holds plain while it loads tasks fitted under plain, or an "
+        "adapter or tuned repository that recorded no layout (the start says so). A state cached for one set of "
+        "questions is not reused for another under header: a client that asks a series of questions about one state "
+        "wants plain. Tasks fitted and certificates made under one layout are not applied under another "
+        "(docs/running.md)",
     )
     ap.add_argument(
         "--answer-slot",
@@ -2178,10 +2186,11 @@ def build_parser():
     return ap
 
 
-def load_tasks(args, store):
-    """Fill the task store at start (`--tasks-file`, `--abstention-tasks`, `--tasks-dir`) and apply `--require-tasks`;
-    returns (the abstention task records to serve, the backend or None, the report of what loaded from where). Stops the
-    start (SystemExit) when the directory cannot be used or the store holds fewer usable tasks than required."""
+def open_task_sources(args):
+    """Open what holds the taught tasks (`--tasks-file`, `--abstention-tasks`, `--tasks-dir` or `--task-store`) and read
+    it, before anything is loaded: the layout the server serves depends on what was fitted under which layout
+    (decisio.serve.layout). Returns a dict: `backend` (or None), `file_tasks`, `file_abstention` and `saved` (the
+    backend's records, or None). Stops the start (SystemExit) when the directory or store cannot be used."""
     file_tasks = None
     if args.tasks_file:
         data = json.loads(Path(args.tasks_file).read_text())
@@ -2190,7 +2199,7 @@ def load_tasks(args, store):
     if args.abstention_tasks:
         data = json.loads(Path(args.abstention_tasks).read_text())
         file_abstention = data["tasks"] if isinstance(data, dict) else data
-    backend = None
+    backend, saved = None, None
     if args.tasks_dir and args.task_store:
         raise SystemExit("--tasks-dir and --task-store are alternatives: a replica keeps its tasks in one of them")
     if args.task_store:
@@ -2205,21 +2214,35 @@ def load_tasks(args, store):
             )
             if not args.task_store_readonly:
                 backend.probe()
-            abstention_records, task_report = task_backends.load_at_start(store, backend, file_tasks, file_abstention)
+            saved = backend.load()
         except task_backends.TaskPersistError as e:
             raise SystemExit(f"--task-store: {e}")
     elif args.tasks_dir:
         try:
             backend = task_backends.DirBackend(args.tasks_dir)
-            abstention_records, task_report = task_backends.load_at_start(store, backend, file_tasks, file_abstention)
+            saved = backend.load()
         except task_backends.TaskPersistError as e:
             raise SystemExit(f"--tasks-dir: {e}")
-    else:
-        abstention_records, task_report = task_backends.load_at_start(store, None, file_tasks, file_abstention)
+    return {"backend": backend, "file_tasks": file_tasks, "file_abstention": file_abstention, "saved": saved}
+
+
+def load_tasks(args, store, sources=None):
+    """Fill the task store at start from `sources` (`open_task_sources`) and apply `--require-tasks`; returns (the
+    abstention task records to serve, the backend or None, the report of what loaded from where). Stops the start
+    (SystemExit) when the store holds fewer usable tasks than required."""
+    sources = sources or open_task_sources(args)
+    backend, file_tasks, file_abstention = sources["backend"], sources["file_tasks"], sources["file_abstention"]
+    try:
+        abstention_records, task_report = task_backends.load_at_start(
+            store, backend, file_tasks, file_abstention, saved=sources["saved"]
+        )
+    except task_backends.TaskPersistError as e:
+        raise SystemExit(f"--task-store: {e}" if args.task_store else f"--tasks-dir: {e}")
     stale = [t["id"] for t in store.by_key.values() if not same_fingerprint(t["fingerprint"], store.fingerprint)]
     if stale:
         print(f"WARNING: tasks fitted under another model or rendering are not applied: {stale}", flush=True)
-    usable = task_backends.usable(store, abstention_records, args.served_name)
+    layout = (getattr(args, "layout_decision", None) or {}).get("value", "plain")
+    usable = task_backends.usable(store, abstention_records, args.served_name, layout)
     task_report["usable"] = usable
     print("TASKS", json.dumps(task_report), flush=True)
     held = task_report.get("from_dir") or task_report.get("from_store")
@@ -2238,6 +2261,52 @@ def load_tasks(args, store):
             backend.close()
         raise SystemExit(refusal)
     return abstention_records, backend, task_report
+
+
+def task_store_fingerprint(args, fmt) -> str:
+    """The fingerprint a task is fitted under on this server: the model, the rendering and the prompt format."""
+    return task_fingerprint(
+        served_name=args.served_name,
+        # a decisio repository's copy of a checkpoint is named by its source: tasks fitted on one serve on both
+        model=getattr(args, "model_identity", None) or os.path.basename(os.path.normpath(args.model)),
+        pad_to=args.pad_to,
+        pad_where=args.pad_where,
+        hide_index_keys=args.hide_index_keys,
+        desnake_labels=args.desnake_labels,
+        pad_policy=args.pad_policy,
+        prompt_format=None if fmt.is_default() else fmt.facts(),
+        # a base other than Qwen (whose fingerprints predate bases)
+        base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
+    )
+
+
+def resolve_layout(args, fmt, sources, adapter_layouts):
+    """(fmt with the layout this server serves, the decision): `decisio.serve.layout.decide_layout` from the flags, the
+    base, the repository's and adapters' records and the stored tasks. Prints the decision."""
+    from dataclasses import replace
+
+    from decisio.serve import layout as lay
+
+    plain = replace(fmt, layout="plain")
+    records = list((sources["saved"] or {}).get("readout", [])) + list(sources["file_tasks"] or [])
+    abstention = list((sources["saved"] or {}).get("abstention", [])) + list(sources["file_abstention"] or [])
+    try:
+        decision = lay.decide_layout(
+            explicit=getattr(args, "layout", None),
+            default=getattr(args, "layout_default", "plain"),
+            tuned=getattr(args, "layout_tuned", False),
+            recorded=getattr(args, "layout_recorded", None),
+            adapters=adapter_layouts,
+            tasks=lay.plain_fitted_readout(records, task_store_fingerprint(args, plain)),
+            abstention=lay.plain_fitted_abstention(abstention, args.served_name),
+        )
+    except lay.LayoutConflict as e:
+        raise SystemExit(f"LAYOUT: {e}")
+    tf = getattr(args, "temperatures_file_facts", None) or {}
+    if tf.get("layout") and tf["layout"] != decision["value"]:
+        decision["notes"].append(f"--temperatures-file was fitted under the {tf['layout']} layout")
+    print(lay.describe(decision), flush=True)
+    return replace(fmt, layout=decision["value"]), decision
 
 
 def main():
@@ -2271,8 +2340,6 @@ def main():
         print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
     if getattr(args, "temperatures_file_facts", None):
         print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
-    if args.layout:
-        print("PROMPT LAYOUT " + json.dumps({"layout": args.layout}), flush=True)
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
     args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
@@ -2367,23 +2434,14 @@ def main():
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
     from decisio.serve.tasks import TaskStore
 
-    # a task is valid only for the model and the rendering it was fitted under
-    store = TaskStore(
-        fingerprint=task_fingerprint(
-            served_name=args.served_name,
-            # a decisio repository's copy of a checkpoint is named by its source: tasks fitted on one serve on both
-            model=getattr(args, "model_identity", None) or os.path.basename(os.path.normpath(args.model)),
-            pad_to=args.pad_to,
-            pad_where=args.pad_where,
-            hide_index_keys=args.hide_index_keys,
-            desnake_labels=args.desnake_labels,
-            pad_policy=args.pad_policy,
-            prompt_format=None if fmt.is_default() else fmt.facts(),
-            # a base other than Qwen (whose fingerprints predate bases)
-            base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
-        )
+    # what the stores hold decides the layout (a base with plain-fitted tasks loaded stays on plain), and the layout is
+    # part of a task's fingerprint: a task is valid only for the model, the rendering and the layout it was fitted under
+    sources = open_task_sources(args)
+    fmt, args.layout_decision = resolve_layout(
+        args, fmt, sources, {n: (adapter_temps.get(n) or {}).get("layout") for n in adapters}
     )
-    abstention_records, backend, task_report = load_tasks(args, store)
+    store = TaskStore(fingerprint=task_store_fingerprint(args, fmt))
+    abstention_records, backend, task_report = load_tasks(args, store, sources)
 
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
         pad_to = None if args.pad_to == "none" else args.pad_to
@@ -2451,6 +2509,7 @@ def main():
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults
     engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
+    engine.layout_decision = getattr(args, "layout_decision", None)
     engine.over_limit_tokens = args.over_limit_tokens
     if args.think and not engine.can_think():
         why = getattr(engine, "think_blocked", lambda: None)() or "think needs the vLLM engine"

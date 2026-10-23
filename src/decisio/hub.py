@@ -46,7 +46,9 @@ two more.
                 false, always stated), fit (how the temperatures were fitted: the method, never the data) and
                 noul_commit_basis (why the commit setting is what it is, with the figures) and over_limit
                 ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets) and think
-                ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think)
+                ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think) and layout
+                ("plain" or "header", optional: the prompt layout it was trained and measured on, which a server
+                serves; none recorded means plain)
 
 The profile sections of a `/2` file must still equal the installed base's profile (a repository cannot change how the
 base is read); `defaults` is what the repository changes. A decisio that does not know `/2` refuses the file by its
@@ -451,7 +453,16 @@ def check_defaults(defaults) -> None:
     from decisio.serve.adapter_temperatures import validate_temperatures
 
     _need(defaults, "defaults")
-    allowed = {"temperatures", "choice_bands", "noul_commit", "fit", "noul_commit_basis", "over_limit", "think"}
+    allowed = {
+        "temperatures",
+        "choice_bands",
+        "noul_commit",
+        "fit",
+        "noul_commit_basis",
+        "over_limit",
+        "think",
+        "layout",
+    }
     unknown = sorted(set(defaults) - allowed)
     if unknown:
         raise ValueError(f"defaults has unknown keys {unknown}")
@@ -466,6 +477,8 @@ def check_defaults(defaults) -> None:
         from decisio.serve.think import check_settings
 
         check_settings(defaults["think"], "defaults.think")
+    if "layout" in defaults and defaults["layout"] not in ("plain", "header"):
+        raise ValueError('defaults.layout must be "plain" or "header"')
     if "over_limit" in defaults and defaults["over_limit"] not in ("refuse", "truncate"):
         raise ValueError('defaults.over_limit must be "refuse" or "truncate"')
     if defaults["noul_commit"] and not isinstance(defaults.get("noul_commit_basis"), (dict, str)):
@@ -569,6 +582,7 @@ def tuned_config(
     decisio_version: str | None = None,
     quantization: str | None = None,
     over_limit: str | None = None,
+    layout: str | None = None,
     think: dict | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
@@ -590,6 +604,7 @@ def tuned_config(
         "fit": fit,
         **({"noul_commit_basis": noul_commit_basis} if noul_commit_basis is not None else {}),
         **({"over_limit": over_limit} if over_limit is not None else {}),
+        **({"layout": layout} if layout is not None else {}),
         **({"think": think} if think is not None else {}),
     }
     check_sections(config)
@@ -685,6 +700,12 @@ def main(argv=None) -> int:
         help="what a server of this repository does with a state over the engine's prompt ceiling (default: not "
         "stated, so the server's own, refuse)",
     )
+    tc.add_argument(
+        "--layout",
+        choices=("plain", "header"),
+        help="the prompt layout the model was trained and measured on, recorded in the file; a server serves it "
+        "(none recorded: plain, what every tuned model before this was trained on)",
+    )
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
     tc.add_argument("--adapter-repository", required=True)
     tc.add_argument("--adapter-revision", required=True)
@@ -746,6 +767,7 @@ def main(argv=None) -> int:
                 decisio_version=a.decisio_version,
                 quantization=a.quantization,
                 over_limit=a.over_limit,
+                layout=a.layout or t.get("layout"),
                 think=(
                     {"factor": a.think_factor, **({"budget": a.think_budget} if a.think_budget else {})}
                     if a.think_factor is not None
