@@ -267,6 +267,15 @@ python -m decisio.serve.vllm_engine --base gemma-4-12b --layout header --tempera
 
 `--temperatures-file` sets the base's temperatures per type and its choice bands from a `decisio.adapter/1` file (precedence: a `--temperature-<type>` flag, the file, a tuned repository's defaults, the base's profile; `--temperature-choice` is one number for every choice question and drops the file's bands). The values are in the serving-stack fingerprint, `/health` carries the file and its sha256 (`systemone.temperatures_file`) and the start prints a `TEMPERATURES FILE` line. Fit on items that are not a benchmark's (the fit tool's rule, above). A temperature never moves the top answer; it moves the calibration. The served defaults stay as they are until a measurement under the layout says otherwise.
 
+**A base's profile can carry more than two numbers.**
+Besides the global temperature (yes/no and score) and the choice temperature, a base's profile (`decisio.families.Family`) can hold a temperature of its own for yes/no and for score (`temperatures`) and choice temperatures by band of option count (`choice_bands`, `lo-hi` within 2 to 255, not overlapping).
+The profile is the last word of the precedence: a `--temperature-<type>` flag, `--temperatures-file`, a tuned repository's defaults, then the profile.
+A type is filled from the profile only where nothing gave one, and the bands only where nothing gave a choice temperature or bands, so a tuned model keeps what it was fitted with and a flag still wins.
+A malformed profile is refused at start.
+When the profile contributes, the start prints a `BASE TEMPERATURES` line and `/health` carries the values in `systemone.temperatures` and `systemone.choice_bands`; they are in the serving-stack fingerprint like any other temperature.
+The exported hub profile does not carry them, so a repository file exported before this still agrees with the installed profile.
+No base sets them yet: every served temperature is what it was.
+
 ## Thinking when unsure
 
 Off by default: a request is one read, as fast and as repeatable as before.

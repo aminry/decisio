@@ -1647,9 +1647,30 @@ def resolve_base(args):
     given = {t: getattr(args, f"temperature_{t}", None) is not None for t in ("choice", "noul", "score")}
     apply_repository_defaults(args, repo)
     apply_temperatures_file(args, given)
+    apply_profile_temperatures(args, fam)
     if args.temperature_choice is None:
         args.temperature_choice = fam.choice_temperature
     return fam, fmt
+
+
+def apply_profile_temperatures(args, fam) -> None:
+    """The base profile's per-type temperatures (yes/no, score) and choice bands, the last word of the precedence
+    (a flag, `--temperatures-file`, a tuned repository's defaults, then this): a type is filled only where nothing
+    gave one, and the bands only where nothing gave a choice temperature or bands, so a tuned model keeps what it
+    was fitted with. Sets `args.profile_temperatures` (what the profile contributed, None when nothing) for the
+    start-up line."""
+    from decisio.families import check_profile_temperatures
+
+    check_profile_temperatures(fam)
+    applied: dict = {}
+    for qtype in ("noul", "score"):
+        if getattr(args, f"temperature_{qtype}", None) is None and qtype in fam.temperatures:
+            setattr(args, f"temperature_{qtype}", float(fam.temperatures[qtype]))
+            applied[qtype] = float(fam.temperatures[qtype])
+    if fam.choice_bands and getattr(args, "temperature_choice", None) is None and not args.choice_bands:
+        args.choice_bands = {b: float(t) for b, t in fam.choice_bands.items()}
+        applied["choice_bands"] = dict(args.choice_bands)
+    args.profile_temperatures = applied or None
 
 
 def apply_temperatures_file(args, given: dict) -> None:
@@ -2444,6 +2465,8 @@ def main():
         print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
     if getattr(args, "temperatures_file_facts", None):
         print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
+    if getattr(args, "profile_temperatures", None):
+        print(f"BASE TEMPERATURES {json.dumps(args.profile_temperatures, sort_keys=True)}", flush=True)
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
     args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
