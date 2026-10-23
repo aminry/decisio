@@ -1157,6 +1157,7 @@ def make_app(engine, systemone=None, health=None):
                     "temperature": systemone.temperature,
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
+                    **({"think_temperatures": systemone.think_temperatures} if systemone.think_temperatures else {}),
                     "repository_defaults": getattr(engine, "repository_defaults", None),
                     **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
                     **(
@@ -1484,6 +1485,7 @@ def served_profile(engine, systemone) -> dict:
         "engine_process": getattr(engine, "engine_process", None),
         "temperatures": {q: systemone.temperature_of(q) for q in ("choice", "noul", "score")},
         **({"choice_bands": systemone.choice_bands} if systemone.choice_bands else {}),
+        **({"think_temperatures": systemone.think_temperatures} if systemone.think_temperatures else {}),
         "prompt": {
             **fmt.facts(),
             "system_prompt": bool(getattr(fmt, "system_prompt", False)),
@@ -1696,6 +1698,9 @@ def apply_repository_defaults(args, repo) -> None:
     args.choice_bands = {}
     args.repository_defaults = None
     defaults = repo.defaults if repo is not None else None
+    for qtype in ("choice", "noul", "score"):  # --think-temperature-<type> is read as None when absent
+        if not hasattr(args, f"think_temperature_{qtype}"):
+            setattr(args, f"think_temperature_{qtype}", None)
     choice_given = getattr(args, "temperature_choice", None) is not None
     applied: dict = {}
     if defaults is not None:
@@ -1726,6 +1731,10 @@ def apply_repository_defaults(args, repo) -> None:
                 applied["over_limit"] = args.over_limit
             else:
                 applied["over_limit_set_by"] = f"--over-limit {args.over_limit}"
+        for qtype, t in (defaults.get("think_temperatures") or {}).items():  # the answers that thought, per type
+            if getattr(args, f"think_temperature_{qtype}") is None:
+                setattr(args, f"think_temperature_{qtype}", float(t))
+                applied.setdefault("think_temperatures", {})[qtype] = float(t)
         if "think" in defaults:  # on, with the repository's factor, unless a flag says otherwise
             if getattr(args, "think", None) is None:
                 args.think = True
@@ -2087,6 +2096,16 @@ def build_parser():
             )
             + "); 1 switches it off for that type",
         )
+    for qtype in ("choice", "noul", "score"):
+        ap.add_argument(
+            f"--think-temperature-{qtype}",
+            type=float,
+            default=None,
+            help=f"/v1/systemone: the temperature for the {qtype} answers that thought (the mix of the plain read and "
+            f"the read after the reasoning, --think) in place of the {qtype} temperature (default: a tuned "
+            "repository's think_temperatures, else the single-pass temperature); whether a question thinks is still "
+            "decided at the single-pass temperature",
+        )
     ap.add_argument(
         "--temperatures-file",
         default=None,
@@ -2122,7 +2141,8 @@ def build_parser():
         help="/v1/systemone: think when unsure. A question whose served top probability is below its type's threshold "
         "(choice 0.75, yes/no 0.92, score 0.70, times --think-factor) and that has at most 16 options is read again "
         "after the served model (the adapter named in the request, or the merged weights) has written up to "
-        "--think-budget tokens of reasoning; the two reads are mixed in log space and go through the same temperature. "
+        "--think-budget tokens of reasoning; the two reads are mixed in log space and go through the type's think "
+        "temperature if it has one (--think-temperature-<type>), else the same temperature. "
         'Off by default (single-pass speed and determinism); a request\'s "think" field decides for that request, a '
         "tuned repository's defaults can turn it on, and --no-think turns that off. Needs the vLLM engine; "
         "questions of a registered task stay at one read",
@@ -2725,6 +2745,11 @@ def main():
         },
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
         choice_bands=args.choice_bands,
+        think_temperatures={
+            "choice": args.think_temperature_choice,
+            "noul": args.think_temperature_noul,
+            "score": args.think_temperature_score,
+        },
     )
     if backend is not None and hasattr(backend, "sync_once"):
         from decisio.serve.task_store_shared import TaskSync
