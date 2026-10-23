@@ -32,7 +32,7 @@ Think-mode temperatures:
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| Without the flags | Nothing changes | Nothing |
+| Without `--read-twice-under` | Nothing changes | Nothing |
 | `--read-twice-under N` (new) | Short requests are read twice; tasks and certificates of other settings are not applied | Choose N and R from a run of your own; register and certify again under them |
 | Any server that does not use `--think` or a repository with `defaults.think` | Nothing changes | Nothing |
 | A thinking server and a repository or file without think temperatures | Nothing changes | Nothing |
