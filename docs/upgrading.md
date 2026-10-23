@@ -8,6 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Next release: read twice, as an opt-in for Decision Index runs
+
+### What changed
+
+- **`--read-twice-under N`** writes a request that read once is at most N counted input tokens (the header, the state and each question's text) twice, the second copy after `Read the same input again before answering:`; **`--read-twice-max-questions R`** reads a request with more than R questions once, whatever its size ([running.md](running.md#read-twice---read-twice-under-n---read-twice-max-questions-r-for-decision-index-runs)). Both are **off by default and read twice is never the default**: with them off every prompt, fingerprint and task key is what it was.
+  On the 31B with the header: N = 2,000 is the measured choice on our own proxies (+3.2 pooled, the smallest within 0.25 points of the best) and +1.8 on a Decision Index sample with p80 latency about 866 ms; FlexDM's 3,000 gave +1.9 with p80 at or over the 1,000 ms gate. It costs about 1.5 times the computed tokens, `usage.input_tokens` counts both copies, and a JevBench row with it is over the cost cap. On the 12B the same step added nothing within noise.
+- Tasks registered, and certificates made, under one setting are not applied under another.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Without the flags | Nothing changes | Nothing |
+| `--read-twice-under N` (new) | Short requests are read twice; tasks and certificates of other settings are not applied | Choose N and R from a run of your own; register and certify again under them |
+
 ## 0.26.0: the Gemma bases are served with the header layout (answers change)
 
 ### What changed

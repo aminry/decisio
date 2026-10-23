@@ -14,8 +14,8 @@ The mapping was fixed before any benchmark item was sent (runs/2026-09-27_boards
   choice        options in the request's key order, shown "<key>: <description>" or "<key>"; letters readout
   score         levels in criteria order as the letters legend; score = probability-weighted mean level
   confidence    the System One adapter's rules (choice: max rescaled from uniform; score: concentration at the mode)
-  usage         input_tokens = state + each question's own text in this tokenizer (plus the header the layout lists:
-                what is read); output_tokens = one per question
+  usage         input_tokens = state + each question's own text in this tokenizer (plus the header the layout lists, and
+                the second copy of every row under read-twice: what is read); output_tokens = one per question
 
 Two-order mode (after Reflex, github.com/kshetrajna12/reflex, MIT, `prompt.distinct_orders` and
 `ensemble.disagreement`): each question is also read in one distinct second order (seeded by its name; the swap for two
@@ -696,15 +696,17 @@ class SystemOne:
         }
 
     def usage_tokens(self, state, qs: list[dict]) -> int:
-        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state, layout_header
-        from decisio.serve.vllm_engine import question_text
+        from decisio.readout.letters import DEFAULT_FORMAT, READ_AGAIN
+        from decisio.serve.vllm_engine import counted_tokens
 
         tok, fmt = self.engine.tok, getattr(self.engine, "fmt", DEFAULT_FORMAT)
-        enc = lambda text: len(tok.encode(text, add_special_tokens=False))  # noqa: E731
-        state_n = enc(fmt_state(state))
-        asked = [enc(question_text(tok, q, fmt)[0]) for q in qs]
-        head_n = enc(layout_header([q["instructions"] for q in qs])) if fmt.layout == "header" else 0
-        total = head_n + state_n + sum(asked)
+        c = counted_tokens(tok, fmt, state, qs)
+        total = c["total"]
+        if fmt.read_twice_under and self.engine.read_plan(state, qs)["twice"]:
+            # what is read: every question's row reads its whole user turn again (the header, the state, its own
+            # text, and the line that joins them), none of it a cached prefix
+            again = len(tok.encode(READ_AGAIN, add_special_tokens=False))
+            total += sum(c["header"] + c["state"] + a + again for a in c["asked"])
         return total
 
     def think_pass(

@@ -191,6 +191,8 @@ LABEL_VARIANTS = ("single", "summed")
 LAYOUTS = ("plain", "header")
 # the header layout: the request's questions listed before the state, as jev-brain and FlexDM do
 QUESTIONS_HEAD = "Questions that will be asked about the context:\n"
+# read twice: the user turn written again after this line, for a short request
+READ_AGAIN = "\n\nRead the same input again before answering:\n"
 
 
 def layout_header(instructions) -> str:
@@ -221,6 +223,13 @@ class PromptFormat:
     layout   plain: the user turn is the state, a blank line, the question (the served prompt); header: the request's
              questions are listed first (`layout_header`), then the state and the question as plain. Opt-in
              (--layout header); a state read for one set of questions is not reused for another
+    read_twice_under  0: off; N: when a request read once is at most N counted input tokens (the header, the state
+             and each question's own text, what usage.input_tokens reports for it), each question's user turn is
+             written twice, joined by READ_AGAIN. Opt-in (--read-twice-under N); roughly doubles the tokens computed
+             for such a request
+    read_twice_max_questions  0: no cap; R: a request with more than R questions is read once, whatever its size
+             (--read-twice-max-questions R): the cost of a doubled request grows with its questions, which the token
+             count does not see
 
     The default is the compact layout, the served prompt before 2026-10-03, token for token, so tasks fitted under it
     keep their fingerprint; the server's own default is the spaced layout (--prompt-tail)."""
@@ -230,6 +239,8 @@ class PromptFormat:
     variants: str = "single"
     system_prompt: bool = False
     layout: str = "plain"
+    read_twice_under: int = 0
+    read_twice_max_questions: int = 0
 
     def __post_init__(self):
         for value, allowed, what in (
@@ -240,14 +251,33 @@ class PromptFormat:
         ):
             if value not in allowed:
                 raise ValueError(f"PromptFormat.{what} must be one of {allowed}, not {value!r}")
+        if (
+            isinstance(self.read_twice_under, bool)
+            or not isinstance(self.read_twice_under, int)
+            or self.read_twice_under < 0
+        ):
+            raise ValueError(
+                f"PromptFormat.read_twice_under must be 0 (off) or a token count, not {self.read_twice_under!r}"
+            )
+        if (
+            isinstance(self.read_twice_max_questions, bool)
+            or not isinstance(self.read_twice_max_questions, int)
+            or self.read_twice_max_questions < 0
+        ):
+            raise ValueError(
+                "PromptFormat.read_twice_max_questions must be 0 (no cap) or a number of questions, not "
+                f"{self.read_twice_max_questions!r}"
+            )
+        if self.read_twice_max_questions and not self.read_twice_under:
+            raise ValueError("PromptFormat.read_twice_max_questions limits read twice, which is off (read_twice_under)")
 
     def is_default(self) -> bool:
         return self == PromptFormat()
 
     def core(self) -> "PromptFormat":
-        """This format without its request-level layout (header): how one row's text and labels are rendered, which
-        the layout leaves as it is."""
-        return replace(self, layout="plain")
+        """This format without its request-level layout (header, read twice): how one row's text and labels are
+        rendered, which those layouts leave as they are."""
+        return replace(self, layout="plain", read_twice_under=0, read_twice_max_questions=0)
 
     def label_form(self) -> str:
         """The letter-code list the format needs: "bare" when it reads the bare form only, else "spaced"."""
@@ -263,6 +293,8 @@ class PromptFormat:
             # the layout enters only when on, so the facts (and task fingerprints) of every served format are
             # unchanged; a task fitted under one layout is not applied under another
             **({"layout": self.layout} if self.layout != "plain" else {}),
+            **({"read_twice_under": self.read_twice_under} if self.read_twice_under else {}),
+            **({"read_twice_max_questions": self.read_twice_max_questions} if self.read_twice_max_questions else {}),
         }
 
 
