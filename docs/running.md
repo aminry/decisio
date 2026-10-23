@@ -281,7 +281,7 @@ Off by default: a request is one read, as fast and as repeatable as before.
 ```bash
 python -m decisio.serve.adapter_temperatures fit-think --into decisio_adapter.json --reads think_reads.jsonl --out decisio_adapter.json
 # rows: {"type": "choice" | "noul" | "score", "probs": [...the raw mix...], "gold": index}; --read-at as for `fit`
-python -m decisio.hub tuned-config ...   # reads think_temperatures from the file it is given; an older decisio refuses such a repository
+python -m decisio.hub tuned-config ... --think-temperature score=4.0   # think_temperatures from the file it is given, per type over it by --think-temperature; an older decisio refuses such a repository
 ```
 
 No history decides anything: whether a question thinks depends on that question and the settings alone, so the same request thinks the same way whatever came before it. A lower factor thinks on fewer questions; the factor of a tuned model is chosen so that the share of an ordinary mix that thinks stays small (a thinking question costs seconds where a single read costs milliseconds, and the median request should stay a single read).

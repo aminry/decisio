@@ -303,3 +303,43 @@ def test_q5_an_older_reader_refuses_the_key():
     old_keys = {"temperatures", "choice_bands", "noul_commit", "fit", "noul_commit_basis", "over_limit", "think"}
     config = build(think={"factor": 0.79}, think_temperatures={"score": 4.75})
     assert set(config["defaults"]) - old_keys == {"think_temperatures"}  # a 0.23.0 decisio rejects unknown keys
+
+
+def test_q5_tuned_config_takes_think_temperatures_from_the_file_and_from_the_command_line(tmp_path, capsys):
+    from test_hub_tuned import ADAPTER_SHA, TEMPS
+
+    adapter = tmp_path / "adapter"
+    adapter.mkdir()
+    (adapter / "adapter_model.safetensors").write_bytes(b"adapter weights")
+    (adapter / "adapter_config.json").write_text(json.dumps({"r": 16, "lora_alpha": 32}))
+    merged = tmp_path / "merged"
+    merged.mkdir()
+    (merged / "model-00001-of-00004.safetensors").write_bytes(b"w")
+    (merged / "config.json").write_text("{}")
+    temps = tmp_path / "decisio_adapter.json"
+    temps.write_text(json.dumps({**TEMPS, "think_temperatures": {"score": 2.0, "noul": 3.0}}))
+    report = tmp_path / "MERGE_FP8.json"
+    report.write_text(
+        json.dumps({"adapter_sha256": ADAPTER_SHA, "adapter_scale": 2.0, "adapted_tensors": 840, "groups": 60})
+    )
+    out = tmp_path / "out.json"
+    argv = [
+        "tuned-config", "--base", "gemma-4-31b", "--temperatures", str(temps), "--adapter-dir", str(adapter),
+        "--adapter-repository", "tachara-ai/adapter", "--adapter-revision", "abc", "--merge-report", str(report),
+        "--weights-dir", str(merged), "--out", str(out), "--decisio-version", "0.20.0", "--no-noul-commit",
+    ]  # fmt: skip
+    assert hub.main(argv) == 0
+    assert json.loads(out.read_text())["defaults"]["think_temperatures"] == {"score": 2.0, "noul": 3.0}  # the file's
+    # the command line wins per type (Lab 1's fit: 4.0 for thinking score items) and adds the others
+    assert hub.main([*argv, "--think-temperature", "score=4.0", "--think-temperature", "choice=1.9"]) == 0
+    written = json.loads(out.read_text())
+    assert written["defaults"]["think_temperatures"] == {"score": 4.0, "noul": 3.0, "choice": 1.9}
+    capsys.readouterr()
+    assert hub.main(["check", str(out), "--weights-dir", str(merged)]) == 0
+    for bad in ("score", "score=x", "score=-1", "bands=2.0"):
+        assert hub.main([*argv, "--think-temperature", bad]) == 1, bad
+        assert "refused" in capsys.readouterr().out
+    plain = tmp_path / "plain.json"
+    plain.write_text(json.dumps(TEMPS))
+    argv[argv.index("--temperatures") + 1] = str(plain)
+    assert hub.main(argv) == 0 and "think_temperatures" not in json.loads(out.read_text())["defaults"]
