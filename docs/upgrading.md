@@ -8,22 +8,27 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Next release: an opt-in header layout, and the base's temperatures from a file
+## Next release: the Gemma bases are served with the header layout (answers change)
 
 ### What changed
 
-- **`--layout header`** lists the request's questions before the state ([running.md](running.md#the-header-layout---layout-header)). It is off by default: with it off every prompt, every fingerprint and every task key is what it was.
-  A state cached for one set of questions is not reused for another, and `usage.input_tokens` counts the header. A task registered, or a certificate made, under one layout is not applied under another.
-  Measured on the 12B in FP8: +3.84 points on a Decision Index sample and +3.60 on dev500, concentrated in requests with many questions about one state (weighting each family equally, +1.75 with an interval that crosses 0).
-- **`--temperatures-file FILE`** gives the base its temperatures per question type and its choice bands from a `decisio.adapter/1` file, fitted with `python -m decisio.serve.adapter_temperatures fit` on reads taken under the layout you serve. The served defaults are unchanged.
+- **The Gemma bases (the 31B, the 12B and the 12B in FP8) now put the request's questions before the state** (`Questions that will be asked about the context:`, a `- <question>` line each), then the state and the question as before. **Answers change.** Measured on the 31B against the plain layout: +5.0 points on a Decision Index sample, +4.4 on H776 and +7.4 on hard390 (95% intervals [2.9, 6.9], [2.3, 6.4], [3.1, 11.8]), -0.4 on dev500 (within noise); on the 12B the gain was smaller (+3.8 on the Decision Index sample, +3.6 on dev500, +0.9 on H776, which is within noise) and concentrated in requests with many questions about one state ([running.md](running.md#the-header-layout---layout)). The Qwen base is unchanged.
+- **Who is not affected: a server that loads something fitted or trained on the plain layout keeps serving plain, and says so.** Stored tasks (a directory, a shared store or a file) that apply to the server, abstention tasks written before this release, and adapters or tuned repositories with no recorded layout hold the layout at plain; the start prints `LAYOUT plain (held at plain; this base's default is header): ...` and `/health` carries `systemone.layout`. Nothing that exists changes on upgrade.
+- **How to keep the old behaviour everywhere: `--layout plain`.** How to move a taught deployment to the header: register its tasks again under `--layout header` (a task is kept under the layout it was fitted under; the records of the old ones are not applied under the new layout) and measure.
+- **The cost, for clients that ask a series of questions about one state** (agents, games, teach-it loops): a state cached for one set of questions is not reused for another, so each later question costs like a first question (the 31B, 3,000 tokens: 485 ms against 41; 16,000 tokens: 3,370 ms against 94). They want `--layout plain`. Every response carries `x-decisio-prompt: layout=...; tokens=...; cached=...` to see it.
+- **Tuned repositories and adapters can record their layout:** `defaults.layout` in a repository's `decision_config.json` (`hub tuned-config --layout`; an older decisio refuses a repository that has the key), `layout` in an adapter's `decisio_adapter.json` (`adapter_temperatures fit --layout`). A model is served on the layout it records, plain when it records none; the fine-tuned adapters have not been measured under the header.
+- `usage.input_tokens` counts the header (3 to 10% more on single-question items).
+- Tasks registered, and certificates made, under one layout are not applied under another (the same rule as `--prompt-tail`).
 
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| No new flag | Nothing changes | Nothing |
-| `--layout header` (new) | Another prompt; tasks and certificates of the plain layout are not applied | Register and certify again under the layout; refit the temperatures on its reads; serve a fine-tuned adapter with the layout it was trained on |
-| `--temperatures-file` (new) | The base is served at the file's temperatures | Fit it off-suite, under your layout |
+| A Gemma base with nothing stored and no adapter (a new deployment, a board run) | Answers change: the header layout | Nothing, or `--layout plain` to keep the old answers |
+| A Gemma base with stored tasks, abstention tasks, or an adapter or tuned repository without a recorded layout | Nothing changes: the server holds `plain` and says why | Register again under `--layout header` when you want to move |
+| Clients that ask a series of different questions about one state | Later questions cost like first ones under the header | `--layout plain` |
+| The Qwen base | Nothing changes | Nothing |
+| A tuned repository that records `defaults.layout` | An older decisio refuses it | Run this release or later |
 
 ## 0.25.0: taught tasks kept across restarts, and shared between replicas
 
