@@ -192,20 +192,31 @@ uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-d
 - **An older decisio refuses the repository** by its schema (it reads `/1` only), instead of serving the model at the base's temperatures without saying.
 - The commit setting is a stated choice of the model, shown in the repository's card and in `/health`: with it on, a yes/no probability between 0.20 and 0.80 is reported as 0.80 or 0.20 (the answer never changes; [cli.md](cli.md)).
 
-## Prompt layouts for board runs (`--layout header`, `--read-twice-under N`)
+## The header layout (`--layout header`)
 
-Two opt-in changes of the user turn, as the inference-technique entries of the Decision Index (jev-brain, FlexDM) read. Both are off by default, and with both off the prompt is the served prompt token for token.
+An opt-in change of the user turn, as the inference-technique entries of the Decision Index (jev-brain, FlexDM) read it. It is off by default, and with it off the prompt is the served prompt token for token.
 
-- **`--layout header`** lists the request's questions before the state: `Questions that will be asked about the context:`, one `- <question>` line per question in the request's order, a blank line, then the state and the question exactly as the plain layout writes them. A causal model reads the state with the questions already in view. The header is part of the prefix every question of the request shares, so the cache still serves a request's later questions from its first.
-  - **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A workload that asks the same questions of many states, or one question per state, loses nothing.
-  - **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
-- **`--read-twice-under N`** writes a short request's user turn twice, the second copy after `Read the same input again before answering:`. A request is short when it read once is at most N tokens: its shared prefix once, plus every question's own tokens (FlexDM uses 3,000). Longer requests are read once. The first copy is the layout's prompt, so the cacheable prefix is unchanged; the second copy follows each question and is computed per question.
-  - **The cost:** about twice the tokens computed for the requests it applies to, so about twice the prefill time for them. It is meant for board runs on the Decision Index, not as a default. `usage.input_tokens` counts what is read: the header, and for a request read twice the whole user turn again for every question (its header, state, own text and the joining line). JevBench's cost axis would see the doubling.
-  - The rows are exactly those of Lab 4's A/B arms A1 (header) and A2 (header plus read twice): a test compares them token for token, with Gemma 4's own tokenizer.
+`--layout header` lists the request's questions before the state: `Questions that will be asked about the context:`, one `- <question>` line per question in the request's order, a blank line, then the state and the question exactly as the plain layout writes them. A causal model reads the state with the questions already in view. The header is part of the prefix every question of the request shares, so the cache still serves a request's later questions from its first.
 
-Both enter the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name them: **a task registered, and a certificate made, under one layout is not applied under another** (the same rule as `--prompt-tail`), and each flag state is its own. Register and certify again under the layout you serve. A model fine-tuned on the plain layout has not been measured on these: serve an adapter with the layout it was trained on until a measurement says otherwise.
+- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A workload that asks the same questions of many states, or one question per state, loses nothing. `usage.input_tokens` counts the header too (what is read).
+- **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
+- **Tasks and certificates are per layout.** The layout enters the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name it: a task registered, and a certificate made, under one layout is not applied under another (the same rule as `--prompt-tail`). Register and certify again under the layout you serve. A model fine-tuned on the plain layout has not been measured on this one: serve an adapter with the layout it was trained on until a measurement says otherwise.
+- It applies to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was tested with it. `/health` shows the format under `systemone.prompt`.
 
-The flags apply to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was tested with them. `/health` shows the format under `systemone.prompt`.
+**What was measured.** A pre-registered A/B on one RTX 5090 with the Gemma 4 12B in FP8 (`--base gemma-4-12b-fp8`, decisio 0.25.0's own readout, one request at a time), the header against the served layout:
+
+| Set | Questions | Plain | Header | Header minus plain (95%) |
+| --- | ---: | ---: | ---: | --- |
+| Decision Index public sample (41 families, 490 requests) | 1,613 | 77.87 | 81.71 | **+3.84 points** [1.83, 5.69] |
+| dev500 (one question per request) | 500 | 65.80 | 69.40 | **+3.60** [0.60, 6.60] |
+| H776 (one question per request) | 776 | 69.33 | 70.23 | +0.90 [-1.80, 3.61] |
+
+Intervals are a bootstrap over requests. Read them with these caveats:
+- **The Decision Index gain sits in requests that ask many questions about one state.** Language is +7.7 [5.2, 10.1], mostly one family (aspect sentiment, about 41 questions about one review per request: +10.4 [7.9, 13.3] on 492 questions); knowledge, tools and arts are within noise (-1.8, -1.3, -1.7). Without that family, question-weighted, the gain is +0.98. **Weighting each of the 41 families equally, as the board averages, it is +1.75 with an interval of [-0.77, 4.50], which crosses 0.** The other families have 12 requests each, too few to read one by one.
+- **On single-question items** (dev500, H776) the header lists the one question before its own text; the gain there is +3.60 on dev500 and not distinguishable from 0 on H776.
+- **Cost:** computed tokens (what the cache does not serve) were 1.32 times the plain layout's on the Decision Index sample (2.9 times the prompt tokens, which a server without the cache would read), 1.03 on H776 and 1.08 on dev500; per-request latency was 1.02 to 1.09 at the median and 1.02 to 1.28 on average.
+- One base, one card, one set of items: it shows the header can help, not that it helps your traffic. Measure on your own before using it. The Decision Index board rows with this layout were produced on the 31B; the 12B A/B is the only measurement here.
+- Read twice (the user turn written again after the question) was measured as well, on top of the header, and added nothing within noise at 1.5 to 2.7 times the tokens; decisio does not offer it.
 
 ### Refitting the base's temperatures for a layout
 

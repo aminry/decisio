@@ -1,18 +1,17 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""Prompt layout flags (`--layout header`, `--read-twice-under N`) and the base's `--temperatures-file`.
+"""Prompt layout (`--layout header`) and the base's `--temperatures-file`.
 
-The oracle is Lab 4's A/B renderer (arms A0, A1 and A2 of its card/code/layouts.py), copied below, so the served
-flag and the A/B read the same tokens.
+The oracle is Lab 4's A/B renderer (arms A0 and A1 of its card/code/layouts.py), copied below, so the served flag
+and the A/B read the same tokens.
 
 L1  the format: the default's facts and rows are unchanged; the flags enter the facts (hence the fingerprint) only when
     on; bad values are refused
 L2  the header layout equals the A/B's A1 token for token, lists every question of a request once, keeps the shared
     prefix (header and state) for every question, and the rows with the plain layout are what they were
-L3  read twice equals the A/B's A2: only a request read once of at most N tokens, the shared prefix counted once
-L4  usage.input_tokens counts what is read: the header, and the second copy of every row
+L4  usage.input_tokens counts what is read: the header
 L5  a task fitted, or a certificate made, under one layout does not apply under another
-L6  the flags are in the parser and reach the format; the base's temperatures file and its precedence
+L6  the flag is in the parser and reaches the format; the base's temperatures file and its precedence
 
   uv run pytest -q tests/unit/test_layout_flags.py
 """
@@ -76,30 +75,16 @@ def q(text, options=("billing", "shipping", "access"), kind="choice"):
 
 # the A/B's renderer (card/code/layouts.py), on engine questions
 HEAD = "Questions that will be asked about the context:\n"
-AGAIN = "\n\nRead the same input again before answering:\n"
 
 
-def oracle(tok, arm, state, questions, fmt, twice_max=3000):
+def oracle(tok, arm, state, questions, fmt):
     body = L.fmt_state(state)
     bodies = [L.question_body(tok, e["kind"], e["instructions"], e.get("options"), fmt)[0] for e in questions]
-    header = HEAD + "".join(f"- {e['instructions']}\n" for e in questions) + "\n" if arm in ("A1", "A2") else ""
+    header = HEAD + "".join(f"- {e['instructions']}\n" for e in questions) + "\n" if arm == "A1" else ""
     turns = [header + body + "\n\n" + t for t in bodies]
     ids = [tok.encode(L.chat_turn(tok, t, fmt), add_special_tokens=False) for t in turns]
 
-    def common(a, b):
-        n = 0
-        for x, y in zip(a, b):
-            if x != y:
-                break
-            n += 1
-        return n
-
-    pre = ids[0] if len(ids) == 1 else ids[0][: min(common(ids[0], x) for x in ids[1:])]
-    once = len(pre) + sum(len(x) - len(pre) for x in ids)
-    twice = arm == "A2" and once <= twice_max
-    if twice:
-        ids = [tok.encode(L.chat_turn(tok, t + AGAIN + t, fmt), add_special_tokens=False) for t in turns]
-    return ids, once, twice
+    return ids
 
 
 STATE = {"message": "my invoice was charged twice and nobody answered my first mail"}
@@ -115,14 +100,15 @@ def test_l1_the_default_facts_are_unchanged_and_the_flags_enter_only_when_on():
     assert base.facts() == {"tail": "spaced", "slot": "template", "variants": "summed", "system_prompt": True}
     assert L.PromptFormat().facts() == {"tail": "compact", "slot": "prefill", "variants": "single"}
     h = L.PromptFormat(**BASE, layout="header")
-    t = L.PromptFormat(**BASE, layout="header", read_twice_under=3000)
     assert h.facts() == {**base.facts(), "layout": "header"}
-    assert t.facts() == {**base.facts(), "layout": "header", "read_twice_under": 3000}
-    assert L.PromptFormat(**BASE, read_twice_under=500).facts() == {**base.facts(), "read_twice_under": 500}
-    assert base.core() == h.core() == t.core() == base and not h.is_default()
-    for bad in ({"layout": "footer"}, {"read_twice_under": -1}, {"read_twice_under": True}, {"read_twice_under": 2.5}):
-        with pytest.raises(ValueError):
-            L.PromptFormat(**BASE, **bad)
+    assert L.PromptFormat(**BASE, layout="plain").facts() == base.facts()
+    assert base.core() == h.core() == base and not h.is_default()
+    with pytest.raises(ValueError):
+        L.PromptFormat(**BASE, layout="footer")
+    with pytest.raises(
+        TypeError
+    ):  # read twice was measured (no gain at 1.5 to 2.7 times the tokens) and is not an option
+        L.PromptFormat(**BASE, read_twice_under=3000)
 
 
 def test_l1_the_default_layout_rows_are_the_plain_prompt():
@@ -132,7 +118,7 @@ def test_l1_the_default_layout_rows_are_the_plain_prompt():
     for (ids, _), e in zip(rows, TWO):
         text = question_text(tok, e, fmt)[0]
         assert ids == tok.encode(L.chat_turn(tok, f"{L.fmt_state(STATE)}\n\n{text}", fmt), add_special_tokens=False)
-    ids = oracle(tok, "A0", STATE, TWO, fmt)[0]
+    ids = oracle(tok, "A0", STATE, TWO, fmt)
     assert [r[0] for r in rows] == ids and n > 0
     # the default format of the Qwen base (compact, prefill) is the evaluation prompt, with or without the flags' fields
     plain, flagged = L.PromptFormat(), L.PromptFormat(layout="header")
@@ -146,8 +132,8 @@ def test_l1_the_default_layout_rows_are_the_plain_prompt():
 def test_l2_the_header_layout_is_the_ab_arm_a1_token_for_token(questions):
     tok, fmt = StubTok(), L.PromptFormat(**BASE, layout="header")
     rows, n = engine(fmt, tok)._prepare_separate(STATE, questions)
-    ids, _, twice = oracle(tok, "A1", STATE, questions, L.PromptFormat(**BASE))
-    assert [r[0] for r in rows] == ids and not twice
+    ids = oracle(tok, "A1", STATE, questions, L.PromptFormat(**BASE))
+    assert [r[0] for r in rows] == ids
 
 
 def test_l2_the_header_lists_every_question_once_and_every_row_keeps_the_prefix():
@@ -177,54 +163,12 @@ def test_l2_padding_and_the_boundary_follow_the_header():
     assert n % 16 == 0 and all(len(r[0]) > n for r in rows)  # the padded prefix still ends on a block boundary
 
 
-# ---- L3 -------------------------------------------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize("questions", [ONE, TWO])
-def test_l3_read_twice_is_the_ab_arm_a2_and_counts_the_request_read_once(questions):
-    tok = StubTok()
-    plain = L.PromptFormat(**BASE)
-    once = oracle(tok, "A1", STATE, questions, plain)
-    total = oracle(tok, "A2", STATE, questions, plain, twice_max=10**9)[1]
-    for limit in (total - 1, total, total + 50):
-        fmt = L.PromptFormat(**BASE, layout="header", read_twice_under=limit)
-        eng = engine(fmt, StubTok())
-        rows, n = eng._prepare_separate(STATE, questions)
-        want, once_tokens, twice = oracle(eng.tok, "A2", STATE, questions, plain, twice_max=limit)
-        assert [r[0] for r in rows] == want and twice == (limit >= total)
-        assert eng.read_plan(STATE, questions) == {"header": True, "twice": twice, "once_tokens": once_tokens}
-        assert all(r[0][:n] == rows[0][0][:n] for r in rows)  # the cacheable prefix is the first copy's
-    assert once[1] == total
-
-
-def test_l3_a_request_over_the_limit_is_read_once_and_the_plan_says_so():
-    fmt = L.PromptFormat(**BASE, layout="header", read_twice_under=5)
-    eng = engine(fmt)
-    plan = eng.read_plan(STATE, TWO)
-    assert plan["twice"] is False and plan["once_tokens"] > 5 and plan["header"] is True
-    rows, _ = eng._prepare_separate(STATE, TWO)
-    assert eng.tok.decode(rows[0][0]).count("Read the same input again") == 0
-    off = engine(L.PromptFormat(**BASE, layout="header"))
-    assert off.read_plan(STATE, TWO) == {"header": True, "twice": False, "once_tokens": None}
-
-
-def test_l3_read_twice_without_the_header_repeats_the_plain_turn():
-    tok, fmt = StubTok(), L.PromptFormat(**BASE, read_twice_under=10_000)
-    rows, _ = engine(fmt, tok)._prepare_separate(STATE, ONE)
-    text = L.fmt_state(STATE) + "\n\n" + question_text(tok, ONE[0], fmt)[0]
-    assert rows[0][0] == tok.encode(L.chat_turn(tok, text + AGAIN + text, fmt), add_special_tokens=False)
-
-
 # ---- L4 -------------------------------------------------------------------------------------------------------------
 
 
 class UsageEngine:
     def __init__(self, fmt):
         self.tok, self.fmt = StubTok(), fmt
-        self.eng = engine(fmt, self.tok)
-
-    def read_plan(self, state, qs):
-        return self.eng.read_plan(state, qs)
 
 
 def usage(fmt, questions=TWO):
@@ -242,20 +186,13 @@ def test_l4_usage_counts_the_state_and_the_questions_as_before_under_the_default
     assert n == want
 
 
-def test_l4_usage_counts_the_header_and_the_second_copy_of_every_row():
+def test_l4_usage_counts_the_header():
     plain, tok = usage(L.PromptFormat(**BASE))
     header_n = len(tok.encode(layout_header_text(TWO)))
     header, _ = usage(L.PromptFormat(**BASE, layout="header"))
-    assert header == plain + header_n
-    twice, tok2 = usage(L.PromptFormat(**BASE, layout="header", read_twice_under=10_000))
-    fmt = L.PromptFormat(**BASE)
-    state_n = len(tok2.encode(L.fmt_state(STATE)))
-    asked = [len(tok2.encode(question_text(tok2, e, fmt)[0])) for e in TWO]
-    again = len(tok2.encode(AGAIN))
-    assert twice == header + sum(header_n + state_n + a + again for a in asked)
-    assert twice > 1.9 * header  # roughly doubles
-    short, _ = usage(L.PromptFormat(**BASE, layout="header", read_twice_under=5))
-    assert short == header  # a request over the limit is read once, and counted once
+    assert header == plain + header_n and header_n > 0
+    one, _ = usage(L.PromptFormat(**BASE, layout="header"), ONE)
+    assert one == usage(L.PromptFormat(**BASE), ONE)[0] + len(tok.encode(layout_header_text(ONE)))
 
 
 # ---- L5 -------------------------------------------------------------------------------------------------------------
@@ -278,12 +215,11 @@ def fingerprint(fmt):
 def test_l5_tasks_and_certificates_are_per_layout():
     plain = fingerprint(L.PromptFormat(**BASE))
     header = fingerprint(L.PromptFormat(**BASE, layout="header"))
-    twice = fingerprint(L.PromptFormat(**BASE, layout="header", read_twice_under=3000))
-    assert len({plain, header, twice}) == 3
-    assert plain == fingerprint(L.PromptFormat(**BASE, layout="plain", read_twice_under=0))  # the default, unchanged
+    assert plain != header
+    assert plain == fingerprint(L.PromptFormat(**BASE, layout="plain"))  # the default, unchanged
     from decisio.names import same_fingerprint
 
-    assert not same_fingerprint(plain, header) and not same_fingerprint(header, twice)
+    assert not same_fingerprint(plain, header)
 
 
 def test_l5_a_certificate_made_under_another_layout_is_suspended():
@@ -320,22 +256,22 @@ def test_l5_a_certificate_made_under_another_layout_is_suspended():
 # ---- L6 -------------------------------------------------------------------------------------------------------------
 
 
-def test_l6_the_flags_reach_the_format():
+def test_l6_the_flag_reaches_the_format_and_read_twice_is_not_a_flag():
     from test_hub import args_for
 
     parser = vllm_engine.build_parser()
-    a = parser.parse_args(["--layout", "header", "--read-twice-under", "3000", "--temperatures-file", "t.json"])
-    assert (a.layout, a.read_twice_under, a.temperatures_file) == ("header", 3000, "t.json")
+    a = parser.parse_args(["--layout", "header", "--temperatures-file", "t.json"])
+    assert (a.layout, a.temperatures_file) == ("header", "t.json")
     d = parser.parse_args([])
-    assert (d.layout, d.read_twice_under, d.temperatures_file) == (None, None, None)
-    args = args_for("gemma-4-12b", layout="header", read_twice_under=3000)
+    assert (d.layout, d.temperatures_file) == (None, None)
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--read-twice-under", "3000"])
+    args = args_for("gemma-4-12b", layout="header")
     fam, fmt = vllm_engine.resolve_base(args)
-    assert fmt.layout == "header" and fmt.read_twice_under == 3000 and fmt.tail == fam.prompt_tail
+    assert fmt.layout == "header" and fmt.tail == fam.prompt_tail
     plain_args = args_for("gemma-4-12b")
     _, plain = vllm_engine.resolve_base(plain_args)
     assert plain.facts() == {"tail": "spaced", "slot": "template", "variants": "summed", "system_prompt": True}
-    with pytest.raises(SystemExit):
-        vllm_engine.resolve_base(args_for("gemma-4-12b", read_twice_under=-5))
 
 
 def temps_file(tmp_path, **doc):
@@ -411,9 +347,8 @@ def gemma_tokenizer():
 def test_l7_the_real_tokenizer_reads_the_same_tokens_as_the_ab_arms():
     tok = gemma_tokenizer()
     plain = L.PromptFormat(**BASE)
-    for arm, kw in (("A0", {}), ("A1", {"layout": "header"}), ("A2", {"layout": "header", "read_twice_under": 3000})):
+    for arm, kw in (("A0", {}), ("A1", {"layout": "header"})):
         fmt = L.PromptFormat(**BASE, **kw)
         for questions in (ONE, TWO):
             rows, n = engine(fmt, tok)._prepare_separate(STATE, questions)
-            want, _, _ = oracle(tok, arm, STATE, questions, plain)
-            assert [r[0] for r in rows] == want, (arm, len(questions))
+            assert [r[0] for r in rows] == oracle(tok, arm, STATE, questions, plain), (arm, len(questions))

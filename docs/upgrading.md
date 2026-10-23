@@ -8,21 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Next release: opt-in prompt layouts, and the base's temperatures from a file
+## Next release: an opt-in header layout, and the base's temperatures from a file
 
 ### What changed
 
-- **`--layout header`** lists the request's questions before the state, and **`--read-twice-under N`** writes a request read once of at most N tokens twice ([running.md](running.md#prompt-layouts-for-board-runs---layout-header---read-twice-under-n)). Both are off by default: with both off every prompt, every fingerprint and every task key is what it was.
-  A state cached for one set of questions is not reused for another under the header layout; read twice about doubles the tokens computed for the requests it applies to, and `usage.input_tokens` counts both copies.
-  A task registered, or a certificate made, under one layout is not applied under another.
+- **`--layout header`** lists the request's questions before the state ([running.md](running.md#the-header-layout---layout-header)). It is off by default: with it off every prompt, every fingerprint and every task key is what it was.
+  A state cached for one set of questions is not reused for another, and `usage.input_tokens` counts the header. A task registered, or a certificate made, under one layout is not applied under another.
+  Measured on the 12B in FP8: +3.84 points on a Decision Index sample and +3.60 on dev500, concentrated in requests with many questions about one state (weighting each family equally, +1.75 with an interval that crosses 0).
 - **`--temperatures-file FILE`** gives the base its temperatures per question type and its choice bands from a `decisio.adapter/1` file, fitted with `python -m decisio.serve.adapter_temperatures fit` on reads taken under the layout you serve. The served defaults are unchanged.
 
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| Neither flag | Nothing changes | Nothing |
-| `--layout header` or `--read-twice-under` (new) | Another prompt; tasks and certificates of the plain layout are not applied | Register and certify again under the layout; refit the temperatures on its reads; serve a fine-tuned adapter with the layout it was trained on |
+| No new flag | Nothing changes | Nothing |
+| `--layout header` (new) | Another prompt; tasks and certificates of the plain layout are not applied | Register and certify again under the layout; refit the temperatures on its reads; serve a fine-tuned adapter with the layout it was trained on |
 | `--temperatures-file` (new) | The base is served at the file's temperatures | Fit it off-suite, under your layout |
 
 ## 0.25.0: taught tasks kept across restarts, and shared between replicas

@@ -238,8 +238,6 @@ class HFHiddenEngine(HiddenReadout):
     pad_policy = LettersEngine.pad_policy
     fmt = LettersEngine.fmt
     _prepare_separate = LettersEngine._prepare_separate
-    _build_rows = LettersEngine._build_rows
-    read_plan = LettersEngine.read_plan
     _template_tail = LettersEngine._template_tail
     _labels = LettersEngine._labels
 
