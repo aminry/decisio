@@ -3,7 +3,7 @@
 
 # Design: the header layout as the default
 
-Status: proposal, nothing built. It asks for five decisions, each with a recommendation, in "Decisions asked for" at the end.
+Status: accepted and built in 0.26.0. All five recommendations were accepted (every request gets the header; `--layout plain` for state reuse, a per-request field only if asked; the layout held at plain where plain-fitted tasks, certificates or adapters are loaded; adapters serve their recorded layout, plain if none; 0.26.0 as a breaking `feat`). What was built is under "As built" at the end; the user documentation is `running.md` ("The header layout") and `upgrading.md`.
 `--layout header` (0.25.0 plus #290) lists a request's questions before its state. This note is about making it the layout decisio serves when nothing else is said.
 
 ## The evidence, and what it leaves open
@@ -113,3 +113,10 @@ This changes the answers of every bare base on upgrade. It is breaking for answe
 - Read twice: removed in #290 on the 12B's evidence; Lab 4 proposes testing it on the 31B before writing it off. It would be its own decision.
 - A new Decision Index or JevBench row under the header is the owner's call, not a decisio change.
 - The temperatures under the header: `--temperatures-file` exists and the refit is the open item (Lab 4 found the natural-split refit harmful on yes/no as fitted); nothing here changes the served temperatures.
+
+## As built (0.26.0)
+
+- `decisio.serve.layout.decide_layout` decides once at start: `--layout`, else the layout a tuned repository (`defaults.layout`) or an adapter (`layout` in its file) recorded (plain when none; things recorded with different layouts cannot share a server), else the base's default (`Family.layout`: header for the Gemma bases), held at plain while stored tasks fitted under plain apply. The stores are read before the task fingerprint is built. The start prints `LAYOUT ...`; `/health` carries `systemone.layout`.
+- The hub profile is unchanged (it describes the plain-layout base), so every repository file exported before 0.26.0 still agrees. An older decisio refuses a repository that records `defaults.layout`.
+- Abstention tasks carry `layout` when it is not plain and apply only under it. Responses carry `x-decisio-prompt: layout=...; tokens=...; cached=...`.
+- Not built: the per-request `layout` field (about 8 working hours, if clients ask).
