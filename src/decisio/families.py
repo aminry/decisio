@@ -76,6 +76,12 @@ class Family:
     # the served temperatures: global, and for choice questions (None: the global one)
     temperature: float = 1.0
     choice_temperature: float | None = None
+    # beyond those two: a temperature for yes/no ("noul") and for score questions of their own (the global one when
+    # absent), and a choice temperature per band of option count ("lo-hi": T, 2 to 255, not overlapping). Both are
+    # the profile's last word: a flag, a temperatures file and a tuned repository's defaults come first, and the bands
+    # apply only where none of them gave a choice temperature (`apply_profile_temperatures`). No base sets either yet.
+    temperatures: dict = field(default_factory=dict)
+    choice_bands: dict = field(default_factory=dict)
     # the prompt's defaults (decisio.readout.letters.PromptFormat) and the yes/no rendering
     system_prompt: bool = False
     prompt_tail: str = "spaced"
@@ -321,3 +327,23 @@ def as_loaded(fam: Family, config: dict) -> Family:
     if fam.quantization == "fp8" and declares_fp8(config):
         return replace(fam, quantization=None)
     return fam
+
+
+def check_profile_temperatures(fam: Family) -> None:
+    """Refuse a base profile whose per-type temperatures or choice bands are malformed: `temperatures` names noul or
+    score only (choice has `choice_temperature` and the bands), every value a positive finite number, the bands
+    within 2 to 255 and not overlapping."""
+    import math
+
+    for k, v in fam.temperatures.items():
+        if k not in ("noul", "score"):
+            raise ValueError(f"{fam.key}: temperatures names {k!r}; only noul and score (choice has its own field)")
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+            raise ValueError(f"{fam.key}: the {k} temperature must be a positive number, got {v!r}")
+    if fam.choice_bands:
+        from decisio.serve.adapter_temperatures import AdapterFileError, validate_temperatures
+
+        try:
+            validate_temperatures({}, dict(fam.choice_bands), f"{fam.key} profile")
+        except AdapterFileError as e:
+            raise ValueError(str(e)) from e

@@ -28,6 +28,10 @@ Think-mode temperatures:
 - **The fingerprint** of a server that thinks holds its think temperatures when it has any (`serving.think.temperatures`); a task certified under other ones is `think_mode_changed`.
   A server that does not think, or has none, keeps the fingerprint it had.
 
+A base's profile can carry per-type temperatures and bands:
+
+- **A base's profile can hold a temperature for yes/no and for score, and choice temperatures by band of option count**, beside the global and choice ones ([running.md](running.md#refitting-the-bases-temperatures-for-a-layout)). It is the last word of the precedence (a flag, `--temperatures-file`, a tuned repository's defaults, then the profile). **No base sets them in this release**, so every served temperature is what it was; the exported hub profile is unchanged, so repository files exported before this still agree.
+
 ### Who is affected
 
 | You run | What happens | What to do |
