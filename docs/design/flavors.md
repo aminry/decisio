@@ -118,4 +118,8 @@ What the DI kit and the JevBench harness send as `model` is not known to this no
 
 ## As built
 
-Not built yet.
+Built in #304 (on #303, the per-type and band profile).
+- `decisio.flavors` holds the block, the table per base, the names, the overrides and the report; `--flavor` is resolved in `resolve_base` (the settings before the prompt format is built, the temperatures after the flags and the temperatures file, before the base's profile).
+- `calibrated` refuses to start; `read-enhanced` serves N = 2,000 without a question cap and with the base's own temperatures, and `thinking-commit` serves the default factor and budget, both marked `pending`.
+- `/health` carries `systemone.flavor`, every response `x-decisio-flavor`, the start line `FLAVOR`, `FLAVOR OVERRIDE` and `FLAVOR PENDING` lines; the serving-stack fingerprint holds the flavor only when one is set.
+- Not built: flavors for a tuned model, several flavors on one server, the values of `calibrated`.
