@@ -58,6 +58,7 @@ import numpy as np
 from decisio.readout.letters import (  # noqa: E402
     DEFAULT_FORMAT,
     LETTERS_INSTRUCTION,
+    READ_AGAIN,
     PromptFormat,
     allowed_ids,
     chat_turn,
@@ -591,11 +592,33 @@ class LettersEngine:
         question cost 0.6 ms (500-token state) to 5.7 ms (8,000) of CPU per question.
         The first row of every request is checked against tokenizing its whole prompt; a mismatch falls
         back to full tokenization for that request, so the rows are always what evaluation scores."""
+        rows, n, _ = self._build_rows(state, questions)
+        k = (-n % self.pad_unit) if self.pad_unit else 0
+        if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
+            k = 0  # none: never pad; shared: no second question can reuse the padded boundary
+        elif self.pad_policy == "row" and len(questions) == 1 and self.pad_unit:
+            # --pad-policy row: the whole row, state and question, ends on a block boundary, so a cold prefill is
+            # one engine step (align mode stops a prefill at the last boundary, and a row just past one costs a
+            # second step); the state's boundary is then not aligned, which no second question would use anyway
+            k = -len(rows[0][0]) % self.pad_unit
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
+        head = len(enc(USER_HEAD))
+        rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
+        return rows, n + k
+
+    def read_plan(self, state, questions) -> dict:
+        """What the layout flags do to this request, for the usage count and the record: `twice` (every question's
+        user turn is written twice), `once_tokens` (the request read once: its shared prefix once plus every
+        question's own tokens), `header` (the questions are listed first)."""
+        _, _, plan = self._build_rows(state, questions)
+        return plan
+
+    def _build_rows(self, state, questions):
+        """(rows, n, plan): the request's token rows before padding, the shared prefix length `n` (the header, if the
+        layout has one, and the state, up to the question), and the layout's plan (`read_plan`)."""
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         body = fmt_state(state)
-        if (
-            self.fmt.layout == "header"
-        ):  # --layout header: the request's questions first (every question of the request)
+        if self.fmt.layout == "header":
             body = layout_header([q["instructions"] for q in questions]) + body
         tail = self._template_tail()
         texts = [question_text(self.tok, q, self.fmt) for q in questions]
@@ -621,17 +644,26 @@ class LettersEngine:
                 raise ValueError(
                     "a question's text merges with the state's last token; questions must not start with whitespace"
                 )
-        k = (-n % self.pad_unit) if self.pad_unit else 0
-        if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
-            k = 0  # none: never pad; shared: no second question can reuse the padded boundary
-        elif self.pad_policy == "row" and len(questions) == 1 and self.pad_unit:
-            # --pad-policy row: the whole row, state and question, ends on a block boundary, so a cold prefill is
-            # one engine step (align mode stops a prefill at the last boundary, and a row just past one costs a
-            # second step); the state's boundary is then not aligned, which no second question would use anyway
-            k = -len(rows[0][0]) % self.pad_unit
-        head = len(enc(USER_HEAD))
-        rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
-        return rows, n + k
+        plan = {"header": self.fmt.layout == "header", "twice": False, "once_tokens": None}
+        if self.fmt.read_twice_under:
+            # a short request is read twice: each question's user turn again after READ_AGAIN. "Short" is the request
+            # read once, its shared prefix once plus every question's own tokens (what FlexDM counts)
+            common = min(len(r[0]) for r in rows)
+            for i in range(common):
+                if any(r[0][i] != rows[0][0][i] for r in rows[1:]):
+                    common = i
+                    break
+            once = common + sum(len(ids) - common for ids, _ in rows)
+            plan.update(once_tokens=once, twice=once <= self.fmt.read_twice_under)
+            if plan["twice"]:
+                rows = [
+                    (enc(user_turn(self.tok, f"{t}{READ_AGAIN}{t}", self.fmt)), lab)
+                    for t, (_, lab) in zip((f"{body}\n\n{text}" for text, _, _ in texts), rows)
+                ]
+                for ids, _ in rows:
+                    if ids[:n] != prefix:
+                        raise ValueError("read twice moved the state's tokens; the first copy must be the prompt")
+        return rows, n, plan
 
     def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
         """Label distributions for fully-built prompts [(token ids, label ids)], one engine request each.
@@ -1559,6 +1591,8 @@ def resolve_base(args):
             f"give --model an MLX conversion of {fam.key} (docs/running.md)"
         )
     args.repository = None
+    if (getattr(args, "read_twice_under", None) or 0) < 0:
+        raise SystemExit("--read-twice-under must be 0 (off) or a token count")
     if repo is not None:
         hub.verify(repo, fam)
         fam = hub.serve_family(fam, repo)
@@ -1579,6 +1613,7 @@ def resolve_base(args):
         variants=args.label_variants or fam.label_variants,
         system_prompt=fam.system_prompt if args.system_prompt is None else args.system_prompt,
         layout=getattr(args, "layout", None) or "plain",
+        read_twice_under=getattr(args, "read_twice_under", None) or 0,
     )
     if args.pad_to is None:
         args.pad_to = fam.pad_to
@@ -1972,6 +2007,18 @@ def build_parser():
         "(docs/running.md)",
     )
     ap.add_argument(
+        "--read-twice-under",
+        type=int,
+        default=None,
+        metavar="N",
+        help="read short requests twice (off; never the default): when a request read once is at most N tokens (its "
+        "shared prefix once, plus every question's own tokens), each question's user turn is written twice, joined by "
+        "'Read the same input again before answering:'. For Decision Index runs: about 1.5 times the tokens computed, "
+        "usage.input_tokens counts both copies (a JevBench row with it is over the cost cap). On the 31B with the "
+        "header 3000 (FlexDM's) gave +1.9 on a Decision Index sample with a p80 latency at or over its 1000 ms gate; "
+        "1500 kept +1.8 with p80 about 820 ms. Tasks and certificates are per setting (docs/running.md)",
+    )
+    ap.add_argument(
         "--answer-slot",
         default=None,
         choices=["prefill", "template"],
@@ -2306,6 +2353,8 @@ def resolve_layout(args, fmt, sources, adapter_layouts):
     if tf.get("layout") and tf["layout"] != decision["value"]:
         decision["notes"].append(f"--temperatures-file was fitted under the {tf['layout']} layout")
     print(lay.describe(decision), flush=True)
+    if fmt.read_twice_under:
+        print(f"READ TWICE requests read once of at most {fmt.read_twice_under} tokens are written twice", flush=True)
     return replace(fmt, layout=decision["value"]), decision
 
 

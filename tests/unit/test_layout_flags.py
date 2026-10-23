@@ -105,10 +105,6 @@ def test_l1_the_default_facts_are_unchanged_and_the_flags_enter_only_when_on():
     assert base.core() == h.core() == base and not h.is_default()
     with pytest.raises(ValueError):
         L.PromptFormat(**BASE, layout="footer")
-    with pytest.raises(
-        TypeError
-    ):  # read twice was measured (no gain at 1.5 to 2.7 times the tokens) and is not an option
-        L.PromptFormat(**BASE, read_twice_under=3000)
 
 
 def test_l1_the_default_layout_rows_are_the_plain_prompt():
@@ -256,7 +252,7 @@ def test_l5_a_certificate_made_under_another_layout_is_suspended():
 # ---- L6 -------------------------------------------------------------------------------------------------------------
 
 
-def test_l6_the_flag_reaches_the_format_and_read_twice_is_not_a_flag():
+def test_l6_the_flag_reaches_the_format():
     from test_hub import args_for
 
     parser = vllm_engine.build_parser()
@@ -264,8 +260,6 @@ def test_l6_the_flag_reaches_the_format_and_read_twice_is_not_a_flag():
     assert (a.layout, a.temperatures_file) == ("header", "t.json")
     d = parser.parse_args([])
     assert (d.layout, d.temperatures_file) == (None, None)
-    with pytest.raises(SystemExit):
-        parser.parse_args(["--read-twice-under", "3000"])
     args = args_for("gemma-4-12b", layout="header")
     fam, fmt = vllm_engine.resolve_base(args)
     assert fmt.layout == "header" and fmt.tail == fam.prompt_tail

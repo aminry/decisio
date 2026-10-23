@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Next release: read twice, as an opt-in for Decision Index runs
+
+### What changed
+
+- **`--read-twice-under N`** writes a request that read once is at most N tokens twice, the second copy after `Read the same input again before answering:` ([running.md](running.md#read-twice---read-twice-under-n-for-decision-index-runs)). It is **off by default and never the default**: with it off every prompt, fingerprint and task key is what it was. On the 31B with the header it added +1.9 to a Decision Index sample at N = 3,000, with a p80 latency at or over that board's gate; N = 1,500 kept +1.8 with p80 about 816 ms. It costs about 1.5 times the computed tokens, `usage.input_tokens` counts both copies, and a JevBench row with it is over the cost cap. On the 12B the same step added nothing within noise.
+- Tasks registered, and certificates made, under one setting are not applied under another.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Without the flag | Nothing changes | Nothing |
+| `--read-twice-under N` (new) | Short requests are read twice; tasks and certificates of other settings are not applied | Choose N from a run of your own; register and certify again under it |
+
 ## 0.26.0: the Gemma bases are served with the header layout (answers change)
 
 ### What changed
