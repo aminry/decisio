@@ -192,18 +192,38 @@ uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-d
 - **An older decisio refuses the repository** by its schema (it reads `/1` only), instead of serving the model at the base's temperatures without saying.
 - The commit setting is a stated choice of the model, shown in the repository's card and in `/health`: with it on, a yes/no probability between 0.20 and 0.80 is reported as 0.80 or 0.20 (the answer never changes; [cli.md](cli.md)).
 
-## The header layout (`--layout header`)
+## The header layout (`--layout`)
 
-An opt-in change of the user turn, as the inference-technique entries of the Decision Index (jev-brain, FlexDM) read it. It is off by default, and with it off the prompt is the served prompt token for token.
+**Since 0.26.0 the Gemma bases are served with the header layout.** It lists the request's questions before the state, as the inference-technique entries of the Decision Index (jev-brain, FlexDM) read it. The Qwen base, and everything that was fitted or trained on the earlier layout, keeps the plain one, the state then the question, which is what 0.25.0 and earlier served for every base.
 
-`--layout header` lists the request's questions before the state: `Questions that will be asked about the context:`, one `- <question>` line per question in the request's order, a blank line, then the state and the question exactly as the plain layout writes them. A causal model reads the state with the questions already in view. The header is part of the prefix every question of the request shares, so the cache still serves a request's later questions from its first.
+`--layout header` lists the request's questions before the state: `Questions that will be asked about the context:`, one `- <question>` line per question in the request's order, a blank line, then the state and the question exactly as the plain layout writes them. A causal model reads the state with the questions already in view. The header is part of the prefix every question of the request shares, so the cache still serves a request's later questions from its first. `--layout plain` serves the earlier layout, token for token.
 
-- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A workload that asks the same questions of many states, or one question per state, loses nothing. `usage.input_tokens` counts the header too (what is read).
+**Which layout a server serves** is decided once, at start, from the flags, the base, what the repository and adapters recorded, and the stored tasks (never from requests: the same request gives the same bytes). The start prints it (`LAYOUT ...`) and `/health` carries it (`systemone.layout`: `value`, `why`, `default`, `held_by`, `notes`):
+1. `--layout plain` or `--layout header`, if given: that layout, whatever is loaded. What it leaves behind is reported (`notes`): a task fitted under the other layout is not applied.
+2. A tuned repository (`defaults.layout`) or an adapter (`layout` in its `decisio_adapter.json`, or the `--layout` of `adapter_temperatures fit`) records the layout it was trained and measured on. **With no record it is served plain**, whatever the base's default is: every tuned model and adapter that existed before 0.26.0 was trained on the plain layout. Things trained on different layouts cannot share a server (the start stops and says which); give `--layout` to put them on one.
+3. Otherwise the base's default: header for the Gemma bases, plain for Qwen.
+4. **A default of header is held at plain while tasks fitted under plain apply to the server**: calibration or head tasks (their fingerprint equals this server's with the plain layout) or abstention tasks (a record with no `layout` was fitted under plain), from a directory, a shared store or a file. A task is kept under the layout it was fitted under, and the new default would stop applying it and change its questions' answers. The start says `LAYOUT plain (held at plain; this base's default is header): ...`. To move to the header, register the tasks again under it (export them first if you want the records) and start with `--layout header`; to pin the old behaviour, `--layout plain`. A bare base, a new deployment or a board run, with nothing stored, gets the header.
+
+- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A client that sends one state with a series of different questions (an agent, a game, a teach-it loop) pays for it: on the 31B a later question about a 3,000-token state costs 485 ms instead of 41 ms, at 16,000 tokens 3,370 ms instead of 94 (the table under "First-question latency by state length"). **Such a client wants `--layout plain`.** A workload that asks the same questions of many states, or one question per state, loses nothing. Every response says what its prompt cost: `x-decisio-prompt: layout=header; tokens=<mean prompt tokens per question>; cached=<mean tokens the cache served>`. `usage.input_tokens` counts the header too (what is read).
 - **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
-- **Tasks and certificates are per layout.** The layout enters the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name it: a task registered, and a certificate made, under one layout is not applied under another (the same rule as `--prompt-tail`). Register and certify again under the layout you serve. A model fine-tuned on the plain layout has not been measured on this one: serve an adapter with the layout it was trained on until a measurement says otherwise.
-- It applies to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was tested with it. `/health` shows the format under `systemone.prompt`.
+- **Tasks and certificates are per layout.** The layout enters the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name it: a task registered, and a certificate made, under one layout is not applied under another (the same rule as `--prompt-tail`). A plain server's facts, fingerprints and records are what they were.
+- It applies to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was tested with it.
+- **Not part of a base's exported profile** (`decisio.hub`): the profile describes how the base is read, so a repository file exported before 0.26.0 still agrees with the installed profile.
 
-**What was measured.** A pre-registered A/B on one RTX 5090 with the Gemma 4 12B in FP8 (`--base gemma-4-12b-fp8`, decisio 0.25.0's own readout, one request at a time), the header against the served layout:
+**What was measured, on the 31B.** An A/B on one RTX PRO 6000 (`--base gemma-4-31b`, FP8 on load, decisio c0b1c08d, the Decision Index kit's own scoring on its 2,000-row stratified public sample, JevBench-like proxies of ours), the header against the plain layout, the same items:
+
+| Set | Plain | Header | Header minus plain (95%) |
+| --- | ---: | ---: | --- |
+| Decision Index sample, the kit's index (2,000 rows) | 55.41 | 60.44 | **+5.03** [2.87, 6.94] |
+| H776, one question per request | 80.67 | 85.05 | **+4.38** [2.32, 6.44] |
+| hard390 | 52.31 | 59.74 | **+7.44** [3.08, 11.79] |
+| dev500 | 67.40 | 67.00 | -0.40 [-3.0, 2.2] (choice -0.6, yes/no +1.9, score -2.3) |
+
+- Cost on those items: 3 to 10% more input tokens as counted, median latency +1 to +10%; on the Decision Index sample the mean latency was 542 ms against 303 (multi-question requests read the header on every row), inside its 1,000 ms gate.
+- The gain on the Decision Index is in language (+9.6 skill points), retrieval, tools and arts; knowledge is level. The proxies are ours, not a benchmark's private part; one card, one base.
+- The fine-tuned adapters have **not** been measured under the header: that is why they are served plain until their repository or file records otherwise.
+
+**What was measured, on the 12B.** A pre-registered A/B on one RTX 5090 with the Gemma 4 12B in FP8 (`--base gemma-4-12b-fp8`, decisio 0.25.0's own readout, one request at a time), the header against the plain layout:
 
 | Set | Questions | Plain | Header | Header minus plain (95%) |
 | --- | ---: | ---: | ---: | --- |
@@ -215,7 +235,7 @@ Intervals are a bootstrap over requests. Read them with these caveats:
 - **The Decision Index gain sits in requests that ask many questions about one state.** Language is +7.7 [5.2, 10.1], mostly one family (aspect sentiment, about 41 questions about one review per request: +10.4 [7.9, 13.3] on 492 questions); knowledge, tools and arts are within noise (-1.8, -1.3, -1.7). Without that family, question-weighted, the gain is +0.98. **Weighting each of the 41 families equally, as the board averages, it is +1.75 with an interval of [-0.77, 4.50], which crosses 0.** The other families have 12 requests each, too few to read one by one.
 - **On single-question items** (dev500, H776) the header lists the one question before its own text; the gain there is +3.60 on dev500 and not distinguishable from 0 on H776.
 - **Cost:** computed tokens (what the cache does not serve) were 1.32 times the plain layout's on the Decision Index sample (2.9 times the prompt tokens, which a server without the cache would read), 1.03 on H776 and 1.08 on dev500; per-request latency was 1.02 to 1.09 at the median and 1.02 to 1.28 on average.
-- One base, one card, one set of items: it shows the header can help, not that it helps your traffic. Measure on your own before using it. The Decision Index board rows with this layout were produced on the 31B; the 12B A/B is the only measurement here.
+- One base, one card, one set of items: it shows the header can help, not that it helps your traffic. Measure on your own, and use `--layout plain` where it does not.
 - Read twice (the user turn written again after the question) was measured as well, on top of the header, and added nothing within noise at 1.5 to 2.7 times the tokens; decisio does not offer it.
 
 ### Refitting the base's temperatures for a layout

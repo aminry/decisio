@@ -210,7 +210,7 @@ class DirBackend:
         return None
 
 
-def load_at_start(store, backend, file_tasks=None, file_abstention=None):
+def load_at_start(store, backend, file_tasks=None, file_abstention=None, saved=None):
     """Fill `store` at start; returns (the abstention task records to serve, the report of what loaded from where).
 
     No backend: the `--tasks-file` records load into the store (as before) and the `--abstention-tasks` records are
@@ -226,7 +226,7 @@ def load_at_start(store, backend, file_tasks=None, file_abstention=None):
         report["from_file"] = {"readout": len(file_tasks), "abstention": len(file_abstention)}
         return file_abstention, report
     store.backend = backend
-    saved = backend.load()
+    saved = saved if saved is not None else backend.load()
     store.load(saved["readout"], persist=False)
     have = {t["id"] for t in store.by_key.values()}
     # a task another replica seeded first, or a replica that does not teach, leaves the seed unsaved (not an error)
@@ -260,12 +260,17 @@ def load_at_start(store, backend, file_tasks=None, file_abstention=None):
     return list(abstention.values()), report
 
 
-def usable(store, abstention_records, served_name) -> int:
-    """How many loaded tasks apply to this server: readout tasks of its stack, abstention tasks of its served model."""
+def usable(store, abstention_records, served_name, layout="plain") -> int:
+    """How many loaded tasks apply to this server: readout tasks of its stack, abstention tasks of its served model and
+    layout."""
     from decisio.names import same_fingerprint
 
     n = sum(1 for t in store.by_key.values() if same_fingerprint(t["fingerprint"], store.fingerprint))
-    return n + sum(1 for t in abstention_records if t.get("model") in (None, served_name))
+    return n + sum(
+        1
+        for t in abstention_records
+        if t.get("model") in (None, served_name) and (t.get("layout") or "plain") == layout
+    )
 
 
 def start_refusal(usable_tasks: int, required: int | None, loaded: int | None, where_held=None) -> str | None:

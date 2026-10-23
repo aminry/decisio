@@ -339,7 +339,7 @@ def test_s6_a_replica_on_another_model_keeps_the_task_and_does_not_apply_it():
     b, so_b, bb = replica(store, fingerprint="another model", name="another served name")
     store_report = b.get("/v1/tasks").json()["store"]
     assert store_report["readout"] == {"loaded": 1, "applied": 0, "other_stack": 1}
-    assert store_report["abstention"] == {"loaded": 1, "applied": 0, "other_model": 1}
+    assert store_report["abstention"] == {"loaded": 1, "applied": 0, "other_model": 1, "other_layout": 0}
     assert so_b.task_store.lookup(next(iter(so_b.task_store.by_key))) is None
 
 

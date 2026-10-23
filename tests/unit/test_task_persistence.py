@@ -302,7 +302,7 @@ def test_p6_the_listing_says_how_many_loaded_and_from_where(tmp_path):
     store = b.get("/v1/tasks").json()["store"]
     assert store["saved_to"] == {"backend": "dir", "path": str(tmp_path / "tasks")}
     assert store["readout"] == {"loaded": 1, "applied": 1, "other_stack": 0}
-    assert store["abstention"] == {"loaded": 1, "applied": 1, "other_model": 0}
+    assert store["abstention"] == {"loaded": 1, "applied": 1, "other_model": 0, "other_layout": 0}
     assert store["at_start"]["from_dir"] == {"readout": 1, "abstention": 1}
     assert so.task_store_report() == store
 

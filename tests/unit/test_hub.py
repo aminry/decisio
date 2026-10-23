@@ -327,6 +327,10 @@ def test_e1_main_serves_a_repository(monkeypatch, tmp_path):
     engine, fingerprint = start("--base", str(d))
     assert engine.model_name == str(d) and engine.family.key == "gemma-4-12b"
     assert engine.repository["name"] == str(d) and engine.repository["weights"]["modified"] is False
-    assert fingerprint == FINGERPRINTS["gemma-4-12b"]  # as for --base gemma-4-12b: its tasks serve on the copy
-    assert start("--base", "gemma-4-12b")[1] == fingerprint  # (no network: the checkpoint id is never opened)
+    # the profile's fingerprint is the base read with the plain layout; the server's own carries the layout it serves
+    # (the Gemma bases' default is the header, docs/running.md), and is otherwise that one
+    served_fp = json.loads(fingerprint)
+    assert served_fp["prompt_format"].pop("layout") == "header"
+    assert json.dumps(served_fp, sort_keys=True) == json.dumps(json.loads(FINGERPRINTS["gemma-4-12b"]), sort_keys=True)
+    assert start("--base", "gemma-4-12b")[1] == fingerprint  # as for --base gemma-4-12b: its tasks serve on the copy
     assert start("--base", "gemma-4-12b")[0].repository is None

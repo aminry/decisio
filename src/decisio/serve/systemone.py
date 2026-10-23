@@ -1070,7 +1070,14 @@ class SystemOne:
             "_timing": {
                 "server_ms": (time.perf_counter() - t0) * 1000,
                 "route": "image" if use_image else "text",
+                "layout": self.layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
+                # the mean prompt the engine computed or read per question, for the x-decisio-prompt header
+                **(
+                    {"prompt_tokens_mean": float(np.mean(info["engine_prompt_tokens"]))}
+                    if info.get("engine_prompt_tokens")
+                    else {}
+                ),
                 **{
                     k: v
                     for k, v in info.items()
@@ -1887,6 +1894,8 @@ class SystemOne:
             ),
             "config": cfg,
             "model": self.name,
+            # the layout is written only when it is not plain, so a plain server's records are what they were
+            **({"layout": self.layout} if self.layout != "plain" else {}),
         }
         self.save_abstention(task)
         self.tasks[task_id] = task
@@ -1930,10 +1939,16 @@ class SystemOne:
             self.tasks[t["id"]] = t
         return [t["id"] for t in records]
 
+    @property
+    def layout(self) -> str:
+        """The layout of the user turn this server serves (decisio.serve.layout)."""
+        return getattr(getattr(self.engine, "fmt", None), "layout", "plain")
+
     def abstention_applies(self, t: dict) -> bool:
-        """A task fitted under another served model is kept but not applied (its threshold is for that model's
-        probabilities); records written before the field carry no model and apply."""
-        return t.get("model") in (None, self.name)
+        """A task fitted under another served model, or under another layout of the user turn, is kept but not applied
+        (its threshold is for that model's probabilities under that prompt); records written before the fields carry no
+        model and apply, and no layout means plain."""
+        return t.get("model") in (None, self.name) and (t.get("layout") or "plain") == self.layout
 
     def task_store_report(self) -> dict:
         """What /health and GET /v1/tasks say about the saved tasks: where they are kept, how many are loaded, how
@@ -1942,13 +1957,15 @@ class SystemOne:
         readout = list(store.by_key.values()) if store else []
         applied = sum(1 for t in readout if same_fingerprint(t["fingerprint"], store.fingerprint))
         a_applied = sum(1 for t in self.tasks.values() if self.abstention_applies(t))
+        a_model = sum(1 for t in self.tasks.values() if t.get("model") not in (None, self.name))
         return {
             "saved_to": self.task_backend.describe() if self.task_backend is not None else None,
             "readout": {"loaded": len(readout), "applied": applied, "other_stack": len(readout) - applied},
             "abstention": {
                 "loaded": len(self.tasks),
                 "applied": a_applied,
-                "other_model": len(self.tasks) - a_applied,
+                "other_model": a_model,
+                "other_layout": len(self.tasks) - a_applied - a_model,
             },
             "at_start": self.task_report,
         }
@@ -2129,6 +2146,13 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
+        # what the prompt cost: the layout, the mean prompt tokens per question and how many of them the cache served
+        # (under the header layout a state cached for another set of questions is read again)
+        if timing.get("prompt_tokens_mean") is not None:
+            headers[header("prompt")] = (
+                f"layout={timing['layout']}; tokens={timing['prompt_tokens_mean']:.0f}; "
+                f"cached={timing.get('cached_tokens_mean', 0.0):.0f}"
+            )
         if timing.get("think_tokens") is not None and "thinking" in out:
             headers[header("think-ms")] = f"{timing['think_ms']:.1f}"
             headers[header("think-tokens")] = str(timing["think_tokens"])
@@ -2276,6 +2300,11 @@ def add_routes(app, systemone: SystemOne):
         other = [t.get("id") for t in records if isinstance(t, dict) and t.get("model") not in (None, systemone.name)]
         if other:
             raise HTTPException(422, f"fitted for another served model than {systemone.name!r}: {other}")
+        other = [
+            t.get("id") for t in records if isinstance(t, dict) and (t.get("layout") or "plain") != systemone.layout
+        ]
+        if other:
+            raise HTTPException(422, f"fitted under another layout than {systemone.layout!r}: {other}")
         try:
             loaded = systemone.load_abstention(records)
         except (KeyError, TypeError, ValueError) as e:

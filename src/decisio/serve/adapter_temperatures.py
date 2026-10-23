@@ -137,8 +137,8 @@ def serving_temperatures(entry: dict) -> dict:
 
 
 def read(path) -> dict:
-    """The validated content of an adapter file: {"temperatures": {type: T}, "choice_bands": {"lo-hi": T}, "fit": dict |
-    None, "file": str}."""
+    """The validated content of an adapter file: {"temperatures": {type: T}, "choice_bands": {"lo-hi": T}, "layout":
+    the prompt layout the adapter was trained and measured on or None, "fit": dict | None, "file": str}."""
     p = Path(path)
     try:
         doc = json.loads(p.read_text())
@@ -149,7 +149,13 @@ def read(path) -> dict:
             f"{p}: not a {SCHEMA} file (schema {doc.get('schema') if isinstance(doc, dict) else None!r})"
         )
     out, bands = validate_temperatures(doc.get("temperatures"), doc.get("choice_bands"), str(p))
-    return {"temperatures": out, "choice_bands": bands, "fit": doc.get("fit"), "file": str(p)}
+    from decisio.serve.layout import check_layout
+
+    try:
+        layout = check_layout(doc.get("layout"), str(p))
+    except ValueError as e:
+        raise AdapterFileError(str(e)) from e
+    return {"temperatures": out, "choice_bands": bands, "layout": layout, "fit": doc.get("fit"), "file": str(p)}
 
 
 def validate_temperatures(temps, raw_bands, where: str) -> tuple[dict, dict]:
@@ -346,6 +352,16 @@ def _rows(paths):
                     yield json.loads(line)
 
 
+def layout_arg(parser):
+    parser.add_argument(
+        "--layout",
+        choices=("plain", "header"),
+        default=None,
+        help="the prompt layout the reads were taken under, and the model was trained on: recorded in the file, and a "
+        "server that loads this adapter serves that layout (none recorded: plain; docs/running.md)",
+    )
+
+
 def bands_args(parser):
     parser.add_argument(
         "--choice-bands",
@@ -388,6 +404,7 @@ def main(argv=None):
     )
     f.add_argument("--data", default="", help="what the items are (kept in the file)")
     bands_args(f)
+    layout_arg(f)
     sp = sub.add_parser("fit-split", help="Lab 1's split fit from a model's stored reads on the H and dev pools")
     sp.add_argument("--h", required=True, help="the model's reads of the H pool (JSONL or .gz: id, probs, p_plain)")
     sp.add_argument("--h-keys", required=True, help="{id: {gold, ...}} of the H pool")
@@ -404,6 +421,7 @@ def main(argv=None):
     sp.add_argument("--out", required=True)
     sp.add_argument("--data", default="")
     bands_args(sp)
+    layout_arg(sp)
     c = sub.add_parser("check", help="validate an adapter file and print it")
     c.add_argument("file")
     a = ap.parse_args(argv)
@@ -434,6 +452,8 @@ def main(argv=None):
             bands=a.bands,
             min_band_items=a.min_band_items,
         )
+        if a.layout:
+            doc["layout"] = a.layout
         Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
         print(
             json.dumps(
@@ -454,6 +474,8 @@ def main(argv=None):
         a.bands,
         a.min_band_items,
     )
+    if a.layout:
+        doc["layout"] = a.layout
     Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
     print(json.dumps(doc, indent=1))
     return 0
