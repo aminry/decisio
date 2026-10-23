@@ -58,6 +58,7 @@ import numpy as np
 from decisio.readout.letters import (  # noqa: E402
     DEFAULT_FORMAT,
     LETTERS_INSTRUCTION,
+    READ_AGAIN,
     PromptFormat,
     allowed_ids,
     chat_turn,
@@ -66,6 +67,7 @@ from decisio.readout.letters import (  # noqa: E402
     label_groups,
     label_logprobs,
     label_token_ids,
+    layout_header,
     letter_labels,
     question_body,
 )
@@ -590,8 +592,34 @@ class LettersEngine:
         question cost 0.6 ms (500-token state) to 5.7 ms (8,000) of CPU per question.
         The first row of every request is checked against tokenizing its whole prompt; a mismatch falls
         back to full tokenization for that request, so the rows are always what evaluation scores."""
+        rows, n, _ = self._build_rows(state, questions)
+        k = (-n % self.pad_unit) if self.pad_unit else 0
+        if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
+            k = 0  # none: never pad; shared: no second question can reuse the padded boundary
+        elif self.pad_policy == "row" and len(questions) == 1 and self.pad_unit:
+            # --pad-policy row: the whole row, state and question, ends on a block boundary, so a cold prefill is
+            # one engine step (align mode stops a prefill at the last boundary, and a row just past one costs a
+            # second step); the state's boundary is then not aligned, which no second question would use anyway
+            k = -len(rows[0][0]) % self.pad_unit
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
+        head = len(enc(USER_HEAD))
+        rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
+        return rows, n + k
+
+    def read_plan(self, state, questions) -> dict:
+        """What the layout flags do to this request, for the usage count and the record: `twice` (every question's
+        user turn is written twice), `once_tokens` (the request read once: its shared prefix once plus every
+        question's own tokens), `header` (the questions are listed first)."""
+        _, _, plan = self._build_rows(state, questions)
+        return plan
+
+    def _build_rows(self, state, questions):
+        """(rows, n, plan): the request's token rows before padding, the shared prefix length `n` (the header, if the
+        layout has one, and the state, up to the question), and the layout's plan (`read_plan`)."""
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         body = fmt_state(state)
+        if self.fmt.layout == "header":
+            body = layout_header([q["instructions"] for q in questions]) + body
         tail = self._template_tail()
         texts = [question_text(self.tok, q, self.fmt) for q in questions]
         suffixes = [enc(text + tail) for text, _, _ in texts]
@@ -616,17 +644,26 @@ class LettersEngine:
                 raise ValueError(
                     "a question's text merges with the state's last token; questions must not start with whitespace"
                 )
-        k = (-n % self.pad_unit) if self.pad_unit else 0
-        if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
-            k = 0  # none: never pad; shared: no second question can reuse the padded boundary
-        elif self.pad_policy == "row" and len(questions) == 1 and self.pad_unit:
-            # --pad-policy row: the whole row, state and question, ends on a block boundary, so a cold prefill is
-            # one engine step (align mode stops a prefill at the last boundary, and a row just past one costs a
-            # second step); the state's boundary is then not aligned, which no second question would use anyway
-            k = -len(rows[0][0]) % self.pad_unit
-        head = len(enc(USER_HEAD))
-        rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
-        return rows, n + k
+        plan = {"header": self.fmt.layout == "header", "twice": False, "once_tokens": None}
+        if self.fmt.read_twice_under:
+            # a short request is read twice: each question's user turn again after READ_AGAIN. "Short" is the request
+            # read once, its shared prefix once plus every question's own tokens (what FlexDM counts)
+            common = min(len(r[0]) for r in rows)
+            for i in range(common):
+                if any(r[0][i] != rows[0][0][i] for r in rows[1:]):
+                    common = i
+                    break
+            once = common + sum(len(ids) - common for ids, _ in rows)
+            plan.update(once_tokens=once, twice=once <= self.fmt.read_twice_under)
+            if plan["twice"]:
+                rows = [
+                    (enc(user_turn(self.tok, f"{t}{READ_AGAIN}{t}", self.fmt)), lab)
+                    for t, (_, lab) in zip((f"{body}\n\n{text}" for text, _, _ in texts), rows)
+                ]
+                for ids, _ in rows:
+                    if ids[:n] != prefix:
+                        raise ValueError("read twice moved the state's tokens; the first copy must be the prompt")
+        return rows, n, plan
 
     def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
         """Label distributions for fully-built prompts [(token ids, label ids)], one engine request each.
@@ -1107,6 +1144,11 @@ def make_app(engine, systemone=None, health=None):
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
                     "repository_defaults": getattr(engine, "repository_defaults", None),
+                    **(
+                        {"temperatures_file": engine.temperatures_file}
+                        if getattr(engine, "temperatures_file", None)
+                        else {}
+                    ),
                     "adapter_temperatures": systemone.adapter_temperatures,
                     "task_store": systemone.task_store_report(),
                     "readout_tasks": {
@@ -1548,6 +1590,8 @@ def resolve_base(args):
             f"give --model an MLX conversion of {fam.key} (docs/running.md)"
         )
     args.repository = None
+    if (getattr(args, "read_twice_under", None) or 0) < 0:
+        raise SystemExit("--read-twice-under must be 0 (off) or a token count")
     if repo is not None:
         hub.verify(repo, fam)
         fam = hub.serve_family(fam, repo)
@@ -1564,6 +1608,8 @@ def resolve_base(args):
         slot=args.answer_slot or fam.answer_slot,
         variants=args.label_variants or fam.label_variants,
         system_prompt=fam.system_prompt if args.system_prompt is None else args.system_prompt,
+        layout=getattr(args, "layout", None) or "plain",
+        read_twice_under=getattr(args, "read_twice_under", None) or 0,
     )
     if args.pad_to is None:
         args.pad_to = fam.pad_to
@@ -1573,10 +1619,48 @@ def resolve_base(args):
         args.noul_rendering = fam.noul_rendering
     if args.temperature is None:
         args.temperature = fam.temperature
+    given = {t: getattr(args, f"temperature_{t}", None) is not None for t in ("choice", "noul", "score")}
     apply_repository_defaults(args, repo)
+    apply_temperatures_file(args, given)
     if args.temperature_choice is None:
         args.temperature_choice = fam.choice_temperature
     return fam, fmt
+
+
+def apply_temperatures_file(args, given: dict) -> None:
+    """`--temperatures-file FILE` (a decisio.adapter/1 file, as `python -m decisio.serve.adapter_temperatures fit`
+    writes it, fitted on this layout's reads): its temperatures per question type and its choice bands for the base.
+    Precedence: a flag (`given`: the --temperature-<type> flags the command line gave), then the file, then the
+    repository's defaults, then the base's profile. `--temperature-choice X` is one number for every choice question,
+    so it drops the file's bands. Sets `args.temperatures_file_facts` (the file and its sha256) for the start-up
+    line and /health."""
+    args.temperatures_file_facts = None
+    path = getattr(args, "temperatures_file", None)
+    if not path:
+        return
+    import hashlib
+
+    try:
+        doc = adapter_temperatures.read(path)
+    except adapter_temperatures.AdapterFileError as e:
+        raise SystemExit(f"--temperatures-file: {e}")
+    applied = {}
+    for qtype in ("choice", "noul", "score"):
+        if given[qtype]:
+            continue
+        if qtype in doc["temperatures"]:
+            setattr(args, f"temperature_{qtype}", float(doc["temperatures"][qtype]))
+            applied[qtype] = float(doc["temperatures"][qtype])
+    if doc["choice_bands"] and not given["choice"]:
+        args.choice_bands = {b: float(t) for b, t in doc["choice_bands"].items()}
+        applied["choice_bands"] = dict(args.choice_bands)
+    elif doc["choice_bands"]:
+        applied["choice_bands_dropped_by"] = "--temperature-choice"
+    args.temperatures_file_facts = {
+        "file": str(path),
+        "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+        "applied": applied,
+    }
 
 
 def apply_repository_defaults(args, repo) -> None:
@@ -1905,6 +1989,27 @@ def build_parser():
         "Tasks registered under one are not applied under the other",
     )
     ap.add_argument(
+        "--layout",
+        default=None,
+        choices=["plain", "header"],
+        help="the user turn's layout (default plain, the served prompt, byte for byte): header lists the request's "
+        "questions before the state ('Questions that will be asked about the context:' and a '- <question>' line "
+        "each), then the state and the question as plain; opt-in, as jev-brain and FlexDM read. A state cached for "
+        "one set of questions is not reused for another set. Tasks fitted and certificates made under one layout "
+        "are not applied under another; a model trained on the plain layout is untested on this one (docs/running.md)",
+    )
+    ap.add_argument(
+        "--read-twice-under",
+        type=int,
+        default=None,
+        metavar="N",
+        help="read short requests twice (default off): when a request read once is at most N tokens (its shared "
+        "prefix once, plus every question's own tokens; FlexDM uses 3000), each question's user turn is written "
+        "twice, joined by 'Read the same input again before answering:'. Roughly doubles the tokens computed for "
+        "such a request, and usage.input_tokens counts both copies; meant for board runs, not the default. "
+        "Tasks and certificates are per setting (docs/running.md)",
+    )
+    ap.add_argument(
         "--answer-slot",
         default=None,
         choices=["prefill", "template"],
@@ -1942,6 +2047,16 @@ def build_parser():
             )
             + "); 1 switches it off for that type",
         )
+    ap.add_argument(
+        "--temperatures-file",
+        default=None,
+        metavar="FILE",
+        help="the base's temperatures from a decisio.adapter/1 file (`python -m decisio.serve.adapter_temperatures "
+        "fit`, from labelled off-suite reads taken under the layout you serve): per question type and, for choice, "
+        "by number of options. Precedence: a --temperature-<type> flag, this file, a tuned repository's defaults, "
+        "the base's profile. The values are in the serving-stack fingerprint, so a certificate made under others is "
+        "suspended",
+    )
     ap.add_argument(
         "--noul-commit",
         action=argparse.BooleanOptionalAction,
@@ -2200,6 +2315,14 @@ def main():
         ap.error("--temperature must be positive (1 is off)")
     if args.repository_defaults:
         print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
+    if getattr(args, "temperatures_file_facts", None):
+        print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
+    if args.layout or args.read_twice_under:
+        print(
+            "PROMPT LAYOUT "
+            + json.dumps({"layout": args.layout or "plain", "read_twice_under": args.read_twice_under or 0}),
+            flush=True,
+        )
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
     args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
@@ -2377,6 +2500,7 @@ def main():
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults
+    engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
     engine.over_limit_tokens = args.over_limit_tokens
     if args.think and not engine.can_think():
         why = getattr(engine, "think_blocked", lambda: None)() or "think needs the vLLM engine"

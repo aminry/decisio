@@ -20,7 +20,7 @@ single tokens, so 255 labels exist without adding to the vocabulary.
 from __future__ import annotations
 
 import string
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 
 import numpy as np
@@ -188,6 +188,19 @@ def letters_prompt(tok, kind, body, instructions, options, pool=None, form="spac
 PROMPT_TAILS = ("compact", "spaced")
 ANSWER_SLOTS = ("prefill", "template")
 LABEL_VARIANTS = ("single", "summed")
+LAYOUTS = ("plain", "header")
+# the header layout: the request's questions listed before the state, as jev-brain and FlexDM do
+QUESTIONS_HEAD = "Questions that will be asked about the context:\n"
+# read twice: the user turn written again after this line, for a short request
+READ_AGAIN = "\n\nRead the same input again before answering:\n"
+
+
+def layout_header(instructions) -> str:
+    """The questions of a request listed before its state (`--layout header`): a heading, one "- <instructions>" line
+    per question in the request's order, and a blank line. The state follows it in the same user turn."""
+    return QUESTIONS_HEAD + "".join(f"- {text}\n" for text in instructions) + "\n"
+
+
 # thinking blocks a chat template may write; with thinking off each must be closed
 THINK_MARKERS = (("<think>", "</think>"), ("<|channel>", "<channel|>"))
 
@@ -207,6 +220,12 @@ class PromptFormat:
              probabilities summed per label
     system_prompt  a system turn before the question (decisio.readout.system_prompt): the Gemma base's setting
              (decisio.families), off for the Qwen base
+    layout   plain: the user turn is the state, a blank line, the question (the served prompt); header: the request's
+             questions are listed first (`layout_header`), then the state and the question as plain. Opt-in
+             (--layout header); a state read for one set of questions is not reused for another
+    read_twice_under  0: off; N: when a request read once is at most N tokens (its shared prefix once, plus every
+             question's own tokens), each question's user turn is written twice, joined by READ_AGAIN. Opt-in
+             (--read-twice-under N); roughly doubles the tokens computed for such a request
 
     The default is the compact layout, the served prompt before 2026-10-03, token for token, so tasks fitted under it
     keep their fingerprint; the server's own default is the spaced layout (--prompt-tail)."""
@@ -215,18 +234,34 @@ class PromptFormat:
     slot: str = "prefill"
     variants: str = "single"
     system_prompt: bool = False
+    layout: str = "plain"
+    read_twice_under: int = 0
 
     def __post_init__(self):
         for value, allowed, what in (
             (self.tail, PROMPT_TAILS, "tail"),
             (self.slot, ANSWER_SLOTS, "slot"),
             (self.variants, LABEL_VARIANTS, "variants"),
+            (self.layout, LAYOUTS, "layout"),
         ):
             if value not in allowed:
                 raise ValueError(f"PromptFormat.{what} must be one of {allowed}, not {value!r}")
+        if (
+            isinstance(self.read_twice_under, bool)
+            or not isinstance(self.read_twice_under, int)
+            or self.read_twice_under < 0
+        ):
+            raise ValueError(
+                f"PromptFormat.read_twice_under must be 0 (off) or a token count, not {self.read_twice_under!r}"
+            )
 
     def is_default(self) -> bool:
         return self == PromptFormat()
+
+    def core(self) -> "PromptFormat":
+        """This format without its request-level layout (header, read twice): how one row's text and labels are
+        rendered, which those layouts leave as they are."""
+        return replace(self, layout="plain", read_twice_under=0)
 
     def label_form(self) -> str:
         """The letter-code list the format needs: "bare" when it reads the bare form only, else "spaced"."""
@@ -239,6 +274,10 @@ class PromptFormat:
             "slot": self.slot,
             "variants": self.variants,
             **({"system_prompt": True} if self.system_prompt else {}),
+            # the layout enters only when on, so the facts (and task fingerprints) of every served format are
+            # unchanged; a task fitted under one layout is not applied under another
+            **({"layout": self.layout} if self.layout != "plain" else {}),
+            **({"read_twice_under": self.read_twice_under} if self.read_twice_under else {}),
         }
 
 
@@ -273,7 +312,7 @@ def chat_turn(tok, content, fmt: PromptFormat = DEFAULT_FORMAT) -> str:
     """One question's chat prompt: the system turn (if the format has one), `content` as the user turn, the template's
     generation prompt with thinking disabled, then "Answer:" under the prefill slot. With the default format this is
     chat_wrap(tok, content + "\nAnswer:", "chat"), the prompt evaluation scores, by construction."""
-    if fmt.is_default():
+    if fmt.core().is_default():
         return chat_wrap(tok, content + "\nAnswer:", "chat")
     messages = [{"role": "user", "content": content}]
     if fmt.system_prompt:

@@ -192,6 +192,36 @@ uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-d
 - **An older decisio refuses the repository** by its schema (it reads `/1` only), instead of serving the model at the base's temperatures without saying.
 - The commit setting is a stated choice of the model, shown in the repository's card and in `/health`: with it on, a yes/no probability between 0.20 and 0.80 is reported as 0.80 or 0.20 (the answer never changes; [cli.md](cli.md)).
 
+## Prompt layouts for board runs (`--layout header`, `--read-twice-under N`)
+
+Two opt-in changes of the user turn, as the inference-technique entries of the Decision Index (jev-brain, FlexDM) read. Both are off by default, and with both off the prompt is the served prompt token for token.
+
+- **`--layout header`** lists the request's questions before the state: `Questions that will be asked about the context:`, one `- <question>` line per question in the request's order, a blank line, then the state and the question exactly as the plain layout writes them. A causal model reads the state with the questions already in view. The header is part of the prefix every question of the request shares, so the cache still serves a request's later questions from its first.
+  - **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A workload that asks the same questions of many states, or one question per state, loses nothing.
+  - **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
+- **`--read-twice-under N`** writes a short request's user turn twice, the second copy after `Read the same input again before answering:`. A request is short when it read once is at most N tokens: its shared prefix once, plus every question's own tokens (FlexDM uses 3,000). Longer requests are read once. The first copy is the layout's prompt, so the cacheable prefix is unchanged; the second copy follows each question and is computed per question.
+  - **The cost:** about twice the tokens computed for the requests it applies to, so about twice the prefill time for them. It is meant for board runs on the Decision Index, not as a default. `usage.input_tokens` counts what is read: the header, and for a request read twice the whole user turn again for every question (its header, state, own text and the joining line). JevBench's cost axis would see the doubling.
+  - The rows are exactly those of Lab 4's A/B arms A1 (header) and A2 (header plus read twice): a test compares them token for token, with Gemma 4's own tokenizer.
+
+Both enter the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name them: **a task registered, and a certificate made, under one layout is not applied under another** (the same rule as `--prompt-tail`), and each flag state is its own. Register and certify again under the layout you serve. A model fine-tuned on the plain layout has not been measured on these: serve an adapter with the layout it was trained on until a measurement says otherwise.
+
+The flags apply to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was tested with them. `/health` shows the format under `systemone.prompt`.
+
+### Refitting the base's temperatures for a layout
+
+A layout changes the readout's sharpness, so the temperatures fitted for the plain layout are a starting point only. The refit is a tool and a file, not a change of the served defaults:
+
+```bash
+# 1. reads of labelled off-suite items under the layout you serve (a server with --debug-readout; p_plain is the raw readout)
+# 2. fit a temperature per question type, and choice by number of options
+python -m decisio.serve.adapter_temperatures fit --reads layout_reads.jsonl.gz --out temps_header.json \
+    --read-at choice=3.592,noul=3.592,score=3.592   # the temperatures the rows were served at, if they were not raw
+# 3. serve with it
+python -m decisio.serve.vllm_engine --base gemma-4-12b --layout header --temperatures-file temps_header.json ...
+```
+
+`--temperatures-file` sets the base's temperatures per type and its choice bands from a `decisio.adapter/1` file (precedence: a `--temperature-<type>` flag, the file, a tuned repository's defaults, the base's profile; `--temperature-choice` is one number for every choice question and drops the file's bands). The values are in the serving-stack fingerprint, `/health` carries the file and its sha256 (`systemone.temperatures_file`) and the start prints a `TEMPERATURES FILE` line. Fit on items that are not a benchmark's (the fit tool's rule, above). A temperature never moves the top answer; it moves the calibration. The served defaults stay as they are until a measurement under the layout says otherwise.
+
 ## Thinking when unsure
 
 Off by default: a request is one read, as fast and as repeatable as before.
