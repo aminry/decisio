@@ -1,0 +1,233 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+"""Flavors: named configurations of the same weights (docs/design/flavors.md).
+
+    calibrated        the honest one: calibrated temperatures for every type, no thinking, no commit rule, no read twice
+    thinking-commit   JevBench: thinking when unsure and the commit rule
+    read-enhanced     the Decision Index: read twice, with the threshold and the question cap, no thinking
+
+`--flavor NAME` applies one to a base and names the server `Decisio-31b-calibrated`, `Decisio-12b-thinking-commit`,
+`Decisio-12b-fp8-read-enhanced` (the 31B is served in FP8 only, so only the 12B's names say which precision).
+Every flavor uses the header layout.
+An explicit flag wins over the flavor, on any flavor; each such flag is recorded as an override (`/health`,
+`x-decisio-flavor`, the start line, the serving-stack fingerprint).
+A flavor whose defining value is missing refuses to start; one with a missing secondary value serves marked `pending`.
+With no flavor named a server is exactly what it was.
+
+    f = flavor_of("gemma-4-31b", "read-enhanced")
+    apply_settings(args, f)            # layout, commit, thinking, read twice: before the prompt format is built
+    apply_temperatures(args, f)        # yes/no, score, choice: after the flags and the temperatures file
+    report = flavor_report(f, snapshot, args)
+
+Standard library only.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+FLAVOR_NAMES = ("calibrated", "thinking-commit", "read-enhanced")
+
+# the served-name stem of each base that has flavors: the 31B is FP8 only; the 12B has two precisions
+STEMS = {"gemma-4-31b": "Decisio-31b", "gemma-4-12b": "Decisio-12b", "gemma-4-12b-fp8": "Decisio-12b-fp8"}
+
+# the arguments a flavor sets, as the server's argument names; the override check reads exactly these
+SETTINGS = (
+    "layout",
+    "noul_commit",
+    "think",
+    "think_factor",
+    "think_budget",
+    "read_twice_under",
+    "read_twice_max_questions",
+)
+TEMPERATURE_ARGS = ("temperature", "temperature_choice", "temperature_noul", "temperature_score", "temperatures_file")
+THINK_TEMPERATURE_ARGS = ("think_temperature_choice", "think_temperature_noul", "think_temperature_score")
+SNAPSHOT = SETTINGS + TEMPERATURE_ARGS + THINK_TEMPERATURE_ARGS + ("served_name",)
+
+
+class FlavorError(ValueError):
+    """A flavor that cannot be served: unknown name, not for this base, or a defining value still missing."""
+
+
+@dataclass(frozen=True)
+class Flavor:
+    name: str  # calibrated | thinking-commit | read-enhanced
+    stem: str  # Decisio-31b | Decisio-12b | Decisio-12b-fp8
+    layout: str = "header"
+    noul_commit: bool = False
+    think: bool = False
+    think_factor: float | None = None  # None: the server's default
+    think_budget: int | None = None
+    read_twice_under: int = 0
+    read_twice_max_questions: int = 0
+    temperatures: dict = field(default_factory=dict)  # yes/no and score; empty: the base's profile
+    choice_temperature: float | None = None
+    choice_bands: dict = field(default_factory=dict)
+    think_temperatures: dict = field(default_factory=dict)
+    # a value that is a placeholder: the flavor serves and says so (/health, x-decisio-flavor, the start line)
+    pending: tuple[str, ...] = ()
+    # a defining value that does not exist yet: the flavor refuses to start, with this as the reason
+    unavailable: str | None = None
+
+    @property
+    def served_name(self) -> str:
+        return f"{self.stem}-{self.name}"
+
+    def settings(self) -> dict:
+        """What the flavor sets, as the server's argument names (None for what it leaves to the server's default)."""
+        out = {k: getattr(self, k) for k in SETTINGS}
+        out["noul_commit"], out["think"] = self.noul_commit, self.think
+        return out
+
+
+# The read-twice threshold is the measured choice of #296 on the 31B (N = 2,000 counted input tokens); R, the question
+# cap, waits for Lab 4's timing cell. On the 12B read twice added nothing within noise (Lab 4, FlexDM A/B): the flavor
+# carries it because it is the Decision Index flavor and says so.
+READ_TWICE_N = 2000
+
+
+def _table() -> dict:
+    out = {}
+    for base, stem in STEMS.items():
+        is31 = base == "gemma-4-31b"
+        out[base] = {
+            "calibrated": Flavor(
+                "calibrated",
+                stem,
+                unavailable="the calibrated temperatures are not fitted yet: they wait for the 1,400-item suite read "
+                "under the header on this base (docs/design/flavors.md)",
+            ),
+            "thinking-commit": Flavor(
+                "thinking-commit",
+                stem,
+                noul_commit=True,
+                think=True,
+                pending=(
+                    "thinking is measured on the tuned models only: this base is served at the default factor "
+                    "and budget, and its temperatures are the base's own",
+                ),
+            ),
+            "read-enhanced": Flavor(
+                "read-enhanced",
+                stem,
+                read_twice_under=READ_TWICE_N,
+                pending=(
+                    "temperatures: the calibrated ones are not fitted yet, the base's own are served",
+                    "read_twice_max_questions: the question cap waits for the timing cell",
+                    *(() if is31 else ("read twice is measured on the 31B; on the 12B it added nothing within noise",)),
+                ),
+            ),
+        }
+    return out
+
+
+FLAVORS = _table()
+
+
+def served_names(base_key: str) -> list[str]:
+    """The three served names of a base, capitalised as they are reported."""
+    stem = STEMS.get(base_key)
+    return [f"{stem}-{n}" for n in FLAVOR_NAMES] if stem else []
+
+
+def flavor_of(base_key: str, name: str) -> Flavor:
+    """The flavor `name` of a base, refused when there is none for the base or its defining value is missing."""
+    if name not in FLAVOR_NAMES:
+        raise FlavorError(f"--flavor {name!r} is not one of {', '.join(FLAVOR_NAMES)}")
+    if base_key not in FLAVORS:
+        raise FlavorError(f"--flavor {name} is for the bases {', '.join(sorted(FLAVORS))}; {base_key} has no flavors")
+    f = FLAVORS[base_key][name]
+    if f.unavailable:
+        raise FlavorError(f"--flavor {name} on {base_key}: {f.unavailable}")
+    return f
+
+
+def snapshot(args) -> dict:
+    """What the command line gave, before any default or flavor is applied (the override check compares against it)."""
+    return {k: getattr(args, k, None) for k in SNAPSHOT}
+
+
+def apply_settings(args, f: Flavor) -> None:
+    """The flavor's layout, commit rule, thinking and read twice, where the command line gave none; before the prompt
+    format is built and before the repository's defaults and the server's own defaults fill what is left."""
+    for k, v in f.settings().items():
+        if getattr(args, k, None) is None and v is not None:
+            setattr(args, k, v)
+    if getattr(args, "served_name", None) is None:
+        args.served_name = f.served_name
+
+
+def apply_temperatures(args, f: Flavor) -> None:
+    """The flavor's temperatures where nothing gave one (a flag or the temperatures file come first); the base's
+    profile fills the rest after this."""
+    for qtype in ("noul", "score"):
+        if getattr(args, f"temperature_{qtype}", None) is None and qtype in f.temperatures:
+            setattr(args, f"temperature_{qtype}", float(f.temperatures[qtype]))
+    if getattr(args, "temperature_choice", None) is None and not getattr(args, "choice_bands", None):
+        if f.choice_bands:
+            args.choice_bands = {b: float(t) for b, t in f.choice_bands.items()}
+        elif f.choice_temperature is not None:
+            args.temperature_choice = float(f.choice_temperature)
+    for qtype, t in f.think_temperatures.items():
+        if getattr(args, f"think_temperature_{qtype}", None) is None:
+            setattr(args, f"think_temperature_{qtype}", float(t))
+
+
+def overrides(f: Flavor, given: dict) -> dict:
+    """{argument: {"flavor": the flavor's value, "served": what the command line gave}} for every flag the command line
+    gave (`given`, from `snapshot`) that is not what the flavor sets. A flag the flavor does not set is an override
+    too: the server is not what the name says."""
+    out = {}
+    for k in SETTINGS:
+        v = given.get(k)
+        if v is not None and v != getattr(f, k):
+            out[k] = {"flavor": getattr(f, k), "served": v}
+    for k in TEMPERATURE_ARGS + THINK_TEMPERATURE_ARGS:
+        v = given.get(k)
+        if v is None:
+            continue
+        mine = None
+        if k.startswith("temperature_") and k[len("temperature_") :] in ("noul", "score"):
+            mine = f.temperatures.get(k[len("temperature_") :])
+        elif k == "temperature_choice":
+            mine = f.choice_temperature
+        elif k.startswith("think_temperature_"):
+            mine = f.think_temperatures.get(k[len("think_temperature_") :])
+        if v != mine:
+            out[k] = {"flavor": mine, "served": v}
+    if given.get("served_name") not in (None, f.served_name):
+        out["served_name"] = {"flavor": f.served_name, "served": given["served_name"]}
+    return out
+
+
+def flavor_report(f: Flavor, given: dict) -> dict:
+    """What /health, the start line and the serving-stack fingerprint say of the flavor."""
+    return {
+        "name": f.name,
+        "served_name": f.served_name,
+        "overrides": overrides(f, given),
+        "pending": list(f.pending),
+    }
+
+
+def header_value(report: dict) -> str:
+    """The x-decisio-flavor value: the short name, with `+overrides` and `+pending` where they apply."""
+    return report["name"] + ("+overrides" if report["overrides"] else "") + ("+pending" if report["pending"] else "")
+
+
+def fingerprint_facts(report: dict) -> dict:
+    """The part of the serving-stack fingerprint a flavor adds (only when one is set): the name, the overrides' values
+    and which values are placeholders, so a certificate made under another flavor, other overrides or placeholder
+    values is suspended."""
+    return {
+        "name": report["name"],
+        "overrides": {k: v["served"] for k, v in sorted(report["overrides"].items())},
+        "pending": len(report["pending"]),
+    }
+
+
+def siblings(report: dict) -> list[str]:
+    """The other flavors' served names of the same base (a request naming one is refused)."""
+    stem = report["served_name"][: -len(report["name"]) - 1]
+    return [f"{stem}-{n}" for n in FLAVOR_NAMES if n != report["name"]]

@@ -38,6 +38,7 @@ from typing import Annotated, Any, Literal
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
@@ -618,8 +619,12 @@ class SystemOne:
         think: bool = False,
         think_factor: float = thinking.DEFAULT_FACTOR,
         think_budget: int = thinking.DEFAULT_BUDGET,
+        flavor: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
+        # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
+        # flavor, which is then exactly what it was (the model it echoes, the fingerprint, the headers)
+        self.flavor = dict(flavor) if flavor else None
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
         self.describe_options = describe_options  # likewise
@@ -1075,7 +1080,7 @@ class SystemOne:
             usage["output_tokens"] += think_report["tokens"]
             usage["thinking_tokens"] = think_report["tokens"]
         out = {
-            "model": req.model or self.name,
+            "model": self.name if self.flavor else req.model or self.name,
             "answers": answers,
             "usage": usage,
             "_timing": {
@@ -1433,6 +1438,9 @@ class SystemOne:
                 # what it was; a certificate made with thinking off is suspended by a server that thinks, and the
                 # other way round (`think_mode_changed`)
                 **({"think": self.think_facts()} if self.think else {}),
+                # the flavor, only when one is set: a certificate made under another flavor, other overrides or
+                # placeholder values is suspended
+                **({"flavor": flavors.fingerprint_facts(self.flavor)} if self.flavor else {}),
                 # --concurrency, only when batched, so that a serial server's fingerprint is what it was; a certificate
                 # made one request at a time is suspended by a batching server, and the other way round
                 # (`concurrency_changed`): a batched answer depends on the traffic it was scored with
@@ -2153,6 +2161,14 @@ def add_routes(app, systemone: SystemOne):
         route = request_header(request.headers, "route")
         if route not in (None, "text", "image"):
             raise HTTPException(422, "x-decisio-route must be 'text' or 'image'")
+        if systemone.flavor and req.model:
+            others = {n.lower() for n in flavors.siblings(systemone.flavor)}
+            if req.model.lower() in others:
+                raise HTTPException(
+                    422,
+                    f'"model" {req.model!r} is another flavor: this server serves {systemone.name} '
+                    f"(case does not matter)",
+                )
         debug = debug_of(request)
         adapter = (req.model_extra or {}).get("adapter")
         if adapter is not None and not isinstance(adapter, str):
@@ -2180,6 +2196,8 @@ def add_routes(app, systemone: SystemOne):
             if ans and ans.get("type") == "score":
                 ans["legend"] = {str(i): c for i, c in enumerate(levels)}
         headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
+        if systemone.flavor:
+            headers[header("flavor")] = flavors.header_value(systemone.flavor)
         if timing.get("tasks"):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if out.get("adapter"):

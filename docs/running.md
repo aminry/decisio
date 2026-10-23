@@ -276,6 +276,27 @@ When the profile contributes, the start prints a `BASE TEMPERATURES` line and `/
 The exported hub profile does not carry them, so a repository file exported before this still agrees with the installed profile.
 No base sets them yet: every served temperature is what it was.
 
+## Flavors
+
+A flavor is a named configuration of one base's weights for one job (`--flavor NAME`; design and decisions in [design/flavors.md](design/flavors.md)).
+There are three:
+
+| Flavor | For | Sets |
+| --- | --- | --- |
+| `calibrated` | The honest one | Calibrated temperatures for every type, including yes/no; no thinking, no commit rule, no read twice |
+| `thinking-commit` | JevBench | Thinking when unsure and the commit rule |
+| `read-enhanced` | The Decision Index | Read twice (`--read-twice-under 2000`), no thinking |
+
+- **Every flavor uses the header layout.** A flavor is for the Gemma bases; the Qwen base and a tuned repository refuse `--flavor` (the flavors of a tuned model are named after its training shows where it helps).
+- **The server is named for it, in capitals:** `Decisio-31b-<flavor>` (the 31B is served in FP8 only), `Decisio-12b-<flavor>` (bf16) and `Decisio-12b-fp8-<flavor>`.
+  `GET /v1/models` and every response report that name.
+  A request's `model` that equals it in any case is accepted, and any other string is accepted as before; the name of another flavor of the same base is refused with the served name in the message.
+- **A flag you give wins, on any flavor, and nothing is refused.** Each flag that is not what the flavor sets is an **override**: it is listed on a `FLAVOR OVERRIDE` line at start, in `/health` (`systemone.flavor.overrides`, with the flavor's value and the served one), in the `x-decisio-flavor` header (`read-enhanced+overrides`) and in the serving-stack fingerprint, so a certificate made under other overrides is `serving_stack_changed`.
+- **Pending values.** A flavor whose defining value does not exist refuses to start: `calibrated` says its temperatures are not fitted yet.
+  A flavor with a secondary value still a placeholder serves and says so (`FLAVOR PENDING`, `pending` in `/health`, `+pending` in the header, and a mark in the fingerprint): `read-enhanced` serves the base's own temperatures until the calibrated ones exist and has no question cap until its timing run, and `thinking-commit` runs the default factor and budget, measured on the tuned models only.
+- **Tasks and certificates are per flavor:** the served name is in the task fingerprint and the flavor in the serving stack, so a task registered, or a certificate made, under one flavor is not applied under another.
+- A server with no `--flavor` is what it was: the same name, the same answers and fingerprint, no flavor header.
+
 ## Thinking when unsure
 
 Off by default: a request is one read, as fast and as repeatable as before.

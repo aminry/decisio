@@ -79,6 +79,7 @@ def options_listing(tok, options):
     return "Options:\n" + "\n".join(f"{lab}. {o}" for lab, o in zip(labs, options))
 
 
+from decisio import flavors  # noqa: E402
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
 from decisio.serve import adapter_temperatures, engine_stream, task_backends  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
@@ -1160,6 +1161,7 @@ def make_app(engine, systemone=None, health=None):
                     **({"think_temperatures": systemone.think_temperatures} if systemone.think_temperatures else {}),
                     "repository_defaults": getattr(engine, "repository_defaults", None),
                     **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
+                    **({"flavor": systemone.flavor} if systemone.flavor else {}),
                     **(
                         {"temperatures_file": engine.temperatures_file}
                         if getattr(engine, "temperatures_file", None)
@@ -1627,6 +1629,17 @@ def resolve_base(args):
     args.layout_default = fam.layout
     args.layout_tuned = bool(repo is not None and repo.tuned)
     args.layout_recorded = (repo.defaults or {}).get("layout") if args.layout_tuned else None
+    args.flavor_report = None
+    flavor = None
+    if getattr(args, "flavor", None):
+        if repo is not None and repo.tuned:
+            raise ValueError(
+                f"--flavor {args.flavor} with the tuned repository {repo.name}: the flavors of a tuned model are named "
+                "after its training shows where it helps; serve it with its own defaults"
+            )
+        flavor = flavors.flavor_of(fam.key, args.flavor)
+        given = flavors.snapshot(args)
+        flavors.apply_settings(args, flavor)
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
@@ -1644,9 +1657,12 @@ def resolve_base(args):
         args.noul_rendering = fam.noul_rendering
     if args.temperature is None:
         args.temperature = fam.temperature
-    given = {t: getattr(args, f"temperature_{t}", None) is not None for t in ("choice", "noul", "score")}
+    given_temperatures = {t: getattr(args, f"temperature_{t}", None) is not None for t in ("choice", "noul", "score")}
     apply_repository_defaults(args, repo)
-    apply_temperatures_file(args, given)
+    apply_temperatures_file(args, given_temperatures)
+    if flavor is not None:
+        flavors.apply_temperatures(args, flavor)
+        args.flavor_report = flavors.flavor_report(flavor, given)
     apply_profile_temperatures(args, fam)
     if args.temperature_choice is None:
         args.temperature_choice = fam.choice_temperature
@@ -2041,6 +2057,17 @@ def build_parser():
         "lettered options, then one line asking for the chosen option's letter alone, decisio.readout.spaced), or "
         "compact (for tasks fitted under it; no blank lines, 'Answer with the letter only.'). "
         "Tasks registered under one are not applied under the other",
+    )
+    ap.add_argument(
+        "--flavor",
+        default=None,
+        choices=list(flavors.FLAVOR_NAMES),
+        help="serve a named configuration of the base (docs/design/flavors.md): calibrated (the honest one: calibrated "
+        "temperatures for every type), thinking-commit (JevBench: thinking when unsure and the commit rule) or "
+        "read-enhanced (the Decision Index: read twice). Every flavor uses the header layout; the server is named "
+        "Decisio-31b-<flavor>, Decisio-12b-<flavor> or Decisio-12b-fp8-<flavor>. A flag you give still wins and is "
+        "recorded as an override (/health, x-decisio-flavor, the start line, the fingerprint). Gemma bases only; "
+        "not with a tuned repository. Without it the server is what it was",
     )
     ap.add_argument(
         "--layout",
@@ -2465,6 +2492,13 @@ def main():
         print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
     if getattr(args, "temperatures_file_facts", None):
         print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
+    if args.flavor_report:
+        r = args.flavor_report
+        print(f"FLAVOR {r['served_name']} ({r['name']})", flush=True)
+        for k, v in sorted(r["overrides"].items()):
+            print(f"FLAVOR OVERRIDE {k}: the flavor sets {v['flavor']!r}, served {v['served']!r}", flush=True)
+        for note in r["pending"]:
+            print(f"FLAVOR PENDING {note}", flush=True)
     if getattr(args, "profile_temperatures", None):
         print(f"BASE TEMPERATURES {json.dumps(args.profile_temperatures, sort_keys=True)}", flush=True)
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
@@ -2751,6 +2785,7 @@ def main():
         think=args.think,
         think_factor=args.think_factor,
         think_budget=args.think_budget,
+        flavor=args.flavor_report,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,
         abstention_tasks=abstention_records,
