@@ -150,6 +150,17 @@ TURN_SEP = "<|im_end|>\n"  # closes an assistant turn left at "Answer:" (packed 
 PAD_TOKEN = 198  # "\n"
 
 
+def counted_tokens(tok, fmt, state, questions) -> dict:
+    """The request read once in counted input tokens, the unit of usage.input_tokens: the header (under the header
+    layout), the state, and each question's own text, each tokenized alone (no chat template, no system turn).
+    {"header": n, "state": n, "asked": [n per question], "total": n}."""
+    enc = lambda text: len(tok.encode(text, add_special_tokens=False))  # noqa: E731
+    head = enc(layout_header([q["instructions"] for q in questions])) if fmt.layout == "header" else 0
+    state_n = enc(fmt_state(state))
+    asked = [enc(question_text(tok, q, fmt)[0]) for q in questions]
+    return {"header": head, "state": state_n, "asked": asked, "total": head + state_n + sum(asked)}
+
+
 def state_prefix(tok, body, fmt=DEFAULT_FORMAT):
     """The tokens every question about this state starts with, found from the state alone.
 
@@ -608,8 +619,9 @@ class LettersEngine:
 
     def read_plan(self, state, questions) -> dict:
         """What the layout flags do to this request, for the usage count and the record: `twice` (every question's
-        user turn is written twice), `once_tokens` (the request read once: its shared prefix once plus every
-        question's own tokens), `header` (the questions are listed first)."""
+        user turn is written twice), `once_tokens` (the request read once, in counted input tokens: the header, the
+        state and each question's own text, what usage.input_tokens reports for it), `questions`, `header` (the
+        questions are listed first)."""
         _, _, plan = self._build_rows(state, questions)
         return plan
 
@@ -647,14 +659,16 @@ class LettersEngine:
         plan = {"header": self.fmt.layout == "header", "twice": False, "once_tokens": None}
         if self.fmt.read_twice_under:
             # a short request is read twice: each question's user turn again after READ_AGAIN. "Short" is the request
-            # read once, its shared prefix once plus every question's own tokens (what FlexDM counts)
-            common = min(len(r[0]) for r in rows)
-            for i in range(common):
-                if any(r[0][i] != rows[0][0][i] for r in rows[1:]):
-                    common = i
-                    break
-            once = common + sum(len(ids) - common for ids, _ in rows)
-            plan.update(once_tokens=once, twice=once <= self.fmt.read_twice_under)
+            # read once in counted input tokens (`counted_tokens`, the unit usage.input_tokens reports and the
+            # threshold was measured in), and a request with more questions than --read-twice-max-questions is read
+            # once, whatever its size: a doubled request costs more with every question, which the token count misses
+            once = counted_tokens(self.tok, self.fmt, state, questions)["total"]
+            cap = self.fmt.read_twice_max_questions
+            plan.update(
+                once_tokens=once,
+                questions=len(questions),
+                twice=once <= self.fmt.read_twice_under and (not cap or len(questions) <= cap),
+            )
             if plan["twice"]:
                 rows = [
                     (enc(user_turn(self.tok, f"{t}{READ_AGAIN}{t}", self.fmt)), lab)
@@ -1593,6 +1607,10 @@ def resolve_base(args):
     args.repository = None
     if (getattr(args, "read_twice_under", None) or 0) < 0:
         raise SystemExit("--read-twice-under must be 0 (off) or a token count")
+    if (getattr(args, "read_twice_max_questions", None) or 0) < 0:
+        raise SystemExit("--read-twice-max-questions must be 0 (no cap) or a number of questions")
+    if (getattr(args, "read_twice_max_questions", None) or 0) and not (getattr(args, "read_twice_under", None) or 0):
+        raise SystemExit("--read-twice-max-questions limits --read-twice-under, which is off")
     if repo is not None:
         hub.verify(repo, fam)
         fam = hub.serve_family(fam, repo)
@@ -1614,6 +1632,7 @@ def resolve_base(args):
         system_prompt=fam.system_prompt if args.system_prompt is None else args.system_prompt,
         layout=getattr(args, "layout", None) or "plain",
         read_twice_under=getattr(args, "read_twice_under", None) or 0,
+        read_twice_max_questions=getattr(args, "read_twice_max_questions", None) or 0,
     )
     if args.pad_to is None:
         args.pad_to = fam.pad_to
@@ -2011,12 +2030,24 @@ def build_parser():
         type=int,
         default=None,
         metavar="N",
-        help="read short requests twice (off; never the default): when a request read once is at most N tokens (its "
-        "shared prefix once, plus every question's own tokens), each question's user turn is written twice, joined by "
-        "'Read the same input again before answering:'. For Decision Index runs: about 1.5 times the tokens computed, "
-        "usage.input_tokens counts both copies (a JevBench row with it is over the cost cap). On the 31B with the "
-        "header 3000 (FlexDM's) gave +1.9 on a Decision Index sample with a p80 latency at or over its 1000 ms gate; "
-        "1500 kept +1.8 with p80 about 820 ms. Tasks and certificates are per setting (docs/running.md)",
+        help="read short requests twice (off; never the default): when a request read once is at most N counted "
+        "input tokens (the header, the state and each question's text: what usage.input_tokens reports for it), "
+        "each question's user turn is written twice, joined by 'Read the same input again before answering:'. For "
+        "Decision Index runs: about 1.5 times the tokens computed, usage.input_tokens counts both copies (a JevBench "
+        "row with it is over the cost cap). Measured on the 31B with the header: N = 2000 was the smallest within "
+        "0.25 points of the best on our proxies (+3.2) and gave +1.8 on a Decision Index sample with p80 about "
+        "866 ms; 3000 (FlexDM's) is at or over the p80 gate. Pair it with --read-twice-max-questions. Tasks and "
+        "certificates are per setting (docs/running.md)",
+    )
+    ap.add_argument(
+        "--read-twice-max-questions",
+        type=int,
+        default=None,
+        metavar="R",
+        help="with --read-twice-under: a request with more than R questions is read once, whatever its size (default: "
+        "no cap). A doubled request costs more with every question, which the token count does not see, so R is what "
+        "keeps the Decision Index's latency gate: set it from a timing run on your card (the largest question count "
+        "whose doubled request at N = 2000 stays under about 900 ms)",
     )
     ap.add_argument(
         "--answer-slot",
@@ -2354,7 +2385,11 @@ def resolve_layout(args, fmt, sources, adapter_layouts):
         decision["notes"].append(f"--temperatures-file was fitted under the {tf['layout']} layout")
     print(lay.describe(decision), flush=True)
     if fmt.read_twice_under:
-        print(f"READ TWICE requests read once of at most {fmt.read_twice_under} tokens are written twice", flush=True)
+        cap = f" and at most {fmt.read_twice_max_questions} questions" if fmt.read_twice_max_questions else ""
+        print(
+            f"READ TWICE requests of at most {fmt.read_twice_under} counted input tokens{cap} are written twice",
+            flush=True,
+        )
     return replace(fmt, layout=decision["value"]), decision
 
 

@@ -696,19 +696,17 @@ class SystemOne:
         }
 
     def usage_tokens(self, state, qs: list[dict]) -> int:
-        from decisio.readout.letters import DEFAULT_FORMAT, READ_AGAIN, fmt_state, layout_header
-        from decisio.serve.vllm_engine import question_text
+        from decisio.readout.letters import DEFAULT_FORMAT, READ_AGAIN
+        from decisio.serve.vllm_engine import counted_tokens
 
         tok, fmt = self.engine.tok, getattr(self.engine, "fmt", DEFAULT_FORMAT)
-        enc = lambda text: len(tok.encode(text, add_special_tokens=False))  # noqa: E731
-        state_n = enc(fmt_state(state))
-        asked = [enc(question_text(tok, q, fmt)[0]) for q in qs]
-        head_n = enc(layout_header([q["instructions"] for q in qs])) if fmt.layout == "header" else 0
-        total = head_n + state_n + sum(asked)
+        c = counted_tokens(tok, fmt, state, qs)
+        total = c["total"]
         if fmt.read_twice_under and self.engine.read_plan(state, qs)["twice"]:
             # what is read: every question's row reads its whole user turn again (the header, the state, its own
             # text, and the line that joins them), none of it a cached prefix
-            total += sum(head_n + state_n + a + enc(READ_AGAIN) for a in asked)
+            again = len(tok.encode(READ_AGAIN, add_special_tokens=False))
+            total += sum(c["header"] + c["state"] + a + again for a in c["asked"])
         return total
 
     def think_pass(

@@ -3,12 +3,14 @@
 """Read twice (`--read-twice-under N`): an opt-in for Decision Index runs, never the default.
 
 The oracle is Lab 4's A/B renderer, arm A2 of its card/code/layouts.py (the user turn written again after
-`Read the same input again before answering:` when the request read once is at most N tokens), copied below, so the
-served flag and the A/B read the same tokens.
+`Read the same input again before answering:`), copied below, so the served flag and the A/B read the same tokens. Which
+requests are written twice is decided here by counted input tokens (the unit of usage.input_tokens and of Lab 4's
+threshold re-pick) and by the question cap, not by the A/B's row count.
 
-R1  the format: off by default, the facts carry the setting only when on, bad values are refused
-R2  the rows equal the A/B's A2 token for token, on both sides of the limit, with and without the header; the request
-    read once counts its shared prefix once
+R1  the format: off by default, the facts carry the settings only when on, bad values are refused
+R2  the rows equal the A/B's A2 token for token whenever a request is written twice, on both sides of the token limit,
+    with and without the header; the request read once is counted in input tokens
+R2b the question cap: a request with more questions than the cap is read once, whatever its size
 R3  usage.input_tokens counts what is read: the second copy of every row
 R4  tasks and certificates are per setting
 R5  the flag, and what the start prints
@@ -17,38 +19,27 @@ R5  the flag, and what the start prints
 """
 
 import pytest
-from test_layout_flags import BASE, ONE, STATE, TWO, StubTok, engine, gemma_tokenizer, layout_header_text
+from test_layout_flags import BASE, ONE, STATE, TWO, StubTok, engine, gemma_tokenizer, layout_header_text, q
 
 from decisio.readout import letters as L
 from decisio.serve import vllm_engine
-from decisio.serve.vllm_engine import question_text
+from decisio.serve.vllm_engine import counted_tokens, question_text
 
 HEAD = "Questions that will be asked about the context:\n"
 AGAIN = "\n\nRead the same input again before answering:\n"
 
 
-def oracle(tok, state, questions, fmt, header, limit):
-    """Lab 4's A2 on engine questions: (token rows, the request read once, written twice)."""
+def oracle(tok, state, questions, fmt, header, twice):
+    """Lab 4's A2 on engine questions, written twice or not as `twice` says: the token rows."""
     body = L.fmt_state(state)
     bodies = [L.question_body(tok, e["kind"], e["instructions"], e.get("options"), fmt)[0] for e in questions]
     head = HEAD + "".join(f"- {e['instructions']}\n" for e in questions) + "\n" if header else ""
     turns = [head + body + "\n\n" + t for t in bodies]
     ids = [tok.encode(L.chat_turn(tok, t, fmt), add_special_tokens=False) for t in turns]
 
-    def common(a, b):
-        n = 0
-        for x, y in zip(a, b):
-            if x != y:
-                break
-            n += 1
-        return n
-
-    pre = ids[0] if len(ids) == 1 else ids[0][: min(common(ids[0], x) for x in ids[1:])]
-    once = len(pre) + sum(len(x) - len(pre) for x in ids)
-    twice = once <= limit
     if twice:
         ids = [tok.encode(L.chat_turn(tok, t + AGAIN + t, fmt), add_special_tokens=False) for t in turns]
-    return ids, once, twice
+    return ids
 
 
 # ---- R1 -------------------------------------------------------------------------------------------------------------
@@ -65,6 +56,14 @@ def test_r1_off_by_default_and_in_the_facts_only_when_on():
     for bad in (-1, True, 2.5, "3000"):
         with pytest.raises(ValueError):
             L.PromptFormat(**BASE, read_twice_under=bad)
+    capped = L.PromptFormat(**BASE, read_twice_under=2000, read_twice_max_questions=8)
+    assert capped.facts() == {**base.facts(), "read_twice_under": 2000, "read_twice_max_questions": 8}
+    assert capped.core() == base and "read_twice_max_questions" not in on.facts()
+    for bad in (-1, True, 1.5):
+        with pytest.raises(ValueError):
+            L.PromptFormat(**BASE, read_twice_under=2000, read_twice_max_questions=bad)
+    with pytest.raises(ValueError, match="limits read twice"):
+        L.PromptFormat(**BASE, read_twice_max_questions=8)
 
 
 # ---- R2 -------------------------------------------------------------------------------------------------------------
@@ -74,15 +73,31 @@ def test_r1_off_by_default_and_in_the_facts_only_when_on():
 @pytest.mark.parametrize("header", [True, False])
 def test_r2_the_rows_are_the_ab_arm_a2_on_both_sides_of_the_limit(questions, header):
     plain = L.PromptFormat(**BASE)
-    total = oracle(StubTok(), STATE, questions, plain, header, 10**9)[1]
-    for limit in (total - 1, total, total + 50):
-        fmt = L.PromptFormat(**BASE, layout="header" if header else "plain", read_twice_under=limit)
+    layout = "header" if header else "plain"
+    counted = counted_tokens(StubTok(), L.PromptFormat(**BASE, layout=layout), STATE, questions)["total"]
+    for limit in (counted - 1, counted, counted + 50):
+        fmt = L.PromptFormat(**BASE, layout=layout, read_twice_under=limit)
         eng = engine(fmt, StubTok())
         rows, n = eng._prepare_separate(STATE, questions)
-        want, once, twice = oracle(eng.tok, STATE, questions, plain, header, limit)
-        assert [r[0] for r in rows] == want and twice == (limit >= total) and once == total
-        assert eng.read_plan(STATE, questions) == {"header": header, "twice": twice, "once_tokens": total}
+        twice = limit >= counted
+        assert [r[0] for r in rows] == oracle(eng.tok, STATE, questions, plain, header, twice)
+        assert eng.read_plan(STATE, questions) == {
+            "header": header,
+            "twice": twice,
+            "once_tokens": counted,
+            "questions": len(questions),
+        }
         assert all(r[0][:n] == rows[0][0][:n] for r in rows)  # the cacheable prefix is the first copy's
+
+
+def test_r2_counted_tokens_are_the_header_the_state_and_each_questions_text():
+    tok = StubTok()
+    fmt = L.PromptFormat(**BASE, layout="header")
+    c = counted_tokens(tok, fmt, STATE, TWO)
+    assert c["header"] == len(tok.encode(layout_header_text(TWO))) and c["state"] == len(tok.encode(L.fmt_state(STATE)))
+    assert c["asked"] == [len(tok.encode(question_text(tok, e, fmt)[0])) for e in TWO]
+    assert c["total"] == c["header"] + c["state"] + sum(c["asked"])
+    assert counted_tokens(tok, L.PromptFormat(**BASE), STATE, TWO)["header"] == 0
 
 
 def test_r2_a_request_over_the_limit_is_read_once_and_the_plan_says_so():
@@ -94,6 +109,21 @@ def test_r2_a_request_over_the_limit_is_read_once_and_the_plan_says_so():
     assert eng.tok.decode(rows[0][0]).count("Read the same input again") == 0
     off = engine(L.PromptFormat(**BASE, layout="header"))
     assert off.read_plan(STATE, TWO) == {"header": True, "twice": False, "once_tokens": None}
+
+
+# ---- R2b ------------------------------------------------------------------------------------------------------------
+
+
+def test_r2b_a_request_with_more_questions_than_the_cap_is_read_once():
+    many = [q(f"Is statement {i} true?", kind="noul") for i in range(5)]
+    for cap, questions, twice in ((2, TWO, True), (1, TWO, False), (1, ONE, True), (4, many, False), (5, many, True)):
+        fmt = L.PromptFormat(**BASE, layout="header", read_twice_under=10_000, read_twice_max_questions=cap)
+        plan = engine(fmt).read_plan(STATE, questions)
+        assert plan["twice"] is twice and plan["questions"] == len(questions), (cap, len(questions))
+    # no cap: size alone decides; and a cap does not make a large request small
+    assert engine(L.PromptFormat(**BASE, read_twice_under=10_000)).read_plan(STATE, many)["twice"] is True
+    big = L.PromptFormat(**BASE, read_twice_under=5, read_twice_max_questions=10)
+    assert engine(big).read_plan(STATE, ONE)["twice"] is False
 
 
 def test_r2_the_second_copy_is_the_whole_user_turn_of_each_row():
@@ -153,7 +183,8 @@ def test_r4_tasks_and_certificates_are_per_setting():
     header = fingerprint(L.PromptFormat(**BASE, layout="header"))
     t3000 = fingerprint(L.PromptFormat(**BASE, layout="header", read_twice_under=3000))
     t1500 = fingerprint(L.PromptFormat(**BASE, layout="header", read_twice_under=1500))
-    assert len({header, t3000, t1500}) == 3
+    capped = fingerprint(L.PromptFormat(**BASE, layout="header", read_twice_under=1500, read_twice_max_questions=8))
+    assert len({header, t3000, t1500, capped}) == 4
     assert not same_fingerprint(header, t3000) and not same_fingerprint(t3000, t1500)
     assert header == fingerprint(L.PromptFormat(**BASE, layout="header", read_twice_under=0))  # off: unchanged
 
@@ -165,22 +196,30 @@ def test_r5_the_flag_reaches_the_format_and_the_start_says_so(capsys):
     from test_hub import args_for
 
     parser = vllm_engine.build_parser()
-    assert parser.parse_args(["--read-twice-under", "1500"]).read_twice_under == 1500
-    assert parser.parse_args([]).read_twice_under is None
-    fam, fmt = vllm_engine.resolve_base(args_for("gemma-4-12b", layout="header", read_twice_under=1500))
-    assert fmt.read_twice_under == 1500 and fmt.layout == "header"
+    a = parser.parse_args(["--read-twice-under", "2000", "--read-twice-max-questions", "12"])
+    assert (a.read_twice_under, a.read_twice_max_questions) == (2000, 12)
+    d = parser.parse_args([])
+    assert (d.read_twice_under, d.read_twice_max_questions) == (None, None)
+    fam, fmt = vllm_engine.resolve_base(
+        args_for("gemma-4-12b", layout="header", read_twice_under=2000, read_twice_max_questions=12)
+    )
+    assert (fmt.read_twice_under, fmt.read_twice_max_questions, fmt.layout) == (2000, 12, "header")
     _, plain = vllm_engine.resolve_base(args_for("gemma-4-12b"))
-    assert plain.read_twice_under == 0  # never the default
+    assert plain.read_twice_under == 0 and plain.read_twice_max_questions == 0  # never the default
     with pytest.raises(SystemExit):
         vllm_engine.resolve_base(args_for("gemma-4-12b", read_twice_under=-5))
+    with pytest.raises(SystemExit, match="limits --read-twice-under"):
+        vllm_engine.resolve_base(args_for("gemma-4-12b", read_twice_max_questions=8))
+    with pytest.raises(SystemExit):
+        vllm_engine.resolve_base(args_for("gemma-4-12b", read_twice_under=2000, read_twice_max_questions=-1))
 
 
 def test_r5_the_real_tokenizer_reads_the_same_tokens_as_the_ab_arm_a2():
     tok = gemma_tokenizer()
     plain = L.PromptFormat(**BASE)
     for questions in (ONE, TWO):
-        for limit in (50, 3000):
+        counted = counted_tokens(tok, L.PromptFormat(**BASE, layout="header"), STATE, questions)["total"]
+        for limit, twice in ((counted - 1, False), (counted, True)):
             fmt = L.PromptFormat(**BASE, layout="header", read_twice_under=limit)
             rows, _ = engine(fmt, tok)._prepare_separate(STATE, questions)
-            want, _, twice = oracle(tok, STATE, questions, plain, True, limit)
-            assert [r[0] for r in rows] == want and twice == (limit == 3000), (len(questions), limit)
+            assert [r[0] for r in rows] == oracle(tok, STATE, questions, plain, True, twice), (len(questions), limit)
