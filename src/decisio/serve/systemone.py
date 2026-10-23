@@ -14,7 +14,8 @@ The mapping was fixed before any benchmark item was sent (runs/2026-09-27_boards
   choice        options in the request's key order, shown "<key>: <description>" or "<key>"; letters readout
   score         levels in criteria order as the letters legend; score = probability-weighted mean level
   confidence    the System One adapter's rules (choice: max rescaled from uniform; score: concentration at the mode)
-  usage         input_tokens = state + each question's own text in this tokenizer; output_tokens = one per question
+  usage         input_tokens = state + each question's own text in this tokenizer (plus the header the layout lists:
+                what is read); output_tokens = one per question
 
 Two-order mode (after Reflex, github.com/kshetrajna12/reflex, MIT, `prompt.distinct_orders` and
 `ensemble.disagreement`): each question is also read in one distinct second order (seeded by its name; the swap for two
@@ -695,12 +696,16 @@ class SystemOne:
         }
 
     def usage_tokens(self, state, qs: list[dict]) -> int:
-        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state
+        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state, layout_header
         from decisio.serve.vllm_engine import question_text
 
         tok, fmt = self.engine.tok, getattr(self.engine, "fmt", DEFAULT_FORMAT)
-        n = len(tok.encode(fmt_state(state), add_special_tokens=False))
-        return n + sum(len(tok.encode(question_text(tok, q, fmt)[0], add_special_tokens=False)) for q in qs)
+        enc = lambda text: len(tok.encode(text, add_special_tokens=False))  # noqa: E731
+        state_n = enc(fmt_state(state))
+        asked = [enc(question_text(tok, q, fmt)[0]) for q in qs]
+        head_n = enc(layout_header([q["instructions"] for q in qs])) if fmt.layout == "header" else 0
+        total = head_n + state_n + sum(asked)
+        return total
 
     def think_pass(
         self,

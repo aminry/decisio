@@ -49,6 +49,8 @@ Where the columns differ, the value is the base's.
 | --- | --- | --- | --- | --- |
 | `--prompt-tail` | `spaced` | `spaced` | `spaced` | `spaced`: a blank line before and after the lettered options, then one line asking for the chosen option's letter alone; `compact`: the compact layout, for tasks registered under it |
 | `--answer-slot` | `prefill` | `template` | `template` | where the label is read: after "Answer:" prefilled in the assistant turn, or at the chat template's own first assistant position |
+| `--layout` | `plain` | `plain` | `plain` | `plain`: the state then the question; `header`: the request's questions are listed before the state (`docs/running.md`, "The header layout"); a state cached for one set of questions is not reused for another; tasks and certificates are per layout |
+| `--temperatures-file` | none | none | none | the base's temperatures per type and its choice bands from a `decisio.adapter/1` file (`adapter_temperatures fit`); a `--temperature-<type>` flag beats it, it beats a tuned repository's defaults |
 | `--label-variants` | `single` | `summed` | `summed` | the tokens read per label: the one form the slot reads, or every single-token form summed |
 | `--system-prompt` | off | on | on | a system turn before each question |
 | `--noul-rendering` | `letters-keys` | `letters` | `letters` | how a yes/no question is asked: `letters-keys`, a two-option letter choice, the false side first, the sides named; `letters`, the same with each side shown as its description; `words`, read from the yes and no tokens |

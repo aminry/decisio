@@ -66,6 +66,7 @@ from decisio.readout.letters import (  # noqa: E402
     label_groups,
     label_logprobs,
     label_token_ids,
+    layout_header,
     letter_labels,
     question_body,
 )
@@ -592,6 +593,10 @@ class LettersEngine:
         back to full tokenization for that request, so the rows are always what evaluation scores."""
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         body = fmt_state(state)
+        if (
+            self.fmt.layout == "header"
+        ):  # --layout header: the request's questions first (every question of the request)
+            body = layout_header([q["instructions"] for q in questions]) + body
         tail = self._template_tail()
         texts = [question_text(self.tok, q, self.fmt) for q in questions]
         suffixes = [enc(text + tail) for text, _, _ in texts]
@@ -1107,6 +1112,11 @@ def make_app(engine, systemone=None, health=None):
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
                     "repository_defaults": getattr(engine, "repository_defaults", None),
+                    **(
+                        {"temperatures_file": engine.temperatures_file}
+                        if getattr(engine, "temperatures_file", None)
+                        else {}
+                    ),
                     "adapter_temperatures": systemone.adapter_temperatures,
                     "task_store": systemone.task_store_report(),
                     "readout_tasks": {
@@ -1564,6 +1574,7 @@ def resolve_base(args):
         slot=args.answer_slot or fam.answer_slot,
         variants=args.label_variants or fam.label_variants,
         system_prompt=fam.system_prompt if args.system_prompt is None else args.system_prompt,
+        layout=getattr(args, "layout", None) or "plain",
     )
     if args.pad_to is None:
         args.pad_to = fam.pad_to
@@ -1573,10 +1584,48 @@ def resolve_base(args):
         args.noul_rendering = fam.noul_rendering
     if args.temperature is None:
         args.temperature = fam.temperature
+    given = {t: getattr(args, f"temperature_{t}", None) is not None for t in ("choice", "noul", "score")}
     apply_repository_defaults(args, repo)
+    apply_temperatures_file(args, given)
     if args.temperature_choice is None:
         args.temperature_choice = fam.choice_temperature
     return fam, fmt
+
+
+def apply_temperatures_file(args, given: dict) -> None:
+    """`--temperatures-file FILE` (a decisio.adapter/1 file, as `python -m decisio.serve.adapter_temperatures fit`
+    writes it, fitted on this layout's reads): its temperatures per question type and its choice bands for the base.
+    Precedence: a flag (`given`: the --temperature-<type> flags the command line gave), then the file, then the
+    repository's defaults, then the base's profile. `--temperature-choice X` is one number for every choice question,
+    so it drops the file's bands. Sets `args.temperatures_file_facts` (the file and its sha256) for the start-up
+    line and /health."""
+    args.temperatures_file_facts = None
+    path = getattr(args, "temperatures_file", None)
+    if not path:
+        return
+    import hashlib
+
+    try:
+        doc = adapter_temperatures.read(path)
+    except adapter_temperatures.AdapterFileError as e:
+        raise SystemExit(f"--temperatures-file: {e}")
+    applied = {}
+    for qtype in ("choice", "noul", "score"):
+        if given[qtype]:
+            continue
+        if qtype in doc["temperatures"]:
+            setattr(args, f"temperature_{qtype}", float(doc["temperatures"][qtype]))
+            applied[qtype] = float(doc["temperatures"][qtype])
+    if doc["choice_bands"] and not given["choice"]:
+        args.choice_bands = {b: float(t) for b, t in doc["choice_bands"].items()}
+        applied["choice_bands"] = dict(args.choice_bands)
+    elif doc["choice_bands"]:
+        applied["choice_bands_dropped_by"] = "--temperature-choice"
+    args.temperatures_file_facts = {
+        "file": str(path),
+        "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+        "applied": applied,
+    }
 
 
 def apply_repository_defaults(args, repo) -> None:
@@ -1905,6 +1954,16 @@ def build_parser():
         "Tasks registered under one are not applied under the other",
     )
     ap.add_argument(
+        "--layout",
+        default=None,
+        choices=["plain", "header"],
+        help="the user turn's layout (default plain, the served prompt, byte for byte): header lists the request's "
+        "questions before the state ('Questions that will be asked about the context:' and a '- <question>' line "
+        "each), then the state and the question as plain; opt-in, as jev-brain and FlexDM read. A state cached for "
+        "one set of questions is not reused for another set. Tasks fitted and certificates made under one layout "
+        "are not applied under another; a model trained on the plain layout is untested on this one (docs/running.md)",
+    )
+    ap.add_argument(
         "--answer-slot",
         default=None,
         choices=["prefill", "template"],
@@ -1942,6 +2001,16 @@ def build_parser():
             )
             + "); 1 switches it off for that type",
         )
+    ap.add_argument(
+        "--temperatures-file",
+        default=None,
+        metavar="FILE",
+        help="the base's temperatures from a decisio.adapter/1 file (`python -m decisio.serve.adapter_temperatures "
+        "fit`, from labelled off-suite reads taken under the layout you serve): per question type and, for choice, "
+        "by number of options. Precedence: a --temperature-<type> flag, this file, a tuned repository's defaults, "
+        "the base's profile. The values are in the serving-stack fingerprint, so a certificate made under others is "
+        "suspended",
+    )
     ap.add_argument(
         "--noul-commit",
         action=argparse.BooleanOptionalAction,
@@ -2200,6 +2269,10 @@ def main():
         ap.error("--temperature must be positive (1 is off)")
     if args.repository_defaults:
         print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
+    if getattr(args, "temperatures_file_facts", None):
+        print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
+    if args.layout:
+        print("PROMPT LAYOUT " + json.dumps({"layout": args.layout}), flush=True)
     deep_gemm_guard(args.backend, os.environ, args.allow_deep_gemm)
     args.pad_policy = resolve_pad_policy(args.backend, args.pad_policy)
     if args.backend == "mlx":
@@ -2377,6 +2450,7 @@ def main():
     engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults
+    engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
     engine.over_limit_tokens = args.over_limit_tokens
     if args.think and not engine.can_think():
         why = getattr(engine, "think_blocked", lambda: None)() or "think needs the vLLM engine"
