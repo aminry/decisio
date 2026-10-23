@@ -37,9 +37,9 @@ def stages(r):
 
 def test_w1_an_idle_server_waits_zero_and_says_so(client):
     c, _ = client
-    # The first request on a fresh server pays for lazy start-up (thread hand-off, first tokenization), which a loaded CI
-    # runner stretches past 100 ms; the idle wait is what the next request reports. W2's held lock is 600 ms, so the
-    # bound stays well under a real queue.
+    # The first request on a fresh server pays for lazy start-up (thread hand-off, first tokenization), which a loaded
+    # CI runner stretches past 100 ms; the idle wait is what the next request reports. W2's held lock is 600 ms, so
+    # the bound stays well under a real queue.
     c.post("/v1/systemone", json={"state": "Ticket zero: warm up.", "questions": Q})
     r = c.post("/v1/systemone", json={"state": "Ticket one: the site is down.", "questions": Q})
     s = stages(r)
