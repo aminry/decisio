@@ -130,7 +130,7 @@ The served model in System One's format; the name is the base's served name unle
 
 ## Where this route differs from System One
 
-The conformance gate C5 compares the request and response fields with System One's published OpenAPI document (version 0.2.0) and fails on any difference that is not in this list:
+The conformance check compares the request and response fields with System One's published OpenAPI document (version 0.2.0) and fails on any difference that is not in this list:
 - **`model` is optional.** System One requires it and refuses a request without it with 422; here a request without it is answered and the response names the served model.
 - **A score may have more than 10 levels.** System One refuses more than 10 with 422 (`too_long`); decisio accepts more (up to the engine's 255 labels) and does not cap them.
 - **`box` questions are not supported.** A request with `"type": "box"` is refused with 422.
