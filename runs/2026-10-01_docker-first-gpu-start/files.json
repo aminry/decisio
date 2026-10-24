@@ -131,8 +131,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 6550,
-  "sha256": "90dc0770d4f1d567c2a35b9abc424e293f25887622e0a9785407ca5399aa8564"
+  "bytes": 6556,
+  "sha256": "bb107536b78cbe11a535cec04b443ca8682e406851633bd6593d4800da9b1ab0"
  },
  {
   "path": "nvidia_ctk_version.txt",

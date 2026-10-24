@@ -26,8 +26,8 @@
  },
  {
   "path": "4bit/health_A.json",
-  "bytes": 1803,
-  "sha256": "caf303bd002b656fdc8c12b35f7cb6de9b5e5fb1fb8ce3a5ed7f60d1565c4cd9"
+  "bytes": 1773,
+  "sha256": "b7ebb2059524a5b3dfa627769c58dcab1d096e5d44274a5c7a0f87ca28dd6a24"
  },
  {
   "path": "4bit/host.txt",
@@ -56,8 +56,8 @@
  },
  {
   "path": "4bit/memory.json",
-  "bytes": 3361,
-  "sha256": "e20cb8759a658da2a3d00e7947985bcee567cbc5c6e660b6f36013d34b05ca8a"
+  "bytes": 3341,
+  "sha256": "8af39baa8bc90514bdfd3d0787cce16b50c300a21bec57fe6dbc546af25f6731"
  },
  {
   "path": "4bit/memory.log",
@@ -71,8 +71,8 @@
  },
  {
   "path": "4bit/server_A.log",
-  "bytes": 1198,
-  "sha256": "1fd6aac1a8cbaef6564e30b177c9414d177ef4841673d0dfca74899f0f76aa1d"
+  "bytes": 1178,
+  "sha256": "38620ce6c5aa7640e89123affef59a3c592056e67bd36bb84c1bb3b1af891dfc"
  },
  {
   "path": "4bit/suite.json.gz",
@@ -81,8 +81,8 @@
  },
  {
   "path": "4bit/suite.log",
-  "bytes": 156,
-  "sha256": "5632a7fef2e7e3af56df79696fd8c7f73c0168d34c92058c52f4ece796e6a327"
+  "bytes": 91,
+  "sha256": "573cf87b7a32d96404b173a3c52d70629b39d6ebc9f63273583abb645f7c2b89"
  },
  {
   "path": "manifest.json",
