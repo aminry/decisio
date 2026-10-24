@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""Conformance of `/v1/systemone` (decisio.serve.systemone) to TypeSafe's wire format: gates C2-C4, run before every
-benchmark measurement in runs/.
+"""Conformance of `/v1/systemone` (decisio.serve.systemone) to TypeSafe's wire format: the conformance checks, run
+before every benchmark measurement in runs/.
 
   C2  TypeSafe's own client (typesafe-sdk, `TypeSafeClient`) parses our responses: 12 requests covering noul with and
       without criteria, choice with and without descriptions (2 to 151 options), score, string/object/array states and

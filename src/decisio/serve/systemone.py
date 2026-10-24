@@ -5,7 +5,7 @@
 The request and response schemas are TypeSafe's own (typesafe-sdk 0.7.0, `_schemas/models.py`, generated from
 api.typesafe.ai/openapi.json; MIT). Each question becomes one
 question of the state-plus-questions engine and is rendered by the same letters readout as `/v1/answer`, so a request
-whose criteria carry no descriptions scores exactly the token rows `/v1/answer` scores (conformance gate C3).
+whose criteria carry no descriptions scores exactly the token rows `/v1/answer` scores (a conformance check).
 The mapping was fixed before any benchmark item was sent (runs/2026-09-27_boards-baseline):
 
   state         passed to the engine unchanged (a string as is; an object as `key: value` lines, like evaluation)

@@ -111,7 +111,7 @@ PINNED_REVISIONS: dict[str, str] = {
 }
 # the bases whose own key is served from a decisio repository rather than from the source's weights, once that
 # repository's revision is pinned: the 31B's FP8 checkpoint saves quantizing Google's bf16 weights at every start
-# (Amin, 2026-10-07; the others are byte-for-byte copies and keep their sources). `--model google/gemma-4-31B-it`
+# (2026-10-07; the others are byte-for-byte copies and keep their sources). `--model google/gemma-4-31B-it`
 # serves Google's weights, quantized on load, as before.
 DEFAULT_SOURCES = {"gemma-4-31b": REPOSITORIES["gemma-4-31b"]}
 
