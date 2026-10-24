@@ -2075,12 +2075,12 @@ def build_parser():
         choices=["plain", "header"],
         help="the user turn's layout. header (the default of the Gemma bases) lists the request's questions before the "
         "state ('Questions that will be asked about the context:' and a '- <question>' line each), then the state and "
-        "the question as plain; plain is the state then the question (the Qwen base's default, and what the Gemma "
-        "bases were served with before the header became theirs). Without the flag the server holds plain while it "
-        "loads tasks fitted under plain, or an adapter or tuned repository that recorded no layout (the start says "
-        "so). A state cached for one set of questions is not reused for another under header: a client that asks a "
-        "series of questions about one state wants plain. Tasks fitted and certificates made under one layout are "
-        "not applied under another (docs/running.md)",
+        "the question as plain; plain is the state then the question (the Qwen base's default, and what 0.25.0 and "
+        "earlier served). Without the flag the server holds plain while it loads tasks fitted under plain, or an "
+        "adapter or tuned repository that recorded no layout (the start says so). A state cached for one set of "
+        "questions is not reused for another under header: a client that asks a series of questions about one state "
+        "wants plain. Tasks fitted and certificates made under one layout are not applied under another "
+        "(docs/running.md)",
     )
     ap.add_argument(
         "--read-twice-under",
