@@ -365,3 +365,90 @@ def test_o7_the_flags_are_in_the_parser():
     args = vllm_engine.build_parser().parse_args(["--over-limit", "truncate", "--over-limit-tokens", "6000"])
     assert (args.over_limit, args.over_limit_tokens) == ("truncate", 6000)
     assert vllm_engine.build_parser().parse_args([]).over_limit is None
+
+
+# ---- O8 -------------------------------------------------------------------------------------------------------------
+
+
+class HeaderEngine(LimitEngine):
+    """The same engine with a layout, so the rows it would build are the layout's."""
+
+    def __init__(self, layout, limit=300):
+        super().__init__(limit)
+        from decisio.readout.letters import PromptFormat
+
+        self.fmt = PromptFormat(layout=layout)
+
+
+def true_row_tokens(eng, state_text, qs):
+    """The longest row the engine would build for this state and these questions
+    (vllm_engine.LettersEngine._build_rows): the user turn of the header (under the header layout), the state, a blank
+    line and the question."""
+    from decisio.readout.letters import fmt_state, layout_header
+
+    enc = lambda s: eng.tok.encode(s, add_special_tokens=False)  # noqa: E731
+    body = fmt_state(state_text)
+    if eng.fmt.layout == "header":
+        body = layout_header([q["instructions"] for q in qs]) + body
+    return max(
+        len(
+            enc(
+                vllm_engine.user_turn(
+                    eng.tok, f"{body}\n\n{vllm_engine.question_text(eng.tok, q, eng.fmt)[0]}", eng.fmt
+                )
+            )
+        )
+        for q in qs
+    )
+
+
+QS_ONE_LONG = [
+    {
+        "instructions": "Which queue should this ticket go to, given everything the customer wrote below and the "
+        "account history that follows it in the state?",
+        "options": ["billing", "access", "shipping"],
+    }
+]
+QS_MANY = [
+    {
+        "instructions": f"Question number {i}: is the reported problem {i} resolved by the second message?",
+        "options": ["yes", "no"],
+    }
+    for i in range(6)
+]
+
+
+@pytest.mark.parametrize("layout", ["plain", "header"])
+@pytest.mark.parametrize("qs", [QS_ONE_LONG, QS_MANY], ids=["one long question", "six questions"])
+def test_o8_truncate_leaves_every_row_within_the_ceiling_under_either_layout(layout, qs):
+    """The header lists every question before the state, so the budget the cut leaves must count it: a cut state beside
+    a header longer than the margin made rows over the ceiling, which the engine refused with a 422 (0.26.0)."""
+    from decisio.readout.letters import fmt_state
+
+    eng = HeaderEngine(layout)
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), over_limit="truncate")
+    for words in (100, 190, 230, 260, 400, 2000):  # under, at, and over what the ceiling holds
+        req = SimpleNamespace(
+            state=" ".join(f"w{i}" for i in range(words)), model_copy=lambda update, s=None: SimpleNamespace(**update)
+        )
+        out, report = so.truncated_request(req, qs, eng)
+        kept = out.state if report else req.state
+        assert true_row_tokens(eng, kept, qs) <= eng.limit, (layout, words, report)
+        if report is None:
+            assert fmt_state(kept) == fmt_state(req.state)
+
+
+def test_o8_the_header_costs_the_state_exactly_its_tokens():
+    plain, header = HeaderEngine("plain"), HeaderEngine("header")
+    msg = " ".join(f"w{i}" for i in range(2000))
+    req = SimpleNamespace(state=msg, model_copy=lambda update: SimpleNamespace(**update))
+    kept = {}
+    for eng in (plain, header):
+        so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), over_limit="truncate")
+        _, rep = so.truncated_request(req, QS_MANY, eng)
+        kept[eng.fmt.layout] = rep["kept_tokens"]
+    from decisio.readout.letters import layout_header
+
+    head = len(plain.tok.encode(layout_header([q["instructions"] for q in QS_MANY]), add_special_tokens=False))
+    # the header's tokens, give or take the one a blank line merges with at the join (the margin covers that)
+    assert abs((kept["plain"] - kept["header"]) - head) <= 2 and head > over.MARGIN

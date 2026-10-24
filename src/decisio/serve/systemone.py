@@ -808,7 +808,7 @@ class SystemOne:
         """(the request, the report): the request with its state cut to its start where a row would be over the
         engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
         decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves."""
-        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state
+        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state, layout_header
         from decisio.serve.vllm_engine import question_text, user_turn
 
         limit = getattr(engine, "prompt_limit", lambda: None)()
@@ -819,7 +819,11 @@ class SystemOne:
             )
         tok, fmt = engine.tok, getattr(engine, "fmt", DEFAULT_FORMAT)
         enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
-        overhead = max(len(enc(user_turn(tok, f"\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
+        # a row is the user turn of the header (under the header layout: every question of the request, listed before
+        # the state), the state, a blank line and the question; the budget the state may take is what is left of the
+        # ceiling beside the longest such row, so the header counts as much as the question
+        head = layout_header([q["instructions"] for q in qs]) if fmt.layout == "header" else ""
+        overhead = max(len(enc(user_turn(tok, f"{head}\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
         text, report = over.fit_state(
             tok, fmt_state(req.state), overhead, limit, reserve=int(getattr(engine, "pad_unit", 0) or 0)
         )
