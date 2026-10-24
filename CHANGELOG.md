@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.27.0](https://github.com/aminry/decisio/compare/v0.26.0...v0.27.0) (2026-10-24)
+
+
+### Features
+
+* **serve:** --flavor, named configurations of the same weights (calibrated, thinking-commit, read-enhanced) ([22081c0](https://github.com/aminry/decisio/commit/22081c0a2d532cc9cd9296a3aaa7047126043ca7))
+* **serve:** --read-twice-under N, an opt-in for Decision Index runs (never the default) ([#296](https://github.com/aminry/decisio/issues/296)) ([f7f9bd4](https://github.com/aminry/decisio/commit/f7f9bd4a499a6e4d04014ae9e61e03a821c43cc4))
+* **serve:** a base's profile can carry per-type temperatures (yes/no, score) and choice bands ([f399c51](https://github.com/aminry/decisio/commit/f399c51f0bedf223f034d36927dc6dbcd0c0d0bb))
+* **serve:** think-mode temperatures per question type (defaults.think_temperatures, --think-temperature, fit-think) ([#278](https://github.com/aminry/decisio/issues/278)) ([60516b4](https://github.com/aminry/decisio/commit/60516b4de0db2df90fa79499e4675bb38dd01f20))
+
+
+### Bug Fixes
+
+* **serve:** truncate counts the header's question list in the room it leaves for the state ([#305](https://github.com/aminry/decisio/issues/305)) ([46f7c60](https://github.com/aminry/decisio/commit/46f7c6013aeda01b1ebb4a35701d3f5134929075))
+
 ## [0.26.0](https://github.com/aminry/decisio/compare/v0.25.0...v0.26.0) (2026-10-23)
 
 
