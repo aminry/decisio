@@ -8,7 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Next release: two opt-ins, read twice and think-mode temperatures
+## 0.27.0: read twice, think-mode temperatures, per-type profile temperatures and flavors (all opt-in), and a truncation fix
 
 ### What changed
 
@@ -36,11 +36,16 @@ A base's profile can carry per-type temperatures and bands:
 
 - **A base's profile can hold a temperature for yes/no and for score, and choice temperatures by band of option count**, beside the global and choice ones ([running.md](running.md#refitting-the-bases-temperatures-for-a-layout)). It is the last word of the precedence (a flag, `--temperatures-file`, a tuned repository's defaults, then the profile). **No base sets them in this release**, so every served temperature is what it was; the exported hub profile is unchanged, so repository files exported before this still agree.
 
+Fix:
+
+- **`--over-limit truncate` works under the header layout.** In 0.26.0 the room the cut left for the state did not count the header's list of the request's questions, so a truncated request whose list was longer than the 32-token margin came out over the ceiling and the engine refused it with a 422 (27 of 60 items at a 85,000-token target on a 65,536 ceiling, 12B). The cut now counts the list: the state keeps exactly what the rows leave, and every such request is answered. Nothing changes on the plain layout, and nothing for a server that refuses over-limit states (the default).
+
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
 | Without `--read-twice-under` | Nothing changes | Nothing |
+| A Gemma base with `--over-limit truncate` (or a request's `over_limit: truncate`) on the header layout | Requests whose question list was longer than 32 tokens got a 422 in 0.26.0 and are answered now, from a state cut by the list's length | Nothing |
 | `--read-twice-under N` (new) | Short requests are read twice; tasks and certificates of other settings are not applied | Choose N and R from a run of your own; register and certify again under them |
 | Any server that does not use `--think` or a repository with `defaults.think` | Nothing changes | Nothing |
 | A thinking server and a repository or file without think temperatures | Nothing changes | Nothing |
