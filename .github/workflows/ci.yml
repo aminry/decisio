@@ -59,6 +59,11 @@ jobs:
       - name: Code fences name a language
         run: python3 scripts/check_code_fences.py
 
+      # A heading that is reworded changes its anchor; every relative link in the rendered documentation must still
+      # resolve to a file and a heading.
+      - name: Documentation links resolve
+        run: python3 scripts/check_doc_anchors.py
+
       # The patch tests apply each series to the tagged vLLM source; without the tree they skip.
       - name: Fetch the vLLM source the patches are checked against
         run: bash scripts/fetch_vllm_source.sh
