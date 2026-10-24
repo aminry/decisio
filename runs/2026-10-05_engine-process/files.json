@@ -111,8 +111,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 11755,
-  "sha256": "5d70fc54662239a21684b382ff62b6182a15cfe32ee64b0b231c0a290099e764"
+  "bytes": 11717,
+  "sha256": "d0bcee65c1ad621c2c001d54e8f26dd2232d21ead272d46c99994aef5dcc2f42"
  },
  {
   "path": "oracle.json",

@@ -5,8 +5,8 @@
 {"stage":"k2","hours_at_start":1.26,"rc":0,"note":"K2","end_utc":"12:08:50"}
 {"stage":"h","hours_at_start":1.43,"rc":0,"note":"H","end_utc":"12:19:13"}
 {"stage":"f","hours_at_start":1.60,"rc":0,"note":"F","end_utc":"12:29:11"}
-{"stage":"l","hours_at_start":2.33,"rc":0,"note":"Lab 1's L","end_utc":"13:13:12"}
-{"stage":"i","hours_at_start":2.61,"rc":0,"note":"Lab 1's I","end_utc":"13:30:01"}
-{"stage":"j","hours_at_start":2.72,"rc":0,"note":"Lab 1's J","end_utc":"13:36:43"}
+{"stage":"l","hours_at_start":2.33,"rc":0,"note":"the original's L","end_utc":"13:13:12"}
+{"stage":"i","hours_at_start":2.61,"rc":0,"note":"the original's I","end_utc":"13:30:01"}
+{"stage":"j","hours_at_start":2.72,"rc":0,"note":"the original's J","end_utc":"13:36:43"}
 {"stage":"x","hours_at_start":3.23,"rc":0,"note":"X","end_utc":"14:06:56"}
 {"stage":"x5","hours_at_start":3.60,"rc":0,"note":"X5","end_utc":"14:29:06"}

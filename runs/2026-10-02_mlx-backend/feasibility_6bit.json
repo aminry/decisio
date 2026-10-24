@@ -1,5 +1,5 @@
 {
- "model": "/Users/amin/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-6bit/snapshots/cb7e092ef8efe540bc3672c8929c4adbe5f4f759/",
+ "model": "~/.cache/huggingface/hub/models--mlx-community--Qwen3.6-35B-A3B-6bit/snapshots/cb7e092ef8efe540bc3672c8929c4adbe5f4f759/",
  "load_s": 3.3592854590388015,
  "mlx": "0.32.3",
  "items": [

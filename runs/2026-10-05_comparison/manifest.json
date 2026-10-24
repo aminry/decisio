@@ -22,7 +22,7 @@
    "runs/2026-10-04_gemma-base/jevbench_gemma/{easy,original,hard}/summary.json",
    "runs/2026-10-04_gemma-4-31b/jevbench_g31/{easy,original,hard}/summary.json"
   ],
-  "self_hosting_cost": "mean request latency (scores.json latency_ms.mean) x 150,759 requests at $1.48 per card-hour (about $26 for 17.6 card-hours of the RTX PRO 6000 on vast.ai, 2026-10-04 to 05); one request at a time"
+  "self_hosting_cost": "mean request latency (scores.json latency_ms.mean) x 150,759 requests at $1.48 per card-hour (about $26 for 17.6 card-hours of the RTX PRO 6000 on a rented host, 2026-10-04 to 05); one request at a time"
  },
  "snapshots": {
   "snapshots/decision-index_index-v0.2.1.json.gz": {
