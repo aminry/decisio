@@ -6,7 +6,7 @@ warning for a task with no catch-all option. No model: a fake engine whose answe
 The card replay of 2026-10-16 (the 31B, CLINC150, 10 examples per intent, 5,363 messages, the out-of-scope share
 rising from message 1,000) is the case: the answer mix alerted after message 5,200 and 976 wrong certified answers, and
 certification stayed on. The signals are replayed on that stream in `runs/2026-10-17_drift-monitor/` and on a card
-by `experiments/2026-10-17_serve_drift_monitor/CELL_DRIFT_REPLAY.md` (Serve's RLCD folder).
+by a replay cell.
 
 M1  the confidence baseline: a tail share, a limit that a normal stream does not reach (at most 1 percent of
     5,000-answer streams) and a shifted stream does quickly; none for too few examples
@@ -249,7 +249,7 @@ def legacy_export(exported):
 
 
 def test_m3_a_certificate_made_before_the_signal_takes_the_default_on_re_certification_and_suspends():
-    """S21's drift cell (RLCD, Lab 2): Lab 3's task was certified by 0.14.0, so `old.get("suspend_on_alert", False)`
+    """A drift cell: a task that was certified by 0.14.0, so `old.get("suspend_on_alert", False)`
     gave a re-certification false and "on by default" held for no upgrading user."""
     client, so, task = registered()
     legacy = legacy_export(client.get("/v1/tasks?full=1").json()["tasks"])

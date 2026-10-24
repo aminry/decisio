@@ -529,7 +529,7 @@ def test_b2_the_systemone_response_says_the_batch():
     assert "x-decisio-batch" not in alone.headers
 
 
-# ---- Serve's review -------------------------------------------------------------------------------------------------
+# ---- review -------------------------------------------------------------------------------------------------
 
 
 def test_b9_the_engine_lock_is_first_come_first_served():

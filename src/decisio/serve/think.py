@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Think when unsure: a second read after the served model has written its own reasoning.
 
-The procedure is Chon's (github.com/xoai/chon, Apache-2.0, `chon/infer.py`), as Lab 1 tested it on the 12B and the
-adapter writing its own reasoning (RLCD N1_THINK_RESULTS.md, arm 4):
+The procedure is Chon's (github.com/xoai/chon, Apache-2.0, `chon/infer.py`), as tested on the 12B and the
+adapter writing its own reasoning:
 
 1. A question is read as always, and served confidence is the top probability after the type's temperature (yes/no:
    max(P(yes), P(no))). It is **unsure** when that is below the type's threshold times a factor: choice 0.75, yes/no

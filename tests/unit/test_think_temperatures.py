@@ -330,7 +330,7 @@ def test_q5_tuned_config_takes_think_temperatures_from_the_file_and_from_the_com
     ]  # fmt: skip
     assert hub.main(argv) == 0
     assert json.loads(out.read_text())["defaults"]["think_temperatures"] == {"score": 2.0, "noul": 3.0}  # the file's
-    # the command line wins per type (Lab 1's fit: 4.0 for thinking score items) and adds the others
+    # the command line wins per type (a fit: 4.0 for thinking score items) and adds the others
     assert hub.main([*argv, "--think-temperature", "score=4.0", "--think-temperature", "choice=1.9"]) == 0
     written = json.loads(out.read_text())
     assert written["defaults"]["think_temperatures"] == {"score": 4.0, "noul": 3.0, "choice": 1.9}

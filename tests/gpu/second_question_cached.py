@@ -5,9 +5,9 @@ state reads the state from the prefix cache, also with the cache filled near or 
 
 The server is built as `decisio-serve --base <base> --model <checkpoint>` builds it (uvicorn left out). On the Gemma
 bases a single question registers its state's boundary with a warm-up (decisio.families register_state_boundary);
-without it a second question read the whole state again (on the 31B, 531 ms instead of 47 at 3,000 tokens, RLCD
-experiments/2026-10-05_t7_card_e2_e3_e4), and vLLM's retention interval, the other way to keep it, lost even repeated
-questions on the earliest states at 1.3 times the cache's pool (same record).
+without it a second question read the whole state again (on the 31B, 531 ms instead of 47 at 3,000 tokens), and
+vLLM's retention interval, the other way to keep it, lost even repeated
+questions on the earliest states at 1.3 times the cache's pool.
 
     python tests/gpu/second_question_cached.py <checkpoint> --base <base> [--tokens 3000] [--fill F] [--revisit 8]
         [--register-boundary after|before] [--follow 5]
@@ -29,14 +29,14 @@ PART B  distinct states filling `fill` times the pool vLLM reports (`cache_confi
         The fill is counted in tokens by default (--fill-by tokens), which holds for the Gemma bases. It does not for
         the Qwen base: the reported pool is the number of 32,768-token requests that fit times 32,768, and on a hybrid
         model a short padded state costs far more blocks per token than a long one, because each recurrent group keeps
-        a state block besides the attention blocks. From the logged figures of Lab 2's card (RLCD
-        experiments/2026-10-07_lab2_after_gpu_cases): 2,330 blocks in all, a 32,768-token request needing 38 (32
+        a state block besides the attention blocks. From the logged figures of a card run: 2,330 blocks in all, a
+        32,768-token request needing 38 (32
         attention and 2 for each of three recurrent groups), so a cached 3,168-token state keeping at least 3 attention
         and 3 recurrent blocks holds at most 388 states, where the test sent 429 and none of the 8 earliest was left.
         --fill-by blocks (the Qwen base's) measures the blocks a state keeps in the cache, reading vLLM's block pool in
         this process, and fills `fill` times the pool's blocks divided by that
         With --part-b report the verdict is printed and not gated: under --register-boundary after the Gemma 4 31B kept
-        none of its 8 earliest states at 1.3 times its pool, where before kept all 8 (Lab 2's session of 2026-10-07; why
+        none of its 8 earliest states at 1.3 times its pool, where before kept all 8 (a card session of 2026-10-07; why
         its default is before); the 12B kept all 8 under both orders
 PART C  (--register-boundary after) on `follow` new states each, a first question and then a different one at once
         (the registration still pending or running: the follow-up waits for it) and after a pause of a second (the

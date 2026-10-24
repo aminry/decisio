@@ -442,7 +442,6 @@ def test_prefix_cache_budget_is_the_bases_and_the_flag_overrides_it(monkeypatch,
     from decisio.families import BASES
 
     # Qwen's 2,048 MiB keeps 25 states of 1,000 tokens; the 12B's 7,400 keeps 20
-    # (RLCD experiments/2026-10-06_ls_mlx_cache_budget)
     assert BASES["qwen3.6-35b-a3b"].mlx_prefix_cache_mb == 2048 and BASES["gemma-4-12b"].mlx_prefix_cache_mb == 7400
     assert _served_budget(monkeypatch, tmp_path, "qwen3.6-35b-a3b") == 2048
     assert _served_budget(monkeypatch, tmp_path, "gemma-4-12b") == 7400

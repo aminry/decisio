@@ -5,7 +5,7 @@
 A model tuned to be calibrated near temperature 1 is served by decisio at the base's temperatures (choice 4.67, yes/no
 and score 5.25): the base's were fitted on the base's plain readouts, and on a tuned model they flatten every yes/no
 answer into the abstention band. The fix is its own temperature per question type, fitted on data that is not a
-benchmark's. This is Lab 1's split-fit method (`S18_SPLIT_FIT_RESULTS.md`, the S20 note), as a tool:
+benchmark's. This is the split-fit method, as a tool:
 
   choice     the kappa that minimises log loss on the model's reads of the H pool (776 program-keyed choice items); and
              one per band of option count (2-10, 11-26, 27-255) on the pool's choice items with that many options, so
@@ -16,9 +16,9 @@ benchmark's. This is Lab 1's split-fit method (`S18_SPLIT_FIT_RESULTS.md`, the S
 where a read is `probs`, the probabilities as the server returned them, served at the base's temperatures, and a kappa
 is the exponent of the rescale p -> p**kappa (renormalised); the temperature to serve is then `T_served / kappa`. Fitted
 on the plain readout (`p_plain`, which `--debug-readout` returns at temperature 1) the same answer is `T = 1 / kappa`;
-`--use p_plain` does that and `--use probs` (the default) does Lab 1's.
+`--use p_plain` does that and `--use probs` (the default) fits on the served probabilities.
 
-The variants are Lab 1's: `half0` fits on the items whose id has an even sha256 prefix (their V1, the headline) and
+The variants are: `half0` fits on the items whose id has an even sha256 prefix (their V1, the headline) and
 reports the other half as held-out, `half1` the swap (V2), `full` all of the pool (V3), `dev` takes the choice fit from
 the dev pool too (V4), and `devhalf0` and `devhalf1` do the same on halves of the dev pool with the other half held
 out (the choice kappa of a model whose H-fitted choice temperature does not transfer to public-source questions).
@@ -52,10 +52,10 @@ from decisio.serve.adapter_temperatures import (
     parse_bands,
 )
 
-GRID = np.exp(np.linspace(math.log(0.2), math.log(8.0), 781))  # the kappa grid of Lab 1's fits
+GRID = np.exp(np.linspace(math.log(0.2), math.log(8.0), 781))  # the kappa grid of the fits
 SERVED = {"choice": 4.672, "noul": 5.252, "score": 5.252}  # decisio 0.14.0 to 0.16.0's defaults for the Gemma bases
 VARIANTS = ("half0", "half1", "full", "dev", "devhalf0", "devhalf1")
-FLOOR = 1e-12  # a probability under this counts as this, as in Lab 1's log loss
+FLOOR = 1e-12  # a probability under this counts as this, as in the fits' log loss
 
 
 def half(item_id: str) -> int:
@@ -103,7 +103,7 @@ def fit_kappa(P, gold, grid=GRID) -> float:
 
 
 def ece_tie(conf, ok, orders: int = 200) -> float:
-    """Lab 1's tie-robust ECE: ten equal-count bins, ties broken by a seeded shuffle, averaged over `orders`."""
+    """The tie-robust ECE: ten equal-count bins, ties broken by a seeded shuffle, averaged over `orders`."""
     conf, ok = np.round(np.asarray(conf, float), 9), np.asarray(ok, float)
     rng = np.random.default_rng(0)
     n = len(conf)
@@ -115,7 +115,7 @@ def ece_tie(conf, ok, orders: int = 200) -> float:
 
 
 def ece_width10(conf, ok) -> float:
-    """Top-label ECE with ten equal-width bins (the ship gates' definition, Lab 1's `ece10`): the bins are [0, 0.1),
+    """Top-label ECE with ten equal-width bins (the ship gates' definition, `ece10`): the bins are [0, 0.1),
     ..., [0.9, 1.0], each weighted by its share of the items."""
     conf, ok = np.clip(np.asarray(conf, float), 0, 1), np.asarray(ok, float)
     idx = np.minimum((conf * 10).astype(int), 9)
@@ -156,7 +156,7 @@ def swap_validated(
 ) -> dict:
     """The ship gates' ECE per type on the dev pool: the kappa of each half (by log loss) is applied to the OTHER half's
     items, and the ECE is taken over all of the pool's items of that type, pooled (ten equal-width bins). Also the
-    ECE of the same items unscaled, the same pooled swap with Lab 1's older equal-count tie-robust ECE, and the two
+    ECE of the same items unscaled, the same pooled swap with the older equal-count tie-robust ECE, and the two
     halves' kappas with their ratio (the gates call a fit unstable when the ratio is over 1.25).
 
     Where the pool's choice items fall in more than one band of option count, `choice` also holds `bands`: the same
@@ -216,7 +216,7 @@ def fit_split(
     bands=DEFAULT_BANDS,
     min_band_items: int = MIN_BAND_ITEMS,
 ) -> dict:
-    """The adapter file (schema `decisio.adapter/1`) fitted by Lab 1's split method.
+    """The adapter file (schema `decisio.adapter/1`) fitted by the split method.
 
     Choice is also fitted per band of option count (`bands`; none for the one temperature only) on the choice pool's
     fit items in the band, with the held-out figures of each band beside it. When the pool's items fall in one band only
@@ -293,7 +293,7 @@ def fit_split(
         "temperatures": temps,
         **({"choice_bands": banded} if banded else {}),
         "fit": {
-            "method": "split-fit (Lab 1's): per-type kappa by minimum log loss on a split of the model's own reads",
+            "method": "split-fit: per-type kappa by minimum log loss on a split of the model's own reads",
             "variant": variant,
             "reads": use,
             "objective": {t: "log_loss" for t in TYPES},

@@ -6,8 +6,8 @@ recording engine; no model.
 
 vLLM keeps only the latest sliding-window checkpoint of a finished request. On the Gemma bases it lies inside the
 question, so a later, different question about a state read the whole state again (on the 31B, 531 ms instead of 47 at
-3,000 tokens; RLCD experiments/2026-10-05_t7_card_e2_e3_e4). The warm-up the multi-question path sends, the state and
-one token, registers the boundary; vLLM's retention interval would keep it too, but evicts states sooner (same record).
+3,000 tokens). The warm-up the multi-question path sends, the state and
+one token, registers the boundary; vLLM's retention interval would keep it too, but evicts states sooner.
 
 S1  the profiles: the Gemma bases register, the Qwen base does not need to (its padded state already ends on a single
     question's latest checkpoint)
@@ -277,7 +277,7 @@ def test_d1_the_default_order_per_base():
 
 
 def test_d2_back_to_back_one_question_requests_leave_nothing_pending_on_the_12b_default(tok):
-    """Lab 2's grid (12B, `after`, one question on each new 3,000-token state in a row): each later request took about
+    """A grid (12B, `after`, one question on each new 3,000-token state in a row): each later request took about
     twice a read, because it waited behind the previous state's registration. On the default (`before`) the warm-up is
     inside the request, so nothing is pending when a response goes out and no request runs another's registration."""
     from decisio.serve.vllm_engine import resolve_register_boundary

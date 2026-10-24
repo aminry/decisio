@@ -80,7 +80,7 @@ FILE = "decision_config.json"
 # the bases a merge exists for: the 31B is stored in FP8 (`hub_fp8 merge`), the 12B in bf16 (`hub_bf16 merge`) as
 # gemma-4-12b or in FP8 (`hub_fp8 merge`) as gemma-4-12b-fp8
 TUNED_BASES = ("gemma-4-31b", "gemma-4-12b", "gemma-4-12b-fp8")
-LICENSE = "apache-2.0"  # Qwen3.6 and Gemma 4 (RLCD experiments/2026-10-07_sd_hf_model_repos/PLAN.md)
+LICENSE = "apache-2.0"  # Qwen3.6 and Gemma 4
 QWEN = "qwen3.6-35b-a3b"
 
 # the sections of the file that are the profile; the others describe the repository

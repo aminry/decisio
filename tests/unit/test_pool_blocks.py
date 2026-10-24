@@ -3,7 +3,7 @@
 """The cached-block counter of the GPU tier's Qwen fill (tests/gpu/pool_blocks.py).
 
 P1  vLLM 0.30.0's pool: cached_block_hash_to_block grows with each state and cached_block_hashes_by_block stays empty
-    (Lab 2's diag_blocks.py on a card: 6 blocks per padded Qwen state), and the counter follows the first
+    (a diagnostic on a card: 6 blocks per padded Qwen state), and the counter follows the first
 P2  an older pool that filled only block -> hashes is still counted
 P3  a pool with neither map, or an empty cache everywhere, is not read as a count to divide by: it raises or gives 0
 P4  the fill arithmetic the script does with it (floor(0.9 * 2329 / 6) = 349 states), and a zero growth is refused
@@ -51,7 +51,7 @@ def test_p3_a_pool_without_a_count_is_never_a_divisor():
 
 
 def test_p4_the_fill_arithmetic_and_the_zero_guard():
-    kept = 6  # blocks per padded Qwen state, from Lab 2's diagnostic
+    kept = 6  # blocks per padded Qwen state, from a card diagnostic
     assert math.floor(0.9 * 2329 / kept) == 349
     assert growth_per_state(4, 28, 4) == 6
     for before, after in ((4, 4), (10, 4)):  # no growth, or a cache that shrank: refused before any division

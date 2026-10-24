@@ -36,7 +36,8 @@ temperature only), each by minimum log loss on the choice rows whose option coun
 always written beside the bands; and when only one band has rows the file has no bands, as they would repeat that one.
 Every type is fitted by minimum log loss by default: the temperature at which the probabilities are calibrated on those
 items. A score question can instead be fitted for the error of its expected position (`--score-objective
-expected_position_error`; the quantity JevBench scores, and what a caller reads from a score distribution): the
+expected_position_error`; the quantity a band-scoring evaluator scores, and what a caller reads from a score
+distribution): the
 flattest temperature whose score CC is within `--tolerance` points (default 1) of the best. That error is flat over a
 wide range of temperatures, so a tighter tolerance picks noise. The temperature is sharper than the calibrated one, so
 the distribution is no longer calibrated, and the file says which objective was used (`fit.objective`).
@@ -299,8 +300,9 @@ def fit_log_loss(P, gold) -> float:
 
 
 def position_cc(P, gold, kappa: float = 1.0) -> float:
-    """100 * (1 - mean nMAE / mean nMAE_chance) of the expected position of each (rescaled) distribution: JevBench's
-    score reading, nMAE = |expected position - gold| / (K - 1), chance the mean over the K levels."""
+    """100 * (1 - mean nMAE / mean nMAE_chance) of the expected position of each (rescaled) distribution: the
+    normalised mean absolute error (nMAE) reading of a score, nMAE = |expected position - gold| / (K - 1), chance the
+    mean over the K levels."""
     err, chance = [], []
     for p, g in zip(P, gold):
         q = rescale(p, kappa)
@@ -474,7 +476,7 @@ def main(argv=None):
     f.add_argument("--data", default="", help="what the items are (kept in the file)")
     bands_args(f)
     layout_arg(f)
-    sp = sub.add_parser("fit-split", help="Lab 1's split fit from a model's stored reads on the H and dev pools")
+    sp = sub.add_parser("fit-split", help="the split fit from a model's stored reads on the H and dev pools")
     sp.add_argument("--h", required=True, help="the model's reads of the H pool (JSONL or .gz: id, probs, p_plain)")
     sp.add_argument("--h-keys", required=True, help="{id: {gold, ...}} of the H pool")
     sp.add_argument(

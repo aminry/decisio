@@ -268,7 +268,7 @@ def test_h8_a_request_records_how_long_it_waited_for_the_engine_and_behind_what(
 
 
 def test_h9_health_shows_a_registration_in_progress_as_running_with_nothing_pending(served):
-    """Lab 2, 2026-10-10 (12B, `after`, 6,000 tokens): a series that waited for `state_boundary.pending` to clear before
+    """2026-10-10 (12B, `after`, 6,000 tokens): a series that waited for `state_boundary.pending` to clear before
     each request still waited 544 ms behind the registration, because a registration leaves `pending` when it is taken
     to be sent. `running` is true while it is sent, so the registrar is idle only when pending is 0 and not running."""
     eng, client, _, _ = served

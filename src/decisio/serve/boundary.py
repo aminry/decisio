@@ -6,7 +6,7 @@ On the Gemma bases vLLM keeps only a finished request's latest sliding-window ch
 question, so a later, different question about the state would read the whole state again. decisio registers the
 state's boundary with a warm-up of the state and one token (decisio.families register_state_boundary). In 0.8.1 the
 warm-up went before a single question on a new state, and the caller waited for it (on a 400 W card, 12B +11 to +59 ms,
-31B +23 to +72 ms at 300 to 3,000 tokens; RLCD experiments/2026-10-06_t3_latency_and_gpu_tier). Here it goes after:
+31B +23 to +72 ms at 300 to 3,000 tokens). Here it goes after:
 
 - the question is answered first, reading the state fresh, and its warm-up is kept pending (`Registrar.defer`);
 - the warm-up becomes due when the request's response has been handed to the server (`AfterResponse`, the last body

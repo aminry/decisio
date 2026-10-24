@@ -38,7 +38,7 @@ On the card replay (the 31B, CLINC150 with 10 examples per intent, 5,363 message
 message 1,000) the answer mix alerted after message 5,200 and 976 wrong certified answers; this signal alerts near
 message 1,700 after 55, and stays quiet on the replay's in-scope messages alone (`runs/2026-10-17_drift-monitor/`).
 
-Replay of record-based streams (Lab 3, 2026-10-13): the alert fired on at most 0.5 percent of full-window checks
+Replay of record-based streams (2026-10-13): the alert fired on at most 0.5 percent of full-window checks
 without a
 shift and detected a rise of the out-of-scope share from 1.5 to 18 percent in a median 350 to 450 answers.
 Standard library and numpy.

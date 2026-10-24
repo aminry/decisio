@@ -9,7 +9,7 @@ about 80 percent of the Mac's memory (51.8 GiB on a 64 GB Mac, MLX's `max_recomm
 server that
 answers many different states therefore grows to that size, not to the size of its weights: a 12B server ended
 at about 50 GB
-on a 64 GB Mac and, with a second one, froze the machine twice (RLCD experiments/2026-10-14_lab3_games, Amendment 3).
+on a 64 GB Mac and, with a second one, froze the machine twice.
 So the server sets both limits itself, before it loads the model:
 
   cache limit    2 GiB by default (`--mlx-cache-limit-gb`): freed buffers kept for reuse, beyond what is live
@@ -35,7 +35,7 @@ The check and the figures in `/health` use the process's **physical footprint** 
 Activity
 Monitor calls memory and what the kernel's memory-pressure decisions follow), not its resident size, which
 leaves out part of
-MLX's Metal buffers (10.7 GB resident against 14 GB of footprint for a 12B server, Lab 3).
+MLX's Metal buffers (10.7 GB resident against 14 GB of footprint for a 12B server).
 """
 
 from __future__ import annotations

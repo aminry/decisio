@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""Run on a card by the identity gate of the Gemma 4 31B FP8 repository (RLCD
-experiments/2026-10-07_sd_hf_model_repos/PLAN.md, G1): the FP8 weights the engine holds after loading, as fingerprints.
+"""Run on a card by the identity gate of the Gemma 4 31B FP8 repository (G1): the FP8 weights the engine holds after
+loading, as fingerprints.
 
 The server is built as the server builds it (uvicorn left out), so the engine is the served one. Run it once per arm:
 

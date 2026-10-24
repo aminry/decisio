@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Truncating a state under the header layout, with Gemma 4's real tokenizer (skipped where it is not cached).
 
-The 0.26.0 failure (RLCD experiments/2026-10-23_lab2_r3ch_session, serve_422_evidence): on a 65,536 ceiling, a state of
+The 0.26.0 failure: on a 65,536 ceiling, a state of
 83,000 tokens cut to 65,379 and a row of 65,538 tokens, the engine's 422. The same question (a yes/no with a 34-token
 header) is checked here at a small ceiling, where the header is the same size; `test_over_limit.py` O8 checks the rule
 with a stand-in tokenizer.

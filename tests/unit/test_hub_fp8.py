@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The FP8 checkpoint of the Gemma 4 31B (decisio.hub_fp8) and the engine's fingerprint of it, on a tiny checkpoint with
-the 31B's structure; no model, no card (the identity gate itself runs on one: RLCD
-experiments/2026-10-07_sd_hf_model_repos/PLAN.md).
+the 31B's structure; no model, no card (the identity gate itself runs on one).
 
 G1  the groups vLLM fuses: q, k and v; gate and up; o_proj and down_proj alone; a layer with no v_proj repeats k
     (attention_k_eq_v) and is refused without that flag; the towers and the norms are not quantized

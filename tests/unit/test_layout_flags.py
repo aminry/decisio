@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Prompt layout (`--layout header`) and the base's `--temperatures-file`.
 
-The oracle is Lab 4's A/B renderer (arms A0 and A1 of its card/code/layouts.py), copied below, so the served flag
+The oracle is an independent renderer of the plain and header layouts, copied below, so the served flag
 and the A/B read the same tokens.
 
 L1  the format: the default's facts and rows are unchanged; the flags enter the facts (hence the fingerprint) only when

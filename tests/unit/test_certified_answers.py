@@ -3,7 +3,7 @@
 """Certified answers and their monitor (`decisio.readout.certify`, `decisio.serve.monitor`, `decisio.serve.stack`,
 `POST /v1/tasks` with a `certify` block). No model: a fake engine whose answer is set by the example's text.
 
-C1  the procedure: the thresholds of Lab 3's reimplementation of shad0w's `auto` procedure on fixed inputs, the
+C1  the procedure: the thresholds of a reimplementation of shad0w's `auto` procedure on fixed inputs, the
 fewest examples
     that can certify (59 at alpha 0.05 and delta 0.1), ties served together, a threshold that holds on a later sample;
 C2  the held-out split: deterministic, independent of the order, same input on the same side, disjoint from the fit;
@@ -38,9 +38,8 @@ from decisio.serve.tasks import TaskStore, example_digest, split_holdout
 
 # ---- C1 -------------------------------------------------------------------------------------
 
-# (n, accuracy, alpha, delta, sum of conf, right, threshold): Lab 3's `mine_auto` (RLCD
-# experiments/2026-10-14_lab3_shad0w/
-# code/b_certify.py, equal to shad0w 0.3.3's auto controller on every split) on data drawn by the generator below
+# (n, accuracy, alpha, delta, sum of conf, right, threshold): a reimplementation of the auto procedure
+# (equal to shad0w 0.3.3's auto controller on every split) on data drawn by the generator below
 REFERENCE = [
     (300, 0.97, 0.05, 0.1, 249.269, 270, 0.804),
     (300, 0.95, 0.05, 0.1, 251.336, 283, 0.786),

@@ -3,7 +3,8 @@
 """An adapter's choice temperature by the question's number of options (`choice_bands` in the adapter file).
 
 An adapter that is calibrated on questions with few options is over-confident on questions with many, and the one choice
-temperature of a flat file cannot follow it (Lab 4's N1 diagnosis). The file can carry a choice temperature per band of
+temperature of a flat file cannot follow it (a diagnosis of a tuned model). The file can carry a choice temperature
+per band of
 option count (2-10, 11-26, 27-255 by default), and the fit tools fit them.
 
 B1  the file's `choice_bands` are validated (lo-hi keys within 2 to 255, no overlap, positive finite numbers); a file of
