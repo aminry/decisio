@@ -8,8 +8,7 @@ which for Gemma 4 (262,144 tokens) is seconds of pure Python holding the interpr
 decisio's request threads tokenize (the usage count, the over-limit cut, the question rows), so when many requests are
 answered together (`--concurrency batched`: up to 16 at the end of one engine call) many threads tokenize at once and
 each deep-copies the tokenizer; the engine's own thread then waits for the interpreter lock with the card idle. On an
-RTX 5090 that stalled engine calls for seconds and made batched mode slower than serial (RLCD
-experiments/2026-10-21_throughput/session2).
+RTX 5090 that stalled engine calls for seconds and made batched mode slower than serial.
 
 `SerialTokenizer` wraps the tokenizer so that its methods run one call at a time: the pool never finds every copy in
 use, so it never copies. A call is about a millisecond of Rust (the state's tokenization, once per request), so the lock

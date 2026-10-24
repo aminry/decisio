@@ -12,7 +12,7 @@ ubatch and lane`.
 decisio builds the engine and warms it up on the main thread, then serves each request on a thread of FastAPI's pool and
 confirms a failed request with a probe on a thread of its own. Each of those threads has no stream yet, makes one, and
 asks for a lock buffer under a key the warm-up never made: the first request of a W4A16 checkpoint ended the engine
-(Lab 2's card session of 2026-10-15; plain vLLM called from one thread answered). Binding every calling thread to the
+(a card session of 2026-10-15; plain vLLM called from one thread answered). Binding every calling thread to the
 stream the engine was built on gives them the key the warm-up allocated. The engine takes one request at a time
 (`LettersEngine._lock`), so the threads never use the stream together.
 

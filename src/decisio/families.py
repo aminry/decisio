@@ -108,7 +108,6 @@ class Family:
     # --backend mlx: the prefix cache's budget in MiB when --prefix-cache-mb is not given (vllm_engine.main). Per base,
     # because an entry holds a state's whole cache and the sliding-window layers keep 1.05 to 1.25 GB of it at long
     # states; the figure is what stays under two thirds of a 32 GiB Mac's memory beside the base's peak at 32k tokens
-    # (RLCD experiments/2026-10-06_ls_mlx_cache_budget)
     mlx_prefix_cache_mb: int = 2048
     # --backend mlx: the base's peak memory above its weights at a 32k-token state, in GB (1e9 bytes), as measured
     # (docs/running.md: Qwen 4-bit 19.5 -> 22.7 GB, Gemma 4 12B 9.7 -> 15.1, Gemma 4 31B 24.9 -> 33.7), rounded up;
@@ -175,7 +174,7 @@ GEMMA4 = Family(
     noul_rendering="letters",
     layout="header",
     # a request's latest checkpoint lies inside its question (hit unit 64), so a second, different question about a
-    # state read it again (RLCD experiments/2026-10-05_t7_card_e2_e3_e4, on the 31B: 531 ms instead of 47 at 3,000
+    # state read it again (on the 31B: 531 ms instead of 47 at 3,000
     # tokens); vLLM's retention interval would keep it too, but evicts states sooner (the same record)
     register_state_boundary=True,
     # the default 2,048 MiB kept 5 states of 1,000 tokens (Qwen's 25); 7,400 MiB keeps 20 of 1,000, 10 of 3,000 and 7 of
@@ -190,8 +189,8 @@ GEMMA4_FP8 = replace(
     key="gemma-4-12b-fp8",
     served_name="decisio-gemma-4-12b-it-fp8-letters",
     # FP8 on load, as the 31B (vLLM 0.31.0's online per-tensor FP8); a stored conversion that declares FP8 is loaded
-    # as stored (as_loaded) and holds the same tensors (RLCD experiments/2026-10-21_serve_12b_fp8/results/convert_12b:
-    # 192 fused groups, the loader changes 0 weights)
+    # as stored (as_loaded) and holds the same tensors (the conversion
+    # has 192 fused groups, the loader changes 0 weights)
     quantization="fp8",
     precision="fp8",
 )
@@ -224,7 +223,7 @@ GEMMA4_31B = Family(
     # context; a pinned FP8 checkpoint replaces this when one exists
     quantization="fp8",
     moe=False,
-    # as the 12B (hit unit 32): RLCD experiments/2026-10-05_t7_card_e2_e3_e4, arms R0 and amendment 1
+    # as the 12B (hit unit 32)
     register_state_boundary=True,
     # before: registering after the response cost the 31B 39% and 26% of its throughput at 32 and 64 clients on new
     # 1,000-token states (p95 1.69 and 1.62 times), past the rule's 95% and 110%; on the 12B it held (0.99 and 0.98)

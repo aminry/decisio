@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The FP8 checkpoint of the Gemma 4 31B that decisio's server would otherwise make when it loads the bf16 one
 (`quantization="fp8"` in decisio.families), made on a CPU and predicted tensor by tensor
-(RLCD experiments/2026-10-07_sd_hf_model_repos/PLAN.md, the identity gate).
+(the identity gate).
 
 What vLLM 0.30.0 does on load (online per-tensor FP8, `Fp8PerTensorOnlineLinearMethod`): every linear layer of the text
 model, after its shards are fused (q, k and v into `qkv_proj`; gate and up into `gate_up_proj`), gets ONE scale,

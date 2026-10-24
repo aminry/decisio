@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The split fit (`decisio.serve.split_fit`, `python -m decisio.serve.adapter_temperatures fit-split`): Lab 1's
+"""The split fit (`decisio.serve.split_fit`, `python -m decisio.serve.adapter_temperatures fit-split`): the
 per-type temperature fit from a model's stored reads, written as the file #207 loads. Synthetic reads; the
-reproduction of Lab 1's S18 fits from the real reads is in the RLCD records (`2026-10-18_serve_adapter_fit`).
+reproduction of the original fits from the real reads is in `runs/2026-10-18_adapter-fit/`.
 
-F1  the kappa is the argmin of the mean log loss over Lab 1's grid, equal to a plain loop (ragged option counts, a
+F1  the kappa is the argmin of the mean log loss over the fits' grid, equal to a plain loop (ragged option counts, a
     probability under the floor included)
 F2  the variants: half0 and half1 fit on opposite halves of the ids (even sha256 prefix is half 0) and report the
     other as held-out, full uses all, dev takes the choice fit from the dev pool; the choice pool is H, the others
@@ -30,7 +30,7 @@ from decisio.serve.temperature import apply_temperature
 
 
 def reference_kappa(P, gold):
-    """Lab 1's loop: rescale, floor, mean log loss, smallest grid point on a tie."""
+    """The plain loop: rescale, floor, mean log loss, smallest grid point on a tie."""
     best = min(
         (
             -np.mean([math.log(max(sf.rescale(p, k)[g], sf.FLOOR)) for p, g in zip(P, gold)]),
@@ -188,7 +188,8 @@ def test_f4_the_file_loads_and_the_cli_writes_it_and_bad_input_is_refused(tmp_pa
 
 
 def test_f5_the_ship_gates_ece_is_equal_width_and_pooled_out_of_half():
-    """The ship gates (Lab 1's T25 note) take the ECE with ten equal-width bins, pooled over the dev pool's items of a
+    """The ship gates (the ship gates' note) take the ECE with ten equal-width bins, pooled over the dev pool's items
+    of a
     type, each scored with the kappa fitted on the other half. Held-out figures per half use equal-count bins."""
     assert sf.ece_width10([0.95, 0.95, 0.55, 0.55], [1, 1, 1, 0]) == pytest.approx(0.5 * 0.05 + 0.5 * 0.05)
     assert sf.ece_width10([1.0] * 4, [1, 1, 1, 1]) == 0.0 and sf.ece_width10([0.0, 0.05], [0, 0]) == pytest.approx(

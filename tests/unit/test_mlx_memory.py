@@ -5,7 +5,8 @@ no MLX needed.
 
 M1  the plan: the limit a base asks for by default (weights + working set + prefix cache + cache limit + 2
     GiB, whole GiB,
-    never above two thirds of the machine), Lab 3's configuration, a prefix cache cut to fit when it was not
+    never above two thirds of the machine), a game-playing session's configuration, a prefix cache cut to fit when it
+    was not
     asked for;
 M2  the refusals, with the numbers: a base over two thirds of the machine, over an explicit limit, a prefix
     cache asked for
@@ -41,12 +42,12 @@ def plan(machine_gib=64, weights_gb=9.7, working_gb=6, prefix_mb=2048, **kw):
 
 
 def test_m1_the_default_limit_follows_the_base_and_is_capped():
-    p = plan(prefix_mb=2048)  # Lab 3's 12B configuration on the 64 GB Mac
+    p = plan(prefix_mb=2048)  # the 12B configuration of a session on the 64 GB Mac
     assert p.cache_limit_bytes == 2 * GIB and p.prefix_cache_mb == 2048 and p.memory_limit_source == "default"
     assert p.memory_limit_bytes % GIB == 0
     need = 9.7 * GB + 6 * GB + 2 * GIB + 2048 * 2**20 + 2 * GIB
     assert need <= p.memory_limit_bytes < need + GIB  # whole GiB, up
-    assert p.memory_limit_bytes < 24 * GIB  # under what Lab 3 chose by hand for the same base
+    assert p.memory_limit_bytes < 24 * GIB  # under what a session chose by hand for the same base
     big = plan(prefix_mb=7400)  # the 12B's own default prefix cache fits on a 64 GB Mac whole
     assert big.prefix_cache_mb == 7400 and big.memory_limit_bytes <= int(64 * GIB * 2 / 3)
     small = plan(machine_gib=32, prefix_mb=7400)  # on 32 GiB the same base is held to two thirds, the cache cut to fit

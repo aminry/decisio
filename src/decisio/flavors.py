@@ -2,9 +2,9 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Flavors: named configurations of the same weights (docs/design/flavors.md).
 
-    calibrated        the honest one: calibrated temperatures for every type, no thinking, no commit rule, no read twice
-    thinking-commit   JevBench: thinking when unsure and the commit rule
-    read-enhanced     the Decision Index: read twice, with the threshold and the question cap, no thinking
+    calibrated        calibrated probabilities for every type, no thinking, no commit rule, no read twice
+    thinking-commit   thinks when unsure and commits yes/no answers
+    read-enhanced     reads short requests twice, with the threshold and the question cap, no thinking
 
 `--flavor NAME` applies one to a base and names the server `Decisio-31b-calibrated`, `Decisio-12b-thinking-commit`,
 `Decisio-12b-fp8-read-enhanced` (the 31B is served in FP8 only, so only the 12B's names say which precision).
@@ -82,8 +82,8 @@ class Flavor:
 
 
 # The read-twice threshold is the measured choice of #296 on the 31B (N = 2,000 counted input tokens); R, the question
-# cap, waits for Lab 4's timing cell. On the 12B read twice added nothing within noise (Lab 4, FlexDM A/B): the flavor
-# carries it because it is the Decision Index flavor and says so.
+# cap, waits for a timing run on the target card. On the 12B read twice added nothing within noise: the flavor carries
+# it and says so.
 READ_TWICE_N = 2000
 
 

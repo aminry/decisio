@@ -4,7 +4,8 @@
 
 The served default, `--concurrency serial`, takes one request at a time through the engine (`LettersEngine._lock`), so
 a request's rows are always scheduled alone and its answer is a function of the request: the same request gives the
-same bytes whatever else the server is sent. That is what the certificates promise and what the board's pairs compare.
+same bytes whatever else the server is sent. That is what the certificates promise and what a paired comparison of
+two runs needs.
 
 Batched mode trades that for throughput. One engine thread takes every request waiting at that moment (up to
 `max_requests`, those of the oldest request's adapter) and scores all their rows in one engine call, so concurrent
@@ -14,8 +15,8 @@ byte, and single-stream latency is unchanged (plus a thread hand-off). A request
 for it, as it would behind the lock, and goes in the next call with every other request that arrived meanwhile.
 
 What drifts: a question scored beside other requests' rows can differ from the same question alone, because vLLM's
-kernels choose their tiles and reduction orders by batch shape (measured on the 585 W card, RLCD
-experiments/2026-10-04_t3_vllm_batch_composition: the 31B changed no choice, largest probability difference 0.0046;
+kernels choose their tiles and reduction orders by batch shape (measured on the 585 W card: the 31B changed no
+choice, largest probability difference 0.0046;
 the 12B 3 to 5 choices; the Qwen base 21 choices). So an answer depends on the traffic it arrived with. The server
 says so: the mode is in `/health` and in the serving-stack fingerprint, so a certificate made under one mode is not
 served as certified under the other (`concurrency_changed`), and the batch an answer was scored in is in its timing

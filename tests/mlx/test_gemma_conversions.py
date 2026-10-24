@@ -47,7 +47,7 @@ LONG_STATE = " ".join(f"Line {i}: the order was scanned at depot {i % 7}." for i
 # own (a matrix-matrix kernel over the sequence): on 20 suite items under the Gemma base's prompt they differ by up to
 # 0.44 (4-bit) and 0.75 (6-bit) over the vocabulary, and the model's own lie within 0.16 of a float32 product, so the
 # difference is the matrix-vector kernel's rounding; at the label tokens the readout reads, by at most 0.25 (two bf16
-# steps between 16 and 32), which bounds them here (RLCD experiments/2026-10-03_t2_gemma_mac, cap_kernel_*.json)
+# steps between 16 and 32), which bounds them here
 LABEL_BF16_STEPS = 0.25
 
 

@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""Read twice (`--read-twice-under N`): an opt-in for Decision Index runs, never the default.
+"""Read twice (`--read-twice-under N`): an opt-in that reads short requests twice, never the default.
 
-The oracle is Lab 4's A/B renderer, arm A2 of its card/code/layouts.py (the user turn written again after
+The oracle is an independent renderer of the doubled layout (the user turn written again after
 `Read the same input again before answering:`), copied below, so the served flag and the A/B read the same tokens. Which
-requests are written twice is decided here by counted input tokens (the unit of usage.input_tokens and of Lab 4's
-threshold re-pick) and by the question cap, not by the A/B's row count.
+requests are written twice is decided here by counted input tokens (the unit of usage.input_tokens) and by the
+question cap, not by the A/B's row count.
 
 R1  the format: off by default, the facts carry the settings only when on, bad values are refused
 R2  the rows equal the A/B's A2 token for token whenever a request is written twice, on both sides of the token limit,
@@ -30,7 +30,7 @@ AGAIN = "\n\nRead the same input again before answering:\n"
 
 
 def oracle(tok, state, questions, fmt, header, twice):
-    """Lab 4's A2 on engine questions, written twice or not as `twice` says: the token rows."""
+    """The oracle on engine questions, written twice or not as `twice` says: the token rows."""
     body = L.fmt_state(state)
     bodies = [L.question_body(tok, e["kind"], e["instructions"], e.get("options"), fmt)[0] for e in questions]
     head = HEAD + "".join(f"- {e['instructions']}\n" for e in questions) + "\n" if header else ""

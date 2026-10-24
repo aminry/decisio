@@ -4,8 +4,8 @@
 
 vLLM 0.30.0 keeps them in `BlockPool.cached_block_hash_to_block` (hash -> block). `cached_block_hashes_by_block`
 (block -> hashes), which this test read before, exists but stays empty in 0.30.0, so the Qwen fill of
-second_question_cached.py (--fill-by blocks) divided by zero (Lab 2's diag_blocks.py on a card, RLCD
-experiments/2026-10-08_lab2_gate_session: 6 new blocks per padded Qwen state in a pool of 2,329 usable blocks)."""
+second_question_cached.py (--fill-by blocks) divided by zero (a diagnostic on a card: 6 new blocks per padded Qwen
+state in a pool of 2,329 usable blocks)."""
 
 # the maps a vLLM release has used for it, in the order they are tried
 COUNTERS = ("cached_block_hash_to_block", "cached_block_hashes_by_block")

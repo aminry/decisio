@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The Hugging Face model repositories' `decision_config.json` and the loading path for `--base owner/name[@revision]`
-(decisio.hub; plan in RLCD experiments/2026-10-07_sd_hf_model_repos/PLAN.md). No model, no network.
+(decisio.hub). No model, no network.
 
 F1  the task fingerprint is what the server gave its task store before it was extracted: a registered task keeps
     matching
