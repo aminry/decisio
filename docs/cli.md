@@ -49,9 +49,9 @@ Where the columns differ, the value is the base's.
 | --- | --- | --- | --- | --- |
 | `--prompt-tail` | `spaced` | `spaced` | `spaced` | `spaced`: a blank line before and after the lettered options, then one line asking for the chosen option's letter alone; `compact`: the compact layout, for tasks registered under it |
 | `--answer-slot` | `prefill` | `template` | `template` | where the label is read: after "Answer:" prefilled in the assistant turn, or at the chat template's own first assistant position |
-| `--layout` | `plain` | `header` | `header` | `plain`: the state then the question (what 0.25.0 served); `header`: the request's questions are listed before the state, the default of the Gemma bases since 0.26.0. Held at `plain` while tasks fitted under plain apply, or an adapter or tuned repository recorded no layout (`docs/running.md`, "The header layout"). A state cached for one set of questions is not reused for another under `header`; tasks and certificates are per layout |
-| `--flavor` | none | none | none | a named configuration of the Gemma bases: `calibrated`, `thinking-commit` (thinking when unsure and the commit rule) or `read-enhanced` (read twice). The server is named `Decisio-31b-<flavor>`, `Decisio-12b-<flavor>` or `Decisio-12b-fp8-<flavor>`, on the header layout; a flag you give wins and is recorded as an override (`docs/running.md`, "Flavors") |
-| `--read-twice-under` | off | off | off | N counted input tokens (the header, the state and each question's text, as `usage.input_tokens` counts): a request read once of at most N has each question's user turn written twice. Never the default; for Decision Index runs: about 1.5 times the tokens, `usage.input_tokens` counts both copies (`docs/running.md`, "Read twice"). Measured choice N = 2,000 |
+| `--layout` | `plain` | `header` | `header` | `plain`: the state then the question; `header`: the request's questions are listed before the state, the default of the Gemma bases. Held at `plain` while tasks fitted under plain apply, or an adapter or tuned repository recorded no layout (`docs/running.md`, "The header layout"). A state cached for one set of questions is not reused for another under `header`; tasks and certificates are per layout |
+| `--flavor` | none | none | none | a named configuration of the Gemma bases: `calibrated` (calibrated probabilities), `thinking-commit` (thinks when unsure and commits yes/no answers) or `read-enhanced` (reads short requests twice). The server is named `Decisio-31b-<flavor>`, `Decisio-12b-<flavor>` or `Decisio-12b-fp8-<flavor>`, on the header layout; a flag you give wins and is recorded as an override (`docs/running.md`, "Flavors") |
+| `--read-twice-under` | off | off | off | N counted input tokens (the header, the state and each question's text, as `usage.input_tokens` counts): a request read once of at most N has each question's user turn written twice. Never the default: it roughly doubles the input tokens of the requests it applies to, and `usage.input_tokens` counts both copies (`docs/running.md`, "Read twice"). Measured choice N = 2,000 |
 | `--read-twice-max-questions` | none | none | none | with `--read-twice-under`: a request with more than R questions is read once; R comes from a timing run on your card |
 | `--temperatures-file` | none | none | none | the base's temperatures per type and its choice bands from a `decisio.adapter/1` file (`adapter_temperatures fit`); a `--temperature-<type>` flag beats it, it beats a tuned repository's defaults |
 | `--label-variants` | `single` | `summed` | `summed` | the tokens read per label: the one form the slot reads, or every single-token form summed |
@@ -160,8 +160,9 @@ Measurements: `EVAL_CARD.md` sections 4 and 6.5.
 
 ### Committed yes/no answers (`--noul-commit`)
 
-For scorers that treat a yes/no probability strictly between 0.20 and 0.80 as no answer, as JevBench v1.5 does, such an answer is reported at the band's edge on its own side: 0.80 above 0.5, and 0.20 at or below it.
-The answer never changes; its probability does, and calibration pays for it: log loss and ECE rise, while JevBench v1.5's yes/no competence rises.
+The rule commits a yes/no answer: a probability strictly between 0.20 and 0.80 is reported at the band's edge on its own side, 0.80 above 0.5 and 0.20 at or below it.
+It is useful when a downstream scorer treats middle probabilities as no answer.
+The answer never changes; its probability does, and calibration pays for it: log loss and ECE rise.
 Measurements: `runs/2026-10-03_noul-commit/`.
 
 ### The compact layout (`--prompt-tail compact`)
