@@ -15,7 +15,8 @@ RUNS = HERE.parent
 BOARD = json.load(gzip.open(HERE / "snapshots/decision-index_index-v0.2.1.json.gz"))
 JEVBENCH = json.load(gzip.open(HERE / "snapshots/jevbench_v1.4.2.2-results.json.gz"))
 
-# the card-hour price of the RTX PRO 6000 these runs used: about $26 for 17.6 card-hours on a rented host, 2026-10-04 to 05
+# the card-hour price of the RTX PRO 6000 these runs used: about $26 for 17.6 card-hours on a rented host,
+# 2026-10-04 to 05
 CARD_USD_PER_HOUR = 26 / 17.6
 # requests the kit sends for one pass over edition 0.2.1 (manifest.json of runs/2026-10-05_decision-index)
 SUITE_REQUESTS = 150_759

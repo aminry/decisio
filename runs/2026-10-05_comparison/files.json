@@ -6,8 +6,8 @@
  },
  {
   "path": "compute.py",
-  "bytes": 11406,
-  "sha256": "68d080722c30349e1200bf092c12f0e3eb17311cd9b16cd3fe14a1fab3b7d790"
+  "bytes": 11408,
+  "sha256": "b67fbb43a49f31aabb0fa23a20fa29b4b16d303db6ce41f1e2928ae9e17b0373"
  },
  {
   "path": "manifest.json",
