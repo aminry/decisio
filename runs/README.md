@@ -15,6 +15,29 @@ Some earlier folders have session codes in their names (`2026-10-14_s11-session`
 They keep those names: the evaluation card, the docs and the release notes point at those paths, and a renamed folder would break every pointer.
 A new document that cites one of them names the thing it shows (for example "the long-context records of 2026-10-15") and gives the path as the link.
 
+## Local paths in older records
+
+The logs and manifests of the earliest records were written on the machines that ran them and hold those machines' absolute paths.
+On 2026-10-24 the paths were replaced by `<local path>/<file name>` (a home folder by `~/`), a rental service's name by "a rented host", and an internal group's name by "the original" or a plain description.
+No measurement, count, timestamp or folder name changed.
+The `files.json` entries of the edited files were regenerated; the earlier hashes are in the repository's history.
+Twelve entries already differed from their files before this change, because the files were edited after `files.json` was written; they were regenerated in the same change so that every list matches its files. They are:
+
+- `runs/2026-10-02_mlx-backend/manifest.json`
+- `runs/2026-10-03_mlx-regate/manifest.json`
+- `runs/2026-10-03_mlx-regate/summary.md`
+- `runs/2026-10-05_engine-process/manifest.json`
+- `runs/2026-10-05_mlx-gemma/manifest.json`
+- `runs/2026-10-05_mlx-gemma/summary.md`
+- `runs/2026-10-06_mlx-qwen-4bit-regate/manifest.json`
+- `runs/2026-10-06_mlx-qwen-4bit-regate/summary.md`
+- `runs/2026-10-07_mlx-gemma-31b/manifest.json`
+- `runs/2026-10-07_mlx-gemma-31b/summary.md`
+- `runs/2026-10-07_mlx-quiet-latency/manifest.json`
+- `runs/2026-10-07_mlx-quiet-latency/summary.md`
+
+The earlier hashes of all edited and regenerated entries are in the repository's history.
+
 ## Contents
 
 Nothing private goes in a run record: no keys, no benchmark item text, no addresses of machines, no personal data (`CONTRIBUTING.md`).
