@@ -40,7 +40,7 @@ It includes the network, so it is not the same measurement as (b) and (d).
 
 (d) The board's on-card median on one RTX PRO 6000, one request at a time, on its latency sample.
 
-(e) Self-hosted, estimated as mean request latency × 150,759 requests at $1.48 per card-hour, what the card for our runs cost on vast.ai; for the other entries, with the board's mean latency.
+(e) Self-hosted, estimated as mean request latency × 150,759 requests at $1.48 per card-hour, what a rented card for our runs cost; for the other entries, with the board's mean latency.
 One request at a time throughout; a server answering requests concurrently would cost less per pass.
 
 (f) The board's recorded API cost of Jev's run over the same benchmarks, at TypeSafe's tariff of $0.042 per million input tokens, output tokens free (`jev.results[].usd`).
