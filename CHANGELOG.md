@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.1](https://github.com/aminry/decisio/compare/v0.27.0...v0.27.1) (2026-10-24)
+
+
+### Documentation
+
+* say a rented card, not where it was rented ([#310](https://github.com/aminry/decisio/issues/310)) ([f8868ef](https://github.com/aminry/decisio/commit/f8868ef31bd7ae4d64fadb3075cd0cdf574c9e2d))
+
 ## [0.27.0](https://github.com/aminry/decisio/compare/v0.26.0...v0.27.0) (2026-10-24)
 
 
