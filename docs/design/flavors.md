@@ -3,7 +3,7 @@
 
 # Design: flavors, named configurations of the same weights
 
-Status: decided by Amin on 2026-10-23 (names, overrides, one flavor per server, the 31B served in FP8 only); the mechanism is being built.
+Status: decided on 2026-10-23 (names, overrides, one flavor per server, the 31B served in FP8 only); the mechanism is being built.
 Nothing here changes a server that names no flavor.
 
 The same weights are asked to do three different jobs, and each job wants different settings.

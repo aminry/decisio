@@ -23,7 +23,7 @@ Every number is on the base's served settings as they were when it was measured 
 | Intent head | Single engine: the hidden state is read from the serving engine (three extra requests per head question); `--head-engine` reads it from a second engine instead |
 | Image route | `--image-model`: the official checkpoint under the multimodal class as a second engine (0.49 of the card beside the text engine at 0.47), for requests that carry images; not tempered |
 | Hardware | One NVIDIA RTX PRO 6000 Blackwell (96 GB) |
-| Wire format | TypeSafe's System One (`POST /v1/systemone`), checked before every measurement by the serving gates C1 and the conformance gates C2-C4 |
+| Wire format | TypeSafe's System One (`POST /v1/systemone`), checked before every measurement by a serving check and the conformance checks |
 
 ## 2. Capabilities
 
@@ -109,7 +109,7 @@ The issue is reported upstream (vllm-project/vllm#59764).
 Across server restarts, single-question answers matched a record from two days earlier on all 1,400 suite items in 4 of 5 starts; the fifth moved 2 items by up to 0.0012, with no choice changed.
 The engine's logits are bf16, and label probabilities recomputed from the hidden state match the engine's within 3e-8 only when rounded to bf16 (`diag_same_forward.json`).
 The single-engine head therefore sends its three requests one at a time and recomputes in bf16, and its same-forward gate passes at 3.1e-8 (`same_forward.json`).
-Every harness in `runs/` sends one single-question request at a time, the serving gate G2 bounded the effect of 16 extra questions in a batched request at 6.46e-2 with no change of choice (`gates.log`; with the questions scored one call each it is 0 by construction), and every bit-identity claim compares single-question requests under like request histories.
+Every harness in `runs/` sends one single-question request at a time, a serving check bounded the effect of 16 extra questions in a batched request at 6.46e-2 with no change of choice (`gates.log`; with the questions scored one call each it is 0 by construction), and every bit-identity claim compares single-question requests under like request histories.
 
 ## 5. Limits
 

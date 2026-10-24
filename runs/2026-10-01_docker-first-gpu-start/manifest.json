@@ -4,7 +4,7 @@
  "date": "2026-10-01",
  "submitted": false,
  "typesafe_api_calls": 0,
- "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (97,887 MiB), a KVM virtual machine on vast.ai with the card passed through, 19 vCPUs, 98 GB RAM, 146 GB disk",
+ "hardware": "1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition (97,887 MiB), a KVM virtual machine on a rented host with the card passed through, 19 vCPUs, 98 GB RAM, 146 GB disk",
  "software": {
   "image": "decisio:local, built on the machine from the Dockerfile at the commit below (not pushed); image ID sha256:3502ca48d21c368f9ffaf2d2f003683cd1fddba418a1c500d7d3dfd725e7cd87",
   "base_image": "vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90 (FROM line of the Dockerfile; vLLM 0.30.0, build commit ced6857)",
