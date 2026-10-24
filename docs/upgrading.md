@@ -15,7 +15,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 Read twice:
 
 - **`--read-twice-under N`** writes a request that read once is at most N counted input tokens (the header, the state and each question's text) twice, the second copy after `Read the same input again before answering:`; **`--read-twice-max-questions R`** reads a request with more than R questions once, whatever its size ([running.md](running.md#read-twice---read-twice-under-n---read-twice-max-questions-r-for-decision-index-runs)). Both are **off by default and read twice is never the default**: with them off every prompt, fingerprint and task key is what it was.
-  On the 31B with the header: N = 2,000 is the measured choice on our own proxies (+3.2 pooled, the smallest within 0.25 points of the best) and +1.8 on a Decision Index sample with p80 latency about 866 ms; FlexDM's 3,000 gave +1.9 with p80 at or over the 1,000 ms gate. It costs about 1.5 times the computed tokens, `usage.input_tokens` counts both copies, and a JevBench row with it is over the cost cap. On the 12B the same step added nothing within noise.
+  On the 31B with the header: N = 2,000 is the measured choice on our own proxies (+3.2 pooled, the smallest within 0.25 points of the best) and +1.8 on a public multi-domain sample with p80 latency about 866 ms; a threshold of 3,000 counted on rows gave +1.9 with p80 at or over a 1,000 ms target. It roughly doubles the input tokens of the requests it applies to (so it is off by default), and `usage.input_tokens` counts both copies. On the 12B the same step added nothing within noise.
 - Tasks registered, and certificates made, under one setting are not applied under another.
 
 Think-mode temperatures:

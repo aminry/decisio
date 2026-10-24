@@ -7,17 +7,17 @@ Status: decided by Amin on 2026-10-23 (names, overrides, one flavor per server, 
 Nothing here changes a server that names no flavor.
 
 The same weights are asked to do three different jobs, and each job wants different settings.
-A flavor is a named bundle of those settings with its own served name, so that a client, a certificate and a board row can say which one they mean.
+A flavor is a named bundle of those settings with its own served name, so that a client, a certificate and a published result can say which one they mean.
 
 ## The three flavors
 
-| Flavor | Used for | Temperatures | Thinking | Commit rule | Read twice | Layout |
+| Flavor | What it does | Temperatures | Thinking | Commit rule | Read twice | Layout |
 | --- | --- | --- | --- | --- | --- | --- |
-| `calibrated` | The honest one | Calibrated for every type, yes/no included, with option-count bands for choice | Off | Off | Off | Header |
-| `thinking-commit` | JevBench | As the board rewards (today's yes/no temperature) | When unsure | On | Off | Header |
-| `read-enhanced` | The Decision Index | The calibrated ones | Off | Off | On, with the threshold and the question cap | Header |
+| `calibrated` | Calibrated probabilities | Calibrated for every type, yes/no included, with option-count bands for choice | Off | Off | Off | Header |
+| `thinking-commit` | Thinks when unsure and commits yes/no answers | The base's own (today's yes/no temperature) | When unsure | On | Off | Header |
+| `read-enhanced` | Reads short requests twice | The calibrated ones | Off | Off | On, with the threshold and the question cap | Header |
 
-Every flavor uses the header layout ("questions first across the board").
+Every flavor uses the header layout ("questions first everywhere").
 A tuned adapter joins a flavor only after its training shows where it helps; those names are decided then.
 A flavor changes how the weights are read and what is reported, never the weights.
 
@@ -68,20 +68,20 @@ What keeps it honest is that the override is recorded everywhere the flavor is:
 - **Tasks:** the served name is already in the task fingerprint, so a task registered under one flavor is not applied under another with no new code. Settings that change the readout (layout, read twice) are also in the prompt format's facts.
 
 An override changes the values but not the name: the server is still `Decisio-31b-calibrated`, marked `+overrides`.
-A client or a board row that needs to say what it ran has the flavor and the overrides in `/health`.
+A client or a published result that needs to say what it ran has the flavor and the overrides in `/health`.
 
 ## What is measured and what is not
 
-- **`read-enhanced`:** read twice is merged (#296): N = 2,000 counted input tokens is the measured choice. R (`--read-twice-max-questions`) waits for Lab 4's timing cell, and the confirming run on a card held at 600 W is not done. Its temperatures are the calibrated ones, which do not exist yet.
-- **`thinking-commit`:** thinking, the commit rule and the think temperatures are merged (#249, #278). What is not measured is thinking on the *untuned* bases at the default factor and budget; the measurements so far are of the tuned models. "As the board rewards" is a claim: the yes/no temperature that is best for the board's calibration axis with the commit rule on has not been fitted (with the rule on, the yes/no count no longer depends on the temperature).
-- **`calibrated`:** does not exist yet. The check of 2026-10-23 (RLCD `f74e6ad9`) found that every fit set asks for a yes/no temperature of 12 to 21 on the 31B under the header (5.252 today) and 6 to 9 on the 12B, which improves log loss, Brier and ECE on held-out sets and moves 20 to 69% of yes/no answers into the 0.2 to 0.8 band. The values need the 1,400-item suite read under the header (Lab 2, not yet scheduled) and the per-type and band profile (#303).
+- **`read-enhanced`:** read twice is merged (#296): N = 2,000 counted input tokens is the measured choice. R (`--read-twice-max-questions`) waits for a timing run on the target card, and the confirming run on a card held at 600 W is not done. Its temperatures are the calibrated ones, which do not exist yet.
+- **`thinking-commit`:** thinking, the commit rule and the think temperatures are merged (#249, #278). What is not measured is thinking on the *untuned* bases at the default factor and budget; the measurements so far are of the tuned models. The yes/no temperature that is best with the commit rule on has not been fitted (with the rule on, a committed yes/no answer no longer depends on the temperature, so it only moves the calibration).
+- **`calibrated`:** does not exist yet. A held-out check on 2026-10-23 found that every fit set asks for a yes/no temperature of 12 to 21 on the 31B under the header (5.252 today) and 6 to 9 on the 12B, which improves log loss, Brier and ECE on held-out sets and moves 20 to 69% of yes/no answers into the 0.2 to 0.8 band. The values need the 1,400-item suite read under the header (a card session, not yet scheduled) and the per-type and band profile (#303).
 
 ### Flavors with a value still pending
 
 Proposal:
 - **A flavor whose defining value is missing refuses to start** (`calibrated`: its whole meaning is its temperatures; the message says they are not fitted yet for that base). No name that promises honesty serves numbers that are not calibrated.
 - **A flavor with a missing secondary value serves, marked `pending`**: `read-enhanced` (its temperatures: today's are served until the calibrated ones exist) and `thinking-commit` (the untuned-base thinking measurement). The start line, `/health` and `x-decisio-flavor` (`+pending`) say so, and the fingerprint holds the mark, so a certificate made on placeholder values is suspended when the real ones land.
-- The alternative, shipping none of them until every value exists, delays read-enhanced and thinking-commit, which are usable now and are the ones the Decision Index and JevBench runs want.
+- The alternative, shipping none of them until every value exists, delays read-enhanced and thinking-commit, which are usable now.
 
 ## Decisions
 
@@ -95,14 +95,14 @@ Proposal:
 | Flavors per server | One. Several on one server, chosen by the request's `model`, is real work (the stack fingerprint is taken once; thinking changes the readout path; batching would mix flavors) and is not built |
 | Temperatures of `read-enhanced` | The calibrated ones |
 
-What the DI kit and the JevBench harness send as `model` is not known to this note; it matters only if one server ever serves several flavors.
+What a client's harness sends as `model` is not known to this note; it matters only if one server ever serves several flavors.
 
 ## Release and versioning
 
 - **Additive, so a minor release and not breaking:** no route, field or schema changes; no default changes; an unflavored server is bit for bit what it was. The commit is `feat(serve):`.
 - It follows the per-type and band profile (#303). The held 0.27.0 (#297) has read twice and the think temperatures; `--flavor` would be 0.28.0, or join 0.27.0 if the release is still held when it is ready.
 - A repository file is not changed: flavors are in the base's table in the code, so no older repository is refused.
-- **The card:** `EVAL_CARD.md` states the flavor of every figure it prints, as it states the layout. A board row names its flavor.
+- **The card:** `EVAL_CARD.md` states the flavor of every figure it prints, as it states the layout. A published result names its flavor.
 - **Documentation:** a `running.md` section ("Flavors"), `cli.md` and the generated `flags.md`, an `upgrading.md` entry (who is affected: nobody, with no flavor named), and this note's "As built" section.
 
 ## Build plan
