@@ -86,12 +86,12 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 8591,
-  "sha256": "0a8921626d08c055ca7a3481188ad718ff0f63f901c8673707c77319f7f01a7b"
+  "bytes": 8578,
+  "sha256": "01f8c3450a5831324f374ac5209366fe36057f078021510c061bd5aa43ec5159"
  },
  {
   "path": "summary.md",
-  "bytes": 2651,
-  "sha256": "fe7c0110693706a2b5c214af0664f558da7bac731548088ed476985c0d04a117"
+  "bytes": 2609,
+  "sha256": "7ed95060740c22187fa054d7acaa00726b82ca53ceab9e931746f16d90bb8fcb"
  }
 ]

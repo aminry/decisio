@@ -56,8 +56,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 2443,
-  "sha256": "5cfddc55cb2c59c6b79ac0fadfb41f0135ac87241e77eb240656be4a95b39221"
+  "bytes": 2429,
+  "sha256": "6f55b9207f579252b7546569bcd9954f24f67176a4baf0b9a06793d6afdd4089"
  },
  {
   "path": "qwen/health_C.json",
@@ -116,7 +116,7 @@
  },
  {
   "path": "summary.md",
-  "bytes": 2782,
-  "sha256": "09a8c0a15c079cf7ee871670b4b059f4ede6819762bee4bab5e8bc6f9f69f0eb"
+  "bytes": 2739,
+  "sha256": "480942a6e1cca2d0702c232abc001e2fc1bab7be0574defb8948969d8c4358b5"
  }
 ]

@@ -711,8 +711,8 @@
  },
  {
   "path": "manifest.json",
-  "bytes": 18317,
-  "sha256": "b0cafa3ea2d4409e01b0dbcc845402240a344a75c24f25270e8895cb22b285c2"
+  "bytes": 18285,
+  "sha256": "649c3331cf630d6d2449a354e8276cede16697317de67a2d014a94f66282b0b5"
  },
  {
   "path": "pipeline.log",
