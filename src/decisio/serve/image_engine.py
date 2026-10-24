@@ -14,7 +14,7 @@ the vision tower runs once per distinct image (vLLM keys its encoder cache and t
 
 Each image stays one `<|image_pad|>` in the token ids sent to the engine, which expands it to the image's token count
 (the processor's grid, 16-pixel patches merged 2x2 on Qwen3.5/3.6); the padding and the cached-prefix length are
-computed in expanded units, and the engine-side prompt length is returned so the expansion can be checked (gate G0).
+computed in expanded units, and the engine-side prompt length is returned so the expansion can be checked.
 
     eng = ImageLettersEngine(os.environ["DECISIO_MODEL"], pad_to="block", pad_where="front")
     probs, info = eng.answer(state, questions, images=[PIL.Image, ...])
