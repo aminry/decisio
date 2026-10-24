@@ -599,7 +599,7 @@ A score item sent as a choice question is served at the choice temperature, so n
 
 ### Fitting them from a model's stored reads
 
-`python -m decisio.serve.adapter_temperatures fit-split` is Lab 1's split fit as a tool: from the model's stored reads of two pools (an H pool of choice items and a dev pool with choice, yes/no and true score items, both with their gold answers in a keys file) it fits one kappa per type by minimum log loss and writes the temperatures (`T = served temperature / kappa`) as the file above.
+`python -m decisio.serve.adapter_temperatures fit-split` is the split fit as a tool: from the model's stored reads of two pools (an H pool of choice items and a dev pool with choice, yes/no and true score items, both with their gold answers in a keys file) it fits one kappa per type by minimum log loss and writes the temperatures (`T = served temperature / kappa`) as the file above.
 
 ```bash
 python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-keys h_keys.json \
@@ -610,7 +610,7 @@ python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-
 - The choice kappa is fitted on the H pool, the yes/no and score kappas on the dev pool. `--variant half0` fits on the items whose id has an even sha256 prefix and reports the other half as held-out (log loss and ECE before and after), `half1` is the swap, `full` uses all of both pools, `dev` fits the choice kappa on the dev pool too, and `devhalf0` and `devhalf1` do that on halves of the dev pool with the other half held out (a model whose H-fitted choice temperature does not transfer to public-source questions).
 - The reads are rows of `id`, `probs` (as the server returned them, at the base's temperatures; `--served` and `--dev-served` say which if they differ from the defaults) and `p_plain` (the plain readout of a `--debug-readout` server; `--use p_plain` fits on it, with temperature 1 as the reference).
 - **Two ECE definitions, both reported, named.** The held-out figures of a half variant (`fit.checks.<type>.heldout`) are per half, with ten equal-count bins and ties shuffled (the definition of the first evaluation's fits). The figure a ship gate uses is `fit.swap_validated_dev`: the kappa of each half applied to the other half's items, pooled over all of the dev pool's items of the type, with ten equal-width bins, next to the unscaled figure and the two halves' kappas with their ratio (over 1.25 the gates call the fit unstable). They differ on the same fit: BH0's choice figure is 0.061 pooled with equal-width bins and 0.095 and 0.127 on its two halves with equal-count bins.
-- It never reads a benchmark. On the stored reads of the first MeTask evaluation it reproduces every kappa and held-out figure of Lab 1's fits (`runs/2026-10-18_adapter-fit/`).
+- It never reads a benchmark. On the stored reads of the first MeTask evaluation it reproduces every kappa and held-out figure of the original fits (`runs/2026-10-18_adapter-fit/`).
 
 ### Yes/no stays a probability
 

@@ -81,7 +81,7 @@ Options:
 A fine-tuned adapter was trained on one layout and measured on it. The rule:
 - A tuned repository (`decisio.decision_config/2`) and an adapter's file (`decisio_adapter.json`) may record the layout they were trained and measured on (`defaults.layout`, `layout`). A repository's file is already a place for exactly that kind of fact (its temperatures, commit rule, `think`).
 - **With no recorded layout they are served plain**, whatever the base's default is: it is what they were trained on. Every tuned repository and adapter in existence is in this case, so none changes.
-- A recorded `"header"` serves the header. Lab 1 and Lab 2 record it for an adapter only when it was measured so (by training in it, or by an A/B on that adapter).
+- A recorded `"header"` serves the header. The layout is recorded for an adapter only when it was measured so (by training in it, or by an A/B on that adapter).
 - `--layout` given explicitly overrides the record (a measurement run needs to).
 - With adapters named per request, an adapter without a record and a base with the header cannot share a server's one layout: the held layout of decision 3 covers it (an adapter without a record loaded keeps the server on `plain`).
 
@@ -110,9 +110,9 @@ This changes the answers of every bare base on upgrade. It is breaking for answe
 
 ## Not covered here
 
-- Read twice: removed in #290 on the 12B's evidence; Lab 4 proposes testing it on the 31B before writing it off. It would be its own decision.
-- A new Decision Index or JevBench row under the header is the owner's call, not a decisio change.
-- The temperatures under the header: `--temperatures-file` exists and the refit is the open item (Lab 4 found the natural-split refit harmful on yes/no as fitted); nothing here changes the served temperatures.
+- Read twice: removed in #290 on the 12B's evidence; testing it on the 31B before writing it off was proposed. It would be its own decision.
+- A board submission under the header is the owner's call, not a decisio change.
+- The temperatures under the header: `--temperatures-file` exists and the refit is the open item (a refit on a natural split was found harmful on yes/no as fitted); nothing here changes the served temperatures.
 
 ## As built (0.26.0)
 

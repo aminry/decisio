@@ -52,12 +52,12 @@ Run it in the dtype the checkpoint was served in: a float32 forward pass differs
 On a CUDA device the reference reads with eager attention by default (`--attention safe`); on the CPU it uses transformers' own path.
 Reason: on an RTX PRO 6000 Blackwell (sm_120, torch 2.13.0, CUDA 13.0), transformers' default forward of Gemma 4 12B gave probabilities 0.37 to 0.51 away from the server's on every prompt of 129, 385 or 449 tokens (a length of 1 modulo 64), five of 200 items and all five of that length.
 The same reference on the CPU agreed with the server on them to 0.0013.
-Lab 2's sweep over every length from 100 to 399 tokens (2026-10-13, transformers 5.17.0) shows the rule is wider than 1 modulo 64: the default path differs from eager by more than 2 logits at every length that is 1 modulo 32 (9 of 9, by 9 to 24) and at 13 other lengths (by 2 to 19), while eager and `sdpa-math` stay within 0.35 of the CPU on the rows checked.
+A sweep over every length from 100 to 399 tokens (2026-10-13, transformers 5.17.0) shows the rule is wider than 1 modulo 64: the default path differs from eager by more than 2 logits at every length that is 1 modulo 32 (9 of 9, by 9 to 24) and at 13 other lengths (by 2 to 19), while eager and `sdpa-math` stay within 0.35 of the CPU on the rows checked.
 Until the defect is pinned down, do not use `--attention default` on CUDA to check a server; `--attention sdpa-math` (SDPA with only its math backend) and `--attention eager` are the paths to compare.
 
 ## Measured agreement with the server
 
-Gemma 4 12B (bfloat16, decisio 0.11.1, the repository at `a5a1ac8f`), the reference on the CPU against the server on an RTX PRO 6000 Blackwell, 200 conformance items over six tasks (Lab 2's session of 2026-10-10; the token rows and the answer structure are identical):
+Gemma 4 12B (bfloat16, decisio 0.11.1, the repository at `a5a1ac8f`), the reference on the CPU against the server on an RTX PRO 6000 Blackwell, 200 conformance items over six tasks (a session of 2026-10-10; the token rows and the answer structure are identical):
 
 - the mean over items of the largest probability difference is 0.0068, about 0.007, and the median item is 0.0027;
 - the largest difference is 0.061, on the long items with many options (banking77, mmlu_pro_text); on boolq it is 0.006;
@@ -70,7 +70,7 @@ Two bfloat16 engines (vLLM's Triton attention and the CPU) differ by about this 
 ## Gemma 4 31B (FP8)
 
 The reference runs the 31B's stored FP8 weights with bfloat16 activations, and the server quantizes activations to FP8 at run time, so the two cannot meet the 12B's tolerance; the 31B has its own rule.
-Lab 2's 2026-10-13 run, the 31B on decisio's vLLM 0.31.0 server against the reference on the same 200 requests: with `--attention eager` the largest difference is 0.478, the mean item maximum 0.0235 and 3 choice flips have a server top-two gap of at least 0.10; with `sdpa-math` 0.431, 0.0190 and 2; with `default` 0.342, 0.0183 and 1.
+A 2026-10-13 run, the 31B on decisio's vLLM 0.31.0 server against the reference on the same 200 requests: with `--attention eager` the largest difference is 0.478, the mean item maximum 0.0235 and 3 choice flips have a server top-two gap of at least 0.10; with `sdpa-math` 0.431, 0.0190 and 2; with `default` 0.342, 0.0183 and 1.
 The frozen v0.11.1 server (vLLM 0.30.0) against the reference on the 2026-10-10 card: 0.594, 0.0206 and 5.
 **The rule:** pass when the mean item maximum is at most 0.026 (the frozen server's plus 25 percent), the largest difference at most 0.594, at most 5 flips with a gap of at least 0.10, and the token and label rows are the same on both sides.
 It asks whether the reference agrees with a server as well as it did with the frozen one, and does not claim the two agree to the 12B's tolerance.
