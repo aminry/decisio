@@ -5,5 +5,5 @@ ENGINE {"engine": "hf_letters (CPU stand-in, not for measurement)", "transformer
 Loading weights:   0%|          | 0/310 [00:00<?, ?it/s]Loading weights:  36%|███▋      | 113/310 [00:00<00:00, 1023.28it/s]Loading weights:  70%|██████▉   | 216/310 [00:00<00:00, 491.47it/s] Loading weights:  90%|█████████ | 279/310 [00:00<00:00, 409.77it/s]Loading weights: 100%|██████████| 310/310 [00:00<00:00, 477.44it/s]
 HEAD ENGINE {"engine": "hf hidden (CPU stand-in, not for measurement)", "pad_unit": 64, "route": "reserved logit columns (emulated)"}
 ENGINE PROBE {"ms": {"HFLettersEngine": 166.8, "HFReservedHiddenEngine": 153.6}, "deadline_s": 5.0}
-/Users/amin/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+~/.local/share/uv/python/cpython-3.12.13-macos-aarch64-none/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
   warnings.warn('resource_tracker: There appear to be %d '

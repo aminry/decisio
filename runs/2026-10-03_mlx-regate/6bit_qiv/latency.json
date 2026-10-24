@@ -265,7 +265,7 @@
    4.9560546875
   ],
   "max_foreign_cpu": 486.5,
-  "max_foreign_process": "/Users/amin/repo/decisio-t7/.venv/bin/python",
+  "max_foreign_process": "~/repo/decisio-t7/.venv/bin/python",
   "monitor_samples": 156,
   "idle": false,
   "attempt": 3,
@@ -389,7 +389,7 @@
     4.9560546875
    ],
    "max_foreign_cpu": 486.5,
-   "max_foreign_process": "/Users/amin/repo/decisio-t7/.venv/bin/python",
+   "max_foreign_process": "~/repo/decisio-t7/.venv/bin/python",
    "monitor_samples": 156,
    "idle": false,
    "attempt": 3,

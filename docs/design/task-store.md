@@ -3,7 +3,7 @@
 
 # Design: a shared task store for replicas
 
-Status: accepted and built (part C of the task-persistence work; part B, `--tasks-dir`, is separate). Amin accepted all four recommendations in "Decisions asked for" below. What the build settled beyond the proposal is under "As built" at the end; the user documentation is `tasks.md` ("Replicas: a shared store").
+Status: accepted and built (part C of the task-persistence work; part B, `--tasks-dir`, is separate). All four recommendations were accepted in "Decisions asked for" below. What the build settled beyond the proposal is under "As built" at the end; the user documentation is `tasks.md` ("Replicas: a shared store").
 
 ## The problem
 

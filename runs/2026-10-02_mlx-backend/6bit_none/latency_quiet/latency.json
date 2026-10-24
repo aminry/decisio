@@ -265,7 +265,7 @@
    2.21337890625
   ],
   "max_foreign_cpu": 98.4,
-  "max_foreign_process": "/Users/amin/repo/decisio/.venv/bin/python",
+  "max_foreign_process": "<local path>/python",
   "monitor_samples": 93,
   "idle": false,
   "attempt": 3,
@@ -389,7 +389,7 @@
     2.21337890625
    ],
    "max_foreign_cpu": 98.4,
-   "max_foreign_process": "/Users/amin/repo/decisio/.venv/bin/python",
+   "max_foreign_process": "<local path>/python",
    "monitor_samples": 93,
    "idle": false,
    "attempt": 3,

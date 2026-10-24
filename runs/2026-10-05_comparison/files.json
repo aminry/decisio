@@ -6,13 +6,13 @@
  },
  {
   "path": "compute.py",
-  "bytes": 11400,
-  "sha256": "cbbf37a07e527fdc40c0341dc74354383af2d86b22392554a3c04ff86d19884a"
+  "bytes": 11408,
+  "sha256": "b67fbb43a49f31aabb0fa23a20fa29b4b16d303db6ce41f1e2928ae9e17b0373"
  },
  {
   "path": "manifest.json",
-  "bytes": 3950,
-  "sha256": "caec0e29918e13bf4ea87656a76d8b72ffc72cc40b9b148dfd4e11be43cf1118"
+  "bytes": 3956,
+  "sha256": "3d8fda1c4128c3e81788a5fec8130823304b020b0dff1cb28d9995c0d9cddcab"
  },
  {
   "path": "results.json",

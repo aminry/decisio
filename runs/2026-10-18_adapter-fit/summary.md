@@ -1,4 +1,4 @@
-# The split fit reproduces Lab 1's S18 temperatures from the same stored reads (2026-10-18)
+# The split fit reproduces the original temperatures from the same stored reads (2026-10-18)
 
 `python -m decisio.serve.adapter_temperatures fit-split` was run on the stored reads of the first MeTask evaluation (a tuned Gemma 4 31B, S18 of the card sessions: 776 H items and the 500-item dev pool, read through decisio 0.14.0 at the base's temperatures, the dev score items served at the choice temperature), and compared with the fits made from the same reads by the scoring scripts of that evaluation.
 
