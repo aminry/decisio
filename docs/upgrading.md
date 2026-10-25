@@ -8,6 +8,19 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.32.0: projections can stay in bf16 inside an FP8 checkpoint
+
+### What changed
+
+- **`hub_fp8 convert|merge --keep-bf16 SPEC`** leaves whole layers, a projection in every layer, or single groups in bf16 inside the FP8 checkpoint ([running.md](running.md#shipping-a-tuned-model)); the merge rounds those tensors once, stochastically, from the fp32 merge. Without the flag the output is what it was.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `hub_fp8` without `--keep-bf16` | Nothing changes | Nothing |
+| A checkpoint made with `--keep-bf16` (new) | Its config lists the kept modules in `ignore`; needs a vLLM that honours the list per layer (not measured by this release) | Check on a card before relying on it |
+
 ## 0.31.0: a tuned repository can be a flavor, and can leave the adapter's repository name out
 
 ### What changed
