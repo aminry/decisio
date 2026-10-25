@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.31.0: the adapter's repository name is optional in a tuned repository's file
+
+### What changed
+
+- **`tuned.adapter.repository` in a tuned repository's `decision_config.json` is optional** ([running.md](running.md#shipping-a-tuned-model)): `hub tuned-config` without `--adapter-repository` writes the file without it, and the file still records the adapter's revision, sha256s, rank and alpha.
+  A file that names the repository is read as before. An older decisio refuses a file without it ("tuned.adapter.repository must be a string").
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A tuned repository whose file names the adapter's repository | Nothing changes | Nothing |
+| A tuned repository whose file leaves it out (new) | Needs this release or later | Use this release or later |
+
 ## 0.30.0: the 31B in bf16
 
 ### What changed
