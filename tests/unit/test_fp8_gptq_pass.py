@@ -153,3 +153,14 @@ def test_p5_refusals(tiny, tmp_path):
     (d / "config.json").write_text(json.dumps(cfg))
     with pytest.raises(ValueError, match="not 'qwen3'"):
         P.gptq_pass(hub_fp8.Source(d), merged, sequences(2, 8, 1))
+
+
+def test_p6_the_heldout_error_is_reported_and_is_lower_too(tiny):
+    _, _, src, merged = tiny
+    res = P.gptq_pass(src, merged, sequences(48, 24, 6), dtype=torch.float32, holdout=12)
+    for r in res.values():
+        assert r["info"]["heldout_error_gptq"] <= r["info"]["heldout_error_rtn"] * 1.05
+    total = lambda k: sum(r["info"][k] for r in res.values())  # noqa: E731
+    assert total("heldout_error_gptq") < 0.9 * total("heldout_error_rtn")
+    with pytest.raises(ValueError, match="holdout leaves no calibration sequence"):
+        P.gptq_pass(src, merged, sequences(4, 24, 6), dtype=torch.float32, holdout=4)

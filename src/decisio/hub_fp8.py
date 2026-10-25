@@ -134,6 +134,19 @@ MEMBERS = {
 
 
 @dataclass(frozen=True)
+class Gptq:
+    """`--gptq CALIBRATION`: round the merged weights with error compensation instead of to nearest (decisio.fp8_gptq),
+    from the Hessians of the calibration requests' activations (decisio.fp8_gptq_pass). The grid and the scale of each
+    fused group do not change; only some codes move one step."""
+
+    calibration: Path
+    damp: float = 0.01
+    blocksize: int = 128
+    max_tokens: int = 6000
+    limit: int | None = None
+
+
+@dataclass(frozen=True)
 class Keep:
     """The projections left in bf16 instead of FP8 (`--keep-bf16`): whole layers (`layers:45-47`), a projection in every
     layer (`proj:down_proj,o_proj`) or one group (`group:layers.3.mlp.down_proj`). A vLLM fused layer (qkv_proj,
@@ -571,6 +584,45 @@ def merged32(w: torch.Tensor, ab, scale: float, device: str) -> torch.Tensor:
     return w32 + scale * (b @ a)
 
 
+def run_gptq(src, deltas, scale, device, keep, spec: Gptq, progress=None):
+    """The compensated codes of every quantized group (decisio.fp8_gptq_pass) and the report of what was done:
+    {group key: {"codes", "scale", "info"}}, and the `gptq` section of MERGE_FP8.json."""
+    import transformers
+
+    from decisio import fp8_gptq_pass
+    from decisio.families import family_of
+
+    tokenizer = transformers.AutoTokenizer.from_pretrained(str(src.dir))
+    family = family_of(str(src.dir))
+    sequences = fp8_gptq_pass.render_calibration(spec.calibration, tokenizer, family, spec.limit, spec.max_tokens)
+    if not sequences:
+        raise ValueError(f"{spec.calibration}: no calibration request renders to at most {spec.max_tokens} tokens")
+    results = fp8_gptq_pass.gptq_pass(
+        src,
+        lambda name: merged32(src.get(name), deltas.get(name), scale, device),
+        sequences,
+        device=device,
+        keep=keep,
+        blocksize=spec.blocksize,
+        damp=spec.damp,
+        progress=progress,
+    )
+    rtn = sum(r["info"]["error_rtn"] for r in results.values())
+    comp = sum(r["info"]["error_gptq"] for r in results.values())
+    report = {
+        "method": "error-compensating rounding to the group's fixed FP8 scale (GPTQ), layer by layer",
+        "calibration_sha256": hashlib.sha256(Path(spec.calibration).read_bytes()).hexdigest(),
+        "requests": len(sequences),
+        "tokens": sum(len(s) for s in sequences),
+        "damp": spec.damp,
+        "blocksize": spec.blocksize,
+        "max_tokens": spec.max_tokens,
+        "output_error_round_to_nearest": rtn,
+        "output_error_compensated": comp,
+    }
+    return results, report
+
+
 def merge(
     source: Path,
     adapter: Path,
@@ -582,12 +634,15 @@ def merge(
     keep: Keep | None = None,
     seed: int = 0,
     overwrite: bool = False,
+    gptq: Gptq | None = None,
 ) -> dict:
     """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) with the LoRA adapter in `adapter` merged in
     fp32 and quantized once; the report (`MERGE_FP8.json`). Raises ValueError if an adapter pair finds no quantized
     tensor. `keep`: groups left in bf16 (`--keep-bf16`); their tensors are the same fp32 merge, rounded once to bf16
     stochastically with `seed` as `decisio.hub_bf16 merge` does (round to nearest would give back most of the
-    adapter's change in them). `out` must be a new or empty folder unless `overwrite` (check_output_folder).
+    adapter's change in them). `out` must be a new or empty folder unless `overwrite` (check_output_folder). `gptq`: the
+    quantized groups are rounded with error compensation from the calibration requests' activations, layer by layer
+    (`Gptq`); not with `null`.
 
     A full-attention layer with `attention_k_eq_v` ships no `v_proj` (V is K), so an adapter's `v_proj` pair there has
     no tensor to merge into, and a checkpoint of this layout cannot hold a V that differs from K. Where each such pair
@@ -629,6 +684,14 @@ def merge(
     }
     expected: dict = {}
     applied = 0
+    compensated: dict = {}
+    gptq_report = None
+    if gptq is not None:
+        if null:
+            raise ValueError(
+                "--gptq does not combine with --null: a null merge is the byte-for-byte test of the pipeline"
+            )
+        compensated, gptq_report = run_gptq(src, deltas, scale, device, keep, gptq, progress)
     for i, g in enumerate(groups):
         t32 = {n: merged32(src.get(n), deltas.get(n), scale, device) for n in dict.fromkeys(g.fused)}
         applied += sum(1 for n in g.names if n in deltas)
@@ -644,7 +707,18 @@ def merge(
         amax = torch.stack([t.abs().max() for t in t32.values()]).max().cpu()
         sc = scale_of(amax)
         # the FP8 cast on the CPU: every device's float8 support differs, the bytes do not
-        q = {n: quantize(t.cpu(), sc) for n, t in t32.items()}
+        if g.key in compensated:
+            if not torch.equal(compensated[g.key]["scale"], sc):
+                raise ValueError(f"{g.key}: the calibration pass and the merge disagree on the group's scale")
+            q = {n: compensated[g.key]["codes"][n] for n in t32}
+            for (
+                n,
+                c,
+            ) in q.items():  # the codes must be grid points of this scale: rounding what they mean gives them back
+                if not torch.equal(quantize(c.to(torch.float32) * sc, sc).view(torch.uint8), c.view(torch.uint8)):
+                    raise ValueError(f"{n}: compensated codes are not on the FP8 grid of the group's scale")
+        else:
+            q = {n: quantize(t.cpu(), sc) for n, t in t32.items()}
         fused_q = torch.cat([q[n] for n in g.fused])
         loaded = torch.cat([loader_requantize(q[n], sc, sc.max()) for n in g.fused])
         changed = int((loaded.view(torch.uint8) != fused_q.view(torch.uint8)).sum())
@@ -696,6 +770,7 @@ def merge(
         "groups": len(groups),
         "quantized_groups": len(groups) - len(kept),
         **({"kept_bf16": kept_report(keep, kept, seed)} if kept else {}),
+        **({"gptq": gptq_report} if gptq_report else {}),
         "written_vs_loaded_differ": differ,
         "loader_changed_elements": report["loader_changed_elements"],
         "smallest_amax": report["smallest_amax"],
@@ -770,6 +845,17 @@ def main(argv=None) -> int:
     mg.add_argument("--keep-bf16", action="append", default=[], metavar="SPEC", help=keep_help)
     mg.add_argument("--overwrite", action="store_true", help=overwrite_help)
     mg.add_argument(
+        "--gptq",
+        metavar="CALIBRATION",
+        help="round with error compensation (GPTQ) instead of to nearest: a gzip JSONL of requests (state, questions; "
+        "the kit's format, no gold) rendered under the header layout; their activations give each layer's Hessian. "
+        "The grid and each group's scale are unchanged. Needs transformers and a card for the 12B and the 31B",
+    )
+    mg.add_argument("--gptq-damp", type=float, default=0.01, help="the share of the mean Hessian diagonal added (0.01)")
+    mg.add_argument("--gptq-blocksize", type=int, default=128, help="columns per block of the compensation (128)")
+    mg.add_argument("--gptq-max-tokens", type=int, default=6000, help="calibration requests longer are left out")
+    mg.add_argument("--gptq-limit", type=int, help="use only the first N calibration requests")
+    mg.add_argument(
         "--seed", type=int, default=0, help="the stochastic rounding of the --keep-bf16 tensors (default 0)"
     )
     cp = sub.add_parser("compare", help="the modules at which two fingerprint files differ")
@@ -799,6 +885,9 @@ def main(argv=None) -> int:
             keep=parse_keep(a.keep_bf16),
             seed=a.seed,
             overwrite=a.overwrite,
+            gptq=(
+                Gptq(Path(a.gptq), a.gptq_damp, a.gptq_blocksize, a.gptq_max_tokens, a.gptq_limit) if a.gptq else None
+            ),
         )
         differ = meta["written_vs_loaded_differ"]
         print(

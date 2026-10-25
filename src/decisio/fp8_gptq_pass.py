@@ -22,7 +22,10 @@ v_proj, as in the checkpoint. Groups named in `keep` stay bf16 (--keep-bf16): th
     results = gptq_pass(source, merged, sequences, device="cuda")      # {group key: {"codes", "scale", "info"}}
 
 `merged(name)` returns the fp32 weight of a projection with the adapter merged in (hub_fp8.merged32); `sequences` are
-lists of token ids (the rendered calibration requests). Nothing here reads a model's data: the sequences are given.
+lists of token ids (the rendered calibration requests). `max_layers` stops after that many layers (a check on a real
+checkpoint without the whole run). `holdout`: the last N sequences are not used for the Hessians; the error of both
+roundings on them is reported too (`heldout_error_rtn`, `heldout_error_gptq`), which tells whether the compensation
+generalizes beyond the calibration rows. Nothing here reads a model's data: the sequences are given.
 """
 
 from __future__ import annotations
@@ -134,6 +137,8 @@ def gptq_pass(
     damp: float = 0.01,
     dtype=torch.bfloat16,
     progress=None,
+    max_layers: int | None = None,
+    holdout: int = 0,
 ) -> dict:
     """The compensated FP8 codes of every quantized group of the checkpoint, from `sequences`.
 
@@ -156,13 +161,15 @@ def gptq_pass(
             cache[name] = merged(name).to(device=device, dtype=torch.float32)
         return cache[name]
 
+    if holdout and holdout >= len(sequences):
+        raise ValueError("holdout leaves no calibration sequence")
     states, kw = [], []
     for ids in sequences:
         hidden, kwargs = stack.prepare(ids)
         states.append(hidden)
         kw.append(kwargs)
     results: dict = {}
-    for index in range(stack.cfg.num_hidden_layers):
+    for index in range(min(stack.cfg.num_hidden_layers, max_layers or stack.cfg.num_hidden_layers)):
         cache.clear()
         layer = stack.layer(index, weight_of)
         taps = {
@@ -172,12 +179,15 @@ def gptq_pass(
             "down": layer.mlp.down_proj,
         }
         hessians = {k: fp8_gptq.Hessian(m.weight.shape[1]) for k, m in taps.items()}
-        handles = [m.register_forward_pre_hook(tap(hessians[k])) for k, m in taps.items()]
+        heldout = {k: fp8_gptq.Hessian(m.weight.shape[1]) for k, m in taps.items()}
         layer_type = stack.layer_types[index]
-        for hidden, kwargs in zip(states, kw):
-            _run(layer, hidden, kwargs[layer_type])
-        for h in handles:
-            h.remove()
+        n_train = len(states) - holdout
+        for part, target in ((slice(0, n_train), hessians), (slice(n_train, None), heldout)):
+            handles = [m.register_forward_pre_hook(tap(target[k])) for k, m in taps.items()]
+            for hidden, kwargs in zip(states[part], kw[part]):
+                _run(layer, hidden, kwargs[layer_type])
+            for h in handles:
+                h.remove()
         wanted = {"qkv_proj": "qkv", "o_proj": "o", "gate_up_proj": "gate_up", "down_proj": "down"}
         for g in by_layer.get(index, []):
             if g.key in kept:
@@ -187,18 +197,80 @@ def gptq_pass(
             scale = hub_fp8.scale_of(amax)
             h = hessians[wanted[hub_fp8.GROUP_KEY.match(g.key)["name"]]].matrix()
             codes, info = {}, {"error_rtn": 0.0, "error_gptq": 0.0, "dead_inputs": 0}
+            if holdout:
+                info |= {"heldout_error_rtn": 0.0, "heldout_error_gptq": 0.0}
+                he = heldout[wanted[hub_fp8.GROUP_KEY.match(g.key)["name"]]].matrix()
             for n in g.names:
                 c, i = fp8_gptq.gptq_codes(tensors[n], h, scale, blocksize, damp)
                 codes[n] = c.cpu()
                 for k in ("error_rtn", "error_gptq", "dead_inputs"):
                     info[k] += i[k]
+                if holdout:
+                    sc = scale.to(device)
+                    info["heldout_error_rtn"] += fp8_gptq.output_error(
+                        tensors[n], fp8_gptq.rtn_codes(tensors[n], sc).to(torch.float32) * sc, he
+                    )
+                    info["heldout_error_gptq"] += fp8_gptq.output_error(
+                        tensors[n], c.to(device).to(torch.float32) * sc, he
+                    )
             results[g.key] = {"codes": codes, "scale": scale, "info": info}
             # the layer now holds the rounded weights: the next layer reads what they make
             for n, c in codes.items():
                 module = layer.get_submodule(re.sub(r"\.weight$", "", n[len(f"{LAYER_PREFIX}.{index}.") :]))
                 module.weight.data = (c.to(device).to(torch.float32) * scale.to(device)).to(dtype)
         states = [_run(layer, hidden, kwargs[layer_type]) for hidden, kwargs in zip(states, kw)]
-        del layer
+        del layer, heldout
         if progress:
             progress(f"layer {index + 1}/{stack.cfg.num_hidden_layers}")
     return results
+
+
+def render_calibration(
+    path, tokenizer, family=None, limit: int | None = None, max_tokens: int = 6000
+) -> list[list[int]]:
+    """The token rows of a calibration file as the server builds them: each line is a request (`state`, `questions`, the
+    kit's format, no gold); it is turned into engine questions as the served default does and rendered under the header
+    layout with the chat template, system turn and answer slot of the base `family` (the 31B's when not given), by the
+    one function every engine builds rows with (`LettersEngine._rows`). The longest row of a request is kept, the
+    request whose row is over `max_tokens` is left out. The activations of these rows are what the server sees."""
+    import gzip
+    import json
+
+    from decisio.families import BASES
+    from decisio.readout.letters import PromptFormat
+    from decisio.serve.systemone import SystemOne, SystemOneRequest
+    from decisio.serve.tasks import TaskStore
+    from decisio.serve.vllm_engine import LettersEngine
+
+    fam = family if family is not None else BASES["gemma-4-31b"]
+    fmt = PromptFormat(
+        tail=fam.prompt_tail,
+        slot=fam.answer_slot,
+        variants=fam.label_variants,
+        system_prompt=fam.system_prompt,
+        layout="header",
+    )
+
+    class Rows:  # the parts of the letters engine that build a request's rows
+        pad_unit = 0
+        tok = tokenizer
+
+    Rows.fmt = fmt
+    for name in ("_template_tail", "_labels"):
+        setattr(Rows, name, getattr(LettersEngine, name))
+    engine = Rows()
+    so = SystemOne(engine, "calibration", task_store=TaskStore("calibration"), noul_rendering=fam.noul_rendering)
+    opener = gzip.open if str(path).endswith(".gz") else open
+    out = []
+    with opener(path, "rt") as f:
+        for line in f:
+            row = json.loads(line)
+            req = SystemOneRequest.model_validate({"state": row["state"], "model": "m", "questions": row["questions"]})
+            qs = [so.engine_question(q)[0] for q in req.questions.values()]
+            rows, _, _ = LettersEngine._rows(engine, req.state, qs, None, with_plan=False)
+            ids = max((r[0] for r in rows), key=len)
+            if len(ids) <= max_tokens:
+                out.append(list(ids))
+            if limit and len(out) >= limit:
+                break
+    return out

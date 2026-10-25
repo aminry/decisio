@@ -92,7 +92,17 @@ def gptq_codes(
     w[:, dead] = 0.0
     added = damp * float(torch.mean(torch.diag(h)))
     h += torch.eye(n, device=h.device, dtype=h.dtype) * added
-    chol = torch.linalg.cholesky(h)
+    eye = torch.eye(n, device=h.device, dtype=h.dtype)
+    for attempt in range(4):  # a Hessian that is not positive definite even so: more dampening, said in `info`
+        try:
+            chol = torch.linalg.cholesky(h)
+            break
+        except torch.linalg.LinAlgError:
+            if attempt == 3:
+                raise
+            extra = added * 10.0 ** (attempt + 1)
+            h += eye * extra
+            added += extra
     hinv = torch.linalg.cholesky(torch.cholesky_inverse(chol), upper=True)  # the upper factor of H^-1
     codes = torch.empty_like(w, dtype=FP8)
     for i1 in range(0, n, blocksize):
