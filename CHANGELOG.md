@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.33.0](https://github.com/aminry/decisio/compare/v0.32.0...v0.33.0) (2026-10-25)
+
+
+### Features
+
+* **hub-fp8:** --gptq, error-compensating FP8 rounding in the merge ([#346](https://github.com/aminry/decisio/issues/346)) ([e24efb8](https://github.com/aminry/decisio/commit/e24efb875a204e48d29db00a24e4a8406f2d6360))
+* **serve:** --emulate-precision-casts, on by default for FP8 bases ([#349](https://github.com/aminry/decisio/issues/349)) ([abe00c6](https://github.com/aminry/decisio/commit/abe00c6ffab42f10038349aef3480b4a355a033a))
+
 ## [0.32.0](https://github.com/aminry/decisio/compare/v0.31.0...v0.32.0) (2026-10-25)
 
 

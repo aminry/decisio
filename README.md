@@ -477,7 +477,7 @@ Linux, one NVIDIA card, a driver that supports CUDA 13.0, Python 3.12 and [uv](h
 
 <!-- x-release-please-start-version -->
 ```bash
-git clone --branch v0.32.0 https://github.com/aminry/decisio
+git clone --branch v0.33.0 https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
 uv run python -m decisio.serve.vllm_engine
