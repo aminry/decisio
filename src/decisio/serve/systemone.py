@@ -40,6 +40,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.serve import header_limit
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
@@ -639,6 +640,9 @@ class SystemOne:
         # over_limit); a request's "over_limit" field decides for that request. Counted in /health.
         self.over_limit = over.check_mode(over_limit, "over_limit")
         self.truncated = {"requests": 0, "largest_state_tokens": 0}
+        # requests whose header listed only the questions that fit the context (decisio.serve.header_limit), those of
+        # them that fell back to the plain layout (no line fit), those refused because even that did not fit
+        self.header_limited = {"requests": 0, "plain": 0, "refused": 0, "lines_dropped": 0}
         # think when unsure (decisio.serve.think): the server's default (a request's "think" field decides for that
         # request), the factor on the type thresholds and the token budget; counted in /health
         self.think = bool(think)
@@ -712,12 +716,12 @@ class SystemOne:
             ]
         }
 
-    def usage_tokens(self, state, qs: list[dict]) -> int:
+    def usage_tokens(self, state, qs: list[dict], header_lines=None) -> int:
         from decisio.readout.letters import DEFAULT_FORMAT, READ_AGAIN
         from decisio.serve.vllm_engine import counted_tokens
 
         tok, fmt = self.engine.tok, getattr(self.engine, "fmt", DEFAULT_FORMAT)
-        c = counted_tokens(tok, fmt, state, qs)
+        c = counted_tokens(tok, fmt, state, qs, header_lines)
         total = c["total"]
         if fmt.read_twice_under and self.engine.read_plan(state, qs)["twice"]:
             # what is read: every question's row reads its whole user turn again (the header, the state, its own
@@ -807,6 +811,24 @@ class SystemOne:
         }
         return second, report, ms
 
+    def header_plan(self, state, qs: list[dict], engine) -> dict | None:
+        """The engine's header plan for the request (decisio.serve.header_limit): None where the header layout is not in
+        use or nothing was over; a request that cannot be answered even from the plain layout, or with the limit off
+        and its header over the context, is refused here with where its tokens are (a 422)."""
+        plan = getattr(engine, "header_plan", None)
+        hp = plan(state, qs) if plan is not None else None
+        if hp is None:
+            return None
+        if not hp["fits"]:
+            self.header_limited["refused"] += 1
+            off = bool(hp.get("off"))
+            raise over.OverLimit(header_limit.refusal(hp["limit"], hp["pieces"], off))
+        if hp["limited"]:
+            self.header_limited["requests"] += 1
+            self.header_limited["plain"] += 1 if hp["listed"] == 0 else 0
+            self.header_limited["lines_dropped"] += hp["of"] - hp["listed"]
+        return hp
+
     def truncated_request(self, req: SystemOneRequest, qs: list[dict], engine) -> tuple[SystemOneRequest, dict | None]:
         """(the request, the report): the request with its state cut to its start where a row would be over the
         engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
@@ -825,7 +847,10 @@ class SystemOne:
         # a row is the user turn of the header (under the header layout: every question of the request, listed before
         # the state), the state, a blank line and the question; the budget the state may take is what is left of the
         # ceiling beside the longest such row, so the header counts as much as the question
-        head = layout_header([q["instructions"] for q in qs]) if fmt.layout == "header" else ""
+        # (with the header limit on, the header gives way before the state does: the state is cut for the plain row)
+        limited = hasattr(engine, "header_plan") and getattr(engine, "header_limit_setting", ("auto", None))[0] != "off"
+        keep_header = fmt.layout == "header" and not limited
+        head = layout_header([q["instructions"] for q in qs]) if keep_header else ""
         overhead = max(len(enc(user_turn(tok, f"{head}\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
         text, report = over.fit_state(
             tok, fmt_state(req.state), overhead, limit, reserve=int(getattr(engine, "pad_unit", 0) or 0)
@@ -898,6 +923,9 @@ class SystemOne:
         cut = None
         if (over_limit or self.over_limit) == "truncate" and not use_image:
             req, cut = self.truncated_request(req, qs, engine)
+        hp = None if use_image else self.header_plan(req.state, qs, engine)
+        header_lines = hp["listed"] if hp is not None and hp["limited"] else None
+        hl = hp["report"] if hp is not None and hp["limited"] else None
         if adapter is not None:
             # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
             # would be applied to another one: refuse rather than answer with a correction that does not fit
@@ -1052,6 +1080,11 @@ class SystemOne:
                 answers[name].update(
                     {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "state_truncated"}
                 )
+            elif hl is not None and t is not None and t.get("certificate") and q.type != "score":
+                # the certificate was made with the whole header; this request's lists fewer of its questions
+                answers[name].update(
+                    {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "header_limited"}
+                )
             elif t is not None and t.get("certificate") and q.type != "score":
                 # an answer scored in an engine call shared with other requests (--concurrency batched; never a
                 # certified task's own read, which is serial) is not observed against the certificate's baseline
@@ -1080,7 +1113,7 @@ class SystemOne:
                 for rec in log:
                     f.write(json.dumps({"t": time.time(), "request_sha256": h, **rec}) + "\n")
         usage = {
-            "input_tokens": self.usage_tokens(req.state, qs) + sum(info.get("image_tokens") or []),
+            "input_tokens": self.usage_tokens(req.state, qs, header_lines) + sum(info.get("image_tokens") or []),
             "output_tokens": len(names),
         }
         if think_report is not None:  # the generated tokens are output tokens, and said so
@@ -1093,7 +1126,7 @@ class SystemOne:
             "_timing": {
                 "server_ms": (time.perf_counter() - t0) * 1000,
                 "route": "image" if use_image else "text",
-                "layout": self.layout,
+                "layout": "plain" if hl is not None and hl["listed"] == 0 else self.layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
                 # the mean prompt the engine computed or read per question, for the x-decisio-prompt header
                 **(
@@ -1118,6 +1151,8 @@ class SystemOne:
             out["adapter"] = adapter  # which adapter answered; absent when the base did
         if cut is not None:
             out["state_truncated"] = cut  # absent when the whole state was read
+        if hl is not None:
+            out["header_limited"] = hl  # absent when the header listed every question
         if think_report is not None:
             out["thinking"] = think_report  # present when thinking was on for the request
             out["_timing"]["think_ms"] = think_ms
@@ -2226,6 +2261,8 @@ def add_routes(app, systemone: SystemOne):
         if timing.get("think_tokens") is not None and "thinking" in out:
             headers[header("think-ms")] = f"{timing['think_ms']:.1f}"
             headers[header("think-tokens")] = str(timing["think_tokens"])
+        if out.get("header_limited"):
+            headers[header("layout")] = header_limit.header_value(out["header_limited"])
         if out.get("state_truncated"):
             cut = out["state_truncated"]
             headers[header("state-truncated")] = f"kept={cut['kept_tokens']}; of={cut['of_tokens']}; part={cut['part']}"

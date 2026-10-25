@@ -8,6 +8,27 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.29.0: a header that does not outgrow the context
+
+### What changed
+
+- **Under the header layout a request whose rows would be over the context is answered, not refused.**
+  The header lists the instructions of every question on every row, so a request with many long instructions could render a row several times longer than the plain layout's and past the context (a 422).
+  The server now lists as many of the questions as fit, in the request's order, and none when no line fits (the plain layout's row).
+  The response says so (`header_limited`, `x-decisio-layout`, `/health`), `usage.input_tokens` counts the header that was read, and a certified task's answer in such a request is not certified (`header_limited`).
+  A request whose rows fit is built as it always was ([running.md](running.md#a-header-over-the-context---header-limit)).
+- **`--header-limit auto|off|TOKENS`.** `off` restores the 422; a number also caps the header's tokens.
+- **The 422 for a row nothing can bring under the context says where its tokens are** (header, state, longest question, template) and what to do.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The header layout (the Gemma default) and requests whose rows fit | Nothing changes | Nothing |
+| The header layout and a request that was refused for its length | It is answered, with a shorter header, and the response says so | Compare against `--layout plain` where the answer matters; or `--header-limit off` for the 422 |
+| Certified tasks | An answer in a limited request has `certified: false`, reason `header_limited` | Nothing |
+| `--layout plain` or the Qwen base | Nothing changes | Nothing |
+
 ## 0.28.1: the 12B's calibrated yes/no temperatures per precision, and a warning from the adapter fit tool
 
 ### What changed

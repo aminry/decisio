@@ -38,6 +38,7 @@ CERTIFIED_REASONS = (
     "serving_stack_changed",
     "traffic_changed",
     "state_truncated",
+    "header_limited",
     "think_mode_changed",
     "concurrency_changed",
 )
@@ -71,6 +72,7 @@ class _Answer(BaseModel):
             "serving_stack_changed",
             "traffic_changed",
             "state_truncated",
+            "header_limited",
             "think_mode_changed",
             "concurrency_changed",
         ]
@@ -121,6 +123,13 @@ class SystemOneResponse(BaseModel):
         None,
         description="When the state was cut (`over_limit: truncate`): `kept_tokens`, `of_tokens`, `part` (`start`) and "
         "`limit`. No answer of a truncated state is certified.",
+    )
+    header_limited: dict[str, Any] | None = Field(
+        None,
+        description="When the header listed only some of the request's questions because the whole would not fit the "
+        "context: `layout` (`header`, or `plain` when no line fit), `listed` of `of` lines, `header_tokens` and "
+        "`of_header_tokens`, `row_limit`, `allowed_tokens` and `reason` (`context`, or `cap` for a --header-limit "
+        "number). No answer of a certified task is certified.",
     )
 
 
@@ -249,6 +258,8 @@ RESPONSE_HEADERS = {
     "x-decisio-think-ms": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
     "x-decisio-think-tokens": "The reasoning tokens generated, when thinking was on for the request.",
     "x-decisio-state-truncated": "`kept=N; of=M; part=start`, when the state was cut (`over_limit`).",
+    "x-decisio-layout": "`header; listed=K; of=N; reason=context`, or `plain; ...`, when the header listed only some "
+    "of the request's questions (`--header-limit`).",
     "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
 }
