@@ -54,10 +54,14 @@ def test_f1_refusals():
         flavors.flavor_of("gemma-4-31b", "honest")
     with pytest.raises(flavors.FlavorError, match="no flavors"):
         flavors.flavor_of("qwen3.6-35b-a3b", "read-enhanced")
-    for name in ("calibrated", "commit"):  # their defining value, the calibrated temperatures, does not exist yet
-        for base in flavors.STEMS:
-            with pytest.raises(flavors.FlavorError, match="not fitted yet"):
-                flavors.flavor_of(base, name)
+    for name in (
+        "calibrated",
+        "commit",
+    ):  # the 31B has no read of the fit suite yet: its calibrated temperatures do not exist
+        with pytest.raises(flavors.FlavorError, match="not fitted yet"):
+            flavors.flavor_of("gemma-4-31b", name)
+        for base in ("gemma-4-12b", "gemma-4-12b-fp8"):  # the 12B has them
+            assert flavors.flavor_of(base, name).temperatures == {"noul": 4.83, "score": 7.85}
 
 
 def test_f1_the_commit_flavor_is_the_header_the_commit_rule_and_nothing_else():
@@ -65,6 +69,8 @@ def test_f1_the_commit_flavor_is_the_header_the_commit_rule_and_nothing_else():
         f = table["commit"]
         assert (f.layout, f.noul_commit, f.think, f.read_twice_under) == ("header", True, False, 0), base
         assert f.served_name == f"{flavors.STEMS[base]}-commit"
+        assert f.temperatures == table["calibrated"].temperatures  # commit takes the calibrated temperatures
+        assert not table["calibrated"].noul_commit
 
 
 def test_f1_every_flavor_uses_the_header_layout():
@@ -88,6 +94,52 @@ def test_f2_the_flavor_reaches_the_arguments_and_the_format(base, name):
     r = args.flavor_report
     assert r["name"] == name and r["served_name"] == args.served_name and r["overrides"] == {} and r["pending"]
     assert flavors.header_value(r) == f"{name}+pending"
+    assert (getattr(args, "temperature_noul", None) is not None) == (base != "gemma-4-31b")  # the 12B reads with them
+
+
+@pytest.mark.parametrize("base", ["gemma-4-12b", "gemma-4-12b-fp8"])
+@pytest.mark.parametrize("name", ["calibrated", "commit"])
+def test_f2_the_12b_calibrated_flavors_start_with_their_temperatures(base, name):
+    args = args_for(base, flavor=name)
+    fam, fmt = resolve_base(args)
+    assert args.served_name == f"{flavors.STEMS[base]}-{name}" and args.layout == fmt.layout == "header"
+    assert (args.temperature_noul, args.temperature_score) == (4.83, 7.85)
+    assert (args.temperature, args.temperature_choice) == (
+        fam.temperature,
+        fam.choice_temperature,
+    )  # choice is unchanged
+    assert bool(args.noul_commit) == (name == "commit") and not args.think and fmt.read_twice_under == 0
+    r = args.flavor_report
+    assert r["overrides"] == {} and r["pending"] == []
+    assert flavors.header_value(r) == name
+
+
+def test_f2_a_12b_flavor_is_served_at_its_temperatures_and_the_commit_rule_moves_the_middle():
+
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.tasks import TaskStore
+
+    for name in ("calibrated", "commit"):
+        args = args_for("gemma-4-12b", flavor=name)
+        fam, _ = resolve_base(args)
+        so = SystemOne(
+            object(),
+            args.served_name,
+            task_store=TaskStore("fp"),
+            temperature=args.temperature,
+            temperatures={
+                "noul": args.temperature_noul,
+                "score": args.temperature_score,
+                "choice": args.temperature_choice,
+            },
+            noul_commit=bool(args.noul_commit),
+        )
+        assert (so.temperature_of("noul"), so.temperature_of("score"), so.temperature_of("choice")) == (
+            4.83,
+            7.85,
+            fam.temperature,
+        )
+        assert so.noul_commit is (name == "commit")
 
 
 def test_f2_the_thinking_defaults_are_the_servers_own_when_the_flavor_names_none():
@@ -284,6 +336,7 @@ def test_f6_the_qwen_base_has_no_flavors():
         resolve_base(args_for("qwen3.6-35b-a3b", flavor="read-enhanced"))
 
 
-def test_f6_calibrated_refuses_to_start_until_its_values_exist():
-    with pytest.raises(ValueError, match="calibrated temperatures are not fitted"):
-        resolve_base(args_for("gemma-4-12b-fp8", flavor="calibrated"))
+def test_f6_calibrated_and_commit_refuse_to_start_on_the_31b_until_its_values_exist():
+    for name in ("calibrated", "commit"):
+        with pytest.raises(ValueError, match="calibrated temperatures are not fitted"):
+            resolve_base(args_for("gemma-4-31b", flavor=name))
