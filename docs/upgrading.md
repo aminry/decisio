@@ -20,7 +20,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | You run | What happens | What to do |
 | --- | --- | --- |
 | `hub_fp8 merge` without `--gptq` | Nothing changes | Nothing |
-| An FP8 server (12B FP8, 31B, a tuned FP8 repository) with no flag | Emulated casts on; the serving-stack fingerprint changes, so every certificate made on 0.32.0 or earlier is suspended (`serving_stack_changed`); answers can differ in the last digits | Certify again; `--emulate-precision-casts off` keeps the earlier arithmetic; clear vLLM's `torch_compile_cache` once |
+| An FP8 server (12B FP8, 31B, a tuned FP8 repository) with no flag | Emulated casts on; the serving-stack fingerprint changes, so every certificate made on 0.32.0 or earlier is suspended (`serving_stack_changed`); answers can differ in the last digits, so recorded FP8 answers will not match bit for bit; the first start compiles from cold (about 30 to 60 s more on the 12B) | Certify again and record FP8 goldens again; `--emulate-precision-casts off` keeps the earlier arithmetic |
+| An FP8 checkpoint served by plain vLLM or another server | Not affected by decisio's flag: two cold starts can still differ | Set `TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1` in the environment before Python starts |
 | An FP8 server started with `TORCHINDUCTOR_EMULATE_PRECISION_CASTS=0` in the environment | Refused at start with the reason | Unset the variable, or pass `--emulate-precision-casts off` |
 | A bf16 server | Nothing changes | Nothing |
 | A checkpoint made with `--gptq` (new) | Same format and speed; some codes differ from round to nearest | Check its answers on a card before relying on it |
