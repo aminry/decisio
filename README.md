@@ -236,7 +236,7 @@ Measured on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwel
 ### With Docker
 
 ```bash
-docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:1f7beccd4ac925ae5e0b6fcef08ed71292c88c56e42c043970284cae9fbd136a
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:9be6ec27c23efaeecadaea6b820cbb42ebdf8e1189f46cf47f586dc461454722
 ```
 
 That digest is the 0.27.1 image (`ghcr.io/aminry/decisio:0.27.1`); the release notes of every release give theirs, and `gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio` checks it.
