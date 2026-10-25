@@ -38,9 +38,10 @@ gemma-4-12b-fp8, `python -m decisio.hub_bf16 merge` for gemma-4-12b) has schema
 `decisio.decision_config/2`: the same sections, a `weights` section that says the tensors were modified by a merge, and
 two more.
 
-    tuned       where the weights come from, as facts: base (repository, revision), adapter (repository, revision,
-                weights_sha256, config_sha256, rank, alpha), merge (precision "fp32", output, tool, the adapter's pairs
-                applied and the report's own fields), files (name -> sha256 of every file of the repository's weights)
+    tuned       where the weights come from, as facts: base (repository, revision), adapter (revision, weights_sha256,
+                config_sha256, rank, alpha, and its repository when the file names one), merge (precision "fp32",
+                output, tool, the adapter's pairs applied and the report's own fields), files (name -> sha256 of every
+                file of the repository's weights)
     defaults    what a plain request to this model gets, with no flag and no adapter field: temperatures (per
                 question type), choice_bands (choice temperature by number of options, optional), noul_commit (true or
                 false, always stated), fit (how the temperatures were fitted: the method, never the data) and
@@ -414,8 +415,10 @@ def check_tuned(tuned, base_key: str | None = None) -> None:
     for k in ("repository", "revision"):
         _need(base.get(k), f"tuned.base.{k}", str)
     adapter = _need(tuned.get("adapter"), "tuned.adapter")
-    for k in ("repository", "revision"):
-        _need(adapter.get(k), f"tuned.adapter.{k}", str)
+    _need(adapter.get("revision"), "tuned.adapter.revision", str)
+    if "repository" in adapter:  # optional: a repository that does not name where the adapter lives keeps it out
+        if not _need(adapter["repository"], "tuned.adapter.repository", str):
+            raise ValueError("tuned.adapter.repository must be a name, or left out")
     _sha(adapter.get("weights_sha256"), "tuned.adapter.weights_sha256")
     if adapter.get("config_sha256") is not None:
         _sha(adapter["config_sha256"], "tuned.adapter.config_sha256")
@@ -612,13 +615,13 @@ def merge_facts(report: dict) -> dict:
     }
 
 
-def adapter_facts(directory: Path, repository: str, revision: str) -> dict:
-    """The `tuned.adapter` section from a PEFT adapter directory."""
+def adapter_facts(directory: Path, repository: str | None, revision: str) -> dict:
+    """The `tuned.adapter` section from a PEFT adapter directory (`repository` None: the name is left out)."""
     d = Path(directory)
     cfg = json.loads((d / "adapter_config.json").read_text())
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()  # noqa: E731
     return {
-        "repository": repository,
+        **({"repository": repository} if repository else {}),
         "revision": revision,
         "weights_sha256": sha(d / "adapter_model.safetensors"),
         "config_sha256": sha(d / "adapter_config.json"),
@@ -807,7 +810,11 @@ def main(argv=None) -> int:
     )
     tc.add_argument("--read-twice-max-questions", type=int, help="and with at most this many questions (0: no cap)")
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
-    tc.add_argument("--adapter-repository", required=True)
+    tc.add_argument(
+        "--adapter-repository",
+        help="the adapter's repository, recorded in `tuned.adapter`; leave it out to keep the name out of the file "
+        "(the revision and the sha256s stay)",
+    )
     tc.add_argument("--adapter-revision", required=True)
     tc.add_argument(
         "--merge-report", required=True, help="the merge's report: MERGE_FP8.json (hub_fp8), MERGE_BF16.json (hub_bf16)"

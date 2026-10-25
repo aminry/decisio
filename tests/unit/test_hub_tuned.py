@@ -203,3 +203,26 @@ def test_a6_the_commands(tmp_path, capsys):
     report.write_text(json.dumps({"null": True, "adapter_sha256": ADAPTER_SHA, "adapted_tensors": 840}))
     assert hub.main([*argv, "--no-noul-commit"]) == 1 and "null merge" in capsys.readouterr().out
     assert Path(out).exists()
+
+
+def test_a7_the_adapters_repository_is_optional_and_the_rest_of_its_record_stays():
+    c = build()
+    assert c["tuned"]["adapter"]["repository"] == "tachara-ai/adapter"
+    quiet = build(adapter={k: v for k, v in c["tuned"]["adapter"].items() if k != "repository"})
+    assert "repository" not in quiet["tuned"]["adapter"]
+    assert quiet["tuned"]["adapter"]["revision"] == "abc" and quiet["tuned"]["adapter"]["weights_sha256"] == ADAPTER_SHA
+    assert hub.defaults_sha256(quiet) != hub.defaults_sha256(c)  # the digest covers `tuned`, the name included
+    for bad in ({"repository": ""}, {"repository": 3}):
+        with pytest.raises(ValueError, match="tuned.adapter.repository"):
+            build(adapter={**c["tuned"]["adapter"], **bad})
+    with pytest.raises(ValueError, match="tuned.adapter.revision"):  # the revision is still required
+        build(adapter={k: v for k, v in c["tuned"]["adapter"].items() if k != "revision"})
+
+
+def test_a7_the_command_without_an_adapter_repository_writes_a_file_without_the_name(tmp_path):
+    adapter = tmp_path / "adapter"
+    adapter.mkdir()
+    (adapter / "adapter_config.json").write_text(json.dumps({"r": 16, "lora_alpha": 32}))
+    (adapter / "adapter_model.safetensors").write_bytes(b"adapter weights")
+    assert "repository" not in hub.adapter_facts(adapter, None, "abc")
+    assert hub.adapter_facts(adapter, "tachara-ai/adapter", "abc")["repository"] == "tachara-ai/adapter"
