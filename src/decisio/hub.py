@@ -686,7 +686,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m decisio.hub", description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     ex = sub.add_parser("export", help="print or write the file generated from a base's profile")
-    ex.add_argument("--base", choices=sorted(BASES))
+    ex.add_argument("--base", choices=sorted(REPOSITORIES))
     ex.add_argument("--all", action="store_true", help="every base (with --out)")
     ex.add_argument("--out", help="a directory: writes decision_config.<base>.json there")
     ex.add_argument("--decisio-version", help="the version to record (default: the installed one)")
@@ -823,7 +823,7 @@ def main(argv=None) -> int:
         Path(a.out).write_text(json.dumps(config, indent=2) + "\n")
         print(f"wrote {a.out}: defaults sha256 {defaults_sha256(config)}")
         return 0
-    bases = sorted(BASES) if a.all else [a.base]
+    bases = sorted(REPOSITORIES) if a.all else [a.base]
     if not a.all and not a.base:
         ap.error("give --base or --all")
     for key in bases:

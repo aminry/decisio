@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.30.0: the 31B in bf16
+
+### What changed
+
+- **`--base gemma-4-31b-bf16`** serves Google's 31B checkpoint as published, in bf16, with no quantization, beside the default 31B (FP8) ([running.md](running.md#the-31b-in-bf16)).
+  Until now the 31B could only be served in FP8 (stored, or quantized on load).
+  Its profile, temperatures and layout are the 31B's; its key, served name and fingerprints are its own, so tasks and certificates made on the FP8 31B are not applied to it.
+  It needs a card with room for 57.91 GiB of weights and a KV cache; the context ceiling is 65,536, not measured at bf16.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `--base gemma-4-31b`, or a 31B checkpoint without `--base` | Nothing changes (FP8) | Nothing |
+| `--base gemma-4-31b-bf16` (new) | The bf16 31B, vLLM only | Check `/health` for the context it chose; compare before relying on FP8 records |
+
 ## 0.29.0: a header that does not outgrow the context
 
 ### What changed

@@ -120,6 +120,12 @@ class Family:
     # without --base takes "fp8" only for a checkpoint that declares FP8 weights (declares_fp8), "bf16" otherwise.
     # None: the base's only precision (as `quantization` and the checkpoint say)
     precision: str | None = None
+    # whether a checkpoint's config.json can select this base without --base (family_of). False for a base that shares
+    # its checkpoint's model type with another base the detection must keep choosing (the 31B in bf16, beside the 31B
+    # quantized to FP8 on load): it is served with --base only
+    detected: bool = True
+    # served on the vLLM server only (no --backend mlx: the 31B's MLX build is a conversion of the default 31B)
+    vllm_only: bool = False
 
 
 QWEN = Family(
@@ -235,7 +241,26 @@ GEMMA4_31B = Family(
     mlx_working_gb=9,
 )
 
-FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B)
+# The 31B in bf16: Google's weights as published, no quantization (about 62 GB of weights; the default 31B is quantized
+# to FP8 on load or served from its stored FP8 repository). The profile, temperatures and layout are the 31B's, so the
+# precision is the only difference; the temperatures were fitted on the FP8 31B's reads and are not refitted on bf16.
+# The context ceiling is 65,536, the 12B's, and the server serves the largest length that fits the card up to it (never
+# below 32,768). Not measured at bf16 on this vLLM: on one 96 GB card with vLLM 0.30.0 the weights (57.91 GiB) left
+# 20.24 GiB of KV cache at the 0.90 share, one 32,768-token request needed 27.51 GiB and vLLM put the most that fits at
+# 24,096 tokens (EVAL_CARD.md 7.5), so a 96 GB card does not start at the default share; a larger card does, by that
+# record's arithmetic (0.86 MiB of KV cache per token), and 0.31.0's cache manager may need less.
+GEMMA4_31B_BF16 = replace(
+    GEMMA4_31B,
+    key="gemma-4-31b-bf16",
+    served_name="decisio-gemma-4-31b-it-bf16-letters",
+    quantization=None,
+    precision="bf16",
+    context_ceiling=65536,
+    detected=False,
+    vllm_only=True,
+)
+
+FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B, GEMMA4_31B_BF16)
 BASES = {f.key: f for f in FAMILIES}
 # the base a vLLM server serves when neither --base nor --model is given (0.10.0; before, the server refused to start
 # and the container served the Qwen base); a --model alone still brings the base its checkpoint declares
@@ -303,7 +328,7 @@ def family_of(model: str | None, revision: str | None = None, lenient: bool = Fa
     cfg = read_config(model, revision)
     mt = cfg.get("model_type")
     moe = bool((cfg.get("text_config") or cfg).get("enable_moe_block"))
-    found = [f for f in FAMILIES if mt in f.model_types and (f.moe is None or f.moe == moe)]
+    found = [f for f in FAMILIES if f.detected and mt in f.model_types and (f.moe is None or f.moe == moe)]
     if len(found) > 1:  # one checkpoint in two precisions (the 12B): the one the checkpoint declares, bf16 unless FP8
         precision = "fp8" if declares_fp8(cfg) else "bf16"
         found = [f for f in found if f.precision == precision]

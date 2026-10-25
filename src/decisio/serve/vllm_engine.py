@@ -1707,6 +1707,13 @@ def resolve_base(args):
             if other is not None:
                 raise ValueError(f"--base {args.base}, but --model {args.model} is a {other.key} checkpoint ({mt})")
             fp8 = next((f for f in FAMILIES if f.model == fam.model and f.precision == "fp8"), None)
+            if fam.precision == "bf16" and fp8 is None and declares_fp8(cfg):
+                # the 31B in bf16 has no FP8 sibling with a precision label: the default 31B is the one that loads FP8
+                other = next(f for f in FAMILIES if f.model == fam.model and f is not fam)
+                raise ValueError(
+                    f"--base {args.base}, but --model {args.model} declares FP8 weights: "
+                    f"serve it with --base {other.key}"
+                )
             if fam.precision == "bf16" and fp8 is not None and declares_fp8(cfg):
                 # served under the bf16 profile, its FP8 weights would be reported, keyed and certified as bf16
                 raise ValueError(
@@ -1726,6 +1733,11 @@ def resolve_base(args):
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision, lenient=args.backend == "hf")  # the stand-in takes any small model
+    if args.backend == "mlx" and fam.vllm_only:
+        raise ValueError(
+            f"--backend mlx does not serve {fam.key}: bf16 weights of that size are vLLM's; serve an MLX conversion of "
+            "the 31B with --base gemma-4-31b (docs/running.md)"
+        )
     if args.backend == "mlx" and fam.precision == "fp8":
         raise ValueError(
             f"--backend mlx does not serve {fam.key}: FP8 is vLLM's format; serve an MLX conversion of the 12B with "
@@ -1936,7 +1948,9 @@ def build_parser():
         help="the base model and its served settings (decisio.families; README, 'Choosing a base'): gemma-4-31b "
         "(the default; served from its FP8 repository, tachara-ai/decisio-gemma-4-31b), qwen3.6-35b-a3b "
         "(Qwen/Qwen3.6-35B-A3B-FP8), gemma-4-12b (google/gemma-4-12B-it, bf16) or gemma-4-12b-fp8 (the same "
-        "checkpoint quantized to FP8 on load, the 12B's second precision), each at a pinned revision; or a decisio "
+        "checkpoint quantized to FP8 on load, the 12B's second precision) or gemma-4-31b-bf16 (google/gemma-4-31B-it "
+        "as published, not quantized, the 31B's second precision; it needs a card with room for 58 GiB of weights and "
+        "a KV cache), each at a pinned revision; or a decisio "
         "repository, owner/name[@revision] or a directory holding decision_config.json (docs/running.md). "
         "Every setting below that says 'the base's' takes the base's value unless given. Without --base, the base is "
         "detected from --model's config.json",

@@ -29,7 +29,7 @@ import numpy as np
 import pytest
 
 from decisio import hub
-from decisio.families import BASES, FAMILIES, GEMMA4, GEMMA4_31B, QWEN, family_of
+from decisio.families import BASES, FAMILIES, GEMMA4, GEMMA4_31B, GEMMA4_31B_BF16, QWEN, family_of
 from decisio.readout.letters import (
     PromptFormat,
     allowed_ids,
@@ -173,7 +173,7 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     assert sv.resolve_base(_args())[0].key == "gemma-4-31b"
     with pytest.raises(ValueError, match="--model or --base"):
         sv.resolve_base(_args(backend="hf"))
-    assert sorted(BASES) == ["gemma-4-12b", "gemma-4-12b-fp8", "gemma-4-31b", "qwen3.6-35b-a3b"]
+    assert sorted(BASES) == ["gemma-4-12b", "gemma-4-12b-fp8", "gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b"]
 
 
 def _gemma4_checkpoint(tmp_path, name, moe):
@@ -311,6 +311,8 @@ def test_b8_the_pin_follows_the_checkpoint(fam, base, backend, monkeypatch):
     # without --base, the 12B's bf16 checkpoint is the bf16 base (FP8 is chosen by --base, or by a checkpoint that
     # declares it)
     want = GEMMA4 if fam.precision == "fp8" and not base else fam
+    if fam is GEMMA4_31B_BF16 and not base:
+        want = GEMMA4_31B  # the 31B's detection stays the default 31B (FP8 on load); the bf16 31B is chosen with --base
     assert got is want and (a.model, a.revision) == (fam.model, fam.revision)
     assert all(c == (fam.model, fam.revision) for c in calls)
     # an explicit --revision wins, and is what the config is read at
