@@ -125,7 +125,7 @@ Where the columns differ, the value is the base's.
 
 | Flag | Default | What it does |
 | --- | --- | --- |
-| `--debug-readout` | off | honour the `x-decisio-debug` request header (the raw readout in the response); never in production |
+| `--debug-readout` | off | honour the `x-decisio-debug` request header (the raw readout in the response); for reads and diagnostics, not for latency measurement or production (about 130 ms more per single-question request on a 12B) |
 
 ## What the behaviour flags do
 
