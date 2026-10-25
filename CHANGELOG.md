@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.1](https://github.com/aminry/decisio/compare/v0.28.0...v0.28.1) (2026-10-25)
+
+
+### Bug Fixes
+
+* **serve:** the 12B's calibrated yes/no temperature fitted per precision on items that share no text with a public test set, and a warning from the adapter fit tool ([#325](https://github.com/aminry/decisio/issues/325)) ([8efbff2](https://github.com/aminry/decisio/commit/8efbff2538422a511635906a12eb290caa489cc0))
+
 ## [0.28.0](https://github.com/aminry/decisio/compare/v0.27.1...v0.28.0) (2026-10-25)
 
 
