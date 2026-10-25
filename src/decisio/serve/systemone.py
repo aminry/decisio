@@ -622,6 +622,7 @@ class SystemOne:
         think_budget: int = thinking.DEFAULT_BUDGET,
         flavor: dict | None = None,
         default_adapter: str | None = None,
+        batch_invariant: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
@@ -629,6 +630,9 @@ class SystemOne:
         self.flavor = dict(flavor) if flavor else None
         # the loaded adapter that answers a request naming none (--default-adapter); "none" asks for the base
         self.default_adapter = default_adapter
+        # vLLM's batch-invariant kernels (decisio.serve.batch_invariant): {"on", "source", "confirmed"}; None where the
+        # server does not run them, which is then exactly what it was
+        self.batch_invariant = dict(batch_invariant) if batch_invariant and batch_invariant.get("on") else None
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
         self.describe_options = describe_options  # likewise
@@ -1486,6 +1490,9 @@ class SystemOne:
                 # the default adapter, only when one is set: a certificate made when requests were answered by the base
                 # (or by another adapter) is suspended
                 **({"default_adapter": self.default_adapter} if self.default_adapter else {}),
+                # batch-invariant kernels, only when on: other kernels, so other numerics; a certificate made without
+                # them is suspended
+                **({"batch_invariant": True} if self.batch_invariant else {}),
                 # --concurrency, only when batched, so that a serial server's fingerprint is what it was; a certificate
                 # made one request at a time is suspended by a batching server, and the other way round
                 # (`concurrency_changed`): a batched answer depends on the traffic it was scored with

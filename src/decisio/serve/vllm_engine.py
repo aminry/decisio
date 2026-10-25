@@ -82,7 +82,7 @@ def options_listing(tok, options):
 
 from decisio import flavors  # noqa: E402
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
-from decisio.serve import adapter_temperatures, engine_stream, header_limit, task_backends  # noqa: E402
+from decisio.serve import adapter_temperatures, batch_invariant, engine_stream, header_limit, task_backends  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
@@ -1291,6 +1291,7 @@ def make_app(engine, systemone=None, health=None):
                     **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
                     **({"flavor": systemone.flavor} if systemone.flavor else {}),
                     **({"default_adapter": systemone.default_adapter} if systemone.default_adapter else {}),
+                    **({"batch_invariant": systemone.batch_invariant} if systemone.batch_invariant else {}),
                     **(
                         {"temperatures_file": engine.temperatures_file}
                         if getattr(engine, "temperatures_file", None)
@@ -2345,6 +2346,16 @@ def build_parser():
         "setting",
     )
     ap.add_argument(
+        "--batch-invariant",
+        choices=batch_invariant.CHOICES,
+        default=None,
+        help="vLLM's batch-invariant kernels (VLLM_BATCH_INVARIANT=1, set before the engine starts): every row is "
+        "computed the same whatever else is in its batch, so a repeated request gives the same answer under load and "
+        "after a restart. on or off; without it a tuned repository's defaults.batch_invariant decides, else off. A "
+        "variable in the environment that says the opposite is refused. Costs about 1.03 times a single read on FP8 "
+        "and 1.6 times on bf16 (12B, one card); the answers are not those of the other kernels",
+    )
+    ap.add_argument(
         "--header-limit",
         default="auto",
         metavar="auto|off|TOKENS",
@@ -2757,6 +2768,8 @@ def main():
         )
     except ValueError as e:
         ap.error(str(e))
+    repo_default = ((args.repository or {}).get("defaults") or {}).get("batch_invariant")
+    args.batch_invariant_report = batch_invariant.resolve(args.batch_invariant, repo_default, os.environ, args.backend)
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
     args.context_source = "set by --max-model-len" if given_length is not None else None
     if isinstance(args.max_model_len, AutoContext) and (args.engine_process != "in" or second):
@@ -2850,6 +2863,9 @@ def main():
     engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
     engine.layout_decision = getattr(args, "layout_decision", None)
     engine.over_limit_tokens = args.over_limit_tokens
+    if args.batch_invariant_report["on"]:
+        args.batch_invariant_report["confirmed"] = batch_invariant.engine_state()
+    print(batch_invariant.start_line(args.batch_invariant_report), flush=True)
     try:
         engine.header_limit_setting = header_limit.parse(args.header_limit)
     except ValueError as e:
@@ -2985,6 +3001,7 @@ def main():
         },
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
         default_adapter=args.default_adapter,
+        batch_invariant=args.batch_invariant_report,
         choice_bands=args.choice_bands,
         think_temperatures={
             "choice": args.think_temperature_choice,

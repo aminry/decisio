@@ -8,11 +8,14 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.32.0: projections can stay in bf16 inside an FP8 checkpoint
+## 0.32.0: projections can stay in bf16 inside an FP8 checkpoint, and batch-invariant kernels from a flag or a repository's defaults
 
 ### What changed
 
 - **`hub_fp8 convert|merge --keep-bf16 SPEC`** leaves whole layers, a projection in every layer, or single groups in bf16 inside the FP8 checkpoint ([running.md](running.md#shipping-a-tuned-model)); the merge rounds those tensors once, stochastically, from the fp32 merge. Without the flag the output is what it was.
+- **`--batch-invariant on|off`** switches vLLM's batch-invariant mode (`VLLM_BATCH_INVARIANT=1`) before the engine starts, and a tuned repository can make it its default (`defaults.batch_invariant`, written by `hub tuned-config --batch-invariant`), so `--base <repository>` runs it with no environment variable ([running.md](running.md#batch-invariance---batch-invariant)).
+  It is recorded in the start line, `/health` and the serving-stack fingerprint, and refused when the environment says the opposite. An older decisio refuses a repository that carries the key.
+  Off, nothing changes.
 - **`hub_fp8 convert|merge` and `hub_bf16 merge` refuse an `--out` that already holds files** unless `--overwrite` is given, because vLLM's compiled-graph cache is keyed by the checkpoint's path and a checkpoint rewritten in place can crash or run a stale graph ([running.md](running.md#shipping-a-tuned-model)).
 
 ### Who is affected
@@ -20,9 +23,10 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | You run | What happens | What to do |
 | --- | --- | --- |
 | `hub_fp8` without `--keep-bf16` | Nothing changes | Nothing |
-| A checkpoint made with `--keep-bf16` (new) | Its config lists the kept modules in `ignore`; needs a vLLM that honours the list per layer (not measured by this release) | Check on a card before relying on it |
+| A checkpoint made with `--keep-bf16` (new) | Its config lists the kept modules in `ignore`; vLLM 0.31.0 loaded and served one such 12B checkpoint on one card; check yours | Check on a card before relying on it |
+| A server with no flag and a repository without the key | Nothing changes | Nothing |
+| `--batch-invariant on`, or a repository that asks for it | Other kernels: about 1.03 times a single read on FP8, 1.6 times on bf16; the answers are not those of the other kernels; certificates made without it are suspended | Measure on your model; certify again |
 | A script that writes a conversion or merge into a folder that already has files | Refused with the reason | Use a new folder per checkpoint, or add `--overwrite` and clear vLLM's compile cache |
-
 
 ## 0.31.0: a tuned repository can be a flavor, and can leave the adapter's repository name out
 
