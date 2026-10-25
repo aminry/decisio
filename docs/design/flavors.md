@@ -14,7 +14,7 @@ A flavor is a named bundle of those settings with its own served name, so that a
 | Flavor | What it does | Temperatures | Thinking | Commit rule | Read twice | Layout |
 | --- | --- | --- | --- | --- | --- | --- |
 | `calibrated` | Calibrated probabilities | Calibrated for every type, yes/no included, with option-count bands for choice | Off | Off | Off | Header |
-| `thinking-commit` | Thinks when unsure and commits yes/no answers | The base's own (today's yes/no temperature) | When unsure | On | Off | Header |
+| `commit` | Commits yes/no answers outside the uncertain middle band | Calibrated for every type, yes/no included | Off | On | Off | Header |
 | `read-enhanced` | Reads short requests twice | The calibrated ones | Off | Off | On, with the threshold and the question cap | Header |
 
 Every flavor uses the header layout ("questions first everywhere").
@@ -27,9 +27,9 @@ The served name is the model name a client sends and a response reports: `<base>
 
 | Base | Precision | Served names |
 | --- | --- | --- |
-| Gemma 4 31B | FP8 on load (the only one served) | `Decisio-31b-calibrated`, `Decisio-31b-thinking-commit`, `Decisio-31b-read-enhanced` |
-| Gemma 4 12B | bf16 | `Decisio-12b-calibrated`, `Decisio-12b-thinking-commit`, `Decisio-12b-read-enhanced` |
-| Gemma 4 12B | FP8 | `Decisio-12b-fp8-calibrated`, `Decisio-12b-fp8-thinking-commit`, `Decisio-12b-fp8-read-enhanced` |
+| Gemma 4 31B | FP8 on load (the only one served) | `Decisio-31b-calibrated`, `Decisio-31b-commit`, `Decisio-31b-read-enhanced` |
+| Gemma 4 12B | bf16 | `Decisio-12b-calibrated`, `Decisio-12b-commit`, `Decisio-12b-read-enhanced` |
+| Gemma 4 12B | FP8 | `Decisio-12b-fp8-calibrated`, `Decisio-12b-fp8-commit`, `Decisio-12b-fp8-read-enhanced` |
 
 - **Only the 12B has two precisions**, so only the 12B names carry one: `Decisio-12b-*` is the bf16 base and `Decisio-12b-fp8-*` the FP8 one. The 31B is served FP8 and has no bf16 flavor, so its names carry none.
 - A server started with no flavor keeps today's name and behaviour (`decisio-gemma-4-31b-it-letters` and its siblings).
@@ -38,7 +38,7 @@ The served name is the model name a client sends and a response reports: `<base>
 **Capitals.** The names are written with a capital D and matched case-insensitively:
 - A request's `model` that equals the served name in any case (`decisio-31b-calibrated`, `DECISIO-31B-CALIBRATED`) is accepted.
 - `GET /v1/models`, every response's `model`, the task fingerprint and the abstention tasks' `model` hold the capitalised name, so a record never depends on how a client spelt it.
-- A request that names *another flavor of the same base* (`Decisio-31b-calibrated` sent to a `thinking-commit` server) is refused with the served name in the message, since answering it would be a lie. A `model` that names no flavor is accepted as before and the response reports the served name.
+- A request that names *another flavor of the same base* (`Decisio-31b-calibrated` sent to a `commit` server) is refused with the served name in the message, since answering it would be a lie. A `model` that names no flavor is accepted as before and the response reports the served name.
 - Where capitals cannot go: a **Docker image repository** name must be lowercase (a tag may have capitals); **Ollama** model names are lowercase in the existing listing (`aminroudaki/decisio`) and I have not tested capitals there, so the rule is lowercase for every artifact name. **Hugging Face** repository names keep their case. A flavor is a runtime setting, not an artifact: there is no flavor-specific image, repository or tag in this design, so nothing needs a capital that cannot take one. If one is ever made, its artifact name is the lowercase form (`decisio-31b-calibrated`) and the capitalised name stays the served name.
 - The `model` string never appears in a URL path in this API (`POST /v1/systemone` takes it in the body), so case in a path is not a concern.
 
@@ -54,7 +54,7 @@ The served name is the model name a client sends and a response reports: `<base>
 | Layout | `--layout` | Repository `defaults.layout`; the base's `Family.layout` |
 
 A flavor is a block of exactly these settings, kept in a table per base next to its profile (`decisio.flavors`).
-`--flavor NAME` (the short flavor name, `calibrated`, `thinking-commit` or `read-enhanced`) applies it.
+`--flavor NAME` (the short flavor name, `calibrated`, `commit` or `read-enhanced`) applies it.
 The precedence is: an explicit flag, then the flavor, then the base's profile.
 
 ## Overrides are allowed, and visible
@@ -73,15 +73,15 @@ A client or a published result that needs to say what it ran has the flavor and 
 ## What is measured and what is not
 
 - **`read-enhanced`:** read twice is merged (#296): N = 2,000 counted input tokens is the measured choice. R (`--read-twice-max-questions`) waits for a timing run on the target card, and the confirming run on a card held at 600 W is not done. Its temperatures are the calibrated ones, which do not exist yet.
-- **`thinking-commit`:** thinking, the commit rule and the think temperatures are merged (#249, #278). What is not measured is thinking on the *untuned* bases at the default factor and budget; the measurements so far are of the tuned models. The yes/no temperature that is best with the commit rule on has not been fitted (with the rule on, a committed yes/no answer no longer depends on the temperature, so it only moves the calibration).
+- **`commit`:** the commit rule is merged and measured (`--noul-commit`: a yes/no probability strictly between 0.20 and 0.80 is reported at the band's edge on its own side; the answer never changes, its calibration does). The calibrated temperatures it is served with do not exist yet; with the rule on, a committed yes/no answer no longer depends on the yes/no temperature, which then only moves the calibration of the answers outside the band.
 - **`calibrated`:** does not exist yet. A held-out check on 2026-10-23 found that every fit set asks for a yes/no temperature of 12 to 21 on the 31B under the header (5.252 today) and 6 to 9 on the 12B, which improves log loss, Brier and ECE on held-out sets and moves 20 to 69% of yes/no answers into the 0.2 to 0.8 band. The values need the 1,400-item suite read under the header (a card session, not yet scheduled) and the per-type and band profile (#303).
 
 ### Flavors with a value still pending
 
 Proposal:
-- **A flavor whose defining value is missing refuses to start** (`calibrated`: its whole meaning is its temperatures; the message says they are not fitted yet for that base). No name that promises honesty serves numbers that are not calibrated.
-- **A flavor with a missing secondary value serves, marked `pending`**: `read-enhanced` (its temperatures: today's are served until the calibrated ones exist) and `thinking-commit` (the untuned-base thinking measurement). The start line, `/health` and `x-decisio-flavor` (`+pending`) say so, and the fingerprint holds the mark, so a certificate made on placeholder values is suspended when the real ones land.
-- The alternative, shipping none of them until every value exists, delays read-enhanced and thinking-commit, which are usable now.
+- **A flavor whose defining value is missing refuses to start** (`calibrated` and `commit`: their temperatures are part of what they mean; the message says they are not fitted yet for that base). No name that promises honesty serves numbers that are not calibrated.
+- **A flavor with a missing secondary value serves, marked `pending`**: `read-enhanced` (its temperatures: today's are served until the calibrated ones exist). The start line, `/health` and `x-decisio-flavor` (`+pending`) say so, and the fingerprint holds the mark, so a certificate made on placeholder values is suspended when the real ones land.
+- The alternative, shipping none of them until every value exists, delays read-enhanced, which is usable now.
 
 ## Decisions
 
@@ -120,6 +120,6 @@ What a client's harness sends as `model` is not known to this note; it matters o
 
 Built in #304 (on #303, the per-type and band profile).
 - `decisio.flavors` holds the block, the table per base, the names, the overrides and the report; `--flavor` is resolved in `resolve_base` (the settings before the prompt format is built, the temperatures after the flags and the temperatures file, before the base's profile).
-- `calibrated` refuses to start; `read-enhanced` serves N = 2,000 without a question cap and with the base's own temperatures, and `thinking-commit` serves the default factor and budget, both marked `pending`.
+- `calibrated` and `commit` refuse to start until their temperatures are fitted; `read-enhanced` serves N = 2,000 without a question cap and with the base's own temperatures, marked `pending`.
 - `/health` carries `systemone.flavor`, every response `x-decisio-flavor`, the start line `FLAVOR`, `FLAVOR OVERRIDE` and `FLAVOR PENDING` lines; the serving-stack fingerprint holds the flavor only when one is set.
 - Not built: flavors for a tuned model, several flavors on one server, the values of `calibrated`.

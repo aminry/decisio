@@ -30,7 +30,7 @@ Think-mode temperatures:
 
 Flavors:
 
-- **`--flavor calibrated|thinking-commit|read-enhanced`** serves a named configuration of a Gemma base on the header layout, named `Decisio-31b-<flavor>`, `Decisio-12b-<flavor>` or `Decisio-12b-fp8-<flavor>` ([running.md](running.md#flavors)). A flag you give still wins and is recorded as an override. `calibrated` refuses to start until its temperatures are fitted; the other two serve with their pending values marked. **A server with no `--flavor` is what it was.**
+- **`--flavor calibrated|commit|read-enhanced`** serves a named configuration of a Gemma base on the header layout, named `Decisio-31b-<flavor>`, `Decisio-12b-<flavor>` or `Decisio-12b-fp8-<flavor>` ([running.md](running.md#flavors)). A flag you give still wins and is recorded as an override. `calibrated` and `commit` refuse to start until their temperatures are fitted; `read-enhanced` serves with its pending values marked. **A server with no `--flavor` is what it was.**
 
 A base's profile can carry per-type temperatures and bands:
 

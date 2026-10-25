@@ -3,10 +3,10 @@
 """Flavors: named configurations of the same weights (docs/design/flavors.md).
 
     calibrated        calibrated probabilities for every type, no thinking, no commit rule, no read twice
-    thinking-commit   thinks when unsure and commits yes/no answers
+    commit            commits yes/no answers outside the uncertain middle band; calibrated probabilities, no thinking
     read-enhanced     reads short requests twice, with the threshold and the question cap, no thinking
 
-`--flavor NAME` applies one to a base and names the server `Decisio-31b-calibrated`, `Decisio-12b-thinking-commit`,
+`--flavor NAME` applies one to a base and names the server `Decisio-31b-calibrated`, `Decisio-12b-commit`,
 `Decisio-12b-fp8-read-enhanced` (the 31B is served in FP8 only, so only the 12B's names say which precision).
 Every flavor uses the header layout.
 An explicit flag wins over the flavor, on any flavor; each such flag is recorded as an override (`/health`,
@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-FLAVOR_NAMES = ("calibrated", "thinking-commit", "read-enhanced")
+FLAVOR_NAMES = ("calibrated", "commit", "read-enhanced")
 
 # the served-name stem of each base that has flavors: the 31B is FP8 only; the 12B has two precisions
 STEMS = {"gemma-4-31b": "Decisio-31b", "gemma-4-12b": "Decisio-12b", "gemma-4-12b-fp8": "Decisio-12b-fp8"}
@@ -52,7 +52,7 @@ class FlavorError(ValueError):
 
 @dataclass(frozen=True)
 class Flavor:
-    name: str  # calibrated | thinking-commit | read-enhanced
+    name: str  # calibrated | commit | read-enhanced
     stem: str  # Decisio-31b | Decisio-12b | Decisio-12b-fp8
     layout: str = "header"
     noul_commit: bool = False
@@ -98,15 +98,12 @@ def _table() -> dict:
                 unavailable="the calibrated temperatures are not fitted yet: they wait for the 1,400-item suite read "
                 "under the header on this base (docs/design/flavors.md)",
             ),
-            "thinking-commit": Flavor(
-                "thinking-commit",
+            "commit": Flavor(
+                "commit",
                 stem,
                 noul_commit=True,
-                think=True,
-                pending=(
-                    "thinking is measured on the tuned models only: this base is served at the default factor "
-                    "and budget, and its temperatures are the base's own",
-                ),
+                unavailable="the calibrated temperatures are not fitted yet: they wait for the 1,400-item suite read "
+                "under the header on this base (docs/design/flavors.md)",
             ),
             "read-enhanced": Flavor(
                 "read-enhanced",

@@ -2063,7 +2063,7 @@ def build_parser():
         default=None,
         choices=list(flavors.FLAVOR_NAMES),
         help="serve a named configuration of the base (docs/design/flavors.md): calibrated (calibrated "
-        "probabilities for every type), thinking-commit (thinks when unsure and commits yes/no answers) or "
+        "probabilities for every type), commit (commits yes/no answers outside the uncertain middle band) or "
         "read-enhanced (reads short requests twice). Every flavor uses the header layout; the server is named "
         "Decisio-31b-<flavor>, Decisio-12b-<flavor> or Decisio-12b-fp8-<flavor>. A flag you give still wins and is "
         "recorded as an override (/health, x-decisio-flavor, the start line, the fingerprint). Gemma bases only; "

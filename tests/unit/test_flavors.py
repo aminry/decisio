@@ -25,12 +25,12 @@ from decisio.families import BASES
 from decisio.serve import stack, vllm_engine
 from decisio.serve.vllm_engine import resolve_base
 
-NAMES31 = ["Decisio-31b-calibrated", "Decisio-31b-thinking-commit", "Decisio-31b-read-enhanced"]
-NAMES12 = ["Decisio-12b-calibrated", "Decisio-12b-thinking-commit", "Decisio-12b-read-enhanced"]
-NAMES12FP8 = ["Decisio-12b-fp8-calibrated", "Decisio-12b-fp8-thinking-commit", "Decisio-12b-fp8-read-enhanced"]
-SERVING = [("gemma-4-31b", "thinking-commit"), ("gemma-4-31b", "read-enhanced")] + [
-    (b, f) for b in ("gemma-4-12b", "gemma-4-12b-fp8") for f in ("thinking-commit", "read-enhanced")
-]
+NAMES31 = ["Decisio-31b-calibrated", "Decisio-31b-commit", "Decisio-31b-read-enhanced"]
+NAMES12 = ["Decisio-12b-calibrated", "Decisio-12b-commit", "Decisio-12b-read-enhanced"]
+NAMES12FP8 = ["Decisio-12b-fp8-calibrated", "Decisio-12b-fp8-commit", "Decisio-12b-fp8-read-enhanced"]
+SERVING = [
+    (b, "read-enhanced") for b in ("gemma-4-31b", "gemma-4-12b", "gemma-4-12b-fp8")
+]  # the flavors that can start
 
 
 # ---- F1 -------------------------------------------------------------------------------------------------------------
@@ -41,7 +41,7 @@ def test_f1_the_nine_served_names():
     assert flavors.served_names("gemma-4-12b") == NAMES12
     assert flavors.served_names("gemma-4-12b-fp8") == NAMES12FP8
     assert flavors.served_names("qwen3.6-35b-a3b") == []
-    assert flavors.FLAVOR_NAMES == ("calibrated", "thinking-commit", "read-enhanced")
+    assert flavors.FLAVOR_NAMES == ("calibrated", "commit", "read-enhanced")
 
 
 def test_f1_the_31b_names_carry_no_precision_and_the_12b_names_do():
@@ -54,8 +54,17 @@ def test_f1_refusals():
         flavors.flavor_of("gemma-4-31b", "honest")
     with pytest.raises(flavors.FlavorError, match="no flavors"):
         flavors.flavor_of("qwen3.6-35b-a3b", "read-enhanced")
-    with pytest.raises(flavors.FlavorError, match="not fitted yet"):
-        flavors.flavor_of("gemma-4-31b", "calibrated")  # its defining value does not exist yet
+    for name in ("calibrated", "commit"):  # their defining value, the calibrated temperatures, does not exist yet
+        for base in flavors.STEMS:
+            with pytest.raises(flavors.FlavorError, match="not fitted yet"):
+                flavors.flavor_of(base, name)
+
+
+def test_f1_the_commit_flavor_is_the_header_the_commit_rule_and_nothing_else():
+    for base, table in flavors.FLAVORS.items():
+        f = table["commit"]
+        assert (f.layout, f.noul_commit, f.think, f.read_twice_under) == ("header", True, False, 0), base
+        assert f.served_name == f"{flavors.STEMS[base]}-commit"
 
 
 def test_f1_every_flavor_uses_the_header_layout():
@@ -75,19 +84,20 @@ def test_f2_the_flavor_reaches_the_arguments_and_the_format(base, name):
     assert args.served_name == f.served_name == f"{flavors.STEMS[base]}-{name}"
     assert fmt.layout == "header"
     assert args.layout == "header"
-    if name == "thinking-commit":
-        assert args.noul_commit is True and args.think is True and fmt.read_twice_under == 0
-    else:
-        assert not args.noul_commit and not args.think and fmt.read_twice_under == flavors.READ_TWICE_N
+    assert not args.noul_commit and not args.think and fmt.read_twice_under == flavors.READ_TWICE_N
     r = args.flavor_report
     assert r["name"] == name and r["served_name"] == args.served_name and r["overrides"] == {} and r["pending"]
     assert flavors.header_value(r) == f"{name}+pending"
 
 
 def test_f2_the_thinking_defaults_are_the_servers_own_when_the_flavor_names_none():
-    args = args_for("gemma-4-31b", flavor="thinking-commit")
+    args = args_for("gemma-4-31b", flavor="read-enhanced")
     resolve_base(args)
-    assert (args.think_factor, args.think_budget) == (1.0, 512)  # resolve fills what the flavor left
+    assert (args.think, args.think_factor, args.think_budget) == (
+        False,
+        1.0,
+        512,
+    )  # thinking is an option, not a flavor
 
 
 def test_f2_the_base_profile_fills_the_temperatures_the_flavor_does_not_set():
@@ -96,30 +106,29 @@ def test_f2_the_base_profile_fills_the_temperatures_the_flavor_does_not_set():
     assert (args.temperature, args.temperature_choice) == (fam.temperature, fam.choice_temperature)
 
 
-def test_f2_read_enhanced_and_thinking_commit_differ_only_where_they_should():
-    a, b = args_for("gemma-4-31b", flavor="read-enhanced"), args_for("gemma-4-31b", flavor="thinking-commit")
-    resolve_base(a)
-    resolve_base(b)
-    assert a.read_twice_under != b.read_twice_under and a.noul_commit != b.noul_commit and a.think != b.think
-    assert a.layout == b.layout == "header"
+def test_f2_thinking_is_still_an_ordinary_option_beside_a_flavor():
+    args = args_for("gemma-4-31b", flavor="read-enhanced", think=True)
+    resolve_base(args)
+    assert args.think is True
+    assert args.flavor_report["overrides"]["think"] == {"flavor": False, "served": True}
 
 
 # ---- F3 -------------------------------------------------------------------------------------------------------------
 
 
 def test_f3_a_flag_wins_and_is_recorded_not_refused():
-    args = args_for("gemma-4-31b", flavor="thinking-commit", noul_commit=False, layout="plain", temperature_noul=3.5)
+    args = args_for("gemma-4-31b", flavor="read-enhanced", noul_commit=True, layout="plain", temperature_noul=3.5)
     _, fmt = resolve_base(args)
-    assert args.noul_commit is False and fmt.layout == "plain" and args.temperature_noul == 3.5
+    assert args.noul_commit is True and fmt.layout == "plain" and args.temperature_noul == 3.5
     o = args.flavor_report["overrides"]
-    assert o["noul_commit"] == {"flavor": True, "served": False}
+    assert o["noul_commit"] == {"flavor": False, "served": True}
     assert o["layout"] == {"flavor": "header", "served": "plain"}
     assert o["temperature_noul"] == {"flavor": None, "served": 3.5}
-    assert flavors.header_value(args.flavor_report) == "thinking-commit+overrides+pending"
+    assert flavors.header_value(args.flavor_report) == "read-enhanced+overrides+pending"
 
 
 def test_f3_a_flag_that_equals_the_flavor_is_not_an_override():
-    args = args_for("gemma-4-31b", flavor="thinking-commit", noul_commit=True, layout="header", think=True)
+    args = args_for("gemma-4-31b", flavor="read-enhanced", noul_commit=False, layout="header", think=False)
     resolve_base(args)
     assert args.flavor_report["overrides"] == {}
 
@@ -140,8 +149,8 @@ def test_f3_read_twice_can_be_turned_up_or_off_on_read_enhanced():
 
 def test_f3_overrides_separate_the_fingerprint():
     a, b = (
-        args_for("gemma-4-31b", flavor="thinking-commit"),
-        args_for("gemma-4-31b", flavor="thinking-commit", noul_commit=False),
+        args_for("gemma-4-31b", flavor="read-enhanced"),
+        args_for("gemma-4-31b", flavor="read-enhanced", noul_commit=True),
     )
     resolve_base(a)
     resolve_base(b)
@@ -203,7 +212,7 @@ def test_f5_models_and_the_response_name_the_flavor_in_capitals():
 def test_f5_another_flavors_name_is_refused_with_the_served_name():
     client, _ = flavored("read-enhanced")
     body = {"state": {"message": "0:0.9:x:1"}, "questions": {"q": {"type": "noul", "instructions": "Is it?"}}}
-    for other in ("Decisio-31b-calibrated", "decisio-31b-thinking-commit"):
+    for other in ("Decisio-31b-calibrated", "decisio-31b-commit"):
         r = client.post("/v1/systemone", json={**body, "model": other})
         assert r.status_code == 422 and "Decisio-31b-read-enhanced" in r.text
     ok = client.post("/v1/systemone", json={**body, "model": "Decisio-12b-calibrated"})  # another base's: not a sibling
@@ -217,8 +226,16 @@ def test_f5_the_header_says_overrides():
 
 
 def test_f5_certificates_separate_per_flavor_and_per_override():
+    from test_think import ThinkEngine
+
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.tasks import TaskStore
+
     _, a = flavored("read-enhanced")
-    _, b = flavored("thinking-commit")
+    commit = flavors.FLAVORS["gemma-4-31b"]["commit"]  # cannot start yet; its report still separates a fingerprint
+    b = SystemOne(
+        ThinkEngine(), commit.served_name, task_store=TaskStore("fp"), flavor=flavors.flavor_report(commit, {})
+    )
     _, c = flavored("read-enhanced", noul_commit=True)
     _, plain, _ = make()
     diff = stack.differences
@@ -235,13 +252,13 @@ def test_f5_health_carries_the_flavor():
     from decisio.serve.tasks import TaskStore
     from decisio.serve.vllm_engine import make_app
 
-    args = args_for("gemma-4-31b", flavor="thinking-commit", layout="plain")
+    args = args_for("gemma-4-31b", flavor="read-enhanced", layout="plain")
     resolve_base(args)
     engine = _DocEngine()
     so = SystemOne(engine, args.served_name, task_store=TaskStore("fp"), flavor=args.flavor_report)
     h = TestClient(make_app(engine, so)).get("/health").json()
     f = h["systemone"]["flavor"]
-    assert f["name"] == "thinking-commit" and f["served_name"] == "Decisio-31b-thinking-commit"
+    assert f["name"] == "read-enhanced" and f["served_name"] == "Decisio-31b-read-enhanced"
     assert "layout" in f["overrides"] and f["pending"]
 
 
