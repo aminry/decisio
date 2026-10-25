@@ -25,6 +25,8 @@ from decisio.families import BASES
 from decisio.serve import stack, vllm_engine
 from decisio.serve.vllm_engine import resolve_base
 
+NOUL = {"gemma-4-12b": 4.84, "gemma-4-12b-fp8": 4.72}  # each precision's own clean fit
+
 NAMES31 = ["Decisio-31b-calibrated", "Decisio-31b-commit", "Decisio-31b-read-enhanced"]
 NAMES12 = ["Decisio-12b-calibrated", "Decisio-12b-commit", "Decisio-12b-read-enhanced"]
 NAMES12FP8 = ["Decisio-12b-fp8-calibrated", "Decisio-12b-fp8-commit", "Decisio-12b-fp8-read-enhanced"]
@@ -61,7 +63,7 @@ def test_f1_refusals():
         with pytest.raises(flavors.FlavorError, match="not fitted yet"):
             flavors.flavor_of("gemma-4-31b", name)
         for base in ("gemma-4-12b", "gemma-4-12b-fp8"):  # the 12B has them
-            assert flavors.flavor_of(base, name).temperatures == {"noul": 4.83, "score": 7.85}
+            assert flavors.flavor_of(base, name).temperatures == {"noul": NOUL[base], "score": 7.85}
 
 
 def test_f1_the_commit_flavor_is_the_header_the_commit_rule_and_nothing_else():
@@ -103,7 +105,7 @@ def test_f2_the_12b_calibrated_flavors_start_with_their_temperatures(base, name)
     args = args_for(base, flavor=name)
     fam, fmt = resolve_base(args)
     assert args.served_name == f"{flavors.STEMS[base]}-{name}" and args.layout == fmt.layout == "header"
-    assert (args.temperature_noul, args.temperature_score) == (4.83, 7.85)
+    assert (args.temperature_noul, args.temperature_score) == (NOUL[base], 7.85)
     assert (args.temperature, args.temperature_choice) == (
         fam.temperature,
         fam.choice_temperature,
@@ -135,7 +137,7 @@ def test_f2_a_12b_flavor_is_served_at_its_temperatures_and_the_commit_rule_moves
             noul_commit=bool(args.noul_commit),
         )
         assert (so.temperature_of("noul"), so.temperature_of("score"), so.temperature_of("choice")) == (
-            4.83,
+            NOUL["gemma-4-12b"],
             7.85,
             fam.temperature,
         )

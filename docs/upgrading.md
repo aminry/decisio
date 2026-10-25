@@ -8,6 +8,23 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.28.1: the 12B's calibrated yes/no temperatures per precision, and a warning from the adapter fit tool
+
+### What changed
+
+- **The 12B's calibrated yes/no temperature is now fitted per precision, on items that share no text with a public benchmark's test set:** 4.84 on bf16 (was 4.83) and 4.72 on FP8 (was 4.83); score stays at 7.85 and choice at the base's 3.592 ([running.md](running.md#flavors)).
+  The change is inside the fit's noise (bootstrap 95% intervals of about 4.1 to 5.4); no answer changes, only the confidences move, by at most about 0.01 of a probability.
+- **`adapter_temperatures fit` and `fit-split` warn when `--layout` is not given.** The file then records no layout, and a server that loads the adapter treats it as plain-trained and holds a header-default base at plain; the warning says so.
+  Give `--layout header` (or `plain`) to record the layout the reads were taken under.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `--flavor calibrated`, `commit` or `read-enhanced` on the 12B | Yes/no confidences move slightly (FP8 by the larger step) | Certify tasks again under the flavor |
+| Anything else | Nothing changes | Nothing |
+| A script that calls the fit tool without `--layout` | Same output, and a warning on stderr | Add `--layout header` or `--layout plain` |
+
 ## 0.28.0: a default adapter, the commit flavor, and the 12B's calibrated temperatures
 
 ### What changed
