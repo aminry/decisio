@@ -8,6 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.28.0: a default adapter, the commit flavor, and the 12B's calibrated temperatures
+
+### What changed
+
+- **`--default-adapter NAME`** answers a request that names no adapter with a loaded adapter ([running.md](running.md#a-default-adapter)), so a client that sends no `adapter` field (a benchmark kit, a plain caller) gets the tuned model. `"adapter": "none"` still asks for the base, and a request naming another loaded adapter gets that one. The serving-stack fingerprint holds the default only when one is set. A server started without it is what it was.
+- **The `commit` flavor replaces `thinking-commit`.** The flavors are `calibrated`, `commit` and `read-enhanced`; `commit` is the header layout with the commit rule on, the calibrated temperatures and no thinking, served as `Decisio-31b-commit`, `Decisio-12b-commit` or `Decisio-12b-fp8-commit`. Thinking is an ordinary option (`--think`), not a flavor.
+- **On the 12B (both precisions) `calibrated` and `commit` start,** with yes/no at 4.83 and score at 7.85 (choice stays at the base's 3.592), fitted by minimum log loss on readouts under the header layout and judged on calibration ([running.md](running.md#flavors)); `read-enhanced` uses the same temperatures. On the 31B `calibrated` and `commit` still refuse to start until its temperatures are fitted.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Without `--default-adapter` and without `--flavor` | Nothing changes | Nothing |
+| `--default-adapter NAME` (new) | Requests with no `adapter` field are answered by that adapter; certificates made under another default are suspended; a plain request matching a registered task is refused (tasks read the base) | Ask a task's questions with `"adapter": "none"`; certify again under the new setup |
+| `--flavor thinking-commit` | Refused: it is not a flavor any more | Use `--flavor commit`, and `--think` if you want thinking |
+| `--flavor calibrated` or `commit` on the 12B | Served at the calibrated temperatures | Certify tasks again under the flavor |
+| `--flavor calibrated` or `commit` on the 31B | Refused until its temperatures are fitted | Nothing yet |
+
 ## 0.27.0: read twice, think-mode temperatures, per-type profile temperatures and flavors (all opt-in), and a truncation fix
 
 ### What changed
@@ -28,13 +46,9 @@ Think-mode temperatures:
 - **The fingerprint** of a server that thinks holds its think temperatures when it has any (`serving.think.temperatures`); a task certified under other ones is `think_mode_changed`.
   A server that does not think, or has none, keeps the fingerprint it had.
 
-Default adapter:
-
-- **`--default-adapter NAME`** answers a request that names no adapter with a loaded adapter ([running.md](running.md#a-default-adapter)), so a client that sends no `adapter` field (a benchmark kit, a plain caller) gets the tuned model. `"adapter": "none"` still asks for the base. A server started without it is what it was.
-
 Flavors:
 
-- **`--flavor calibrated|commit|read-enhanced`** serves a named configuration of a Gemma base on the header layout, named `Decisio-31b-<flavor>`, `Decisio-12b-<flavor>` or `Decisio-12b-fp8-<flavor>` ([running.md](running.md#flavors)). A flag you give still wins and is recorded as an override. On the 12B (both precisions) `calibrated` and `commit` serve yes/no at 4.83 and score at 7.85 (choice unchanged at 3.592); on the 31B they refuse to start until their temperatures are fitted. `read-enhanced` serves with its pending values marked. **A server with no `--flavor` is what it was.**
+- **`--flavor calibrated|thinking-commit|read-enhanced`** serves a named configuration of a Gemma base on the header layout, named `Decisio-31b-<flavor>`, `Decisio-12b-<flavor>` or `Decisio-12b-fp8-<flavor>` ([running.md](running.md#flavors)). A flag you give still wins and is recorded as an override. `calibrated` refuses to start until its temperatures are fitted; the other two serve with their pending values marked. **A server with no `--flavor` is what it was.**
 
 A base's profile can carry per-type temperatures and bands:
 
