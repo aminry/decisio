@@ -4,7 +4,7 @@
 
 # Server flags
 
-`python -m decisio.serve.vllm_engine`, decisio 0.31.0 <!-- x-release-please-version -->.
+`python -m decisio.serve.vllm_engine`, decisio 0.32.0 <!-- x-release-please-version -->.
 A dash in the default column means the flag has no default of its own: it takes the base's value, or is off.
 `docs/cli.md` says which value each base takes.
 
