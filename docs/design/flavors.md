@@ -73,8 +73,8 @@ A client or a published result that needs to say what it ran has the flavor and 
 ## What is measured and what is not
 
 - **`read-enhanced`:** read twice is merged (#296): N = 2,000 counted input tokens is the measured choice. R (`--read-twice-max-questions`) waits for a timing run on the target card, and the confirming run on a card held at 600 W is not done. Its temperatures are the calibrated ones, which do not exist yet.
-- **`commit`:** the commit rule is merged and measured (`--noul-commit`: a yes/no probability strictly between 0.20 and 0.80 is reported at the band's edge on its own side; the answer never changes, its calibration does). The calibrated temperatures it is served with do not exist yet; with the rule on, a committed yes/no answer no longer depends on the yes/no temperature, which then only moves the calibration of the answers outside the band.
-- **`calibrated`:** does not exist yet. A held-out check on 2026-10-23 found that every fit set asks for a yes/no temperature of 12 to 21 on the 31B under the header (5.252 today) and 6 to 9 on the 12B, which improves log loss, Brier and ECE on held-out sets and moves 20 to 69% of yes/no answers into the 0.2 to 0.8 band. The values need the 1,400-item suite read under the header (a card session, not yet scheduled) and the per-type and band profile (#303).
+- **`commit`:** the commit rule (`--noul-commit`: a yes/no probability strictly between 0.20 and 0.80 is reported at the band's edge on its own side; the answer never changes) on top of the calibrated temperatures. On the 12B, on the private suite, the rule changes no answer, costs 0.005 of log loss against the calibrated temperature without it, and leaves ECE as good.
+- **`calibrated`:** on the 12B (bf16 and FP8) yes/no is served at 4.83 and score at 7.85, choice stays at the base's 3.592, with no bands. The fit is by minimum log loss on readouts under the header layout, judged on calibration by question type: yes/no on a private 1,400-item suite with 5-fold cross-validation stratified by task (out of fold, log loss 0.3225 -> 0.3062, ECE 0.064 -> 0.058), score on a private natural calibration split and a 500-item development set (the suite has no score questions); choice was flat. The 31B has no read of the suite yet, so its `calibrated` and `commit` refuse to start.
 
 ### Flavors with a value still pending
 
@@ -120,6 +120,6 @@ What a client's harness sends as `model` is not known to this note; it matters o
 
 Built in #304 (on #303, the per-type and band profile).
 - `decisio.flavors` holds the block, the table per base, the names, the overrides and the report; `--flavor` is resolved in `resolve_base` (the settings before the prompt format is built, the temperatures after the flags and the temperatures file, before the base's profile).
-- `calibrated` and `commit` refuse to start until their temperatures are fitted; `read-enhanced` serves N = 2,000 without a question cap and with the base's own temperatures, marked `pending`.
+- `calibrated` and `commit` start on the 12B with the temperatures above and refuse to start on the 31B until its suite read; `read-enhanced` serves N = 2,000 without a question cap (and, on the 31B, with the base's own temperatures), marked `pending`.
 - `/health` carries `systemone.flavor`, every response `x-decisio-flavor`, the start line `FLAVOR`, `FLAVOR OVERRIDE` and `FLAVOR PENDING` lines; the serving-stack fingerprint holds the flavor only when one is set.
 - Not built: flavors for a tuned model, several flavors on one server, the values of `calibrated`.

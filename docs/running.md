@@ -292,8 +292,15 @@ There are three:
   `GET /v1/models` and every response report that name.
   A request's `model` that equals it in any case is accepted, and any other string is accepted as before; the name of another flavor of the same base is refused with the served name in the message.
 - **A flag you give wins, on any flavor, and nothing is refused.** Each flag that is not what the flavor sets is an **override**: it is listed on a `FLAVOR OVERRIDE` line at start, in `/health` (`systemone.flavor.overrides`, with the flavor's value and the served one), in the `x-decisio-flavor` header (`read-enhanced+overrides`) and in the serving-stack fingerprint, so a certificate made under other overrides is `serving_stack_changed`.
-- **Pending values.** A flavor whose defining value does not exist refuses to start: `calibrated` and `commit` say their temperatures are not fitted yet.
-  A flavor with a secondary value still a placeholder serves and says so (`FLAVOR PENDING`, `pending` in `/health`, `+pending` in the header, and a mark in the fingerprint): `read-enhanced` serves the base's own temperatures until the calibrated ones exist and has no question cap until its timing run.
+- **The calibrated temperatures** (the 12B, both precisions): yes/no 4.83 and score 7.85, against 3.592 for every type in the base's profile; choice stays at the base's 3.592.
+  They were fitted by minimum log loss on the engine's readouts under the header layout and judged on calibration by question type.
+  Yes/no comes from a private 1,400-item suite with 5-fold cross-validation stratified by task: out of fold the 12B's log loss goes from 0.3225 to 0.3062, ECE from 0.064 to 0.058 and Brier from 0.1868 to 0.1814.
+  Score comes from a private natural calibration split and a 500-item development set, since the suite has no score questions: ECE goes from 0.324 to 0.100 and from 0.220 to 0.084 on the two.
+  Choice did not move (3.52 fitted against 3.592, flat out of fold) and the suite does not support option-count bands.
+  `commit` is `calibrated` with the commit rule on top: it changes no answer, leaves yes/no ECE as good (0.053 against 0.057) and costs 0.005 of log loss on the suite.
+  With the rule on, the share of yes/no answers between 0.20 and 0.80 is zero (0.17 at the calibrated temperature without it).
+- **Pending values.** A flavor whose defining value does not exist refuses to start: `calibrated` and `commit` on the 31B say their temperatures are not fitted yet (its read of the suite is still to come).
+  A flavor with a secondary value still a placeholder serves and says so (`FLAVOR PENDING`, `pending` in `/health`, `+pending` in the header, and a mark in the fingerprint): `read-enhanced` has no question cap until its timing run, and on the 31B serves the base's own temperatures until the calibrated ones exist.
 - **Tasks and certificates are per flavor:** the served name is in the task fingerprint and the flavor in the serving stack, so a task registered, or a certificate made, under one flavor is not applied under another.
 - A server with no `--flavor` is what it was: the same name, the same answers and fingerprint, no flavor header.
 
