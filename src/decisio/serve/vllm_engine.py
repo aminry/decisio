@@ -2376,8 +2376,8 @@ def build_parser():
         choices=precision_casts.CHOICES,
         default=None,
         help="torch inductor's emulate_precision_casts (TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1, set before the engine "
-        "starts): the compiled kernels keep each bf16 rounding step, so two cold starts of the same model compute the "
-        "same arithmetic. auto (the default): on for an FP8 base (the 12B FP8, the 31B served FP8, a tuned repository "
+        "starts): the compiled kernels keep each bf16 rounding step, which narrows the difference between two cold "
+        "starts of the same model. auto (the default): on for an FP8 base (the 12B FP8, the 31B served FP8, a tuned repository "
         "of either), off for bf16. A variable in the environment that says the opposite is refused. Changes FP8 "
         'numerics once compared with releases before 0.33.0 (docs/running.md, "Precision casts")',
     )

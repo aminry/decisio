@@ -5,7 +5,7 @@
 vLLM compiles the model with torch's inductor, which may fuse two bf16 operations and drop the rounding to bf16 between
 them. Which operations it fuses is not the same on every compile, so two cold starts of the same FP8 model can run
 slightly different arithmetic and agree on about 97% of the top answers. `emulate_precision_casts` keeps each rounding
-step as eager PyTorch computes it, so two cold compiles give the same arithmetic.
+step as eager PyTorch computes it, which narrows the difference between two cold compiles (it does not remove it).
 torch reads `TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1` once, when `torch._inductor.config` is imported. An engine in
 another process inherits the variable; an engine in the server's own process may have imported the module already, so
 the setting is also written to the module.
