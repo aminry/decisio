@@ -1162,6 +1162,7 @@ def make_app(engine, systemone=None, health=None):
                     "repository_defaults": getattr(engine, "repository_defaults", None),
                     **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
                     **({"flavor": systemone.flavor} if systemone.flavor else {}),
+                    **({"default_adapter": systemone.default_adapter} if systemone.default_adapter else {}),
                     **(
                         {"temperatures_file": engine.temperatures_file}
                         if getattr(engine, "temperatures_file", None)
@@ -1836,6 +1837,15 @@ def build_parser():
     ap.add_argument("--pad-where", default="front", choices=PAD_PLACES)
     ap.add_argument("--adapter", action="append", default=[], help="name=path of a vLLM-format LoRA adapter")
     ap.add_argument(
+        "--default-adapter",
+        default=None,
+        metavar="NAME",
+        help="answer a request that names no adapter with this loaded adapter (one of the --adapter names), with its "
+        "own temperatures, as when it is named. A request that names another loaded adapter gets that one, and "
+        '"adapter": "none" gets the base. Shown in /health and the serving-stack fingerprint; registering and '
+        "certifying tasks still read the base",
+    )
+    ap.add_argument(
         "--adapter-temperatures",
         action="append",
         default=[],
@@ -2465,6 +2475,10 @@ def main():
     ap = build_parser()
     args = ap.parse_args()
     adapters = dict(a.split("=", 1) for a in args.adapter)
+    if "none" in adapters:
+        ap.error('an adapter cannot be named "none": a request\'s "adapter": "none" asks for the base')
+    if args.default_adapter is not None and args.default_adapter not in adapters:
+        ap.error(f"--default-adapter {args.default_adapter!r} is not a loaded adapter (loaded: {sorted(adapters)})")
     try:  # an unusable file is a refusal before the engine is built
         adapter_temps = adapter_temperatures.load(adapters, dict(a.split("=", 1) for a in args.adapter_temperatures))
     except (adapter_temperatures.AdapterFileError, ValueError) as e:
@@ -2802,6 +2816,7 @@ def main():
             "score": args.temperature_score,
         },
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
+        default_adapter=args.default_adapter,
         choice_bands=args.choice_bands,
         think_temperatures={
             "choice": args.think_temperature_choice,
