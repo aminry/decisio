@@ -17,6 +17,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
   It is recorded in the start line, `/health` and the serving-stack fingerprint, and refused when the environment says the opposite. An older decisio refuses a repository that carries the key.
   Off, nothing changes.
 - **`hub_fp8 convert|merge` and `hub_bf16 merge` refuse an `--out` that already holds files** unless `--overwrite` is given, because vLLM's compiled-graph cache is keyed by the checkpoint's path and a checkpoint rewritten in place can crash or run a stale graph ([running.md](running.md#shipping-a-tuned-model)).
+- **`hub tuned-config --external-form TOOL@VERSION`** records a tuned FP8 checkpoint that another tool made (for example `llm-compressor@0.8.1`, FP8_DYNAMIC) from a hand-written report, instead of refusing it for having no decisio merge report ([running.md](running.md#shipping-a-tuned-model)). An older decisio reads such a file as a merge record without decisio's counts and refuses it.
 
 ### Who is affected
 
@@ -27,6 +28,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | A server with no flag and a repository without the key | Nothing changes | Nothing |
 | `--batch-invariant on`, or a repository that asks for it | Other kernels: about 1.03 times a single read on FP8, 1.6 times on bf16; the answers are not those of the other kernels; certificates made without it are suspended | Measure on your model; certify again |
 | A script that writes a conversion or merge into a folder that already has files | Refused with the reason | Use a new folder per checkpoint, or add `--overwrite` and clear vLLM's compile cache |
+| A tuned FP8 checkpoint made by another tool (new) | Recorded with `--external-form`; served as a stored FP8 checkpoint | Needs this release or later on the serving side |
+
 
 ## 0.31.0: a tuned repository can be a flavor, and can leave the adapter's repository name out
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.32.0](https://github.com/aminry/decisio/compare/v0.31.0...v0.32.0) (2026-10-25)
+
+
+### Features
+
+* **hub:** hub_fp8 convert and merge can leave projections in bf16 (--keep-bf16) ([#340](https://github.com/aminry/decisio/issues/340)) ([5baf1ae](https://github.com/aminry/decisio/commit/5baf1aec7d6140e9ff774c904d6d6afe9ff2361e))
+* **hub:** hub_fp8 convert|merge and hub_bf16 merge write into a folder of their own ([#343](https://github.com/aminry/decisio/issues/343)) ([23ef954](https://github.com/aminry/decisio/commit/23ef954429473b890927a2fda9b86c26fbfefb67))
+* **hub:** tuned-config --external-form records a tuned FP8 checkpoint made by another tool ([#344](https://github.com/aminry/decisio/issues/344)) ([f3551dc](https://github.com/aminry/decisio/commit/f3551dc7337b98fbafbd6369b8d3ecddc6d00ba4))
+* **serve:** --batch-invariant, and a tuned repository can make vLLM's batch-invariant kernels its default ([#341](https://github.com/aminry/decisio/issues/341)) ([cba2245](https://github.com/aminry/decisio/commit/cba2245cefbe9e11fec2e8a9a8dfaaa42a2ff576))
+
 ## [0.31.0](https://github.com/aminry/decisio/compare/v0.30.0...v0.31.0) (2026-10-25)
 
 
