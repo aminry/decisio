@@ -12,6 +12,8 @@ Every flavor uses the header layout.
 An explicit flag wins over the flavor, on any flavor; each such flag is recorded as an override (`/health`,
 `x-decisio-flavor`, the start line, the serving-stack fingerprint).
 A flavor whose defining value is missing refuses to start; one with a missing secondary value serves marked `pending`.
+A tuned model's repository can be a flavor too (`flavor` and `defaults` in its decision_config.json, `from_repository`):
+the same machinery names the server, records the overrides and puts the flavor in the fingerprint.
 With no flavor named a server is exactly what it was.
 
     f = flavor_of("gemma-4-31b", "read-enhanced")
@@ -136,6 +138,25 @@ def _table() -> dict:
 
 
 FLAVORS = _table()
+
+
+def from_repository(repo) -> Flavor:
+    """The flavor a tuned repository is (its `flavor` block and `defaults`, decisio.hub): the values come from the
+    repository, not from the table above, because a tuned model's temperatures are its own. The repository's checks
+    (`hub.check_flavor`) have already made sure `defaults` are that flavor's."""
+    block, d = repo.flavor, repo.defaults
+    name, served = block["name"], block["served_name"]
+    temps = d["temperatures"]
+    return Flavor(
+        name,
+        served[: -len(name) - 1],
+        noul_commit=bool(d["noul_commit"]),
+        read_twice_under=int(d.get("read_twice_under") or 0),
+        read_twice_max_questions=int(d.get("read_twice_max_questions") or 0),
+        temperatures={k: float(temps[k]) for k in ("noul", "score") if k in temps},
+        choice_temperature=float(temps["choice"]) if "choice" in temps else None,
+        choice_bands={b: float(t) for b, t in (d.get("choice_bands") or {}).items()},
+    )
 
 
 def served_names(base_key: str) -> list[str]:

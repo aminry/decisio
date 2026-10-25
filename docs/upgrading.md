@@ -8,6 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.31.0: a tuned repository can be a flavor
+
+### What changed
+
+- **A tuned repository's `decision_config.json` (`/2`) can carry a `flavor` block and read-twice keys in `defaults`** ([running.md](running.md#shipping-a-tuned-model)): a repository of a tuned model is then one of the flavors `calibrated`, `commit` or `read-enhanced`, named by its `served_name`.
+  The server it starts is named by the file, reads twice where the defaults say so, and reports the flavor and any flag that differs from it, as a base's flavors do; `hub tuned-config --flavor ... --served-name ... --read-twice-under N` writes the file and `hub check` refuses one that disagrees with its flavor.
+  A repository with no `flavor` block is served exactly as before, and its digest is unchanged.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A tuned repository with no `flavor` block | Nothing changes | Nothing |
+| A tuned repository with a `flavor` block (new) | Served under its flavor's name; an older decisio serves it as a tuned model with no flavor, and refuses one with read-twice keys | Use this release or later |
+
 ## 0.30.0: the 31B in bf16
 
 ### What changed
