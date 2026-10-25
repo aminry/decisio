@@ -617,6 +617,8 @@ def merge_facts(report: dict) -> dict:
         "adapted_tensors": report.get("adapted_tensors"),
         "dropped_k_eq_v_pairs": report.get("dropped_k_eq_v_pairs", 0),
         "groups": report.get("groups"),
+        # projections left in bf16 (`hub_fp8 merge --keep-bf16`): which, and the rounding of those tensors
+        **({"kept_bf16": report["kept_bf16"]} if report.get("kept_bf16") else {}),
     }
 
 
