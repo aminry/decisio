@@ -58,6 +58,7 @@ import numpy as np
 from decisio.readout.letters import (  # noqa: E402
     DEFAULT_FORMAT,
     LETTERS_INSTRUCTION,
+    QUESTIONS_HEAD,
     READ_AGAIN,
     PromptFormat,
     allowed_ids,
@@ -81,7 +82,7 @@ def options_listing(tok, options):
 
 from decisio import flavors  # noqa: E402
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
-from decisio.serve import adapter_temperatures, engine_stream, task_backends  # noqa: E402
+from decisio.serve import adapter_temperatures, engine_stream, header_limit, task_backends  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
@@ -151,12 +152,15 @@ TURN_SEP = "<|im_end|>\n"  # closes an assistant turn left at "Answer:" (packed 
 PAD_TOKEN = 198  # "\n"
 
 
-def counted_tokens(tok, fmt, state, questions) -> dict:
+def counted_tokens(tok, fmt, state, questions, header_lines=None) -> dict:
     """The request read once in counted input tokens, the unit of usage.input_tokens: the header (under the header
     layout), the state, and each question's own text, each tokenized alone (no chat template, no system turn).
-    {"header": n, "state": n, "asked": [n per question], "total": n}."""
+    `header_lines`: how many of the questions' instruction lines the header lists (None: all; 0: no header, the plain
+    layout's row; header_limit). {"header": n, "state": n, "asked": [n per question], "total": n}."""
     enc = lambda text: len(tok.encode(text, add_special_tokens=False))  # noqa: E731
-    head = enc(layout_header([q["instructions"] for q in questions])) if fmt.layout == "header" else 0
+    head = 0
+    if fmt.layout == "header" and header_lines != 0:
+        head = enc(layout_header([q["instructions"] for q in questions][:header_lines]))
     state_n = enc(fmt_state(state))
     asked = [enc(question_text(tok, q, fmt)[0]) for q in questions]
     return {"header": head, "state": state_n, "asked": asked, "total": head + state_n + sum(asked)}
@@ -235,6 +239,8 @@ class LettersEngine:
     over_limit_tokens = (
         None  # --over-limit-tokens: the prompt ceiling a truncating server cuts to, where it is not the context
     )
+    # --header-limit as (mode, cap): the header lists only the questions that fit the context (serve.header_limit)
+    header_limit_setting = (header_limit.AUTO, None)
 
     def __init__(
         self,
@@ -628,11 +634,129 @@ class LettersEngine:
 
     def _build_rows(self, state, questions):
         """(rows, n, plan): the request's token rows before padding, the shared prefix length `n` (the header, if the
-        layout has one, and the state, up to the question), and the layout's plan (`read_plan`)."""
+        layout has one, and the state, up to the question), and the layout's plan (`read_plan`). Under the header
+        layout the header lists as many of the questions as fit the context (`header_plan`); a request that fits is
+        built exactly as it always was."""
+        hp = LettersEngine.header_plan(self, state, questions)
+        rows, n, plan = LettersEngine._rows(self, state, questions, hp["listed"] if hp and hp["limited"] else None)
+        if hp and hp["limited"]:
+            plan["header"] = hp["listed"] > 0
+            plan["header_limited"] = hp["report"]
+        return rows, n, plan
+
+    def header_plan(self, state, questions) -> dict | None:
+        """What the header limit does to this request, or None where it does not apply (not the header layout, the
+        limit off with nothing over, an engine with no prompt ceiling): {"limited": bool, "listed": k lines of the
+        questions' instructions, "of": n, "report": the header_limit report (None unless limited), "fits": whether the
+        row fits at all, "pieces": the longest row's tokens by piece, for the refusal}.
+        Decided from the request alone, once (a small cache keyed by the request), and by exact rows: the lines are
+        chosen from their token counts and checked against the rows built, one line fewer until they fit."""
+        fmt = getattr(self, "fmt", DEFAULT_FORMAT)
+        limit = self.prompt_limit() if hasattr(self, "prompt_limit") else None
+        if fmt.layout != "header" or limit is None:
+            return None
+        mode, cap = getattr(self, "header_limit_setting", (header_limit.AUTO, None))
+        instructions = [q["instructions"] for q in questions]
+        body = fmt_state(state)
+        texts = [question_text(self.tok, q, fmt)[0] for q in questions]
+        reserve = int(getattr(self, "pad_unit", 0) or 0)
+        # a token is at least one byte: a request whose bytes fit without being tokenized needs no limit
+        raw = (
+            len(layout_header(instructions).encode("utf-8"))
+            + len(body.encode("utf-8"))
+            + max(len(t.encode("utf-8")) for t in texts)
+            + 2048  # the template, the system turn, the closing line
+        )
+        if raw + reserve <= limit and (cap is None or len(layout_header(instructions).encode("utf-8")) <= cap):
+            return None
+        key = hashlib.blake2b(
+            json.dumps([body, instructions, texts, limit, reserve, mode, cap]).encode("utf-8"), digest_size=16
+        ).digest()
+        cache = self.__dict__.setdefault("_header_plans", OrderedDict())
+        lock = self.__dict__.setdefault("_header_plans_lock", threading.Lock())
+        with lock:
+            if key in cache:
+                cache.move_to_end(key)
+                return cache[key]
+        plan = LettersEngine._header_plan_exact(self, state, questions, instructions, limit, reserve, mode, cap)
+        with lock:
+            cache[key] = plan
+            while len(cache) > 32:
+                cache.popitem(last=False)
+        return plan
+
+    def _header_plan_exact(self, state, questions, instructions, limit, reserve, mode, cap) -> dict:
+        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
+        n = len(instructions)
+
+        def longest(k):
+            rows, _, _ = LettersEngine._rows(self, state, questions, k, with_plan=False)
+            return max(len(ids) for ids, _ in rows)
+
+        full_rows = longest(None)
+        full_header = len(enc(layout_header(instructions)))
+        plain = longest(0)
+        pieces = {
+            "header": full_header,
+            "state": len(enc(fmt_state(state))),
+            "question": max(len(enc(question_text(self.tok, q, self.fmt)[0])) for q in questions),
+            "template": len(enc(user_turn(self.tok, "", self.fmt))),
+            "row": full_rows,
+        }
+        over_context = full_rows + reserve > limit
+        over_cap = cap is not None and full_header > cap
+        base = {"limited": False, "listed": n, "of": n, "report": None, "fits": True, "pieces": pieces, "limit": limit}
+        if not over_context and not over_cap:
+            return base
+        if mode == header_limit.OFF:
+            if over_context:  # refused as before, with the pieces named
+                return {**base, "fits": False, "off": True}
+            return base
+        if plain + reserve > limit:  # not even the plain layout fits: the header limit cannot help
+            return {
+                **base,
+                "limited": True,
+                "listed": 0,
+                "fits": False,
+                "pieces": {**pieces, "row": plain, "header": 0},
+            }
+        allowed = limit - reserve - plain
+        if cap is not None:
+            allowed = min(allowed, cap)
+        head = len(enc(QUESTIONS_HEAD)) + len(enc("\n"))
+        lines = [len(enc(f"- {text}\n")) for text in instructions]
+        k = header_limit.choose_lines(lines, head, allowed)
+
+        def header_tokens(j):
+            return len(enc(layout_header(instructions[:j]))) if j else 0
+
+        # the lines' own counts are within a token or two of the header's (a newline can merge with the next dash):
+        # settle on the header's exact count, then check the rows themselves, one line fewer until they fit
+        while k < n and header_tokens(k + 1) <= allowed:
+            k += 1
+        while k > 0 and header_tokens(k) > allowed:
+            k -= 1
+        while k > 0 and longest(k) + reserve > limit:
+            k -= 1
+        listed_tokens = len(enc(layout_header(instructions[:k]))) if k else 0
+        rep = header_limit.report(
+            listed=k,
+            of=n,
+            header_tokens=listed_tokens,
+            full_header_tokens=full_header,
+            limit=limit,
+            allowed=allowed,
+            reason="context" if over_context else "cap",
+        )
+        return {"limited": True, "listed": k, "of": n, "report": rep, "fits": True, "pieces": pieces, "limit": limit}
+
+    def _rows(self, state, questions, header_lines=None, with_plan=True):
+        """The rows `_build_rows` builds, for a header that lists `header_lines` of the questions' instruction lines
+        (None: all of them; 0: none, the plain layout's row)."""
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         body = fmt_state(state)
-        if self.fmt.layout == "header":
-            body = layout_header([q["instructions"] for q in questions]) + body
+        if self.fmt.layout == "header" and header_lines != 0:
+            body = layout_header([q["instructions"] for q in questions][:header_lines]) + body
         tail = self._template_tail()
         texts = [question_text(self.tok, q, self.fmt) for q in questions]
         suffixes = [enc(text + tail) for text, _, _ in texts]
@@ -657,13 +781,13 @@ class LettersEngine:
                 raise ValueError(
                     "a question's text merges with the state's last token; questions must not start with whitespace"
                 )
-        plan = {"header": self.fmt.layout == "header", "twice": False, "once_tokens": None}
-        if self.fmt.read_twice_under:
+        plan = {"header": self.fmt.layout == "header" and header_lines != 0, "twice": False, "once_tokens": None}
+        if self.fmt.read_twice_under and with_plan:
             # a short request is read twice: each question's user turn again after READ_AGAIN. "Short" is the request
             # read once in counted input tokens (`counted_tokens`, the unit usage.input_tokens reports and the
             # threshold was measured in), and a request with more questions than --read-twice-max-questions is read
             # once, whatever its size: a doubled request costs more with every question, which the token count misses
-            once = counted_tokens(self.tok, self.fmt, state, questions)["total"]
+            once = counted_tokens(self.tok, self.fmt, state, questions, header_lines)["total"]
             cap = self.fmt.read_twice_max_questions
             plan.update(
                 once_tokens=once,
@@ -1146,6 +1270,10 @@ def make_app(engine, systemone=None, health=None):
                         "mode": systemone.over_limit,
                         "prompt_limit": getattr(engine, "prompt_limit", lambda: None)(),
                         **systemone.truncated,
+                    },
+                    "header_limit": {
+                        "setting": header_limit.describe(*getattr(engine, "header_limit_setting", ("auto", None))),
+                        **systemone.header_limited,
                     },
                     "abstention": systemone.abstention,
                     "abstention_tasks": {
@@ -2193,6 +2321,17 @@ def build_parser():
         "setting",
     )
     ap.add_argument(
+        "--header-limit",
+        default="auto",
+        metavar="auto|off|TOKENS",
+        help="/v1/systemone, the header layout: a request whose rows would be over the context because the header "
+        "lists every question's instructions is answered with a header that lists only the questions that fit, in the "
+        "request's order (none: the plain layout's row); the response says so (body header_limited, header "
+        "x-decisio-layout) and a certified task's answer is not certified. auto (the default): the limit is the "
+        "context; a number: also at most that many tokens of header; off: a row over the context is a 422 that says "
+        "where its tokens are. A request that fits is not touched",
+    )
+    ap.add_argument(
         "--think",
         action=argparse.BooleanOptionalAction,
         default=None,
@@ -2686,6 +2825,10 @@ def main():
     engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
     engine.layout_decision = getattr(args, "layout_decision", None)
     engine.over_limit_tokens = args.over_limit_tokens
+    try:
+        engine.header_limit_setting = header_limit.parse(args.header_limit)
+    except ValueError as e:
+        raise SystemExit(str(e)) from e
     if args.think and not engine.can_think():
         why = getattr(engine, "think_blocked", lambda: None)() or "think needs the vLLM engine"
         raise SystemExit(f"--think: this engine cannot write reasoning ({why})")

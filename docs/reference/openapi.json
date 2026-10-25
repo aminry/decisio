@@ -149,6 +149,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-layout": {
+                "description": "`header; listed=K; of=N; reason=context`, or `plain; ...`, when the header listed only some of the request's questions (`--header-limit`).",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-stages": {
                 "description": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
                 "schema": {
@@ -1039,6 +1045,7 @@
                   "serving_stack_changed",
                   "traffic_changed",
                   "state_truncated",
+                  "header_limited",
                   "think_mode_changed",
                   "concurrency_changed"
                 ],
@@ -1149,6 +1156,7 @@
                   "serving_stack_changed",
                   "traffic_changed",
                   "state_truncated",
+                  "header_limited",
                   "think_mode_changed",
                   "concurrency_changed"
                 ],
@@ -1244,6 +1252,7 @@
                   "serving_stack_changed",
                   "traffic_changed",
                   "state_truncated",
+                  "header_limited",
                   "think_mode_changed",
                   "concurrency_changed"
                 ],
@@ -1432,6 +1441,20 @@
             "default": null,
             "description": "When the state was cut (`over_limit: truncate`): `kept_tokens`, `of_tokens`, `part` (`start`) and `limit`. No answer of a truncated state is certified.",
             "title": "State Truncated"
+          },
+          "header_limited": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When the header listed only some of the request's questions because the whole would not fit the context: `layout` (`header`, or `plain` when no line fit), `listed` of `of` lines, `header_tokens` and `of_header_tokens`, `row_limit`, `allowed_tokens` and `reason` (`context`, or `cap` for a --header-limit number). No answer of a certified task is certified.",
+            "title": "Header Limited"
           }
         },
         "required": [

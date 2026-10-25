@@ -238,6 +238,27 @@ Intervals are a bootstrap over requests. Read them with these caveats:
 - **Cost:** computed tokens (what the cache does not serve) were 1.32 times the plain layout's on the Decision Index sample (2.9 times the prompt tokens, which a server without the cache would read), 1.03 on H776 and 1.08 on dev500; per-request latency was 1.02 to 1.09 at the median and 1.02 to 1.28 on average.
 - One base, one card, one set of items: it shows the header can help, not that it helps your traffic. Measure on your own, and use `--layout plain` where it does not.
 
+### A header over the context (`--header-limit`)
+
+The header lists the instructions of every question of the request, and every row of the request holds all of them.
+A request with many questions whose instructions are long (a tool catalogue, a set of documents, 25 to 32 questions of 400 to 25,000 tokens each) can render a row several times longer than the same request under the plain layout, and past the context.
+On a 12B at its 65,536-token context, rows of 82,000 and 98,000 tokens were refused with a 422 where the plain layout's rows were 26,000 and 23,000: the difference was the header, token for token (55,443 and 74,146), and one question's instructions were a third to a half of it.
+
+**By default the server lists as many of the questions as fit, and says so.**
+- **A request whose rows fit is not touched.** Its rows are byte for byte what they were, and nothing is added to the response.
+- **A request over the context** gets a header of its first questions' instruction lines, in the request's order, as many as fit beside the state and the longest question; the lines after them are left out (a prefix, so a smaller context lists a prefix of the larger one's lines). Each row still holds its own question in full. With no line that fits, the row is the plain layout's, exactly.
+- **The response says what was listed:** `header_limited` in the body (`layout`: `header`, or `plain` when no line fit; `listed` of `of` lines; `header_tokens` and `of_header_tokens`; `row_limit`; `allowed_tokens`; `reason`: `context`, or `cap`), the header `x-decisio-layout` (`header; listed=12; of=32; reason=context`), `usage.input_tokens` counting the header that was read, and `/health` (`systemone.header_limit`: `setting`, `requests`, `plain`, `refused`, `lines_dropped`). All are absent or zero where nothing was limited.
+- **The cost to the answers is not measured.** The header's gain on the Decision Index comes from requests that ask many questions about one state; a header that lists fewer of them gives part of that gain, and a model or adapter trained on whole headers sees a header of the shape it was trained on with fewer lines. Where an answer matters, compare it against `--layout plain` on your own traffic.
+- **Registered tasks and certificates:** an answer of a certified task in a limited request carries `certified: false` with `certified_reason: "header_limited"`, and the traffic monitor does not count it (as for a cut state).
+  The setting is not part of the serving-stack fingerprint: a limited answer is never certified, so it cannot change a certified one.
+- **With `--over-limit truncate`** the header gives way before the state does: a state too long for the plain row is cut for the plain row, and the header lists what the room left.
+
+`--header-limit auto` is the default.
+`--header-limit TOKENS` also keeps the listed header to at most that many tokens, where the context would hold more.
+`--header-limit off` is the earlier behaviour: a row over the context is a 422.
+That refusal (and the refusal when even the plain layout's row is over the context) says where the tokens are: the header, the state, the longest question and the template, against the length the server answers, and what to do: `--header-limit auto`, `"over_limit": "truncate"`, a shorter state or question, or a longer `--max-model-len` up to the base's ceiling.
+The engines with no ceiling to read (the MLX build) take `--over-limit-tokens N` for the context the limit works to.
+
 ### Read twice (`--read-twice-under N`, `--read-twice-max-questions R`)
 
 An opt-in, **never the default**: when a request is short, each question's user turn is written twice, the second copy after `Read the same input again before answering:`. It works with either layout (measured on the header). The first copy is the layout's prompt, so the cacheable prefix is unchanged; the second copy follows each question and is computed per question.

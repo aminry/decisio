@@ -114,6 +114,12 @@ This changes the answers of every bare base on upgrade. It is breaking for answe
 - A board submission under the header is the owner's call, not a decisio change.
 - The temperatures under the header: `--temperatures-file` exists and the refit is the open item (a refit on a natural split was found harmful on yes/no as fitted); nothing here changes the served temperatures.
 
+## A header over the context (0.29.0)
+
+The header holds the instructions of every question of a request on every row, so a request with many long instructions can render a row several times longer than the plain layout's (up to 20 times on the Decision Index's tool-retrieval and reasoning-retrieval requests) and past the context.
+The server now lists as many of the instruction lines as fit (a prefix, in the request's order), none when no line fits, reports it (`header_limited`, `x-decisio-layout`, `/health`) and does not certify a certified task's answer in such a request; `--header-limit off` keeps the 422.
+Not done, and why: a fallback of the whole request to plain (it moves a header-trained adapter to a layout it was not trained on), shortening every instruction (a new rendering for every long request), raising the context ceiling (quality at those lengths is not measured; it stays an option).
+
 ## As built (0.26.0)
 
 - `decisio.serve.layout.decide_layout` decides once at start: `--layout`, else the layout a tuned repository (`defaults.layout`) or an adapter (`layout` in its file) recorded (plain when none; things recorded with different layouts cannot share a server), else the base's default (`Family.layout`: header for the Gemma bases), held at plain while stored tasks fitted under plain apply. The stores are read before the task fingerprint is built. The start prints `LAYOUT ...`; `/health` carries `systemone.layout`.
