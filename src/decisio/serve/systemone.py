@@ -620,11 +620,14 @@ class SystemOne:
         think_factor: float = thinking.DEFAULT_FACTOR,
         think_budget: int = thinking.DEFAULT_BUDGET,
         flavor: dict | None = None,
+        default_adapter: str | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
         # flavor, which is then exactly what it was (the model it echoes, the fingerprint, the headers)
         self.flavor = dict(flavor) if flavor else None
+        # the loaded adapter that answers a request naming none (--default-adapter); "none" asks for the base
+        self.default_adapter = default_adapter
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
         self.describe_options = describe_options  # likewise
@@ -1445,6 +1448,9 @@ class SystemOne:
                 # the flavor, only when one is set: a certificate made under another flavor, other overrides or
                 # placeholder values is suspended
                 **({"flavor": flavors.fingerprint_facts(self.flavor)} if self.flavor else {}),
+                # the default adapter, only when one is set: a certificate made when requests were answered by the base
+                # (or by another adapter) is suspended
+                **({"default_adapter": self.default_adapter} if self.default_adapter else {}),
                 # --concurrency, only when batched, so that a serial server's fingerprint is what it was; a certificate
                 # made one request at a time is suspended by a batching server, and the other way round
                 # (`concurrency_changed`): a batched answer depends on the traffic it was scored with
@@ -2176,7 +2182,11 @@ def add_routes(app, systemone: SystemOne):
         debug = debug_of(request)
         adapter = (req.model_extra or {}).get("adapter")
         if adapter is not None and not isinstance(adapter, str):
-            raise HTTPException(422, '"adapter" must be the name of a loaded adapter, or null')
+            raise HTTPException(422, '"adapter" must be the name of a loaded adapter, "none" or null')
+        if adapter == "none":
+            adapter = None  # the base, even on a server with a default adapter
+        elif adapter is None:
+            adapter = systemone.default_adapter  # None when the server has none
         over_limit = (req.model_extra or {}).get("over_limit")
         if over_limit is not None and over_limit not in over.MODES:
             raise HTTPException(422, f'"over_limit" must be one of {list(over.MODES)}, or null')

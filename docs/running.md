@@ -559,6 +559,20 @@ The adapter is served unmerged, on the text route, in separate mode; the MLX bac
 The CPU stand-in (`--backend hf`) serves no adapters either: it loads none, so a request that names one is refused as an unknown adapter (`loaded: []`). Adapters need the vLLM backend on a GPU.
 The request fields are in [api.md](api.md), the flags in [cli.md](cli.md).
 
+### A default adapter
+
+`--default-adapter NAME` makes a loaded adapter the one that answers a request naming none, for a client that cannot send an `adapter` field (an off-the-shelf benchmark kit, a plain OpenAI-style caller):
+
+```bash
+python -m decisio.serve.vllm_engine --base gemma-4-12b --adapter tuned=/path/to/adapter \
+    --adapter-temperatures tuned=/path/to/adapter/decisio_adapter.json --default-adapter tuned
+```
+
+- A request with no `adapter` field, or `null`, is answered by the default adapter at its own temperatures and bands, exactly as when it names it; the response's `adapter` field and the `x-decisio-adapter` header say which adapter answered.
+- A request that names another loaded adapter gets that one. **`"adapter": "none"` gets the base.** An unknown name is still a 404. An adapter cannot be called `none`.
+- `/health` carries `systemone.default_adapter`, and the serving-stack fingerprint holds it only when one is set, so a certificate made under another default (or none) is `serving_stack_changed`. A server with no default is exactly what it was.
+- Registering and certifying tasks still read the base. A plain request that matches a registered task on a server with a default adapter gets the existing refusal ("ask without the adapter, or delete the task"): ask a task's questions with `"adapter": "none"`.
+
 ### An adapter's own temperatures
 
 The base's temperatures were fitted on the base's plain readouts, and an adapter changes the scale of the readout.
