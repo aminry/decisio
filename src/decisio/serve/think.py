@@ -28,6 +28,7 @@ PREFIX = "Let me check the deciding facts first.\n"
 SUFFIX = "\n\nFinal answer:"
 TAU = {"choice": 0.75, "noul": 0.92, "score": 0.70}
 MAX_OPTIONS = 16
+TYPES = ("choice", "noul", "score")  # the question types a server can think on, in the order the files list them
 DEFAULT_FACTOR = 1.0
 DEFAULT_BUDGET = 512
 MAX_BUDGET = 4096
@@ -35,6 +36,7 @@ MAX_BUDGET = 4096
 # why a question did not think, as the response says it
 SURE = "sure"
 TOO_MANY_OPTIONS = f"more than {MAX_OPTIONS} options"
+NOT_THINKING_TYPE = "its type is not one this server thinks on"
 REGISTERED_TASK = "a registered task answers this question"
 NOT_COMBINED = "not combined with two-order averaging, abstention or the image route"
 
@@ -55,16 +57,30 @@ def check_budget(value, where: str) -> int:
     return int(value)
 
 
+def check_types(value, where: str) -> list[str]:
+    """The question types a server thinks on (`--think-types`, `defaults.think.types`): a non-empty list of choice, noul
+    and score without repeats, returned in canonical order."""
+    if isinstance(value, str) or not isinstance(value, (list, tuple)) or not value:
+        raise ValueError(f"{where} must be a non-empty list of question types ({', '.join(TYPES)})")
+    bad = [v for v in value if v not in TYPES]
+    if bad or len(set(value)) != len(value):
+        raise ValueError(f"{where} must name each of {', '.join(TYPES)} at most once, got {list(value)!r}")
+    return [t for t in TYPES if t in value]
+
+
 def check_settings(value, where: str) -> dict:
-    """A repository's `defaults.think`: {"factor": number, "budget": tokens (optional)}."""
+    """A repository's `defaults.think`: {"factor": number, "budget": tokens (optional), "types": the question types
+    that think (optional: all)}."""
     if not isinstance(value, dict) or "factor" not in value:
         raise ValueError(f"{where} must be an object with a factor")
-    unknown = sorted(set(value) - {"factor", "budget"})
+    unknown = sorted(set(value) - {"factor", "budget", "types"})
     if unknown:
         raise ValueError(f"{where} has unknown keys {unknown}")
     out = {"factor": check_factor(value["factor"], f"{where}.factor")}
     if "budget" in value:
         out["budget"] = check_budget(value["budget"], f"{where}.budget")
+    if "types" in value:
+        out["types"] = check_types(value["types"], f"{where}.types")
     return out
 
 
