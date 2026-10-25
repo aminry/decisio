@@ -729,11 +729,12 @@ A board, or a user, runs only `--base <repository>` and sets no environment vari
 ## Precision casts (`--emulate-precision-casts`)
 
 vLLM compiles the model with torch's inductor.
-Inductor may fuse two bf16 operations and drop the rounding to bf16 between them, and which operations it fuses is not the same on every compile.
-In an FP8 model the activation quantization of each linear layer is compiled together with the operations before it (the norm, the activation), so which bf16 roundings survive depends on the compile.
-In a bf16 model the same tensor goes to an external matrix multiply and is always rounded, so the choice cannot change the numbers.
-Two cold starts of the same FP8 model can therefore run slightly different arithmetic and agree on only about 97% of the top answers (the 12B, merged FP8: 96.4% to 96.8% over 1,894 reads, as few as 48 of them bit for bit), while a bf16 model compiled twice came out bit for bit the same.
-torch has a switch for this, `emulate_precision_casts` (`TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1`): the compiled kernels keep each rounding step as eager PyTorch computes it, so two compiles give the same arithmetic.
+At the first launch of a compiled kernel, Triton may pick its block size by timing a few choices, and two choices that take the same time can sum the same values in a different order, which changes the last bits of the result.
+So two cold starts of the same FP8 model can compile to slightly different arithmetic and agree on only about 97% of the top answers (the 12B, merged FP8: 96.4% to 96.8% over 1,894 reads, as few as 48 of them bit for bit).
+A start that loads an earlier compile's cache keeps that compile's choice, which is why warm starts repeat.
+A bf16 model compiled twice came out bit for bit the same.
+torch has a switch, `emulate_precision_casts` (`TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1`): the compiled kernels keep each rounding step to bf16 as eager PyTorch computes it, so a last-bit difference in a sum is absorbed by the rounding that follows it and two cold compiles give the same answers.
+It hides the cause rather than removing it: a value that sits exactly on a bf16 rounding boundary could still flip. None did in four cold starts of 1,894 requests; long inputs are where it would show.
 
 - **`--emulate-precision-casts on|off|auto`** is the server's setting. `auto`, the default, is on for an FP8 base (the 12B FP8, the 31B served FP8 stored or quantized on load, and a tuned repository of either) and off for bf16 and the other bases. A flag beats the default.
 - **It is set before the engine starts**: `TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1` in the server's environment, which an engine process inherits, and in torch's inductor config where the server's own process has imported it already (torch reads the variable once, at import). A variable already in the environment that says the opposite of the flag or the default (`0` against on, `1` against off) is refused at start, and the refusal names the way out; a variable alone (`1`) on a base whose default is off turns it on and is recorded as the environment's. Only the vLLM server has it (`--backend mlx` and the CPU stand-in refuse `on`).
