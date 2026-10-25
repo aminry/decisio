@@ -82,7 +82,14 @@ def options_listing(tok, options):
 
 from decisio import flavors  # noqa: E402
 from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
-from decisio.serve import adapter_temperatures, batch_invariant, engine_stream, header_limit, task_backends  # noqa: E402
+from decisio.serve import (  # noqa: E402
+    adapter_temperatures,
+    batch_invariant,
+    engine_stream,
+    header_limit,
+    precision_casts,
+    task_backends,
+)
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
@@ -1292,6 +1299,7 @@ def make_app(engine, systemone=None, health=None):
                     **({"flavor": systemone.flavor} if systemone.flavor else {}),
                     **({"default_adapter": systemone.default_adapter} if systemone.default_adapter else {}),
                     **({"batch_invariant": systemone.batch_invariant} if systemone.batch_invariant else {}),
+                    **({"emulate_precision_casts": systemone.precision_casts} if systemone.precision_casts else {}),
                     **(
                         {"temperatures_file": engine.temperatures_file}
                         if getattr(engine, "temperatures_file", None)
@@ -1696,12 +1704,16 @@ def resolve_base(args):
         raise ValueError("--backend mlx needs --model, an MLX conversion of the base (docs/design/mlx-backend.md)")
     if args.base is not None:
         fam = BASES[args.base]
+        fp8_weights = (
+            fam.quantization == "fp8" or fam.precision == "fp8"
+        )  # the base's own checkpoint, stored or on load
         given = args.model is not None
         if not given:
             args.model = fam.model
         args.revision = pinned_revision(args.model, args.revision)
         if given:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
             cfg = read_config(args.model, args.revision)
+            fp8_weights = fp8_weights or declares_fp8(cfg)
             mt = cfg.get("model_type")
             # the same checkpoint in another precision (the 12B's two) is not another base's
             other = next((f for f in FAMILIES if mt in f.model_types and f.model != fam.model), None)
@@ -1734,6 +1746,9 @@ def resolve_base(args):
             raise ValueError("give --model or --base")
         args.revision = pinned_revision(args.model, args.revision)
         fam = family_of(args.model, args.revision, lenient=args.backend == "hf")  # the stand-in takes any small model
+        fp8_weights = (
+            fam.quantization == "fp8" or fam.precision == "fp8" or declares_fp8(read_config(args.model, args.revision))
+        )
     if args.backend == "mlx" and fam.vllm_only:
         raise ValueError(
             f"--backend mlx does not serve {fam.key}: bf16 weights of that size are vLLM's; serve an MLX conversion of "
@@ -1750,6 +1765,7 @@ def resolve_base(args):
             f"--backend mlx cannot load {args.model}: its config.json declares FP8 quantization, vLLM's format; "
             f"give --model an MLX conversion of {fam.key} (docs/running.md)"
         )
+    args.fp8_weights = fp8_weights  # the weights are served in FP8 (stored or quantized on load): precision_casts
     args.repository = None
     if (getattr(args, "read_twice_under", None) or 0) < 0:
         raise SystemExit("--read-twice-under must be 0 (off) or a token count")
@@ -2356,6 +2372,16 @@ def build_parser():
         "and 1.6 times on bf16 (12B, one card); the answers are not those of the other kernels",
     )
     ap.add_argument(
+        "--emulate-precision-casts",
+        choices=precision_casts.CHOICES,
+        default=None,
+        help="torch inductor's emulate_precision_casts (TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1, set before the engine "
+        "starts): the compiled kernels keep each bf16 rounding step, so two cold starts of the same model compute the "
+        "same arithmetic. auto (the default): on for an FP8 base (the 12B FP8, the 31B served FP8, a tuned repository "
+        "of either), off for bf16. A variable in the environment that says the opposite is refused. Changes FP8 "
+        'numerics once compared with releases before 0.33.0 (docs/running.md, "Precision casts")',
+    )
+    ap.add_argument(
         "--header-limit",
         default="auto",
         metavar="auto|off|TOKENS",
@@ -2770,6 +2796,10 @@ def main():
         ap.error(str(e))
     repo_default = ((args.repository or {}).get("defaults") or {}).get("batch_invariant")
     args.batch_invariant_report = batch_invariant.resolve(args.batch_invariant, repo_default, os.environ, args.backend)
+    args.precision_casts_report = precision_casts.resolve(
+        args.emulate_precision_casts, getattr(args, "fp8_weights", False), os.environ, args.backend
+    )
+    precision_casts.apply_in_process(args.precision_casts_report["on"])
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
     args.context_source = "set by --max-model-len" if given_length is not None else None
     if isinstance(args.max_model_len, AutoContext) and (args.engine_process != "in" or second):
@@ -2866,6 +2896,9 @@ def main():
     if args.batch_invariant_report["on"]:
         args.batch_invariant_report["confirmed"] = batch_invariant.engine_state()
     print(batch_invariant.start_line(args.batch_invariant_report), flush=True)
+    if args.precision_casts_report["on"]:
+        args.precision_casts_report["confirmed"] = precision_casts.engine_state()
+    print(precision_casts.start_line(args.precision_casts_report), flush=True)
     try:
         engine.header_limit_setting = header_limit.parse(args.header_limit)
     except ValueError as e:
@@ -3002,6 +3035,7 @@ def main():
         adapter_temperatures={n: adapter_temperatures.serving_temperatures(e) for n, e in adapter_temps.items()},
         default_adapter=args.default_adapter,
         batch_invariant=args.batch_invariant_report,
+        precision_casts=args.precision_casts_report,
         choice_bands=args.choice_bands,
         think_temperatures={
             "choice": args.think_temperature_choice,

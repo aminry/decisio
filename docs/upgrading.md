@@ -8,17 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.33.0: error-compensating rounding for the FP8 merge
+## 0.33.0: error-compensating rounding for the FP8 merge, and emulated precision casts on FP8 bases
 
 ### What changed
 
 - **`hub_fp8 merge --gptq CALIBRATION`** rounds the merged weights to FP8 with the rounding error of each column carried into the columns after it, using the layer-input statistics of a calibration file ([running.md](running.md#shipping-a-tuned-model)). The stored format, the scales and the load path are unchanged; only some codes move one step. The report and the tuned record say that it was used. Without the flag the output is what it was.
+- **`--emulate-precision-casts on|off|auto`** switches torch inductor's `emulate_precision_casts` (`TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1`) before the engine starts, and `auto`, the default, turns it on for FP8 bases: the 12B FP8, the 31B served FP8 (stored or quantized on load) and a tuned repository of either ([running.md](running.md#precision-casts---emulate-precision-casts)). The compiled kernels then keep each bf16 rounding step, so two cold starts compute the same arithmetic. It is recorded in the start line, `/health` and the serving-stack fingerprint, and refused when the environment says the opposite. **It changes FP8 numerics once**: an answer can differ in the last digits from the same request on 0.32.0 or earlier. bf16 servers are unchanged.
 
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
 | `hub_fp8 merge` without `--gptq` | Nothing changes | Nothing |
+| An FP8 server (12B FP8, 31B, a tuned FP8 repository) with no flag | Emulated casts on; the serving-stack fingerprint changes, so every certificate made on 0.32.0 or earlier is suspended (`serving_stack_changed`); answers can differ in the last digits | Certify again; `--emulate-precision-casts off` keeps the earlier arithmetic; clear vLLM's `torch_compile_cache` once |
+| An FP8 server started with `TORCHINDUCTOR_EMULATE_PRECISION_CASTS=0` in the environment | Refused at start with the reason | Unset the variable, or pass `--emulate-precision-casts off` |
+| A bf16 server | Nothing changes | Nothing |
 | A checkpoint made with `--gptq` (new) | Same format and speed; some codes differ from round to nearest | Check its answers on a card before relying on it |
 
 ## 0.32.0: projections can stay in bf16 inside an FP8 checkpoint, and batch-invariant kernels from a flag or a repository's defaults
