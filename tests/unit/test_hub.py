@@ -90,7 +90,7 @@ def args_for(base, **kw):
     return SimpleNamespace(**{**a, **kw})
 
 
-@pytest.mark.parametrize("base", sorted(BASES))
+@pytest.mark.parametrize("base", sorted(hub.REPOSITORIES))
 def test_f1_the_fingerprint_is_what_the_server_always_gave(base):
     assert json.loads(FINGERPRINTS[base]) == hub.profile_of(BASES[base])["prompt"]["fingerprint"]
     fam = BASES[base]
@@ -121,7 +121,7 @@ def test_f1_the_optional_keys_enter_only_when_not_the_default():
     assert "pad_policy" not in json.loads(task_fingerprint(**plain, pad_policy="always"))
 
 
-@pytest.mark.parametrize("base", sorted(BASES))
+@pytest.mark.parametrize("base", sorted(hub.REPOSITORIES))
 def test_t1_the_files_in_hub_are_what_the_profiles_export(base):
     golden = json.loads((HUB / f"decision_config.{base}.json").read_text())
     now = hub.export_decision_config(BASES[base], golden["decisio"], golden["weights"]["quantization"])
@@ -134,7 +134,7 @@ def test_t1_the_files_in_hub_are_what_the_profiles_export(base):
 
 
 def test_t1_the_weights_of_each_repository():
-    w = {b: hub.weights_of(b) for b in BASES}
+    w = {b: hub.weights_of(b) for b in hub.REPOSITORIES}
     assert w["gemma-4-31b"]["modified"] and w["gemma-4-31b"]["dtype"] == "fp8_e4m3"
     assert "nothing was trained" in w["gemma-4-31b"]["method"]
     assert not w["gemma-4-12b"]["modified"] and w["gemma-4-12b"]["dtype"] == "bfloat16"
@@ -226,7 +226,7 @@ def test_r2_a_remote_repository_is_fetched_at_its_revision(tmp_path, monkeypatch
     )
 
 
-@pytest.mark.parametrize("base", sorted(BASES))
+@pytest.mark.parametrize("base", sorted(hub.REPOSITORIES))
 def test_s1_a_repository_is_served_under_its_base(tmp_path, monkeypatch, base):
     d = repo_dir(tmp_path, base)
     a = args_for(str(d))
@@ -280,7 +280,7 @@ def test_s1_refusals(tmp_path):
 
 def test_c1_the_command_line(tmp_path, capsys):
     # each golden is exported for the release that made its repository's revision (the 12B's: 0.11.1)
-    for base in BASES:
+    for base in hub.REPOSITORIES:
         version = json.loads((HUB / f"decision_config.{base}.json").read_text())["decisio"]
         assert hub.main(["export", "--base", base, "--out", str(tmp_path), "--decisio-version", version]) == 0
         assert (tmp_path / f"decision_config.{base}.json").read_text() == (

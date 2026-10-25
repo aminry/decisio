@@ -158,6 +158,26 @@ What changes with FP8:
 - **The context length** follows the same rule as the bf16 12B, with more room for the KV cache: on a 32 GB RTX 5090 at the default share the FP8 12B serves its full 65,536 tokens, where the bf16 12B does not start at 32,768 and starts at 0.95 of the card only at 4,096 ([The context length](#the-context-length)).
 - **MLX does not serve it:** FP8 is vLLM's format, and `--backend mlx` refuses the FP8 base; on a Mac, serve an MLX conversion of the bf16 12B ([Mac with MLX](#mac-with-mlx)).
 
+## The 31B in bf16
+
+`--base gemma-4-31b-bf16` serves Google's `google/gemma-4-31B-it` at its pinned revision as published, in bf16, with no quantization.
+The default 31B (`--base gemma-4-31b`) is the same checkpoint in FP8, stored in a repository of ours or, with `--model google/gemma-4-31B-it`, quantized when it loads; every 31B record in this repository is on FP8.
+
+```bash
+uv run python -m decisio.serve.vllm_engine --base gemma-4-31b-bf16 --gpu-memory-utilization 0.95
+```
+
+- **Only the precision differs.** The prompt, layout, temperatures, multi-question mode and boundary registration are the 31B's; the served name is `decisio-gemma-4-31b-it-bf16-letters`, and the base's key is in the task and serving-stack fingerprints, so a task or certificate made on the FP8 31B is not applied to it.
+  The temperatures were fitted on the FP8 31B's reads and are not refitted on bf16.
+- **It is chosen with `--base` only.** A 31B checkpoint without `--base` is still the default 31B, quantized to FP8 on load, and `--base gemma-4-31b-bf16` with a checkpoint that declares FP8 weights is refused naming `gemma-4-31b`.
+- **Adapters and `--default-adapter` are the same code as on the FP8 31B** (the adapter is applied to the bf16 weights at run time; not run on a card with this base); a tuned repository is made on the FP8 31B or the 12B, not on this base, and the flavors are not offered for it.
+- **Memory.** The weights take 57.91 GiB.
+  On one 96 GB card with vLLM 0.30.0 they left 20.24 GiB of KV cache at the 0.90 share, one 32,768-token request needed 27.51 GiB, and vLLM put the most that fits at 24,096 tokens (`EVAL_CARD.md` section 7.5), which is why the default 31B is FP8.
+  On that record a 96 GB card does not start at the default share; a larger card does, and the server serves the largest length that fits up to the ceiling, 65,536.
+  That is not measured on this release: read `/health` (`max_model_len`, `max_model_len_source`) for what a server chose, and give `--max-model-len` and `--gpu-memory-utilization` to fix them ([The context length](#the-context-length)).
+- **Not measured at bf16:** accuracy, calibration and latency. The FP8 31B's records do not carry over by assumption; compare before relying on one.
+- It is the vLLM server only (`--backend mlx` is refused).
+
 ## Shipping a tuned model
 
 A model made by merging a LoRA adapter into the Gemma 4 31B (stored in FP8) or the Gemma 4 12B (stored in bf16 as `gemma-4-12b`, or in FP8 as `gemma-4-12b-fp8`) is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
@@ -528,6 +548,7 @@ Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest 
 | `gemma-4-12b` | the largest that fits the card, 32,768 to 65,536 | 65,536 |
 | `gemma-4-12b-fp8` | the largest that fits the card, 32,768 to 65,536 (65,536 on a 32 GB card: below) | 65,536 |
 | `gemma-4-31b` | the largest that fits the card, 32,768 to 98,304 | 98,304 |
+| `gemma-4-31b-bf16` | the largest that fits the card, 32,768 to 65,536 (a 96 GB card did not start at the default share: [The 31B in bf16](#the-31b-in-bf16)) | 65,536 |
 
 **How the length is chosen.** At start-up the server asks vLLM for the longest single request that fits the card (`max_model_len=-1`: vLLM profiles the card, takes the KV cache memory it reports and searches the longest length that fits), then serves the largest multiple of 8,192 not above that and not above the ceiling. It is one start of the engine, not a trial. If even 32,768 does not fit, the start fails with a message that names the length that fits, as a fixed 32,768 failed before.
 `/health` reports the length in force as `max_model_len`, why as `max_model_len_source` (for example "auto: fits 81,920 of 98,304 on this card"), and the ceiling as `max_model_len_ceiling`; a prompt over it is answered 422 as before.
