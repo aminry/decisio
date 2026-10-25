@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.31.0](https://github.com/aminry/decisio/compare/v0.30.0...v0.31.0) (2026-10-25)
+
+
+### Features
+
+* **hub:** a tuned repository can be a flavor of the model ([#335](https://github.com/aminry/decisio/issues/335)) ([19fb70a](https://github.com/aminry/decisio/commit/19fb70a08f05459ad8db2a8a01a4c7dfab4ecc7f))
+* **hub:** the adapter's repository name is optional in a tuned repository's file ([#337](https://github.com/aminry/decisio/issues/337)) ([fc810a3](https://github.com/aminry/decisio/commit/fc810a3f45866665017c1e29df3da5e1a4fea4f2))
+
 ## [0.30.0](https://github.com/aminry/decisio/compare/v0.29.0...v0.30.0) (2026-10-25)
 
 
