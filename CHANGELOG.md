@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.30.0](https://github.com/aminry/decisio/compare/v0.29.0...v0.30.0) (2026-10-25)
+
+
+### Features
+
+* **serve:** --base gemma-4-31b-bf16, the 31B served in bf16 without quantization ([#333](https://github.com/aminry/decisio/issues/333)) ([0b0326b](https://github.com/aminry/decisio/commit/0b0326be7e6a17a36d7899e51e7103259855d7f6))
+
 ## [0.29.0](https://github.com/aminry/decisio/compare/v0.28.1...v0.29.0) (2026-10-25)
 
 
