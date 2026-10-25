@@ -144,6 +144,7 @@ class Gptq:
     blocksize: int = 128
     max_tokens: int = 6000
     limit: int | None = None
+    holdout: int = 0
 
 
 @dataclass(frozen=True)
@@ -606,6 +607,7 @@ def run_gptq(src, deltas, scale, device, keep, spec: Gptq, progress=None):
         blocksize=spec.blocksize,
         damp=spec.damp,
         progress=progress,
+        holdout=spec.holdout,
     )
     rtn = sum(r["info"]["error_rtn"] for r in results.values())
     comp = sum(r["info"]["error_gptq"] for r in results.values())
@@ -620,6 +622,10 @@ def run_gptq(src, deltas, scale, device, keep, spec: Gptq, progress=None):
         "output_error_round_to_nearest": rtn,
         "output_error_compensated": comp,
     }
+    if spec.holdout:
+        report["heldout_requests"] = spec.holdout
+        report["heldout_error_round_to_nearest"] = sum(r["info"]["heldout_error_rtn"] for r in results.values())
+        report["heldout_error_compensated"] = sum(r["info"]["heldout_error_gptq"] for r in results.values())
     return results, report
 
 
@@ -856,6 +862,13 @@ def main(argv=None) -> int:
     mg.add_argument("--gptq-max-tokens", type=int, default=6000, help="calibration requests longer are left out")
     mg.add_argument("--gptq-limit", type=int, help="use only the first N calibration requests")
     mg.add_argument(
+        "--gptq-holdout",
+        type=int,
+        default=0,
+        help="keep the last N of the calibration requests out of the Hessians and report both roundings' error on "
+        "them (a check that the compensation carries over to requests it did not see); 0 = none",
+    )
+    mg.add_argument(
         "--seed", type=int, default=0, help="the stochastic rounding of the --keep-bf16 tensors (default 0)"
     )
     cp = sub.add_parser("compare", help="the modules at which two fingerprint files differ")
@@ -886,7 +899,9 @@ def main(argv=None) -> int:
             seed=a.seed,
             overwrite=a.overwrite,
             gptq=(
-                Gptq(Path(a.gptq), a.gptq_damp, a.gptq_blocksize, a.gptq_max_tokens, a.gptq_limit) if a.gptq else None
+                Gptq(Path(a.gptq), a.gptq_damp, a.gptq_blocksize, a.gptq_max_tokens, a.gptq_limit, a.gptq_holdout)
+                if a.gptq
+                else None
             ),
         )
         differ = meta["written_vs_loaded_differ"]

@@ -8,6 +8,19 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.33.0: error-compensating rounding for the FP8 merge
+
+### What changed
+
+- **`hub_fp8 merge --gptq CALIBRATION`** rounds the merged weights to FP8 with the rounding error of each column carried into the columns after it, using the layer-input statistics of a calibration file ([running.md](running.md#shipping-a-tuned-model)). The stored format, the scales and the load path are unchanged; only some codes move one step. The report and the tuned record say that it was used. Without the flag the output is what it was.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `hub_fp8 merge` without `--gptq` | Nothing changes | Nothing |
+| A checkpoint made with `--gptq` (new) | Same format and speed; some codes differ from round to nearest | Check its answers on a card before relying on it |
+
 ## 0.32.0: projections can stay in bf16 inside an FP8 checkpoint, and batch-invariant kernels from a flag or a repository's defaults
 
 ### What changed

@@ -11,6 +11,7 @@ I3  the report: MERGE_FP8.json carries the method, settings, the calibration fil
     record (hub.merge_facts) carries the method, settings and digest, not the counts
 I4  refusals: a null merge, a calibration that renders to nothing
 I5  the command line takes the flags
+I6  --gptq-holdout leaves the last requests out of the Hessians and the report gives both roundings' error on them
 
   uv run pytest -q tests/unit/test_hub_fp8_gptq.py
 """
@@ -133,3 +134,13 @@ def test_i5_the_command_line(setup, tmp_path, capsys):
     )
     assert rc == 0 and "identical" in capsys.readouterr().out
     assert json.loads((tmp_path / "o" / "MERGE_FP8.json").read_text())["gptq"]["blocksize"] == 32
+
+
+def test_i6_holdout_reports_the_error_on_requests_the_hessians_did_not_see(setup, tmp_path):
+    d, calib, ad, _ = setup
+    meta = hub_fp8.merge(d, ad, tmp_path / "ho", gptq=hub_fp8.Gptq(calib, holdout=10))
+    g = meta["gptq"]
+    assert g["requests"] == 40 and g["heldout_requests"] == 10
+    assert g["heldout_error_compensated"] < g["heldout_error_round_to_nearest"]
+    plain = hub_fp8.merge(d, ad, tmp_path / "nh", gptq=hub_fp8.Gptq(calib))["gptq"]
+    assert "heldout_requests" not in plain
