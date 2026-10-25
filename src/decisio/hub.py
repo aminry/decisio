@@ -666,6 +666,17 @@ def merge_facts(report: dict) -> dict:
         "groups": report.get("groups"),
         # projections left in bf16 (`hub_fp8 merge --keep-bf16`): which, and the rounding of those tensors
         **({"kept_bf16": report["kept_bf16"]} if report.get("kept_bf16") else {}),
+        # error-compensating rounding (`hub_fp8 merge --gptq`): the method and its settings and the calibration file's
+        # digest; not the request or token counts, which are details of the calibration data
+        **(
+            {
+                "gptq": {
+                    k: report["gptq"][k] for k in ("method", "damp", "blocksize", "max_tokens", "calibration_sha256")
+                }
+            }
+            if report.get("gptq")
+            else {}
+        ),
     }
 
 
