@@ -8,6 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.32.0: batch-invariant kernels from a flag or a repository's defaults
+
+### What changed
+
+- **`--batch-invariant on|off`** switches vLLM's batch-invariant mode (`VLLM_BATCH_INVARIANT=1`) before the engine starts, and a tuned repository can make it its default (`defaults.batch_invariant`, written by `hub tuned-config --batch-invariant`), so `--base <repository>` runs it with no environment variable ([running.md](running.md#batch-invariance---batch-invariant)).
+  It is recorded in the start line, `/health` and the serving-stack fingerprint, and refused when the environment says the opposite. An older decisio refuses a repository that carries the key.
+  Off, nothing changes.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A server with no flag and a repository without the key | Nothing changes | Nothing |
+| `--batch-invariant on`, or a repository that asks for it | Other kernels: about 1.03 times a single read on FP8, 1.6 times on bf16; the answers are not those of the other kernels; certificates made without it are suspended | Measure on your model; certify again |
+
 ## 0.31.0: a tuned repository can be a flavor, and can leave the adapter's repository name out
 
 ### What changed

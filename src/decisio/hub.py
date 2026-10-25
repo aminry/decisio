@@ -53,6 +53,8 @@ two more.
                 prompt layout it was trained and measured on, which a server serves; none recorded means plain),
                 read_twice_under and read_twice_max_questions (optional: a request read once in at most that many
                 counted input tokens, and with at most that many questions, is read twice; decisio.readout.letters)
+                and batch_invariant (optional, true only: a server of this repository runs vLLM's batch-invariant
+                kernels, decisio.serve.batch_invariant)
     flavor      optional, with `defaults`: which flavor of the model the repository is (decisio.flavors): name
                 ("calibrated", "commit" or "read-enhanced") and served_name (what the server is called, e.g.
                 "Decisio-12b-tuned-commit"). The flavor must agree with `defaults` (calibrated: no commit rule and no
@@ -487,6 +489,7 @@ def check_defaults(defaults) -> None:
         "think_temperatures",
         "read_twice_under",
         "read_twice_max_questions",
+        "batch_invariant",
     }
     unknown = sorted(set(defaults) - allowed)
     if unknown:
@@ -514,6 +517,8 @@ def check_defaults(defaults) -> None:
         raise ValueError('defaults.over_limit must be "refuse" or "truncate"')
     if defaults["noul_commit"] and not isinstance(defaults.get("noul_commit_basis"), (dict, str)):
         raise ValueError("defaults.noul_commit_basis must say why the commit setting is on (with the figures)")
+    if "batch_invariant" in defaults and defaults["batch_invariant"] is not True:
+        raise ValueError("defaults.batch_invariant must be true (leave it out for the server's own setting)")
     for key in ("read_twice_under", "read_twice_max_questions"):
         v = defaults.get(key)
         if key in defaults and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
@@ -656,6 +661,7 @@ def tuned_config(
     flavor: dict | None = None,
     read_twice_under: int | None = None,
     read_twice_max_questions: int | None = None,
+    batch_invariant: bool = False,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
@@ -683,6 +689,7 @@ def tuned_config(
         **({"think_temperatures": think_temperatures} if think_temperatures else {}),
         **({"read_twice_under": read_twice_under} if read_twice_under else {}),
         **({"read_twice_max_questions": read_twice_max_questions} if read_twice_max_questions else {}),
+        **({"batch_invariant": True} if batch_invariant else {}),
     }
     if flavor is not None:
         config["flavor"] = flavor
@@ -809,6 +816,12 @@ def main(argv=None) -> int:
         help="a request read once in at most this many counted input tokens is read twice",
     )
     tc.add_argument("--read-twice-max-questions", type=int, help="and with at most this many questions (0: no cap)")
+    tc.add_argument(
+        "--batch-invariant",
+        action="store_true",
+        help="a server of this repository runs vLLM's batch-invariant kernels (defaults.batch_invariant); an older "
+        "decisio refuses such a repository",
+    )
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
     tc.add_argument(
         "--adapter-repository",
@@ -900,6 +913,7 @@ def main(argv=None) -> int:
                 flavor=({"name": a.flavor, "served_name": a.served_name} if a.flavor or a.served_name else None),
                 read_twice_under=a.read_twice_under,
                 read_twice_max_questions=a.read_twice_max_questions,
+                batch_invariant=a.batch_invariant,
                 think=(
                     {"factor": a.think_factor, **({"budget": a.think_budget} if a.think_budget else {})}
                     if a.think_factor is not None

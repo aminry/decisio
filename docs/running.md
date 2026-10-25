@@ -706,6 +706,20 @@ The serving-stack fingerprint of [a certificate](tasks.md#where-it-stops) holds 
 A server with no adapter has none of these keys, and its certificates are unchanged.
 A request that names an adapter is never certified, and a question that a registered task matches is refused with an adapter, as [api.md](api.md) says.
 
+## Batch invariance (`--batch-invariant`)
+
+vLLM 0.31.0 has a mode, `VLLM_BATCH_INVARIANT=1`, in which every row is computed with kernels whose result does not depend on what else is in the batch.
+Without it a request's probabilities can differ in the last digits, and sometimes in more, with the traffic around it, with whether its state came from the prefix cache, and (for an adapter applied at run time) from one pass to the next.
+A board, or a user, runs only `--base <repository>` and sets no environment variable, so decisio can switch the mode itself:
+
+- **`--batch-invariant on|off`** is the server's setting. Without it a tuned repository's `defaults.batch_invariant` (true or absent) decides; without that it is off. The flag beats the repository.
+- **`python -m decisio.hub tuned-config --batch-invariant`** writes the repository's default. A server of that repository runs the mode with no flag and no environment variable. An older decisio refuses such a repository (its `defaults` carry a key it does not know).
+- **It is set before the engine starts** (`VLLM_BATCH_INVARIANT=1` in the server's environment, which an engine process inherits). A variable already in the environment that says the opposite of the flag or the repository (`0` against `on`, `1` against `off`) is refused at start; a variable alone (`1`) turns the mode on and is recorded as the environment's. Only the vLLM server has the mode (`--backend mlx` and the CPU stand-in refuse `on`).
+- **It is recorded.** The start prints `BATCH INVARIANT on (the repository's defaults); vLLM reads it as on`, `/health` carries `systemone.batch_invariant` (`on`, `source`, and `confirmed`, what the vLLM in the server's process reads), and the serving-stack fingerprint holds it only when on, so a certificate made without it is suspended and the fingerprint of every server without it is what it was.
+- **The answers are not the other kernels' answers.** The mode changes the arithmetic, so an answer it gives can differ from the same request on a server without it (on the 31B, 44 of 1,088 travel choices moved); compare on the model you serve, and do not read a record made without it as a record of the mode.
+- **What it costs, measured** (vLLM 0.31.0, one RTX 5090, the 12B; `runs/` of the throughput study): a single read 1.03 times on FP8 (1.12 times at a batch of 16), 1.21 times with an adapter applied at run time on FP8, 1.60 times on bf16, and thinking 3.5 times. On the 31B a new 1,000-token question cost 1.19 times.
+- **What it guarantees, measured:** a request read alone twice, in any batch of up to 16 reads of 450 tokens, and from the prefix cache against computed from scratch, gives the same bits on bf16; on FP8 the same for single-question requests, not for long states that need the prefill split across engine steps (chunked prefill breaks it on both). The mode forces Triton attention for Gemma 4. **Not measured:** two fresh starts of the same server under the mode.
+
 ## Ollama
 
 ```bash
