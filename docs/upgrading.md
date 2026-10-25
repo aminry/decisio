@@ -13,6 +13,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 ### What changed
 
 - **`hub_fp8 convert|merge --keep-bf16 SPEC`** leaves whole layers, a projection in every layer, or single groups in bf16 inside the FP8 checkpoint ([running.md](running.md#shipping-a-tuned-model)); the merge rounds those tensors once, stochastically, from the fp32 merge. Without the flag the output is what it was.
+- **`hub_fp8 convert|merge` and `hub_bf16 merge` refuse an `--out` that already holds files** unless `--overwrite` is given, because vLLM's compiled-graph cache is keyed by the checkpoint's path and a checkpoint rewritten in place can crash or run a stale graph ([running.md](running.md#shipping-a-tuned-model)).
 
 ### Who is affected
 
@@ -20,6 +21,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- |
 | `hub_fp8` without `--keep-bf16` | Nothing changes | Nothing |
 | A checkpoint made with `--keep-bf16` (new) | Its config lists the kept modules in `ignore`; needs a vLLM that honours the list per layer (not measured by this release) | Check on a card before relying on it |
+| A script that writes a conversion or merge into a folder that already has files | Refused with the reason | Use a new folder per checkpoint, or add `--overwrite` and clear vLLM's compile cache |
+
 
 ## 0.31.0: a tuned repository can be a flavor, and can leave the adapter's repository name out
 
