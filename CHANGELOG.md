@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.28.0](https://github.com/aminry/decisio/compare/v0.27.1...v0.28.0) (2026-10-25)
+
+
+### Features
+
+* **serve:** --default-adapter, a loaded adapter that answers requests naming none ([7f5d58f](https://github.com/aminry/decisio/commit/7f5d58fa0e45afa7e9f8e19d73f350220e0c465d))
+* **serve:** the 12B calibrated and commit flavors start, with their calibrated temperatures ([7392595](https://github.com/aminry/decisio/commit/73925950f6d9ae184bd5816db1c432b6a95d6b05))
+* **serve:** the commit flavor replaces thinking-commit ([cf8202a](https://github.com/aminry/decisio/commit/cf8202a9a17b2be1239a08ae05a9319e0928e57b))
+
 ## [0.27.1](https://github.com/aminry/decisio/compare/v0.27.0...v0.27.1) (2026-10-24)
 
 
