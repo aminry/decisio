@@ -287,6 +287,10 @@ python -m decisio.serve.adapter_temperatures fit --reads layout_reads.jsonl.gz -
 python -m decisio.serve.vllm_engine --base gemma-4-12b --layout header --temperatures-file temps_header.json ...
 ```
 
+**`--debug-readout` is for reads and diagnostics.**
+A server started with it computes the raw readout of every question for the response, which costs about 130 ms more per single-question request (a 12B on an RTX PRO 6000: 88 ms without, 221 ms with), so it is not a server to measure latency on or to serve production traffic from.
+Take the reads on one server, and the latency on another started without it.
+
 `--temperatures-file` sets the base's temperatures per type and its choice bands from a `decisio.adapter/1` file (precedence: a `--temperature-<type>` flag, the file, a tuned repository's defaults, the base's profile; `--temperature-choice` is one number for every choice question and drops the file's bands). The values are in the serving-stack fingerprint, `/health` carries the file and its sha256 (`systemone.temperatures_file`) and the start prints a `TEMPERATURES FILE` line. Fit on items that are not a benchmark's (the fit tool's rule, above). A temperature never moves the top answer; it moves the calibration. The served defaults stay as they are until a measurement under the layout says otherwise.
 
 **A base's profile can carry more than two numbers.**

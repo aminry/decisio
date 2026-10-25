@@ -2432,7 +2432,8 @@ def build_parser():
     ap.add_argument(
         "--debug-readout",
         action="store_true",
-        help="honour the x-decisio-debug header (the raw readout in the response; verification only)",
+        help="honour the x-decisio-debug header (the raw readout in the response; for reads and diagnostics, not for "
+        "latency measurement or production: about 130 ms more per single-question request on a 12B)",
     )
     ap.add_argument(
         "--one-engine",
