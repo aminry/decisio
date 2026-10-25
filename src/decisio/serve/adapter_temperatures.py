@@ -67,6 +67,7 @@ import argparse
 import gzip
 import json
 import math
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -423,13 +424,27 @@ def _rows(paths):
                     yield json.loads(line)
 
 
+def record_layout(doc: dict, layout: str | None) -> None:
+    """Write the layout the reads were taken under into the file, or say loudly that none is recorded: a server then
+    serves the adapter's file as plain-trained (and holds a header-default base at plain) whatever the reads were."""
+    if layout:
+        doc["layout"] = layout
+        return
+    print(
+        "WARNING: no --layout given, so the file records no layout. A server that loads this adapter treats it as "
+        "trained on the plain layout and holds a header-default base (Gemma) at plain unless it is started with "
+        "--layout. Rerun with --layout header (or --layout plain) to record the layout the reads were taken under.",
+        file=sys.stderr,
+    )
+
+
 def layout_arg(parser):
     parser.add_argument(
         "--layout",
         choices=("plain", "header"),
         default=None,
         help="the prompt layout the reads were taken under, and the model was trained on: recorded in the file, and a "
-        "server that loads this adapter serves that layout (none recorded: plain; docs/running.md)",
+        "server that loads this adapter serves that layout (none recorded: plain, and a warning here; docs/running.md)",
     )
 
 
@@ -551,8 +566,7 @@ def main(argv=None):
             bands=a.bands,
             min_band_items=a.min_band_items,
         )
-        if a.layout:
-            doc["layout"] = a.layout
+        record_layout(doc, a.layout)
         Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
         print(
             json.dumps(
@@ -573,8 +587,7 @@ def main(argv=None):
         a.bands,
         a.min_band_items,
     )
-    if a.layout:
-        doc["layout"] = a.layout
+    record_layout(doc, a.layout)
     Path(a.out).write_text(json.dumps(doc, indent=1) + "\n")
     print(json.dumps(doc, indent=1))
     return 0

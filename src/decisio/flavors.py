@@ -90,14 +90,16 @@ READ_TWICE_N = 2000
 # The calibrated temperatures of the flavors, per base: yes/no and score (choice keeps the base's own).
 # Fitted by minimum log loss on the engine's readouts read under the header layout, and judged on calibration by
 # question type, not on any scoring rule. Yes/no: a private 1,400-item suite, 5-fold cross-validation stratified by task
-# (out of fold, the 12B's log loss goes 0.3225 -> 0.3062 and ECE 0.064 -> 0.058). Score: a private natural calibration
-# split and a 500-item development set (the suite has no score questions). Choice did not move: 3.52 fitted against the
-# base's 3.592, flat out of fold, and the suite does not support option-count bands.
+# (out of fold, the 12B's log loss goes 0.3225 -> 0.3062 and ECE 0.064 -> 0.058); each precision on its own readouts,
+# and only on items that share no text with a public benchmark's test set (599 of the suite's 600 yes/no items).
+# Score: a private natural calibration split and a 500-item development set that share none either (the suite has no
+# score questions). Choice did not move: 3.52 fitted against the base's 3.592, flat out of fold, and the suite does not
+# support option-count bands.
 # A base with no entry has not been read yet: its `calibrated` and `commit` refuse to start (the 31B waits for its own
 # read of the suite).
 CALIBRATED = {
-    "gemma-4-12b": {"noul": 4.83, "score": 7.85},
-    "gemma-4-12b-fp8": {"noul": 4.83, "score": 7.85},
+    "gemma-4-12b": {"noul": 4.84, "score": 7.85},
+    "gemma-4-12b-fp8": {"noul": 4.72, "score": 7.85},
 }
 NOT_FITTED = (
     "the calibrated temperatures are not fitted yet: they wait for the 1,400-item suite read under the header on this "
