@@ -235,6 +235,22 @@ def kept_report(keep: Keep, kept, seed: int | None = None) -> dict | None:
     }
 
 
+def check_output_folder(out, overwrite: bool = False) -> Path:
+    """The folder a conversion or merge writes into. A folder that already holds files is refused unless `overwrite`:
+    vLLM keys its compiled-graph cache by the checkpoint's path, so a checkpoint rewritten in place with another layout
+    (other kept projections, another merge) reuses the old compiled graph, which can crash in the first forward pass or,
+    if the argument counts agree, run the wrong graph. A new folder per checkpoint avoids it; after an overwrite, clear
+    the compile cache (`VLLM_CACHE_ROOT`'s torch_compile_cache and /tmp/torchinductor_*) before serving it."""
+    out = Path(out)
+    if not overwrite and out.is_dir() and any(out.iterdir()):
+        raise ValueError(
+            f"{out} is not empty: write a checkpoint into a folder of its own, because vLLM's compiled-graph cache is "
+            "keyed by the folder's path and a checkpoint rewritten in place can crash or run a stale graph; or give "
+            "--overwrite, and clear vLLM's compile cache before serving it"
+        )
+    return out
+
+
 def scale_of(amax: torch.Tensor) -> torch.Tensor:
     """float32(amax) / 448, a true division as vLLM's `_fp8_scale` does."""
     return amax.to(torch.float32).reshape(1) / torch.tensor(FP8_MAX, dtype=torch.float32)
@@ -393,9 +409,12 @@ def convert(
     shard_bytes: int = 4 << 30,
     progress=None,
     keep: Keep | None = None,
+    overwrite: bool = False,
 ) -> dict:
     """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) to `out`; the report of what was done and what
-    loading it would change. `keep`: groups left in bf16 as the source has them (`--keep-bf16`)."""
+    loading it would change. `keep`: groups left in bf16 as the source has them (`--keep-bf16`). `out` must be a new or
+    empty folder unless `overwrite` (check_output_folder)."""
+    check_output_folder(out, overwrite)
     src = Source(source)
     every = find_groups(src.map, src.k_eq_v())
     if not every:
@@ -562,18 +581,20 @@ def merge(
     progress=None,
     keep: Keep | None = None,
     seed: int = 0,
+    overwrite: bool = False,
 ) -> dict:
     """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) with the LoRA adapter in `adapter` merged in
     fp32 and quantized once; the report (`MERGE_FP8.json`). Raises ValueError if an adapter pair finds no quantized
     tensor. `keep`: groups left in bf16 (`--keep-bf16`); their tensors are the same fp32 merge, rounded once to bf16
     stochastically with `seed` as `decisio.hub_bf16 merge` does (round to nearest would give back most of the
-    adapter's change in them).
+    adapter's change in them). `out` must be a new or empty folder unless `overwrite` (check_output_folder).
 
     A full-attention layer with `attention_k_eq_v` ships no `v_proj` (V is K), so an adapter's `v_proj` pair there has
     no tensor to merge into, and a checkpoint of this layout cannot hold a V that differs from K. Where each such pair
     is bit for bit the layer's `k_proj` pair (the trainer's export copies it), merging the `k_proj` delta already gives
     V that delta, so the copy is left out and the report counts it (`dropped_k_eq_v_pairs`): nothing of the adapter is
     lost. A pair that differs from its layer's `k_proj` pair is an error: it asks for a V that differs from K."""
+    check_output_folder(out, overwrite)
     src = Source(source)
     deltas, scale, sha, layout, orphans = load_adapter(adapter, src.map)
     differ = {n: d for n, ab in orphans.items() if (d := k_copy_difference(n, ab, deltas)) is not None}
@@ -727,6 +748,11 @@ def main(argv=None) -> int:
         "group:layers.3.mlp.down_proj; a fused group (qkv_proj, gate_up_proj) is kept whole"
     )
     cv.add_argument("--keep-bf16", action="append", default=[], metavar="SPEC", help=keep_help)
+    overwrite_help = (
+        "write into a folder that already holds files (refused otherwise: vLLM's compiled-graph cache is keyed by the "
+        "path, so clear it before serving a rewritten checkpoint)"
+    )
+    cv.add_argument("--overwrite", action="store_true", help=overwrite_help)
     ex = sub.add_parser("expected", help="the fingerprints the engine should hold")
     ex.add_argument("--source", help="a bf16 directory: after quantizing on load")
     ex.add_argument("--checkpoint", help="a converted directory: after loading it")
@@ -742,6 +768,7 @@ def main(argv=None) -> int:
         "--null", action="store_true", help="merge an adapter of scale 0: must equal `convert` byte for byte"
     )
     mg.add_argument("--keep-bf16", action="append", default=[], metavar="SPEC", help=keep_help)
+    mg.add_argument("--overwrite", action="store_true", help=overwrite_help)
     mg.add_argument(
         "--seed", type=int, default=0, help="the stochastic rounding of the --keep-bf16 tensors (default 0)"
     )
@@ -756,6 +783,7 @@ def main(argv=None) -> int:
             a.scheme,
             progress=lambda m: print(m, flush=True),
             keep=parse_keep(a.keep_bf16),
+            overwrite=a.overwrite,
         )
         changed, smallest = r["loader_changed_elements"], r["smallest_amax"]
         print(f"{r['tensors']} tensors; the loader would change {changed} weights; smallest amax {smallest:.4g}")
@@ -770,6 +798,7 @@ def main(argv=None) -> int:
             progress=lambda m: print(m, flush=True),
             keep=parse_keep(a.keep_bf16),
             seed=a.seed,
+            overwrite=a.overwrite,
         )
         differ = meta["written_vs_loaded_differ"]
         print(

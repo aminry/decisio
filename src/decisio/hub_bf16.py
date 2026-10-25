@@ -39,6 +39,7 @@ from decisio.hub_fp8 import (
     WEIGHTS,
     Source,
     Writer,
+    check_output_folder,
     k_copy_difference,
     load_adapter,
     merged32,
@@ -70,9 +71,12 @@ def merge(
     null: bool = False,
     shard_bytes: int = 4 << 30,
     progress=None,
+    overwrite: bool = False,
 ) -> dict:
     """Write the bf16 checkpoint of `source` with the adapter merged in fp32 and rounded once, stochastically; the
-    report (`MERGE_BF16.json`). Raises ValueError if an adapter pair finds no tensor."""
+    report (`MERGE_BF16.json`). Raises ValueError if an adapter pair finds no tensor. `out` must be a new or empty
+    folder unless `overwrite` (hub_fp8.check_output_folder)."""
+    check_output_folder(out, overwrite)
     src = Source(source)
     deltas, scale, sha, layout, orphans = load_adapter(adapter, src.map)
     differ = {n: d for n, ab in orphans.items() if (d := k_copy_difference(n, ab, deltas)) is not None}
@@ -157,9 +161,22 @@ def main(argv=None) -> int:
     mg.add_argument(
         "--null", action="store_true", help="merge an adapter of scale 0: must equal the source byte for byte"
     )
+    mg.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="write into a folder that already holds files (refused otherwise: vLLM's compiled-graph cache is keyed by "
+        "the path, so clear it before serving a rewritten checkpoint)",
+    )
     a = ap.parse_args(argv)
     meta = merge(
-        Path(a.source), Path(a.adapter), Path(a.out), a.seed, a.device, a.null, progress=lambda m: print(m, flush=True)
+        Path(a.source),
+        Path(a.adapter),
+        Path(a.out),
+        a.seed,
+        a.device,
+        a.null,
+        progress=lambda m: print(m, flush=True),
+        overwrite=a.overwrite,
     )
     kept = meta["weight_space_effect_kept"]
     print(
