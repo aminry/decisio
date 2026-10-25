@@ -102,8 +102,13 @@ def test_k3_convert_leaves_the_kept_tensors_as_the_source_has_them(tmp_path, sch
         "mlp.up_proj",
         "mlp.down_proj",
     ):
-        assert f"{L}.1.{name}" in ignore  # v_proj of layer 1 included: the fused layer is all-or-none for the loader
-    assert f"{L}.0.mlp.down_proj" in ignore and f"{L}.0.self_attn.q_proj" not in ignore
+        assert rf"re:.*layers\.1\.{name.replace('.', chr(92) + '.')}$" in ignore  # v_proj of layer 1 too: all-or-none
+    assert r"re:.*layers\.0\.mlp\.down_proj$" in ignore and r"re:.*layers\.0\.self_attn\.q_proj$" not in ignore
+    import re
+
+    names = [f"{L}.1.self_attn.v_proj", f"{L}.0.mlp.down_proj"]  # a pattern matches the checkpoint's own module names
+    assert all(any(re.match(p[3:], n) for p in ignore if p.startswith("re:")) for n in names)
+    assert not any(re.match(p[3:], f"{L}.0.self_attn.q_proj") for p in ignore if p.startswith("re:"))
     assert "re:.*vision_tower.*" in ignore  # the base list stays
     assert report["kept_bf16"]["groups"] == [
         "layers.1.self_attn.qkv_proj",

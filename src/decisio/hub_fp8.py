@@ -212,13 +212,13 @@ def kept_groups(groups, keep: Keep) -> list:
 
 
 def ignored_modules(kept) -> list[str]:
-    """The module names to add to the quantization config's ignore list for the kept groups: every shard of a fused
-    group, and v_proj where the layer has none (attention_k_eq_v) so the fused layer is all-or-none for vLLM."""
+    """The entries to add to the quantization config's ignore list for the kept groups: a pattern per shard of a fused
+    group, and for v_proj where the layer has none (attention_k_eq_v), so the fused layer is all-or-none for vLLM.
+    Patterns (`re:`), not full names, so that the engine's own module prefix does not matter (as the base list does)."""
     out = []
     for g in kept:
-        m = PROJ.match(g.names[0])
-        members = MEMBERS[GROUP_KEY.match(g.key)["name"]]
-        out += [f"{m['layer']}.{m['mod']}.{p}" for p in members]
+        m = GROUP_KEY.match(g.key)
+        out += [f"re:.*layers\\.{m['idx']}\\.{m['mod']}\\.{p}$" for p in MEMBERS[m["name"]]]
     return out
 
 
