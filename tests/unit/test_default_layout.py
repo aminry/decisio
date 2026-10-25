@@ -346,7 +346,7 @@ def test_d4_an_adapter_file_records_its_layout(tmp_path):
         AT.read(p)
 
 
-def test_d4_the_fit_tool_records_the_layout_it_was_given(tmp_path):
+def test_d4_the_fit_tool_records_the_layout_it_was_given(tmp_path, capsys):
     reads = tmp_path / "reads.jsonl"
     reads.write_text(
         "\n".join(json.dumps({"type": "choice", "probs": [0.7, 0.2, 0.1], "gold": i % 3}) for i in range(60))
@@ -356,8 +356,10 @@ def test_d4_the_fit_tool_records_the_layout_it_was_given(tmp_path):
         AT.main(["fit", "--reads", str(reads), "--out", str(out), "--layout", "header", "--choice-bands", "none"]) == 0
     )
     assert json.loads(out.read_text())["layout"] == "header" and AT.read(out)["layout"] == "header"
+    assert "no --layout given" not in capsys.readouterr().err
     assert AT.main(["fit", "--reads", str(reads), "--out", str(out), "--choice-bands", "none"]) == 0
     assert "layout" not in json.loads(out.read_text())  # nothing said, nothing recorded
+    assert "no --layout given" in capsys.readouterr().err  # and the tool says so
 
 
 # ---- D5 -------------------------------------------------------------------------------------------------------------
