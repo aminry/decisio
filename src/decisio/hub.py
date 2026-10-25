@@ -236,7 +236,8 @@ def weights_of_tuned(base: str, quantization: str | None = None, external: dict 
             "dtype": "fp8_e4m3",
             "quantization": quantization or "compressed-tensors",
             "method": (
-                f"a LoRA adapter merged (in {external['precision']}) and the checkpoint quantized to FP8 "
+                f"a LoRA adapter merged into the base (the merged weights were held in {external['precision']} when "
+                f"quantized) and the checkpoint quantized to FP8 "
                 f"({external['scheme']}: weights {external['weights']}, activations {external['activations']}) by "
                 f"{external['tool']} {external['tool_version']}, not by decisio's merge; "
                 + ("the modules left in bf16 are listed in `tuned.merge`; " if external.get("bf16_modules") else "")
@@ -685,11 +686,15 @@ NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 def external_facts(form: str, report: dict, base: str) -> dict:
     """The `tuned.merge` section for a checkpoint made by another tool (`tuned-config --external-form TOOL@VERSION`,
-    for example llm-compressor@0.8.1): `report` is a hand-written JSON, adapter_sha256, adapter_scale, merge_precision
-    (fp32, bf16 or fp16), scheme (its name for the quantization, e.g. FP8_DYNAMIC), weights (per-channel, per-tensor or
-    per-group), activations (per-token dynamic, per-tensor dynamic or per-tensor static) and, optionally, bf16_modules
-    (the modules left unquantized). Nothing else is accepted: the record says how the checkpoint was made, never what it
-    was trained or calibrated on. Raises ValueError naming what is wrong."""
+    for example llm-compressor@0.8.1). `report` is a hand-written JSON:
+    adapter_sha256 and adapter_scale (the adapter's);
+    merge_precision: the precision the merged weights held when the tool received them, that is the stored intermediate
+    it quantized (bf16 for a merge written to bf16 first), not the arithmetic of the merge; fp32, bf16 or fp16;
+    scheme: the tool's name for the quantization, for example FP8_DYNAMIC;
+    weights (per-channel, per-tensor or per-group) and activations (per-token dynamic, per-tensor dynamic or per-tensor
+    static); and, optionally, bf16_modules (the modules left unquantized).
+    Nothing else is accepted: the record says how the checkpoint was made, never what it was trained or calibrated on.
+    Raises ValueError naming what is wrong."""
     if base not in ("gemma-4-31b", "gemma-4-12b-fp8"):
         raise ValueError(f"--external-form records an FP8 checkpoint made by another tool; {base} is not an FP8 base")
     tool, sep, version = str(form).partition("@")

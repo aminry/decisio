@@ -49,6 +49,7 @@ def test_x1_the_record_and_the_weights_text():
     assert m["precision"] == "fp32" and m["output"] == "fp8 compressed-tensors" and m["adapter_scale"] == 2.0
     c = build(merge=m)
     text = c["weights"]["method"]
+    assert "the merged weights were held in fp32 when quantized" in text
     assert "llm-compressor 0.8.1" in text and "FP8_DYNAMIC: weights per-channel, activations per-token dynamic" in text
     assert "not by decisio's merge" in text and "modules left in bf16 are listed" in text
     assert c["weights"]["dtype"] == "fp8_e4m3" and c["weights"]["quantized_on_load"] is False
