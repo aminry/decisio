@@ -224,11 +224,27 @@ def profile_of(fam: Family) -> dict:
     }
 
 
-def weights_of_tuned(base: str, quantization: str | None = None) -> dict:
+def weights_of_tuned(base: str, quantization: str | None = None, external: dict | None = None) -> dict:
     """The `weights` section of a tuned model's repository: the base's checkpoint with an adapter merged in (FP8 for
-    the 31B and for gemma-4-12b-fp8, bf16 for gemma-4-12b)."""
+    the 31B and for gemma-4-12b-fp8, bf16 for gemma-4-12b). `external`: the `tuned.merge` record of a checkpoint made by
+    another tool (`external_facts`), whose method is then described from that record and not as decisio's merge."""
     if base not in TUNED_BASES:
         raise ValueError(f"a tuned repository is made for {', '.join(TUNED_BASES)}, not {base}")
+    if external:
+        return {
+            "modified": True,
+            "dtype": "fp8_e4m3",
+            "quantization": quantization or "compressed-tensors",
+            "method": (
+                f"a LoRA adapter merged into the base (the merged weights were held in {external['precision']} when "
+                f"quantized) and the checkpoint quantized to FP8 "
+                f"({external['scheme']}: weights {external['weights']}, activations {external['activations']}) by "
+                f"{external['tool']} {external['tool_version']}, not by decisio's merge; "
+                + ("the modules left in bf16 are listed in `tuned.merge`; " if external.get("bf16_modules") else "")
+                + "the adapter, its revision and the merged files are listed in `tuned`"
+            ),
+            "quantized_on_load": False,
+        }
     if base == "gemma-4-12b":
         return {
             "modified": True,
@@ -411,6 +427,29 @@ def _sha(value, path: str) -> str:
     return value
 
 
+def _check_external(merge: dict, adapter: dict, base_key: str | None) -> None:
+    """`tuned.merge` of a checkpoint made by another tool (`external_facts`): the fields it states, none of decisio's
+    own (the fp32 merge, its counts), whose checks are about decisio's tools."""
+    if base_key not in (None, "gemma-4-31b", "gemma-4-12b-fp8"):
+        raise ValueError(f"tuned.merge is external, but {base_key} is not an FP8 base")
+    rebuilt = external_facts(
+        f"{merge.get('tool')}@{merge.get('tool_version')}",
+        {
+            k: merge.get(k)
+            for k in ("adapter_sha256", "adapter_scale", "scheme", "weights", "activations", "bf16_modules")
+            if merge.get(k) is not None
+        }
+        | {"merge_precision": merge.get("precision")},
+        base_key or "gemma-4-31b",
+    )
+    if rebuilt != merge:
+        raise ValueError("tuned.merge (external) carries fields beyond the ones an external form records")
+    if merge["adapter_sha256"] != adapter["weights_sha256"]:
+        raise ValueError(
+            "tuned.merge.adapter_sha256 is not tuned.adapter.weights_sha256: the merge report is of another adapter"
+        )
+
+
 def check_tuned(tuned, base_key: str | None = None) -> None:
     _need(tuned, "tuned")
     base = _need(tuned.get("base"), "tuned.base")
@@ -425,6 +464,14 @@ def check_tuned(tuned, base_key: str | None = None) -> None:
     if adapter.get("config_sha256") is not None:
         _sha(adapter["config_sha256"], "tuned.adapter.config_sha256")
     merge = _need(tuned.get("merge"), "tuned.merge")
+    if merge.get("external") is True:
+        _check_external(merge, adapter, base_key)
+        files = _need(tuned.get("files"), "tuned.files")
+        if not files:
+            raise ValueError("tuned.files must list the repository's weight files")
+        for name, sha in files.items():
+            _sha(sha, f"tuned.files[{name!r}]")
+        return
     if merge.get("precision") != "fp32":
         raise ValueError(
             "tuned.merge.precision must be 'fp32' (the merge is made in fp32 and quantized once), "
@@ -622,6 +669,76 @@ def merge_facts(report: dict) -> dict:
     }
 
 
+EXTERNAL_KEYS = {
+    "adapter_sha256",
+    "adapter_scale",
+    "merge_precision",
+    "scheme",
+    "weights",
+    "activations",
+    "bf16_modules",
+}
+EXTERNAL_WEIGHTS = ("per-channel", "per-tensor", "per-group")
+EXTERNAL_ACTIVATIONS = ("per-token dynamic", "per-tensor dynamic", "per-tensor static")
+EXTERNAL_PRECISIONS = ("fp32", "bf16", "fp16")
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def external_facts(form: str, report: dict, base: str) -> dict:
+    """The `tuned.merge` section for a checkpoint made by another tool (`tuned-config --external-form TOOL@VERSION`,
+    for example llm-compressor@0.8.1). `report` is a hand-written JSON:
+    adapter_sha256 and adapter_scale (the adapter's);
+    merge_precision: the precision the merged weights held when the tool received them, that is the stored intermediate
+    it quantized (bf16 for a merge written to bf16 first), not the arithmetic of the merge; fp32, bf16 or fp16;
+    scheme: the tool's name for the quantization, for example FP8_DYNAMIC;
+    weights (per-channel, per-tensor or per-group) and activations (per-token dynamic, per-tensor dynamic or per-tensor
+    static); and, optionally, bf16_modules (the modules left unquantized).
+    Nothing else is accepted: the record says how the checkpoint was made, never what it was trained or calibrated on.
+    Raises ValueError naming what is wrong."""
+    if base not in ("gemma-4-31b", "gemma-4-12b-fp8"):
+        raise ValueError(f"--external-form records an FP8 checkpoint made by another tool; {base} is not an FP8 base")
+    tool, sep, version = str(form).partition("@")
+    if not sep or not NAME_RE.match(tool) or not NAME_RE.match(version):
+        raise ValueError(f"--external-form {form!r}: expected TOOL@VERSION, for example llm-compressor@0.8.1")
+    if tool.startswith("decisio"):
+        raise ValueError(
+            "--external-form is for another tool's checkpoints; decisio's own are recorded from its reports"
+        )
+    extra = sorted(set(report) - EXTERNAL_KEYS)
+    if extra:
+        raise ValueError(f"the external merge report has unknown keys {extra}; it takes {sorted(EXTERNAL_KEYS)}")
+    _sha(report.get("adapter_sha256"), "report.adapter_sha256")
+    scale = report.get("adapter_scale")
+    if isinstance(scale, bool) or not isinstance(scale, (int, float)) or not scale > 0:
+        raise ValueError("report.adapter_scale must be a positive number (a merge of scale 0 is not a shipped model)")
+    for key, allowed in (
+        ("merge_precision", EXTERNAL_PRECISIONS),
+        ("weights", EXTERNAL_WEIGHTS),
+        ("activations", EXTERNAL_ACTIVATIONS),
+    ):
+        if report.get(key) not in allowed:
+            raise ValueError(f"report.{key} must be one of {', '.join(allowed)}, got {report.get(key)!r}")
+    scheme = report.get("scheme")
+    if not isinstance(scheme, str) or not NAME_RE.match(scheme):
+        raise ValueError(f"report.scheme must be the tool's name for the scheme (FP8_DYNAMIC), got {scheme!r}")
+    modules = report.get("bf16_modules")
+    if modules is not None and (not isinstance(modules, list) or not all(isinstance(m, str) and m for m in modules)):
+        raise ValueError("report.bf16_modules must be a list of module names or patterns")
+    return {
+        "precision": report["merge_precision"],
+        "output": "fp8 compressed-tensors",
+        "tool": tool,
+        "tool_version": version,
+        "external": True,
+        "scheme": scheme,
+        "weights": report["weights"],
+        "activations": report["activations"],
+        "adapter_sha256": report["adapter_sha256"],
+        "adapter_scale": float(scale),
+        **({"bf16_modules": modules} if modules else {}),
+    }
+
+
 def adapter_facts(directory: Path, repository: str | None, revision: str) -> dict:
     """The `tuned.adapter` section from a PEFT adapter directory (`repository` None: the name is left out)."""
     d = Path(directory)
@@ -669,7 +786,7 @@ def tuned_config(
     Validated before it is returned."""
     config = export_decision_config(fam, decisio_version, quantization)
     config["schema"] = SCHEMA_TUNED
-    config["weights"] = weights_of_tuned(fam.key, quantization)
+    config["weights"] = weights_of_tuned(fam.key, quantization, merge if merge.get("external") else None)
     config["tuned"] = {
         "base": {"repository": fam.model, "revision": fam.revision},
         "adapter": adapter,
@@ -824,6 +941,14 @@ def main(argv=None) -> int:
         help="a server of this repository runs vLLM's batch-invariant kernels (defaults.batch_invariant); an older "
         "decisio refuses such a repository",
     )
+    tc.add_argument(
+        "--external-form",
+        metavar="TOOL@VERSION",
+        help="the checkpoint was made by another tool (for example llm-compressor@0.8.1) and --merge-report is a "
+        "hand-written JSON: adapter_sha256, adapter_scale, merge_precision, scheme (FP8_DYNAMIC), weights "
+        "(per-channel), activations (per-token dynamic), optionally bf16_modules; the record and the weights text say "
+        "how it was made, not that decisio made it. FP8 bases only",
+    )
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
     tc.add_argument(
         "--adapter-repository",
@@ -905,7 +1030,11 @@ def main(argv=None) -> int:
                 noul_commit_basis=basis,
                 fit=fit,
                 adapter=adapter_facts(Path(a.adapter_dir), a.adapter_repository, a.adapter_revision),
-                merge=merge_facts(json.loads(Path(a.merge_report).read_text())),
+                merge=(
+                    external_facts(a.external_form, json.loads(Path(a.merge_report).read_text()), a.base)
+                    if a.external_form
+                    else merge_facts(json.loads(Path(a.merge_report).read_text()))
+                ),
                 files=file_digests(Path(a.weights_dir)),
                 decisio_version=a.decisio_version,
                 quantization=a.quantization,
