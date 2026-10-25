@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/aminry/decisio/compare/v0.28.1...v0.29.0) (2026-10-25)
+
+
+### Features
+
+* **serve:** a header that lists as many of the questions as fit the context ([#329](https://github.com/aminry/decisio/issues/329)) ([23b57e4](https://github.com/aminry/decisio/commit/23b57e4132a30b1a3bedabd63bab09b093dd76b2))
+
 ## [0.28.1](https://github.com/aminry/decisio/compare/v0.28.0...v0.28.1) (2026-10-25)
 
 
