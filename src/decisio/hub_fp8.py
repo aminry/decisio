@@ -30,6 +30,7 @@ with `compare`) say whether that prediction holds on a card.
     python -m decisio.hub_fp8 expected --checkpoint <dir> --out loaded.json     # what loading the checkpoint holds
     python -m decisio.hub_fp8 compare a.json b.json                            # tensors that differ
     python -m decisio.hub_fp8 merge --source <bf16 dir> --adapter <peft dir> --out <dir> [--device cuda] [--null]
+    ... convert|merge --keep-bf16 layers:45-47 --keep-bf16 proj:down_proj,o_proj   # layers kept in bf16 (below)
 
 `merge` makes the FP8 checkpoint of a tuned model: a LoRA adapter merged into the bf16 base in fp32 and quantized ONCE
 (`W + scale * (B @ A)`, no bf16 anywhere between), with the adapter's change inside the amax of each fused group and
@@ -51,7 +52,7 @@ import json
 import re
 import shutil
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import torch
@@ -119,6 +120,119 @@ def find_groups(names, k_eq_v: bool = False) -> list[Group]:
         for single in (s for s in SINGLE if s in projs):
             groups.append(Group(f"layers.{idx}.{mod}.{single}", [projs[single]], [projs[single]]))
     return groups
+
+
+GROUP_KEY = re.compile(
+    r"^layers\.(?P<idx>\d+)\.(?P<mod>self_attn|mlp)\.(?P<name>qkv_proj|gate_up_proj|o_proj|down_proj)$"
+)
+MEMBERS = {
+    "qkv_proj": ("q_proj", "k_proj", "v_proj"),
+    "gate_up_proj": ("gate_proj", "up_proj"),
+    "o_proj": ("o_proj",),
+    "down_proj": ("down_proj",),
+}
+
+
+@dataclass(frozen=True)
+class Keep:
+    """The projections left in bf16 instead of FP8 (`--keep-bf16`): whole layers (`layers:45-47`), a projection in every
+    layer (`proj:down_proj,o_proj`) or one group (`group:layers.3.mlp.down_proj`). A vLLM fused layer (qkv_proj,
+    gate_up_proj) has one scheme, so naming one of its shards keeps the whole group; `extended` says where that
+    happened."""
+
+    layers: frozenset = frozenset()
+    projs: frozenset = frozenset()
+    groups: frozenset = frozenset()
+    specs: tuple = ()
+    extended: list = field(default_factory=list, compare=False)
+
+    def __bool__(self) -> bool:
+        return bool(self.layers or self.projs or self.groups)
+
+    def keeps(self, key: str) -> bool:
+        """Whether the group with this key (layers.N.self_attn.qkv_proj, ...) stays bf16."""
+        m = GROUP_KEY.match(key)
+        if m is None:
+            raise ValueError(f"not a group key: {key!r}")
+        if key in self.groups or int(m["idx"]) in self.layers:
+            return True
+        members = MEMBERS[m["name"]]
+        hit = [p for p in members if p in self.projs or m["name"] in self.projs]
+        if hit and len(members) > 1 and not set(members) <= self.projs and m["name"] not in self.projs:
+            note = f"{key}: {', '.join(hit)} named, so the whole fused group is kept"
+            if note not in self.extended:
+                self.extended.append(note)
+        return bool(hit)
+
+
+def parse_keep(specs) -> Keep:
+    """`--keep-bf16` specs: `layers:45-47` or `layers:3,5`, `proj:down_proj,o_proj` (any of q/k/v/o/gate/up/down_proj,
+    or the fused names qkv_proj and gate_up_proj), `group:layers.3.mlp.down_proj`. Raises ValueError naming the spec."""
+    layers, projs, groups = set(), set(), set()
+    known = {p for ps in MEMBERS.values() for p in ps} | set(MEMBERS)
+    for spec in specs or ():
+        kind, sep, value = str(spec).partition(":")
+        if not sep or not value:
+            raise ValueError(f"--keep-bf16 {spec!r}: expected layers:45-47, proj:down_proj,o_proj or group:<key>")
+        if kind == "layers":
+            for part in value.split(","):
+                lo, dash, hi = part.partition("-")
+                if not lo.isdigit() or (dash and not hi.isdigit()) or (dash and int(hi) < int(lo)):
+                    raise ValueError(f"--keep-bf16 {spec!r}: layers are numbers or ranges like 45-47")
+                layers.update(range(int(lo), int(hi or lo) + 1))
+        elif kind == "proj":
+            bad = [p for p in value.split(",") if p not in known]
+            if bad:
+                raise ValueError(f"--keep-bf16 {spec!r}: {bad[0]!r} is not a projection ({', '.join(sorted(known))})")
+            projs.update(value.split(","))
+        elif kind == "group":
+            if not GROUP_KEY.match(value):
+                raise ValueError(f"--keep-bf16 {spec!r}: {value!r} is not a group key like layers.3.mlp.down_proj")
+            groups.add(value)
+        else:
+            raise ValueError(f"--keep-bf16 {spec!r}: expected layers:, proj: or group:")
+    return Keep(frozenset(layers), frozenset(projs), frozenset(groups), tuple(specs or ()))
+
+
+def kept_groups(groups, keep: Keep) -> list:
+    """The groups of `groups` that `keep` leaves in bf16, refused when it names a layer or group that does not exist."""
+    out = [g for g in groups if keep.keeps(g.key)]
+    have_layers = {int(GROUP_KEY.match(g.key)["idx"]) for g in groups}
+    missing = sorted(keep.layers - have_layers)
+    if missing:
+        raise ValueError(
+            f"--keep-bf16 layers {missing} are not in this checkpoint (layers {min(have_layers)}-{max(have_layers)})"
+        )
+    unknown = sorted(keep.groups - {g.key for g in groups})
+    if unknown:
+        raise ValueError(f"--keep-bf16 group {unknown[0]!r} is not in this checkpoint")
+    if keep and not out:
+        raise ValueError("--keep-bf16 names nothing in this checkpoint")
+    return out
+
+
+def ignored_modules(kept) -> list[str]:
+    """The module names to add to the quantization config's ignore list for the kept groups: every shard of a fused
+    group, and v_proj where the layer has none (attention_k_eq_v) so the fused layer is all-or-none for vLLM."""
+    out = []
+    for g in kept:
+        m = PROJ.match(g.names[0])
+        members = MEMBERS[GROUP_KEY.match(g.key)["name"]]
+        out += [f"{m['layer']}.{m['mod']}.{p}" for p in members]
+    return out
+
+
+def kept_report(keep: Keep, kept, seed: int | None = None) -> dict | None:
+    """What the report says of the bf16 exceptions: the specs, the groups kept (and where a spec was extended to a whole
+    fused group), and for a merge the rounding of the kept tensors; None when nothing is kept."""
+    if not kept:
+        return None
+    return {
+        "specs": list(keep.specs),
+        "groups": [g.key for g in kept],
+        "extended": list(keep.extended),
+        **({"rounding": "stochastic", "seed": seed} if seed is not None else {}),
+    }
 
 
 def scale_of(amax: torch.Tensor) -> torch.Tensor:
@@ -273,14 +387,25 @@ def quantization_config(scheme: str, ignored=None) -> dict:
 
 
 def convert(
-    source: Path, out: Path, scheme: str = "compressed-tensors", shard_bytes: int = 4 << 30, progress=None
+    source: Path,
+    out: Path,
+    scheme: str = "compressed-tensors",
+    shard_bytes: int = 4 << 30,
+    progress=None,
+    keep: Keep | None = None,
 ) -> dict:
     """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) to `out`; the report of what was done and what
-    loading it would change."""
+    loading it would change. `keep`: groups left in bf16 as the source has them (`--keep-bf16`)."""
     src = Source(source)
-    groups = find_groups(src.map, src.k_eq_v())
-    if not groups:
+    every = find_groups(src.map, src.k_eq_v())
+    if not every:
         raise ValueError(f"{source}: no text-model projections found")
+    keep = keep or Keep()
+    kept = kept_groups(every, keep)
+    kept_keys = {g.key for g in kept}
+    groups = [g for g in every if g.key not in kept_keys]
+    if not groups:
+        raise ValueError("--keep-bf16 keeps every projection: nothing is left to quantize")
     out = Path(out)
     out.mkdir(parents=True, exist_ok=True)
     quantized = {n for g in groups for n in g.names}
@@ -319,12 +444,14 @@ def convert(
     weight_map = writer.finish()
     (out / INDEX).write_text(json.dumps({"metadata": {}, "weight_map": weight_map}, indent=2, sort_keys=True))
     cfg = src.config()
-    cfg["quantization_config"] = quantization_config(scheme, ignored_for(cfg))
+    cfg["quantization_config"] = quantization_config(scheme, ignored_for(cfg) + ignored_modules(kept))
     (out / "config.json").write_text(json.dumps(cfg, indent=2))
     for f in src.dir.iterdir():  # tokenizer, chat template, generation and processor configs: as they are
         if f.is_file() and not WEIGHTS.match(f.name) and f.name not in (INDEX, "config.json"):
             shutil.copy2(f, out / f.name)
     report["tensors"] = len(weight_map)
+    if kept:
+        report["kept_bf16"] = kept_report(keep, kept)
     (out / "fp8_conversion.json").write_text(json.dumps(report, indent=1))
     return report
 
@@ -433,10 +560,14 @@ def merge(
     null: bool = False,
     shard_bytes: int = 4 << 30,
     progress=None,
+    keep: Keep | None = None,
+    seed: int = 0,
 ) -> dict:
     """Write the FP8 checkpoint of `source` (a bf16 Gemma 4 directory) with the LoRA adapter in `adapter` merged in
     fp32 and quantized once; the report (`MERGE_FP8.json`). Raises ValueError if an adapter pair finds no quantized
-    tensor.
+    tensor. `keep`: groups left in bf16 (`--keep-bf16`); their tensors are the same fp32 merge, rounded once to bf16
+    stochastically with `seed` as `decisio.hub_bf16 merge` does (round to nearest would give back most of the
+    adapter's change in them).
 
     A full-attention layer with `attention_k_eq_v` ships no `v_proj` (V is K), so an adapter's `v_proj` pair there has
     no tensor to merge into, and a checkpoint of this layout cannot hold a V that differs from K. Where each such pair
@@ -456,7 +587,12 @@ def merge(
     groups = find_groups(src.map, src.k_eq_v())
     if not groups:
         raise ValueError(f"{source}: no text-model projections found")
-    quantized = {n for g in groups for n in g.names}
+    keep = keep or Keep()
+    kept = kept_groups(groups, keep)
+    kept_keys = {g.key for g in kept}
+    if len(kept) == len(groups):
+        raise ValueError("--keep-bf16 keeps every projection: nothing is left to quantize")
+    quantized = {n for g in groups for n in g.names}  # where an adapter pair may land: kept groups included
     uncovered = [n for n in deltas if n not in quantized]
     if uncovered:
         raise ValueError(f"{len(uncovered)} adapter weights are not in a quantized group, e.g. {uncovered[0]}")
@@ -478,6 +614,12 @@ def merge(
         bad = [n for n, t in t32.items() if t.dim() != 2]
         if bad:
             raise ValueError(f"{bad[0]}: expected a 2-D weight")
+        if g.key in kept_keys:  # left in bf16: the fp32 merge, rounded once
+            from decisio.hub_bf16 import stochastic_bf16
+
+            for n in g.names:
+                writer.add(n, stochastic_bf16(t32[n].cpu(), seed, n))
+            continue
         amax = torch.stack([t.abs().max() for t in t32.values()]).max().cpu()
         sc = scale_of(amax)
         # the FP8 cast on the CPU: every device's float8 support differs, the bytes do not
@@ -509,12 +651,14 @@ def merge(
     weight_map = writer.finish()
     (out / INDEX).write_text(json.dumps({"metadata": {}, "weight_map": weight_map}, indent=2, sort_keys=True))
     cfg = src.config()
-    cfg["quantization_config"] = quantization_config("compressed-tensors", ignored_for(cfg))
+    cfg["quantization_config"] = quantization_config("compressed-tensors", ignored_for(cfg) + ignored_modules(kept))
     (out / "config.json").write_text(json.dumps(cfg, indent=2))
     for f in src.dir.iterdir():  # tokenizer, chat template, generation and processor files: the base's own
         if f.is_file() and not WEIGHTS.match(f.name) and f.name not in (INDEX, "config.json"):
             shutil.copy2(f, out / f.name)
     report["tensors"] = len(weight_map)
+    if kept:
+        report["kept_bf16"] = kept_report(keep, kept, seed)
     (out / "fp8_conversion.json").write_text(json.dumps(report, indent=1))
     (out / "expected_written.json").write_text(json.dumps(expected, indent=1, sort_keys=True))
     loaded_fp = expected_loaded(out)
@@ -529,6 +673,8 @@ def merge(
         "dropped_k_eq_v_pairs": len(orphans),
         "null": null,
         "groups": len(groups),
+        "quantized_groups": len(groups) - len(kept),
+        **({"kept_bf16": kept_report(keep, kept, seed)} if kept else {}),
         "written_vs_loaded_differ": differ,
         "loader_changed_elements": report["loader_changed_elements"],
         "smallest_amax": report["smallest_amax"],
@@ -537,11 +683,14 @@ def merge(
     return meta
 
 
-def expected_online(source: Path) -> dict:
-    """What the engine holds after quantizing `source` on load: per module, the fused weight's bytes and scale."""
+def expected_online(source: Path, keep: Keep | None = None) -> dict:
+    """What the engine holds after quantizing `source` on load: per module, the fused weight's bytes and scale (the
+    groups `keep` leaves in bf16 are not quantized and not listed)."""
     src = Source(source)
     out = {}
-    for g in find_groups(src.map, src.k_eq_v()):
+    groups = find_groups(src.map, src.k_eq_v())
+    skip = {g.key for g in kept_groups(groups, keep)} if keep else set()
+    for g in (g for g in groups if g.key not in skip):
         tensors = {n: src.get(n) for n in dict.fromkeys(g.fused)}
         scale = scale_of(amax_of(tensors.values()))
         out[g.key] = fingerprint(torch.cat([quantize(tensors[n], scale) for n in g.fused]), scale)
@@ -553,6 +702,11 @@ def expected_loaded(checkpoint: Path) -> dict:
     src = Source(checkpoint)
     out = {}
     for g in find_groups(src.map, src.k_eq_v()):
+        scaled = [n[: -len(".weight")] + ".weight_scale" in src.map for n in g.names]
+        if not any(scaled):  # a group kept in bf16 (--keep-bf16): not quantized, nothing to load as FP8
+            continue
+        if not all(scaled):
+            raise ValueError(f"{g.key}: some of its shards have a weight_scale and some do not")
         shards = {n: src.get(n) for n in dict.fromkeys(g.fused)}
         scales = {n: src.get(n[: -len(".weight")] + ".weight_scale").reshape(1).to(torch.float32) for n in shards}
         top = torch.stack([s.reshape(()) for s in scales.values()]).max().reshape(1)
@@ -568,6 +722,11 @@ def main(argv=None) -> int:
     cv.add_argument("--source", required=True)
     cv.add_argument("--out", required=True)
     cv.add_argument("--scheme", default="compressed-tensors", choices=["compressed-tensors", "fp8"])
+    keep_help = (
+        "leave these projections in bf16 (repeatable): layers:45-47, proj:down_proj,o_proj or "
+        "group:layers.3.mlp.down_proj; a fused group (qkv_proj, gate_up_proj) is kept whole"
+    )
+    cv.add_argument("--keep-bf16", action="append", default=[], metavar="SPEC", help=keep_help)
     ex = sub.add_parser("expected", help="the fingerprints the engine should hold")
     ex.add_argument("--source", help="a bf16 directory: after quantizing on load")
     ex.add_argument("--checkpoint", help="a converted directory: after loading it")
@@ -582,12 +741,22 @@ def main(argv=None) -> int:
     mg.add_argument(
         "--null", action="store_true", help="merge an adapter of scale 0: must equal `convert` byte for byte"
     )
+    mg.add_argument("--keep-bf16", action="append", default=[], metavar="SPEC", help=keep_help)
+    mg.add_argument(
+        "--seed", type=int, default=0, help="the stochastic rounding of the --keep-bf16 tensors (default 0)"
+    )
     cp = sub.add_parser("compare", help="the modules at which two fingerprint files differ")
     cp.add_argument("a")
     cp.add_argument("b")
     a = ap.parse_args(argv)
     if a.cmd == "convert":
-        r = convert(Path(a.source), Path(a.out), a.scheme, progress=lambda m: print(m, flush=True))
+        r = convert(
+            Path(a.source),
+            Path(a.out),
+            a.scheme,
+            progress=lambda m: print(m, flush=True),
+            keep=parse_keep(a.keep_bf16),
+        )
         changed, smallest = r["loader_changed_elements"], r["smallest_amax"]
         print(f"{r['tensors']} tensors; the loader would change {changed} weights; smallest amax {smallest:.4g}")
         return 1 if changed else 0
@@ -599,6 +768,8 @@ def main(argv=None) -> int:
             a.device,
             a.null,
             progress=lambda m: print(m, flush=True),
+            keep=parse_keep(a.keep_bf16),
+            seed=a.seed,
         )
         differ = meta["written_vs_loaded_differ"]
         print(
