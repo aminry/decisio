@@ -1781,6 +1781,15 @@ def resolve_base(args):
         flavor = flavors.flavor_of(fam.key, args.flavor)
         given = flavors.snapshot(args)
         flavors.apply_settings(args, flavor)
+    elif repo is not None and repo.tuned and repo.flavor:
+        # a tuned repository that is a flavor: the repository's own values (decisio.hub), named and reported like one
+        flavor = flavors.from_repository(repo)
+        given = flavors.snapshot(args)
+        for k in ("read_twice_under", "read_twice_max_questions"):
+            if getattr(args, k, None) is None and getattr(flavor, k):
+                setattr(args, k, getattr(flavor, k))
+        if args.served_name is None:
+            args.served_name = flavor.served_name
     fmt = PromptFormat(
         tail=args.prompt_tail or fam.prompt_tail,
         slot=args.answer_slot or fam.answer_slot,
@@ -1802,7 +1811,8 @@ def resolve_base(args):
     apply_repository_defaults(args, repo)
     apply_temperatures_file(args, given_temperatures)
     if flavor is not None:
-        flavors.apply_temperatures(args, flavor)
+        if repo is None or not repo.tuned:  # a tuned repository's temperatures were applied from its defaults above
+            flavors.apply_temperatures(args, flavor)
         args.flavor_report = flavors.flavor_report(flavor, given)
     apply_profile_temperatures(args, fam)
     if args.temperature_choice is None:

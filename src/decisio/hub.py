@@ -49,7 +49,14 @@ two more.
                 ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think),
                 think_temperatures (per question type, optional: the temperature of an answer that thought, which
                 replaces the type's temperature for those answers only) and layout ("plain" or "header", optional: the
-                prompt layout it was trained and measured on, which a server serves; none recorded means plain)
+                prompt layout it was trained and measured on, which a server serves; none recorded means plain),
+                read_twice_under and read_twice_max_questions (optional: a request read once in at most that many
+                counted input tokens, and with at most that many questions, is read twice; decisio.readout.letters)
+    flavor      optional, with `defaults`: which flavor of the model the repository is (decisio.flavors): name
+                ("calibrated", "commit" or "read-enhanced") and served_name (what the server is called, e.g.
+                "Decisio-12b-tuned-commit"). The flavor must agree with `defaults` (calibrated: no commit rule and no
+                read twice; commit: the commit rule; read-enhanced: read twice), uses the header layout and does not
+                think; the file has one flavor, and repositories of the same weights differ in this file only
 
 The profile sections of a `/2` file must still equal the installed base's profile (a repository cannot change how the
 base is read); `defaults` is what the repository changes. A decisio that does not know `/2` refuses the file by its
@@ -316,6 +323,11 @@ class Repository:
         return self.config.get("defaults") if self.tuned else None
 
     @property
+    def flavor(self) -> dict | None:
+        """Which flavor of the model this is (`flavor` of a `/2` file: name and served_name), else None."""
+        return self.config.get("flavor") if self.tuned else None
+
+    @property
     def defaults_sha256(self) -> str | None:
         return defaults_sha256(self.config) if self.tuned else None
 
@@ -333,6 +345,7 @@ class Repository:
                 "tuned": self.config["tuned"],
                 "defaults": self.config["defaults"],
                 "defaults_sha256": self.defaults_sha256,
+                **({"flavor": self.flavor} if self.flavor else {}),
             }
         return out
 
@@ -344,7 +357,10 @@ def defaults_sha256(config: dict) -> str:
     """The digest of what a tuned repository changes: its `tuned` and `defaults` sections, in canonical JSON. It is in
     /health and in the serving-stack fingerprint, so another adapter, another temperature or another commit setting is
     another stack."""
-    body = json.dumps({"tuned": config.get("tuned"), "defaults": config.get("defaults")}, sort_keys=True)
+    parts = {"tuned": config.get("tuned"), "defaults": config.get("defaults")}
+    if config.get("flavor") is not None:  # only a flavor repository: the digest of every other one is what it was
+        parts["flavor"] = config["flavor"]
+    body = json.dumps(parts, sort_keys=True)
     return hashlib.sha256(body.encode()).hexdigest()
 
 
@@ -353,7 +369,7 @@ def check_sections(config: dict) -> None:
     file carries both, well formed. Raises ValueError naming the path."""
     tuned_schema = config.get("schema") == SCHEMA_TUNED
     if not tuned_schema:
-        extra = [k for k in ("tuned", "defaults") if k in config]
+        extra = [k for k in ("tuned", "defaults", "flavor") if k in config]
         if extra:
             raise ValueError(
                 f"{FILE} is schema {config.get('schema')!r} but has {' and '.join(extra)}: that is {SCHEMA_TUNED}"
@@ -374,6 +390,8 @@ def check_sections(config: dict) -> None:
         )
     check_tuned(config.get("tuned"), config["base"])
     check_defaults(config.get("defaults"))
+    if "flavor" in config:
+        check_flavor(config["flavor"], config["defaults"])
 
 
 def _need(obj, path: str, kind=dict):
@@ -464,6 +482,8 @@ def check_defaults(defaults) -> None:
         "think",
         "layout",
         "think_temperatures",
+        "read_twice_under",
+        "read_twice_max_questions",
     }
     unknown = sorted(set(defaults) - allowed)
     if unknown:
@@ -491,6 +511,42 @@ def check_defaults(defaults) -> None:
         raise ValueError('defaults.over_limit must be "refuse" or "truncate"')
     if defaults["noul_commit"] and not isinstance(defaults.get("noul_commit_basis"), (dict, str)):
         raise ValueError("defaults.noul_commit_basis must say why the commit setting is on (with the figures)")
+    for key in ("read_twice_under", "read_twice_max_questions"):
+        v = defaults.get(key)
+        if key in defaults and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
+            raise ValueError(f"defaults.{key} must be 0 or a number")
+    if defaults.get("read_twice_max_questions") and not defaults.get("read_twice_under"):
+        raise ValueError("defaults.read_twice_max_questions limits defaults.read_twice_under, which is off")
+
+
+def check_flavor(flavor, defaults: dict) -> None:
+    """A tuned repository's `flavor` block: its name and served name, and that `defaults` are that flavor's."""
+    from decisio.flavors import FLAVOR_NAMES
+
+    _need(flavor, "flavor")
+    unknown = sorted(set(flavor) - {"name", "served_name"})
+    if unknown:
+        raise ValueError(f"flavor has unknown keys {unknown}")
+    name, served = flavor.get("name"), flavor.get("served_name")
+    if name not in FLAVOR_NAMES:
+        raise ValueError(f"flavor.name must be one of {', '.join(FLAVOR_NAMES)}, got {name!r}")
+    if (
+        not isinstance(served, str)
+        or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", served)
+        or not served.endswith(f"-{name}")
+    ):
+        raise ValueError(f"flavor.served_name must be a name ending in -{name}, got {served!r}")
+    if defaults.get("layout") != "header":
+        raise ValueError('a flavor uses the header layout: defaults.layout must be "header"')
+    if defaults.get("think"):
+        raise ValueError("a flavor does not think: leave defaults.think out")
+    commit, twice = bool(defaults["noul_commit"]), bool(defaults.get("read_twice_under"))
+    want = {"calibrated": (False, False), "commit": (True, False), "read-enhanced": (False, True)}[name]
+    if (commit, twice) != want:
+        raise ValueError(
+            f"flavor {name}: defaults.noul_commit is {commit} and read twice is {'on' if twice else 'off'}; "
+            f"it needs {want[0]} and {'on' if want[1] else 'off'}"
+        )
 
 
 def file_digests(directory: Path) -> dict:
@@ -594,6 +650,9 @@ def tuned_config(
     layout: str | None = None,
     think: dict | None = None,
     think_temperatures: dict | None = None,
+    flavor: dict | None = None,
+    read_twice_under: int | None = None,
+    read_twice_max_questions: int | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
@@ -619,7 +678,11 @@ def tuned_config(
         **({"layout": layout} if layout is not None else {}),
         **({"think": think} if think is not None else {}),
         **({"think_temperatures": think_temperatures} if think_temperatures else {}),
+        **({"read_twice_under": read_twice_under} if read_twice_under else {}),
+        **({"read_twice_max_questions": read_twice_max_questions} if read_twice_max_questions else {}),
     }
+    if flavor is not None:
+        config["flavor"] = flavor
     check_sections(config)
     return config
 
@@ -727,6 +790,22 @@ def main(argv=None) -> int:
         help="the prompt layout the model was trained and measured on, recorded in the file; a server serves it "
         "(none recorded: plain, what every tuned model before this was trained on)",
     )
+    tc.add_argument(
+        "--flavor",
+        choices=("calibrated", "commit", "read-enhanced"),
+        help="which flavor of the model this repository is (decisio.flavors): written as the file's `flavor` block "
+        "with --served-name; the file's defaults must be that flavor's (calibrated: --no-noul-commit; commit: "
+        "--noul-commit with its basis; read-enhanced: --read-twice-under) and the header layout",
+    )
+    tc.add_argument(
+        "--served-name", help="the flavor's served name, ending in -<flavor>, e.g. Decisio-12b-tuned-commit"
+    )
+    tc.add_argument(
+        "--read-twice-under",
+        type=int,
+        help="a request read once in at most this many counted input tokens is read twice",
+    )
+    tc.add_argument("--read-twice-max-questions", type=int, help="and with at most this many questions (0: no cap)")
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
     tc.add_argument("--adapter-repository", required=True)
     tc.add_argument("--adapter-revision", required=True)
@@ -811,6 +890,9 @@ def main(argv=None) -> int:
                 over_limit=a.over_limit,
                 layout=a.layout or t.get("layout"),
                 think_temperatures=think_temperatures or None,
+                flavor=({"name": a.flavor, "served_name": a.served_name} if a.flavor or a.served_name else None),
+                read_twice_under=a.read_twice_under,
+                read_twice_max_questions=a.read_twice_max_questions,
                 think=(
                     {"factor": a.think_factor, **({"budget": a.think_budget} if a.think_budget else {})}
                     if a.think_factor is not None
