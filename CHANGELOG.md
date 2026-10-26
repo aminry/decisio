@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.35.0](https://github.com/aminry/decisio/compare/v0.34.0...v0.35.0) (2026-10-26)
+
+
+### Features
+
+* **serve:** think on chosen question types, a repository's long-state ceiling, the commit-think flavor ([#353](https://github.com/aminry/decisio/issues/353)) ([4d3c81a](https://github.com/aminry/decisio/commit/4d3c81af2b0ab986f93cd9d0b90c1830a087a5d4))
+
 ## [0.34.0](https://github.com/aminry/decisio/compare/v0.33.0...v0.34.0) (2026-10-26)
 
 
