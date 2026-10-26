@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.35.0: thinking on chosen question types, a repository's long-state ceiling, and the commit-think flavor
+
+### What changed
+
+- **`--think-types choice,score`** and `defaults.think.types` limit thinking to the named question types ([running.md](running.md#thinking-when-unsure)). Without a list every type may think, as before; with one, the list is in `/health` and the serving-stack fingerprint.
+- **`defaults.over_limit_tokens`** (`tuned-config --over-limit-tokens N`) lets a repository state the prompt ceiling a truncating server cuts to; `--over-limit-tokens` still beats it ([running.md](running.md#states-over-the-limit)).
+- **A tuned repository can be the `commit-think` flavor** ([running.md](running.md#flavors)). An older decisio refuses such a repository (its flavor name and `defaults` keys are unknown).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Any existing repository or server | Nothing changes | Nothing |
+| A server with `--think` and no list | Every type may think, as before | Nothing |
+| A `commit-think` repository on a decisio before 0.35.0 | Refused | Upgrade |
+
 ## 0.34.0: a tuned model can be an MLX repository
 
 ### What changed

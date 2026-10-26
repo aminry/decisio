@@ -29,6 +29,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 FLAVOR_NAMES = ("calibrated", "commit", "read-enhanced")
+# a tuned repository can also be a flavor the bases do not have: the commit rule with thinking on the question types its
+# settings name (`defaults.think`), which a tuned model's training shows where it helps
+TUNED_FLAVOR_NAMES = (*FLAVOR_NAMES, "commit-think")
 
 # the served-name stem of each base that has flavors: the 31B is FP8 only; the 12B has two precisions
 STEMS = {"gemma-4-31b": "Decisio-31b", "gemma-4-12b": "Decisio-12b", "gemma-4-12b-fp8": "Decisio-12b-fp8"}
@@ -40,6 +43,7 @@ SETTINGS = (
     "think",
     "think_factor",
     "think_budget",
+    "think_types",
     "read_twice_under",
     "read_twice_max_questions",
 )
@@ -61,6 +65,7 @@ class Flavor:
     think: bool = False
     think_factor: float | None = None  # None: the server's default
     think_budget: int | None = None
+    think_types: list | None = None  # the question types that think; None: all
     read_twice_under: int = 0
     read_twice_max_questions: int = 0
     temperatures: dict = field(default_factory=dict)  # yes/no and score; empty: the base's profile
@@ -147,10 +152,15 @@ def from_repository(repo) -> Flavor:
     block, d = repo.flavor, repo.defaults
     name, served = block["name"], block["served_name"]
     temps = d["temperatures"]
+    think = d.get("think") or {}
     return Flavor(
         name,
         served[: -len(name) - 1],
         noul_commit=bool(d["noul_commit"]),
+        think=bool(think),
+        think_factor=think.get("factor"),
+        think_budget=think.get("budget"),
+        think_types=think.get("types"),
         read_twice_under=int(d.get("read_twice_under") or 0),
         read_twice_max_questions=int(d.get("read_twice_max_questions") or 0),
         temperatures={k: float(temps[k]) for k in ("noul", "score") if k in temps},
@@ -264,4 +274,5 @@ def fingerprint_facts(report: dict) -> dict:
 def siblings(report: dict) -> list[str]:
     """The other flavors' served names of the same base (a request naming one is refused)."""
     stem = report["served_name"][: -len(report["name"]) - 1]
-    return [f"{stem}-{n}" for n in FLAVOR_NAMES if n != report["name"]]
+    names = TUNED_FLAVOR_NAMES if report["name"] in TUNED_FLAVOR_NAMES[len(FLAVOR_NAMES) :] else FLAVOR_NAMES
+    return [f"{stem}-{n}" for n in names if n != report["name"]]

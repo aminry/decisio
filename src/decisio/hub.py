@@ -47,8 +47,10 @@ two more.
                 question type), choice_bands (choice temperature by number of options, optional), noul_commit (true or
                 false, always stated), fit (how the temperatures were fitted: the method, never the data) and
                 noul_commit_basis (why the commit setting is what it is, with the figures) and over_limit
-                ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets) and think
-                ({"factor", "budget"}, optional: the model thinks when unsure, decisio.serve.think),
+                ("refuse" or "truncate", optional: what a state over the engine's prompt ceiling gets) and
+                over_limit_tokens (optional: the ceiling a truncating server cuts to) and think
+                ({"factor", "budget", "types"}, optional: the model thinks when unsure, on the question types named,
+                decisio.serve.think),
                 think_temperatures (per question type, optional: the temperature of an answer that thought, which
                 replaces the type's temperature for those answers only) and layout ("plain" or "header", optional: the
                 prompt layout it was trained and measured on, which a server serves; none recorded means plain),
@@ -57,10 +59,11 @@ two more.
                 and batch_invariant (optional, true only: a server of this repository runs vLLM's batch-invariant
                 kernels, decisio.serve.batch_invariant)
     flavor      optional, with `defaults`: which flavor of the model the repository is (decisio.flavors): name
-                ("calibrated", "commit" or "read-enhanced") and served_name (what the server is called, e.g.
-                "Decisio-12b-tuned-commit"). The flavor must agree with `defaults` (calibrated: no commit rule and no
-                read twice; commit: the commit rule; read-enhanced: read twice), uses the header layout and does not
-                think; the file has one flavor, and repositories of the same weights differ in this file only
+                ("calibrated", "commit", "read-enhanced" or, for a tuned model, "commit-think") and served_name
+                (what the server is called, e.g. "Decisio-12b-tuned-commit"). The flavor must agree with `defaults`
+                (calibrated: no commit rule and no read twice; commit: the commit rule; read-enhanced: read twice;
+                commit-think: the commit rule and `defaults.think`), uses the header layout and, but for commit-think,
+                does not think; the file has one flavor, and repositories of the same weights differ in this file only
 
 The profile sections of a `/2` file must still equal the installed base's profile (a repository cannot change how the
 base is read); `defaults` is what the repository changes. A decisio that does not know `/2` refuses the file by its
@@ -91,6 +94,10 @@ FILE = "decision_config.json"
 # the bases a merge exists for: the 31B is stored in FP8 (`hub_fp8 merge`), the 12B in bf16 (`hub_bf16 merge`) as
 # gemma-4-12b or in FP8 (`hub_fp8 merge`) as gemma-4-12b-fp8
 TUNED_BASES = ("gemma-4-31b", "gemma-4-12b", "gemma-4-12b-fp8")
+OVER_LIMIT_TOKENS_MIN, OVER_LIMIT_TOKENS_MAX = (
+    1024,
+    1_000_000,
+)  # defaults.over_limit_tokens: the ceiling a state is cut to
 LICENSE = "apache-2.0"  # Qwen3.6 and Gemma 4
 QWEN = "qwen3.6-35b-a3b"
 
@@ -595,6 +602,7 @@ def check_defaults(defaults) -> None:
         "fit",
         "noul_commit_basis",
         "over_limit",
+        "over_limit_tokens",
         "think",
         "layout",
         "think_temperatures",
@@ -626,6 +634,13 @@ def check_defaults(defaults) -> None:
         raise ValueError('defaults.layout must be "plain" or "header"')
     if "over_limit" in defaults and defaults["over_limit"] not in ("refuse", "truncate"):
         raise ValueError('defaults.over_limit must be "refuse" or "truncate"')
+    if "over_limit_tokens" in defaults:
+        n = defaults["over_limit_tokens"]
+        if isinstance(n, bool) or not isinstance(n, int) or not OVER_LIMIT_TOKENS_MIN <= n <= OVER_LIMIT_TOKENS_MAX:
+            raise ValueError(
+                f"defaults.over_limit_tokens must be a whole number of tokens from {OVER_LIMIT_TOKENS_MIN:,} to "
+                f"{OVER_LIMIT_TOKENS_MAX:,}, got {n!r}"
+            )
     if defaults["noul_commit"] and not isinstance(defaults.get("noul_commit_basis"), (dict, str)):
         raise ValueError("defaults.noul_commit_basis must say why the commit setting is on (with the figures)")
     if "batch_invariant" in defaults and defaults["batch_invariant"] is not True:
@@ -640,7 +655,7 @@ def check_defaults(defaults) -> None:
 
 def check_flavor(flavor, defaults: dict) -> None:
     """A tuned repository's `flavor` block: its name and served name, and that `defaults` are that flavor's."""
-    from decisio.flavors import FLAVOR_NAMES
+    from decisio.flavors import TUNED_FLAVOR_NAMES as FLAVOR_NAMES
 
     _need(flavor, "flavor")
     unknown = sorted(set(flavor) - {"name", "served_name"})
@@ -657,10 +672,18 @@ def check_flavor(flavor, defaults: dict) -> None:
         raise ValueError(f"flavor.served_name must be a name ending in -{name}, got {served!r}")
     if defaults.get("layout") != "header":
         raise ValueError('a flavor uses the header layout: defaults.layout must be "header"')
-    if defaults.get("think"):
+    if name == "commit-think":
+        if not defaults.get("think"):
+            raise ValueError("the commit-think flavor thinks: defaults.think (factor, budget, types) must be given")
+    elif defaults.get("think"):
         raise ValueError("a flavor does not think: leave defaults.think out")
     commit, twice = bool(defaults["noul_commit"]), bool(defaults.get("read_twice_under"))
-    want = {"calibrated": (False, False), "commit": (True, False), "read-enhanced": (False, True)}[name]
+    want = {
+        "calibrated": (False, False),
+        "commit": (True, False),
+        "read-enhanced": (False, True),
+        "commit-think": (True, False),
+    }[name]
     if (commit, twice) != want:
         raise ValueError(
             f"flavor {name}: defaults.noul_commit is {commit} and read twice is {'on' if twice else 'off'}; "
@@ -873,6 +896,7 @@ def tuned_config(
     decisio_version: str | None = None,
     quantization: str | None = None,
     over_limit: str | None = None,
+    over_limit_tokens: int | None = None,
     layout: str | None = None,
     think: dict | None = None,
     think_temperatures: dict | None = None,
@@ -904,6 +928,7 @@ def tuned_config(
         "fit": fit,
         **({"noul_commit_basis": noul_commit_basis} if noul_commit_basis is not None else {}),
         **({"over_limit": over_limit} if over_limit is not None else {}),
+        **({"over_limit_tokens": over_limit_tokens} if over_limit_tokens is not None else {}),
         **({"layout": layout} if layout is not None else {}),
         **({"think": think} if think is not None else {}),
         **({"think_temperatures": think_temperatures} if think_temperatures else {}),
@@ -1015,6 +1040,17 @@ def main(argv=None) -> int:
         "stated, so the server's own, refuse)",
     )
     tc.add_argument(
+        "--over-limit-tokens",
+        type=int,
+        help="the prompt ceiling a truncating server of this repository cuts a state to, when it is lower than the "
+        "context it serves (defaults.over_limit_tokens; the server's --over-limit-tokens beats it)",
+    )
+    tc.add_argument(
+        "--think-types",
+        help="the question types that think, comma separated (choice, noul, score), written to defaults.think.types; "
+        "needs --think-factor (default: every type)",
+    )
+    tc.add_argument(
         "--layout",
         choices=("plain", "header"),
         help="the prompt layout the model was trained and measured on, recorded in the file; a server serves it "
@@ -1022,10 +1058,11 @@ def main(argv=None) -> int:
     )
     tc.add_argument(
         "--flavor",
-        choices=("calibrated", "commit", "read-enhanced"),
+        choices=("calibrated", "commit", "read-enhanced", "commit-think"),
         help="which flavor of the model this repository is (decisio.flavors): written as the file's `flavor` block "
         "with --served-name; the file's defaults must be that flavor's (calibrated: --no-noul-commit; commit: "
-        "--noul-commit with its basis; read-enhanced: --read-twice-under) and the header layout",
+        "--noul-commit with its basis; read-enhanced: --read-twice-under; commit-think: the commit rule and "
+        "--think-factor) and the header layout",
     )
     tc.add_argument(
         "--served-name", help="the flavor's served name, ending in -<flavor>, e.g. Decisio-12b-tuned-commit"
@@ -1097,6 +1134,8 @@ def main(argv=None) -> int:
     if a.cmd == "tuned-config":
         if a.noul_commit is None:
             ap.error("give --noul-commit or --no-noul-commit: a tuned repository always states its commit setting")
+        if a.think_types and a.think_factor is None:
+            ap.error("--think-types needs --think-factor: it limits the question types that think")
         from decisio.serve.adapter_temperatures import read as read_temperatures
 
         fam = BASES[a.base]
@@ -1156,6 +1195,7 @@ def main(argv=None) -> int:
                     else None
                 ),
                 over_limit=a.over_limit,
+                over_limit_tokens=a.over_limit_tokens,
                 layout=a.layout or t.get("layout"),
                 think_temperatures=think_temperatures or None,
                 flavor=({"name": a.flavor, "served_name": a.served_name} if a.flavor or a.served_name else None),
@@ -1163,7 +1203,11 @@ def main(argv=None) -> int:
                 read_twice_max_questions=a.read_twice_max_questions,
                 batch_invariant=a.batch_invariant,
                 think=(
-                    {"factor": a.think_factor, **({"budget": a.think_budget} if a.think_budget else {})}
+                    {
+                        "factor": a.think_factor,
+                        **({"budget": a.think_budget} if a.think_budget else {}),
+                        **({"types": [x.strip() for x in a.think_types.split(",")]} if a.think_types else {}),
+                    }
                     if a.think_factor is not None
                     else None
                 ),

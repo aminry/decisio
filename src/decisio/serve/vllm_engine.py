@@ -1271,6 +1271,7 @@ def make_app(engine, systemone=None, health=None):
                         "default": systemone.think,
                         "factor": systemone.think_factor,
                         "budget": systemone.think_budget,
+                        **({"types": systemone.think_types} if systemone.think_types is not None else {}),
                         **systemone.thought,
                     },
                     "over_limit": {
@@ -1941,6 +1942,12 @@ def apply_repository_defaults(args, repo) -> None:
                 applied["over_limit"] = args.over_limit
             else:
                 applied["over_limit_set_by"] = f"--over-limit {args.over_limit}"
+        if "over_limit_tokens" in defaults:
+            if getattr(args, "over_limit_tokens", None) is None:
+                args.over_limit_tokens = defaults["over_limit_tokens"]
+                applied["over_limit_tokens"] = args.over_limit_tokens
+            else:
+                applied["over_limit_tokens_set_by"] = f"--over-limit-tokens {args.over_limit_tokens}"
         for qtype, t in (defaults.get("think_temperatures") or {}).items():  # the answers that thought, per type
             if getattr(args, f"think_temperature_{qtype}") is None:
                 setattr(args, f"think_temperature_{qtype}", float(t))
@@ -1955,6 +1962,8 @@ def apply_repository_defaults(args, repo) -> None:
                 args.think_factor = defaults["think"]["factor"]
             if getattr(args, "think_budget", None) is None and "budget" in defaults["think"]:
                 args.think_budget = defaults["think"]["budget"]
+            if getattr(args, "think_types", None) is None and "types" in defaults["think"]:
+                args.think_types = defaults["think"]["types"]
         args.repository_defaults = applied
     if getattr(args, "noul_commit", None) is None:
         args.noul_commit = False
@@ -1966,6 +1975,15 @@ def apply_repository_defaults(args, repo) -> None:
         args.think_factor = 1.0
     if getattr(args, "think_budget", None) is None:
         args.think_budget = 512
+    if isinstance(getattr(args, "think_types", None), str):  # --think-types choice,score
+        from decisio.serve import think as think_module
+
+        try:
+            args.think_types = think_module.check_types(
+                [x.strip() for x in args.think_types.split(",")], "--think-types"
+            )
+        except ValueError as e:
+            raise SystemExit(str(e)) from e
 
 
 def build_parser():
@@ -2418,6 +2436,13 @@ def build_parser():
         "factor thinks on fewer questions",
     )
     ap.add_argument(
+        "--think-types",
+        default=None,
+        metavar="TYPES",
+        help="the question types that may think, comma separated: choice, noul, score (default: all; a tuned "
+        "repository's defaults state theirs). A type outside the list stays at its single read",
+    )
+    ap.add_argument(
         "--think-budget",
         type=int,
         default=None,
@@ -2428,7 +2453,8 @@ def build_parser():
         type=int,
         default=None,
         help="the prompt ceiling in tokens a truncating server cuts to, where it is not the served context less one "
-        "(default: that; the MLX build, whose limit is a memory budget, needs it for --over-limit truncate)",
+        "(default: a tuned repository's defaults.over_limit_tokens, else that; the MLX build, whose limit is a memory "
+        "budget, needs it for --over-limit truncate)",
     )
     ap.add_argument(
         "--tasks",
@@ -3021,6 +3047,7 @@ def main():
         think=args.think,
         think_factor=args.think_factor,
         think_budget=args.think_budget,
+        think_types=getattr(args, "think_types", None),
         flavor=args.flavor_report,
         desnake_labels=args.desnake_labels,
         abstention=args.abstention,

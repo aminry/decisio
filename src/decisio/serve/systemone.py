@@ -620,6 +620,7 @@ class SystemOne:
         think: bool = False,
         think_factor: float = thinking.DEFAULT_FACTOR,
         think_budget: int = thinking.DEFAULT_BUDGET,
+        think_types: list | None = None,
         flavor: dict | None = None,
         default_adapter: str | None = None,
         batch_invariant: dict | None = None,
@@ -656,6 +657,8 @@ class SystemOne:
         self.think = bool(think)
         self.think_factor = thinking.check_factor(think_factor, "think_factor")
         self.think_budget = thinking.check_budget(think_budget, "think_budget")
+        # the question types that may think (None: every type); a type outside the list stays at its single read
+        self.think_types = thinking.check_types(think_types, "think_types") if think_types else None
         self.thought = {"requests": 0, "questions": 0, "unavailable": 0, "tokens": 0, "ms": 0.0}
         # opt-in: requests using imajev's extension are offered one more option, whose probability is reported as
         # imajev's unknown_probability
@@ -771,6 +774,8 @@ class SystemOne:
                 why[name] = thinking.NOT_COMBINED
             elif rts[i] is not None or i not in at:
                 why[name] = thinking.REGISTERED_TASK
+            elif self.think_types is not None and wire[i].type not in self.think_types:
+                why[name] = thinking.NOT_THINKING_TYPE
             elif len(mapped[i][1]) > thinking.MAX_OPTIONS:
                 why[name] = thinking.TOO_MANY_OPTIONS
             else:
@@ -815,6 +820,7 @@ class SystemOne:
             "ms": round(ms, 1),
             "factor": self.think_factor,
             "budget": self.think_budget,
+            **({"types": self.think_types} if self.think_types is not None else {}),
             "per_question": {n: per_question[n] for n in names},
         }
         return second, report, ms
@@ -991,6 +997,11 @@ class SystemOne:
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)
         second, think_report, think_ms = {}, None, 0.0
+        if effective_think and cut is not None:
+            # a state cut to the ceiling is answered by the single pass: a thinking read on a state that long can take
+            # longer than a caller waits, and thinking was not measured there (counted, so a server shows it)
+            self.thought["skipped_truncated"] = self.thought.get("skipped_truncated", 0) + 1  # only once there is one
+            effective_think = False
         if effective_think:
             second, think_report, think_ms = self.think_pass(
                 req.state, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
@@ -1537,6 +1548,8 @@ class SystemOne:
         return {
             "factor": self.think_factor,
             "budget": self.think_budget,
+            # the types that think, only when a list is set, so that a server without one keeps its fingerprint
+            **({"types": self.think_types} if self.think_types is not None else {}),
             "procedure_sha256": hashlib.sha256(proc.encode()).hexdigest()[:16],
             # the temperatures of the answers that thought, only when there are any, so that a server without them keeps
             # its fingerprint; they change what a thinking answer is, so a certificate made under others is suspended
