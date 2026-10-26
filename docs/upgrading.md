@@ -8,7 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.34.0: thinking on chosen question types, a repository's long-state ceiling, and the commit-think flavor
+## 0.35.0: thinking on chosen question types, a repository's long-state ceiling, and the commit-think flavor
 
 ### What changed
 
@@ -22,7 +22,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- |
 | Any existing repository or server | Nothing changes | Nothing |
 | A server with `--think` and no list | Every type may think, as before | Nothing |
-| A `commit-think` repository on a decisio before 0.34.0 | Refused | Upgrade |
+| A `commit-think` repository on a decisio before 0.35.0 | Refused | Upgrade |
+
+## 0.34.0: a tuned model can be an MLX repository
+
+### What changed
+
+- **`hub tuned-config --mlx-conversion TOOL@VERSION --mlx-bits N --mlx-group-size G`** writes the `decision_config.json` of an MLX conversion of a tuned model, and `--backend mlx --base owner/name` serves such a repository with its defaults ([running.md](running.md#mac-with-mlx)). A server for vLLM refuses it with the reason. An older decisio reads the file's weights section as an unknown dtype and refuses the repository.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Any existing repository or server | Nothing changes | Nothing |
+| An MLX tuned repository on a decisio before 0.34.0 | Refused | Upgrade |
 
 ## 0.33.0: error-compensating rounding for the FP8 merge, and emulated precision casts on FP8 bases
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.34.0](https://github.com/aminry/decisio/compare/v0.33.0...v0.34.0) (2026-10-26)
+
+
+### Features
+
+* **hub:** a tuned model can be an MLX repository ([#352](https://github.com/aminry/decisio/issues/352)) ([f1a0c24](https://github.com/aminry/decisio/commit/f1a0c2420733f34e44941a29afa3f394f238daf8))
+
 ## [0.33.0](https://github.com/aminry/decisio/compare/v0.32.0...v0.33.0) (2026-10-25)
 
 

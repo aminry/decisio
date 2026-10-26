@@ -41,7 +41,8 @@ two more.
     tuned       where the weights come from, as facts: base (repository, revision), adapter (revision, weights_sha256,
                 config_sha256, rank, alpha, and its repository when the file names one), merge (precision "fp32",
                 output, tool, the adapter's pairs applied and the report's own fields), files (name -> sha256 of every
-                file of the repository's weights)
+                file of the repository's weights) and, for a repository whose weights are an MLX conversion of the
+                merged model, conversion (tool, tool_version, format "mlx", bits, group_size; `--backend mlx` serves it)
     defaults    what a plain request to this model gets, with no flag and no adapter field: temperatures (per
                 question type), choice_bands (choice temperature by number of options, optional), noul_commit (true or
                 false, always stated), fit (how the temperatures were fitted: the method, never the data) and
@@ -231,12 +232,62 @@ def profile_of(fam: Family) -> dict:
     }
 
 
-def weights_of_tuned(base: str, quantization: str | None = None, external: dict | None = None) -> dict:
+MLX_DTYPE = "mlx_affine"
+MLX_BITS = (4, 6, 8)
+MLX_GROUP_SIZES = (32, 64, 128)
+MLX_BASES = ("gemma-4-31b", "gemma-4-12b")  # the bases an MLX conversion of a tuned model is made for
+
+
+def check_conversion(conversion, base_key: str | None) -> dict:
+    """`tuned.conversion`: the MLX conversion a repository's weights are (`tuned-config --mlx-conversion`), made from
+    the tuned model's merged weights by another tool. Raises ValueError naming what is wrong."""
+    _need(conversion, "tuned.conversion")
+    unknown = sorted(set(conversion) - {"tool", "tool_version", "format", "bits", "group_size"})
+    if unknown:
+        raise ValueError(f"tuned.conversion has unknown keys {unknown}")
+    if base_key is not None and base_key not in MLX_BASES:
+        raise ValueError(f"an MLX conversion of a tuned model is made for {', '.join(MLX_BASES)}, not {base_key}")
+    for key in ("tool", "tool_version"):
+        if not isinstance(conversion.get(key), str) or not NAME_RE.match(conversion[key]):
+            raise ValueError(
+                f"tuned.conversion.{key} must be a name or version (mlx-lm, 0.32.0), got {conversion.get(key)!r}"
+            )
+    if conversion.get("format") != "mlx":
+        raise ValueError(f"tuned.conversion.format must be 'mlx', got {conversion.get('format')!r}")
+    if conversion.get("bits") not in MLX_BITS:
+        raise ValueError(
+            f"tuned.conversion.bits must be one of {', '.join(map(str, MLX_BITS))}, got {conversion.get('bits')!r}"
+        )
+    if conversion.get("group_size") not in MLX_GROUP_SIZES:
+        sizes = ", ".join(map(str, MLX_GROUP_SIZES))
+        raise ValueError(f"tuned.conversion.group_size must be one of {sizes}, got {conversion.get('group_size')!r}")
+    return conversion
+
+
+def weights_of_tuned(
+    base: str, quantization: str | None = None, external: dict | None = None, conversion: dict | None = None
+) -> dict:
     """The `weights` section of a tuned model's repository: the base's checkpoint with an adapter merged in (FP8 for
     the 31B and for gemma-4-12b-fp8, bf16 for gemma-4-12b). `external`: the `tuned.merge` record of a checkpoint made by
     another tool (`external_facts`), whose method is then described from that record and not as decisio's merge."""
     if base not in TUNED_BASES:
         raise ValueError(f"a tuned repository is made for {', '.join(TUNED_BASES)}, not {base}")
+    if conversion:
+        return {
+            "modified": True,
+            "dtype": MLX_DTYPE,
+            "quantization": f"mlx-{conversion['bits']}bit",
+            "bits": conversion["bits"],
+            "group_size": conversion["group_size"],
+            "method": (
+                f"the tuned model's merged weights converted to MLX ({conversion['bits']}-bit affine quantization, "
+                f"group size {conversion['group_size']}) by {conversion['tool']} {conversion['tool_version']}, not by "
+                "decisio; "
+                "decisio's `--backend mlx` serves it; the adapter, its revision, the merge and the converted files are "
+                "listed in `tuned`"
+            ),
+            "quantized_on_load": False,
+        }
     if external:
         return {
             "modified": True,
@@ -344,6 +395,11 @@ class Repository:
         return self.config.get("schema") == SCHEMA_TUNED
 
     @property
+    def mlx(self) -> bool:
+        """Whether the repository's weights are an MLX conversion (`--backend mlx` serves them, vLLM does not)."""
+        return (self.config.get("weights") or {}).get("dtype") == MLX_DTYPE
+
+    @property
     def defaults(self) -> dict | None:
         """What a plain request to the model gets (`defaults` of a `/2` file), else None."""
         return self.config.get("defaults") if self.tuned else None
@@ -408,7 +464,15 @@ def check_sections(config: dict) -> None:
         )
     if not isinstance(config.get("weights"), dict) or config["weights"].get("modified") is not True:
         raise ValueError("weights.modified must be true in a tuned repository")
-    expected = weights_of_tuned(config["base"], config["weights"].get("quantization") or None)
+    conversion = (config.get("tuned") or {}).get("conversion") if isinstance(config.get("tuned"), dict) else None
+    if conversion is not None:
+        check_conversion(conversion, config["base"])
+    expected = weights_of_tuned(config["base"], config["weights"].get("quantization") or None, None, conversion)
+    if config["weights"] != expected and conversion is not None:
+        raise ValueError(
+            "weights must be the MLX conversion's section (`tuned-config --mlx-conversion` writes it): "
+            f"differs at {', '.join(differences(config['weights'], expected, 'weights'))}"
+        )
     if config["weights"].get("dtype") != expected["dtype"]:
         raise ValueError(
             f"weights.dtype is {config['weights'].get('dtype')!r}; "
@@ -660,6 +724,30 @@ def check_weights_precision(base: str, directory: Path) -> None:
     )
 
 
+def mlx_conversion_of(form: str, bits: int | None, group_size: int | None, directory: Path, base: str) -> dict:
+    """The `tuned.conversion` record of an MLX conversion (`tuned-config --mlx-conversion TOOL@VERSION`), checked
+    against the conversion's own config.json: it must declare the same affine quantization."""
+    tool, sep, version = str(form).partition("@")
+    if not sep:
+        raise ValueError(f"--mlx-conversion {form!r}: expected TOOL@VERSION, for example mlx-lm@0.32.0")
+    if bits is None or group_size is None:
+        raise ValueError("--mlx-conversion needs --mlx-bits and --mlx-group-size")
+    conversion = check_conversion(
+        {"tool": tool, "tool_version": version, "format": "mlx", "bits": bits, "group_size": group_size}, base
+    )
+    path = Path(directory) / "config.json"
+    declared = (json.loads(path.read_text()).get("quantization") or {}) if path.exists() else {}
+    if (declared.get("bits"), declared.get("group_size"), declared.get("mode", "affine")) != (
+        bits,
+        group_size,
+        "affine",
+    ):
+        raise ValueError(
+            f"{path}: its quantization is {declared or 'absent'}, not {bits}-bit affine with group size {group_size}"
+        )
+    return conversion
+
+
 def merge_facts(report: dict) -> dict:
     """The `tuned.merge` section from a merge's report (`MERGE_FP8.json` of `hub_fp8 merge`, `MERGE_BF16.json` of
     `hub_bf16 merge`)."""
@@ -816,17 +904,19 @@ def tuned_config(
     read_twice_under: int | None = None,
     read_twice_max_questions: int | None = None,
     batch_invariant: bool = False,
+    conversion: dict | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
     config = export_decision_config(fam, decisio_version, quantization)
     config["schema"] = SCHEMA_TUNED
-    config["weights"] = weights_of_tuned(fam.key, quantization, merge if merge.get("external") else None)
+    config["weights"] = weights_of_tuned(fam.key, quantization, merge if merge.get("external") else None, conversion)
     config["tuned"] = {
         "base": {"repository": fam.model, "revision": fam.revision},
         "adapter": adapter,
         "merge": merge,
         "files": files,
+        **({"conversion": conversion} if conversion else {}),
     }
     fit = {k: v for k, v in fit.items() if k in FIT_KEYS}
     if isinstance(fit.get("think"), dict):  # the think fit's method and readout scale; its counts and data stay out
@@ -997,6 +1087,17 @@ def main(argv=None) -> int:
         "(per-channel), activations (per-token dynamic), optionally bf16_modules; the record and the weights text say "
         "how it was made, not that decisio made it. FP8 bases only",
     )
+    tc.add_argument(
+        "--mlx-conversion",
+        metavar="TOOL@VERSION",
+        help="the weights directory is an MLX conversion of the merged model, made by that tool (for example "
+        "mlx-lm@0.32.0): written as tuned.conversion and the MLX weights section; --merge-report is then the merge "
+        "report of the bf16 model it was converted from; a server of this repository runs with --backend mlx",
+    )
+    tc.add_argument("--mlx-bits", type=int, choices=MLX_BITS, help="the conversion's bits per weight")
+    tc.add_argument(
+        "--mlx-group-size", type=int, choices=MLX_GROUP_SIZES, help="the conversion's quantization group size"
+    )
     tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
     tc.add_argument(
         "--adapter-repository",
@@ -1088,6 +1189,11 @@ def main(argv=None) -> int:
                 files=file_digests(Path(a.weights_dir)),
                 decisio_version=a.decisio_version,
                 quantization=a.quantization,
+                conversion=(
+                    mlx_conversion_of(a.mlx_conversion, a.mlx_bits, a.mlx_group_size, Path(a.weights_dir), a.base)
+                    if a.mlx_conversion
+                    else None
+                ),
                 over_limit=a.over_limit,
                 over_limit_tokens=a.over_limit_tokens,
                 layout=a.layout or t.get("layout"),
