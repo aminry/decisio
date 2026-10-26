@@ -751,7 +751,8 @@ ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base, for 16 GB lapto
 ollama pull aminroudaki/decisio          # the Qwen base
 ```
 
-Requires Ollama 0.35.1 or later.
+Requires Ollama 0.35.1 through 0.40.3.
+These model files work on Ollama 0.35.1 through 0.40.3. Ollama 0.40.4 (2026-10-12) and later answer `/v1/systemone` for them with "was downloaded in a format that is no longer supported" (checked on 0.40.4, 0.40.7 and 0.40.9, and after a fresh `ollama pull`): their decision route takes only models whose GGUF carries Ollama's own decision head. On a newer Ollama, run decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
 The model pages, [decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma) and [decisio](https://ollama.com/aminroudaki/decisio), package laptop versions of the two bases for Ollama's decision route and list their tags and their sizes.
 - The Gemma listing is the path for 16 GB laptops: its `q4_k_m` tag (also `latest`) is a 7.7 GB download and takes 8.6 GB in Ollama at the listing's 8,192-token context; its `q8_0` tag takes 13.6 GB (Ollama 0.35.1 on an Apple M5 Pro, `runs/2026-10-07_ollama-gemma-memory/`).
 - The Qwen listing's smallest tag is a 23 GB download, so it needs a machine with more memory.
