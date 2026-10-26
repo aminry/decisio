@@ -19,14 +19,21 @@ Y5  the commit-think flavor: it must think and commit; the other flavors still m
 import hashlib
 import json
 
+import numpy as np
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from test_hub import args_for
+from test_over_limit import LimitEngine, long_message
+from test_over_limit import plain_rows as _plain_rows  # noqa: F401  (the row stand-ins, autouse there)
 from test_think import ask, make
 
 from decisio import flavors as F
 from decisio import hub
 from decisio.serve import think as T
 from decisio.serve import vllm_engine
+from decisio.serve.systemone import SystemOne, add_routes
+from decisio.serve.tasks import TaskStore
 from decisio.serve.vllm_engine import resolve_base
 
 TUNED = ("tuned_config",)
@@ -235,3 +242,68 @@ def test_y5_the_flavor_object_carries_the_thinking_settings(tmp_path):
     other = args_for(str(d), think_factor=0.6)
     resolve_base(other)
     assert other.flavor_report["overrides"]["think_factor"] == {"flavor": 0.5, "served": 0.6}
+
+
+# ---- a cut state is answered by the single pass ------------------------------------------------------------------
+
+
+def test_y6_a_truncated_state_is_answered_by_the_single_pass_and_says_so():
+    """Check (a) of the guard: when the server cut the state to its ceiling, no thinking read is made whatever the first
+    read's confidence: `thinking` is absent (null), the answer is the single pass's, and /health counts it."""
+
+    class ThinkLimit(LimitEngine):
+        def __init__(self, limit):
+            super().__init__(limit)
+            self.calls = []
+
+        def can_think(self):
+            return True
+
+        def think(self, state, questions, adapter=None, budget=512, subset=None):
+            subset = list(range(len(questions))) if subset is None else subset
+            self.calls.append(subset)
+            logps = [np.log(np.full(len(questions[i]["options"]), 1 / 3)) for i in subset]
+            return logps, [10] * len(subset), {}
+
+    def server(limit, think=True):
+        eng = ThinkLimit(limit)
+        so = SystemOne(
+            eng, "decisio-test", task_store=TaskStore("fp"), over_limit="truncate", think=think, think_factor=1.0,
+            think_types=["choice"],
+        )  # fmt: skip
+        app = FastAPI()
+        add_routes(app, so)
+        return TestClient(app), so, eng
+
+    body = {
+        "state": {"message": long_message(top=1, conf=0.5)},  # unsure at factor 1.0 (0.5 < 0.75)
+        "model": "m",
+        "questions": {
+            "q": {
+                "type": "choice",
+                "instructions": "Which queue?",
+                "criteria": {"option_0": "a", "option_1": "b", "option_2": "c"},
+            }
+        },
+    }
+    client, so, eng = server(limit=200)
+    r = client.post("/v1/systemone", json=body).json()
+    assert r["state_truncated"]["part"] == "start" and r.get("thinking") is None
+    assert eng.calls == []  # no thinking read was made
+    plain, _, _ = server(limit=200, think=False)
+    off = plain.post("/v1/systemone", json=body).json()
+    assert r["answers"] == off["answers"]  # the single pass's answer, exactly
+    health = so.thought
+    assert health["skipped_truncated"] == 1 and health["requests"] == 0
+    # a request that asks for thinking itself is skipped the same way
+    off_server, so2, eng2 = server(limit=200, think=False)
+    asked = off_server.post("/v1/systemone", json={**body, "think": True}).json()
+    assert asked.get("thinking") is None and eng2.calls == []
+    # the same unsure question on a state that fits is read again after reasoning
+    fits = {**body, "state": {"message": "1:0.5:x w0 w1"}}
+    client3, so3, eng3 = server(limit=10_000)
+    r3 = client3.post("/v1/systemone", json=fits).json()
+    assert (
+        "state_truncated" not in r3 and r3["thinking"]["per_question"]["q"]["thought"] is True and eng3.calls == [[0]]
+    )
+    assert "skipped_truncated" not in so3.thought  # absent until there is one: a server without it is what it was

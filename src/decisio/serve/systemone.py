@@ -997,6 +997,11 @@ class SystemOne:
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)
         second, think_report, think_ms = {}, None, 0.0
+        if effective_think and cut is not None:
+            # a state cut to the ceiling is answered by the single pass: a thinking read on a state that long can take
+            # longer than a caller waits, and thinking was not measured there (counted, so a server shows it)
+            self.thought["skipped_truncated"] = self.thought.get("skipped_truncated", 0) + 1  # only once there is one
+            effective_think = False
         if effective_think:
             second, think_report, think_ms = self.think_pass(
                 req.state, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
