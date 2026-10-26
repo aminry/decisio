@@ -1687,6 +1687,11 @@ def resolve_base(args):
         if args.model is not None:
             raise ValueError("--base <repository> serves that repository's weights; do not combine it with --model")
         repo = hub.open_repository(args.base, args.revision)
+        if repo.mlx and args.backend != "mlx":
+            raise ValueError(
+                f"{repo.name}: its weights are an MLX conversion, Apple silicon's format; serve it with --backend mlx "
+                "(docs/running.md)"
+            )
         if args.backend == "mlx" and repo.config.get("weights", {}).get("dtype") == "fp8_e4m3":
             raise ValueError(
                 f"--backend mlx cannot load {repo.name}: its weights are FP8, vLLM's format; "
