@@ -12,13 +12,13 @@
     "record": "tsx scripts/record-replay.ts"
   },
   "dependencies": {
-    "ai": "^7.0.105",
+    "ai": "^7.0.158",
     "geist": "^1.7.2",
     "next": "16.4.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "^4.6.7",
-    "@ai-sdk/openai-compatible": "^2.0.0"
+    "@ai-sdk/openai-compatible": "^3.0.78"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
