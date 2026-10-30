@@ -32,7 +32,7 @@ Each is kept only if cross-validation on your own examples shows that it helps; 
   Every example must use the same question with the same options, in the same order, as the questions you will ask later.
 - **Enough of them.**
   - For calibration: at least 10 examples, below which the server declines to fit. The calibration results under "What you get" were measured with 20 examples per task; fewer were not measured here.
-  - For the head: a question with 10 or more options, and at least 5 examples of every option. The measured gains below used 10 per option, which is what we recommend.
+  - For the head: a question with 10 or more options, and at least 2 examples of every option. The measured gains below used 10 per option, which is what we recommend; see "A few options with few examples" under "When it helps, and when it does not" for what the floor of 2 gives.
 - **Examples from your own traffic.** Past inputs your team has already routed or labelled are ideal. They should look like what the server will see: the same kind of text, the same mix of options where you can.
 - **A few more to check the result.** Keep some labelled inputs out of registration; `examples/tasks/evaluate.py` measures accuracy on them before and after.
 
@@ -102,7 +102,8 @@ Registering the same `id` again replaces the task.
 The response has one record per correction, `calibration` and `head`, each with:
 
 - **`applied`**: whether the server will use it. `true` means later questions with this option list are answered with the correction.
-- **`reason`**: why, in words. "cross-validated gain" when it was kept; otherwise, for example, that there were fewer than 10 examples, that some option had fewer than 5 examples (head), that the question has fewer than 10 options (head), or that cross-validation on your examples prefers the plain readout.
+- **`reason`**: why, in words. "cross-validated gain" when it was kept; otherwise, for example, that there were fewer than 10 examples, that some option had fewer than 2 examples (head), that the question has fewer than 10 options (head), or that cross-validation on your examples prefers the plain readout.
+- **`short_options`** (head, when it was declined for short options): the options that have too few examples, in option order. The `reason` gives each with its count, so you can see which few more labels would let the head be fitted.
 - **The cross-validation evidence**: the server split your examples into five parts and scored each part with a correction fitted on the other four.
   - For calibration: `cv_logloss_plain` and `cv_logloss_fitted` (lower is better), `cv_acc_plain` and `cv_acc_fitted`, and `cv_t`, the test statistic of the change in log loss (negative means the correction lowered it). Calibration is kept only if log loss falls by at least 0.005 per example, `cv_t` is at most -1.645 (a one-sided 95% test), and accuracy does not fall.
   - For the head: `cv_logloss`, the cross-validated log loss for each penalty strength tried and for no head (`"none"`); the head is kept with the best penalty (`lambda`) if that beats no head.
@@ -227,6 +228,13 @@ Its caveats: one task, one draw and 300 test items, so the intervals cover the t
   A long list of fine-grained labels is exactly where a generalist's reading of the label names is weakest.
 - **A clear, well-calibrated question gains nothing, and the server says so.** On ToxicChat, a yes/no question the model already answers well, calibration was switched on in 0 of 100 draws; on SciFact, where the plain probabilities were off, it was switched on in 88 and gained 6.6 points (`runs/2026-09-29_tasks-endpoint/evaluation.json`, `r9`).
   Registering such a question costs nothing but the registration time: the declined correction leaves answers unchanged.
+- **A few options with few examples.** A head needs at least 2 examples of every option. With a higher floor, two or three rare options out of 77 switched the head off for the whole task.
+  Measured offline, with the server's own fitting code, on the stored Gemma 4 readouts of ten decision sets (seven with 10 or more options, so 42 cells that can have a head: two model sizes, 12B and 31B, at 50, 200 and 1,000 labelled examples), the floor of 2 against a floor of 5 (`runs/2026-10-30_intent-head-floor`):
+  - macro-F1 rose by 1.08 points on average; 10 cells rose, 30 did not change, 2 fell, by 0.39 point at most;
+  - BANKING77 at 1,000 examples, macro-F1 73.4 to 81.2 on the 31B and 69.9 to 80.7 on the 12B (accuracy 73.8 to 81.5 and 71.0 to 81.2), and the share of answers that certify at `alpha` 0.05 went from 0 to 62.3% on the 31B (12B: 0 to 0);
+  - a 27-intent customer-support set at 200 examples, macro-F1 78.2 to 89.7 on the 31B and 77.0 to 90.5 on the 12B;
+  - in the other 38 cells the changes ran from -0.4 to +0.9 point, and no certificate was violated where a floor of 5 had kept its promise.
+  The gain comes from a few cells, mostly two sets; a task with no rare options is unchanged. The head is still kept only if its cross-validation prefers it, and a task with an option that has no example still serves calibration.
 - **Heads are only fitted for 10 or more options.** Fitted at 5 examples per option on questions with few options, heads broke the never-hurts criterion on four tasks where calibration alone held (among them CUAD clause, -0.73 points on average, and FiQA, -0.62; `evaluation.json`, `head_any`), so the server fits a head only on option lists of 10 or more.
 
 ## What it costs

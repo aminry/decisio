@@ -4,7 +4,8 @@
 
 N1  the stored head (A, c) served with apply_intent_head equals the fitted classifier, to float32 storage
 N2  a different option list (here: rotated) serves the plain readout
-N3  fewer than 5 examples per option: the head is off
+N3  fewer than MIN_PER_OPTION (2) examples per option: the head is off, and the reason names the short options
+N5  the floor is exact: every option at MIN_PER_OPTION examples fits a head, one option one short declines it
 N4  a hidden state that carries nothing about the labels does not make an informative readout worse on new items
 
   uv run pytest -q tests/unit/test_intent_head.py
@@ -13,7 +14,15 @@ N4  a hidden state that carries nothing about the labels does not make an inform
 import numpy as np
 import pytest
 
-from decisio.readout.intent_head import apply_intent_head, fit_intent_head, fit_linear, options_digest
+from decisio.readout.intent_head import (
+    MIN_PER_OPTION,
+    apply_intent_head,
+    fit_intent_head,
+    fit_linear,
+    floor_reason,
+    options_digest,
+    short_options,
+)
 
 
 def data(K=12, per=8, d=64, seed=0):
@@ -59,8 +68,32 @@ def test_n2_another_option_list_serves_the_plain_readout(fitted):
 
 def test_n3_too_few_examples_per_option(fitted):
     H, logp, y, opts, _ = fitted
-    few = fit_intent_head(logp[::4], H[::4], y[::4], opts)
-    assert not few["applied"] and "at least 5" in few["reason"]
+    step = len(y) // len(opts)  # one example of every option
+    few = fit_intent_head(logp[::step], H[::step], y[::step], opts)
+    assert not few["applied"] and f"at least {MIN_PER_OPTION}" in few["reason"]
+    assert "intent 0 (1)" in few["reason"] and few["short_options"] == opts
+
+
+def test_n5_the_floor_is_exact_and_names_the_short_options():
+    H, logp, y, opts = data(per=MIN_PER_OPTION + 1)
+    at_floor = np.concatenate([np.where(y == k)[0][:MIN_PER_OPTION] for k in range(len(opts))])
+    ok = fit_intent_head(logp[at_floor], H[at_floor], y[at_floor], opts)
+    assert ok["min_per_option"] == MIN_PER_OPTION and "every option needs" not in (ok.get("reason") or "")
+    one_short = np.delete(at_floor, np.where(y[at_floor] == 3)[0][0])  # option 3 now has MIN_PER_OPTION - 1 examples
+    short = fit_intent_head(logp[one_short], H[one_short], y[one_short], opts)
+    assert not short["applied"] and short["short_options"] == ["intent 3"]
+    assert f"1 of {len(opts)} have fewer: intent 3 ({MIN_PER_OPTION - 1})" in short["reason"]
+    counts = np.bincount(y[one_short], minlength=len(opts))
+    assert short_options(counts, opts) == [("intent 3", MIN_PER_OPTION - 1)]
+
+
+def test_n6_a_long_list_of_short_options_is_cut_in_the_reason():
+    opts = [f"o{k}" for k in range(40)]
+    counts = np.zeros(40, int)
+    reason = floor_reason(counts, opts)
+    assert (
+        "40 of 40 have fewer" in reason and "and 28 more" in reason and "o11 (0)" in reason and "o12 (0)" not in reason
+    )
 
 
 def test_n4_uninformative_hidden_state_does_no_harm(fitted):

@@ -1,0 +1,102 @@
+{
+ "floors": {
+  "A0": 5,
+  "C2": 2,
+  "C3": 3
+ },
+ "cells_head_eligible": 42,
+ "pooled_vs_floor5": {
+  "C2": {
+   "pooled_f1": 1.076,
+   "f1_p5": 0.304,
+   "f1_p95": 1.979,
+   "pooled_acc": 1.013,
+   "pooled_cert": 2.772,
+   "worst_cell_f1": -0.388,
+   "improved": 10,
+   "worsened": 2,
+   "unchanged": 30
+  },
+  "C3": {
+   "pooled_f1": 0.853,
+   "f1_p5": 0.203,
+   "f1_p95": 1.644,
+   "pooled_acc": 0.794,
+   "pooled_cert": 2.058,
+   "worst_cell_f1": 0.0,
+   "improved": 6,
+   "worsened": 0,
+   "unchanged": 36
+  }
+ },
+ "banking77_n1000_mean_over_2_draws": {
+  "gemma-4-31b-card": {
+   "A0": {
+    "macro_f1": 73.4,
+    "accuracy": 73.8,
+    "certified_share_alpha_0.05": 0.0
+   },
+   "C2": {
+    "macro_f1": 81.2,
+    "accuracy": 81.5,
+    "certified_share_alpha_0.05": 62.3
+   },
+   "C3": {
+    "macro_f1": 77.1,
+    "accuracy": 77.6,
+    "certified_share_alpha_0.05": 30.7
+   }
+  },
+  "gemma-4-12b-card": {
+   "A0": {
+    "macro_f1": 69.9,
+    "accuracy": 71.0,
+    "certified_share_alpha_0.05": 0.0
+   },
+   "C2": {
+    "macro_f1": 80.7,
+    "accuracy": 81.2,
+    "certified_share_alpha_0.05": 0.0
+   },
+   "C3": {
+    "macro_f1": 75.4,
+    "accuracy": 76.2,
+    "certified_share_alpha_0.05": 0.0
+   }
+  }
+ },
+ "customer_support_27_intents_n200_mean_over_3_draws": {
+  "gemma-4-31b-card": {
+   "A0": {
+    "macro_f1": 78.2
+   },
+   "C2": {
+    "macro_f1": 89.7
+   },
+   "C3": {
+    "macro_f1": 89.7
+   }
+  },
+  "gemma-4-12b-card": {
+   "A0": {
+    "macro_f1": 77.0
+   },
+   "C2": {
+    "macro_f1": 90.5
+   },
+   "C3": {
+    "macro_f1": 90.5
+   }
+  }
+ },
+ "certificate_violations": {
+  "C2": {
+   "draws_violated_where_floor5_is_not": 0,
+   "share_of_head_draws_violated": 0.014
+  },
+  "C3": {
+   "draws_violated_where_floor5_is_not": 0,
+   "share_of_head_draws_violated": 0.017
+  }
+ }
+}
