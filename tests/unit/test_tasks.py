@@ -7,9 +7,9 @@ T1  a task's identity: the question type and its option list in order (plus the 
     another key with the rule on (so a task fitted under the other rendering is not applied), and every other
     question the same key either way;
 T2  the store: calibration is `calibration.fit_task_prior` on the examples' served log-scores, unchanged; the head is
-    `intent_head.fit_intent_head` on their hidden readout, fitted only for 10 or more options with at least 5 examples
-    per option (else off, with the reason); a re-registration replaces the task; the JSON form round-trips the head's
-    arrays exactly;
+    `intent_head.fit_intent_head` on their hidden readout, fitted only for 10 or more options with at least
+    MIN_PER_OPTION (2) examples per option (else off, with the reason); a re-registration replaces the task; the JSON
+    form round-trips the head's arrays exactly;
 T3  served (CPU stand-in): no task, or a task of another list, changes nothing, bit for bit; calibration is
     `apply_task_prior` on the served readout and the head `apply_intent_head` on the hidden readout, exactly; the head
     is refused with two orders, calibration is applied per branch in each branch's order; the abstention threshold
@@ -141,10 +141,16 @@ def test_t2_store_fits_with_the_reference():
     t2 = other.lookup(task["key"])
     assert np.array_equal(t2["head"]["A"], task["head"]["A"]) and np.array_equal(t2["head"]["c"], task["head"]["c"])
     assert TaskStore.public(task)["head"]["A"] == {"shape": [16, 10]}
-    # fewer than 5 per option: no head, the reason stored; without a hidden engine likewise
-    ex4, P4, R4 = fake_examples(4)
+    # fewer than MIN_PER_OPTION per option: no head, the reason stored and naming the short options; without a hidden
+    # engine likewise
+    ex4, P4, R4 = fake_examples(intent_head.MIN_PER_OPTION - 1)
     t4, _ = store.register("t", ex4, lambda pairs: P4, lambda pairs: R4)
-    assert not t4["head"]["applied"] and "at least 5" in t4["head"]["reason"] and len(store.by_key) == 1
+    assert not t4["head"]["applied"] and f"at least {intent_head.MIN_PER_OPTION}" in t4["head"]["reason"]
+    assert t4["head"]["short_options"] == answer_keys(ex4[0][0])
+    assert (
+        f"10 of 10 have fewer: {answer_keys(ex4[0][0])[0]} ({intent_head.MIN_PER_OPTION - 1})" in t4["head"]["reason"]
+    )
+    assert len(store.by_key) == 1
     t0, _ = store.register("t", ex, lambda pairs: P, None)
     assert not t0["head"]["applied"] and "--head-engine" in t0["head"]["reason"]
     # fewer than 10 options (a yes/no or multiple-choice question): calibration only, whatever the examples

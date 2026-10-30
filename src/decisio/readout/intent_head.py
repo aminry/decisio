@@ -38,7 +38,12 @@ import numpy as np
 from decisio.names import record_format
 
 FORMAT = record_format("intent-head")
-MIN_PER_OPTION = 5  # 5 and 10 per intent passed the acceptance gate on both intent sets; 2 passed on one
+# Labelled examples every option needs before a head is fitted. 5 and 10 per intent passed the acceptance gate on both
+# intent sets, and 2 passed on one. 2 was measured offline on ten decision sets and two bases at 50, 200 and 1,000
+# examples (runs/2026-10-30_intent-head-floor): pooled macro-F1 +1.08 points over a floor of 5, no set worse by more
+# than 0.1 point, the certificate kept; the head's cross-validation still declines it where the plain readout wins.
+MIN_PER_OPTION = 2
+SHORT_LISTED = 12  # the decline reason names at most this many short options
 
 
 def _fit_linear(Z, base, y, K, lam, w0=None):
@@ -182,6 +187,24 @@ def fit_linear(H, base, y, K, offset, seed=0):
     }
 
 
+def short_options(counts, options, floor=None):
+    """The options with fewer than `floor` (MIN_PER_OPTION) labelled examples, in option order, with their counts."""
+    floor = MIN_PER_OPTION if floor is None else floor
+    return [(str(options[i]), int(c)) for i, c in enumerate(counts) if c < floor]
+
+
+def floor_reason(counts, options, floor=None):
+    """Why the head was declined for short options, naming them, so the labels that would change the model show."""
+    floor = MIN_PER_OPTION if floor is None else floor
+    short = short_options(counts, options, floor)
+    listed = ", ".join(f"{name} ({n})" for name, n in short[:SHORT_LISTED])
+    more = f" and {len(short) - SHORT_LISTED} more" if len(short) > SHORT_LISTED else ""
+    return (
+        f"every option needs at least {floor} labelled examples; {len(short)} of {len(counts)} have fewer: "
+        f"{listed}{more} (option, examples)"
+    )
+
+
 def options_digest(options):
     """sha256 of the option list in order: the head is valid only for exactly this list."""
     return hashlib.sha256(json.dumps(list(options), ensure_ascii=False).encode()).hexdigest()
@@ -210,8 +233,8 @@ def fit_intent_head(logps, H, labels, options, fingerprint="", task_id="", seed=
     if counts.min() < MIN_PER_OPTION:
         return {
             **rec,
-            "reason": f"every option needs at least {MIN_PER_OPTION} labelled examples; "
-            f"{int((counts < MIN_PER_OPTION).sum())} of {K} have fewer",
+            "reason": floor_reason(counts, options),
+            "short_options": [n for n, _ in short_options(counts, options)],
         }
     _, meta = fit_linear(H, logps, y, K, offset=True, seed=seed)
     rec["cv_logloss"] = {str(k): round(v, 5) for k, v in meta["cv"].items()}
