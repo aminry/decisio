@@ -85,6 +85,7 @@ from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noq
 from decisio.serve import (  # noqa: E402
     adapter_temperatures,
     batch_invariant,
+    compile_pin,
     engine_stream,
     header_limit,
     precision_casts,
@@ -1301,6 +1302,7 @@ def make_app(engine, systemone=None, health=None):
                     **({"default_adapter": systemone.default_adapter} if systemone.default_adapter else {}),
                     **({"batch_invariant": systemone.batch_invariant} if systemone.batch_invariant else {}),
                     **({"emulate_precision_casts": systemone.precision_casts} if systemone.precision_casts else {}),
+                    **({"deterministic_compile": systemone.compile_pin} if systemone.compile_pin else {}),
                     **(
                         {"temperatures_file": engine.temperatures_file}
                         if getattr(engine, "temperatures_file", None)
@@ -2405,6 +2407,17 @@ def build_parser():
         'Changes FP8 numerics once compared with releases before 0.33.0 (docs/running.md, "Precision casts")',
     )
     ap.add_argument(
+        "--deterministic-compile",
+        choices=compile_pin.CHOICES,
+        default=None,
+        help="a compile with no timed choices (deterministic true and combo_kernels false in the inductor "
+        "compile config, set before the engine starts): kernels whose launch settings are picked by timing at the "
+        "first launch can sum the same values in another order, so two cold starts of the same model can differ. "
+        "Off unless asked for. On the 12B it makes cold starts agree; on the 31B they agreed without it and turning "
+        "it on changes answers. A variable in the environment that says the opposite is refused; a combo_kernels "
+        'value in --engine wins. Changes the numerics once (docs/running.md, "Deterministic compile")',
+    )
+    ap.add_argument(
         "--header-limit",
         default="auto",
         metavar="auto|off|TOKENS",
@@ -2831,6 +2844,9 @@ def main():
         args.emulate_precision_casts, getattr(args, "fp8_weights", False), os.environ, args.backend
     )
     precision_casts.apply_in_process(args.precision_casts_report["on"])
+    args.compile_pin_report = compile_pin.resolve(args.deterministic_compile, os.environ, args.backend)
+    compile_pin.apply_in_process(args.compile_pin_report["on"])
+    args.engine = compile_pin.merge_engine(args.engine, args.compile_pin_report["on"])
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
     args.context_source = "set by --max-model-len" if given_length is not None else None
     if isinstance(args.max_model_len, AutoContext) and (args.engine_process != "in" or second):
@@ -2930,6 +2946,9 @@ def main():
     if args.precision_casts_report["on"]:
         args.precision_casts_report["confirmed"] = precision_casts.engine_state()
     print(precision_casts.start_line(args.precision_casts_report), flush=True)
+    if args.compile_pin_report["on"]:
+        args.compile_pin_report["confirmed"] = compile_pin.engine_state()
+    print(compile_pin.start_line(args.compile_pin_report), flush=True)
     try:
         engine.header_limit_setting = header_limit.parse(args.header_limit)
     except ValueError as e:
@@ -3068,6 +3087,7 @@ def main():
         default_adapter=args.default_adapter,
         batch_invariant=args.batch_invariant_report,
         precision_casts=args.precision_casts_report,
+        compile_pin=args.compile_pin_report,
         choice_bands=args.choice_bands,
         think_temperatures={
             "choice": args.think_temperature_choice,

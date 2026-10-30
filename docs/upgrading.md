@@ -8,6 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.38.0: an opt-in compile with no timed choices
+
+### What changed
+
+- **`--deterministic-compile on|off`** (default off) sets `deterministic: true` and `combo_kernels: false` in the engine's inductor compile config (and `TORCHINDUCTOR_DETERMINISTIC=1` in the environment) before the engine starts ([running.md](running.md#deterministic-compile---deterministic-compile)). The kernels whose launch settings were picked by timing no longer are. On the Gemma 4 12B it makes cold starts agree (300 of 300 questions identical, against none without it, at about 1% in time per read); on the 31B FP8 the cold starts already agreed in the card check, and turning it on changes answers (24 of 300 top answers). It is recorded in the start line, `/health` and the serving-stack fingerprint, and refused when the environment says the opposite of the flag.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Any server that does not pass the flag | Nothing changes | Nothing |
+| A 12B server with certified tasks on several replicas or fresh nodes | You can turn it on so cold starts answer alike | Start with `--deterministic-compile on`, then certify again: the fingerprint changes, the first start compiles from cold, and answers can differ in the last digits |
+| A 31B server | Leave it off: its cold starts agreed without it, and turning it on changes its answers | Nothing |
+| A server with `combo_kernels` or `deterministic` in `--engine` | Your value wins | Nothing |
+
 ## 0.37.0: tasks whose options change with every request, and an opt-in fast table
 
 ### What changed

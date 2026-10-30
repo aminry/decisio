@@ -750,6 +750,36 @@ It narrows the run-to-run variation; it does not guarantee that two cold starts 
 - **The compiled-graph cache is not reused across the change.** The setting is part of inductor's configuration, so a server with it on does not load a graph compiled without it, and the first start after the upgrade compiles from cold (about 30 to 60 seconds more on the 12B, more on the 31B). The compile cache is keyed by the checkpoint's path as well (see "One folder per checkpoint").
 - **Another server does not get this.** `--emulate-precision-casts` is decisio's switch. An FP8 checkpoint served by plain vLLM, or by anything other than decisio's server, needs `TORCHINDUCTOR_EMULATE_PRECISION_CASTS=1` in the environment before Python starts (inductor reads it when it is imported; an engine in a child process inherits it). Without it each cold compile can land on a different variant.
 
+## Deterministic compile (`--deterministic-compile`)
+
+vLLM compiles the model with torch's inductor and, unless told otherwise, turns on its combo kernels: kernels that fuse several small ones (the q, k and v norms of an attention layer) and pick their launch settings, such as the number of warps, by timing a few choices the first time they run.
+Two choices that take the same time can sum the same values in another order, and the last bits of the result change, so two cold starts of the same model can compute slightly different arithmetic.
+Deterministic compile removes the timed choices: `deterministic: true`, which makes inductor skip the on-device benchmarking that affects numerics, and `combo_kernels: false`, both in the engine's inductor compile config. vLLM hands that config to inductor's standalone compile as config patches, which is the route that reaches the code generation. `TORCHINDUCTOR_DETERMINISTIC=1` in the environment does not reach it under vLLM 0.31.0, so decisio sets the config keys and sets the variable only as well.
+
+**It is off unless you ask for it.**
+Use it on the Gemma 4 12B when certified tasks run on several replicas or on fresh nodes, where two cold starts should answer alike.
+Leave it off on the 31B: in the card check its cold starts already agreed, and turning the setting on changed its answers.
+
+**What the card check found** (vLLM 0.31.0, one RTX PRO 6000, one session; 300 hard choice questions with three or more options, read one at a time after each cold start with the compile caches cleared):
+
+| Model | Cold starts without the setting | Cold starts with it | Median / p95 time per read, with against without |
+| --- | --- | --- | --- |
+| Gemma 4 12B FP8 (three starts each) | differ in every pair: 32 to 39 top answers changed, 207 to 217 questions moved by more than 0.01, none of the 300 identical | identical on 300 of 300 in every pair | x1.014 / x1.015 |
+| Gemma 4 12B bf16 (two starts each) | differ: 14 top answers changed, 140 questions moved by more than 0.01 | identical on 300 of 300 | x0.998 / x1.004 |
+| Gemma 4 31B FP8 (three starts each; four with it) | identical on 300 of 300 in every pair | identical to each other (four starts), but not to the starts without it: none of the 300 identical, 24 top answers changed (18 of them not near-ties), 93 questions moved by more than 0.01, the largest difference 0.9999 | x1.012 / x1.005 |
+
+- **A restart that keeps its compile caches repeats the earlier choices.** Two starts of the 12B FP8 without the setting that shared one set of caches were bit-identical; the differences appear on a fresh node, after the caches are cleared, or between replicas that compile separately.
+- **The kernels agree with the reads.** In the 12B FP8 starts the generated kernels without the setting had 79 non-deterministic ones and 22 combo kernels; with it, 96 deterministic ones and none of either.
+- **Cold starts were no slower with it** than the starts without it that were not a first compile (12B FP8: 170 s against 182 to 219 s; 31B: 252 to 255 s against 264 to 266 s), leaving out one 31B start that the box stalled for about seven minutes (657 s).
+- **What this does not say.** One card of one box; the 31B's agreement is for that card, and earlier comparisons of two 31B starts that did show differences are not explained by this check. The bf16 result is one pair of starts per arm.
+
+- **`--deterministic-compile on|off`** is the server's setting; the default is off. A flag beats the environment.
+- **It is set before the engine starts**: the variable in the server's environment (an engine process inherits it), the same value in torch's inductor config where the server's process has imported it already, and `deterministic: true` and `combo_kernels: false` added to `--engine`'s `compilation_config.inductor_compile_config`. A value you give in `--engine` for either key wins. A variable already in the environment that says the opposite of the flag is refused at start, naming the way out; a variable alone (`1`) turns it on and is recorded as the environment's. Only the vLLM server has it.
+- **It is recorded.** The start prints `DETERMINISTIC COMPILE on (--deterministic-compile); torch reads it as on`, `/health` carries `systemone.deterministic_compile` (`on`, `source`, `confirmed`), and the serving-stack fingerprint holds it only when on, so a certificate made without it is suspended.
+- **It changes the numerics once** where it is turned on, and it changes the compile cache key, so the first start compiles from cold. Certificates and recorded answers made before it want making again.
+- **To check what a compile did**, `decisio.serve.compile_pin.kernel_meta_report(<the vLLM compile cache's inductor_cache folders>, <the inductor cache folder>)` counts the generated Triton kernels that say `deterministic` true and false and the combo kernels: a pinned compile has none false and no combo. Clear the caches before the start under test, since a warm start loads the earlier compile's kernels; only a CUDA compile writes Triton kernels.
+- **It is independent of `--emulate-precision-casts`**, which keeps each bf16 rounding step in the compiled kernels; the two can be on together.
+
 ## Ollama
 
 ```bash
