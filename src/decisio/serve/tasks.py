@@ -12,9 +12,10 @@ to the list is a new task, which is re-registered.
                 readout; served as `apply_task_prior` (softmax(lp - bias)).
   intent head   `decisio.readout.intent_head`: `fit_intent_head` on the examples' (lp, h) from the hidden-state readout
                 (decisio.serve.hidden_engine), for a question of at least 10 options (an intent set, not a yes/no or
-                multiple-choice question) with at least 5 examples of every option; served as `apply_intent_head`
-                (softmax(lp + h @ A + c)). Where a head applies, calibration is not stacked on it (its c covers what the
-                prior does); the head is refused with two-order averaging (it is bound to one option order).
+                multiple-choice question) with at least `intent_head.MIN_PER_OPTION` (2) examples of every option;
+                served as `apply_intent_head` (softmax(lp + h @ A + c)). Where a head applies, calibration is not
+                stacked on it (its c covers what the prior does); the head is refused with two-order averaging (it is
+                bound to one option order).
 
     store = TaskStore(fingerprint="...")
     task = store.register(task_id, examples, score_fn, hidden_fn)     # examples: [(question, state, gold key)]
@@ -208,8 +209,8 @@ class TaskStore:
                 "options": options,
                 "options_sha256": intent_head.options_digest(options),
                 "min_per_option": int(counts.min()),
-                "reason": f"every option needs at least {intent_head.MIN_PER_OPTION} labelled examples; "
-                f"{int((counts < intent_head.MIN_PER_OPTION).sum())} of {len(options)} have fewer",
+                "reason": intent_head.floor_reason(counts, options),
+                "short_options": [n for n, _ in intent_head.short_options(counts, options)],
             }
             readout = None
         else:
