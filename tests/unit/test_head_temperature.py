@@ -224,7 +224,10 @@ def test_h5_a_stored_task_without_a_temperature_loads_and_serves_untempered():
     head = next(iter(other.task_store.by_key.values()))["head"]
     assert "temperature" not in head
     msg = "3:0.9:9999:3"
-    ans = other_client.post("/v1/systemone", json=wire(msg)).json()["answers"]["q1"]
+    r = other_client.post("/v1/systemone", json=wire(msg))
+    # a failed request says what failed (status and body), not a bare KeyError on "answers" (the 2026-10-28 CI run)
+    assert r.status_code == 200 and "answers" in r.json(), (r.status_code, r.text[:600])
+    ans = r.json()["answers"]["q1"]
     q = SystemOneRequest.model_validate(wire(msg)).questions["q1"]
     ((lp, h),) = other.hidden_engine.readout({"message": msg}, [other.engine_question(q)[0]])
     by_hand = softmax(lp + h @ np.asarray(head["A"], dtype=np.float64) + np.asarray(head["c"], dtype=np.float64))
