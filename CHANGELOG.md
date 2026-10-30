@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.36.0](https://github.com/aminry/decisio/compare/v0.35.0...v0.36.0) (2026-10-30)
+
+
+### Features
+
+* **readout:** the intent head needs 2 labelled examples of every option, not 5 ([#371](https://github.com/aminry/decisio/issues/371)) ([46e7adf](https://github.com/aminry/decisio/commit/46e7adfa3f6d52aeed204440ca75c4706c744351))
+
 ## [0.35.0](https://github.com/aminry/decisio/compare/v0.34.0...v0.35.0) (2026-10-26)
 
 
