@@ -8,6 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.36.0: the intent head needs 2 labelled examples of every option
+
+### What changed
+
+- **`intent_head.MIN_PER_OPTION` is 2, not 5.** A task registered with `POST /v1/tasks` on a question of 10 or more options gets an intent head when every option has at least 2 labelled examples. Before, two or three rare options out of 77 switched the head off for the whole task, and it served calibration only. The head's 5-fold cross-validation and its temperature are unchanged, so the head is still declined where the plain readout wins ([tasks.md](tasks.md)).
+- **A declined head names the options that are short.** The `reason` in the registration response lists each option with its example count, and the head record has `short_options`.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A server with no registered tasks | Nothing changes | Nothing |
+| A stored task whose head was declined for short options | It stays as stored, calibration only | Register it again to get the head |
+| A stored task that already has a head, or a question with fewer than 10 options | Nothing changes | Nothing |
+| A task registered with 2 to 4 examples of some option | It gets a head where it had none; its answers and its certificate change | Certify it again |
+
+Measured offline on ten decision sets: pooled macro-F1 +1.08 points, BANKING77 at 1,000 examples from 73.4 to 81.2 (31B) and 69.9 to 80.7 (12B); see [tasks.md](tasks.md#when-it-helps-and-when-it-does-not).
+
 ## 0.35.0: thinking on chosen question types, a repository's long-state ceiling, and the commit-think flavor
 
 ### What changed
