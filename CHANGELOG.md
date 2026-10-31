@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.37.0](https://github.com/aminry/decisio/compare/v0.36.0...v0.37.0) (2026-10-31)
+
+
+### Features
+
+* **serve:** an opt-in fast table for fixed-option tasks ([757cebf](https://github.com/aminry/decisio/commit/757cebf07766c35af6b139ebc66cedd4348017ed))
+* **serve:** teach a task whose options change with every request (options: dynamic) ([#377](https://github.com/aminry/decisio/issues/377)) ([78b76ae](https://github.com/aminry/decisio/commit/78b76ae73b14610056df3f18d8d3ba24323dca84))
+
+
+### Bug Fixes
+
+* **readout:** a state that quotes a thinking tag is not refused as an open thinking block ([#376](https://github.com/aminry/decisio/issues/376)) ([3ae34b1](https://github.com/aminry/decisio/commit/3ae34b11e99c949fef222489c8b615ffed984aa4))
+
 ## [0.36.0](https://github.com/aminry/decisio/compare/v0.35.0...v0.36.0) (2026-10-30)
 
 
