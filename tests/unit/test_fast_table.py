@@ -15,6 +15,7 @@ F6  the cascade's promise on simulated populations: over many draws of the held-
 F7  the study's CLINC150 cell (1,000 labels, draw 0) is reproduced on stored embeddings: table share, certified error,
     thresholds and accuracy, on both bases' decisio side
 F8  the docs' table and counts (4 of 10 sets, 1 of 7 without the assistant-command sets) equal the run's summary.json
+F9  the docs' per-request cost table and the CLINC150 decomposition equal the run's summary.json
 
   uv run pytest -q tests/unit/test_fast_table.py
 """
@@ -237,3 +238,30 @@ def test_f8_the_docs_figures_are_the_summary_json():
         assert cells[1] == f"{r['table_share']}%" and cells[4] == ("yes" if r["passes"] else "no"), line
         assert cells[3] == f"{r['decisio_ms']} / {r['cascade_ms']} ms ({r['saving']}%)", line
         assert cells[2] == ("-" if r["table_error"] is None else f"{r['table_error']}%"), line
+
+
+def test_f9_the_per_request_cost_figures_are_the_summary_json():
+    root = Path(__file__).resolve().parents[2]
+    summ = json.loads((root / "runs" / "2026-10-30_fast-table" / "summary.json").read_text())
+    text = (root / "docs" / "tasks.md").read_text()
+    table = [
+        [c.strip() for c in line.split("|")[1:-1]]
+        for line in text.splitlines()
+        if line.startswith("| ")
+        and line.count("|") == 7
+        and "ms (" not in line
+        and line.split("|")[2].strip()[:1].isdigit()
+    ]
+    assert len(table) == len(summ["sets"]) == 10
+    for cells, r in zip(table, summ["sets"]):
+        want = [r["table_ms_median"], r["table_ms_mean"], r["table_ms_p95"], r["decisio_ms"]]
+        assert [float(c) for c in cells[1:5]] == want, cells
+        assert float(cells[5]) == round(r["table_ms_mean"] + r["decisio_ms"]), cells
+    c = summ["clinc150_timed"]
+    assert c["table_ms_mean"] == [r for r in summ["sets"] if r["set"] == "clinc150"][0]["table_ms_mean"]
+    # the decomposition: the table's mean time plus the model's time on the share handed on is the mean with the table
+    assert c["table_ms_mean"] + c["deferred"] / c["n"] * c["decisio_ms_per_deferred_request"] == pytest.approx(
+        c["mean_ms_with_table"], abs=0.6
+    )
+    assert f"takes **{c['table_ms_mean']:g} ms**" in text
+    assert f"{c['deferred']} ({100 * c['deferred'] / c['n']:.0f}%)" in text

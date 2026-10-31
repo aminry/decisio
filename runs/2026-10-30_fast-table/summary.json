@@ -1,6 +1,6 @@
 {
  "what": "the fast table on ten public sets at 1,000 labels (Gemma 4 31B; the 12B passes the same four)",
- "unit": "percent; table share and error among them on the test items; milliseconds per request, decisio alone and with the table in front; saving is the reduction in mean time; passes = the table answers at least 30%, is wrong on at most 5% of those, costs no accuracy, and saves at least 25%",
+ "unit": "percent; table share and error among them on the test items; milliseconds per request, decisio alone and with the table in front; saving is the reduction in mean time; passes = the table answers at least 30%, is wrong on at most 5% of those, costs no accuracy, and saves at least 25%; table_ms_* are the table's own time per request (encoder and classifier, host CPU, batch of one) over 200 timed texts",
  "assistant_command_sets": [
   "clinc150",
   "massive",
@@ -14,7 +14,10 @@
    "decisio_ms": 384,
    "cascade_ms": 71,
    "saving": 82,
-   "passes": true
+   "passes": true,
+   "table_ms_median": 20.7,
+   "table_ms_mean": 21.1,
+   "table_ms_p95": 26.0
   },
   {
    "set": "massive",
@@ -23,7 +26,10 @@
    "decisio_ms": 310,
    "cascade_ms": 190,
    "saving": 39,
-   "passes": true
+   "passes": true,
+   "table_ms_median": 20.6,
+   "table_ms_mean": 20.5,
+   "table_ms_p95": 26.6
   },
   {
    "set": "cfpb",
@@ -32,7 +38,10 @@
    "decisio_ms": 154,
    "cascade_ms": 315,
    "saving": -104,
-   "passes": false
+   "passes": false,
+   "table_ms_median": 134.1,
+   "table_ms_mean": 160.3,
+   "table_ms_p95": 356.7
   },
   {
    "set": "arxiv",
@@ -41,7 +50,10 @@
    "decisio_ms": 184,
    "cascade_ms": 370,
    "saving": -101,
-   "passes": false
+   "passes": false,
+   "table_ms_median": 182.5,
+   "table_ms_mean": 185.5,
+   "table_ms_p95": 291.7
   },
   {
    "set": "civil_comments",
@@ -50,7 +62,10 @@
    "decisio_ms": 65,
    "cascade_ms": 74,
    "saving": -13,
-   "passes": false
+   "passes": false,
+   "table_ms_median": 48.6,
+   "table_ms_mean": 59.3,
+   "table_ms_p95": 131.9
   },
   {
    "set": "sms_spam",
@@ -59,7 +74,10 @@
    "decisio_ms": 62,
    "cascade_ms": 32,
    "saving": 49,
-   "passes": true
+   "passes": true,
+   "table_ms_median": 29.7,
+   "table_ms_mean": 31.6,
+   "table_ms_p95": 48.7
   },
   {
    "set": "snips",
@@ -68,7 +86,10 @@
    "decisio_ms": 62,
    "cascade_ms": 24,
    "saving": 62,
-   "passes": true
+   "passes": true,
+   "table_ms_median": 23.0,
+   "table_ms_mean": 23.6,
+   "table_ms_p95": 29.6
   },
   {
    "set": "scicite",
@@ -77,7 +98,10 @@
    "decisio_ms": 65,
    "cascade_ms": 113,
    "saving": -74,
-   "passes": false
+   "passes": false,
+   "table_ms_median": 44.4,
+   "table_ms_mean": 47.8,
+   "table_ms_p95": 72.5
   },
   {
    "set": "brand",
@@ -86,7 +110,10 @@
    "decisio_ms": 63,
    "cascade_ms": 95,
    "saving": -53,
-   "passes": false
+   "passes": false,
+   "table_ms_median": 31.5,
+   "table_ms_mean": 32.9,
+   "table_ms_p95": 50.2
   },
   {
    "set": "entity",
@@ -95,11 +122,23 @@
    "decisio_ms": 73,
    "cascade_ms": 162,
    "saving": -120,
-   "passes": false
+   "passes": false,
+   "table_ms_median": 91.2,
+   "table_ms_mean": 88.2,
+   "table_ms_p95": 103.6
   }
  ],
  "passed": 4,
  "of": 10,
  "passed_without_assistant_command_sets": 1,
- "of_without_assistant_command_sets": 7
+ "of_without_assistant_command_sets": 7,
+ "clinc150_timed": {
+  "n": 200,
+  "deferred": 26,
+  "decisio_ms_per_deferred_request": 384,
+  "table_ms_mean": 21.1,
+  "mean_ms_with_table": 71,
+  "table_answers_whole_test_set_pct": 92.3,
+  "cpu": "AMD EPYC 9755, 4 threads"
+ }
 }
