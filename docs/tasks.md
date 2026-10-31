@@ -461,7 +461,7 @@ For a task of short texts that arrive in volume, a small classifier on the host 
 It is off unless the registration asks for it, and it keeps itself only where it pays.
 
 **What it is.**
-A sentence encoder (`BAAI/bge-base-en-v1.5`, a pinned revision), a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold.
+A sentence encoder (`BAAI/bge-base-en-v1.5`, a pinned revision), a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold: a small learned classifier on the server's CPU, not a lookup of earlier answers.
 A request whose table confidence reaches the threshold is answered by the table and the model is not asked.
 Every other request goes to decisio as it would without the table.
 
@@ -535,6 +535,31 @@ MASSIVE passes only because decisio's own read there goes through the intent hea
 The saving is largest where decisio's own read is expensive (CLINC150 and MASSIVE use the intent head, whose hidden-state read costs 190 to 380 ms) and where the table answers nearly everything.
 On short texts with a plain read it needs the table to answer roughly 60 to 75% of requests to clear 25%.
 These are offline figures on one card and one CPU; your hosts decide your own, which is why the registration measures them.
+
+**What the table is, and what a request costs.**
+The table is a small learned classifier: a sentence encoder followed by a logistic regression, both run on the server's CPU, in front of the model.
+It is not a lookup of earlier answers, and it uses no GPU.
+It has to run on every request to find out whether it is sure, so its time is paid by every request, and the model's time is paid on top of it by the requests it hands on.
+A request the table answers costs the table's own time; a request handed to the model costs the table's time plus the model's.
+Per request, on a server CPU with four threads (an AMD EPYC 9755; 200 timed texts per set; milliseconds; the model's time is its mean per request on the same texts, 31B, one card):
+
+| Set | Table's own time: median | mean | p95 | Model's time alone (mean) | A request handed to the model: table plus model |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| CLINC150 (150 intents) | 20.7 | 21.1 | 26.0 | 384 | 405 |
+| MASSIVE (55 intents) | 20.6 | 20.5 | 26.6 | 310 | 330 |
+| CFPB complaints (long) | 134.1 | 160.3 | 356.7 | 154 | 314 |
+| arXiv abstracts (long) | 182.5 | 185.5 | 291.7 | 184 | 370 |
+| Civil comments (noisy labels) | 48.6 | 59.3 | 131.9 | 65 | 124 |
+| SMS spam | 29.7 | 31.6 | 48.7 | 62 | 94 |
+| Snips (7 intents) | 23.0 | 23.6 | 29.6 | 62 | 86 |
+| SciCite (citation intent) | 44.4 | 47.8 | 72.5 | 65 | 113 |
+| Brand from a product title (options change per request) | 31.5 | 32.9 | 50.2 | 63 | 96 |
+| Entity linking (options change per request) | 91.2 | 88.2 | 103.6 | 73 | 161 |
+
+On CLINC150 a request the table answers takes **21.1 ms** (median 20.7 ms), and a request handed to the model takes about **405 ms**: 21.1 for the table and 384 for the model's read (the intent head's hidden-state read).
+The 71 ms in the table above is the mean over the 200 timed requests, of which 26 (13%) were handed to the model: 21.1 + 0.13 x 384 = 71.
+Those 200 requests happened to hand on more than the whole test set did: on the 1,000 test items the table answered 92.3% (the median of two draws of the labelled examples; 90.4% in the draw that was timed), so at the whole set's share the same arithmetic gives about 51 to 58 ms.
+The mean time per request is the number that decides whether the table pays; the registration computes it on your own held-out examples, request by request.
 
 **Each replica decides for itself whether to use it.**
 The timing is true for the stack it was made on: the host CPU, the engine and its card, the encoder and its libraries (`fast_table.timing.stack` in the record).
