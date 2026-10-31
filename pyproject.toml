@@ -43,8 +43,11 @@ serve = ["vllm==0.31.0; sys_platform == 'linux'"]
 bench = ["httpx>=0.28", "typesafe-sdk==0.7.5"]
 # the shared task store (--task-store): object storage through obstore (S3-compatible stores, GCS, Azure)
 task-store = ["obstore>=0.12"]
+# the opt-in fast table for a fixed-option task (`"fast_table": true`): a sentence encoder and a small classifier on the
+# host CPU (decisio.serve.fast_table; sentence-transformers brings scikit-learn)
+table = ["sentence-transformers>=5.0", "scikit-learn>=1.5"]
 # httpx2: the client Starlette's TestClient runs on (with httpx alone it warns that httpx is deprecated there)
-dev = ["httpx>=0.28", "httpx2>=2.13", "obstore>=0.12", "pytest==9.1.1", "ruff==0.17.3"]
+dev = ["httpx>=0.28", "httpx2>=2.13", "obstore>=0.12", "pytest==9.1.1", "ruff==0.17.3", "scikit-learn>=1.5"]
 # Apple silicon: the MLX engine (decisio.serve.mlx_engine, `--backend mlx`), the text route on a Mac
 mlx = [
     "mlx==0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'",

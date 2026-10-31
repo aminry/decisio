@@ -139,6 +139,10 @@ def fit_digest(task) -> str:
                 h.update(base64.b64decode(v["b64"]))
             else:
                 h.update(json.dumps(v, sort_keys=True, default=float).encode())
+    ft = task.get("fast_table")
+    if ft:  # the table's fit and thresholds; not its timing, agreement baseline or suspension, which are not the fit
+        h.update(b"fast_table")
+        h.update(json.dumps({k: v for k, v in ft.items() if k not in FAST_TABLE_VOLATILE}, sort_keys=True).encode())
     return h.hexdigest()
 
 
@@ -148,6 +152,11 @@ def dynamic_placeholders(reason: str = "this task's options change with every re
         {"format": calibration.FORMAT, "applied": False, "reason": reason},
         {"format": intent_head.FORMAT, "applied": False, "reason": reason},
     )
+
+
+# the parts of a task's fast-table record that are not its fit: where and how fast it was timed, what the monitor
+# compares sampled answers with, and whether a replica suspended it
+FAST_TABLE_VOLATILE = ("timing", "agreement", "suspended")
 
 
 def _pack(a):
@@ -166,6 +175,9 @@ class TaskStore:
         self.fingerprint = fingerprint
         self.by_key: dict[str, dict] = {}
         self.monitors: dict[str, MixMonitor] = {}  # the answer-mix window of each certified task, by task id
+        # a task with a fast table also has the monitor of decisio's own answers, for the requests it answers without
+        # the table (the table off): their mix and confidences are not the combined stream's
+        self.monitors_alone: dict[str, MixMonitor] = {}
         # where tasks are kept across restarts (decisio.serve.task_backends); None: in memory only. A task is written
         # before it is stored in memory and removed from the backend before it is dropped, so a write that fails leaves
         # the store as it was and the caller learns it (TaskPersistError)
@@ -272,8 +284,11 @@ class TaskStore:
         for k in old:
             self.by_key.pop(k, None)
         self.monitors.pop(task["id"], None)
+        self.monitors_alone.pop(task["id"], None)
         if task.get("monitor"):
             self.monitors[task["id"]] = MixMonitor(task["monitor"])
+        if task.get("monitor_alone"):
+            self.monitors_alone[task["id"]] = MixMonitor(task["monitor_alone"])
 
     def persist_task(self, task) -> None:
         """Write the task's record to the backend, if there is one. Raises TaskPersistError."""
@@ -291,12 +306,15 @@ class TaskStore:
             self.by_key[previous["key"]] = previous
             if previous.get("monitor"):
                 self.monitors[task_id] = MixMonitor(previous["monitor"])
+            if previous.get("monitor_alone"):
+                self.monitors_alone[task_id] = MixMonitor(previous["monitor_alone"])
 
     def _drop(self, task_id) -> bool:
         keys = [k for k, t in self.by_key.items() if t["id"] == task_id]
         for k in keys:
             del self.by_key[k]
         self.monitors.pop(task_id, None)
+        self.monitors_alone.pop(task_id, None)
         return bool(keys)
 
     def remove(self, task_id, persist: bool = True) -> bool:
@@ -319,6 +337,12 @@ class TaskStore:
         dyn = task.get("dynamic")
         if dyn and not full and "prior" in dyn:  # the listing says how big the prior is; the export holds the table
             out["dynamic"] = {**dyn, "prior": {"options": len(dyn["prior"])}}
+        if task.get("fast_table") and not full:
+            ft = dict(task["fast_table"])
+            for k in ("coef", "intercept"):
+                if isinstance(ft.get(k), dict) and "b64" in ft[k]:
+                    ft[k] = {"shape": ft[k]["shape"]}
+            out["fast_table"] = ft
         cert = task.get("certificate")
         if cert and not full:  # the held-in digests are for re-certification; the listing says how many there are
             split = dict(cert["split"])
@@ -342,6 +366,10 @@ class TaskStore:
                     raise ValueError(f"task {t['id']!r}: a re-ranker without its prior table (export with ?full=1)")
             if t.get("certificate") is not None:
                 check_format(t["certificate"], "certificate", f"{what}, certificate")
+            if t.get("fast_table") is not None:
+                check_format(t["fast_table"], "fast-table", f"{what}, fast_table")
+                if not isinstance(t["fast_table"].get("coef"), dict):
+                    raise ValueError(f"task {t['id']!r}: a fast table without its arrays (export with ?full=1)")
         for t in tasks:
             head = dict(t["head"])
             for k in ("A", "c"):

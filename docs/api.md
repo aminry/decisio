@@ -205,6 +205,8 @@ The task's `status.monitor` has no answer mix; its signals are `confidence` and,
 
 `docs/tasks.md`, "Certified answers", says what the promise is and where it stops.
 
+**A fast table.** `POST /v1/tasks` also takes `"fast_table": true` (with a `certify` block; choice questions; `pip install 'decisio[table]'`): a sentence encoder and a classifier on the host CPU answer the requests they are sure of without the model, kept only if the registration times them at least 25% faster. The response's `fast_table_report` says whether it was kept and why, an answer of such a task carries `answered_by` (`table` or `decisio`), and `status.fast_table` says what this replica does with it. `docs/tasks.md`, "A fast table in front of decisio", has the scope, the numbers and the multi-replica rules.
+
 `docs/tasks.md` walks through registration and states what each number was measured on.
 
 ## Abstention

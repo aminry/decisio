@@ -41,6 +41,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve import dynamic, header_limit
+from decisio.serve import fast_table as FT
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
@@ -53,6 +54,7 @@ from decisio.serve.task_backends import (
     TaskStoreUnavailable,
     WriteIntent,
 )
+from decisio.serve.tasks import FAST_TABLE_VOLATILE
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
@@ -969,7 +971,9 @@ class SystemOne:
             and not abstain
             and not use_image
         ]
-        served = {i: self.served_rows(rts[i], [(req.state, wire[i])])[0] for i in own}
+        served, via = {}, {}
+        for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
+            served[i], via[i] = self.serve_row(rts[i], req.state, wire[i])
         head = [
             i
             for i, t in enumerate(rts)
@@ -1108,7 +1112,9 @@ class SystemOne:
                 # an answer scored in an engine call shared with other requests (--concurrency batched; never a
                 # certified task's own read, which is serial) is not observed against the certificate's baseline
                 shared = i not in served and bool(info.get("batch"))
-                answers[name].update(self.certified_fields(t, q, keys, p, orders, top_index(keys, p), shared))
+                answers[name].update(
+                    self.certified_fields(t, q, keys, p, orders, top_index(keys, p), shared, via.get(i))
+                )
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
                 if stale is not None:  # fitted under another model or rendering: not applied, so not certified
@@ -1119,6 +1125,8 @@ class SystemOne:
                             "certified_reason": "serving_stack_changed",
                         }
                     )
+            if via.get(i):  # a task with a fast table says which of the two answered
+                answers[name]["answered_by"] = "table" if via[i] == "table" else "decisio"
             if imajev_ext:
                 answers[name].update(unknown_probability=0.0, abstained=False)
         if log and self.branch_log:
@@ -1279,15 +1287,22 @@ class SystemOne:
         certify: dict | None = None,
         certify_examples=None,
         dynamic_options: dict | None = None,
+        fast_table: bool = False,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
         `certify_examples` when given, else a deterministic share of `examples` (`certify["holdout"]`); the fit then
         uses the rest only.
+        With `fast_table` the task also gets a sentence-encoder classifier that answers the requests it is sure of
+        without asking the model, kept only if it times at least `FT.MIN_SAVING` faster (decisio.serve.fast_table).
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
+        if fast_table and certify is None:
+            raise ValueError("fast_table: the table is part of the task's certificate; give a certify block")
         self.task_precheck("readout", task_id)
+        if dynamic_options is not None and fast_table:
+            raise ValueError("fast_table: a task whose options change with every request has no table")
         if dynamic_options is not None:
             return self.register_dynamic_task(task_id, examples, certify, certify_examples, dynamic_options)
         from decisio.serve.tasks import task_key
@@ -1298,6 +1313,7 @@ class SystemOne:
             fit_ex, cert_ex, split = self.certification_split(task_id, full, certify, certify_examples)
         else:
             fit_ex = full
+        prepared = self.prepare_fast_table(fit_ex, cert_ex) if fast_table else None
 
         def score(pairs):
             out = []
@@ -1329,7 +1345,11 @@ class SystemOne:
         if certify is None:
             return result
         task, fitted = result
-        registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
+        reads = None
+        if prepared is not None:  # decisio's own reads of the held-out examples, timed one at a time, then the decision
+            reads = self.read_certification(task, cert_ex)
+            self.decide_fast_table(task, cert_ex, reads, prepared, certify)
+        registered = self.attach_certificate(task, cert_ex, certify, split, reads)  # stored only once it is made
         previous = self.task_store.snapshot(task["id"])
         self.task_store.put(task, persist=False)  # served from memory for the check below, written once it has run
         self.check_served(task, cert_ex, *registered)
@@ -1453,6 +1473,196 @@ class SystemOne:
             self.task_store.rollback(task["id"], previous)  # not saved: not registered
             raise
         return task, {"lps": [], "labels": [], "readout": None}
+
+    # ---- the fast table (decisio.serve.fast_table) -------------------------------------------------------------------
+
+    def prepare_fast_table(self, fit_ex, cert_ex, existing: dict | None = None) -> dict:
+        """The table's side of a registration, before the model is asked anything: the classifier on the fit examples'
+        embeddings (`existing`: a stored table kept as it is, on a re-certification), and the held-out examples embedded
+        and classified one at a time with the time each took, on this host."""
+        from decisio.serve.tasks import answer_keys, gold_index
+
+        q0 = (fit_ex or cert_ex)[0][0]
+        if q0.type != "choice":
+            raise ValueError("fast_table: choice questions only (a yes/no or score question has no table)")
+        try:
+            FT.encoder()
+        except FT.TableUnavailable as e:
+            raise ValueError(str(e))
+        k = len(answer_keys(q0))
+        if existing is not None and (existing["encoder"], existing["revision"]) != (FT.ENCODER, FT.REVISION):
+            raise ValueError(
+                f"fast_table: the table was fitted with {existing['encoder']} at revision {existing['revision'][:8]}, "
+                f"this server has {FT.ENCODER} at {FT.REVISION[:8]}: register the task again"
+            )
+        if existing is None:
+            if len(fit_ex) < FT.MIN_EXAMPLES:
+                raise ValueError(
+                    f"fast_table: {len(fit_ex)} fit examples, and at least {FT.MIN_EXAMPLES} are needed to fit a table"
+                )
+            Xf = FT.embed([render_text(s) for _, s, _ in fit_ex])
+            rec = FT.fit(Xf, [gold_index(q, g) for q, _, g in fit_ex], k)
+        else:
+            rec = {x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds")}
+        FT.embed(["warm"])  # the encoder is loaded and warm before anything is timed
+        P, ms = [], []
+        for _, s, _ in cert_ex:
+            t0 = time.perf_counter()
+            P.append(FT.predict(rec, FT.embed([render_text(s)]))[0])
+            ms.append((time.perf_counter() - t0) * 1000.0)
+        return {"record": rec, "P": np.stack(P), "ms": ms}
+
+    def read_certification(self, t, cert_ex) -> dict:
+        """decisio's own distribution for each held-out example, read one at a time with the time each read took."""
+        ps, ms = [], []
+        for q, s, _ in cert_ex:
+            t0 = time.perf_counter()
+            ps += self.served_rows(t, [(s, q)])
+            ms.append((time.perf_counter() - t0) * 1000.0)
+        return {"ps": ps, "ms": ms}
+
+    def fast_table_stack(self) -> dict:
+        if getattr(self, "_ft_stack", None) is None:
+            self._ft_stack = FT.timing_stack(self.engine.facts() if hasattr(self.engine, "facts") else {})
+        return self._ft_stack
+
+    def decide_fast_table(self, t, cert_ex, reads, prepared, settings) -> None:
+        """Keep the table on task `t` or say why not. The cascade's thresholds are made on the held-out examples
+        (the table's, then decisio's on the requests the table defers); the table is kept when a threshold holds and
+        the timing guard shows it saves at least `FT.MIN_SAVING` of the expected time per request."""
+        from decisio.serve.tasks import answer_keys, gold_index
+
+        keys = answer_keys(cert_ex[0][0])
+        y = np.array([gold_index(q, g) for q, _, g in cert_ex])
+        cD = np.array([float(max(p)) for p in reads["ps"]])
+        pD = np.array([top_index(keys, p) for p in reads["ps"]])
+        P = prepared["P"]
+        cT = P.max(axis=1)
+        pT = np.array([top_index(keys, p) for p in P])
+        casc = FT.cascade(cT, pT, y, cD, pD, settings["alpha"], settings["delta"])
+        deferred = ~(cT >= casc["table_threshold"]) if casc["table_threshold"] is not None else np.ones(len(cT), bool)
+        guard = FT.timing_guard(prepared["ms"], reads["ms"], casc["table_share"], deferred=deferred)
+        stack = self.fast_table_stack()
+        report = {
+            "requested": True,
+            "guard": guard,
+            "cascade": casc,
+            "rule": f"kept when a table threshold holds and the expected time per request falls by at least "
+            f"{FT.MIN_SAVING:.0%} (the table's time on every request plus decisio's on the share it defers, both "
+            "timed on this host, one request at a time, on the held-out examples)",
+        }
+        if casc["table_threshold"] is None:
+            report.update(
+                kept=False,
+                reason=f"on the {len(y)} held-out examples no confidence threshold keeps the table's wrong answers at "
+                f"{settings['alpha']:.0%} or fewer with probability {1 - settings['delta'] / 2:.0%}",
+            )
+        elif not guard["kept"]:
+            report.update(
+                kept=False,
+                reason=f"it would save {guard['saving']:.0%} of the time per request ({guard['table_ms_mean']} ms for "
+                f"the table on every request, decisio {guard['decisio_ms_mean']} ms on the "
+                f"{1 - casc['table_share']:.0%} it defers), under the {FT.MIN_SAVING:.0%} required",
+            )
+        else:
+            report.update(kept=True, reason=None)
+            by_table = cT >= casc["table_threshold"]
+            disagree = (pT != pD)[by_table]
+            rec = dict(prepared["record"])
+            rec["thresholds"] = casc
+            rec["timing"] = {"stack": stack, "stack_sha256": FT.sha256(stack), "guard": guard}
+            rec["agreement"] = FT.agreement_baseline(disagree, t["id"])
+            t["fast_table"] = rec
+            reads["P_table"] = P
+        t["fast_table_report"] = report
+
+    def table_runtime(self, t):
+        """This replica's state for the task's table; a new record (registered again, imported, or another replica's
+        version, say a suspension) starts a new one."""
+        ft = t["fast_table"]
+        cache = self.__dict__.setdefault("_ft_runtime", {})
+        rt = cache.get(t["id"])
+        if rt is None or rt.rec is not ft:
+            rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack())
+        return rt
+
+    def serve_row(self, t, state, q):
+        """(distribution, via) of a certified task's question: for a task with a fast table, the table's where it is
+        on and its confidence reaches the table's threshold (the model is not asked), else decisio's own read. `via`:
+        None (no table), "table", "deferred" or "alone" (the table is off on this replica)."""
+        ft = t.get("fast_table")
+        if not ft:
+            return self.served_rows(t, [(state, q)])[0], None
+        from decisio.serve.tasks import answer_keys
+
+        rt = self.table_runtime(t)
+        probe = getattr(self._probe, "on", False)  # a registration's re-read does not count in the table's statistics
+        if rt.uses_table:
+            try:
+                t0 = time.perf_counter()
+                P = FT.predict(ft, FT.embed([render_text(state)]))[0]
+                ms = (time.perf_counter() - t0) * 1000.0
+            except FT.TableUnavailable as e:
+                rt.unavailable(str(e))
+            else:
+                if float(P.max()) >= ft["thresholds"]["table_threshold"]:
+                    if not probe:
+                        rt.table_answered(ms)
+                        if rt.sample_due():  # decisio reads this one too, to compare; its answer is not served
+                            pD = self.served_rows(t, [(state, q)])[0]
+                            keys = answer_keys(q)
+                            rt.agreement.observe(top_index(keys, pD) != top_index(keys, P))
+                            self.check_table_alarm(t, None)
+                    return P, "table"
+        active = rt.uses_table
+        t0 = time.perf_counter()
+        p = self.served_rows(t, [(state, q)])[0]
+        ms = (time.perf_counter() - t0) * 1000.0
+        if not probe and rt.shadow_due():  # the table is off for speed: time it on this request too
+            try:
+                t1 = time.perf_counter()
+                FT.predict(ft, FT.embed([render_text(state)]))
+                rt.shadowed((time.perf_counter() - t1) * 1000.0, ms)
+            except FT.TableUnavailable as e:
+                rt.unavailable(str(e))
+        return p, ("deferred" if active else "alone")
+
+    def check_table_alarm(self, t, m) -> None:
+        """Suspend the table when the monitor's confidence alarm or the sampled-agreement alarm fires and the task
+        suspends on alerts."""
+        rt = self.table_runtime(t)
+        if rt.state != "active" or not t["certificate"].get("suspend_on_alert", SUSPEND_ON_ALERT):
+            return
+        if m is not None and m.conf_alerting:
+            why = "the confidences of the answers moved away from the certification examples'"
+        elif rt.agreement is not None and rt.agreement.alerting:
+            why = "decisio's answers differ from the table's more often than on the certification examples"
+        else:
+            return
+        self.suspend_table(t, why)
+
+    def suspend_table(self, t, reason: str) -> None:
+        """Switch the table off for the task: here at once, and for every replica that shares the task store by writing
+        the record again with the suspension in it (a new version of the task, which they follow). With `--tasks-dir`,
+        or when the write is refused, only this replica."""
+        import socket
+
+        ft = t["fast_table"]
+        rt = self.table_runtime(t)
+        who = socket.gethostname()
+        sus = {"reason": reason, "by": who, "certificate": t["certificate"]["id"], "shared": False}
+        rt.suspend(f"suspended by {who}: {reason}")
+        ft["suspended"] = sus
+        logger.warning("task %s: the fast table is suspended: %s", t["id"], reason)
+        backend = self.task_store.backend
+        # what the record says when it is written: it is shared when the store it goes to is
+        sus["shared"] = backend is not None and backend.describe().get("backend") == "object-store"
+        try:
+            self.task_store.persist_task(t)
+        except Exception as e:  # serving goes on: the suspension holds on this replica
+            sus["shared"] = False
+            sus["write_error"] = f"{type(e).__name__}: {e}"
+            logger.warning("task %s: the suspension could not be written to the task store: %s", t["id"], e)
 
     def with_readout_task(self, state, q, eq, p):
         """A text-route question's order-1 distribution as served: its registered task's head or calibration applied to
@@ -1726,27 +1936,50 @@ class SystemOne:
             cache[fit] = stack.sha256(self.stack_with_fit(t))
         return cache[fit]
 
-    def attach_certificate(self, t, cert_ex, settings, split):
+    def attach_certificate(self, t, cert_ex, settings, split, reads=None):
         """Certify task `t` (fitted, not yet stored) on the held-out examples [(question, state, gold)] and attach the
         certificate and the monitor's baseline to it. Returns the held-out examples' registered confidences and chosen
-        options, for `check_served`."""
+        options, for `check_served`. `reads`: decisio's reads of the held-out examples when they were made already (a
+        task with a fast table: they were timed); the task's table, when it has one, makes the certificate a cascade
+        and what is returned is what the cascade serves."""
         from decisio.readout import certify
         from decisio.serve import monitor
         from decisio.serve.stack import sha256
         from decisio.serve.tasks import CERTIFICATE_FORMAT, answer_keys, fit_digest, gold_index
 
         t["fit_sha256"] = fit_digest(t)
-        ps = self.served_rows(t, [(s, q) for q, s, _ in cert_ex])
+        ps = reads["ps"] if reads else self.served_rows(t, [(s, q) for q, s, _ in cert_ex])
         dyn = t.get("dynamic")
         keys = answer_keys(cert_ex[0][0])
         # a dynamic task's examples each have their own options: the chosen option indexes the example's own list
         chosen = [top_index(answer_keys(q) if dyn else keys, p) for p, (q, _, _) in zip(ps, cert_ex)]
-        correct = np.array([c == gold_index(q, g) for c, (q, _, g) in zip(chosen, cert_ex)])
+        gold = np.array([gold_index(q, g) for q, _, g in cert_ex])
+        correct = np.array(chosen) == gold
         conf = np.array([float(max(p)) for p in ps])
         cert = certify.certificate(conf, correct, settings["alpha"], settings["delta"])
+        served = None
+        fast = t.get("fast_table")
+        if fast:
+            casc = fast["thresholds"]
+            P = reads["P_table"]
+            cT, pT = P.max(axis=1), np.array([top_index(keys, p) for p in P])
+            by_table, certified, chosen_s = FT.served(cT, pT, conf, np.array(chosen), casc)
+            conf_s = np.where(by_table, cT, conf)
+            thr_s = np.where(
+                by_table,
+                casc["table_threshold"],
+                np.inf if casc["decisio_threshold"] is None else casc["decisio_threshold"],
+            )
+            alone = {**cert, "summary": self.certificate_summary(cert)}
+            cert = FT.certificate(settings["alpha"], settings["delta"], casc, by_table, certified, chosen_s == gold)
+            cert["decisio_only"] = alone
+            served = (conf_s, [int(c) for c in chosen_s], thr_s)
         stack = self.stack_with_fit(t)
         stack_sha = sha256(stack)
-        ident = sha256([t["id"], cert["threshold"], cert["n"], split["fit_digests"], stack_sha, split["method"]])[:12]
+        ident = [t["id"], cert["threshold"], cert["n"], split["fit_digests"], stack_sha, split["method"]]
+        if fast:
+            ident.append(cert["table_threshold"])
+        ident = sha256(ident)[:12]
         cert.update(
             {
                 "format": CERTIFICATE_FORMAT,
@@ -1756,7 +1989,9 @@ class SystemOne:
                 "fit_sha256": t["fit_sha256"],
                 "stack": stack,
                 "stack_sha256": stack_sha,
-                "summary": self.certificate_summary(cert),
+                "summary": FT.summary(cert, fast["thresholds"]["table_share"])
+                if fast
+                else self.certificate_summary(cert),
             }
         )
         cert["suspend_on_alert"] = settings["suspend_on_alert"]
@@ -1778,13 +2013,18 @@ class SystemOne:
                 for q, _, _ in cert_ex
             ]
             t["monitor"] = monitor.dynamic_baseline(conf, unseen, cert["id"])
+        elif fast:
+            conf_s, chosen_s, thr_s = served
+            t["monitor"] = monitor.baseline(chosen_s, len(keys), cert["id"], conf_s)
+            t["monitor_alone"] = monitor.baseline(chosen, len(keys), cert["id"] + "/alone", conf)
+            return conf_s, chosen_s, thr_s
         else:
             t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"], conf)
         return conf, chosen
 
     SERVED_CHECK_SHARE, SERVED_CHECK_MIN, SERVED_CHECK_MAX = 0.1, 20, 200
 
-    def check_served(self, t, cert_ex, conf, chosen) -> None:
+    def check_served(self, t, cert_ex, conf, chosen, thresholds=None) -> None:
         """Re-read a sample of the held-out examples through the serving path (`answer`, one question per request) and
         record how far the confidences it serves are from the ones the certificate was made on: the largest and the
         99th-percentile difference, how many items changed sides of the threshold and how many changed their top
@@ -1792,7 +2032,7 @@ class SystemOne:
         a nonzero value is the certificate's exposure, stated in the certificate and its summary. Not made when
         nothing is certified (no answer would carry the promise); the answer-mix monitor does not see these reads."""
         cert = t["certificate"]
-        if cert["threshold"] is None or not cert_ex:
+        if not cert.get("certified", cert["threshold"] is not None) or not cert_ex:
             return
         import math
 
@@ -1802,6 +2042,8 @@ class SystemOne:
         k = min(n, max(self.SERVED_CHECK_MIN, math.ceil(self.SERVED_CHECK_SHARE * n)), self.SERVED_CHECK_MAX)
         idx = sorted({int(i * n / k) for i in range(k)})
         thr = cert["threshold"]
+        if thresholds is None:
+            thresholds = np.full(n, thr)  # a fast table's: the threshold of the stage that answered each example
         shifts, crossed, top_changed, applied = [], 0, 0, 0
         self._probe.on = True
         try:
@@ -1815,7 +2057,7 @@ class SystemOne:
                 else:
                     p = np.array(list(a["probabilities"].values()), dtype=np.float64)
                 shifts.append(abs(float(max(p)) - float(conf[i])))
-                crossed += (float(max(p)) >= thr) != (float(conf[i]) >= thr)
+                crossed += (float(max(p)) >= thresholds[i]) != (float(conf[i]) >= thresholds[i])
                 top_changed += top_index(answer_keys(q), p) != chosen[i]
         except Exception as e:  # the check never blocks a registration; its failure is recorded
             cert["served_check"] = {"error": f"{type(e).__name__}: {e}"}
@@ -1910,8 +2152,17 @@ class SystemOne:
             "disjoint": True,
             "rule": "re-certified on new examples that share no input with the fit",
         }
-        new = {k: v for k, v in t.items() if k not in ("certificate", "monitor")}
-        registered = self.attach_certificate(new, cert_ex, settings, split)
+        new = {
+            k: v
+            for k, v in t.items()
+            if k not in ("certificate", "monitor", "monitor_alone", "fast_table", "fast_table_report")
+        }
+        reads = None
+        if t.get("fast_table"):  # the table is kept as fitted; its thresholds and its timing are made again
+            prepared = self.prepare_fast_table([], cert_ex, existing=t["fast_table"])
+            reads = self.read_certification(new, cert_ex)
+            self.decide_fast_table(new, cert_ex, reads, prepared, settings)
+        registered = self.attach_certificate(new, cert_ex, settings, split, reads)
         previous = store.snapshot(new["id"])
         store.put(new, persist=False)  # served from memory for the check below, written once it has run
         self.check_served(new, cert_ex, *registered)
@@ -1922,9 +2173,18 @@ class SystemOne:
             raise
         return new
 
-    def certified_fields(self, t, q, keys, p, orders: int, chosen: int, shared: bool = False) -> dict:
-        """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not."""
+    def certified_fields(
+        self, t, q, keys, p, orders: int, chosen: int, shared: bool = False, via: str | None = None
+    ) -> dict:
+        """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not.
+        `via`, for a task with a fast table: "table" (the table answered), "deferred" (the table was on and deferred)
+        or "alone" (the table is off, decisio answered, under the certificate decisio's own reads make)."""
         cert = t["certificate"]
+        if via == "alone":
+            thr, monitors = cert["decisio_only"]["threshold"], self.task_store.monitors_alone
+        else:
+            thr = cert["table_threshold"] if via == "table" else cert["threshold"]
+            monitors = self.task_store.monitors
         if self.stack_sha(t) != cert["stack_sha256"]:
             from decisio.serve import stack
 
@@ -1939,13 +2199,13 @@ class SystemOne:
                 reason = "serving_stack_changed"
         elif orders != cert["stack"]["serving"]["orders"]:
             reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
-        elif cert["threshold"] is None:
+        elif thr is None:
             reason = "nothing_certified"
-        elif float(max(p)) >= cert["threshold"]:
+        elif float(max(p)) >= thr:
             reason = None
         else:
             reason = "below_threshold"
-        m = self.task_store.monitors.get(t["id"])
+        m = monitors.get(t["id"])
         if (
             reason is None
             and m is not None
@@ -1961,6 +2221,8 @@ class SystemOne:
                     t["dynamic"], dynamic.question_parts(q.criteria, render_text, none_key)[2]
                 )
             m.observe(chosen, reason is None, float(max(p)), **extra)
+            if via in ("table", "deferred"):
+                self.check_table_alarm(t, m)
         out = {"certified": reason is None, "certificate": cert["id"]}
         if reason is not None:
             out["certified_reason"] = reason
@@ -1981,7 +2243,10 @@ class SystemOne:
                 "changed": stack.differences(cert["stack"], self.stack_with_fit(t)),
                 "recertify": f"POST /v1/tasks/{t['id']}/certify with new labelled examples",
             }
-        m = self.task_store.monitors.get(t["id"])
+        rt = self.table_runtime(t) if t.get("fast_table") else None
+        m = (self.task_store.monitors_alone if rt is not None and not rt.uses_table else self.task_store.monitors).get(
+            t["id"]
+        )
         f = m.facts() if m is not None else None
         state = f["state"] if f else "ok"
         if state == "traffic_changed":
@@ -2009,7 +2274,12 @@ class SystemOne:
             text = "ok"
         if f and self.batched:  # which reads the monitor counts on a batched server
             f = {**f, "concurrency": "batched: answers scored in a shared engine call are not observed"}
-        return {"state": state, "text": text, **({"monitor": f} if f else {})}
+        out = {"state": state, "text": text, **({"monitor": f} if f else {})}
+        if rt is not None:
+            out["fast_table"] = rt.facts()  # this replica's: each replica says for itself whether it uses the table
+        elif t.get("fast_table_report"):
+            out["fast_table"] = {"state": "off", "uses_table": False, "reason": t["fast_table_report"]["reason"]}
+        return out
 
     def metrics_text(self) -> str:
         """Per certified task, in Prometheus text format: its state, answers, certified answers and the answer-mix
@@ -2713,6 +2983,11 @@ def add_routes(app, systemone: SystemOne):
                     422, "none_option: the key of the requests' 'none of these' option (default 'none')"
                 )
             dynamic_options = {"none_option": none_option}
+        fast_table = body.get("fast_table", False)
+        if not isinstance(fast_table, bool):
+            raise HTTPException(422, "fast_table: true or false")
+        if fast_table and dynamic_options is not None:
+            raise HTTPException(422, "fast_table: a task whose options change with every request has no table")
         certify, held_out = None, None
         if body.get("certify") is not None:
             if not isinstance(body["certify"], dict):
@@ -2727,7 +3002,13 @@ def add_routes(app, systemone: SystemOne):
                 held_out = parse_examples(body["certify"]["examples"], "certify.examples")
         try:
             task, fitted = await run_in_threadpool(
-                systemone.register_readout_task, str(body["id"]), examples, certify, held_out, dynamic_options
+                systemone.register_readout_task,
+                str(body["id"]),
+                examples,
+                certify,
+                held_out,
+                dynamic_options,
+                fast_table,
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))

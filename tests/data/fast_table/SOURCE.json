@@ -1,0 +1,8 @@
+{
+ "what": "embeddings (bge-base-en-v1.5, float16), gold option indices and decisio's confidences for Lab 3's clinc150 cell",
+ "set": "CLINC150 (Larson et al. 2019), CC BY 3.0",
+ "N": 1000,
+ "draw": 0,
+ "intent_head_floor": 2,
+ "note": "numbers only: no request text is stored"
+}
