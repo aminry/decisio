@@ -151,8 +151,8 @@ def chat_wrap(tok, prompt, mode):
     out = tok.apply_chat_template(
         [{"role": "user", "content": prompt[: -len("\nAnswer:")]}], add_generation_prompt=True, tokenize=False, **kw
     )
-    if mode == "chat" and out.count("<think>") != out.count("</think>"):
-        raise AssertionError(f"thinking left open in chat mode: {out[-60:]!r}")
+    if mode == "chat":
+        check_thinking_closed(out, prompt[: -len("\nAnswer:")])
     return out + "Answer:"
 
 
@@ -319,9 +319,24 @@ def question_body(tok, kind, instructions, options, fmt: PromptFormat = DEFAULT_
     return f"{instructions}\n\nOptions:\n{listing}\n\n{ANSWER_LINE}", [" " + lab for lab in labs]
 
 
-def check_thinking_closed(text: str) -> None:
+def template_text(text: str, content: str | None) -> str:
+    """The rendered chat prompt without the caller's own words: `content` (the user turn as written, which a chat
+    template may trim) cut out of `text` at its last occurrence. Without `content`, or where the template changed it
+    beyond trimming so it is not found, `text` whole (the stricter reading: a refusal, never a missed open block)."""
+    if not content or not content.strip():
+        return text
+    c = content.strip()
+    i = text.rfind(c)
+    return text if i < 0 else text[:i] + text[i + len(c) :]
+
+
+def check_thinking_closed(text: str, content: str | None = None) -> None:
+    """Refuse a prompt whose chat template left a thinking block open. Only the template's own markers count: a state,
+    question or option that quotes `<think>` (an abstract about reasoning models, a code sample) is the caller's text,
+    not an open block, so it is cut out first (`content`, the user turn as written)."""
+    own = template_text(text, content)
     for open_, close in THINK_MARKERS:
-        if text.count(open_) != text.count(close):
+        if own.count(open_) != own.count(close):
             raise AssertionError(f"thinking left open in chat mode: {text[-80:]!r}")
 
 
@@ -337,7 +352,7 @@ def chat_turn(tok, content, fmt: PromptFormat = DEFAULT_FORMAT) -> str:
 
         messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
     out = tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
-    check_thinking_closed(out)
+    check_thinking_closed(out, content)
     return out + ("Answer:" if fmt.slot == "prefill" else "")
 
 
