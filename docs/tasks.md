@@ -442,6 +442,7 @@ All in percent, the mean over the five questions of the median over three draws 
 - The text route, one order per request (`orders` 1); a request of two orders is answered as before and not certified.
 - The features read the option text as the request shows it, so options that differ only in a description (a tool's name and its description) are read as written.
 - The features are string overlaps with the request's text, so the re-ranker helps where the right option can be seen in the text, or has been the answer before; it does not help where neither is true, and the server then declines it.
+- The gate is itself slightly optimistic: the features are standardised on all the labelled examples, and the cross-validation that picks the regularisation is the one the gate reads. It declines a re-ranker whose gain is below 0.005 in log loss per example, which on one question (intent routing on the 31B) gave up a small real gain.
 - The gain rests on five question types and two model sizes; a task of another kind may gain more or nothing, and the cross-validation says which.
 
 ## Limits
