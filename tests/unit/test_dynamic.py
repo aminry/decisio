@@ -247,7 +247,7 @@ def test_d4_never_seen_share_and_the_stored_record_holds_hashes_only():
 
 
 def test_d5_the_docs_table_is_the_summary_json():
-    """The figures of docs/tasks.md ("What was measured") are the ones of runs/2026-10-30_dynamic-options/summary.json."""
+    """The figures of docs/tasks.md ("What was measured") are those of the run's summary.json."""
     root = Path(__file__).resolve().parents[2]
     bases = json.loads((root / "runs" / "2026-10-30_dynamic-options" / "summary.json").read_text())["bases"]
     rows = {
