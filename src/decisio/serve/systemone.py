@@ -627,6 +627,7 @@ class SystemOne:
         default_adapter: str | None = None,
         batch_invariant: dict | None = None,
         precision_casts: dict | None = None,
+        compile_pin: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
@@ -640,6 +641,9 @@ class SystemOne:
         # inductor's emulate_precision_casts (decisio.serve.precision_casts): {"on", "source", "confirmed"}; None where
         # the server does not run it, which is then exactly what it was
         self.precision_casts = dict(precision_casts) if precision_casts and precision_casts.get("on") else None
+        # a compile with no timed choices (decisio.serve.compile_pin): {"on", "source", "confirmed"}; None where the
+        # server does not run it, which is then exactly what it was
+        self.compile_pin = dict(compile_pin) if compile_pin and compile_pin.get("on") else None
         self.hide_index_keys = hide_index_keys  # to_engine_question; the served default is on
         self.desnake_labels = desnake_labels  # likewise
         self.describe_options = describe_options  # likewise
@@ -1873,6 +1877,9 @@ class SystemOne:
                 # emulated precision casts, only when on: other arithmetic in the compiled kernels, so other numerics;
                 # a certificate made without them is suspended
                 **({"emulate_precision_casts": True} if self.precision_casts else {}),
+                # a compile with no timed choices, only when on: other kernels, so other numerics; a certificate made
+                # without it is suspended
+                **({"deterministic_compile": True} if self.compile_pin else {}),
                 # --concurrency, only when batched, so that a serial server's fingerprint is what it was; a certificate
                 # made one request at a time is suspended by a batching server, and the other way round
                 # (`concurrency_changed`): a batched answer depends on the traffic it was scored with
