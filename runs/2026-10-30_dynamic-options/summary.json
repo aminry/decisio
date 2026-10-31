@@ -1,0 +1,101 @@
+{
+ "what": "dynamic-option teaching at 200 labels on five recurring questions; alpha 0.05, delta 0.1",
+ "unit": "percent; the mean over the five questions of the median over three draws of 200 labels",
+ "columns": {
+  "decisio_alone": "decisio's own distribution with a certificate on its top probability",
+  "reranker_always": "the re-ranker kept whatever its cross-validation says",
+  "reranker_gated": "the shipped behaviour: kept only where cross-validation beats decisio's own distribution; where declined, decisio's own distribution as the server serves it"
+ },
+ "bases": {
+  "12b": {
+   "decisio_alone": {
+    "share": 53.3,
+    "error": 3.3,
+    "accuracy": 80.3
+   },
+   "reranker_always": {
+    "share": 55.3,
+    "error": 3.9,
+    "accuracy": 84.0
+   },
+   "reranker_gated": {
+    "share": 55.2,
+    "error": 3.9,
+    "accuracy": 84.1,
+    "kept_in_draws": "14 of 15"
+   },
+   "reranker_gated_per_question": {
+    "brand": {
+     "share": 91.4,
+     "error": 3.1,
+     "accuracy": 94.8
+    },
+    "entity": {
+     "share": 0.0,
+     "error": 5.6,
+     "accuracy": 67.4
+    },
+    "tool": {
+     "share": 99.9,
+     "error": 3.7,
+     "accuracy": 96.3
+    },
+    "product": {
+     "share": 0.0,
+     "error": null,
+     "accuracy": 69.9
+    },
+    "route": {
+     "share": 84.5,
+     "error": 3.4,
+     "accuracy": 92.2
+    }
+   }
+  },
+  "31b": {
+   "decisio_alone": {
+    "share": 54.4,
+    "error": 3.3,
+    "accuracy": 83.2
+   },
+   "reranker_always": {
+    "share": 55.4,
+    "error": 3.7,
+    "accuracy": 85.2
+   },
+   "reranker_gated": {
+    "share": 54.9,
+    "error": 3.2,
+    "accuracy": 85.0,
+    "kept_in_draws": "10 of 15"
+   },
+   "reranker_gated_per_question": {
+    "brand": {
+     "share": 94.6,
+     "error": 3.1,
+     "accuracy": 95.2
+    },
+    "entity": {
+     "share": 0.0,
+     "error": null,
+     "accuracy": 72.5
+    },
+    "tool": {
+     "share": 99.7,
+     "error": 3.7,
+     "accuracy": 96.1
+    },
+    "product": {
+     "share": 0.0,
+     "error": null,
+     "accuracy": 70.2
+    },
+    "route": {
+     "share": 80.0,
+     "error": 2.9,
+     "accuracy": 91.0
+    }
+   }
+  }
+ }
+}

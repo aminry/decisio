@@ -40,7 +40,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
-from decisio.serve import header_limit
+from decisio.serve import dynamic, header_limit
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
@@ -1251,7 +1251,12 @@ class SystemOne:
             return None
         from decisio.serve.tasks import task_key
 
-        return self.task_store.lookup(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
+        t = self.task_store.lookup(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
+        if t is None and q.type == "choice" and q.instructions is not None:
+            t = self.task_store.lookup(
+                dynamic.task_key(render_text(q.instructions))
+            )  # a task matched on the instructions
+        return t
 
     def stale_certified_task(self, q):
         """A stored task of this question that has a certificate but is not applied because the store's fingerprint
@@ -1262,11 +1267,18 @@ class SystemOne:
         from decisio.serve.tasks import task_key
 
         t = store.by_key.get(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
+        if t is None and q.type == "choice" and q.instructions is not None:
+            t = store.by_key.get(dynamic.task_key(render_text(q.instructions)))
         return t if t is not None and t.get("certificate") and store.lookup(t["key"]) is None else None
 
     @_serial
     def register_readout_task(
-        self, task_id: str, examples: list[tuple], certify: dict | None = None, certify_examples=None
+        self,
+        task_id: str,
+        examples: list[tuple],
+        certify: dict | None = None,
+        certify_examples=None,
+        dynamic_options: dict | None = None,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
@@ -1276,6 +1288,8 @@ class SystemOne:
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
         self.task_precheck("readout", task_id)
+        if dynamic_options is not None:
+            return self.register_dynamic_task(task_id, examples, certify, certify_examples, dynamic_options)
         from decisio.serve.tasks import task_key
 
         full = [(q, s, g) for s, q, g in examples]
@@ -1325,6 +1339,120 @@ class SystemOne:
             self.task_store.rollback(task["id"], previous)  # not saved: not registered
             raise
         return task, fitted
+
+    def dynamic_examples(self, examples, none_key: str):
+        """The examples of a dynamic task, checked: choice questions of one set of instructions, two or more options
+        each, an answer that is one of the request's option keys (null: the request's none option). Returns
+        [(question, state, gold key)] and the normalised instructions."""
+        from decisio.serve.tasks import answer_keys
+
+        out, seen = [], set()
+        for n, (state, q, gold) in enumerate(examples):
+            if q.type != "choice":
+                raise ValueError(f"example {n}: a dynamic-option task is a choice question (this one is {q.type})")
+            ins = dynamic.norm(render_text(q.instructions)) if q.instructions is not None else ""
+            if not ins:
+                raise ValueError(
+                    f"example {n}: a dynamic-option task is matched on the question's instructions; give them"
+                )
+            seen.add(ins)
+            keys = answer_keys(q)
+            if len(keys) < 2:
+                raise ValueError(f"example {n}: a request offers at least two options")
+            if gold is None:
+                if none_key not in keys:
+                    raise ValueError(
+                        f"example {n}: answer null means the none option, and this request offers no {none_key!r}"
+                    )
+                gold = none_key
+            out.append((q, state, gold))
+        if len(seen) != 1:
+            raise ValueError("the examples of a dynamic-option task must share one set of instructions")
+        return out, seen.pop()
+
+    def dynamic_example(self, state, q, p_raw, gold, none_key):
+        """One example for `dynamic.fit`: the request's texts and decisio's raw and served distributions."""
+        from decisio.serve.tasks import gold_index
+
+        _, texts, hashes, none_i = dynamic.question_parts(q.criteria, render_text, none_key)
+        gi = gold_index(q, gold)
+        served = apply_temperature(p_raw, self.temperature_of(q.type, None, len(p_raw)))
+        return {
+            "static": dynamic.static_features(dynamic.state_text(state), texts),
+            "keys": hashes,
+            "p": p_raw,
+            "served": served,
+            "none_index": none_i,
+            "gold": gi,
+            "gold_real": gi if gi != none_i else -1,
+        }
+
+    def register_dynamic_task(self, task_id, examples, certify, certify_examples, opts: dict):
+        """Fit and store a task whose options change with every request (decisio.serve.dynamic): matched on the
+        instructions, certified on its top probability whatever the options, with a re-ranker where cross-validation
+        shows a gain. Always certified: the certificate is what a dynamic task adds. Nothing is stored when refused."""
+        from decisio.serve.tasks import FORMAT as TASK_FORMAT
+        from decisio.serve.tasks import dynamic_placeholders
+
+        if certify is None:
+            raise ValueError(
+                "options: dynamic needs a certify block ({} for the defaults): a dynamic-option task is certified, and "
+                "the certificate is made on held-out examples"
+            )
+        none_key = opts.get("none_option", dynamic.NONE_KEY)
+        full, instructions = self.dynamic_examples(examples, none_key)
+        if certify_examples is not None:
+            held, held_instructions = self.dynamic_examples(certify_examples, none_key)
+            if held_instructions != instructions:
+                raise ValueError("certify.examples must carry the same instructions as the examples")
+            certify_examples = [(s, q, g) for q, s, g in held]
+        fit_ex, cert_ex, split = self.certification_split(task_id, full, certify, certify_examples)
+
+        def read(ex):
+            out = []
+            for q, state, gold in ex:
+                eq, _, swapped = self.engine_question(q)
+                probs, _ = self.engine.answer(state, [eq])
+                p = np.asarray(probs[0], dtype=np.float64)
+                require_finite(p, "a registration example's probability")
+                out.append(self.dynamic_example(state, q, p[::-1].copy() if swapped else p, gold, none_key))
+            return out
+
+        rec = dynamic.fit(read(fit_ex))
+        calibration, head = dynamic_placeholders()
+        rec = {
+            **rec,
+            "none_option": none_key,
+            "match": "instructions",
+            "instructions_sha256": hashlib.sha256(instructions.encode()).hexdigest(),
+        }
+        rec["storage"] = (
+            "Stored with the task: the re-ranker's weights and a table of hashed option texts from your examples, "
+            "two counts each. No request text and no option text is stored."
+        )
+        task = {
+            "format": TASK_FORMAT,
+            "id": task_id,
+            "key": dynamic.task_key(instructions),
+            "type": "choice",
+            "options": None,
+            "fingerprint": self.task_store.fingerprint,
+            "calibration": calibration,
+            "head": head,
+            "dynamic": rec,
+            "n_examples": len(fit_ex),
+            "per_option_min": None,
+        }
+        registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
+        previous = self.task_store.snapshot(task["id"])
+        self.task_store.put(task, persist=False)  # served from memory for the check below, written once it has run
+        self.check_served(task, cert_ex, *registered)
+        try:
+            self.task_store.persist_task(task)
+        except Exception:
+            self.task_store.rollback(task["id"], previous)  # not saved: not registered
+            raise
+        return task, {"lps": [], "labels": [], "readout": None}
 
     def with_readout_task(self, state, q, eq, p):
         """A text-route question's order-1 distribution as served: its registered task's head or calibration applied to
@@ -1442,6 +1570,8 @@ class SystemOne:
         from decisio.readout.debias import log_probs
         from decisio.readout.intent_head import apply_intent_head
 
+        if t.get("dynamic"):
+            return self.dynamic_rows(t, pairs)
         out = []
         with_head = t["head"].get("applied") and self.hidden_engine is not None
         for state, q in pairs:
@@ -1469,6 +1599,28 @@ class SystemOne:
                 p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
             if self.noul_commit and q.type == "noul":
                 p = commit_noul(p)
+            out.append(np.asarray(p, dtype=np.float64))
+        return out
+
+    def dynamic_rows(self, t, pairs) -> list[np.ndarray]:
+        """`served_rows` of a dynamic-option task: decisio's own distribution for each (state, question), re-ranked
+        where the task's re-ranker was kept. The options are the request's own."""
+        rec = t["dynamic"]
+        none_key = rec.get("none_option", dynamic.NONE_KEY)
+        out = []
+        for state, q in pairs:
+            eq, _, swapped = self.engine_question(q)
+            probs, _ = self.engine.answer(state, [eq])
+            p = np.asarray(probs[0], dtype=np.float64)
+            require_finite(p, "a dynamic task's probability")
+            if swapped:
+                p = p[::-1].copy()
+            plain = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
+            if rec.get("applied"):
+                _, texts, hashes, none_i = dynamic.question_parts(q.criteria, render_text, none_key)
+                p = dynamic.apply(rec, dynamic.static_features(dynamic.state_text(state), texts), hashes, p, none_i)
+            else:
+                p = plain
             out.append(np.asarray(p, dtype=np.float64))
         return out
 
@@ -1585,8 +1737,10 @@ class SystemOne:
 
         t["fit_sha256"] = fit_digest(t)
         ps = self.served_rows(t, [(s, q) for q, s, _ in cert_ex])
+        dyn = t.get("dynamic")
         keys = answer_keys(cert_ex[0][0])
-        chosen = [top_index(keys, p) for p in ps]
+        # a dynamic task's examples each have their own options: the chosen option indexes the example's own list
+        chosen = [top_index(answer_keys(q) if dyn else keys, p) for p, (q, _, _) in zip(ps, cert_ex)]
         correct = np.array([c == gold_index(q, g) for c, (q, _, g) in zip(chosen, cert_ex)])
         conf = np.array([float(max(p)) for p in ps])
         cert = certify.certificate(conf, correct, settings["alpha"], settings["delta"])
@@ -1606,7 +1760,7 @@ class SystemOne:
             }
         )
         cert["suspend_on_alert"] = settings["suspend_on_alert"]
-        if t.get("type", "choice") == "choice" and not has_catch_all(keys):
+        if not dyn and t.get("type", "choice") == "choice" and not has_catch_all(keys):
             cert["warnings"] = [
                 {
                     "code": "no_catch_all_option",
@@ -1617,7 +1771,15 @@ class SystemOne:
             ]
             cert["summary"] += " Warning: " + cert["warnings"][0]["text"]
         t["certificate"] = cert
-        t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"], conf)
+        if dyn:
+            none_key = dyn.get("none_option", dynamic.NONE_KEY)
+            unseen = [
+                dynamic.all_unseen(dyn, dynamic.question_parts(q.criteria, render_text, none_key)[2])
+                for q, _, _ in cert_ex
+            ]
+            t["monitor"] = monitor.dynamic_baseline(conf, unseen, cert["id"])
+        else:
+            t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"], conf)
         return conf, chosen
 
     SERVED_CHECK_SHARE, SERVED_CHECK_MIN, SERVED_CHECK_MAX = 0.1, 20, 200
@@ -1640,7 +1802,6 @@ class SystemOne:
         k = min(n, max(self.SERVED_CHECK_MIN, math.ceil(self.SERVED_CHECK_SHARE * n)), self.SERVED_CHECK_MAX)
         idx = sorted({int(i * n / k) for i in range(k)})
         thr = cert["threshold"]
-        keys = answer_keys(cert_ex[0][0])
         shifts, crossed, top_changed, applied = [], 0, 0, 0
         self._probe.on = True
         try:
@@ -1655,7 +1816,7 @@ class SystemOne:
                     p = np.array(list(a["probabilities"].values()), dtype=np.float64)
                 shifts.append(abs(float(max(p)) - float(conf[i])))
                 crossed += (float(max(p)) >= thr) != (float(conf[i]) >= thr)
-                top_changed += top_index(keys, p) != chosen[i]
+                top_changed += top_index(answer_keys(q), p) != chosen[i]
         except Exception as e:  # the check never blocks a registration; its failure is recorded
             cert["served_check"] = {"error": f"{type(e).__name__}: {e}"}
             return
@@ -1728,6 +1889,8 @@ class SystemOne:
         }
         settings = self.certify_settings(spec)
         cert_ex = [(q, s, g) for s, q, g in examples]
+        if t.get("dynamic"):  # answer null is the request's none option
+            cert_ex, _ = self.dynamic_examples(examples, t["dynamic"].get("none_option", dynamic.NONE_KEY))
         fit_digests = set(old["split"]["fit_digests"])
         overlap = sum(example_digest(s, q)[:16] in fit_digests for q, s, _ in cert_ex)
         if overlap:
@@ -1783,10 +1946,21 @@ class SystemOne:
         else:
             reason = "below_threshold"
         m = self.task_store.monitors.get(t["id"])
-        if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", SUSPEND_ON_ALERT):
+        if (
+            reason is None
+            and m is not None
+            and (m.conf_alerting or m.unseen_alerting)
+            and cert.get("suspend_on_alert", SUSPEND_ON_ALERT)
+        ):
             reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
         if m is not None and not getattr(self._probe, "on", False):
-            m.observe(chosen, reason is None, float(max(p)), **({"shared": True} if shared else {}))
+            extra = {"shared": True} if shared else {}
+            if t.get("dynamic"):
+                none_key = t["dynamic"].get("none_option", dynamic.NONE_KEY)
+                extra["unseen"] = dynamic.all_unseen(
+                    t["dynamic"], dynamic.question_parts(q.criteria, render_text, none_key)[2]
+                )
+            m.observe(chosen, reason is None, float(max(p)), **extra)
         out = {"certified": reason is None, "certificate": cert["id"]}
         if reason is not None:
             out["certified_reason"] = reason
@@ -1812,9 +1986,16 @@ class SystemOne:
         state = f["state"] if f else "ok"
         if state == "traffic_changed":
             what = " and ".join(
-                {"answer_mix": "the mix of chosen options", "confidence": "the confidences"}[x] for x in f["signals"]
+                {
+                    "answer_mix": "the mix of chosen options",
+                    "confidence": "the confidences",
+                    "unseen_options": "the share of requests whose options the examples never contained",
+                }[x]
+                for x in f["signals"]
             )
-            if cert.get("suspend_on_alert", SUSPEND_ON_ALERT) and "confidence" in f["signals"]:
+            if cert.get("suspend_on_alert", SUSPEND_ON_ALERT) and (
+                "confidence" in f["signals"] or "unseen_options" in f["signals"]
+            ):
                 text = (
                     f"traffic changed: {what} moved away from the certification examples'; certification is "
                     "suspended (every answer is certified: false) until the alert clears"
@@ -2518,6 +2699,20 @@ def add_routes(app, systemone: SystemOne):
         refuse_adapter(body)
         debug = debug_of(request)
         examples = parse_examples(body["examples"])
+        dynamic_options = None
+        if body.get("options") is not None or body.get("match") is not None:
+            if body.get("options") != "dynamic":
+                raise HTTPException(
+                    422, "options: 'dynamic' is the only value (otherwise the options are the examples')"
+                )
+            if body.get("match", "instructions") != "instructions":
+                raise HTTPException(422, "match: 'instructions' (a dynamic-option task is matched on the instructions)")
+            none_option = body.get("none_option", dynamic.NONE_KEY)
+            if not isinstance(none_option, str) or not none_option:
+                raise HTTPException(
+                    422, "none_option: the key of the requests' 'none of these' option (default 'none')"
+                )
+            dynamic_options = {"none_option": none_option}
         certify, held_out = None, None
         if body.get("certify") is not None:
             if not isinstance(body["certify"], dict):
@@ -2532,7 +2727,7 @@ def add_routes(app, systemone: SystemOne):
                 held_out = parse_examples(body["certify"]["examples"], "certify.examples")
         try:
             task, fitted = await run_in_threadpool(
-                systemone.register_readout_task, str(body["id"]), examples, certify, held_out
+                systemone.register_readout_task, str(body["id"]), examples, certify, held_out, dynamic_options
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))

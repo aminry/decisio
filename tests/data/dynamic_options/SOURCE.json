@@ -1,0 +1,12 @@
+{
+ "what": "features, hashes and probabilities of the dynamic-option evaluation's items; no request text",
+ "families": {
+  "brand": "Amazon Shopping Queries (ESCI) US products, Apache-2.0; brand list adds Wikidata English brand labels (CC0)",
+  "entity": "ZESHEL, CC BY-SA 3.0",
+  "tool": "ToolACE, Apache-2.0 (synthetic)",
+  "product": "Amazon Shopping Queries (ESCI) US queries, Apache-2.0",
+  "route": "Schema-Guided Dialogue, CC BY-SA 4.0"
+ },
+ "arrays": "per pool: k (real options per item, the none option is one more in p), static (8 features of the real options), keys (hash of the normalised option text, uint64), gold (index, K-1 for none), p_<base> and served_<base> (distributions over the options)",
+ "note": "derived numbers only: no state or option text is stored; the hashes are of short option strings from public datasets"
+}
