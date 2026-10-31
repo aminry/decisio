@@ -1,0 +1,105 @@
+{
+ "what": "the fast table on ten public sets at 1,000 labels (Gemma 4 31B; the 12B passes the same four)",
+ "unit": "percent; table share and error among them on the test items; milliseconds per request, decisio alone and with the table in front; saving is the reduction in mean time; passes = the table answers at least 30%, is wrong on at most 5% of those, costs no accuracy, and saves at least 25%",
+ "assistant_command_sets": [
+  "clinc150",
+  "massive",
+  "snips"
+ ],
+ "sets": [
+  {
+   "set": "clinc150",
+   "table_share": 92.3,
+   "table_error": 3.1,
+   "decisio_ms": 384,
+   "cascade_ms": 71,
+   "saving": 82,
+   "passes": true
+  },
+  {
+   "set": "massive",
+   "table_share": 45.2,
+   "table_error": 2.2,
+   "decisio_ms": 310,
+   "cascade_ms": 190,
+   "saving": 39,
+   "passes": true
+  },
+  {
+   "set": "cfpb",
+   "table_share": 0.0,
+   "table_error": null,
+   "decisio_ms": 154,
+   "cascade_ms": 315,
+   "saving": -104,
+   "passes": false
+  },
+  {
+   "set": "arxiv",
+   "table_share": 0.0,
+   "table_error": null,
+   "decisio_ms": 184,
+   "cascade_ms": 370,
+   "saving": -101,
+   "passes": false
+  },
+  {
+   "set": "civil_comments",
+   "table_share": 69.8,
+   "table_error": 3.7,
+   "decisio_ms": 65,
+   "cascade_ms": 74,
+   "saving": -13,
+   "passes": false
+  },
+  {
+   "set": "sms_spam",
+   "table_share": 99.8,
+   "table_error": 1.4,
+   "decisio_ms": 62,
+   "cascade_ms": 32,
+   "saving": 49,
+   "passes": true
+  },
+  {
+   "set": "snips",
+   "table_share": 100.0,
+   "table_error": 2.1,
+   "decisio_ms": 62,
+   "cascade_ms": 24,
+   "saving": 62,
+   "passes": true
+  },
+  {
+   "set": "scicite",
+   "table_share": 0.0,
+   "table_error": null,
+   "decisio_ms": 65,
+   "cascade_ms": 113,
+   "saving": -74,
+   "passes": false
+  },
+  {
+   "set": "brand",
+   "table_share": 0.0,
+   "table_error": null,
+   "decisio_ms": 63,
+   "cascade_ms": 95,
+   "saving": -53,
+   "passes": false
+  },
+  {
+   "set": "entity",
+   "table_share": 0.0,
+   "table_error": null,
+   "decisio_ms": 73,
+   "cascade_ms": 162,
+   "saving": -120,
+   "passes": false
+  }
+ ],
+ "passed": 4,
+ "of": 10,
+ "passed_without_assistant_command_sets": 1,
+ "of_without_assistant_command_sets": 7
+}

@@ -8,12 +8,15 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.37.0: tasks whose options change with every request
+## 0.37.0: tasks whose options change with every request, and an opt-in fast table
 
 ### What changed
 
 - **`POST /v1/tasks` takes `"options": "dynamic"`** for a recurring question whose options differ in every request (a brand from a product title, which of a request's tools to call). The task is matched on the question's instructions, each example carries its own options, and a `certify` block is required: the task is always certified, on decisio's top probability whatever the options, with a small re-ranker kept where cross-validation shows a gain ([tasks.md](tasks.md#tasks-whose-options-change-with-every-request)).
 - **A new traffic signal**, `unseen_options`, in the status of such a task: the share of requests none of whose options the examples contained, watched where options recur in the examples (`armed` says whether). It suspends certification while it alerts.
+- **`"fast_table": true` on `POST /v1/tasks`.** A task of short texts can get a sentence encoder and a classifier on the host CPU in front of decisio. The registration times it against decisio and keeps it only if it saves at least 25% of the time per request. See [tasks.md](tasks.md#a-fast-table-in-front-of-decisio-opt-in).
+- **A new extra, `decisio[table]`** (sentence-transformers and scikit-learn). Nothing else needs it.
+- **A task with a table has a cascade certificate** (`table_threshold`, per-stage counts, `decisio_only`), its answers carry `answered_by`, and `status.fast_table` shows what each replica does with the table.
 
 ### Who is affected
 
@@ -21,6 +24,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- |
 | Any existing task or server | Nothing changes | Nothing |
 | A dynamic task on a decisio before 0.37.0 | Its record is refused (an unknown format) | Upgrade |
+| A new task registered with `"fast_table": true` | The table is kept or dropped by its timing; the report says which | Install `decisio[table]` on every replica that will serve it |
+| Replicas on different CPUs or cards | A replica on a stack other than the table's timing serves the task through the model until it has timed the table itself | Nothing; `status.fast_table` shows it |
 
 ## 0.36.0: the intent head needs 2 labelled examples of every option
 

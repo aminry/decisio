@@ -445,6 +445,129 @@ All in percent, the mean over the five questions of the median over three draws 
 - The gate is itself slightly optimistic: the features are standardised on all the labelled examples, and the cross-validation that picks the regularisation is the one the gate reads. It declines a re-ranker whose gain is below 0.005 in log loss per example, which on one question (intent routing on the 31B) gave up a small real gain.
 - The gain rests on five question types and two model sizes; a task of another kind may gain more or nothing, and the cross-validation says which.
 
+
+## A fast table in front of decisio (opt-in)
+
+For a task of short texts that arrive in volume, a small classifier on the host CPU can answer most requests without asking the model.
+It is off unless the registration asks for it, and it keeps itself only where it pays.
+
+**What it is.**
+A sentence encoder (`BAAI/bge-base-en-v1.5`, a pinned revision), a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold.
+A request whose table confidence reaches the threshold is answered by the table and the model is not asked.
+Every other request goes to decisio as it would without the table.
+
+**Where it helps, and where it does not.**
+It helps on short, command-style texts with about a thousand labelled examples: an assistant's commands, spam, a fixed set of intents.
+It does not help on long texts.
+The encoder runs in front of every request, on the host CPU, at 21 to 30 ms for a short text and 134 to 183 ms for a text of 600 to 1,150 tokens, which is more than decisio's own read.
+It does not help where decisio is weak enough that nothing is certified, and it does not help on a task whose options differ from request to request.
+The registration times both paths on your own examples and drops the table when it does not pay (below), so asking for it on the wrong task costs the registration, not the traffic.
+
+**How to ask for it.**
+
+```bash
+pip install 'decisio[table]'     # sentence-transformers and scikit-learn; the image does not carry them
+```
+
+```json
+{"id": "assistant-commands", "examples": [...], "certify": {"alpha": 0.05, "delta": 0.1}, "fast_table": true}
+```
+
+- A `certify` block is required: the table is part of the certificate.
+- Choice questions only, with at least 100 fit examples.
+- Without the extra the registration is refused with 422 and says what to install.
+
+**What the registration does.**
+
+1. It fits the table on the fit examples, and embeds the held-out examples one at a time.
+2. It reads the held-out examples through decisio, one at a time, as the certificate does.
+3. It makes the cascade's thresholds (below).
+4. It times the two paths on the held-out examples, on this host, one request at a time, with decisio's reads of texts it has not seen: the expected mean time per request is the table's time on every request plus decisio's time on the share the table defers.
+5. It keeps the table only if the expected time falls by at least 25% and a table threshold holds.
+
+The response says what it did.
+`fast_table_report` has `kept`, the `reason` when it is false (for example "it would save 11% of the time per request, under the 25% required"), the `guard` (the table's and decisio's mean milliseconds, the table's share, the saving) and the cascade's thresholds.
+A table that is not kept leaves a task that is served, and certified, exactly as it would be without one.
+
+**The certificate is the cascade's.**
+The table's threshold is the lowest at which at most `alpha` of its answers are wrong, with probability at least 1 - `delta`/2, on the held-out examples.
+Decisio's threshold is made the same way on the requests the table defers.
+An answer of either stage that reaches its threshold is certified, and the promise is the cascade's: at most `alpha` of the certified answers are wrong, for traffic like the examples and on this serving stack.
+The table's stage keeps that promise by the procedure's proof, with probability at least 1 - `delta`/2.
+Decisio's stage is certified on the requests the table's chosen threshold defers, from the same held-out examples, so which requests those are depends on the same labels that set the table's threshold.
+Its promise is therefore supported by simulation and not proved: on simulated populations, including one where the table fails exactly where decisio finds requests easy, it broke its allowance in at most 1.3% of draws against the 5% allowed.
+A stricter mode that certifies the two stages on disjoint examples is possible later.
+The certificate lists both stages (`table_threshold`, `threshold` for decisio's, and per stage the answers, the errors and an upper bound), and `decisio_only` holds the certificate decisio alone would have had, which is what serves when the table is off.
+Each answer says which stage answered it, `answered_by: "table"` or `"decisio"`.
+The cascade as a whole broke its promise in about 2 to 3 of every 100 simulated draws of the held-out examples, against the 10 allowed (`tests/unit/test_fast_table.py`), because each stage is held to `delta`/2.
+That costs examples: the held-out set needs to be larger than for decisio alone (about 600 or more, at the defaults).
+
+**What was measured.**
+Offline, with the server's own code, on public sets at 1,000 labels (the 31B and the 12B; the table on a server CPU with four threads; decisio on one card; medians of two draws of the labelled examples):
+
+**Across the ten sets tried, the table passed the 25% guard on 4: CLINC150, MASSIVE, Snips and SMS spam.**
+**Without the three assistant-command sets (CLINC150, MASSIVE, Snips) it passed on 1 of 7: SMS spam.**
+Six sets were dropped: CFPB and arXiv (long texts, where the table doubles the time per request), Civil comments (the table answers 70% but its time does not pay), SciCite (nothing certified), and the two sets whose options change per request (brand, entity linking; nothing certified).
+MASSIVE passes only because decisio's own read there goes through the intent head's hidden-state read and is slow; timed as a plain read it saves 21% on the 31B, under the 25%.
+
+| Set | Table answers | Of those, wrong | Time per request, decisio alone / with the table (31B) | Kept |
+| --- | ---: | ---: | ---: | --- |
+| CLINC150 (150 intents) | 92.3% | 3.1% | 384 / 71 ms (82%) | yes |
+| MASSIVE (55 intents) | 45.2% | 2.2% | 310 / 190 ms (39%) | yes |
+| CFPB complaints (long) | 0.0% | - | 154 / 315 ms (-104%) | no |
+| arXiv abstracts (long) | 0.0% | - | 184 / 370 ms (-101%) | no |
+| Civil comments (noisy labels) | 69.8% | 3.7% | 65 / 74 ms (-13%) | no |
+| SMS spam | 99.8% | 1.4% | 62 / 32 ms (49%) | yes |
+| Snips (7 intents) | 100.0% | 2.1% | 62 / 24 ms (62%) | yes |
+| SciCite (citation intent) | 0.0% | - | 65 / 113 ms (-74%) | no |
+| Brand from a product title (options change per request) | 0.0% | - | 63 / 95 ms (-53%) | no |
+| Entity linking (options change per request) | 0.0% | - | 73 / 162 ms (-120%) | no |
+
+The saving is largest where decisio's own read is expensive (CLINC150 and MASSIVE use the intent head, whose hidden-state read costs 190 to 380 ms) and where the table answers nearly everything.
+On short texts with a plain read it needs the table to answer roughly 60 to 75% of requests to clear 25%.
+These are offline figures on one card and one CPU; your hosts decide your own, which is why the registration measures them.
+
+**Each replica decides for itself whether to use it.**
+The timing is true for the stack it was made on: the host CPU, the engine and its card, the encoder and its libraries (`fast_table.timing.stack` in the record).
+`status.fast_table` on `GET /v1/tasks/{id}` says what this replica is doing:
+
+| `state` | What it does |
+| --- | --- |
+| `active` | The table answers the requests it is sure of. |
+| `timing` | The table is not used and decisio answers everything, under the `decisio_only` certificate. The replica is on another stack than the one the table was timed on, or the table stopped beating decisio under this replica's load. Every tenth request also times the table, after decisio has answered, and when 30 such pairs show the saving the table is taken up again (`retimed`). |
+| `suspended` | The monitor's alarm fired here or on another replica that shares the task store (below). Decisio answers everything, under the `decisio_only` certificate. |
+| `unavailable` | This server cannot run the table: it has another encoder revision than the one the table was fitted with (register the task again), or the `table` extra is not installed. |
+
+**Load.**
+The table's time at registration cannot see contention on the host.
+While the table answers, the server keeps the median of its last 50 table-path times (judged from 20).
+If the expected time per request, with that median on every request and decisio's registered time on the share the table defers, is no longer at least 25% under decisio's, the replica falls back to decisio (`timing`) and the status says why and gives the numbers.
+The encoder runs one text at a time on a replica (it is one model on the CPU), so at 21 to 30 ms a replica sustains roughly 35 to 45 table requests per second; above that, requests queue behind it, its median rises and the replica falls back.
+Size the CPU for the table, or leave it off.
+
+**The monitor.**
+The monitor of a table task watches the stream of answers the task serves, table and decisio together, with the same checks as any certified task (the answer mix and the confidences, [above](#the-monitor)).
+Every 50th table answer is also read by decisio, to compare: decisio's answer is not served, and that request takes one more model read.
+A CUSUM on how often decisio would have answered otherwise, against the held-out examples' rate, is the agreement alarm (`status.fast_table.agreement`; it is armed only when at least 20 held-out examples were answered by the table and their disagreement is under 20%).
+When the confidence alarm or the agreement alarm fires and the task suspends on alerts (`suspend_on_alert`, the default), the table is suspended.
+
+**Suspension reaches the fleet through a shared store.**
+With `--task-store` the replica that sees the alarm writes the task again with the suspension in it (a new version of the task, `fast_table.suspended`, with the reason and who wrote it), and every other replica stops using the table when it next follows the store, within `--task-store-poll-seconds`.
+A replica applying the new version starts that task's monitor afresh.
+With `--tasks-dir`, with no store, on a `--task-store-readonly` replica, or when the write is refused, the suspension holds on the replica that saw the alarm and `suspended.shared` in the record is false.
+Re-certify the task (`POST /v1/tasks/{id}/certify` with new labelled examples) to lift the suspension: the table is kept as fitted, its thresholds and its timing are made again, and the table is dropped if it no longer pays.
+
+**What is stored.**
+The encoder name and revision, the classifier (a matrix of options by 768 floats and their intercepts), the cascade's thresholds and the timing record.
+No request text, no embedding of a request and no example is stored.
+
+**Limits.**
+- Choice questions on the text route, one order; a yes/no or score question, an image request, an adapter and a task of options that change per request have no table.
+- The table reads the state as text (a string as it is, an object as its JSON); two requests the table cannot tell apart get the same answer.
+- The encoder revision is fixed in the release; a task fitted under another revision is `unavailable` until it is registered again.
+- The table cannot answer with an option none of its examples carried; those requests go to decisio.
+- The saving is a mean over requests: a request the table defers takes the table's time and then decisio's.
+
 ## Limits
 
 - **Option list identity.** A task is found by its question's type and its options, keys and descriptions, in order (plus the instructions for yes/no and score questions). Renaming, adding, removing or reordering an option makes a different task, which needs its own registration.
