@@ -12,6 +12,7 @@ D3  the gate: a re-ranker is kept only when its cross-validation beats decisio's
     otherwise
 D4  apply: the same request gives the same distribution; a record that is not applied returns decisio's distribution; a
     request with no none option and the never-seen share work
+D5  the docs table equals runs/2026-10-30_dynamic-options/summary.json
 
   uv run pytest -q tests/unit/test_dynamic.py
 """
@@ -243,3 +244,22 @@ def test_d4_never_seen_share_and_the_stored_record_holds_hashes_only():
         all(len(k) == 16 for k in rec["prior"]) and "w1" not in blob and "text about" not in blob
     )  # no option or request text
     json.loads(blob)  # serialisable as is
+
+
+def test_d5_the_docs_table_is_the_summary_json():
+    """The figures of docs/tasks.md ("What was measured") are the ones of runs/2026-10-30_dynamic-options/summary.json."""
+    root = Path(__file__).resolve().parents[2]
+    bases = json.loads((root / "runs" / "2026-10-30_dynamic-options" / "summary.json").read_text())["bases"]
+    rows = {
+        line.split("|")[1].strip(): [c.strip() for c in line.split("|")[2:4]]
+        for line in (root / "docs" / "tasks.md").read_text().splitlines()
+        if line.startswith("| decisio alone") or line.startswith("| with the re-ranker as shipped")
+    }
+    assert len(rows) == 4, rows
+    for b, col in (("12b", 0), ("31b", 1)):
+        s = bases[b]
+        for who, key in (("decisio alone", "decisio_alone"), ("with the re-ranker as shipped", "reranker_gated")):
+            assert rows[f"{who}: accuracy"][col] == f"{s[key]['accuracy']:.1f}", (b, who)
+            assert rows[f"{who}: certified share / error among them"][col] == (
+                f"{s[key]['share']:.1f} / {s[key]['error']:.1f}"
+            ), (b, who)
