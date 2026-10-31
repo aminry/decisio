@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.38.0](https://github.com/aminry/decisio/compare/v0.37.0...v0.38.0) (2026-10-31)
+
+
+### Features
+
+* **serve:** --deterministic-compile, an opt-in compile with no timed choices ([#350](https://github.com/aminry/decisio/issues/350)) ([5d8d8bf](https://github.com/aminry/decisio/commit/5d8d8bf16aa5c9fb97bc3aa155a61f036cbc41ef))
+* **serve:** the fast table's encoder runs through ONNX Runtime ([#383](https://github.com/aminry/decisio/issues/383)) ([563c5bd](https://github.com/aminry/decisio/commit/563c5bd44ff68b89a0c5b5b19b3cdce371327846))
+
 ## [0.37.0](https://github.com/aminry/decisio/compare/v0.36.0...v0.37.0) (2026-10-31)
 
 
