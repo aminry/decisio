@@ -254,9 +254,13 @@ def temper_free(p) -> np.ndarray:
 
 def apply(rec: dict, static: np.ndarray, keys: list[str], p, none_index: int | None, served=None) -> np.ndarray:
     """The re-ranked distribution over a request's options. Where the record is not applied, decisio's own distribution
-    as the server serves it: `served` (its readout with the server's temperature), else the readout `p` itself."""
+    as the server serves it: `served`, its readout with the server's temperature, which the caller must give."""
     if not rec or not rec.get("applied"):
-        return temper_free(p if served is None else served)
+        if served is None:
+            raise ValueError(
+                "a task whose re-ranker is not applied answers with decisio's served distribution: pass it"
+            )
+        return temper_free(served)
     prior = {k: tuple(v) for k, v in rec["prior"].items()}
     X = rows_of(static, keys, p, none_index, rec["temperature"], prior)
     Z = (X - np.asarray(rec["mean"])) / np.asarray(rec["scale"])

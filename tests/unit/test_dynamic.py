@@ -217,8 +217,10 @@ def test_d4_apply_is_deterministic_and_a_declined_record_returns_decisios_distri
     b = Dy.apply(rec, e["static"], e["keys"], e["p"], e["none_index"])
     assert np.array_equal(a, b) and a.sum() == pytest.approx(1.0) and len(a) == 4
     declined = {"format": Dy.FORMAT, "applied": False}
-    assert np.allclose(Dy.apply(declined, e["static"], e["keys"], e["p"], e["none_index"]), e["p"] / e["p"].sum())
-    assert np.allclose(Dy.apply(None, e["static"], e["keys"], e["p"], e["none_index"]), e["p"] / e["p"].sum())
+    for r in (declined, None):  # no fallback to the plain readout: the served distribution is required
+        with pytest.raises(ValueError, match="served distribution"):
+            Dy.apply(r, e["static"], e["keys"], e["p"], e["none_index"])
+        assert np.allclose(Dy.apply(r, e["static"], e["keys"], e["p"], e["none_index"], served=e["p"]), e["p"])
     # decisio's distribution as the server serves it (its readout with the server's temperature) when one is given
     sv = e["p"] ** 2 / (e["p"] ** 2).sum()
     got = Dy.apply(declined, e["static"], e["keys"], e["p"], e["none_index"], served=sv)
