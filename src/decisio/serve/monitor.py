@@ -113,6 +113,40 @@ def confidence_baseline(conf, seed: str) -> dict | None:
     }
 
 
+def rate_baseline(events, seed: str) -> dict | None:
+    """The record of a CUSUM on how often an event happens (a request whose options were all never seen in the task's
+    examples), for certification requests whose event flags are `events`; None when the rate is too large to tell a
+    rise from normal. The same rule as the confidence signal's, on an event rate instead of a tail share."""
+    events = np.asarray(events, dtype=bool)
+    if len(events) < 20:
+        return None
+    p0 = max(float(events.mean()), 1.0 / len(events))
+    p_ok, p_bad = OK_FACTOR * p0, BAD_FACTOR * p0
+    if p_bad > 0.5:
+        return None
+    return {
+        "share": p0,
+        "p_ok": p_ok,
+        "p_bad": p_bad,
+        "limit": cusum_limit(p_ok, p_bad, "rate:" + seed),
+        "false_alarm": FALSE_ALARM,
+        "horizon": HORIZON,
+    }
+
+
+def dynamic_baseline(conf, unseen, seed: str) -> dict:
+    """The record stored with a certified dynamic-option task, whose options differ from request to request, so there is
+    no answer mix: the confidence signal, and the rate of requests whose options were all never seen in the examples."""
+    out = {"mode": "dynamic", "window": WINDOW, "step": STEP, "option_counts": None, "seed": seed}
+    cb = confidence_baseline(conf, seed) if conf is not None else None
+    if cb is not None:
+        out["confidence"] = cb
+    ub = rate_baseline(unseen, seed) if unseen is not None else None
+    if ub is not None:
+        out["unseen"] = ub
+    return out
+
+
 def baseline(codes, k: int, seed: str, conf=None) -> dict:
     """The record stored with a certified task: the answer mix's, and the confidence signal's when `conf` (the
     certification examples' top probabilities) supports one."""
@@ -141,7 +175,10 @@ class MixMonitor:
 
     def __init__(self, base: dict):
         self.base = base
-        self.k = len(base["option_counts"])
+        self.dynamic = (
+            base.get("mode") == "dynamic"
+        )  # no option list: no answer mix, only the confidences and the unseen rate
+        self.k = 0 if self.dynamic else len(base["option_counts"])
         self._ring: deque[int] = deque(maxlen=base["window"])
         self._counts = np.zeros(self.k, dtype=int)
         self.answers = 0
@@ -159,15 +196,28 @@ class MixMonitor:
         if c:
             self._up = math.log(c["p_bad"] / c["p_ok"])
             self._down = math.log((1 - c["p_bad"]) / (1 - c["p_ok"]))
+        u = base.get("unseen")
+        self._unseen = u
+        self.unseen_statistic = 0.0
+        self.unseen_alerting = False
+        self.unseen_alerts = 0
+        if u:
+            self._u_up = math.log(u["p_bad"] / u["p_ok"])
+            self._u_down = math.log((1 - u["p_bad"]) / (1 - u["p_ok"]))
         self.shared_skipped = 0  # answers scored in a shared engine call (--concurrency batched), not observed
         self._lock = threading.Lock()
 
     @property
     def alerting(self) -> bool:
-        return self.mix_alerting or self.conf_alerting
+        return self.mix_alerting or self.conf_alerting or self.unseen_alerting
 
     def observe(
-        self, index: int, certified: bool = False, confidence: float | None = None, shared: bool = False
+        self,
+        index: int,
+        certified: bool = False,
+        confidence: float | None = None,
+        shared: bool = False,
+        unseen: bool | None = None,
     ) -> None:
         """Count one answer of the task. `shared`: it was scored in an engine call shared with other requests
         (--concurrency batched), a function of the traffic, while the baseline was read one request at a time: it is
@@ -176,13 +226,18 @@ class MixMonitor:
             if shared:
                 self.shared_skipped += 1
                 return
-            if len(self._ring) == self._ring.maxlen:
-                self._counts[self._ring[0]] -= 1
-            self._ring.append(int(index))
-            self._counts[int(index)] += 1
+            if not self.dynamic:
+                if len(self._ring) == self._ring.maxlen:
+                    self._counts[self._ring[0]] -= 1
+                self._ring.append(int(index))
+                self._counts[int(index)] += 1
             self.answers += 1
             self.certified_answers += int(certified)
-            if len(self._ring) == self._ring.maxlen and self.answers - self.checked_at >= self.base["step"]:
+            if (
+                not self.dynamic
+                and len(self._ring) == self._ring.maxlen
+                and self.answers - self.checked_at >= self.base["step"]
+            ):
                 self.checked_at = self.answers
                 self.distance = distance(self._counts, self.base["option_counts"])
                 self.mix_alerting = self.distance > self.base["line"]
@@ -197,6 +252,16 @@ class MixMonitor:
                     self.conf_alerting = True
                 elif self.statistic < c["limit"] / 2:
                     self.conf_alerting = False
+            if self._unseen and unseen is not None:
+                u = self._unseen
+                step = self._u_up if unseen else self._u_down
+                self.unseen_statistic = min(CAP * u["limit"], max(0.0, self.unseen_statistic + step))
+                if self.unseen_statistic > u["limit"]:
+                    if not self.unseen_alerting:
+                        self.unseen_alerts += 1
+                    self.unseen_alerting = True
+                elif self.unseen_statistic < u["limit"] / 2:
+                    self.unseen_alerting = False
             if self.alerting and self.first_alert_at is None:
                 self.first_alert_at = self.answers
 
@@ -209,15 +274,27 @@ class MixMonitor:
                 "certified_answers": self.certified_answers,
                 "checked_at": self.checked_at or None,
                 "distance": self.distance,
-                "line": self.base["line"],
                 "alerts": self.alerts,
-                "option_counts": self._counts.tolist(),
                 "signals": [
-                    n for n, on in (("answer_mix", self.mix_alerting), ("confidence", self.conf_alerting)) if on
+                    n
+                    for n, on in (
+                        ("answer_mix", self.mix_alerting),
+                        ("confidence", self.conf_alerting),
+                        ("unseen_options", self.unseen_alerting),
+                    )
+                    if on
                 ],
+                **({} if self.dynamic else {"line": self.base["line"], "option_counts": self._counts.tolist()}),
                 "first_alert_at": self.first_alert_at,
                 **({"shared_skipped": self.shared_skipped} if self.shared_skipped else {}),
             }
+            if self._unseen:
+                out["unseen_options"] = {
+                    "statistic": self.unseen_statistic,
+                    "limit": self._unseen["limit"],
+                    "share": self._unseen["share"],
+                    "alerts": self.unseen_alerts,
+                }
             if self._conf:
                 out["confidence"] = {
                     "statistic": self.statistic,

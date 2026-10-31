@@ -1,0 +1,122 @@
+{
+ "brand|12b": {
+  "A0": {
+   "accuracy": 0.948,
+   "error": 0.03066812705366922,
+   "share": 0.913
+  },
+  "B": {
+   "accuracy": 0.948,
+   "error": 0.030634573304157548,
+   "share": 0.914
+  }
+ },
+ "brand|31b": {
+  "A0": {
+   "accuracy": 0.952,
+   "error": 0.0306553911205074,
+   "share": 0.946
+  },
+  "B": {
+   "accuracy": 0.953,
+   "error": 0.028662420382165606,
+   "share": 0.942
+  }
+ },
+ "entity|12b": {
+  "A0": {
+   "accuracy": 0.574,
+   "error": null,
+   "share": 0.0
+  },
+  "B": {
+   "accuracy": 0.674,
+   "error": null,
+   "share": 0.0
+  }
+ },
+ "entity|31b": {
+  "A0": {
+   "accuracy": 0.675,
+   "error": null,
+   "share": 0.0
+  },
+  "B": {
+   "accuracy": 0.725,
+   "error": null,
+   "share": 0.0
+  }
+ },
+ "product|12b": {
+  "A0": {
+   "accuracy": 0.629,
+   "error": null,
+   "share": 0.0
+  },
+  "B": {
+   "accuracy": 0.699,
+   "error": null,
+   "share": 0.0
+  }
+ },
+ "product|31b": {
+  "A0": {
+   "accuracy": 0.674,
+   "error": null,
+   "share": 0.0
+  },
+  "B": {
+   "accuracy": 0.702,
+   "error": null,
+   "share": 0.0
+  }
+ },
+ "route|12b": {
+  "A0": {
+   "accuracy": 0.906,
+   "error": 0.03949044585987261,
+   "share": 0.785
+  },
+  "B": {
+   "accuracy": 0.922,
+   "error": 0.033136094674556214,
+   "share": 0.845
+  }
+ },
+ "route|31b": {
+  "A0": {
+   "accuracy": 0.91,
+   "error": 0.02875,
+   "share": 0.8
+  },
+  "B": {
+   "accuracy": 0.921,
+   "error": 0.029055690072639227,
+   "share": 0.826
+  }
+ },
+ "tool|12b": {
+  "A0": {
+   "accuracy": 0.958,
+   "error": 0.028925619834710745,
+   "share": 0.968
+  },
+  "B": {
+   "accuracy": 0.963,
+   "error": 0.037,
+   "share": 1.0
+  }
+ },
+ "tool|31b": {
+  "A0": {
+   "accuracy": 0.949,
+   "error": 0.04106776180698152,
+   "share": 0.974
+  },
+  "B": {
+   "accuracy": 0.959,
+   "error": 0.03815261044176707,
+   "share": 0.996
+  }
+ }
+}

@@ -402,6 +402,48 @@ A certified task is watched by three checks that need no labels.
 
 The monitor cannot see a wrong answer, because it has no labels. The only direct check that the promise holds on live traffic is to label some of it and certify again.
 
+## Tasks whose options change with every request
+
+A fixed-option task is one question with one list of options. Some recurring questions are not: which brand a product title names, which entity a mention refers to, which of this request's tools to call, which catalogue product matches a search. Their options are different in every request, so there is no option list to calibrate and no intent head to fit.
+What carries over from one request to the next is the question's instructions, and how the right option relates to the text and to what decisio already thinks of it.
+Register such a task with `"options": "dynamic"`:
+
+```json
+{"id": "brand",
+ "options": "dynamic",
+ "examples": [{"request": {"state": "Apple iPhone 13 Pro 256GB graphite",
+                           "questions": {"q": {"type": "choice",
+                                                "instructions": "Which of these is the brand of the product in this listing?",
+                                                "criteria": {"1": "Apple", "2": "Samsung", "3": "Google", "none": "none of these"}}}},
+               "answer": "1"}, ...],
+ "certify": {}}
+```
+
+- **Matched on the instructions.** Every later choice question with the same instructions is answered through the task, whatever its options.
+- **Each example carries its own options.** Its `answer` is one of its option keys, or `null` for the request's none option (the option with the key `none`, or the key you name in `"none_option"`).
+- **A certificate is part of it.** A dynamic task is always certified, with a `certify` block ([Certified answers](#certified-answers), 59 held-out examples at the defaults): the certificate is made on decisio's top probability, whatever the options in the examples were. Without it a dynamic task does nothing.
+- **A re-ranker, where it helps.** The server also fits one weight vector over 13 features of an option, computed from the request itself: decisio's probability for it, whether it is decisio's top, how much of the option occurs in the text and where, its length, how often it was the answer in your examples, and whether it appeared in them at all. It is kept only when its 5-fold cross-validation beats decisio's own distribution, the way the intent head is (in the measurement below it was kept in 14 of 15 draws on the 12B and 10 of 15 on the 31B); the certificate is then made on its top probability. It needs no encoder and adds well under a millisecond. The registration response says whether it was kept (`dynamic.applied`) and why.
+- **What is stored.** The 13 weights and the table the re-ranker uses of your examples' options: for each option text a hash and two counts. No request text and no option text is stored, and the registration response says so.
+- **The monitor.** The traffic monitor of such a task has no answer mix, since the options differ. It watches the confidences as before, and the share of requests none of whose options your examples ever contained; when that moves, what the re-ranker learned from your options stops meaning what it meant, and certification is suspended while the alert lasts (`suspend_on_alert`, as for the confidences).
+
+**What was measured.** Offline, with the server's own code, on five recurring questions (brand from a product title, entity linking, tool choice, product matching, intent routing; 1,200 teaching, 800 certification and 1,000 test requests each, 200 labels used for the fit, two to eight options and a none option, `alpha` 0.05, `delta` 0.1), on the Gemma 4 12B and 31B (`runs/2026-10-30_dynamic-options`):
+
+| | 12B | 31B |
+| --- | ---: | ---: |
+| decisio alone: accuracy | 80.3 | 83.2 |
+| decisio alone: certified share / error among them | 53.3 / 3.3 | 54.4 / 3.3 |
+| with the re-ranker as shipped: accuracy | 84.1 | 85.0 |
+| with the re-ranker as shipped: certified share / error among them | 55.3 / 3.9 | 54.3 / 3.4 |
+
+All in percent, the mean over the five questions of the median over three draws of 200 labels. Where decisio is already strong (brand, tool and intent routing at 91 to 96% accuracy) most requests are certified with no teaching at all; where it is weaker (entity linking at 57 to 67%, product matching at 63 to 67%) the re-ranker adds 3 to 10 points of accuracy and nothing is certified, because 5% error is out of reach there. Using 1,000 labels instead of 200 added little accuracy.
+
+**Limits.**
+- Choice questions only; a yes/no or a score question is not a dynamic task.
+- The text route, one order per request (`orders` 1); a request of two orders is answered as before and not certified.
+- The features read the option text as the request shows it, so options that differ only in a description (a tool's name and its description) are read as written.
+- The features are string overlaps with the request's text, so the re-ranker helps where the right option can be seen in the text, or has been the answer before; it does not help where neither is true, and the server then declines it.
+- The gain rests on five question types and two model sizes; a task of another kind may gain more or nothing, and the cross-validation says which.
+
 ## Limits
 
 - **Option list identity.** A task is found by its question's type and its options, keys and descriptions, in order (plus the instructions for yes/no and score questions). Renaming, adding, removing or reordering an option makes a different task, which needs its own registration.
