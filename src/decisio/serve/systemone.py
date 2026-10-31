@@ -1615,11 +1615,12 @@ class SystemOne:
             require_finite(p, "a dynamic task's probability")
             if swapped:
                 p = p[::-1].copy()
+            plain = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
             if rec.get("applied"):
                 _, texts, hashes, none_i = dynamic.question_parts(q.criteria, render_text, none_key)
                 p = dynamic.apply(rec, dynamic.static_features(dynamic.state_text(state), texts), hashes, p, none_i)
             else:
-                p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
+                p = plain
             out.append(np.asarray(p, dtype=np.float64))
         return out
 

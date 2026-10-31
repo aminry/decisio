@@ -219,6 +219,10 @@ def test_d4_apply_is_deterministic_and_a_declined_record_returns_decisios_distri
     declined = {"format": Dy.FORMAT, "applied": False}
     assert np.allclose(Dy.apply(declined, e["static"], e["keys"], e["p"], e["none_index"]), e["p"] / e["p"].sum())
     assert np.allclose(Dy.apply(None, e["static"], e["keys"], e["p"], e["none_index"]), e["p"] / e["p"].sum())
+    # decisio's distribution as the server serves it (its readout with the server's temperature) when one is given
+    sv = e["p"] ** 2 / (e["p"] ** 2).sum()
+    got = Dy.apply(declined, e["static"], e["keys"], e["p"], e["none_index"], served=sv)
+    assert np.allclose(got, sv) and not np.allclose(got, e["p"])
     # a request with a none option: five rows, five probabilities
     p5 = np.append(e["p"] * 0.9, 0.1)
     assert len(Dy.apply(rec, e["static"], e["keys"], p5, 4)) == 5

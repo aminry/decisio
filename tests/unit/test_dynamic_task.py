@@ -214,6 +214,12 @@ def test_t4_a_reranker_that_does_not_help_is_declined_and_the_certificate_is_on_
     body = request(["brand01x", "brand02x", "brand03x"], 1, 0.9, "buy the brand03x product")
     a = client.post("/v1/systemone", json=body).json()["answers"]["q1"]
     assert a["choice"] == "2" and "certified" in a  # decisio's own answer, certified or not by the threshold
+    # a declined task serves decisio's distribution with the server's temperature, as a task-less question would
+    so.temperature = 2.0
+    flat = client.post("/v1/systemone", json=body).json()["answers"]["q1"]["probabilities"]
+    sharp = np.array([0.1 / 3, 0.9, 0.1 / 3, 0.1 / 3])  # the fake engine's p for this request
+    want = sharp**0.5 / (sharp**0.5).sum()  # the engine's p at T = 2: p ** (1 / T), renormalised
+    assert abs(flat["2"] - float(want[1])) < 1e-3, (flat, want)
 
 
 def test_t5_requests_whose_options_the_examples_never_contained_raise_an_alert_and_suspend_certification():
@@ -235,6 +241,19 @@ def test_t5_requests_whose_options_the_examples_never_contained_raise_an_alert_a
     assert states[-1]["certified"] is False and states[-1]["certified_reason"] == "traffic_changed"
     seen = client.post("/v1/systemone", json=request(["brand01x", "brand02x"], 0, 0.95, "x")).json()["answers"]["q1"]
     assert seen.get("certified_reason") == "traffic_changed"  # still alerting: the window has not cleared
+
+
+def test_t5b_the_unseen_signal_is_not_armed_where_options_do_not_recur_and_the_status_says_so():
+    client, so = make()
+    fresh = [f"fresh{i:04d}z" for i in range(4000)]
+    exs = examples(300, seed=3, words=fresh)  # almost no option of one example appears in another
+    r = post(client, {"id": "entity", **DYN, "examples": exs, "certify": CERT})
+    assert r.status_code == 200, r.text
+    u = r.json()["status"]["monitor"]["unseen_options"]
+    assert u["armed"] is False and u["share"] > 0.2 and "armed below 20%" in u["why"]
+    armed = make()[0]
+    r = post(armed, {"id": "brand", **DYN, "examples": examples(500), "certify": CERT})
+    assert r.json()["status"]["monitor"]["unseen_options"]["armed"] is True
 
 
 def test_t6_listing_export_and_import():

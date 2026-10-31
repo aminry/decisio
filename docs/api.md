@@ -198,9 +198,9 @@ A change of the serving stack suspends the certificate (every answer certified f
 **Options that change with every request.** `POST /v1/tasks` also takes `"options": "dynamic"` (with `"match": "instructions"`, the only value, and optionally `"none_option"`, the key of the requests' "none of these" option, `"none"` by default) for a recurring question whose options are different in every request, such as which brand a product title names or which of a request's tools to call.
 The examples are choice questions that share one set of instructions; each may offer its own options, and its `answer` is one of its option keys, or `null` for its none option.
 A `certify` block is required: a dynamic task is certified, on decisio's own top probability whatever the options.
-The task is then matched on the question's instructions, and every later choice question with those instructions is answered through it.
+The task is then matched on the question's instructions, and every later choice question with those instructions is answered through it (unless a fixed-option task registered for exactly that set of options matches it first).
 The response's `dynamic` object says what was fitted (`applied`, `reason`, the cross-validated `cv` figures, the `temperature`, the 13 `weights`, and in the listing the size of the `prior`; `GET /v1/tasks?full=1` holds the table of hashed option texts) and what is stored; its `calibration` and `head` are present and not applied.
-The task's `status.monitor` has no answer mix; its signals are `confidence` and `unseen_options` (the share of requests whose options the examples never contained), and either one suspends certification while it alerts.
+The task's `status.monitor` has no answer mix; its signals are `confidence` and, where options recur in the examples, `unseen_options` (the share of requests whose options the examples never contained; `status.monitor.unseen_options.armed` says whether it is watched), and either one suspends certification while it alerts.
 `docs/tasks.md`, "Tasks whose options change with every request", has the measurements and the limits.
 
 `docs/tasks.md`, "Certified answers", says what the promise is and where it stops.

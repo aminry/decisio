@@ -144,6 +144,8 @@ def dynamic_baseline(conf, unseen, seed: str) -> dict:
     ub = rate_baseline(unseen, seed) if unseen is not None else None
     if ub is not None:
         out["unseen"] = ub
+    elif unseen is not None and len(unseen):
+        out["unseen_share"] = float(np.mean(np.asarray(unseen, dtype=bool)))  # too common to watch, and said so
     return out
 
 
@@ -290,10 +292,18 @@ class MixMonitor:
             }
             if self._unseen:
                 out["unseen_options"] = {
+                    "armed": True,
                     "statistic": self.unseen_statistic,
                     "limit": self._unseen["limit"],
                     "share": self._unseen["share"],
                     "alerts": self.unseen_alerts,
+                }
+            elif self.dynamic:
+                out["unseen_options"] = {
+                    "armed": False,
+                    "share": self.base.get("unseen_share"),
+                    "why": "so many of the examples' requests had only options the examples never contained that a "
+                    "rise could not be told from normal (armed below 20%)",
                 }
             if self._conf:
                 out["confidence"] = {

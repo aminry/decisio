@@ -4,7 +4,7 @@
  "columns": {
   "decisio_alone": "decisio's own distribution with a certificate on its top probability",
   "reranker_always": "the re-ranker kept whatever its cross-validation says",
-  "reranker_gated": "the shipped behaviour: kept only where cross-validation beats decisio's own distribution"
+  "reranker_gated": "the shipped behaviour: kept only where cross-validation beats decisio's own distribution; where declined, decisio's own distribution as the server serves it"
  },
  "bases": {
   "12b": {
@@ -19,14 +19,14 @@
     "accuracy": 84.0
    },
    "reranker_gated": {
-    "share": 55.3,
+    "share": 55.2,
     "error": 3.9,
     "accuracy": 84.1,
     "kept_in_draws": "14 of 15"
    },
    "reranker_gated_per_question": {
     "brand": {
-     "share": 92.1,
+     "share": 91.4,
      "error": 3.1,
      "accuracy": 94.8
     },
@@ -64,15 +64,15 @@
     "accuracy": 85.2
    },
    "reranker_gated": {
-    "share": 54.3,
-    "error": 3.4,
+    "share": 54.9,
+    "error": 3.2,
     "accuracy": 85.0,
     "kept_in_draws": "10 of 15"
    },
    "reranker_gated_per_question": {
     "brand": {
-     "share": 95.2,
-     "error": 3.4,
+     "share": 94.6,
+     "error": 3.1,
      "accuracy": 95.2
     },
     "entity": {
@@ -91,8 +91,8 @@
      "accuracy": 70.2
     },
     "route": {
-     "share": 76.5,
-     "error": 3.1,
+     "share": 80.0,
+     "error": 2.9,
      "accuracy": 91.0
     }
    }

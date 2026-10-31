@@ -13,7 +13,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 ### What changed
 
 - **`POST /v1/tasks` takes `"options": "dynamic"`** for a recurring question whose options differ in every request (a brand from a product title, which of a request's tools to call). The task is matched on the question's instructions, each example carries its own options, and a `certify` block is required: the task is always certified, on decisio's top probability whatever the options, with a small re-ranker kept where cross-validation shows a gain ([tasks.md](tasks.md#tasks-whose-options-change-with-every-request)).
-- **A new traffic signal**, `unseen_options`, in the status of such a task: the share of requests none of whose options the examples contained. It suspends certification while it alerts.
+- **A new traffic signal**, `unseen_options`, in the status of such a task: the share of requests none of whose options the examples contained, watched where options recur in the examples (`armed` says whether). It suspends certification while it alerts.
 
 ### Who is affected
 
