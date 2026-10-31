@@ -140,5 +140,19 @@
   "mean_ms_with_table": 71,
   "table_answers_whole_test_set_pct": 92.3,
   "cpu": "AMD EPYC 9755, 4 threads"
+ },
+ "onnx_encoder": {
+  "what": "the encoder through ONNX Runtime fp32 against torch fp32, batch of one, 4 threads, short texts (1,000 texts over five short-text sets), median milliseconds per request for the whole table path",
+  "host": "Apple M5 Pro (the x86 server CPUs were not measured)",
+  "torch_p50_ms": 11.6,
+  "onnx_p50_ms": 4.6,
+  "speedup": 2.5,
+  "encoder_share_of_table_path_pct": 99,
+  "embedding_max_abs_difference": 1.5e-06,
+  "source": "fast table speed study",
+  "served_confidence_shift_max_0_37_table": 2e-06,
+  "refit_threshold_shift_max": 0.0015,
+  "refit_share_shift_max_points": 0.3,
+  "refit_cells": "eight sets, both bases, two draws; accuracy identical in every cell"
  }
 }

@@ -12,7 +12,7 @@ The table is off unless the registration asks for it (`"fast_table": true`), and
 at registration the server times the table and decisio's own path on the task's certification examples and keeps the
 table only if the expected mean time per request falls by at least a quarter (`MIN_SAVING`). Where it does not, the
 registration says so and the task is served as it would be without a table. It does not pay on long texts: the encoder
-runs in front of every request, and on a text of several hundred tokens it costs more than decisio's own path.
+runs in front of every request, and on a text of several hundred tokens it can cost more than decisio's own path.
 
 The table and decisio form a two-stage cascade with one certificate (the way the certificate of a task is made, on
 examples held out of the fit): the table's threshold is the lowest at which at most `alpha` of its answers are wrong,
@@ -20,8 +20,12 @@ with probability at least 1 - delta/2; decisio's threshold is made the same way 
 answer of either stage whose confidence reaches its threshold is certified, and the promise is the cascade's: at most
 `alpha` wrong among the certified answers, with probability at least 1 - delta.
 
-Needs the `table` extra (sentence-transformers, which brings scikit-learn). The encoder is `BAAI/bge-base-en-v1.5` at a
-pinned revision. Standard library, numpy, and the extra.
+Needs the `table` extra (onnxruntime and scikit-learn). The encoder is `BAAI/bge-base-en-v1.5` at a pinned revision:
+the model's own published ONNX export (`onnx/model.onnx`, sha256 pinned below) run by ONNX Runtime in fp32 on `THREADS`
+threads with the model's own fast tokenizer, [CLS] pooling and L2 normalisation, as the model's sentence-transformers
+configuration does. It gives the embeddings of the torch model to about 1.5e-6, 3 to 4 times faster on one text. The two
+files are fetched from the Hub at the pinned revision on first use and checked against the pinned hash. Standard
+library, numpy, tokenizers, huggingface_hub and the extra.
 """
 
 from __future__ import annotations
@@ -45,6 +49,12 @@ FORMAT = record_format("fast-table")
 ENCODER = "BAAI/bge-base-en-v1.5"
 REVISION = "a5beb1e3e68b9ab74eb54cfd186867f64f240e1a"
 MAX_SEQ_LENGTH = 512
+ONNX_FILE = "onnx/model.onnx"  # in the model's repository at REVISION
+ONNX_SHA256 = "9bc579acdba21c253c62a9bf866891355a63ffa3442b52c8a37d75b2ccb91848"
+TOKENIZER_FILE = "tokenizer.json"
+THREADS = (
+    4  # intra-op threads of the ONNX session: explicit and recorded in the timing stack (8, 16: slower at batch 1)
+)
 CS = (0.1, 1.0, 10.0, 100.0)  # the L2 strength of the classifier, chosen by 5-fold cross-validated log loss
 MIN_SAVING = 0.25  # the table is kept when it cuts the expected mean time per request by at least this share
 MIN_EXAMPLES = 100  # fewer fit examples than this fit no table
@@ -61,23 +71,87 @@ _encoder = None
 
 
 class TableUnavailable(ImportError):
-    """The `table` extra is not installed."""
+    """The `table` extra is not installed, or the encoder's files cannot be had or are not the pinned ones."""
 
 
-def encoder():
-    """The sentence encoder, loaded once on the CPU."""
+def _need(what: str) -> TableUnavailable:
+    return TableUnavailable(f"the fast table needs the `table` extra ({what}): pip install 'decisio[table]'")
+
+
+class OnnxEncoder:
+    """The pinned encoder: `encode(texts)` gives L2-normalised float32 [CLS] embeddings, one row each. Not thread-safe
+    (the tokenizer's padding is set on it): `embed` calls it under a lock."""
+
+    def __init__(self, session, tokenizer):
+        self.session = session
+        self.tokenizer = tokenizer
+        self.inputs = [i.name for i in session.get_inputs()]
+        tokenizer.enable_truncation(max_length=MAX_SEQ_LENGTH)
+        tokenizer.enable_padding(pad_id=tokenizer.token_to_id("[PAD]"), pad_token="[PAD]")
+
+    @classmethod
+    def load(cls, local_files_only: bool = False) -> OnnxEncoder:
+        """The session and tokenizer of the pinned files, fetched from the Hub at REVISION (or taken from the local
+        cache) and checked against ONNX_SHA256."""
+        try:
+            import onnxruntime as ort
+        except ImportError as e:
+            raise _need("onnxruntime") from e
+        try:
+            from huggingface_hub import hf_hub_download
+            from tokenizers import Tokenizer
+        except ImportError as e:
+            raise _need("tokenizers and huggingface_hub") from e
+        try:
+            model = hf_hub_download(ENCODER, ONNX_FILE, revision=REVISION, local_files_only=local_files_only)
+            tok = hf_hub_download(ENCODER, TOKENIZER_FILE, revision=REVISION, local_files_only=local_files_only)
+        except Exception as e:  # no network, no such file, a gated or moved repository
+            raise TableUnavailable(
+                f"the fast table's encoder files cannot be fetched ({type(e).__name__}: {e}); fetch them where the "
+                f"server can read them: hf download {ENCODER} {ONNX_FILE} {TOKENIZER_FILE} --revision {REVISION}"
+            ) from e
+        digest = file_sha256(model)
+        if digest != ONNX_SHA256:
+            raise TableUnavailable(
+                f"{model} has sha256 {digest}, not the pinned {ONNX_SHA256}: the fast table refuses it"
+            )
+        options = ort.SessionOptions()
+        options.intra_op_num_threads, options.inter_op_num_threads = THREADS, 1
+        options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        session = ort.InferenceSession(model, options, providers=["CPUExecutionProvider"])
+        return cls(session, Tokenizer.from_file(tok))
+
+    def encode(self, texts, batch: int = 32) -> np.ndarray:
+        out = []
+        texts = list(texts)
+        for i in range(0, len(texts), batch):
+            enc = self.tokenizer.encode_batch(texts[i : i + batch])
+            feed = {
+                "input_ids": np.array([e.ids for e in enc], dtype=np.int64),
+                "attention_mask": np.array([e.attention_mask for e in enc], dtype=np.int64),
+                "token_type_ids": np.array([e.type_ids for e in enc], dtype=np.int64),
+            }
+            cls_ = self.session.run(None, {k: v for k, v in feed.items() if k in self.inputs})[0][:, 0]
+            out.append(cls_ / np.maximum(np.linalg.norm(cls_, axis=1, keepdims=True), 1e-12))
+        return np.vstack(out).astype(np.float32) if out else np.zeros((0, 768), dtype=np.float32)
+
+
+def file_sha256(path) -> str:
+    import hashlib
+
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 24), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def encoder() -> OnnxEncoder:
+    """The pinned encoder, loaded once on the CPU."""
     global _encoder
     with _lock:
         if _encoder is None:
-            try:
-                from sentence_transformers import SentenceTransformer
-            except ImportError as e:
-                raise TableUnavailable(
-                    "the fast table needs the `table` extra: pip install 'decisio[table]' (sentence-transformers)"
-                ) from e
-            m = SentenceTransformer(ENCODER, device="cpu", revision=REVISION)
-            m.max_seq_length = MAX_SEQ_LENGTH
-            _encoder = m
+            _encoder = OnnxEncoder.load()
     return _encoder
 
 
@@ -85,10 +159,7 @@ def embed(texts: list[str]) -> np.ndarray:
     """L2-normalised embeddings of the texts, float32, one row each."""
     enc = encoder()
     with _run:
-        out = enc.encode(
-            list(texts), batch_size=32, normalize_embeddings=True, convert_to_numpy=True, show_progress_bar=False
-        )
-    return np.asarray(out, dtype=np.float32)
+        return np.asarray(enc.encode(list(texts)), dtype=np.float32)
 
 
 def _pack(a) -> dict:
@@ -311,7 +382,8 @@ def cpu_model() -> str:
 
 def timing_stack(engine_facts: dict) -> dict:
     """What a timing of the table against decisio is true for: the host CPU, the engine and its card, and the encoder
-    with its revision and libraries. A replica whose own differs does not trust the timing."""
+    with its revision, the ONNX file's hash, the runtime's version and its threads. A replica whose own differs does not
+    trust the timing."""
     from importlib.metadata import PackageNotFoundError, version
 
     def lib(name):
@@ -328,8 +400,11 @@ def timing_stack(engine_facts: dict) -> dict:
         "engine": {k: engine_facts[k] for k in keep if k in engine_facts},
         "encoder": ENCODER,
         "revision": REVISION,
-        "torch": lib("torch"),
-        "sentence_transformers": lib("sentence-transformers"),
+        "runtime": "onnxruntime-fp32",
+        "onnxruntime": lib("onnxruntime"),
+        "tokenizers": lib("tokenizers"),
+        "onnx_sha256": ONNX_SHA256[:16],
+        "threads": THREADS,
     }
 
 

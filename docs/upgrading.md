@@ -8,20 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.38.0: an opt-in compile with no timed choices
+## 0.38.0: an opt-in compile with no timed choices, and the fast table's encoder through ONNX Runtime
 
 ### What changed
 
 - **`--deterministic-compile on|off`** (default off) sets `deterministic: true` and `combo_kernels: false` in the engine's inductor compile config (and `TORCHINDUCTOR_DETERMINISTIC=1` in the environment) before the engine starts ([running.md](running.md#deterministic-compile---deterministic-compile)). The kernels whose launch settings were picked by timing no longer are. On the Gemma 4 12B it makes cold starts agree (300 of 300 questions identical, against none without it, at about 1% in time per read); on the 31B FP8 the cold starts already agreed in the card check, and turning it on changes answers (24 of 300 top answers). It is recorded in the start line, `/health` and the serving-stack fingerprint, and refused when the environment says the opposite of the flag.
+- **The fast table's encoder is the model's published ONNX export, run by ONNX Runtime** (fp32, 4 threads), in place of the torch model. The embeddings are the same to about 1.5e-6, so tables and certificates made on 0.37.0 are unchanged, and it is 2.5 times faster on one short text on Apple silicon (not measured on x86; the registration times what it serves). See [tasks.md](tasks.md#a-fast-table-in-front-of-decisio-opt-in).
+- **`decisio[table]` is now onnxruntime and scikit-learn** (sentence-transformers is no longer needed). The export (436 MB) and the tokenizer are fetched from the Hugging Face Hub at the pinned revision on first use, checked against a pinned sha256.
+- **The timing stack of a table records the runtime** (ONNX Runtime and tokenizers versions, the export's hash, the threads), so a table timed on 0.37.0 is timed again on each replica before it answers.
 
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| Any server that does not pass the flag | Nothing changes | Nothing |
+| Any server that does not pass the flag and has no fast table | Nothing changes | Nothing |
 | A 12B server with certified tasks on several replicas or fresh nodes | You can turn it on so cold starts answer alike | Start with `--deterministic-compile on`, then certify again: the fingerprint changes, the first start compiles from cold, and answers can differ in the last digits |
 | A 31B server | Leave it off: its cold starts agreed without it, and turning it on changes its answers | Nothing |
 | A server with `combo_kernels` or `deterministic` in `--engine` | Your value wins | Nothing |
+| A task with a fast table from 0.37.0 | It keeps answering the same requests; each replica serves it through the model until it has timed the table on its own requests (30 paired timings) | Install the new extra on every replica; on a server with no route to the Hub, fetch the two files first |
 
 ## 0.37.0: tasks whose options change with every request, and an opt-in fast table
 

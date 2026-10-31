@@ -15,6 +15,7 @@ F6  the cascade's promise on simulated populations: over many draws of the held-
 F7  the study's CLINC150 cell (1,000 labels, draw 0) is reproduced on stored embeddings: table share, certified error,
     thresholds and accuracy, on both bases' decisio side
 F8  the docs' table and counts (4 of 10 sets, 1 of 7 without the assistant-command sets) equal the run's summary.json
+F10 the docs' ONNX Runtime figures (2.5 times, 4.6 against 11.6 ms, 1.5e-6, 99%) equal the run's summary.json
 F9  the docs' per-request cost table and the CLINC150 decomposition equal the run's summary.json
 
   uv run pytest -q tests/unit/test_fast_table.py
@@ -144,7 +145,7 @@ def test_f5_without_the_extra_it_says_what_to_install(monkeypatch):
     real = builtins.__import__
 
     def refuse(name, *a, **k):
-        if name.startswith("sentence_transformers") or name.startswith("sklearn"):
+        if name.startswith("onnxruntime") or name.startswith("sklearn"):
             raise ImportError(name)
         return real(name, *a, **k)
 
@@ -265,3 +266,17 @@ def test_f9_the_per_request_cost_figures_are_the_summary_json():
     )
     assert f"takes **{c['table_ms_mean']:g} ms**" in text
     assert f"{c['deferred']} ({100 * c['deferred'] / c['n']:.0f}%)" in text
+
+
+def test_f10_the_onnx_figures_are_the_summary_json():
+    root = Path(__file__).resolve().parents[2]
+    o = json.loads((root / "runs" / "2026-10-30_fast-table" / "summary.json").read_text())["onnx_encoder"]
+    text = (root / "docs" / "tasks.md").read_text()
+    assert o["torch_p50_ms"] / o["onnx_p50_ms"] == pytest.approx(o["speedup"], abs=0.05)
+    assert f"{o['speedup']:g} times faster" in text
+    assert f"{o['onnx_p50_ms']:g} ms against {o['torch_p50_ms']:g} ms" in text
+    assert f"to about {o['embedding_max_abs_difference']:g}".replace("e-0", "e-") in text
+    assert f"about {o['encoder_share_of_table_path_pct']}% of that path" in text
+    refit = f"at most {o['refit_threshold_shift_max']:g} and its certified share by at most "
+    assert refit + f"{o['refit_share_shift_max_points']:g} points" in text
+    assert f"(to about {o['served_confidence_shift_max_0_37_table']:g})".replace("e-0", "e-") in text

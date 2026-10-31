@@ -471,6 +471,7 @@ dev = [
     { name = "httpx" },
     { name = "httpx2" },
     { name = "obstore" },
+    { name = "onnxruntime" },
     { name = "pytest" },
     { name = "ruff" },
     { name = "scikit-learn" },
@@ -483,8 +484,8 @@ serve = [
     { name = "vllm", marker = "sys_platform == 'linux'" },
 ]
 table = [
+    { name = "onnxruntime" },
     { name = "scikit-learn" },
-    { name = "sentence-transformers" },
 ]
 task-store = [
     { name = "obstore" },
@@ -501,6 +502,8 @@ requires-dist = [
     { name = "numpy", specifier = ">=2.2" },
     { name = "obstore", marker = "extra == 'dev'", specifier = ">=0.12" },
     { name = "obstore", marker = "extra == 'task-store'", specifier = ">=0.12" },
+    { name = "onnxruntime", marker = "extra == 'dev'", specifier = ">=1.20" },
+    { name = "onnxruntime", marker = "extra == 'table'", specifier = ">=1.20" },
     { name = "pillow", specifier = ">=11" },
     { name = "psutil", specifier = ">=7" },
     { name = "pydantic", specifier = ">=2.12" },
@@ -511,7 +514,6 @@ requires-dist = [
     { name = "scikit-learn", marker = "extra == 'dev'", specifier = ">=1.5" },
     { name = "scikit-learn", marker = "extra == 'table'", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.15" },
-    { name = "sentence-transformers", marker = "extra == 'table'", specifier = ">=5.0" },
     { name = "torch", specifier = ">=2.13" },
     { name = "torchvision", specifier = ">=0.28" },
     { name = "transformers", specifier = ">=5.10.4" },
@@ -729,6 +731,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/14/b0/2f27f2645056b0e671b3bcf8a934e73ed89ca5c5df9ebe651f21c0d218e2/flashinfer_python-0.7.0.post1.tar.gz", hash = "sha256:2e67b38a9af1d4eedff96f7f5d79c6a4d9f0f97cb4a30f71e4ffd717f1ad9af4", size = 26061698, upload-time = "2026-09-29T23:34:14.797Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/7d/16237087a2af99086ef4ae9808dff9b24f0a4db4cfd673233836821a32e0/flashinfer_python-0.7.0.post1-py3-none-any.whl", hash = "sha256:c7adf826568d61fc1b7d3aadd4cae387a35a138bfc08e2deca2f34ecfa280716", size = 33659854, upload-time = "2026-09-29T23:34:11.137Z" },
+]
+
+[[package]]
+name = "flatbuffers"
+version = "25.12.19"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e8/2d/d2a548598be01649e2d46231d151a6c56d10b964d94043a335ae56ea2d92/flatbuffers-25.12.19-py2.py3-none-any.whl", hash = "sha256:7634f50c427838bb021c2d66a3d1168e9d199b0607e6329399f04846d42e20b4", size = 26661, upload-time = "2025-12-19T23:16:13.622Z" },
 ]
 
 [[package]]
@@ -1815,6 +1825,25 @@ wheels = [
 ]
 
 [[package]]
+name = "onnxruntime"
+version = "1.31.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flatbuffers" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "protobuf", version = "7.36.1", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 's390x' and sys_platform != 'darwin'" },
+    { name = "protobuf", version = "7.36.2", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 's390x' or sys_platform == 'darwin'" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0e/f7/cecc0efeeea83bff2f7789ae1b80f27fa0f0210d6d9d66d1f0031a6b5e47/onnxruntime-1.31.1-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:96dd2564b10ea7153ad9c207e7cd8e5917cb3ba521e0e0a62ac03486fdc8d56c", size = 20882125, upload-time = "2026-10-26T19:26:16.256Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/e4/1ed1a7a5f4702d899091fa2b976d377995250c307326ec8dc9ae6378aa13/onnxruntime-1.31.1-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:0b9a492176886992e0e875f06bc0367e333f5fff11711a2d642e18b02f3009cc", size = 21420803, upload-time = "2026-10-26T19:26:19.487Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/27/c6a823bac55b2977bea2027c3ec9393a2c1002cb9a09eb40354563e02730/onnxruntime-1.31.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:1f3dea47f2f0e5117c2404cea7d21fd253ae7836a3bf167a501cdfbb2600d536", size = 23760988, upload-time = "2026-10-26T19:26:23.153Z" },
+    { url = "https://files.pythonhosted.org/packages/45/b2/793b4051d8dc6acb379ead9b72050f0ffa283ca49a6904add2e218b83e2e/onnxruntime-1.31.1-cp312-cp312-win_amd64.whl", hash = "sha256:ae8a9a351efda685cc59a66226cdefaa37a126c1d66872ca23a2de9425326130", size = 14888466, upload-time = "2026-10-26T19:26:25.816Z" },
+    { url = "https://files.pythonhosted.org/packages/ed/72/09d635ab4b6137d8ac63d4911a37dad8b1ef15a77d20b65d7ed40fdca012/onnxruntime-1.31.1-cp312-cp312-win_arm64.whl", hash = "sha256:fe8b9ac1ae8e894e12c47ee82e4f6dfc1835768133687257866469fda80d0bf1", size = 14740724, upload-time = "2026-10-26T19:26:28.682Z" },
+]
+
+[[package]]
 name = "openai"
 version = "3.22.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2150,6 +2179,8 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/32/72/98342feb672507c8f3a69e34b4fa8961f608edba5c1a48a6f47156d92cb5/protobuf-7.36.2-cp310-abi3-macosx_10_9_universal2.whl", hash = "sha256:cbc70b17ee27e28894c7fee8bb04be1abead49e936bc70eb60052531eee2079e", size = 456039, upload-time = "2026-09-17T20:07:51.542Z" },
     { url = "https://files.pythonhosted.org/packages/b6/ea/91fdf7c2b8bbd49cde056f00a9df6773532987e1c00fe2830b895af95c7e/protobuf-7.36.2-cp310-abi3-manylinux2014_aarch64.whl", hash = "sha256:e11e1f0180583a2af89db6a2ecd9e8dc40aa6d2988ca175bfd0e6d12ea72d74e", size = 344219, upload-time = "2026-09-17T20:07:52.914Z" },
     { url = "https://files.pythonhosted.org/packages/db/f3/3996583dd2906297a637af12114deddf7658af6e683fedb83be061983fb5/protobuf-7.36.2-cp310-abi3-manylinux2014_x86_64.whl", hash = "sha256:89f23aa53c24553a2416fd4fd1ec06f74fa42b14b546d8883128813f775bbfd2", size = 343223, upload-time = "2026-09-17T20:07:54.931Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/1b/dcc64f358fcb51811b58ae40b3d28f820725f116d86487cc20bd4b130701/protobuf-7.36.2-cp310-abi3-win32.whl", hash = "sha256:912c1221170e16c08d1f086762f563dd61ff83c18b5fa6652952dfaded66f728", size = 442998, upload-time = "2026-09-17T20:07:55.826Z" },
+    { url = "https://files.pythonhosted.org/packages/8a/55/b77bda4e5e5f5971fb51b07663694690e9afdb9402136c16a522bd621cad/protobuf-7.36.2-cp310-abi3-win_amd64.whl", hash = "sha256:a300819d441e078a5608c0d3c709796bb548136058fda017ae51d425b44fd353", size = 456514, upload-time = "2026-09-17T20:07:57.188Z" },
     { url = "https://files.pythonhosted.org/packages/e4/04/d52c7016b04b6c5108f26691f9d33ec82a9b65d041f1a9c771137693d618/protobuf-7.36.2-py3-none-any.whl", hash = "sha256:bdb3a345d48db958e6ce1f18e508beb0cc981d64f24088427549c866cd039f1e", size = 179806, upload-time = "2026-09-17T20:07:58.211Z" },
 ]
 
@@ -2636,27 +2667,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/91/4c/075e4f66471bac101141ac739e9e135549be1bae584571bd03a530c056e1/scipy-1.18.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:d2924a03db38dc2e848bca2fe9f077dafb891480b91a00a0963a8cf86dfc31c1", size = 37480330, upload-time = "2026-08-21T23:24:19.608Z" },
     { url = "https://files.pythonhosted.org/packages/39/e7/979fd14e75008623df31ba70d6bb144700f68feadcea042021c06a05bf82/scipy-1.18.1-cp312-cp312-win_amd64.whl", hash = "sha256:5e4d44984abc0020154ea81b247adeddcc3ac5527b975ff798bd1ba0adc513c2", size = 36658278, upload-time = "2026-08-21T23:24:25.463Z" },
     { url = "https://files.pythonhosted.org/packages/c7/0b/e1525354ff9d7d5feb6d1b31af6d14072e5c91e9607b421fa1ec889660b3/scipy-1.18.1-cp312-cp312-win_arm64.whl", hash = "sha256:d65d448389b8436493abcf629cc94ad0cf32aecaf06e1acca1de53cc795f2f12", size = 24400588, upload-time = "2026-08-21T23:24:30.579Z" },
-]
-
-[[package]]
-name = "sentence-transformers"
-version = "6.2.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "huggingface-hub" },
-    { name = "numpy" },
-    { name = "scikit-learn" },
-    { name = "scipy" },
-    { name = "tokenizers" },
-    { name = "torch" },
-    { name = "tqdm" },
-    { name = "transformers", version = "5.17.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'darwin'" },
-    { name = "transformers", version = "5.18.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
-    { name = "typing-extensions" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/66/635443b9b1d7ea618c4699c8ad4c43b022ceac0c0a1dc4404b7597b38754/sentence_transformers-6.2.0.tar.gz", hash = "sha256:1e3cd8796ab7bcad4cfa2f51e2083d8b37b15d6b68e6fa6b91a147c67380574d", size = 600810, upload-time = "2026-10-21T12:26:50.404Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/66/ae/aac4fcaf7aa27daee96aa15d74770b38bb5ff50b1d31ccf12becd68c6e8b/sentence_transformers-6.2.0-py3-none-any.whl", hash = "sha256:ffb51ccfef65427cfa61776d0eeeb257600b0099cf0c7533ae9a6856d31e4665", size = 760709, upload-time = "2026-10-21T12:26:49.022Z" },
 ]
 
 [[package]]
