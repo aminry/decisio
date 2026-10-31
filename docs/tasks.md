@@ -461,21 +461,26 @@ For a task of short texts that arrive in volume, a small classifier on the host 
 It is off unless the registration asks for it, and it keeps itself only where it pays.
 
 **What it is.**
-A sentence encoder (`BAAI/bge-base-en-v1.5`, a pinned revision), a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold: a small learned classifier on the server's CPU, not a lookup of earlier answers.
+A sentence encoder (`BAAI/bge-base-en-v1.5`, a pinned revision, run by ONNX Runtime), a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold: a small learned classifier on the server's CPU, not a lookup of earlier answers.
 A request whose table confidence reaches the threshold is answered by the table and the model is not asked.
 Every other request goes to decisio as it would without the table.
 
 **Where it helps, and where it does not.**
 It helps on short, command-style texts with about a thousand labelled examples: an assistant's commands, spam, a fixed set of intents.
 It does not help on long texts.
-The encoder runs in front of every request, on the host CPU, at 21 to 30 ms for a short text and 134 to 183 ms for a text of 600 to 1,150 tokens, which is more than decisio's own read.
+The encoder runs in front of every request, on the host CPU.
+With the torch encoder of 0.37.0 that was 21 to 30 ms for a short text and 134 to 183 ms for a text of 600 to 1,150 tokens (the table below), which is more than decisio's own read.
+ONNX Runtime (0.38.0) gives the same embeddings to about 1.5e-6, and is 2.5 times faster on one short text (4.6 ms against 11.6 ms for the whole table path, median, on an Apple M5 Pro at 4 threads); the encoder is about 99% of that path.
+A table made on 0.37.0 serves the same answers and confidences (to about 2e-6).
+A table registered on 0.38.0 is fitted on embeddings that differ by about 1e-6; on the eight sets measured its threshold moved by at most 0.0015 and its certified share by at most 0.3 points, with accuracy unchanged.
+That ratio was not measured on the x86 server CPUs, and the registration times the encoder it will serve on the host it runs on.
 It does not help where decisio is weak enough that nothing is certified, and it does not help on a task whose options differ from request to request.
 The registration times both paths on your own examples and drops the table when it does not pay (below), so asking for it on the wrong task costs the registration, not the traffic.
 
 **How to ask for it.**
 
 ```bash
-pip install 'decisio[table]'     # sentence-transformers and scikit-learn; the image does not carry them
+pip install 'decisio[table]'     # onnxruntime and scikit-learn; the image does not carry them
 ```
 
 ```json
@@ -485,6 +490,7 @@ pip install 'decisio[table]'     # sentence-transformers and scikit-learn; the i
 - A `certify` block is required: the table is part of the certificate.
 - Choice questions only, with at least 100 fit examples.
 - Without the extra the registration is refused with 422 and says what to install.
+- The encoder's two files (the model's published ONNX export, 436 MB, and its tokenizer) are fetched from the Hugging Face Hub at the pinned revision on first use, and the export is checked against its pinned sha256. A server with no route to the Hub needs them fetched first (`hf download BAAI/bge-base-en-v1.5 onnx/model.onnx tokenizer.json --revision a5beb1e3e68b9ab74eb54cfd186867f64f240e1a`), or the registration is refused naming that command.
 
 **What the registration does.**
 
@@ -562,7 +568,7 @@ Those 200 requests happened to hand on more than the whole test set did: on the 
 The mean time per request is the number that decides whether the table pays; the registration computes it on your own held-out examples, request by request.
 
 **Each replica decides for itself whether to use it.**
-The timing is true for the stack it was made on: the host CPU, the engine and its card, the encoder and its libraries (`fast_table.timing.stack` in the record).
+The timing is true for the stack it was made on: the host CPU, the engine and its card, the encoder with its revision, the ONNX file's hash, ONNX Runtime's version and its 4 threads (`fast_table.timing.stack` in the record).
 `status.fast_table` on `GET /v1/tasks/{id}` says what this replica is doing:
 
 | `state` | What it does |
@@ -576,7 +582,7 @@ The timing is true for the stack it was made on: the host CPU, the engine and it
 The table's time at registration cannot see contention on the host.
 While the table answers, the server keeps the median of its last 50 table-path times (judged from 20).
 If the expected time per request, with that median on every request and decisio's registered time on the share the table defers, is no longer at least 25% under decisio's, the replica falls back to decisio (`timing`) and the status says why and gives the numbers.
-The encoder runs one text at a time on a replica (it is one model on the CPU), so at 21 to 30 ms a replica sustains roughly 35 to 45 table requests per second; above that, requests queue behind it, its median rises and the replica falls back.
+The encoder runs one text at a time on a replica (it is one model on the CPU), so the rate it can sustain is the reciprocal of its time: with the torch encoder's 21 to 30 ms about 35 to 45 table requests per second; above that, requests queue behind it, its median rises and the replica falls back.
 Size the CPU for the table, or leave it off.
 
 **The monitor.**
