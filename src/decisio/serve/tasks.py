@@ -20,6 +20,10 @@ to the list is a new task, which is re-registered.
     store = TaskStore(fingerprint="...")
     task = store.register(task_id, examples, score_fn, hidden_fn)     # examples: [(question, state, gold key)]
 
+A task whose options change with every request (`"options": "dynamic"`, decisio.serve.dynamic) is identified by its
+question's instructions instead; it holds a re-ranker and an option prior in `dynamic`, and no calibration or head (the
+two records are kept, not applied, so every reader of a task finds them).
+
 A task may also carry a certificate (decisio.readout.certify, made by `SystemOne.register_readout_task` on examples held
 out of the fit) and the baseline of its answer-mix monitor (decisio.serve.monitor); both are stored with the task and
 travel with its export.
@@ -124,7 +128,9 @@ def fit_digest(task) -> str:
     """A digest of what the task applies to an answer: the calibration prior's record and the head's, arrays
     included."""
     h = hashlib.sha256()
-    for part in ("calibration", "head"):
+    for part in ("calibration", "head", "dynamic"):
+        if part == "dynamic" and not task.get("dynamic"):
+            continue  # a fixed-option task's digest is what it was
         for k, v in sorted(task[part].items()):
             h.update(k.encode())
             if isinstance(v, np.ndarray):
@@ -134,6 +140,14 @@ def fit_digest(task) -> str:
             else:
                 h.update(json.dumps(v, sort_keys=True, default=float).encode())
     return h.hexdigest()
+
+
+def dynamic_placeholders(reason: str = "this task's options change with every request (dynamic options)"):
+    """The calibration and head records of a dynamic task: present and not applied, so no reader needs a special case"""
+    return (
+        {"format": calibration.FORMAT, "applied": False, "reason": reason},
+        {"format": intent_head.FORMAT, "applied": False, "reason": reason},
+    )
 
 
 def _pack(a):
@@ -302,6 +316,9 @@ class TaskStore:
             if k in head:
                 head[k] = _pack(head[k]) if full else {"shape": list(np.asarray(head[k]).shape)}
         out = {**task, "head": head}
+        dyn = task.get("dynamic")
+        if dyn and not full and "prior" in dyn:  # the listing says how big the prior is; the export holds the table
+            out["dynamic"] = {**dyn, "prior": {"options": len(dyn["prior"])}}
         cert = task.get("certificate")
         if cert and not full:  # the held-in digests are for re-certification; the listing says how many there are
             split = dict(cert["split"])
@@ -319,6 +336,10 @@ class TaskStore:
             check_format(t, "task", what)
             check_format(t.get("calibration"), "task-prior", f"{what}, calibration")
             check_format(t.get("head"), "intent-head", f"{what}, head")
+            if t.get("dynamic") is not None:
+                check_format(t["dynamic"], "dynamic", f"{what}, dynamic")
+                if t["dynamic"].get("applied") and not isinstance(t["dynamic"].get("prior"), dict):
+                    raise ValueError(f"task {t['id']!r}: a re-ranker without its prior table (export with ?full=1)")
             if t.get("certificate") is not None:
                 check_format(t["certificate"], "certificate", f"{what}, certificate")
         for t in tasks:

@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.37.0: tasks whose options change with every request
+
+### What changed
+
+- **`POST /v1/tasks` takes `"options": "dynamic"`** for a recurring question whose options differ in every request (a brand from a product title, which of a request's tools to call). The task is matched on the question's instructions, each example carries its own options, and a `certify` block is required: the task is always certified, on decisio's top probability whatever the options, with a small re-ranker kept where cross-validation shows a gain ([tasks.md](tasks.md#tasks-whose-options-change-with-every-request)).
+- **A new traffic signal**, `unseen_options`, in the status of such a task: the share of requests none of whose options the examples contained, watched where options recur in the examples (`armed` says whether). It suspends certification while it alerts.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Any existing task or server | Nothing changes | Nothing |
+| A dynamic task on a decisio before 0.37.0 | Its record is refused (an unknown format) | Upgrade |
+
 ## 0.36.0: the intent head needs 2 labelled examples of every option
 
 ### What changed
