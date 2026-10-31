@@ -65,6 +65,10 @@ two more.
                 commit-think: the commit rule and `defaults.think`), uses the header layout and, but for commit-think,
                 does not think; the file has one flavor, and repositories of the same weights differ in this file only
 
+A `/2` file may also have no `tuned`: the base's own weights with settings of their own (`tuned-config
+--defaults-only`). Its `weights` must then be the base's section exactly, `source.files` (optional) lists the weight
+files by sha256, and `defaults` (and a `flavor`) are as for a tuned model.
+
 The profile sections of a `/2` file must still equal the installed base's profile (a repository cannot change how the
 base is read); `defaults` is what the repository changes. A decisio that does not know `/2` refuses the file by its
 schema (`open_repository` raises "is schema ...; this decisio reads ...") instead of serving the model at the base's
@@ -424,7 +428,7 @@ class Repository:
         }
         if self.tuned:
             out |= {
-                "tuned": self.config["tuned"],
+                **({"tuned": self.config["tuned"]} if "tuned" in self.config else {}),
                 "defaults": self.config["defaults"],
                 "defaults_sha256": self.defaults_sha256,
                 **({"flavor": self.flavor} if self.flavor else {}),
@@ -462,6 +466,9 @@ def check_sections(config: dict) -> None:
             f"{FILE} (tuned) names the base {config.get('base')!r}; "
             f"tuned repositories are made for {', '.join(TUNED_BASES)}"
         )
+    if "tuned" not in config:
+        _check_defaults_only(config)
+        return
     if not isinstance(config.get("weights"), dict) or config["weights"].get("modified") is not True:
         raise ValueError("weights.modified must be true in a tuned repository")
     conversion = (config.get("tuned") or {}).get("conversion") if isinstance(config.get("tuned"), dict) else None
@@ -479,6 +486,32 @@ def check_sections(config: dict) -> None:
             f"a tuned {config['base']} is stored as {expected['dtype']}"
         )
     check_tuned(config.get("tuned"), config["base"])
+    check_defaults(config.get("defaults"))
+    if "flavor" in config:
+        check_flavor(config["flavor"], config["defaults"])
+
+
+def _check_defaults_only(config: dict) -> None:
+    """A `/2` file without `tuned`: the base's own weights, served with settings of their own (`defaults`, and
+    optionally a `flavor`). Nothing was merged, so `weights` must be the base's own section, exactly as a `/1` file of
+    that base carries it; `source.files` (optional) lists the weight files by sha256 for `check --weights-dir`."""
+    expected = weights_of(
+        config["base"], config["weights"].get("quantization") if isinstance(config.get("weights"), dict) else None
+    )
+    if config.get("weights") != expected:
+        raise ValueError(
+            "a /2 file without `tuned` serves the base's own weights: weights must be the base's section, differs at "
+            + ", ".join(differences(config.get("weights"), expected, "weights"))
+        )
+    source = _need(config.get("source"), "source")
+    for k in ("repository", "revision"):
+        _need(source.get(k), f"source.{k}", str)
+    if "files" in source:
+        files = _need(source["files"], "source.files")
+        if not files:
+            raise ValueError("source.files must list the weight files, or be left out")
+        for name, sha in files.items():
+            _sha(sha, f"source.files[{name!r}]")
     check_defaults(config.get("defaults"))
     if "flavor" in config:
         check_flavor(config["flavor"], config["defaults"])
@@ -882,6 +915,90 @@ FIT_KEYS = ("method", "objective", "read_at", "kappa_on_raw_readout", "temperatu
 THINK_FIT_KEYS = ("objective", "read_at", "kappa_on_raw_readout")
 
 
+def _defaults_section(
+    *,
+    temperatures: dict,
+    choice_bands: dict | None,
+    noul_commit: bool,
+    noul_commit_basis: dict | str | None,
+    fit: dict,
+    over_limit: str | None,
+    over_limit_tokens: int | None,
+    layout: str | None,
+    think: dict | None,
+    think_temperatures: dict | None,
+    read_twice_under: int | None,
+    read_twice_max_questions: int | None,
+    batch_invariant: bool,
+) -> dict:
+    """The `defaults` section of a `/2` file: what a plain request to the model gets."""
+    fit = {k: v for k, v in fit.items() if k in FIT_KEYS}
+    if isinstance(fit.get("think"), dict):  # the think fit's method and readout scale; its counts and data stay out
+        fit["think"] = {k: v for k, v in fit["think"].items() if k in THINK_FIT_KEYS}
+    return {
+        "temperatures": temperatures,
+        **({"choice_bands": choice_bands} if choice_bands else {}),
+        "noul_commit": noul_commit,
+        "fit": fit,
+        **({"noul_commit_basis": noul_commit_basis} if noul_commit_basis is not None else {}),
+        **({"over_limit": over_limit} if over_limit is not None else {}),
+        **({"over_limit_tokens": over_limit_tokens} if over_limit_tokens is not None else {}),
+        **({"layout": layout} if layout is not None else {}),
+        **({"think": think} if think is not None else {}),
+        **({"think_temperatures": think_temperatures} if think_temperatures else {}),
+        **({"read_twice_under": read_twice_under} if read_twice_under else {}),
+        **({"read_twice_max_questions": read_twice_max_questions} if read_twice_max_questions else {}),
+        **({"batch_invariant": True} if batch_invariant else {}),
+    }
+
+
+def defaults_config(
+    fam: Family,
+    *,
+    files: dict | None = None,
+    decisio_version: str | None = None,
+    quantization: str | None = None,
+    flavor: dict | None = None,
+    **settings,
+) -> dict:
+    """The `/2` file of a repository of the base's own weights with settings of their own: the base's `/1` file
+    (profile, source, weights) plus `defaults` (and a `flavor`), no `tuned`. `files`: the weight files' sha256, kept
+    in `source.files`. `settings` are those of `tuned_config` (temperatures, choice_bands, noul_commit, ...). Validated
+    before it is returned."""
+    if fam.key not in TUNED_BASES:
+        raise ValueError(f"a repository with settings is made for {', '.join(TUNED_BASES)}, not {fam.key}")
+    config = export_decision_config(fam, decisio_version, quantization)
+    config["schema"] = SCHEMA_TUNED
+    if files:
+        config["source"] = {**config["source"], "files": files}
+    config["defaults"] = _defaults_section(**_settings(settings))
+    if flavor is not None:
+        config["flavor"] = flavor
+    check_sections(config)
+    return config
+
+
+def _settings(given: dict) -> dict:
+    """The keyword arguments of `_defaults_section`, with the optional ones defaulted."""
+    out = {
+        "choice_bands": None,
+        "noul_commit_basis": None,
+        "over_limit": None,
+        "over_limit_tokens": None,
+        "layout": None,
+        "think": None,
+        "think_temperatures": None,
+        "read_twice_under": None,
+        "read_twice_max_questions": None,
+        "batch_invariant": False,
+    }
+    unknown = sorted(set(given) - set(out) - {"temperatures", "noul_commit", "fit"})
+    if unknown:
+        raise TypeError(f"defaults_config got unexpected settings {unknown}")
+    out.update(given)
+    return out
+
+
 def tuned_config(
     fam: Family,
     *,
@@ -918,24 +1035,21 @@ def tuned_config(
         "files": files,
         **({"conversion": conversion} if conversion else {}),
     }
-    fit = {k: v for k, v in fit.items() if k in FIT_KEYS}
-    if isinstance(fit.get("think"), dict):  # the think fit's method and readout scale; its counts and data stay out
-        fit["think"] = {k: v for k, v in fit["think"].items() if k in THINK_FIT_KEYS}
-    config["defaults"] = {
-        "temperatures": temperatures,
-        **({"choice_bands": choice_bands} if choice_bands else {}),
-        "noul_commit": noul_commit,
-        "fit": fit,
-        **({"noul_commit_basis": noul_commit_basis} if noul_commit_basis is not None else {}),
-        **({"over_limit": over_limit} if over_limit is not None else {}),
-        **({"over_limit_tokens": over_limit_tokens} if over_limit_tokens is not None else {}),
-        **({"layout": layout} if layout is not None else {}),
-        **({"think": think} if think is not None else {}),
-        **({"think_temperatures": think_temperatures} if think_temperatures else {}),
-        **({"read_twice_under": read_twice_under} if read_twice_under else {}),
-        **({"read_twice_max_questions": read_twice_max_questions} if read_twice_max_questions else {}),
-        **({"batch_invariant": True} if batch_invariant else {}),
-    }
+    config["defaults"] = _defaults_section(
+        temperatures=temperatures,
+        choice_bands=choice_bands,
+        noul_commit=noul_commit,
+        noul_commit_basis=noul_commit_basis,
+        fit=fit,
+        over_limit=over_limit,
+        over_limit_tokens=over_limit_tokens,
+        layout=layout,
+        think=think,
+        think_temperatures=think_temperatures,
+        read_twice_under=read_twice_under,
+        read_twice_max_questions=read_twice_max_questions,
+        batch_invariant=batch_invariant,
+    )
     if flavor is not None:
         config["flavor"] = flavor
     check_sections(config)
@@ -1098,16 +1212,21 @@ def main(argv=None) -> int:
     tc.add_argument(
         "--mlx-group-size", type=int, choices=MLX_GROUP_SIZES, help="the conversion's quantization group size"
     )
-    tc.add_argument("--adapter-dir", required=True, help="the PEFT adapter directory the model was merged from")
+    tc.add_argument(
+        "--defaults-only",
+        action="store_true",
+        help="the repository is the base's own weights with settings of their own: no adapter, no merge; writes a /2 "
+        "file without `tuned` (the weight files are listed in source.files). --adapter-dir, --adapter-revision, "
+        "--merge-report and the options about a merge are then not given",
+    )
+    tc.add_argument("--adapter-dir", help="the PEFT adapter directory the model was merged from")
     tc.add_argument(
         "--adapter-repository",
         help="the adapter's repository, recorded in `tuned.adapter`; leave it out to keep the name out of the file "
         "(the revision and the sha256s stay)",
     )
-    tc.add_argument("--adapter-revision", required=True)
-    tc.add_argument(
-        "--merge-report", required=True, help="the merge's report: MERGE_FP8.json (hub_fp8), MERGE_BF16.json (hub_bf16)"
-    )
+    tc.add_argument("--adapter-revision")
+    tc.add_argument("--merge-report", help="the merge's report: MERGE_FP8.json (hub_fp8), MERGE_BF16.json (hub_bf16)")
     tc.add_argument("--weights-dir", required=True, help="the merged model's directory: its files are listed by sha256")
     tc.add_argument("--out", required=True, help="where to write decision_config.json")
     tc.add_argument("--decisio-version")
@@ -1121,10 +1240,13 @@ def main(argv=None) -> int:
                 raise ValueError(f"schema {config.get('schema')!r}")
             if a.weights_dir:
                 check_weights_precision(config.get("base"), Path(a.weights_dir))
-                have, want = file_digests(Path(a.weights_dir)), (config.get("tuned") or {}).get("files") or {}
+                listed = config.get("tuned") or config.get("source") or {}
+                have, want = file_digests(Path(a.weights_dir)), listed.get("files") or {}
                 bad = sorted(n for n in set(have) | set(want) if have.get(n) != want.get(n))
                 if bad:
-                    raise ValueError("files differ from tuned.files: " + ", ".join(bad[:10]))
+                    raise ValueError(
+                        f"files differ from {'tuned' if 'tuned' in config else 'source'}.files: " + ", ".join(bad[:10])
+                    )
         except ValueError as e:
             print(f"refused: {e}")
             return 1
@@ -1136,6 +1258,21 @@ def main(argv=None) -> int:
             ap.error("give --noul-commit or --no-noul-commit: a tuned repository always states its commit setting")
         if a.think_types and a.think_factor is None:
             ap.error("--think-types needs --think-factor: it limits the question types that think")
+        merge_args = {
+            "--adapter-dir": a.adapter_dir,
+            "--adapter-revision": a.adapter_revision,
+            "--merge-report": a.merge_report,
+            "--adapter-repository": a.adapter_repository,
+            "--external-form": a.external_form,
+            "--mlx-conversion": a.mlx_conversion,
+        }
+        merged = [f for f, v in merge_args.items() if v]
+        if a.defaults_only and merged:
+            ap.error(f"--defaults-only is the base's own weights: {', '.join(merged)} describe a merge")
+        if not a.defaults_only:
+            missing = [f for f in ("--adapter-dir", "--adapter-revision", "--merge-report") if not merge_args[f]]
+            if missing:
+                ap.error(f"{', '.join(missing)} required (or --defaults-only for the base's own weights)")
         from decisio.serve.adapter_temperatures import read as read_temperatures
 
         fam = BASES[a.base]
@@ -1173,27 +1310,14 @@ def main(argv=None) -> int:
             basis = json.loads(Path(basis).read_text())
         try:
             check_weights_precision(a.base, Path(a.weights_dir))
-            config = tuned_config(
-                fam,
+            common = dict(
                 temperatures=t["temperatures"],
                 choice_bands=t["choice_bands"] or None,
                 noul_commit=a.noul_commit,
                 noul_commit_basis=basis,
                 fit=fit,
-                adapter=adapter_facts(Path(a.adapter_dir), a.adapter_repository, a.adapter_revision),
-                merge=(
-                    external_facts(a.external_form, json.loads(Path(a.merge_report).read_text()), a.base)
-                    if a.external_form
-                    else merge_facts(json.loads(Path(a.merge_report).read_text()))
-                ),
-                files=file_digests(Path(a.weights_dir)),
                 decisio_version=a.decisio_version,
                 quantization=a.quantization,
-                conversion=(
-                    mlx_conversion_of(a.mlx_conversion, a.mlx_bits, a.mlx_group_size, Path(a.weights_dir), a.base)
-                    if a.mlx_conversion
-                    else None
-                ),
                 over_limit=a.over_limit,
                 over_limit_tokens=a.over_limit_tokens,
                 layout=a.layout or t.get("layout"),
@@ -1212,6 +1336,25 @@ def main(argv=None) -> int:
                     else None
                 ),
             )
+            if a.defaults_only:
+                config = defaults_config(fam, files=file_digests(Path(a.weights_dir)), **common)
+            else:
+                config = tuned_config(
+                    fam,
+                    adapter=adapter_facts(Path(a.adapter_dir), a.adapter_repository, a.adapter_revision),
+                    merge=(
+                        external_facts(a.external_form, json.loads(Path(a.merge_report).read_text()), a.base)
+                        if a.external_form
+                        else merge_facts(json.loads(Path(a.merge_report).read_text()))
+                    ),
+                    files=file_digests(Path(a.weights_dir)),
+                    conversion=(
+                        mlx_conversion_of(a.mlx_conversion, a.mlx_bits, a.mlx_group_size, Path(a.weights_dir), a.base)
+                        if a.mlx_conversion
+                        else None
+                    ),
+                    **common,
+                )
         except ValueError as e:
             print(f"refused: {e}")
             return 1

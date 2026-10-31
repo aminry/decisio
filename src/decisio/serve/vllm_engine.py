@@ -2730,7 +2730,7 @@ def main():
         args.family, fmt = resolve_base(args)
     except ValueError as e:
         ap.error(str(e))
-    tuned = bool((args.repository or {}).get("tuned"))
+    tuned = bool((args.repository or {}).get("defaults"))  # served at a repository's own settings (tuned or not)
     print(base_line(args.family, args.model, args.backend, tuned), flush=True)
     if args.temperature <= 0:
         ap.error("--temperature must be positive (1 is off)")

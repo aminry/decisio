@@ -8,6 +8,19 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.38.0: a repository can be the base's own weights with settings of their own
+
+### What changed
+
+- **`hub tuned-config --defaults-only`** writes the `decision_config.json` of the base's own weights with `defaults` (temperatures, layout, commit rule and the other settings of a tuned repository) and no `tuned` section ([running.md](running.md#shipping-a-tuned-model)); `--base owner/name` serves it at those settings. `check --weights-dir` reads `source.files` for it. An older decisio refuses such a file.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Any existing repository or server | Nothing changes | Nothing |
+| A repository without `tuned` on a decisio before 0.38.0 | Refused | Upgrade |
+
 ## 0.37.0: tasks whose options change with every request, and an opt-in fast table
 
 ### What changed
