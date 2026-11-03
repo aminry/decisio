@@ -2392,9 +2392,12 @@ def build_parser():
         default=None,
         help="vLLM's batch-invariant kernels (VLLM_BATCH_INVARIANT=1, set before the engine starts): every row is "
         "computed the same whatever else is in its batch, so a repeated request gives the same answer under load and "
-        "after a restart. on or off; without it a tuned repository's defaults.batch_invariant decides, else off. A "
-        "variable in the environment that says the opposite is refused. Costs about 1.03 times a single read on FP8 "
-        "and 1.6 times on bf16 (12B, one card); the answers are not those of the other kernels",
+        "after a restart, and a read from the prefix cache gives the bits of a read without it (bf16, measured). on or "
+        "off; without it a tuned repository's defaults.batch_invariant decides, then VLLM_BATCH_INVARIANT, then the "
+        "base: on for a bf16 base (no adapter applied at run time, no image model), off otherwise. When on, "
+        "max_num_batched_tokens is set to the served context unless --engine names it, so no prompt is split. A "
+        "variable in the environment that says the opposite of the flag is refused. Costs about 1.2 to 1.3 times a "
+        "single read on bf16 and 1.03 on FP8 (12B, one card); the answers are not those of the other kernels",
     )
     ap.add_argument(
         "--emulate-precision-casts",
@@ -2839,7 +2842,17 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     repo_default = ((args.repository or {}).get("defaults") or {}).get("batch_invariant")
-    args.batch_invariant_report = batch_invariant.resolve(args.batch_invariant, repo_default, os.environ, args.backend)
+    base_on = batch_invariant.base_default(
+        getattr(args.family, "precision", None),
+        getattr(args, "fp8_weights", False),
+        args.backend,
+        args.adapter,
+        args.image_model,
+        args.mode,
+    )
+    args.batch_invariant_report = batch_invariant.resolve(
+        args.batch_invariant, repo_default, os.environ, args.backend, base_on
+    )
     args.precision_casts_report = precision_casts.resolve(
         args.emulate_precision_casts, getattr(args, "fp8_weights", False), os.environ, args.backend
     )
@@ -2859,6 +2872,11 @@ def main():
         args.context_source = "default 32,768" + (
             f" (this base's ceiling is {args.family.context_ceiling:,})" if args.family.context_ceiling == FLOOR else ""
         )
+    if args.batch_invariant_report["on"] and args.backend == "vllm":
+        # the mode keeps a read's bits only for a prompt computed in one engine step: the batch budget covers the served
+        # context (the base's ceiling while the length is chosen at start), unless --engine names its own
+        length = args.family.context_ceiling if isinstance(args.max_model_len, AutoContext) else int(args.max_model_len)
+        args.engine, args.batch_invariant_report["batching"] = batch_invariant.merge_engine(args.engine, length)
     args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
     from decisio.serve.tasks import TaskStore

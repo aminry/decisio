@@ -10,6 +10,13 @@ B4  the repository: `defaults.batch_invariant` is true or absent, `tuned-config 
     covers it, and a repository without it is what it was
 B5  /health carries the setting and the fingerprint holds it only when on, so a certificate made without it is suspended
 B6  the start line says where it came from and what vLLM reads
+B7  the base's default: on for a bf16 base served by vLLM in separate mode, off for FP8 weights, an adapter applied
+    at run time, an image model, packed mode, other bases and other backends; the flag, the repository and the
+    variable each beat it, so `--batch-invariant off` and VLLM_BATCH_INVARIANT=0 are opt-outs
+B8  the batch budget: max_num_batched_tokens set to the served context when --engine names none, a value there wins,
+    the context of --engine's own max_model_len is used, the other keys stay; the start line reports it
+B9  the real families: the plain 12B and the 31B in bf16 default on, the 12B FP8, the default 31B (FP8 on load) and
+    the Qwen base off
 
   uv run pytest -q tests/unit/test_batch_invariant.py
 """
@@ -178,3 +185,65 @@ def test_b6_the_start_line():
     assert "reads it as off" in bi.start_line({"on": True, "source": "flag", "confirmed": False})
     assert bi.start_line({"on": True, "source": "environment", "confirmed": None}).endswith("in the environment)")
     assert bi.engine_state() in (None, True, False)  # no vLLM on a test machine: None, never an exception
+
+
+# ---- B7 to B9: the bf16 default (decisio 0.39.0) ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("precision", "fp8", "backend", "adapters", "image", "mode", "want"),
+    [
+        ("bf16", False, "vllm", [], None, "separate", True),
+        ("bf16", True, "vllm", [], None, "separate", False),  # FP8 weights (a stored FP8 checkpoint under a bf16 key)
+        ("fp8", True, "vllm", [], None, "separate", False),
+        (None, False, "vllm", [], None, "separate", False),  # a base with no precision label (the Qwen base)
+        ("bf16", False, "vllm", ["t=/a"], None, "separate", False),  # an adapter applied at run time
+        ("bf16", False, "vllm", [], "some/image-model", "separate", False),
+        ("bf16", False, "vllm", [], None, "packed", False),
+        ("bf16", False, "mlx", [], None, "separate", False),
+        ("bf16", False, "hf", [], None, "separate", False),
+    ],
+)
+def test_b7_the_base_default(precision, fp8, backend, adapters, image, mode, want):
+    assert bi.base_default(precision, fp8, backend, adapters, image, mode) is want
+
+
+def test_b7_the_flag_the_repository_and_the_variable_beat_the_base():
+    env = {}
+    assert bi.resolve(None, None, env, "vllm", True) == {"on": True, "source": "bf16 base"} and env == {VAR: "1"}
+    env = {}
+    assert bi.resolve("off", None, env, "vllm", True) == {"on": False, "source": "flag"} and env == {}
+    assert bi.resolve(None, False, {}, "vllm", True) == {"on": False, "source": "repository"}
+    assert bi.resolve(None, None, {VAR: "0"}, "vllm", True) == {"on": False, "source": "environment"}
+    assert bi.resolve(None, None, {}, "vllm", False) == {"on": False, "source": "default"}
+    # a backend without vLLM's kernels is off whatever the base says, without refusing to start
+    assert bi.resolve(None, None, {}, "mlx", True) == {"on": False, "source": "default"}
+
+
+def test_b8_the_batch_budget():
+    served = json.dumps(vllm_engine.SERVED_ENGINE)
+    got, rep = bi.merge_engine(served, 65536)
+    assert json.loads(got) == {**vllm_engine.SERVED_ENGINE, "max_num_batched_tokens": 65536}
+    assert rep == {"max_num_batched_tokens": 65536, "set_by": "decisio"}
+    own = json.dumps({"compilation_config": {"max_cudagraph_capture_size": 4096}, "max_num_batched_tokens": 16384})
+    assert bi.merge_engine(own, 65536) == (own, {"max_num_batched_tokens": 16384, "set_by": "--engine"})
+    length = json.dumps({"max_model_len": 98304, "k": 1})
+    got, rep = bi.merge_engine(length, 65536)
+    assert json.loads(got) == {"max_model_len": 98304, "k": 1, "max_num_batched_tokens": 98304}
+    line = bi.start_line({"on": True, "source": "bf16 base", "confirmed": True, "batching": rep})
+    assert line == (
+        "BATCH INVARIANT on (the default for a bf16 base); vLLM reads it as on; "
+        "max_num_batched_tokens 98,304 (decisio): one step a prompt"
+    )
+
+
+def test_b9_the_real_families():
+    from decisio.families import BASES
+
+    def on(key, fp8=None):
+        fam = BASES[key]
+        w = fam.quantization == "fp8" or fam.precision == "fp8" if fp8 is None else fp8
+        return bi.base_default(fam.precision, w, "vllm", [], None, "separate")
+
+    assert on("gemma-4-12b") and on("gemma-4-31b-bf16")
+    assert not on("gemma-4-12b-fp8") and not on("gemma-4-31b") and not on("qwen3.6-35b-a3b")
