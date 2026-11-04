@@ -251,7 +251,9 @@ MODELS = (
 )  # fmt: skip
 
 RESPONSE_HEADERS = {
-    "x-decisio-server-ms": "The server's time for the request, in milliseconds.",
+    "x-decisio-server-ms": "The server's time for the request, in milliseconds: from the route receiving it to the "
+    "response, reading and validating the body, loading its images and every read included (a certified task's "
+    "questions and the intent head's too).",
     "x-decisio-route": "The route that served it: `text` or `image`.",
     "x-decisio-tasks": "The registered tasks applied, when any were.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
@@ -260,7 +262,10 @@ RESPONSE_HEADERS = {
     "x-decisio-state-truncated": "`kept=N; of=M; part=start`, when the state was cut (`over_limit`).",
     "x-decisio-layout": "`header; listed=K; of=N; reason=context`, or `plain; ...`, when the header listed only some "
     "of the request's questions (`--header-limit`).",
-    "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
+    "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`: "
+    "`engine` is the request's own engine call (`prepare` to `readout` are its parts), `task` the questions of a "
+    "certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the "
+    "reasoning pass, `wait` the time spent waiting for the engine.",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
 }
 

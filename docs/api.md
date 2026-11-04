@@ -115,7 +115,7 @@ Request headers:
 `usage.input_tokens` counts the state and each question's own text; `usage.output_tokens` is one per question.
 
 Response headers:
-- `x-decisio-server-ms`: the server's time for the request.
+- `x-decisio-server-ms`: the server's time for the request, from the route receiving it to the response: reading and validating the body, loading its images, and every read, including a certified task's questions and the intent head's.
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
 - `x-decisio-adapter`: the adapter that answered, when one did.
@@ -123,7 +123,7 @@ Response headers:
 - `x-decisio-state-truncated`: `kept=N; of=M; part=start`, when the state was cut (`over_limit`, above); absent otherwise.
 - `x-decisio-layout`: `header; listed=K; of=N; reason=context` (or `plain; ...`), when the header listed only some of the request's questions (`--header-limit`, above); absent otherwise.
 - `x-decisio-prompt`: `layout=header; tokens=1523; cached=1440`: the layout of the user turn, the mean prompt tokens the engine read per question, and the mean of them the prefix cache served. Under the header layout a state cached for another set of questions shows as a low `cached`. Absent when the engine does not report prompt sizes.
-- `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the engine call itself; `wait` is the time before it, from the request reaching the engine until it took the engine's lock, so `engine + wait` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server. With `--concurrency batched`, a request that shared an engine call (`x-decisio-batch`) reports the whole call's `questions` and `engine` times.
+- `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the request's own engine call; `wait` is the time before it, from the request reaching the engine until it took the engine's lock. A certified task's questions, read one at a time by the certificate's function or answered by its fast table, are `task`; the intent head's read is `head`; the reasoning pass is `think`. So `engine + wait + task + head + think` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server. With `--concurrency batched`, a request that shared an engine call (`x-decisio-batch`) reports the whole call's `questions` and `engine` times.
 - `x-decisio-batch`: `requests=N; rows=M` when the server batches concurrent requests (`--concurrency batched`) and this request's questions were scored in one engine call with other requests' (N requests, M rows in all); absent when it was scored alone. On `POST /v1/answer` the same facts are `timing.batch`.
 - `x-decisio-wait-behind`: `registration` when a boundary registration (`--register-boundary after`) was running when the request arrived, so the `wait` was behind it; absent otherwise. On `POST /v1/answer` the same facts are `timing.waited_ms` and `timing.waited_behind_registration`.
 
@@ -165,7 +165,7 @@ A client of this server sends `Content-Type: application/json`; every client the
 
 - **`GET /health`.** The HTTP status is the contract: 200 while the server is serving, 503 with `{"ok": false, "engine": "dead", ...}` from the moment the engine is declared dead. Alert on anything but 200. The other fields describe the running server (listed below) and can gain fields between releases; read them for what is being served, not as an alert signal.
 - **The process exit code.** 70 means the engine died and the server ended itself; a restart policy acts on the exit (`docs/running.md`, "When the engine dies"; `docs/operating.md`).
-- **Per request**, in the response headers: `x-decisio-server-ms` (the server's time), `x-decisio-stages` (`prepare`, `warm`, `engine`, `wait`) and `x-decisio-wait-behind` when the request waited behind a registration. A `wait` that grows is requests queueing behind the engine.
+- **Per request**, in the response headers: `x-decisio-server-ms` (the server's time), `x-decisio-stages` (`prepare`, `warm`, `engine`, `wait`, and `task`, `head` and `think` when the request used them) and `x-decisio-wait-behind` when the request waited behind a registration. A `wait` that grows is requests queueing behind the engine.
 - **Metrics only for certified tasks, and no structured log.** `GET /metrics` serves Prometheus text for certified tasks (state, answers, certified answers and the answer-mix distance: [`tasks.md`](tasks.md), "Certified answers"); the server exposes no Prometheus metrics for the engine, and its output is the plain text of its start-up lines and uvicorn's warnings. Take latency and queueing from the headers above, in your client or your proxy's log.
 
 ## Tasks
