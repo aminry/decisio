@@ -1874,6 +1874,14 @@ class SystemOne:
                 # batch-invariant kernels, only when on: other kernels, so other numerics; a certificate made without
                 # them is suspended
                 **({"batch_invariant": True} if self.batch_invariant else {}),
+                # and vLLM's batch budget with it: a prompt longer than the budget is prefilled in several steps, which
+                # is repeatable under the mode but other arithmetic than one step, so a certificate made under another
+                # budget is suspended (only when the mode is on, so every other server's fingerprint is what it was)
+                **(
+                    {"batch_budget": self.batch_invariant["max_num_batched_tokens"]}
+                    if self.batch_invariant and self.batch_invariant.get("max_num_batched_tokens")
+                    else {}
+                ),
                 # emulated precision casts, only when on: other arithmetic in the compiled kernels, so other numerics;
                 # a certificate made without them is suspended
                 **({"emulate_precision_casts": True} if self.precision_casts else {}),

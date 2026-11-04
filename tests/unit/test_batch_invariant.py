@@ -10,6 +10,15 @@ B4  the repository: `defaults.batch_invariant` is true or absent, `tuned-config 
     covers it, and a repository without it is what it was
 B5  /health carries the setting and the fingerprint holds it only when on, so a certificate made without it is suspended
 B6  the start line says where it came from and what vLLM reads
+B7  the base's default: on for the Gemma 4 12B in bf16 and FP8 served by vLLM in separate mode (adapters applied at
+    run time included), off for the 31B (FP8 and bf16), the Qwen base, an image model, packed mode and other
+    backends; the flag, the repository and the variable each beat it, so `--batch-invariant off` and
+    VLLM_BATCH_INVARIANT=0 are opt-outs
+B8  decisio sets no batch budget: --engine passes through untouched, and the start line reports vLLM's own budget when
+    the mode is on
+B9  every base key is either in the default or named as kept off, so a new base is a decision, not an accident
+B10 the fingerprint holds vLLM's batch budget when the mode is on (a prompt longer than it is prefilled in steps,
+    repeatable but other arithmetic), so a certificate made under another budget is suspended; off, nothing changes
 
   uv run pytest -q tests/unit/test_batch_invariant.py
 """
@@ -178,3 +187,68 @@ def test_b6_the_start_line():
     assert "reads it as off" in bi.start_line({"on": True, "source": "flag", "confirmed": False})
     assert bi.start_line({"on": True, "source": "environment", "confirmed": None}).endswith("in the environment)")
     assert bi.engine_state() in (None, True, False)  # no vLLM on a test machine: None, never an exception
+
+
+# ---- B7 to B9: the default (decisio 0.39.0) --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("key", "backend", "image", "mode", "want"),
+    [
+        ("gemma-4-12b", "vllm", None, "separate", True),
+        ("gemma-4-12b-fp8", "vllm", None, "separate", True),
+        ("gemma-4-31b", "vllm", None, "separate", False),  # the 31B waits for its measurement at that size
+        ("gemma-4-31b-bf16", "vllm", None, "separate", False),
+        ("qwen3.6-35b-a3b", "vllm", None, "separate", False),
+        ("gemma-4-12b", "vllm", "some/image-model", "separate", False),
+        ("gemma-4-12b", "vllm", None, "packed", False),
+        ("gemma-4-12b", "mlx", None, "separate", False),
+        ("gemma-4-12b", "hf", None, "separate", False),
+        (None, "vllm", None, "separate", False),
+    ],
+)
+def test_b7_the_base_default(key, backend, image, mode, want):
+    assert bi.base_default(key, backend, image, mode) is want
+
+
+def test_b7_the_flag_the_repository_and_the_variable_beat_the_base():
+    env = {}
+    r = bi.resolve(None, None, env, "vllm", True)
+    assert r == {"on": True, "source": "base"} and env == {VAR: "1"}
+    env = {}
+    assert bi.resolve("off", None, env, "vllm", True) == {"on": False, "source": "flag"} and env == {}
+    assert bi.resolve(None, False, {}, "vllm", True) == {"on": False, "source": "repository"}
+    assert bi.resolve(None, None, {VAR: "0"}, "vllm", True) == {"on": False, "source": "environment"}
+    assert bi.resolve(None, None, {}, "vllm", False) == {"on": False, "source": "default"}
+    assert bi.resolve(None, None, {}, "mlx", True) == {"on": False, "source": "default"}
+
+
+def test_b8_decisio_sets_no_batch_budget_and_the_start_line_reports_vllms():
+    assert not hasattr(bi, "merge_engine")
+    line = bi.start_line({"on": True, "source": "base", "confirmed": True, "max_num_batched_tokens": 8192})
+    assert (
+        line == "BATCH INVARIANT on (the default for this base); vLLM reads it as on; vLLM's batch budget 8,192 tokens"
+    )
+    assert (
+        bi.start_line({"on": False, "source": "default", "max_num_batched_tokens": 8192})
+        == "BATCH INVARIANT off (the default)"
+    )
+
+
+def test_b9_every_base_is_in_the_default_or_named_as_kept_off():
+    from decisio.families import BASES
+
+    kept_off = {"gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b"}
+    assert set(bi.DEFAULT_ON) | kept_off == set(BASES), "a new base: decide whether the mode is its default"
+    assert not set(bi.DEFAULT_ON) & kept_off
+
+
+def test_b10_the_fingerprint_holds_the_batch_budget_when_the_mode_is_on():
+    _, a = server({"on": True, "source": "base", "confirmed": True, "max_num_batched_tokens": 8192})
+    _, b = server({"on": True, "source": "base", "confirmed": True, "max_num_batched_tokens": 16384})
+    _, off = server({"on": False, "source": "default", "max_num_batched_tokens": 8192})
+    _, none = server(None)
+    assert a.stack_facts()["serving"]["batch_budget"] == 8192
+    assert any(d.endswith("batch_budget") for d in stack.differences(a.stack_facts(), b.stack_facts()))
+    assert "batch_budget" not in off.stack_facts()["serving"]
+    assert stack.differences(off.stack_facts(), none.stack_facts()) == []

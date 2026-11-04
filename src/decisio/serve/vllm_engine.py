@@ -2392,9 +2392,12 @@ def build_parser():
         default=None,
         help="vLLM's batch-invariant kernels (VLLM_BATCH_INVARIANT=1, set before the engine starts): every row is "
         "computed the same whatever else is in its batch, so a repeated request gives the same answer under load and "
-        "after a restart. on or off; without it a tuned repository's defaults.batch_invariant decides, else off. A "
-        "variable in the environment that says the opposite is refused. Costs about 1.03 times a single read on FP8 "
-        "and 1.6 times on bf16 (12B, one card); the answers are not those of the other kernels",
+        "after a restart, and a read from the prefix cache gives the bits of a read without it (measured on the 12B). "
+        "on or off; without it a tuned repository's defaults.batch_invariant decides, then VLLM_BATCH_INVARIANT, then "
+        "the base: on for the Gemma 4 12B in bf16 and FP8 and its tuned repositories (adapters applied at run time "
+        "included), off for the 31B, the image route and the Qwen base. off opts out. A variable in the environment "
+        "that says the opposite of the flag is refused. Costs 1.05 to 1.33 times a single read on bf16 and about "
+        "1.03 on FP8 (12B, one card); the answers are not those of the other kernels",
     )
     ap.add_argument(
         "--emulate-precision-casts",
@@ -2839,7 +2842,10 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     repo_default = ((args.repository or {}).get("defaults") or {}).get("batch_invariant")
-    args.batch_invariant_report = batch_invariant.resolve(args.batch_invariant, repo_default, os.environ, args.backend)
+    base_on = batch_invariant.base_default(getattr(args.family, "key", None), args.backend, args.image_model, args.mode)
+    args.batch_invariant_report = batch_invariant.resolve(
+        args.batch_invariant, repo_default, os.environ, args.backend, base_on
+    )
     args.precision_casts_report = precision_casts.resolve(
         args.emulate_precision_casts, getattr(args, "fp8_weights", False), os.environ, args.backend
     )
@@ -2942,6 +2948,13 @@ def main():
     engine.over_limit_tokens = args.over_limit_tokens
     if args.batch_invariant_report["on"]:
         args.batch_invariant_report["confirmed"] = batch_invariant.engine_state()
+        sched = getattr(
+            getattr(getattr(getattr(engine, "llm", None), "llm_engine", None), "vllm_config", None),
+            "scheduler_config",
+            None,
+        )
+        if sched is not None:  # vLLM's own budget: decisio sets none (a value in --engine is the caller's)
+            args.batch_invariant_report["max_num_batched_tokens"] = int(sched.max_num_batched_tokens)
     print(batch_invariant.start_line(args.batch_invariant_report), flush=True)
     if args.precision_casts_report["on"]:
         args.precision_casts_report["confirmed"] = precision_casts.engine_state()
