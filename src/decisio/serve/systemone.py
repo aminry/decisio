@@ -394,6 +394,29 @@ class NonFiniteReadout(RuntimeError):
     profile), not in the request, so the route answers 500 with a message that says so (`add_routes`), never 400."""
 
 
+def prompt_figures(infos) -> dict:
+    """The x-decisio-prompt figures over several engine reads: the mean prompt tokens per question, and the mean the
+    prefix cache served (each read's per-row `cached_tokens`, or its `cached_tokens_mean` for every row). {} when no
+    read reported its prompt tokens."""
+    tokens, cached = [], []
+    for info in infos:
+        rows = [float(x) for x in (info.get("engine_prompt_tokens") or [])]
+        if not rows:
+            continue
+        tokens += rows
+        per_row = info.get("cached_tokens")
+        if isinstance(per_row, list) and len(per_row) == len(rows):
+            cached += [float(x) for x in per_row]
+        elif isinstance(info.get("cached_tokens_mean"), (int, float)):
+            cached += [float(info["cached_tokens_mean"])] * len(rows)
+    if not tokens:
+        return {}
+    return {
+        "prompt_tokens_mean": float(np.mean(tokens)),
+        **({"cached_tokens_mean": float(np.mean(cached))} if cached else {}),
+    }
+
+
 def require_finite(p, what: str = "an engine probability") -> None:
     if not np.isfinite(np.asarray(p, dtype=np.float64)).all():
         raise NonFiniteReadout(f"{what} is not finite (NaN or infinity)")
@@ -739,6 +762,9 @@ class SystemOne:
         self.branch_log = branch_log
         self._log_lock = threading.Lock()
         self._probe = threading.local()  # set while a registration re-reads its sample through the serving path
+        # the engine reads a request makes outside its own engine call (a certified task's served rows), collected for
+        # its stages and prompt figures; None outside a request (a registration's reads are not a request's)
+        self._reads = threading.local()
 
     def models(self) -> dict:
         return {
@@ -920,6 +946,7 @@ class SystemOne:
         the request's answers is certified. `think`: this request's choice for think when unsure (True or False; the
         server's own when None): an unsure question is read again after the served model has written its reasoning,
         and the response's `thinking` says which questions did and what it cost."""
+        t0 = time.perf_counter()  # the whole answer: mapping, plans and every read (the route adds its own parsing)
         images = list(images or [])
         use_image = bool(images) or route == "image"
         if use_image and self.image_engine is None:
@@ -994,8 +1021,16 @@ class SystemOne:
             and not use_image
         ]
         served, via = {}, {}
-        for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
-            served[i], via[i] = self.serve_row(rts[i], req.state, wire[i])
+        task_ms, task_reads = 0.0, []
+        if own:
+            self._reads.infos = task_reads
+            t_task = time.perf_counter()
+            try:
+                for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
+                    served[i], via[i] = self.serve_row(rts[i], req.state, wire[i])
+            finally:
+                self._reads.infos = None
+            task_ms = (time.perf_counter() - t_task) * 1000
         head = [
             i
             for i, t in enumerate(rts)
@@ -1013,7 +1048,6 @@ class SystemOne:
                 q2, perm = second_order(names[i], *mapped[i])
                 plan[i] = (len(engine_qs), perm)
                 engine_qs.append(q2)
-        t0 = time.perf_counter()
         probs, info = [], {}
         if engine_qs:
             if images:
@@ -1033,7 +1067,9 @@ class SystemOne:
                 req.state, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
                 adapter, engine,
             )  # fmt: skip
+        t_head = time.perf_counter()
         hidden = dict(zip(head, self.hidden_engine.readout(req.state, [qs[i] for i in head]))) if head else {}
+        head_ms = (time.perf_counter() - t_head) * 1000 if head else 0.0
         dbg = {}
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
             for i, (lp, h) in enumerate(self.hidden_engine.readout(req.state, qs)):
@@ -1177,22 +1213,21 @@ class SystemOne:
                 "route": "image" if use_image else "text",
                 "layout": "plain" if hl is not None and hl["listed"] == 0 else self.layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
-                # the mean prompt the engine computed or read per question, for the x-decisio-prompt header
-                **(
-                    {"prompt_tokens_mean": float(np.mean(info["engine_prompt_tokens"]))}
-                    if info.get("engine_prompt_tokens")
-                    else {}
-                ),
-                **{
-                    k: v
-                    for k, v in info.items()
-                    if k in ("cached_tokens_mean", "image_tokens", "waited_behind_registration", "batch")
-                },
+                # the mean prompt the engine computed or read per question, and how much of it the cache served, for the
+                # x-decisio-prompt header: over the request's engine call and a certified task's own reads
+                **prompt_figures([info, *task_reads]),
+                **{k: v for k, v in info.items() if k in ("image_tokens", "waited_behind_registration", "batch")},
                 # where the engine's time went, for the x-decisio-stages header (milliseconds)
                 "stages": {
-                    {"server_ms": "engine", "waited_ms": "wait"}.get(k, k[:-3]): info[k]
-                    for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms", "waited_ms")
-                    if isinstance(info.get(k), (int, float))
+                    **{
+                        {"server_ms": "engine", "waited_ms": "wait"}.get(k, k[:-3]): info[k]
+                        for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms", "waited_ms")
+                        if isinstance(info.get(k), (int, float))
+                    },
+                    # a certified task's questions, read one at a time by the certificate's function (or answered by
+                    # its fast table), and the intent head's hidden-state read
+                    **({"task": task_ms} if own else {}),
+                    **({"head": head_ms} if head else {}),
                 },
             },
         }
@@ -1794,6 +1829,12 @@ class SystemOne:
         }
         return fit_ex, cert_ex, split
 
+    def collect_read(self, info) -> None:
+        """Keep an engine read's info for the request being answered (its stages and prompt figures), if one is."""
+        infos = getattr(self._reads, "infos", None)
+        if infos is not None and isinstance(info, dict):
+            infos.append(info)
+
     @_serial
     def served_rows(self, t, pairs) -> list[np.ndarray]:
         """The distribution this server serves for each (state, question), through the task `t`: what a
@@ -1821,7 +1862,8 @@ class SystemOne:
                 out.append(np.asarray(p, dtype=np.float64))
                 continue
             eq, _, swapped = self.engine_question(q)
-            probs, _ = self.engine.answer(state, [eq])
+            probs, info = self.engine.answer(state, [eq])
+            self.collect_read(info)
             p = np.asarray(probs[0], dtype=np.float64)
             if swapped:
                 p = p[::-1].copy()
@@ -1842,7 +1884,8 @@ class SystemOne:
         out = []
         for state, q in pairs:
             eq, _, swapped = self.engine_question(q)
-            probs, _ = self.engine.answer(state, [eq])
+            probs, info = self.engine.answer(state, [eq])
+            self.collect_read(info)
             p = np.asarray(probs[0], dtype=np.float64)
             require_finite(p, "a dynamic task's probability")
             if swapped:
@@ -2694,6 +2737,9 @@ def add_routes(app, systemone: SystemOne):
     async def system_one(request: Request):
         from decisio.serve.image_engine import DEFAULT_MAX_IMAGES, load_image
 
+        # x-decisio-server-ms: from here, before the body is read, to the response: reading and validating the body,
+        # loading its images, the whole answer (every question's read, a certified task's and the head's included)
+        t_request = time.perf_counter()
         payload, blobs, ext, legends, from_assets = await read(request)
         try:
             req = SystemOneRequest.model_validate(payload)
@@ -2755,6 +2801,7 @@ def add_routes(app, systemone: SystemOne):
             ans = out["answers"].get(qname)
             if ans and ans.get("type") == "score":
                 ans["legend"] = {str(i): c for i, c in enumerate(levels)}
+        timing["server_ms"] = (time.perf_counter() - t_request) * 1000
         headers = {header("server-ms"): f"{timing['server_ms']:.1f}", header("route"): timing["route"]}
         if systemone.flavor:
             headers[header("flavor")] = flavors.header_value(systemone.flavor)

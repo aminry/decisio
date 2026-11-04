@@ -108,7 +108,7 @@
             },
             "headers": {
               "x-decisio-server-ms": {
-                "description": "The server's time for the request, in milliseconds.",
+                "description": "The server's time for the request, in milliseconds: from the route receiving it to the response, reading and validating the body, loading its images and every read included (a certified task's questions and the intent head's too).",
                 "schema": {
                   "type": "string"
                 }
@@ -156,7 +156,7 @@
                 }
               },
               "x-decisio-stages": {
-                "description": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`.",
+                "description": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`: `engine` is the request's own engine call (`prepare` to `readout` are its parts), `task` the questions of a certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the reasoning pass, `wait` the time spent waiting for the engine.",
                 "schema": {
                   "type": "string"
                 }
