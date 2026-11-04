@@ -2396,8 +2396,8 @@ def build_parser():
         "on or off; without it a tuned repository's defaults.batch_invariant decides, then VLLM_BATCH_INVARIANT, then "
         "the base: on for the Gemma 4 12B in bf16 and FP8 and its tuned repositories (adapters applied at run time "
         "included), off for the 31B, the image route and the Qwen base. off opts out. A variable in the environment "
-        "that says the opposite of the flag is refused. Costs about 1.2 to 1.3 times a single read on bf16 and 1.03 on "
-        "FP8 (12B, one card); the answers are not those of the other kernels",
+        "that says the opposite of the flag is refused. Costs 1.05 to 1.33 times a single read on bf16 and about "
+        "1.03 on FP8 (12B, one card); the answers are not those of the other kernels",
     )
     ap.add_argument(
         "--emulate-precision-casts",
