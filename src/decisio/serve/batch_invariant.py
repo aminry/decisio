@@ -6,16 +6,20 @@ invariance").
 vLLM 0.31.0 reads `VLLM_BATCH_INVARIANT=1` from its environment when it starts and then computes every row with
 kernels whose result does not depend on what else is in the batch.
 A board or a user runs only `--base <repository>`; they do not set an environment variable.
-So the setting can be a tuned repository's `defaults.batch_invariant`, or the server's `--batch-invariant on|off`;
-this module decides which one wins and sets the variable before the engine is built.
+So the setting can be a tuned repository's `defaults.batch_invariant`, the server's `--batch-invariant on|off`, or the
+base: it is on by default for the Gemma 4 12B in bf16 and in FP8 (`gemma-4-12b`, `gemma-4-12b-fp8`, and a tuned
+repository of either), adapters applied at run time included, where it was measured to make a read give the same bits
+whatever was read before it (the prefix cache, the batch, the start). The 31B (FP8 and bf16) keeps it off until it is
+measured at that size; the image route, packed mode and the Qwen base keep it off as well. This module decides which
+one wins and sets the variable before the engine is built.
 
-    resolve(flag, repository, environ) -> {"on": bool, "source": "flag" | "repository" | "environment" | "default"}
+    resolve(flag, repository, environ, backend, base_on) -> {"on": bool, "source": ...}
+    base_default(family_key, backend, image_model, mode) -> bool
 
-Precedence: the flag, then the repository, then off. The environment is not a source of its own that can disagree: a
-variable that says the opposite of the flag or the repository is refused at start, so /health never misreports what the
-engine runs. A variable set to 1 with nothing else saying anything turns it on, and is recorded as such.
-
-Standard library only (the check that vLLM took it, `engine_state`, imports vLLM when there is one).
+Precedence: the flag, then the repository, then the environment, then the base, then off. A variable that says the
+opposite of the flag or the repository is refused at start, so /health never misreports what the engine runs; a
+variable alone (1 or 0) decides when neither says anything, and is recorded as such, so `VLLM_BATCH_INVARIANT=0` is an
+opt-out as much as `--batch-invariant off` is.
 """
 
 from __future__ import annotations
@@ -34,10 +38,20 @@ def _env_value(environ) -> bool | None:
     return raw == "1"
 
 
-def resolve(flag: str | None, repository: bool | None, environ, backend: str = "vllm") -> dict:
+# the bases the mode is on by default for: measured with the cache, across batches and starts, adapters included
+DEFAULT_ON = ("gemma-4-12b", "gemma-4-12b-fp8")
+
+
+def base_default(family_key: str | None, backend: str, image_model, mode: str) -> bool:
+    """Whether the base turns the mode on: one of `DEFAULT_ON`, served by vLLM in separate mode, no image engine."""
+    return backend == "vllm" and family_key in DEFAULT_ON and not image_model and mode == "separate"
+
+
+def resolve(flag: str | None, repository: bool | None, environ, backend: str = "vllm", base_on: bool = False) -> dict:
     """Which setting the server runs, where it came from, and the variable set in `environ` before vLLM starts.
-    `flag`: "on", "off" or None; `repository`: the tuned repository's `defaults.batch_invariant` or None. Raises
-    SystemExit naming the conflict (a variable that says the opposite, a backend without vLLM's kernels)."""
+    `flag`: "on", "off" or None; `repository`: the tuned repository's `defaults.batch_invariant` or None; `base_on`:
+    `base_default(...)`. Raises SystemExit naming the conflict (a variable that says the opposite of the flag or the
+    repository, a backend without vLLM's kernels)."""
     if flag is not None and flag not in CHOICES:
         raise SystemExit(f"--batch-invariant is on or off, not {flag!r}")
     env = _env_value(environ)
@@ -47,10 +61,12 @@ def resolve(flag: str | None, repository: bool | None, environ, backend: str = "
         want, source = bool(repository), "repository"
     elif env is not None:
         want, source = env, "environment"
+    elif base_on:
+        want, source = True, "base"
     else:
         want, source = False, "default"
     if backend != "vllm":
-        if want and source != "environment":
+        if want and source in ("flag", "repository"):
             raise SystemExit(f"--batch-invariant is for the vLLM server, not --backend {backend}")
         return {"on": False, "source": "default"}
     if env is not None and env != want:
@@ -82,8 +98,12 @@ def start_line(report: dict) -> str:
         "flag": "--batch-invariant",
         "repository": "the repository's defaults",
         "environment": f"{VARIABLE} in the environment",
+        "base": "the default for this base",
         "default": "the default",
     }[report["source"]]
-    return f"BATCH INVARIANT {'on' if report['on'] else 'off'} ({where})" + (
-        "" if report.get("confirmed") is None else f"; vLLM reads it as {'on' if report['confirmed'] else 'off'}"
+    budget = report.get("max_num_batched_tokens")
+    return (
+        f"BATCH INVARIANT {'on' if report['on'] else 'off'} ({where})"
+        + ("" if report.get("confirmed") is None else f"; vLLM reads it as {'on' if report['confirmed'] else 'off'}")
+        + ("" if not (report["on"] and budget) else f"; vLLM's batch budget {budget:,} tokens")
     )

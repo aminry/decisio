@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.39.0](https://github.com/aminry/decisio/compare/v0.38.0...v0.39.0) (2026-11-04)
+
+
+### Features
+
+* **serve:** batch-invariant kernels on by default for the Gemma 4 12B (bf16, FP8, adapters) ([#385](https://github.com/aminry/decisio/issues/385)) ([2c960e3](https://github.com/aminry/decisio/commit/2c960e31fadb6277a1500b0c11edd67f7ce0e55f))
+
+
+### Bug Fixes
+
+* **serve:** no state-boundary warm-up when vLLM's prefix cache is off ([#395](https://github.com/aminry/decisio/issues/395)) ([5e1103c](https://github.com/aminry/decisio/commit/5e1103c656b5a8f45987626592c2239da3e2a7e4))
+
 ## [0.38.0](https://github.com/aminry/decisio/compare/v0.37.0...v0.38.0) (2026-10-31)
 
 
