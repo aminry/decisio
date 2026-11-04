@@ -361,6 +361,9 @@ class LettersEngine:
         self.tok = SerialTokenizer(self.llm.get_tokenizer())
         cfg = self.llm.llm_engine.vllm_config.cache_config
         self.block_size = cfg.block_size
+        # whether vLLM keeps a prefix cache (decisio turns it on in separate mode; `--engine` may turn it off): a
+        # warm-up registers a state only in that cache, so without it send_warm sends nothing
+        self.prefix_caching = bool(getattr(cfg, "enable_prefix_caching", True))
         self.match_unit = getattr(cfg, "prefix_match_unit", None) or self.block_size
         # what /health reports of the prefix cache (padding keeps match_unit): vLLM's hit unit, the least common
         # multiple of its KV cache groups' block sizes (64 on Gemma 4, whose groups are 16 and 64), and its hash step
@@ -985,7 +988,11 @@ class LettersEngine:
 
     def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
         """Prefill token lists in one batch, one generated token each, so their states are registered in the prefix
-        cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took."""
+        cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took. With vLLM's prefix cache
+        off nothing is sent: the prefill could not be reused, and it would cost about one more read of the state
+        (about 0.8 times a question's own read on the 12B, 214 rows of a median 361 tokens)."""
+        if not getattr(self, "prefix_caching", True):
+            return 0.0
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
 
@@ -1450,12 +1457,27 @@ def resolve_multi_question(family, choice, engine_process, backend=None):
     return profile if engine_process in ("in", None) else "sequential"
 
 
-def resolve_register_boundary(family, choice):
+def resolve_register_boundary(family, choice, prefix_caching=True):
     """--register-boundary's default: the base profile's (gemma-4-12b: after; gemma-4-31b: before, where registering
-    after the response cost it a third of its throughput under load; runs/2026-10-06_latency-585w)."""
+    after the response cost it a third of its throughput under load; runs/2026-10-06_latency-585w); off when vLLM's
+    prefix cache is off (`--engine '{"enable_prefix_caching": false}'`), where a registration has nowhere to go.
+    Asking for after or before with the cache off is refused (boundary_needs_cache, before the weights load)."""
     if choice is not None:
         return choice
+    if not prefix_caching:
+        return "off"
     return getattr(family, "register_boundary", "after")
+
+
+def boundary_needs_cache(choice, engine_json) -> str | None:
+    """Why --register-boundary `choice` cannot be served with `--engine` `engine_json`, or None: a registration
+    lives in vLLM's prefix cache, so after or before with the cache turned off is refused at start."""
+    if choice in ("after", "before") and json.loads(engine_json or "{}").get("enable_prefix_caching") is False:
+        return (
+            f"--register-boundary {choice} registers a state in vLLM's prefix cache, which --engine turns off "
+            '("enable_prefix_caching": false); use --register-boundary off, or leave the cache on'
+        )
+    return None
 
 
 MODEL_CLASSES = ("hidden-readout", "text-only", "view")
@@ -2097,7 +2119,8 @@ def build_parser():
         "registers_state_boundary), where a single question on a new state registers it: after, once the response is "
         "out, so the caller does not wait for it and a question sent after the answer reads the state from the "
         "cache; before (the default of both Gemma bases), ahead of the question; off, never, so a later question "
-        "about the state reads it again (docs/running.md)",
+        "about the state reads it again; off by default where --engine turns vLLM's prefix cache off, and after or "
+        "before are refused there (docs/running.md)",
     )
     ap.add_argument(
         "--engine-process",
@@ -2392,9 +2415,12 @@ def build_parser():
         default=None,
         help="vLLM's batch-invariant kernels (VLLM_BATCH_INVARIANT=1, set before the engine starts): every row is "
         "computed the same whatever else is in its batch, so a repeated request gives the same answer under load and "
-        "after a restart. on or off; without it a tuned repository's defaults.batch_invariant decides, else off. A "
-        "variable in the environment that says the opposite is refused. Costs about 1.03 times a single read on FP8 "
-        "and 1.6 times on bf16 (12B, one card); the answers are not those of the other kernels",
+        "after a restart, and a read from the prefix cache gives the bits of a read without it (measured on the 12B). "
+        "on or off; without it a tuned repository's defaults.batch_invariant decides, then VLLM_BATCH_INVARIANT, then "
+        "the base: on for the Gemma 4 12B in bf16 and FP8 and its tuned repositories (adapters applied at run time "
+        "included), off for the 31B, the image route and the Qwen base. off opts out. A variable in the environment "
+        "that says the opposite of the flag is refused. Costs 1.05 to 1.33 times a single read on bf16 and about "
+        "1.03 on FP8 (12B, one card); the answers are not those of the other kernels",
     )
     ap.add_argument(
         "--emulate-precision-casts",
@@ -2839,7 +2865,10 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     repo_default = ((args.repository or {}).get("defaults") or {}).get("batch_invariant")
-    args.batch_invariant_report = batch_invariant.resolve(args.batch_invariant, repo_default, os.environ, args.backend)
+    base_on = batch_invariant.base_default(getattr(args.family, "key", None), args.backend, args.image_model, args.mode)
+    args.batch_invariant_report = batch_invariant.resolve(
+        args.batch_invariant, repo_default, os.environ, args.backend, base_on
+    )
     args.precision_casts_report = precision_casts.resolve(
         args.emulate_precision_casts, getattr(args, "fp8_weights", False), os.environ, args.backend
     )
@@ -2847,6 +2876,8 @@ def main():
     args.compile_pin_report = compile_pin.resolve(args.deterministic_compile, os.environ, args.backend)
     compile_pin.apply_in_process(args.compile_pin_report["on"])
     args.engine = compile_pin.merge_engine(args.engine, args.compile_pin_report["on"])
+    if args.backend == "vllm" and (why_not := boundary_needs_cache(args.register_boundary, args.engine)):
+        ap.error(why_not)
     args.engine_process, why = engine_process_guard(args.backend, args.engine_process, os.environ, second)
     args.context_source = "set by --max-model-len" if given_length is not None else None
     if isinstance(args.max_model_len, AutoContext) and (args.engine_process != "in" or second):
@@ -2934,7 +2965,9 @@ def main():
     engine.fmt = fmt
     engine.pad_policy, engine.multi_question = args.pad_policy, args.multi_question
     engine.concurrency, engine.batch_max_requests = args.concurrency, args.batch_max_requests
-    engine.register_boundary = args.register_boundary = resolve_register_boundary(args.family, args.register_boundary)
+    engine.register_boundary = args.register_boundary = resolve_register_boundary(
+        args.family, args.register_boundary, getattr(engine, "prefix_caching", True)
+    )
     engine.repository = args.repository
     engine.repository_defaults = args.repository_defaults
     engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
@@ -2942,6 +2975,13 @@ def main():
     engine.over_limit_tokens = args.over_limit_tokens
     if args.batch_invariant_report["on"]:
         args.batch_invariant_report["confirmed"] = batch_invariant.engine_state()
+        sched = getattr(
+            getattr(getattr(getattr(engine, "llm", None), "llm_engine", None), "vllm_config", None),
+            "scheduler_config",
+            None,
+        )
+        if sched is not None:  # vLLM's own budget: decisio sets none (a value in --engine is the caller's)
+            args.batch_invariant_report["max_num_batched_tokens"] = int(sched.max_num_batched_tokens)
     print(batch_invariant.start_line(args.batch_invariant_report), flush=True)
     if args.precision_casts_report["on"]:
         args.precision_casts_report["confirmed"] = precision_casts.engine_state()

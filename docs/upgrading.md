@@ -8,6 +8,27 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.39.0: batch-invariant kernels on by default for the Gemma 4 12B, and no state warm-up without a prefix cache
+
+### What changed
+
+- **vLLM's batch-invariant mode is on by default for the Gemma 4 12B**: `gemma-4-12b` (bf16), `gemma-4-12b-fp8`, a tuned repository of either, and an adapter applied at run time on them, served by vLLM with no image model. With it a request gives the same bits whatever the server read before it. A request read partly from the prefix cache matches the same request with the cache off; without the mode two reads of 622 requests with the cache on (one taking each state from the cache, one mostly computed) differed on 145 by more than 0.01 and changed 4 top answers. An adapter applied at run time also repeats exactly from one read to the next, which it did not before (4 to 7 top answers in 622 changed between reads) ([running.md](running.md#batch-invariance---batch-invariant)).
+- **The served probabilities of those servers shift once**, in the last digits, and a few answers near a tie change their option, because the mode computes with other kernels: on 622 requests to the bf16 12B, every probability moved, 139 by more than 0.01 (at most 0.24), and 11 top answers changed. This holds for each of them: the bf16 12B, the FP8 12B, tuned repositories of either, and adapters applied at run time. Records and figures made before it are on the other arithmetic.
+- **The serving-stack fingerprint carries the mode**, so a certificate made without it on such a server is suspended (`serving_stack_changed`) until it is certified again. With the mode on it also carries vLLM's batch budget (`max_num_batched_tokens`), because a prompt longer than the budget is prefilled in steps, repeatably but with other arithmetic: a certificate made under another budget is suspended too.
+- **It costs time**: on the 12B in bf16 (one RTX PRO 5000), 1.05 to 1.08 times on a read that sends no state warm-up (65 against 62 ms) and 1.33 times on a first read of a new state, which also sends the state's warm-up (102 against 77 ms); in FP8 about 1.03 times (one RTX 5090).
+- The 31B (`gemma-4-31b` in FP8, `gemma-4-31b-bf16`), the image route, packed mode and the Qwen base are unchanged.
+- **No state warm-up when vLLM's prefix cache is off.** With `--engine '{"enable_prefix_caching": false}'` on a Gemma base, `--register-boundary` now defaults to `off` and no warm-up is sent; `after` or `before` there is refused at start. The warm-up could never be reused without the cache and was sent again on every other repeat: on the 12B (214 questions of a median 361 tokens) a first read took 114 ms against 62 for a repeat, and now every read takes about 65 ms (the mode on). The answers are the same. Such a server's fingerprint now says `register_boundary` `off`, so its certificates are suspended once ([running.md](running.md#a-later-question-about-the-same-state---register-boundary)).
+- **The docs no longer say no setting removes the prefix cache's difference** ([tasks.md](tasks.md)): the batch-invariant mode does, now by default on the 12B.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The 31B, the image route, packed mode or the Qwen base | Nothing changes | Nothing |
+| The 12B in bf16 or FP8, a tuned 12B repository, or an adapter on the 12B, with no flag | The mode is on: answers shift once, certificates are suspended, reads take 1.05 to 1.33 times as long in bf16 (about 1.03 in FP8), and an answer no longer depends on what was read before it | Certify certified tasks again; keep the mode, or start with `--batch-invariant off` to keep the earlier arithmetic |
+| `--batch-invariant on` or `off` already, or a repository with `defaults.batch_invariant` | Your setting stands | Nothing |
+| A Gemma base with vLLM's prefix cache turned off in `--engine` | No state warm-up: first reads are faster, answers unchanged, certificates suspended once | Certify certified tasks again; drop `--register-boundary after` or `before` if you give it (refused there now) |
+
 ## 0.38.0: an opt-in compile with no timed choices, and the fast table's encoder through ONNX Runtime
 
 ### What changed
