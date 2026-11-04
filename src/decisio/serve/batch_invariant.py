@@ -7,26 +7,19 @@ vLLM 0.31.0 reads `VLLM_BATCH_INVARIANT=1` from its environment when it starts a
 kernels whose result does not depend on what else is in the batch.
 A board or a user runs only `--base <repository>`; they do not set an environment variable.
 So the setting can be a tuned repository's `defaults.batch_invariant`, the server's `--batch-invariant on|off`, or the
-base: it is on by default for a bf16 base (the plain 12B, the 31B in bf16 and a tuned bf16 repository of either),
-where it was measured to make a read from the prefix cache give the same bits as a read with the cache off; FP8 bases,
-adapters applied at run time, the image route and other bases keep it off until it is measured there. This module
-decides which one wins and sets the variable before the engine is built.
+base: it is on by default for the Gemma 4 12B in bf16 and in FP8 (`gemma-4-12b`, `gemma-4-12b-fp8`, and a tuned
+repository of either), adapters applied at run time included, where it was measured to make a read give the same bits
+whatever was read before it (the prefix cache, the batch, the start). The 31B (FP8 and bf16) keeps it off until it is
+measured at that size; the image route, packed mode and the Qwen base keep it off as well. This module decides which
+one wins and sets the variable before the engine is built.
 
-    resolve(flag, repository, environ, backend, base_default) -> {"on": bool, "source": ...}
-    base_default(precision, fp8_weights, backend, adapters, image_model, mode) -> bool
-    merge_engine(engine_json, max_model_len) -> engine_json with max_num_batched_tokens covering the context
+    resolve(flag, repository, environ, backend, base_on) -> {"on": bool, "source": ...}
+    base_default(family_key, backend, image_model, mode) -> bool
 
 Precedence: the flag, then the repository, then the environment, then the base, then off. A variable that says the
 opposite of the flag or the repository is refused at start, so /health never misreports what the engine runs; a
 variable alone (1 or 0) decides when neither says anything, and is recorded as such, so `VLLM_BATCH_INVARIANT=0` is an
 opt-out as much as `--batch-invariant off` is.
-
-The mode keeps the match only for a prompt computed in one engine step: vLLM's chunked prefill splits a prompt longer
-than `max_num_batched_tokens`, and a split prompt does not keep it. So when the mode is on and `--engine` names no
-`max_num_batched_tokens`, `merge_engine` sets it to the served context (the base's ceiling when the length is chosen
-at start), so that every prompt the server accepts is read in one step.
-
-Standard library only (the check that vLLM took it, `engine_state`, imports vLLM when there is one).
 """
 
 from __future__ import annotations
@@ -45,17 +38,13 @@ def _env_value(environ) -> bool | None:
     return raw == "1"
 
 
-def base_default(precision: str | None, fp8_weights: bool, backend: str, adapters, image_model, mode: str) -> bool:
-    """Whether the base turns the mode on: a bf16 base served by vLLM in separate mode, its weights not FP8, with no
-    adapter applied at run time and no image engine (those are not measured with the mode and the cache yet)."""
-    return (
-        backend == "vllm"
-        and precision == "bf16"
-        and not fp8_weights
-        and not adapters
-        and not image_model
-        and mode == "separate"
-    )
+# the bases the mode is on by default for: measured with the cache, across batches and starts, adapters included
+DEFAULT_ON = ("gemma-4-12b", "gemma-4-12b-fp8")
+
+
+def base_default(family_key: str | None, backend: str, image_model, mode: str) -> bool:
+    """Whether the base turns the mode on: one of `DEFAULT_ON`, served by vLLM in separate mode, no image engine."""
+    return backend == "vllm" and family_key in DEFAULT_ON and not image_model and mode == "separate"
 
 
 def resolve(flag: str | None, repository: bool | None, environ, backend: str = "vllm", base_on: bool = False) -> dict:
@@ -73,7 +62,7 @@ def resolve(flag: str | None, repository: bool | None, environ, backend: str = "
     elif env is not None:
         want, source = env, "environment"
     elif base_on:
-        want, source = True, "bf16 base"
+        want, source = True, "base"
     else:
         want, source = False, "default"
     if backend != "vllm":
@@ -89,19 +78,6 @@ def resolve(flag: str | None, repository: bool | None, environ, backend: str = "
     if want:
         environ[VARIABLE] = "1"
     return {"on": want, "source": source}
-
-
-def merge_engine(engine_json: str, max_model_len: int) -> tuple[str, dict]:
-    """`--engine`'s JSON with `max_num_batched_tokens` set to `max_model_len` when it names none (a value given there
-    wins), and what was done, for /health and the start line: {"max_num_batched_tokens": n, "set_by": "decisio" |
-    "--engine"}."""
-    import json
-
-    kw = json.loads(engine_json)
-    if "max_num_batched_tokens" in kw:
-        return engine_json, {"max_num_batched_tokens": kw["max_num_batched_tokens"], "set_by": "--engine"}
-    n = int(kw.get("max_model_len") or max_model_len)
-    return json.dumps({**kw, "max_num_batched_tokens": n}), {"max_num_batched_tokens": n, "set_by": "decisio"}
 
 
 def engine_state() -> bool | None:
@@ -122,16 +98,12 @@ def start_line(report: dict) -> str:
         "flag": "--batch-invariant",
         "repository": "the repository's defaults",
         "environment": f"{VARIABLE} in the environment",
-        "bf16 base": "the default for a bf16 base",
+        "base": "the default for this base",
         "default": "the default",
     }[report["source"]]
-    batch = report.get("batching") or {}
+    budget = report.get("max_num_batched_tokens")
     return (
         f"BATCH INVARIANT {'on' if report['on'] else 'off'} ({where})"
         + ("" if report.get("confirmed") is None else f"; vLLM reads it as {'on' if report['confirmed'] else 'off'}")
-        + (
-            f"; max_num_batched_tokens {batch['max_num_batched_tokens']:,} ({batch['set_by']}): one step a prompt"
-            if batch
-            else ""
-        )
+        + ("" if not (report["on"] and budget) else f"; vLLM's batch budget {budget:,} tokens")
     )

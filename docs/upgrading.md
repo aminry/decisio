@@ -8,25 +8,23 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## 0.39.0: batch-invariant kernels on by default for bf16 bases
+## 0.39.0: batch-invariant kernels on by default for the Gemma 4 12B
 
 ### What changed
 
-- **vLLM's batch-invariant mode is on by default for a bf16 base**: the plain 12B (`gemma-4-12b`), the 31B in bf16 (`gemma-4-31b-bf16`) and a tuned bf16 repository of either, served by vLLM with no adapter applied at run time and no image model. With it a request read partly from the prefix cache gives the same bits as the same request read with the cache off; without it a second read of 622 requests from the cache moved 145 by more than 0.01 and changed 4 top answers ([running.md](running.md#batch-invariance---batch-invariant)).
-- **The served probabilities of those bases shift once**, in the last digits, and a few answers near a tie change their option: the mode computes with other kernels. Records and figures made before it are on the other arithmetic.
-- **The serving-stack fingerprint carries the mode**, so a certificate made on such a server without it is suspended (`serving_stack_changed`) until it is certified again on the new server.
-- **`max_num_batched_tokens` is set to the served context** when the mode is on and `--engine` names none, so no prompt is split across engine steps. It reserves more memory at start.
-- **It costs time**: about 1.2 to 1.3 times a single read on the 12B in bf16 (103 against 78 ms on a first read, 66 against 55 ms from the cache, one RTX PRO 5000).
-- FP8 bases, adapters applied at run time and the Qwen base are unchanged.
+- **vLLM's batch-invariant mode is on by default for the Gemma 4 12B**: `gemma-4-12b` (bf16), `gemma-4-12b-fp8`, a tuned repository of either, and an adapter applied at run time on them, served by vLLM with no image model. With it a request gives the same bits whatever the server read before it. A request read partly from the prefix cache matches the same request with the cache off; without the mode a second read of 622 requests from the cache moved 145 by more than 0.01 and changed 4 top answers. An adapter applied at run time also repeats exactly from one read to the next, which it did not before (4 to 7 top answers in 622 changed between reads) ([running.md](running.md#batch-invariance---batch-invariant)).
+- **The served probabilities of those servers shift once**, in the last digits, and a few answers near a tie change their option, because the mode computes with other kernels. This holds for each of them: the bf16 12B, the FP8 12B, tuned repositories of either, and adapters applied at run time. Records and figures made before it are on the other arithmetic.
+- **The serving-stack fingerprint carries the mode**, so a certificate made without it on such a server is suspended (`serving_stack_changed`) until it is certified again.
+- **It costs time**: on the 12B, about 1.2 to 1.3 times a single read in bf16 (103 against 78 ms on a first read, 66 against 55 ms from the cache, one RTX PRO 5000) and about 1.03 times in FP8.
+- The 31B (`gemma-4-31b` in FP8, `gemma-4-31b-bf16`), the image route, packed mode and the Qwen base are unchanged.
 
 ### Who is affected
 
 | You run | What happens | What to do |
 | --- | --- | --- |
-| An FP8 base (the default 31B, `gemma-4-12b-fp8`, an FP8 repository), an adapter applied at run time, or the Qwen base | Nothing changes | Nothing |
-| A bf16 base or a tuned bf16 repository, with no flag | The mode is on: answers shift once, certificates are suspended, reads take about 1.2 to 1.3 times as long, and a read from the cache matches a cold one | Certify certified tasks again; keep the mode, or start with `--batch-invariant off` to keep the earlier arithmetic |
-| A bf16 base on a small card | The larger batch budget may not fit at start | Give `"max_num_batched_tokens"` in `--engine`, or `--batch-invariant off` |
-| `--batch-invariant on` or `off` already, or a repository with `defaults.batch_invariant` | Your setting stands; with the mode on the batch budget now covers the context | Nothing, or name your own budget in `--engine` |
+| The 31B, the image route, packed mode or the Qwen base | Nothing changes | Nothing |
+| The 12B in bf16 or FP8, a tuned 12B repository, or an adapter on the 12B, with no flag | The mode is on: answers shift once, certificates are suspended, reads take about 1.2 to 1.3 times as long in bf16 (1.03 in FP8), and an answer no longer depends on what was read before it | Certify certified tasks again; keep the mode, or start with `--batch-invariant off` to keep the earlier arithmetic |
+| `--batch-invariant on` or `off` already, or a repository with `defaults.batch_invariant` | Your setting stands | Nothing |
 
 ## 0.38.0: an opt-in compile with no timed choices, and the fast table's encoder through ONNX Runtime
 
