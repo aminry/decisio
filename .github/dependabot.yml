@@ -34,15 +34,15 @@ updates:
       # updater then finds no file to change and the job fails on every run (docs/LAUNCH_CHECKLIST.md, flip record)
       - dependency-name: setuptools
       # the next four move with the vLLM bump: vllm 0.31.0 pins torch==2.13.0 and torchvision==0.28.0, holds fastapi
-      # below 0.137.0 and caps numpy below 2.5 (through numba==0.65.0), so uv cannot resolve a newer one and the weekly
-      # update job failed on them (dependency_file_not_resolvable, 2026-11-04); fastapi and numpy keep their updates
-      # inside vLLM's range
+      # below 0.137.0 and caps numpy below 2.4 (through mistral-common[image]>=1.11.6, which needs numpy<2.4), so uv
+      # cannot resolve a newer one and the weekly update job failed on them (dependency_file_not_resolvable,
+      # 2026-11-04); fastapi and numpy keep their updates inside vLLM's range
       - dependency-name: torch
       - dependency-name: torchvision
       - dependency-name: fastapi
         versions: [">=0.137.0"]
       - dependency-name: numpy
-        versions: [">=2.5.0"]
+        versions: [">=2.4.0"]
   - package-ecosystem: docker
     directory: /
     schedule:
