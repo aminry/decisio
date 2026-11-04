@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.1](https://github.com/aminry/decisio/compare/v0.39.0...v0.39.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **serve:** a choice over 255 options keeps System One's exact 422 message ([#400](https://github.com/aminry/decisio/issues/400)) ([88d080e](https://github.com/aminry/decisio/commit/88d080e38e542478fa69f5a671fca03e506f3897))
+
 ## [0.39.0](https://github.com/aminry/decisio/compare/v0.38.0...v0.39.0) (2026-11-04)
 
 
