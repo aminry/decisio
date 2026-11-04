@@ -8,12 +8,22 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(ci)"
+    # one pull request a week for every patch and minor update together; a major update comes on its own
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: "chore(deps)"
+    # one pull request a week for every patch and minor update together; a major update comes on its own
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: [minor, patch]
     ignore:
       # the plugin targets exactly this vLLM version; bumps are a deliberate, measured change
       - dependency-name: vllm
@@ -43,3 +53,8 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(deps)"
+    # one pull request a week for every patch and minor update together; a major update comes on its own
+    groups:
+      pong-demo:
+        patterns: ["*"]
+        update-types: [minor, patch]

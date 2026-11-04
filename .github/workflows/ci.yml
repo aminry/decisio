@@ -174,7 +174,7 @@ jobs:
           all=$(uv run pytest --collect-only -q -m slow | grep "::" | cut -d: -f1 | sort -u)
           test -n "$all" || { echo "no slow tests collected"; exit 1; }
           files=$(echo "$all" | python3 scripts/shard_slow_tier.py 3 "$SHARD")
-          echo "shard $SHARD: $(echo $files)"
+          echo "shard $SHARD: $(paste -sd ' ' - <<< "$files")"
           rc=0
           echo "| file | seconds |" >> "$GITHUB_STEP_SUMMARY"
           echo "| --- | ---: |" >> "$GITHUB_STEP_SUMMARY"

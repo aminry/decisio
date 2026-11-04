@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# actionlint's settings: the GPU tier runs on a self-hosted runner labelled "gpu" (.github/workflows/gpu.yml).
+self-hosted-runner:
+  labels:
+    - gpu
