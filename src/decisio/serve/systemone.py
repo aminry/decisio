@@ -36,7 +36,8 @@ import time
 from typing import Annotated, Any, Literal
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic_core import PydanticCustomError
 
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
@@ -85,12 +86,29 @@ class NoulQuestion(BaseModel):
 
 # System One's cap on the options of a choice (`maxProperties: 255` in its OpenAPI): more is a 422 `too_long`, as there
 MAX_CHOICE_OPTIONS = 255
+# System One's message for it, word for word (docs/api.md): pydantic 2.14.2 ends its own with "not more" instead of the
+# count, so the cap is checked here rather than by `max_length`, and the message does not follow pydantic's wording
+CHOICE_TOO_LONG = "Dictionary should have at most {max_length} items after validation, not {actual_length}"
 
 
 class ChoiceQuestion(BaseModel):
     type: Literal["choice"]
     instructions: JSONContent | None = None
-    criteria: dict[str, JSONContent | None] = Field(..., min_length=1, max_length=MAX_CHOICE_OPTIONS)
+    # the cap stays in the schema (`maxProperties`), and is enforced by the validator below
+    criteria: dict[str, JSONContent | None] = Field(
+        ..., min_length=1, json_schema_extra={"maxProperties": MAX_CHOICE_OPTIONS}
+    )
+
+    @field_validator("criteria")
+    @classmethod
+    def _at_most_255(cls, v):
+        if len(v) > MAX_CHOICE_OPTIONS:
+            raise PydanticCustomError(
+                "too_long",
+                CHOICE_TOO_LONG,
+                {"field_type": "Dictionary", "max_length": MAX_CHOICE_OPTIONS, "actual_length": len(v)},
+            )
+        return v
 
 
 class ScoreQuestion(BaseModel):
