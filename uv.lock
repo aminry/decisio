@@ -444,7 +444,7 @@ nvtx = [
 
 [[package]]
 name = "decisio"
-version = "0.39.1"
+version = "0.39.2"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },

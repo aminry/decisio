@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.39.2](https://github.com/aminry/decisio/compare/v0.39.1...v0.39.2) (2026-11-04)
+
+
+### Bug Fixes
+
+* **serve:** x-decisio-server-ms covers the whole request, certified task reads included ([#405](https://github.com/aminry/decisio/issues/405)) ([88a6baf](https://github.com/aminry/decisio/commit/88a6baf9a00ffc315eab149b80aa44df96ef2fbe))
+
 ## [0.39.1](https://github.com/aminry/decisio/compare/v0.39.0...v0.39.1) (2026-11-04)
 
 
