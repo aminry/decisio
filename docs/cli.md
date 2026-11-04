@@ -87,7 +87,7 @@ Where the columns differ, the value is the base's.
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
 | `--multi-question` | `sequential` | `sequential` | `warm` with the engine in the server's process, else `sequential` | how a request's questions are scored (below) |
-| `--register-boundary` | not used (no registration needed) | `before` | `before` | when a single question on a new state registers its boundary for the next question: `after`, once the response is out; `before`, ahead of the question; `off`, never (`docs/running.md`) |
+| `--register-boundary` | not used (no registration needed) | `before` | `before` | when a single question on a new state registers its boundary for the next question: `after`, once the response is out; `before`, ahead of the question; `off`, never; `off` by default, and the other two refused, when `--engine` turns vLLM's prefix cache off (`docs/running.md`) |
 | `--concurrency` | `serial` | `serial` | `serial` | `serial`: one request at a time through the engine, an answer a function of its request alone; `batched`: the requests waiting for the engine scored together in one call, more throughput under concurrent load (measured on the FP8 12B, new 1,000-token states, 8 and 16 clients; measure on your own traffic), an answer can move slightly with its traffic (`docs/running.md`, "Concurrency") |
 | `--batch-max-requests` | 16 | 16 | 16 | with `--concurrency batched`, the most requests in one engine call |
 | `--engine-process` | `in` (`separate` with a second engine) | `in` (`separate` with a second engine) | `in` | where vLLM's engine runs: `in`, the server's process; `separate`, a process of its own (vLLM's arrangement) (below) |
