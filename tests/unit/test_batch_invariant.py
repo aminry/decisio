@@ -17,6 +17,8 @@ B7  the base's default: on for the Gemma 4 12B in bf16 and FP8 served by vLLM in
 B8  decisio sets no batch budget: --engine passes through untouched, and the start line reports vLLM's own budget when
     the mode is on
 B9  every base key is either in the default or named as kept off, so a new base is a decision, not an accident
+B10 the fingerprint holds vLLM's batch budget when the mode is on (a prompt longer than it is prefilled in steps,
+    repeatable but other arithmetic), so a certificate made under another budget is suspended; off, nothing changes
 
   uv run pytest -q tests/unit/test_batch_invariant.py
 """
@@ -239,3 +241,14 @@ def test_b9_every_base_is_in_the_default_or_named_as_kept_off():
     kept_off = {"gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b"}
     assert set(bi.DEFAULT_ON) | kept_off == set(BASES), "a new base: decide whether the mode is its default"
     assert not set(bi.DEFAULT_ON) & kept_off
+
+
+def test_b10_the_fingerprint_holds_the_batch_budget_when_the_mode_is_on():
+    _, a = server({"on": True, "source": "base", "confirmed": True, "max_num_batched_tokens": 8192})
+    _, b = server({"on": True, "source": "base", "confirmed": True, "max_num_batched_tokens": 16384})
+    _, off = server({"on": False, "source": "default", "max_num_batched_tokens": 8192})
+    _, none = server(None)
+    assert a.stack_facts()["serving"]["batch_budget"] == 8192
+    assert any(d.endswith("batch_budget") for d in stack.differences(a.stack_facts(), b.stack_facts()))
+    assert "batch_budget" not in off.stack_facts()["serving"]
+    assert stack.differences(off.stack_facts(), none.stack_facts()) == []
