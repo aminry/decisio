@@ -74,6 +74,8 @@ class FairLock:
     (RLCD experiments/2026-10-21_throughput/session1, S7). The interface is `threading.Lock`'s (acquire with blocking
     and timeout, release, the context manager, locked)."""
 
+    _turn = threading.Event  # a waiter's own Event (a class attribute so a test can give one that is interrupted)
+
     def __init__(self):
         self._mutex = threading.Lock()
         self._held = False
@@ -86,9 +88,19 @@ class FairLock:
                 return True
             if not blocking:
                 return False
-            turn = threading.Event()
+            turn = self._turn()
             self._queue.append(turn)
-        turn.wait(None if timeout is None or timeout < 0 else timeout)
+        try:
+            turn.wait(None if timeout is None or timeout < 0 else timeout)
+        except BaseException:
+            # interrupted while waiting (KeyboardInterrupt, an exception raised by a signal handler): never leave this
+            # waiter in the queue or holding the lock, or the next release hands the lock to a thread that has gone
+            with self._mutex:
+                if turn.is_set():
+                    self._pass_on()  # it had been handed the lock: give it to the next in line
+                else:
+                    self._queue.remove(turn)
+            raise
         with self._mutex:
             if turn.is_set():  # handed over (also when the hand-off raced the timeout)
                 return True
@@ -99,10 +111,14 @@ class FairLock:
         with self._mutex:
             if not self._held:
                 raise RuntimeError("release of an unheld FairLock")
-            if self._queue:
-                self._queue.popleft().set()  # held still, by the oldest waiter
-            else:
-                self._held = False
+            self._pass_on()
+
+    def _pass_on(self) -> None:
+        """The holder lets go (the mutex held): the oldest waiter gets the lock, still held, or it becomes free."""
+        if self._queue:
+            self._queue.popleft().set()  # held still, by the oldest waiter
+        else:
+            self._held = False
 
     def locked(self) -> bool:
         with self._mutex:
