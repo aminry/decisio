@@ -1344,17 +1344,19 @@ class SystemOne:
         certify: dict | None = None,
         certify_examples=None,
         dynamic_options: dict | None = None,
-        fast_table: bool = False,
+        fast_table: bool | dict = False,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
         `certify_examples` when given, else a deterministic share of `examples` (`certify["holdout"]`); the fit then
         uses the rest only.
-        With `fast_table` the task also gets a sentence-encoder classifier that answers the requests it is sure of
-        without asking the model, kept only if it times at least `FT.MIN_SAVING` faster (decisio.serve.fast_table).
+        With `fast_table` (true, or `{"kind", "static_model"}`: `FT.parse_request`) the task also gets a classifier on
+        a student's features that answers the requests it is sure of without asking the model, kept only if it times at
+        least `FT.MIN_SAVING` faster (decisio.serve.fast_table).
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
+        fast_table = FT.parse_request(fast_table)
         if fast_table and certify is None:
             raise ValueError("fast_table: the table is part of the task's certificate; give a certify block")
         self.task_precheck("readout", task_id)
@@ -1370,7 +1372,7 @@ class SystemOne:
             fit_ex, cert_ex, split = self.certification_split(task_id, full, certify, certify_examples)
         else:
             fit_ex = full
-        prepared = self.prepare_fast_table(fit_ex, cert_ex) if fast_table else None
+        prepared = self.prepare_fast_table(fit_ex, cert_ex, request=fast_table) if fast_table else None
 
         def score(pairs):
             out = []
@@ -1533,41 +1535,62 @@ class SystemOne:
 
     # ---- the fast table (decisio.serve.fast_table) -------------------------------------------------------------------
 
-    def prepare_fast_table(self, fit_ex, cert_ex, existing: dict | None = None) -> dict:
-        """The table's side of a registration, before the model is asked anything: the classifier on the fit examples'
-        embeddings (`existing`: a stored table kept as it is, on a re-certification), and the held-out examples embedded
-        and classified one at a time with the time each took, on this host."""
+    def prepare_fast_table(self, fit_ex, cert_ex, existing: dict | None = None, request: dict | None = None) -> dict:
+        """The table's side of a registration, before the model is asked anything: for each student the request names
+        (`FT.parse_request`; `auto`: the static and the encoder), the classifier on the fit examples' features
+        (`existing`: a stored table kept as it is, with its own feature function, on a re-certification), and the
+        held-out examples featurised and classified one at a time with the time each took, on this host. A student that
+        cannot be had is refused, or under `auto` left out and named, unless no student can be had."""
         from decisio.serve.tasks import answer_keys, gold_index
 
         q0 = (fit_ex or cert_ex)[0][0]
         if q0.type != "choice":
             raise ValueError("fast_table: choice questions only (a yes/no or score question has no table)")
+        k = len(answer_keys(q0))
+        if existing is not None:
+            feats = [FT.record_features(existing)]
+            why = FT.cannot_compute(feats[0])
+            if why:
+                raise ValueError(f"fast_table: the table was {why}")
+            request = {"kind": feats[0]["kind"], "existing_table": True}  # re-certified with its own features
+        else:
+            request = request or FT.parse_request(True)
+            feats = FT.requested_features(request)
         try:
-            FT.encoder()
+            FT.require_fit()
         except FT.TableUnavailable as e:
             raise ValueError(str(e))
-        k = len(answer_keys(q0))
-        if existing is not None and (existing["encoder"], existing["revision"]) != (FT.ENCODER, FT.REVISION):
+        usable, unavailable = [], []
+        for f in feats:
+            try:
+                FT.load_student(f)
+            except FT.TableUnavailable as e:
+                if request["kind"] != "auto":
+                    raise ValueError(str(e))
+                unavailable.append({"kind": f["kind"], "model": f["model"], "reason": str(e)})
+            else:
+                usable.append(f)
+        if not usable:
+            raise ValueError("fast_table: no student can be had: " + "; ".join(u["reason"] for u in unavailable))
+        if existing is None and len(fit_ex) < FT.MIN_EXAMPLES:
             raise ValueError(
-                f"fast_table: the table was fitted with {existing['encoder']} at revision {existing['revision'][:8]}, "
-                f"this server has {FT.ENCODER} at {FT.REVISION[:8]}: register the task again"
+                f"fast_table: {len(fit_ex)} fit examples, and at least {FT.MIN_EXAMPLES} are needed to fit a table"
             )
-        if existing is None:
-            if len(fit_ex) < FT.MIN_EXAMPLES:
-                raise ValueError(
-                    f"fast_table: {len(fit_ex)} fit examples, and at least {FT.MIN_EXAMPLES} are needed to fit a table"
-                )
-            Xf = FT.embed([render_text(s) for _, s, _ in fit_ex])
-            rec = FT.fit(Xf, [gold_index(q, g) for q, _, g in fit_ex], k)
-        else:
-            rec = {x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds")}
-        FT.embed(["warm"])  # the encoder is loaded and warm before anything is timed
-        P, ms = [], []
-        for _, s, _ in cert_ex:
-            t0 = time.perf_counter()
-            P.append(FT.predict(rec, FT.embed([render_text(s)]))[0])
-            ms.append((time.perf_counter() - t0) * 1000.0)
-        return {"record": rec, "P": np.stack(P), "ms": ms}
+        candidates = []
+        for f in usable:
+            if existing is None:
+                Xf = FT.featurize(f, [render_text(s) for _, s, _ in fit_ex])
+                rec = FT.fit(Xf, [gold_index(q, g) for q, _, g in fit_ex], k, features=f)
+            else:
+                rec = {x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds")}
+            FT.featurize(f, ["warm"])  # the student is loaded and warm before anything is timed
+            P, ms = [], []
+            for _, s, _ in cert_ex:
+                t0 = time.perf_counter()
+                P.append(FT.predict(rec, FT.featurize(f, [render_text(s)]))[0])
+                ms.append((time.perf_counter() - t0) * 1000.0)
+            candidates.append({"features": f, "record": rec, "P": np.stack(P), "ms": ms})
+        return {"request": request, "candidates": candidates, "unavailable": unavailable}
 
     def read_certification(self, t, cert_ex) -> dict:
         """decisio's own distribution for each held-out example, read one at a time with the time each read took."""
@@ -1578,59 +1601,131 @@ class SystemOne:
             ms.append((time.perf_counter() - t0) * 1000.0)
         return {"ps": ps, "ms": ms}
 
-    def fast_table_stack(self) -> dict:
-        if getattr(self, "_ft_stack", None) is None:
-            self._ft_stack = FT.timing_stack(self.engine.facts() if hasattr(self.engine, "facts") else {})
-        return self._ft_stack
+    def fast_table_stack(self, features: dict | None = None) -> dict:
+        """This server's timing stack for a table of `features` (`FT.timing_stack`), made once per student."""
+        cache = self.__dict__.setdefault("_ft_stacks", {})
+        key = None if features is None or features["kind"] == "encoder" else (features["model"], features["revision"])
+        if key not in cache:
+            cache[key] = FT.timing_stack(self.engine.facts() if hasattr(self.engine, "facts") else {}, features)
+        return cache[key]
 
     def decide_fast_table(self, t, cert_ex, reads, prepared, settings) -> None:
-        """Keep the table on task `t` or say why not. The cascade's thresholds are made on the held-out examples
-        (the table's, then decisio's on the requests the table defers); the table is kept when a threshold holds and
-        the timing guard shows it saves at least `FT.MIN_SAVING` of the expected time per request."""
+        """Keep a table on task `t` or say why not. For each student prepared, the cascade's thresholds are made on the
+        held-out examples (the table's, then decisio's on the requests the table defers) and the timing guard gives its
+        expected saving; a student is eligible when a table threshold holds and it saves at least `FT.MIN_SAVING` of
+        the expected time per request. One student: kept when eligible. `auto`: the eligible one with the largest
+        saving, the static one on a tie within `FT.TIE` (`FT.choose`); none eligible, no table."""
         from decisio.serve.tasks import answer_keys, gold_index
 
         keys = answer_keys(cert_ex[0][0])
         y = np.array([gold_index(q, g) for q, _, g in cert_ex])
         cD = np.array([float(max(p)) for p in reads["ps"]])
         pD = np.array([top_index(keys, p) for p in reads["ps"]])
-        P = prepared["P"]
-        cT = P.max(axis=1)
-        pT = np.array([top_index(keys, p) for p in P])
-        casc = FT.cascade(cT, pT, y, cD, pD, settings["alpha"], settings["delta"])
-        deferred = ~(cT >= casc["table_threshold"]) if casc["table_threshold"] is not None else np.ones(len(cT), bool)
-        guard = FT.timing_guard(prepared["ms"], reads["ms"], casc["table_share"], deferred=deferred)
-        stack = self.fast_table_stack()
+        alpha, delta = settings["alpha"], settings["delta"]
+        tried = []
+        for c in prepared["candidates"]:
+            P = c["P"]
+            cT = P.max(axis=1)
+            pT = np.array([top_index(keys, p) for p in P])
+            casc = FT.cascade(cT, pT, y, cD, pD, alpha, delta)
+            holds = casc["table_threshold"] is not None
+            deferred = ~(cT >= casc["table_threshold"]) if holds else np.ones(len(cT), bool)
+            guard = FT.timing_guard(c["ms"], reads["ms"], casc["table_share"], deferred=deferred)
+            stage = FT.table_stage(cT, pT, y, casc["table_threshold"], delta)
+            if not holds:
+                why = (
+                    f"on the {len(y)} held-out examples no confidence threshold keeps the table's wrong answers at "
+                    f"{alpha:.0%} or fewer with probability {1 - delta / 2:.0%}"
+                )
+            elif not guard["kept"]:
+                why = (
+                    f"it would save {guard['saving']:.0%} of the time per request ({guard['table_ms_mean']} ms for "
+                    f"the table on every request, decisio {guard['decisio_ms_mean']} ms on the "
+                    f"{1 - casc['table_share']:.0%} it defers), under the {FT.MIN_SAVING:.0%} required"
+                )
+            else:
+                why = None
+            tried.append(
+                {
+                    **c,
+                    "cT": cT,
+                    "pT": pT,
+                    "casc": casc,
+                    "guard": guard,
+                    "holds": holds,
+                    "saving": guard["saving"],
+                    "kind": c["features"]["kind"],
+                    "stage": stage,
+                    "why": why,
+                }
+            )
+        request = prepared["request"]
+        auto = request["kind"] == "auto"
+        if auto:
+            chosen, why_chosen = FT.choose(tried)
+        else:
+            chosen, why_chosen = (0, None) if tried[0]["why"] is None else (None, tried[0]["why"])
+        kinds = []
+        for i, c in enumerate(tried):
+            f, st = c["features"], c["stage"]
+            kinds.append(
+                {
+                    "kind": f["kind"],
+                    "model": f["model"],
+                    "revision": f["revision"],
+                    "long_state": f["long_state"],
+                    "table_threshold": c["casc"]["table_threshold"],
+                    "table_share": round(st["table_share"], 4),
+                    "errors_at_threshold": st["errors"],
+                    "error_rate_at_threshold": None if st["error_rate"] is None else round(st["error_rate"], 4),
+                    "upper_bound_at_threshold": None if st["upper_bound"] is None else round(st["upper_bound"], 4),
+                    "expected_saving": c["guard"]["saving"],
+                    "table_ms_mean": c["guard"]["table_ms_mean"],
+                    "eligible": c["why"] is None,
+                    "chosen": i == chosen,
+                    **({"why_not": c["why"]} if c["why"] else {}),
+                }
+            )
+        pick = tried[chosen] if chosen is not None else (None if auto else tried[0])
         report = {
             "requested": True,
-            "guard": guard,
-            "cascade": casc,
-            "rule": f"kept when a table threshold holds and the expected time per request falls by at least "
-            f"{FT.MIN_SAVING:.0%} (the table's time on every request plus decisio's on the share it defers, both "
-            "timed on this host, one request at a time, on the held-out examples)",
+            "request": request,
+            "kind": tried[chosen]["kind"] if chosen is not None else None,
+            "features": tried[chosen]["features"] if chosen is not None else None,
+            "guard": pick["guard"] if pick else None,
+            "cascade": pick["casc"] if pick else None,
+            "kinds": kinds,
+            "rule": (
+                f"auto: each kind ({', '.join(c['kind'] + ' ' + c['features']['model'] for c in tried)}) is fitted "
+                "on the fit examples, its table threshold is made on the held-out examples, and its table path is "
+                "timed on this host, one request at a time, on the held-out examples; the kind kept is the one with "
+                f"the largest expected saving that is at least {FT.MIN_SAVING:.0%} and whose threshold holds, and the "
+                f"static one when the two savings are within {FT.TIE * 100:.0f} point; when no kind qualifies there "
+                "is no table"
+                if auto
+                else f"kept when a table threshold holds and the expected time per request falls by at least "
+                f"{FT.MIN_SAVING:.0%} (the table's time on every request plus decisio's on the share it defers, both "
+                "timed on this host, one request at a time, on the held-out examples)"
+            ),
         }
-        if casc["table_threshold"] is None:
-            report.update(
-                kept=False,
-                reason=f"on the {len(y)} held-out examples no confidence threshold keeps the table's wrong answers at "
-                f"{settings['alpha']:.0%} or fewer with probability {1 - settings['delta'] / 2:.0%}",
-            )
-        elif not guard["kept"]:
-            report.update(
-                kept=False,
-                reason=f"it would save {guard['saving']:.0%} of the time per request ({guard['table_ms_mean']} ms for "
-                f"the table on every request, decisio {guard['decisio_ms_mean']} ms on the "
-                f"{1 - casc['table_share']:.0%} it defers), under the {FT.MIN_SAVING:.0%} required",
-            )
+        if prepared.get("unavailable"):
+            report["unavailable"] = prepared["unavailable"]
+        if chosen is None:
+            report.update(kept=False, reason=why_chosen)
         else:
+            c = tried[chosen]
             report.update(kept=True, reason=None)
-            by_table = cT >= casc["table_threshold"]
-            disagree = (pT != pD)[by_table]
-            rec = dict(prepared["record"])
-            rec["thresholds"] = casc
-            rec["timing"] = {"stack": stack, "stack_sha256": FT.sha256(stack), "guard": guard}
+            if auto:
+                report["why"] = why_chosen
+            by_table = c["cT"] >= c["casc"]["table_threshold"]
+            disagree = (c["pT"] != pD)[by_table]
+            stack = self.fast_table_stack(c["features"])
+            rec = dict(c["record"])
+            rec["thresholds"] = c["casc"]
+            rec["timing"] = {"stack": stack, "stack_sha256": FT.sha256(stack), "guard": c["guard"]}
             rec["agreement"] = FT.agreement_baseline(disagree, t["id"])
             t["fast_table"] = rec
-            reads["P_table"] = P
+            reads["P_table"] = c["P"]
         t["fast_table_report"] = report
 
     def table_runtime(self, t):
@@ -1640,7 +1735,7 @@ class SystemOne:
         cache = self.__dict__.setdefault("_ft_runtime", {})
         rt = cache.get(t["id"])
         if rt is None or rt.rec is not ft:
-            rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack())
+            rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack(FT.record_features(ft)))
         return rt
 
     def serve_row(self, t, state, q):
@@ -1657,7 +1752,7 @@ class SystemOne:
         if rt.uses_table:
             try:
                 t0 = time.perf_counter()
-                P = FT.predict(ft, FT.embed([render_text(state)]))[0]
+                P = FT.predict(ft, FT.featurize(rt.features, [render_text(state)]))[0]
                 ms = (time.perf_counter() - t0) * 1000.0
             except FT.TableUnavailable as e:
                 rt.unavailable(str(e))
@@ -1678,7 +1773,7 @@ class SystemOne:
         if not probe and rt.shadow_due():  # the table is off for speed: time it on this request too
             try:
                 t1 = time.perf_counter()
-                FT.predict(ft, FT.embed([render_text(state)]))
+                FT.predict(ft, FT.featurize(rt.features, [render_text(state)]))
                 rt.shadowed((time.perf_counter() - t1) * 1000.0, ms)
             except FT.TableUnavailable as e:
                 rt.unavailable(str(e))
@@ -3063,9 +3158,10 @@ def add_routes(app, systemone: SystemOne):
                     422, "none_option: the key of the requests' 'none of these' option (default 'none')"
                 )
             dynamic_options = {"none_option": none_option}
-        fast_table = body.get("fast_table", False)
-        if not isinstance(fast_table, bool):
-            raise HTTPException(422, "fast_table: true or false")
+        try:
+            fast_table = FT.parse_request(body.get("fast_table", False))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
         if fast_table and dynamic_options is not None:
             raise HTTPException(422, "fast_table: a task whose options change with every request has no table")
         certify, held_out = None, None

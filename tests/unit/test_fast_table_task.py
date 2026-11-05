@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The fast table on a task, through the server (`POST /v1/tasks` with `"fast_table": true`). No model and no encoder
-download: a fake engine whose answer is set by the request, a hashed bag-of-words stand-in for the sentence encoder,
-and a virtual clock the engine and the encoder advance by the time each is set to take, so the timing at registration,
-the replicas' stacks and the load on the host are set by the test.
+"""The fast table on a task, through the server (`POST /v1/tasks` with `"fast_table": {"kind": "encoder"}`; the other
+kinds are tests/unit/test_fast_table_kinds.py). No model and no encoder download: a fake engine whose answer is set by
+the request, a hashed bag-of-words stand-in for the sentence encoder, and a virtual clock the engine and the encoder
+advance by the time each is set to take, so the timing at registration, the replicas' stacks and the load on the host
+are set by the test.
 
 H1  registration keeps the table where it pays: the stored table, the cascade certificate, the report; a confident
     request is answered by the table without the engine, an unsure one by decisio, both certified by their stage
@@ -105,7 +106,7 @@ class FakeEngine:
         return out, {}
 
 
-def fake_embed(texts):
+def fake_embed(texts, long_state=FT.TRUNC512):
     """A hashed bag of words over the text after the `|`, L2-normalised; each call takes `CLOCK.table_ms`."""
     CLOCK.spend(CLOCK.table_ms)
     out = np.zeros((len(texts), 256), dtype=np.float32)
@@ -197,7 +198,12 @@ def make_dir(path, name="decisio-test"):
 
 
 def register(client, n=800, seed=0, **extra):
-    body = {"id": "queue", "examples": examples(n, seed), "certify": {"alpha": 0.1, "delta": 0.1}, "fast_table": True}
+    body = {
+        "id": "queue",
+        "examples": examples(n, seed),
+        "certify": {"alpha": 0.1, "delta": 0.1},
+        "fast_table": {"kind": "encoder"},
+    }
     body.update(extra)
     return client.post("/v1/tasks", json=body)
 
@@ -219,7 +225,11 @@ def test_h1_the_table_is_kept_where_it_pays_and_answers_what_it_is_sure_of_witho
     t = r.json()
     rep = t["fast_table_report"]
     assert rep["kept"] and rep["reason"] is None and rep["guard"]["saving"] >= FT.MIN_SAVING
-    assert t["fast_table"]["encoder"] == FT.ENCODER and t["fast_table"]["revision"] == FT.REVISION
+    # the encoder is named with its long-state rule, so an earlier server (which checks only this name) refuses it
+    assert t["fast_table"]["encoder"] == f"{FT.ENCODER}#{FT.HEAD_TAIL}" and t["fast_table"]["revision"] == FT.REVISION
+    assert (
+        t["fast_table"]["features"]["model"] == FT.ENCODER and t["fast_table"]["features"]["long_state"] == FT.HEAD_TAIL
+    )
     assert "b64" not in str(t["fast_table"]["coef"]) and t["fast_table"]["coef"]["shape"]
     c = t["certificate"]
     assert c["certified"] and c["table_threshold"] and c["stages"]["table"]["certified_n"] > 0
@@ -266,7 +276,7 @@ def test_h2_a_table_that_does_not_save_a_quarter_of_the_time_is_not_kept_and_say
 
 def test_h3_refusals():
     client, so, _ = make()
-    body = {"id": "queue", "examples": examples(800), "fast_table": True}
+    body = {"id": "queue", "examples": examples(800), "fast_table": {"kind": "encoder"}}
     r = client.post("/v1/tasks", json=body)
     assert r.status_code == 422 and "certify" in r.json()["detail"]
     r = register(client, fast_table="yes")

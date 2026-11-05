@@ -8,6 +8,29 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the fast table's student kinds
+
+### What changed
+
+- **`"fast_table": true` now fits the static student by default**: Model2Vec's potion-base-8M (MIT), the mean of the text's token vectors, computed by decisio itself with no new dependency. It reads the whole text. On an Apple M5 Pro it takes about 0.05 ms for a short text and 1.0 ms at 1,400 tokens (table path, one request at a time), against about 6 and 85 ms for bge-base.
+- **`"fast_table": {"kind": "encoder"}` keeps the old behaviour**: bge-base-en-v1.5 through ONNX Runtime, as in 0.38.0. One thing differs for a new encoder table: a text longer than the 512-token window is read as its first 256 and last 254 tokens, not its first 510, and the table's `encoder` field names that rule (`BAAI/bge-base-en-v1.5#head256+tail254`).
+- **`{"kind": "static", "static_model": "multilingual"}`** fits potion-multilingual-128M for traffic that is not English.
+- **`{"kind": "auto"}`** fits the static student (`static_model`, default `base`) and the encoder on the same examples. It certifies each on the held-out examples and times each on this host, one request at a time. It keeps the one with the larger expected saving, as long as that saving is at least 25% and the table's threshold holds. When the two savings are within 1 point it keeps the static one. When neither qualifies there is no table. The registration's `fast_table_report.kinds` lists every kind tried: its table share, its error at the threshold and the upper bound, its expected saving, its mean table time, and which one was kept and why.
+- **`"hashed"` is a reserved kind name**: it is refused, because it is not available in this version.
+- **Every new table records its feature function** (`fast_table.features`: kind, model, revision, the files' sha256 and the long-state rule) and is only served with that function. A server that computes features some other way serves through decisio and says why in the task's `status.fast_table`.
+- **The static model's files are fetched from the Hub at a pinned revision on first use** and checked against pinned sha256 hashes: 31 MB for `base`, 531 MB for `multilingual`. A server without network access needs them in its Hugging Face cache (`hf download minishlab/potion-base-8M model.safetensors tokenizer.json --revision bf8b056651a2c21b8d2565580b8569da283cab23`).
+- **Existing tables are served unchanged.** A table stored before this change has no `features`, so it is read as the encoder's table with the 510-token cut it was made with. It is served, exported, imported and certified again exactly as before. Its timing stack is unchanged too, so it is not timed again.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| No fast table | Nothing changes | Nothing |
+| Tasks registered with a fast table before this release | They are served as before | Nothing |
+| A new registration with `"fast_table": true` | It fits the static student, not bge-base | Ask for `{"kind": "encoder"}` to keep bge-base, or `{"kind": "auto"}` to let the timing choose |
+| Replicas that share a task store, upgraded one at a time | A replica on an older version serves a new table of either kind through decisio, saying "register the task again": it does not know the static model, and a new encoder table names its encoder with the head-and-tail rule (`BAAI/bge-base-en-v1.5#head256+tail254`), which it does not have. It keeps every other part of the task | Upgrade every replica to have the table answer everywhere |
+| `decisio.bench.table_latency` | Its `table` arm registers `"fast_table": true`, so it now times the static student | Nothing, unless you want to compare against earlier encoder figures |
+
 ## 0.39.0: batch-invariant kernels on by default for the Gemma 4 12B, and no state warm-up without a prefix cache
 
 ### What changed
