@@ -2,19 +2,23 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """End-to-end latency of a certified task with and without its fast table, through a running decisio server.
 
-The task is registered certified on the labelled examples twice, one arm after the other: first with
-`"fast_table": true` (arm `table`), timed on every cell and deleted, then without it (arm `model`), timed the same way
-and deleted. A request matches a choice task by its type and options, so the two cannot be registered at once. Each arm
-reads its own held-out requests, never the other's, so no request is helped by a prefix the other arm cached. Each cell
-is an arm, a state length (`short`: the request as it is; `long`: padded with filler to about --long-chars characters)
-and a concurrency (requests in flight at once).
+The task is registered certified on the labelled examples once per arm, one arm after the other: first with a
+fast table of each student kind in --kinds (arm `table`, the cell's `kind` naming it; default `static`, what
+`"fast_table": true` fits), each timed on every cell and deleted, then without a table (arm `model`), timed the same
+way and deleted. A kind is `static`, `encoder` or `auto`, and `static:multilingual` (or `auto:multilingual`) names the
+static model. A request matches a choice task by its type and options, so two arms cannot be registered at once. Each
+arm reads its own held-out requests, never another's, so no request is helped by a prefix another arm cached. Each
+cell is an arm, a state length (`short`: the request as it is; `long`: padded with filler to about --long-chars
+characters) and a concurrency (requests in flight at once).
 
 Per request it records the client's wall time, x-decisio-server-ms, the stages of x-decisio-stages (`task` is the
 certified question's read: the table's, or decisio's when the table deferred or is off) and how the answer was served
 (`answered_by`: table or decisio). Per cell: the medians and the 95th percentiles, and the share the table answered.
+Per table arm, the registration's `fast_table_report` (for `auto`: every kind tried and the one kept).
 
     python -m decisio.bench.table_latency --url http://127.0.0.1:8000 --examples train.jsonl --probe probe.jsonl \\
-        --out table_latency.json [--concurrency 1,16] [--lengths short,long] [--per-cell 200] [--keep-tasks]
+        --out table_latency.json [--kinds static,encoder] [--concurrency 1,16] [--lengths short,long] \\
+        [--per-cell 200] [--keep-tasks]
 
 An examples file holds one {"request": {...}, "answer": ...} per line, as `POST /v1/tasks` takes them (the request's
 single question is the task's). The probe file holds requests of the same kind, not among the examples.
@@ -141,14 +145,22 @@ def summarise(rows: list[dict]) -> dict:
     }
 
 
-def register(post, url: str, task_id: str, examples: list[dict], arm: str, certify: dict) -> dict:
+def kind_request(kind: str) -> dict:
+    """The registration's `fast_table` for a kind spec: `static`, `encoder`, `auto`, or `static:<model>` /
+    `auto:<model>` for the static model."""
+    name, _, model = kind.partition(":")
+    return {"kind": name, **({"static_model": model} if model else {})}
+
+
+def register(post, url: str, task_id: str, examples: list[dict], kind: str | None, certify: dict) -> dict:
+    """The arm's task, registered certified: with a fast table of `kind`, or without one (None)."""
     for e in examples:
         question_of(e["request"])  # one question per request
     body = {
         "id": task_id,
         "examples": examples,
         "certify": certify,
-        **({"fast_table": True} if arm == "table" else {}),
+        **({"fast_table": kind_request(kind)} if kind is not None else {}),
     }
     status, _, task, wall = post(url, "/v1/tasks", body)
     if status != 200:
@@ -158,6 +170,7 @@ def register(post, url: str, task_id: str, examples: list[dict], arm: str, certi
         "registration_s": round(wall / 1000, 1),
         "certified": (task.get("certificate") or {}).get("certified"),
         "fast_table": (task.get("status") or {}).get("fast_table"),
+        **({"kind": kind, "fast_table_report": task.get("fast_table_report")} if kind is not None else {}),
     }
 
 
@@ -167,6 +180,7 @@ def run(
     probe,
     concurrency=(1, 16),
     lengths=("short", "long"),
+    kinds=("static",),
     per_cell=200,
     long_chars=6000,
     certify=None,
@@ -175,15 +189,24 @@ def run(
     keep_tasks=False,
     prefix="bench",
 ) -> dict:
-    """Each arm in turn: register its task, time every cell on the arm's own requests, delete the task; the report."""
+    """Each arm in turn (a table of each kind, then the model): register its task, time every cell on the arm's own
+    requests, delete the task; the report. `tasks` is keyed `table` for one kind, `table:<kind>` for several."""
     certify = certify if certify is not None else {}
-    cells_needed = len(lengths) * len(concurrency) * per_cell * 2
+    kinds = tuple(kinds)
+    if not kinds or len(set(kinds)) != len(kinds):
+        raise SystemExit(f"--kinds needs one or more distinct kinds, not {','.join(kinds)!r}")
+    for k in kinds:
+        if kind_request(k)["kind"] not in ("static", "encoder", "auto"):
+            raise SystemExit(f"unknown kind {k!r}: static, encoder or auto (static:<model>, auto:<model>)")
+    arms = [("table" if len(kinds) == 1 else f"table:{k}", k) for k in kinds] + [("model", None)]
+    cells_needed = len(lengths) * len(concurrency) * per_cell * len(arms)
     if len(probe) < cells_needed:
         raise SystemExit(f"the probe file has {len(probe)} requests; the cells need {cells_needed}")
     tasks, cells, used = {}, [], 0
-    for arm in ("table", "model"):
-        tid = f"{prefix}-{arm}"
-        tasks[arm] = register(post, url, tid, examples, arm, certify)
+    for key, kind in arms:
+        arm = "model" if kind is None else "table"
+        tid = f"{prefix}-{key.replace(':', '-')}"
+        tasks[key] = register(post, url, tid, examples, kind, certify)
         try:
             for length in lengths:
                 for c in concurrency:
@@ -192,12 +215,12 @@ def run(
                     jobs = [lengthen(r, long_chars) if length == "long" else r for r in batch]
                     with cf.ThreadPoolExecutor(max_workers=c) as pool:
                         rows = list(pool.map(lambda r: one(post, url, r), jobs))
-                    cells.append({"arm": arm, "length": length, "concurrency": c, **summarise(rows)})
+                    cells.append({"arm": arm, "kind": kind, "length": length, "concurrency": c, **summarise(rows)})
         finally:
             # the next arm registers the same question, so this arm's task goes first; --keep-tasks keeps the last
-            if not keep_tasks or arm != "model":
+            if not keep_tasks or kind is not None:
                 delete(url, f"/v1/tasks/{tid}")
-    return {"tasks": tasks, "cells": cells, "per_cell": per_cell, "long_chars": long_chars}
+    return {"tasks": tasks, "cells": cells, "kinds": list(kinds), "per_cell": per_cell, "long_chars": long_chars}
 
 
 def read_jsonl(path: str) -> list[dict]:
@@ -211,6 +234,7 @@ def main(argv=None):
     ap.add_argument("--examples", required=True, help="labelled examples, one {request, answer} per line")
     ap.add_argument("--probe", required=True, help="held-out requests, one per line")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--kinds", default="static", help="the table arms' student kinds, e.g. static,encoder,auto")
     ap.add_argument("--concurrency", default="1,16")
     ap.add_argument("--lengths", default="short,long")
     ap.add_argument("--per-cell", type=int, default=200)
@@ -223,6 +247,7 @@ def main(argv=None):
         [r.get("request", r) for r in read_jsonl(a.probe)],
         concurrency=tuple(int(x) for x in a.concurrency.split(",")),
         lengths=tuple(a.lengths.split(",")),
+        kinds=tuple(a.kinds.split(",")),
         per_cell=a.per_cell,
         long_chars=a.long_chars,
         keep_tasks=a.keep_tasks,
@@ -232,7 +257,7 @@ def main(argv=None):
         json.dump(report, f, indent=1)
     for c in report["cells"]:
         print(
-            f"{c['arm']:5s} {c['length']:5s} c={c['concurrency']:<3d} wall p50 {c['wall_ms_p50']}"
+            f"{c['arm']:5s} {c['kind'] or '-':8s} {c['length']:5s} c={c['concurrency']:<3d} wall p50 {c['wall_ms_p50']}"
             f" p95 {c['wall_ms_p95']}  server p50 {c['server_ms_p50']}  task p50 {c['task_ms_p50']}"
             f"  table {c['table_share']}"
             f"  errors {c['errors']}"

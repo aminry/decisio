@@ -9,6 +9,8 @@ B2  the arms run one after the other on their own requests (a choice task is mat
     cannot be registered at once): the table answers only in `table`, and nothing is left registered
 B3  a long cell's states are padded to the length asked, an object state keeping its fields
 B4  a probe file too short for the cells is refused before anything is timed
+B5  --kinds: a table arm per student kind, each on its own requests, its cells and its task named by the kind, the
+    registration's fast_table_report kept; the probe is sized for every arm; an unknown or repeated kind is refused
 
     uv run pytest -q tests/unit/test_table_latency_bench.py
 """
@@ -89,3 +91,52 @@ def test_b4_a_short_probe_file_is_refused():
             delete=deleter(client),
             certify={"alpha": 0.1, "delta": 0.1},
         )
+
+
+def test_b5_one_table_arm_per_kind():
+    client, so, _ = FTT.make()
+    post, seen = poster(client), []
+
+    def recording(url, path, body, timeout=600.0):
+        if path == "/v1/tasks":
+            seen.append(body.get("fast_table"))
+        return post(url, path, body, timeout)
+
+    with pytest.raises(SystemExit, match="the cells need 60"):  # three arms of one cell of 20
+        TL.run(
+            "",
+            FTT.examples(800),
+            probe(59),
+            kinds=("static", "encoder"),
+            concurrency=(1,),
+            lengths=("short",),
+            per_cell=20,
+            post=recording,
+            delete=deleter(client),
+            certify={"alpha": 0.1, "delta": 0.1},
+        )
+    rep = TL.run(
+        "",
+        FTT.examples(800),
+        probe(60),
+        kinds=("static", "encoder"),
+        concurrency=(1,),
+        lengths=("short",),
+        per_cell=20,
+        certify={"alpha": 0.1, "delta": 0.1},
+        post=recording,
+        delete=deleter(client),
+    )
+    assert seen == [{"kind": "static"}, {"kind": "encoder"}, None]
+    assert set(rep["tasks"]) == {"table:static", "table:encoder", "model"} and rep["kinds"] == ["static", "encoder"]
+    for k in ("static", "encoder"):
+        t = rep["tasks"][f"table:{k}"]
+        assert t["kind"] == k and t["fast_table_report"]["kinds"][0]["kind"] == k
+    assert "kind" not in rep["tasks"]["model"]
+    assert [(c["arm"], c["kind"]) for c in rep["cells"]] == [("table", "static"), ("table", "encoder"), ("model", None)]
+    assert all(c["requests"] == 20 and c["errors"] == 0 for c in rep["cells"])
+    assert client.get("/v1/tasks").json()["tasks"] == []
+    assert TL.kind_request("static:multilingual") == {"kind": "static", "static_model": "multilingual"}
+    for bad in (("hashed",), ("static", "static"), ()):
+        with pytest.raises(SystemExit, match="kind"):
+            TL.run("", FTT.examples(10), probe(10), kinds=bad, post=recording, delete=deleter(client))
