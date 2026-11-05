@@ -10,6 +10,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 ## Unreleased: the fast table learns from traffic
 
+How to use it: [tasks.md, "A fast table that learns from traffic"](tasks.md#a-fast-table-that-learns-from-traffic).
+
 ### What changed
 
 - **A task can learn its fast table from its own traffic, with no labels**: `POST /v1/tasks` with `{"id", "question": <a choice question>, "fast_table": {"learn": true, "kind": "static" | "encoder" | "auto"}}`.
