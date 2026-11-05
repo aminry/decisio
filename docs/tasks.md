@@ -180,9 +180,10 @@ Replicas behind a load balancer are separate servers; with `--task-store` they s
 - **`--task-store-readonly`** makes a replica apply the store's tasks and refuse to teach: registration, certification, import and removal answer 409 before any example is read. Use it on every replica but one to keep the fitting load on a designated replica, and route the task-writing paths (`/v1/tasks*`, `/v1/abstention/tasks*` with POST and DELETE) to it at the load balancer. Without it any replica may teach; the version check is what keeps them from overwriting each other.
 - **Start and failure.** A replica refuses to start if it cannot read the store, or if the store does not enforce conditional writes (it writes, rewrites and removes a probe object under `probe/`; a replica with `--task-store-readonly` skips that, as its credentials may be read-only). Use `--require-tasks N` as for a directory. If the store goes away later the replica keeps serving what it has applied: registration and removal answer 503 and the change is not made, `/health` stays 200 and `systemone.task_store` says `ok: false` with the last error and the age of the last sync, and `/metrics` carries `decisio_task_store_ok` and `decisio_task_store_last_sync_age_seconds`.
 - **Reads are eventually consistent.** After a registration the other replicas serve the new version within the poll interval plus the fetch, and the old one until then; a client that must read its own write asks the replica that took it. Replicas that start later load everything at once.
+- **A fast table that learns from traffic learns across the replicas.** Every replica that writes to the store logs its rows there, one replica trains under a lease, and every replica serves the published versions after timing them itself ([below](#a-fast-table-that-learns-from-traffic)).
 - **Monitors stay per replica.** The answer-mix counts of a certified task are not shared; `/metrics` is per replica, so sum `decisio_task_*` across replicas in Prometheus. There is no fleet monitoring.
-- **Housekeeping.** Each fitted version of a task is an immutable object under `objects/`; the manifest points at the current ones. Superseded objects are not deleted automatically (a lifecycle rule by age would delete tasks nobody has changed): `python -m decisio.serve.task_store_shared gc s3://bucket/prefix --older-than-days 1 [--dry-run]` removes the ones no entry points to.
-- **Checked on** obstore's in-memory store (which enforces the same preconditions), and against a running RustFS and SeaweedFS (S3-compatible services) for the start-up probe, with a two-replica run on RustFS (`DECISIO_TEST_S3_ENDPOINT`, `tests/unit/test_task_store_shared.py`). Not run against AWS S3, R2, MinIO, GCS or Azure (MinIO's and R2's own images and endpoints were not available to the build); the start-up probe is what tells you whether yours enforces conditional writes.
+- **Housekeeping.** Each fitted version of a task is an immutable object under `objects/`; the manifest points at the current ones. Superseded objects are not deleted automatically (a lifecycle rule by age would delete tasks nobody has changed): `python -m decisio.serve.task_store_shared gc s3://bucket/prefix --older-than-days 1 [--dry-run]` removes the ones no entry points to, and the learned rows and versions of removed registrations.
+- **Checked on** obstore's in-memory store (which enforces the same preconditions), and against a running RustFS and SeaweedFS (S3-compatible services) for the start-up probe, with two-replica runs of the task store and of a learning fast table on RustFS and, in CI on every pull request, on MinIO (Chainguard's build, `cgr.dev/chainguard/minio`) (`DECISIO_TEST_S3_ENDPOINT`, `tests/unit/test_task_store_shared.py`, `tests/unit/test_fast_table_replicas.py`). Not run against AWS S3, R2, GCS or Azure; the start-up probe is what tells you whether yours enforces conditional writes.
 
 A task is valid only for the model and rendering it was fitted under (the served name, the checkpoint, padding and the rendering flags): a task fitted on another configuration is not applied, and the server says which.
 The description rule (`--describe-options`, on by default) is part of the task's key instead, and only for questions it changes: a question whose options have descriptions has another key with the rule on than off, so a task fitted under the other setting is simply not matched; a question it leaves alone (index keys, bare labels, yes/no, score) keeps its tasks either way.
@@ -462,6 +463,7 @@ All in percent, the mean over the five questions of the median over three draws 
 
 For a task of short texts that arrive in volume, a small classifier on the host CPU can answer most requests without asking the model.
 It is off unless the registration asks for it, and it keeps itself only where it pays.
+A task with no labels can learn one from its own traffic ([below](#a-fast-table-that-learns-from-traffic)).
 
 **What it is.**
 An embedding of the request's text, a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold: a small learned classifier on the server's CPU, not a lookup of earlier answers.
@@ -663,6 +665,107 @@ It registers the task twice, one arm after the other: with `"fast_table": true` 
 The cells are each arm at two state lengths (`short`, the requests as they are; `long`, padded to `--long-chars`) and two concurrencies (`--concurrency 1,16`).
 Each line of its output is a cell: the wall time's p50 and p95, the server's time (`x-decisio-server-ms`), the `task` stage (the certified question's read: the table's, or decisio's when the table deferred), the share the table answered and the errors.
 Compare the `table` arm's wall time with the `model` arm's in the same cell: that difference is what the table saves your callers, under your load.
+
+### A fast table that learns from traffic
+
+A task with no labelled examples can still get a fast table: decisio's own answers to the task's requests are the table's training data.
+
+**How to ask for it.**
+Register the task's question with `"learn": true` in its `fast_table`:
+
+```bash
+curl -s localhost:8000/v1/tasks -H 'content-type: application/json' -d '{
+  "id": "queue",
+  "question": {"type": "choice", "instructions": "Which team should handle this message?",
+               "criteria": {"billing": "...", "tech": "...", "sales": "..."}},
+  "fast_table": {"learn": true, "kind": "static"}
+}'
+```
+
+`kind` is `static` (the default), `encoder` or `auto`, as for a labelled table, and `static_model` names the static model.
+`explore` (default 0.02) and `max_rows` (default 200,000) are the two settings; `retain_text` is refused, because no request text is kept.
+`"certify": {"alpha": 0.05, "delta": 0.1}` beside `fast_table` sets the certificate's bounds (these are the defaults).
+Until a table certifies, decisio answers every request of the task, exactly as with no table.
+
+**What is logged.**
+Each request decisio reads for the task is logged as one row: the students' features (float16), decisio's distribution (float16) and its confidence, the row's kind, the serving-stack fingerprint and the time.
+No request text is kept.
+The kinds are `no_table` (no table was live, or it was suspended), `deferred` (the live table was not sure), `explored` (see below) and `spot_check` (a table answer decisio also read).
+With `--tasks-dir` the rows are append-only segment files under `<tasks-dir>/learn/`, and they survive a restart.
+Without it they are kept in memory, are lost at restart, and `status.fast_table.rows.stored` says so.
+The oldest rows are dropped past `max_rows`.
+
+**Refits.**
+One background thread at low priority refits a task every 2,000 new rows or every hour, once it has 100 rows, and never two tasks at once.
+Rows are split once, by a keyed digest of their text: 30% of the digests are held out of every fit, for certificates.
+A refit fits the classifier on the other rows logged on this serving stack.
+A request the live table would have answered is logged only when it was explored or spot-checked, so each such row is weighted by one over its chance of being logged, and the fit stands for the traffic.
+
+**The certificate is an agreement certificate.**
+It is made only on held-out rows drawn independently of the table's confidence: the `no_table` rows and the `explored` rows.
+Deferred rows are the hard requests the table chose to pass on, and spot checks are drawn only from the requests it answered, so neither stands for the traffic, and neither enters a certificate.
+The table's threshold is the lowest at which its answers differ from decisio's on at most `alpha` (default 0.05) of the held-out rows it answers, with probability 1 - `delta` (default 0.1).
+That bounds how often the table disagrees with decisio, not how often it is wrong: a learned table is as right as decisio is, at best.
+Answers from a learned table carry `"certificate_kind": "agreement"`; a table certified on labelled examples carries `"gold"`.
+
+**Promotion.**
+A refit's version goes live only if its certificate holds and its expected saving, timed on this host from the logged times, is at least 25% and more than the live version's.
+A refit that fails leaves the live version live.
+The last 5 versions are kept, and `POST /v1/tasks/{id}/fast_table/rollback` with `{"version": n}` serves one of them again.
+
+**Exploration, and what it costs.**
+While a table is live, each request it reads is explored with chance `explore`: decisio answers it, whatever the table's confidence, and the row is logged as `explored`.
+These rows are a uniform sample of the traffic, so later certificates keep rows drawn like the traffic, and not only the hard ones the table defers.
+An explored request the table would have answered costs one model read, at decisio's latency.
+With a table answering a share `c` of requests, exploration adds about `explore` × `c` of the traffic to the model's load: at the default 0.02 and a table answering 80%, 1.6% of requests.
+The spot checks add another 2% of the table's answers (every 50th), and a spot-checked request waits for decisio's read too.
+`status.fast_table.explore.cost` gives the share for the live version.
+`"explore": 0` turns exploration off; then the only rows drawn like the traffic are those logged before the first table, and later certificates rest on them.
+
+**Two drift guards.**
+Either alarm suspends the live table to decisio-only answers (`state: suspended`); logging and refits go on, and the next version that certifies goes live.
+- The low-confidence share: over the last 200 requests the table read, the share under its threshold rising more than 15 points above the share at certification.
+- A CUSUM on disagreement, fed by the spot checks and by the explored requests the table would have answered, against the certificate's `alpha`.
+
+**A labelled task can learn too.**
+`"learn": true` on a registration with `examples` adds the examples to every refit's fit, at twice a traffic row's weight.
+Its certificate stays gold, made on its held-out labelled examples, as long as there are enough of them with the student's features; otherwise it is an agreement certificate.
+
+**What the status says.**
+`GET /v1/tasks/{id}` reports the learning under `status.fast_table`:
+
+| Field | What it holds |
+| --- | --- |
+| `mode`, `state` | `learning` (a task with no labels) or `both`; `learning` (no version yet), `active`, `suspended` or `off` (this server cannot serve the live version: another feature function or serving stack), with the `reason` |
+| `kind` | the kind asked for and the one chosen |
+| `rows` | kept, since the last refit, bytes, logged by kind, `max_rows`, and where they are stored |
+| `version` | the live version's number and the kept versions |
+| `coverage`, `saving`, `certificate` | the live version's certified and observed table share, its expected saving, and its certificate (with `certificate_kind` and the rows it drew on) |
+| `explore` | the fraction, the requests explored, and the cost |
+| `guards` | both guards' statistics and whether they fired |
+| `refit` | the last refit's outcome, the cadence, and the refits and promotions so far |
+
+`/health` gives a short summary of every learning task under `systemone.fast_table_learning`.
+
+**Limits of learning.**
+- A choice question on the text route, as for a labelled table.
+- The table learns decisio's answers, including decisio's mistakes.
+- The certificate's rows are weighted as they were logged: before the first table every request is a `no_table` row, and afterwards only the explored share is, so early traffic weighs more in a certificate until `max_rows` drops it. The drift guards watch the live traffic.
+- A server on another serving stack does not serve a version certified elsewhere: decisio's answers there are another teacher's.
+
+**On a shared store (`--task-store`), the replicas learn one table together.**
+Every replica logs its rows to the store, as segment files of its own (`tasks/<digest>/log/<replica>/`), written from the task store's poll thread: a request never waits on the store.
+One replica trains: the holder of a lease in the store (`learner/LEASE.json`, 120 s, renewed every 40 s), and when it stops another takes the lease.
+It fits on every replica's rows and certifies on every replica's `no_table` and `explored` rows, in both cases only rows logged on its own serving stack (the engine, its version, the card and the settings); the certificate names the replicas and how many rows each gave.
+Run one serving stack across the fleet if every replica's rows should count.
+A published version carries the lease's generation, and a trainer that lost the lease while it fitted publishes nothing.
+Every replica picks up a new version at its next poll and times it on its own requests before its table answers there: until then its status is `timing` and decisio answers (every tenth request is timed both ways, and the table answers once 30 pairs show the saving).
+One replica's drift alarm suspends the table on every replica, and a rollback on any replica reaches all of them.
+A replica that restarts, or a whole fleet, serves the promoted versions after its own timing; nothing is learned again.
+While the store cannot be reached, serving goes on with what each replica has, rows wait in memory up to 256 MB per server and are then dropped and counted (`/health`, `systemone.fast_table_learning.shared`), and no version is promoted.
+A `--task-store-readonly` replica serves the versions and writes nothing: it logs no rows, never trains, its alarm suspends only itself, and a rollback there answers 409; its traffic is not in the certificate.
+`GET /v1/tasks/{id}` on any replica shows this replica's part (`replica`: its id, whether it trains, its timing) and the fleet's (`cluster`, from the trainer's last aggregate of the replicas' stats, every 5 minutes).
+Lease expiry is judged on each replica's clock, so keep the clocks synchronised (NTP); a holder whose clock runs behind still cannot publish over its successor.
 
 ## Limits
 
