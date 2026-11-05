@@ -17,6 +17,8 @@ B6  the mode is in /health and, only when batched, in the serving-stack fingerpr
 B7  the flags: serial is the default; batched is refused on MLX and with --mode packed; the cap is at least 1
 B8  on the CPU stand-in through /v1/answer (slow): concurrent clients get exactly the serial answers, in fewer engine
     calls than requests
+B11 the engine's lock under interruption: a waiter interrupted before its turn leaves the queue, one interrupted just
+    after the hand-off passes the lock on, and an exception inside the lock releases it to the next waiter
 
     uv run pytest -q tests/unit/test_concurrency_batched.py
 """
@@ -713,3 +715,106 @@ def test_b10_one_engine_images_and_text_on_a_batched_server():
     assert meanwhile <= 2  # the call in progress and at most one queued before it
     assert not bad and len(got) > served_after  # text answers unchanged, and still served after the image
     assert max(calls) > 1  # the text requests did batch
+
+
+def test_b9_a_release_hands_the_lock_to_the_oldest_waiter_directly():
+    """The lock passes to the waiter at release, so the releasing thread cannot take it back first, and one release
+    wakes one waiter (a release that woke every waiter cost a serial server 7 percent at 16 clients on a card)."""
+    from decisio.serve.combine import FairLock
+
+    lock, got = FairLock(), []
+    lock.acquire()
+    waiter = threading.Thread(target=lambda: (lock.acquire(), got.append("waiter")))
+    waiter.start()
+    deadline = time.monotonic() + 5
+    while lock.waiting() < 1 and time.monotonic() < deadline:
+        time.sleep(0.001)
+    lock.release()
+    assert not lock.acquire(blocking=False)  # already the waiter's, before it has even run
+    waiter.join(5)
+    assert got == ["waiter"] and lock.locked()
+    lock.release()
+    assert not lock.locked() and lock.acquire(blocking=False)
+    lock.release()
+    # a waiter that times out leaves no trace, and a later release does not hand the lock to it
+    lock.acquire()
+    assert lock.acquire(timeout=0.02) is False and lock.waiting() == 0
+    lock.release()
+    assert not lock.locked()
+
+
+class _Interrupt(Exception):
+    """Stands for KeyboardInterrupt or an exception a signal handler raises inside a waiting thread."""
+
+
+def _wait_until(cond, seconds=5.0):
+    deadline = time.monotonic() + seconds
+    while not cond() and time.monotonic() < deadline:
+        time.sleep(0.001)
+    assert cond()
+
+
+def test_b11_a_waiter_interrupted_while_waiting_never_strands_the_lock(monkeypatch):
+    """A waiter interrupted before its turn leaves the queue; one interrupted just after it was handed the lock passes
+    the lock on to the next in line (or frees it). Either way the next waiter gets it, rather than the lock going to a
+    thread that has gone."""
+    from decisio.serve.combine import FairLock
+
+    go = threading.Event()
+
+    class BeforeTurn(threading.Event):
+        def wait(self, timeout=None):
+            go.wait(5)
+            raise _Interrupt  # interrupted while still queued
+
+    class AfterTurn(threading.Event):
+        def wait(self, timeout=None):
+            super().wait(timeout)
+            raise _Interrupt  # interrupted right after the hand-off woke it
+
+    for turn, label in ((BeforeTurn, "before"), (AfterTurn, "after")):
+        lock, got, errors = FairLock(), [], []
+        lock.acquire()
+        monkeypatch.setattr(FairLock, "_turn", turn)
+
+        def interrupted():
+            try:
+                lock.acquire()
+            except _Interrupt:
+                errors.append(label)
+
+        a = threading.Thread(target=interrupted)
+        a.start()
+        _wait_until(lambda: lock.waiting() == 1)
+        monkeypatch.setattr(FairLock, "_turn", threading.Event)
+        b = threading.Thread(target=lambda: (lock.acquire(), got.append("next"), lock.release()))
+        b.start()
+        _wait_until(lambda: lock.waiting() == 2)
+        if label == "before":
+            go.set()
+            a.join(5)
+            assert errors == ["before"] and lock.waiting() == 1  # it left the queue; the holder still has the lock
+        lock.release()
+        a.join(5)
+        b.join(5)
+        assert errors == [label] and got == ["next"]  # the next waiter got the lock
+        assert not lock.locked() and lock.waiting() == 0
+        go.clear()
+
+
+def test_b11_an_exception_inside_the_lock_releases_it_to_the_next_waiter():
+    from decisio.serve.combine import FairLock
+
+    lock, got = FairLock(), []
+    lock.acquire()
+    b = threading.Thread(target=lambda: (lock.acquire(), got.append("b"), lock.release()))
+    b.start()
+    _wait_until(lambda: lock.waiting() == 1)
+    lock.release()
+    b.join(5)
+    with pytest.raises(ValueError):
+        with lock:
+            raise ValueError("inside the critical section")
+    assert not lock.locked() and got == ["b"]
+    assert lock.acquire(blocking=False)
+    lock.release()
