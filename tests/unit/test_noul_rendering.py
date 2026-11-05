@@ -16,6 +16,7 @@ N6  the rendering enters a yes/no question's task key, never a choice question's
 """
 
 import functools
+import os
 
 import numpy as np
 import pytest
@@ -24,7 +25,8 @@ from decisio.serve.systemone import SystemOne, SystemOneRequest, noul_as_letters
 from decisio.serve.tasks import task_key
 
 CRIT = {"true": "The text states that this is so", "false": "The text states that this is not so"}
-TOKENIZER = "Qwen/Qwen3-0.6B-Base"  # usage counting only (the stand-in of tests/unit/test_ties.py)
+# usage counting only (the stand-in of tests/unit/test_ties.py)
+TOKENIZER = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 
 
 @functools.cache

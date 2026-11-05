@@ -16,6 +16,8 @@ A4  served (CPU stand-in): a declared option's task changes only `choice`, never
   uv run pytest -q tests/unit/test_abstention.py
 """
 
+import os
+
 import pytest
 
 from decisio.serve.abstention import best_threshold, candidates, decide, fit
@@ -54,7 +56,7 @@ def test_a3_decide():
     assert decide([0.2, 0.3, 0.5], 2, {"applied": False}) == (True, 1)
 
 
-MODEL = "Qwen/Qwen3-0.6B-Base"
+MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 CRIT = {f"option_{i}": n for i, n in enumerate(["card_arrival", "card_linking", "exchange_rate", "out of scope"])}
 
 
