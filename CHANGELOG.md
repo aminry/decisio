@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.40.1](https://github.com/aminry/decisio/compare/v0.40.0...v0.40.1) (2026-11-05)
+
+
+### Bug Fixes
+
+* **serve:** the engine's fair lock hands over to one waiter instead of waking all ([#412](https://github.com/aminry/decisio/issues/412)) ([b13cbdf](https://github.com/aminry/decisio/commit/b13cbdf3c4c28bda941305626caf324ef3043f79))
+
 ## [0.40.0](https://github.com/aminry/decisio/compare/v0.39.2...v0.40.0) (2026-11-05)
 
 
