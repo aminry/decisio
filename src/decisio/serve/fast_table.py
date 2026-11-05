@@ -40,6 +40,9 @@ answer of either stage whose confidence reaches its threshold is certified, and 
 `alpha` wrong among the certified answers, with probability at least 1 - delta. Every kind has the same certificate;
 only the features differ.
 
+A table can also be learned from a task's own traffic, with decisio's answers as its labels and an agreement
+certificate (`"fast_table": {"learn": true}`): decisio.serve.fast_table_learn.
+
 Needs the `table` extra (scikit-learn for the fit; onnxruntime for the encoder). Each student's files are fetched from
 the Hub at the pinned revision on first use and checked against the pinned hashes. Standard library, numpy, tokenizers,
 safetensors, huggingface_hub and the extra.
@@ -571,21 +574,24 @@ def unpack(d) -> np.ndarray:
     return np.frombuffer(base64.b64decode(d["b64"]), dtype=np.float32).reshape(d["shape"]).copy()
 
 
-def fit(X: np.ndarray, y, k: int, features: dict | None = None) -> dict:
+def fit(X: np.ndarray, y, k: int, features: dict | None = None, sample_weight=None) -> dict:
     """The stored table from features X (n x d) and gold option indices y (below k): a multinomial logistic regression
     with L2, the strength chosen from `CS` by 5-fold stratified cross-validated log loss. Needs scikit-learn. With
     `features` (the feature function X was made with) the record carries it, and its model and revision in "encoder"
-    and "revision"; without it the record names the encoder, as before the kinds."""
+    and "revision"; without it the record names the encoder, as before the kinds. `sample_weight`: each row's weight
+    in the fit and in the cross-validated loss (a table learned from traffic weights a row by one over the chance it
+    was logged); None weighs every row 1, as before."""
     try:
         from sklearn.linear_model import LogisticRegression
         from sklearn.model_selection import StratifiedKFold
     except ImportError as e:
         raise TableUnavailable("the fast table needs the `table` extra: pip install 'decisio[table]'") from e
     y = np.asarray(y, dtype=int)
+    w = np.ones(len(y)) if sample_weight is None else np.asarray(sample_weight, dtype=float)
 
-    def fitted(c, Xa, ya):
+    def fitted(c, Xa, ya, wa):
         m = LogisticRegression(C=c, max_iter=2000)
-        m.fit(Xa, ya)
+        m.fit(Xa, ya, sample_weight=None if sample_weight is None else wa)
         return m
 
     def probs(m, Xb):
@@ -600,11 +606,12 @@ def fit(X: np.ndarray, y, k: int, features: dict | None = None) -> dict:
         for c in CS:
             ll = []
             for tr, te in folds:
-                P = probs(fitted(c, X[tr], y[tr]), X[te])
-                ll.append(-np.log(np.clip(P[np.arange(len(te)), y[te]], 1e-12, 1)).mean())
+                P = probs(fitted(c, X[tr], y[tr], w[tr]), X[te])
+                nll = -np.log(np.clip(P[np.arange(len(te)), y[te]], 1e-12, 1))
+                ll.append(nll.mean() if sample_weight is None else float(np.average(nll, weights=w[te])))
             loss[c] = float(np.mean(ll))
         best = min(CS, key=lambda c: (loss[c], c))
-        m = fitted(best, X, y)
+        m = fitted(best, X, y, w)
     rec = {
         "format": FORMAT,
         # an earlier server checks only `encoder` and `revision`: an encoder table read with the head-and-tail rule

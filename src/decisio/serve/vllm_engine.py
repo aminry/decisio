@@ -1317,6 +1317,12 @@ def make_app(engine, systemone=None, health=None):
                     ),
                     "adapter_temperatures": systemone.adapter_temperatures,
                     "task_store": systemone.task_store_report(),
+                    # fast tables that learn from traffic: tasks, rows logged, the refit worker
+                    **(
+                        {"fast_table_learning": systemone.learning.health()}
+                        if getattr(systemone, "learning", None) is not None and systemone.learning.learners
+                        else {}
+                    ),
                     "readout_tasks": {
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),

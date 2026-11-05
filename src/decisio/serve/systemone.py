@@ -33,6 +33,7 @@ import random
 import re
 import threading
 import time
+from pathlib import Path
 from typing import Annotated, Any, Literal
 
 import numpy as np
@@ -43,10 +44,12 @@ from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
+from decisio.serve import fast_table_learn as FTL
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
 from decisio.serve.engine_health import client_error
+from decisio.serve.stack import sha256 as stack_sha256
 from decisio.serve.task_backends import (
     WRITE_INTENT,
     TaskConflict,
@@ -765,6 +768,20 @@ class SystemOne:
         # the engine reads a request makes outside its own engine call (a certified task's served rows), collected for
         # its stages and prompt figures; None outside a request (a registration's reads are not a request's)
         self._reads = threading.local()
+        # fast tables that learn from traffic (decisio.serve.fast_table_learn): their rows are kept under the tasks
+        # directory, or in memory without one; the clocks are this module's, so a test's virtual clock times them too
+        root = None
+        if task_backend is not None and task_backend.describe().get("backend") == "dir":
+            root = Path(task_backend.describe()["path"]) / "learn"
+        self.learning = FTL.Learning(
+            root,
+            stack_sha=lambda: stack_sha256(self.stack_facts())[:16],
+            perf=lambda: time.perf_counter(),
+            now=lambda: time.time(),
+            task=lambda task_id: self.task_store.snapshot(task_id) if self.task_store is not None else None,
+        )
+        for t in list(task_store.by_key.values()) if task_store is not None else []:
+            self.learning.get(t)  # a learning task loaded at start resumes its versions and its log
 
     def models(self) -> dict:
         return {
@@ -1014,20 +1031,20 @@ class SystemOne:
             i
             for i, t in enumerate(rts)
             if t is not None
-            and t.get("certificate")
+            and (t.get("certificate") or t.get("learn"))
             and wire[i].type != "score"
             and orders == 1
             and not abstain
             and not use_image
         ]
-        served, via = {}, {}
+        served, via, learned = {}, {}, {}
         task_ms, task_reads = 0.0, []
         if own:
             self._reads.infos = task_reads
             t_task = time.perf_counter()
             try:
                 for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
-                    served[i], via[i] = self.serve_row(rts[i], req.state, wire[i])
+                    served[i], via[i], learned[i] = self.serve_row(rts[i], req.state, wire[i], learn=cut is None)
             finally:
                 self._reads.infos = None
             task_ms = (time.perf_counter() - t_task) * 1000
@@ -1159,13 +1176,25 @@ class SystemOne:
             if cut is not None and t is not None and t.get("certificate") and q.type != "score":
                 # the promise is for whole inputs like the examples; the monitor does not see a cut state's answer
                 answers[name].update(
-                    {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "state_truncated"}
+                    {
+                        "certified": False,
+                        "certificate": t["certificate"]["id"],
+                        "certificate_kind": "gold",
+                        "certified_reason": "state_truncated",
+                    }
                 )
             elif hl is not None and t is not None and t.get("certificate") and q.type != "score":
                 # the certificate was made with the whole header; this request's lists fewer of its questions
                 answers[name].update(
-                    {"certified": False, "certificate": t["certificate"]["id"], "certified_reason": "header_limited"}
+                    {
+                        "certified": False,
+                        "certificate": t["certificate"]["id"],
+                        "certificate_kind": "gold",
+                        "certified_reason": "header_limited",
+                    }
                 )
+            elif via.get(i) in ("learn:table", "learn:spot_check"):  # a learned table's answer: its own certificate
+                answers[name].update(self.learned_fields(learned[i]))
             elif t is not None and t.get("certificate") and q.type != "score":
                 # an answer scored in an engine call shared with other requests (--concurrency batched; never a
                 # certified task's own read, which is serial) is not observed against the certificate's baseline
@@ -1180,11 +1209,13 @@ class SystemOne:
                         {
                             "certified": False,
                             "certificate": stale["certificate"]["id"],
+                            "certificate_kind": "gold",
                             "certified_reason": "serving_stack_changed",
                         }
                     )
             if via.get(i):  # a task with a fast table says which of the two answered
-                answers[name]["answered_by"] = "table" if via[i] == "table" else "decisio"
+                table = via[i] in ("table", "learn:table", "learn:spot_check")
+                answers[name]["answered_by"] = "table" if table else "decisio"
             if imajev_ext:
                 answers[name].update(unknown_probability=0.0, abstained=False)
         if log and self.branch_log:
@@ -1345,6 +1376,7 @@ class SystemOne:
         certify_examples=None,
         dynamic_options: dict | None = None,
         fast_table: bool | dict = False,
+        learn: dict | None = None,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
@@ -1353,10 +1385,14 @@ class SystemOne:
         With `fast_table` (true, or `{"kind", "static_model"}`: `FT.parse_request`) the task also gets a classifier on
         a student's features that answers the requests it is sure of without asking the model, kept only if it times at
         least `FT.MIN_SAVING` faster (decisio.serve.fast_table).
+        With `learn` (`FTL.split_request`'s settings) the task's table also learns from its traffic: the examples join
+        every refit's fit and give its gold certificate (decisio.serve.fast_table_learn).
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
         fast_table = FT.parse_request(fast_table)
+        if learn is not None and not fast_table:
+            fast_table = learn["request"]
         if fast_table and certify is None:
             raise ValueError("fast_table: the table is part of the task's certificate; give a certify block")
         self.task_precheck("readout", task_id)
@@ -1402,12 +1438,15 @@ class SystemOne:
             **({"commit": False} if certify is not None else {}),
         )
         if certify is None:
+            self.learning.drop(task_id)  # a task registered again without learning keeps no rows
             return result
         task, fitted = result
         reads = None
         if prepared is not None:  # decisio's own reads of the held-out examples, timed one at a time, then the decision
             reads = self.read_certification(task, cert_ex)
             self.decide_fast_table(task, cert_ex, reads, prepared, certify)
+        if learn is not None:
+            task["learn"] = {**learn, "alpha": certify["alpha"], "delta": certify["delta"]}
         registered = self.attach_certificate(task, cert_ex, certify, split, reads)  # stored only once it is made
         previous = self.task_store.snapshot(task["id"])
         self.task_store.put(task, persist=False)  # served from memory for the check below, written once it has run
@@ -1417,7 +1456,94 @@ class SystemOne:
         except Exception:
             self.task_store.rollback(task["id"], previous)  # not saved: not registered
             raise
+        if learn is not None:
+            self.learning.start_task(task, labels=self.learning_labels(fit_ex, cert_ex, reads, prepared))
+        else:
+            self.learning.drop(task_id)
         return task, fitted
+
+    def learning_labels(self, fit_ex, cert_ex, reads, prepared) -> dict | None:
+        """What a labelled task that learns keeps of its examples for its refits: each student's features of the fit
+        and the held-out examples, their gold answers, and the times decisio and the student took on the held-out
+        ones."""
+        from decisio.serve.tasks import gold_index
+
+        if prepared is None or reads is None:
+            return None
+        out = {
+            "fit_y": np.array([gold_index(q, g) for q, _, g in fit_ex], dtype=np.int16),
+            "cert_y": np.array([gold_index(q, g) for q, _, g in cert_ex], dtype=np.int16),
+            "cert_ms_decisio": np.asarray(reads["ms"], dtype=np.float32),
+            "students": {},
+        }
+        for c in prepared["candidates"]:
+            kind = c["features"]["kind"]
+            if c["X_fit"] is None:
+                continue
+            out["students"][kind] = FTL.feature_id(c["features"])
+            out[f"fit_X_{kind}"] = np.asarray(c["X_fit"], dtype=np.float16)
+            out[f"cert_X_{kind}"] = np.asarray(c["X_cert"], dtype=np.float16)
+            out[f"cert_ms_{kind}"] = np.asarray(c["feature_ms"], dtype=np.float32)
+        return out
+
+    @_serial
+    def register_learning_task(self, task_id: str, q, learn: dict, certify_spec: dict | None = None) -> dict:
+        """Register a task that learns its fast table from traffic, from its question alone: decisio answers it until
+        a refit certifies a table on the rows its answers logged (decisio.serve.fast_table_learn). `learn`:
+        `FTL.split_request`'s settings; `certify_spec`: alpha and delta of the agreement certificate."""
+        from decisio.serve.tasks import FORMAT as TASK_FORMAT
+        from decisio.serve.tasks import answer_keys, dynamic_placeholders, task_key
+
+        if self.task_store is None:
+            raise ValueError("this server has no task store (--no-tasks)")
+        if q.type != "choice":
+            raise ValueError(
+                f"fast_table.learn: choice questions only (this one is {q.type}): a yes/no or score question has no "
+                "table"
+            )
+        spec = dict(certify_spec or {})
+        extra = sorted(set(spec) - {"alpha", "delta"})
+        if extra:
+            raise ValueError(
+                f"certify: {extra} do not apply to a learning task, whose certificate is made on its own traffic; "
+                "alpha and delta do"
+            )
+        settings = self.certify_settings(spec)
+        self.task_precheck("readout", task_id)
+        try:
+            FT.require_fit()
+        except FT.TableUnavailable as e:
+            raise ValueError(str(e))
+        feats = FT.requested_features(learn["request"])
+        missing = []
+        for f in feats:
+            try:
+                FT.load_student(f)
+            except FT.TableUnavailable as e:
+                if learn["request"]["kind"] != "auto":
+                    raise ValueError(str(e))
+                missing.append(str(e))
+        if len(missing) == len(feats):
+            raise ValueError("fast_table: no student can be had: " + "; ".join(missing))
+        calibration, head = dynamic_placeholders(
+            "a task that learns its fast table from traffic: nothing is fitted on decisio's readout"
+        )
+        task = {
+            "format": TASK_FORMAT,
+            "id": task_id,
+            "key": task_key(q, render_text, self.described(q), self.noul_rendered(q)),
+            "type": "choice",
+            "options": answer_keys(q),
+            "fingerprint": self.task_store.fingerprint,
+            "calibration": calibration,
+            "head": head,
+            "n_examples": 0,
+            "per_option_min": None,
+            "learn": {**learn, "alpha": settings["alpha"], "delta": settings["delta"]},
+        }
+        self.task_store.put(task)  # written first: a write that fails registers nothing
+        self.learning.start_task(task)
+        return task
 
     def dynamic_examples(self, examples, none_key: str):
         """The examples of a dynamic task, checked: choice questions of one set of instructions, two or more options
@@ -1578,18 +1704,27 @@ class SystemOne:
             )
         candidates = []
         for f in usable:
+            Xf = None
             if existing is None:
                 Xf = FT.featurize(f, [render_text(s) for _, s, _ in fit_ex])
                 rec = FT.fit(Xf, [gold_index(q, g) for q, _, g in fit_ex], k, features=f)
             else:
                 rec = {x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds")}
             FT.featurize(f, ["warm"])  # the student is loaded and warm before anything is timed
-            P, ms = [], []
+            P, ms, X, fms = [], [], [], []
             for _, s, _ in cert_ex:
                 t0 = time.perf_counter()
-                P.append(FT.predict(rec, FT.featurize(f, [render_text(s)]))[0])
+                x = FT.featurize(f, [render_text(s)])
+                t1 = time.perf_counter()
+                P.append(FT.predict(rec, x)[0])
                 ms.append((time.perf_counter() - t0) * 1000.0)
-            candidates.append({"features": f, "record": rec, "P": np.stack(P), "ms": ms})
+                X.append(x[0])
+                fms.append((t1 - t0) * 1000.0)
+            # the examples' features are kept for a task that also learns from traffic (its refits fit on them)
+            candidates.append(
+                {"features": f, "record": rec, "P": np.stack(P), "ms": ms, "X_fit": Xf, "X_cert": np.stack(X),
+                 "feature_ms": fms}
+            )  # fmt: skip
         return {"request": request, "candidates": candidates, "unavailable": unavailable}
 
     def read_certification(self, t, cert_ex) -> dict:
@@ -1738,46 +1873,126 @@ class SystemOne:
             rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack(FT.record_features(ft)))
         return rt
 
-    def serve_row(self, t, state, q):
-        """(distribution, via) of a certified task's question: for a task with a fast table, the table's where it is
-        on and its confidence reaches the table's threshold (the model is not asked), else decisio's own read. `via`:
-        None (no table), "table", "deferred" or "alone" (the table is off on this replica)."""
+    def serve_row(self, t, state, q, learn: bool = True):
+        """(distribution, via, version) of a certified or learning task's question: for a task with a fast table, the
+        table's where it is on and its confidence reaches the table's threshold (the model is not asked), else
+        decisio's own read. `via`: None (no table), "table", "deferred", "explored" (the table was sure, decisio
+        answered: exploration) or "alone" (the table is off on this replica); a learned table's (`learn_row`) are
+        "learn:<kind>". `version`: the learned version that read the request, or None. `learn`: false when the
+        request's state was cut, which is neither served by a learned table nor logged."""
+        probe = getattr(self._probe, "on", False)  # a registration's re-read does not count in the table's statistics
+        L = self.learning.get(t) if learn and not probe else None
         ft = t.get("fast_table")
+        if L is not None and (not ft or L.has_versions()):
+            return self.learn_row(t, L, state, q)
         if not ft:
-            return self.served_rows(t, [(state, q)])[0], None
+            return self.served_rows(t, [(state, q)])[0], None, None
         from decisio.serve.tasks import answer_keys
 
         rt = self.table_runtime(t)
-        probe = getattr(self._probe, "on", False)  # a registration's re-read does not count in the table's statistics
+        text = render_text(state)
+        feats, conf = {}, float("nan")
+        explored = False
         if rt.uses_table:
             try:
                 t0 = time.perf_counter()
-                P = FT.predict(ft, FT.featurize(rt.features, [render_text(state)]))[0]
+                x = FT.featurize(rt.features, [text])
+                t1 = time.perf_counter()
+                P = FT.predict(ft, x)[0]
                 ms = (time.perf_counter() - t0) * 1000.0
             except FT.TableUnavailable as e:
                 rt.unavailable(str(e))
             else:
-                if float(P.max()) >= ft["thresholds"]["table_threshold"]:
+                conf = float(P.max())
+                feats[rt.features["kind"]] = (x[0], (t1 - t0) * 1000.0, FTL.feature_id(rt.features))
+                sure = conf >= ft["thresholds"]["table_threshold"]
+                explored = L is not None and L.explore_draw()  # a learning task's exploration: decisio answers
+                if sure and not explored:
                     if not probe:
                         rt.table_answered(ms)
                         if rt.sample_due():  # decisio reads this one too, to compare; its answer is not served
+                            t2 = time.perf_counter()
                             pD = self.served_rows(t, [(state, q)])[0]
+                            d_ms = (time.perf_counter() - t2) * 1000.0
                             keys = answer_keys(q)
                             rt.agreement.observe(top_index(keys, pD) != top_index(keys, P))
                             self.check_table_alarm(t, None)
-                    return P, "table"
+                            if L is not None:
+                                L.record(text, feats, pD, top_index(keys, pD), d_ms, FTL.SPOT_CHECK, conf, True)
+                    return P, "table", None
         active = rt.uses_table
         t0 = time.perf_counter()
         p = self.served_rows(t, [(state, q)])[0]
         ms = (time.perf_counter() - t0) * 1000.0
+        if L is not None:
+            sure = active and conf >= ft["thresholds"]["table_threshold"]
+            kind = FTL.EXPLORED if explored else FTL.DEFERRED if active else FTL.NO_TABLE
+            L.record(text, feats, p, top_index(answer_keys(q), p), ms, kind, conf, sure)
         if not probe and rt.shadow_due():  # the table is off for speed: time it on this request too
             try:
                 t1 = time.perf_counter()
-                FT.predict(ft, FT.featurize(rt.features, [render_text(state)]))
+                FT.predict(ft, FT.featurize(rt.features, [text]))
                 rt.shadowed((time.perf_counter() - t1) * 1000.0, ms)
             except FT.TableUnavailable as e:
                 rt.unavailable(str(e))
-        return p, ("deferred" if active else "alone")
+        if explored and active and conf >= ft["thresholds"]["table_threshold"]:
+            return p, "explored", None
+        return p, ("deferred" if active else "alone"), None
+
+    def learn_row(self, t, L, state, q):
+        """(distribution, via, version) of a learning task's question (decisio.serve.fast_table_learn): the learned
+        table's answer where a version is live and sure (one in `FT.SAMPLE_EVERY` also read by decisio, a spot check),
+        else decisio's; a share `explore` of the requests the table reads goes to decisio anyway. Every request decisio
+        reads is logged."""
+        from decisio.serve.tasks import answer_keys
+
+        keys = answer_keys(q)
+        text = render_text(state)
+        v = L.serving()
+        feats, conf, sure, explored = {}, float("nan"), False, False
+        if v is not None:
+            try:
+                x, f_ms, P = L.table_read(v, text)
+            except FT.TableUnavailable as e:
+                L.unavailable[v.kind] = str(e)
+                v = None
+            else:
+                feats[v.kind] = (x, f_ms, FTL.feature_id(v.features))
+                conf = float(P.max())
+                sure = conf >= v.threshold
+                L.observe_confidence(v, sure)
+                if L.serving() is not v:  # this request raised the alarm: decisio answers it
+                    v = None
+                else:
+                    explored = L.explore_draw()
+                    if sure and not explored:
+                        if L.spot_check_due():  # decisio reads it too; the table's answer is served
+                            t0 = time.perf_counter()
+                            pD = self.served_rows(t, [(state, q)])[0]
+                            d_ms = (time.perf_counter() - t0) * 1000.0
+                            top = top_index(keys, pD)
+                            L.observe_check(v, top != top_index(keys, P))
+                            L.record(text, feats, pD, top, d_ms, FTL.SPOT_CHECK, conf, True)
+                            return P, "learn:spot_check", v
+                        return P, "learn:table", v
+        t0 = time.perf_counter()
+        p = self.served_rows(t, [(state, q)])[0]
+        ms = (time.perf_counter() - t0) * 1000.0
+        top = top_index(keys, p)
+        if v is None:
+            kind = FTL.NO_TABLE
+        elif explored:
+            kind = FTL.EXPLORED
+            if sure:  # an explored request the table would have answered is a check of the table too
+                L.observe_check(v, top != top_index(keys, P))
+        else:
+            kind = FTL.DEFERRED
+        L.record(text, feats, p, top, ms, kind, conf, sure and v is not None)
+        return p, f"learn:{FTL.ROW_KINDS[kind]}", v
+
+    def learned_fields(self, v) -> dict:
+        """The fields of an answer a learned table gave: certified under its own certificate, of its kind."""
+        return {"certified": True, "certificate": v.cert_id, "certificate_kind": v.certificate_kind}
 
     def check_table_alarm(self, t, m) -> None:
         """Suspend the table when the monitor's confidence alarm or the sampled-agreement alarm fires and the task
@@ -2347,11 +2562,18 @@ class SystemOne:
     def certified_fields(
         self, t, q, keys, p, orders: int, chosen: int, shared: bool = False, via: str | None = None
     ) -> dict:
-        """The fields an answer of a certified task carries: whether it is certified, the certificate, and why not.
-        `via`, for a task with a fast table: "table" (the table answered), "deferred" (the table was on and deferred)
-        or "alone" (the table is off, decisio answered, under the certificate decisio's own reads make)."""
+        """The fields an answer of a certified task carries: whether it is certified, the certificate (of kind gold:
+        made on labelled examples), and why not. `via`, for a task with a fast table: "table" (the table answered),
+        "deferred" (the table was on and deferred) or "alone" (the table is off, decisio answered, under the
+        certificate decisio's own reads make). For a task that also learns: "explored" (decisio answered a request the
+        table was sure of) and a learned table's "learn:deferred" and "learn:explored" are decisio's answers under its
+        own certificate, not observed by the answer-mix monitor (the requests a table leaves are not drawn like the
+        traffic its baseline was made on); "learn:no_table" is "alone"."""
         cert = t["certificate"]
-        if via == "alone":
+        observe = via not in ("explored", "learn:deferred", "learn:explored")
+        if via in ("explored", "learn:deferred", "learn:explored", "learn:no_table") and "decisio_only" not in cert:
+            via = None  # no cascade: decisio's certificate is the task's
+        if via in ("alone", "explored", "learn:deferred", "learn:explored", "learn:no_table"):
             thr, monitors = cert["decisio_only"]["threshold"], self.task_store.monitors_alone
         else:
             thr = cert["table_threshold"] if via == "table" else cert["threshold"]
@@ -2384,7 +2606,7 @@ class SystemOne:
             and cert.get("suspend_on_alert", SUSPEND_ON_ALERT)
         ):
             reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
-        if m is not None and not getattr(self._probe, "on", False):
+        if m is not None and observe and not getattr(self._probe, "on", False):
             extra = {"shared": True} if shared else {}
             if t.get("dynamic"):
                 none_key = t["dynamic"].get("none_option", dynamic.NONE_KEY)
@@ -2394,7 +2616,7 @@ class SystemOne:
             m.observe(chosen, reason is None, float(max(p)), **extra)
             if via in ("table", "deferred"):
                 self.check_table_alarm(t, m)
-        out = {"certified": reason is None, "certificate": cert["id"]}
+        out = {"certified": reason is None, "certificate": cert["id"], "certificate_kind": "gold"}
         if reason is not None:
             out["certified_reason"] = reason
         return out
@@ -2451,6 +2673,41 @@ class SystemOne:
         elif t.get("fast_table_report"):
             out["fast_table"] = {"state": "off", "uses_table": False, "reason": t["fast_table_report"]["reason"]}
         return out
+
+    def full_status(self, t) -> dict | None:
+        """A task's status as the routes report it: `task_status` for a certified task, and for a task that learns its
+        fast table from traffic the learning's facts under `fast_table` (a labelled table's own facts, when the task
+        has one, under `fast_table.labelled_table`)."""
+        st = self.task_status(t)
+        L = self.learning.get(t)
+        if L is None:
+            return st
+        if st is None:
+            st = {
+                "state": "ok",
+                "text": "learning from traffic: decisio's answers carry no certificate (the task has no labelled "
+                "examples); a learned table's answers carry its agreement certificate",
+            }
+        else:
+            st = dict(st)
+        facts = L.facts()
+        own = st.pop("fast_table", None)
+        if own is not None:
+            facts["labelled_table"] = own
+        st["fast_table"] = facts
+        return st
+
+    def rollback_table(self, task_id: str, version: int) -> dict:
+        """Serve a kept version of a learning task's table again (`POST /v1/tasks/{id}/fast_table/rollback`)."""
+        store = self.task_store
+        t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
+        if t is None:
+            raise KeyError(task_id)
+        L = self.learning.get(t)
+        if L is None:
+            raise ValueError(f"task {task_id!r} does not learn its fast table from traffic: there are no versions")
+        L.rollback(version)
+        return t
 
     def metrics_text(self) -> str:
         """Per certified task, in Prometheus text format: its state, answers, certified answers and the answer-mix
@@ -3136,9 +3393,22 @@ def add_routes(app, systemone: SystemOne):
             body = await request.json()
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             raise HTTPException(422, f"request body is not valid JSON: {e}")
+        try:
+            table_block, learn = FTL.split_request(body.get("fast_table", False) if isinstance(body, dict) else None)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        if learn is not None and isinstance(body, dict) and body.get("id") and body.get("examples") is None:
+            return await register_learning(request, body, learn)
         if not isinstance(body, dict) or not body.get("id") or not isinstance(body.get("examples"), list):
             raise HTTPException(
-                422, "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, 'answer': <key>}]}"
+                422,
+                "body: {'id', 'examples': [{'request': <a /v1/systemone request, one question>, 'answer': <key>}]}, "
+                "or {'id', 'question': <a wire question>, 'fast_table': {'learn': true}} for a task that learns its "
+                "fast table from traffic",
+            )
+        if body.get("question") is not None:
+            raise HTTPException(
+                422, "question: for a task registered without examples (the examples carry the question)"
             )
         set_intent(request)
         refuse_adapter(body)
@@ -3159,9 +3429,11 @@ def add_routes(app, systemone: SystemOne):
                 )
             dynamic_options = {"none_option": none_option}
         try:
-            fast_table = FT.parse_request(body.get("fast_table", False))
+            fast_table = FT.parse_request(table_block)
         except ValueError as e:
             raise HTTPException(422, str(e))
+        if learn is not None and dynamic_options is not None:
+            raise HTTPException(422, "fast_table: a task whose options change with every request has no table")
         if fast_table and dynamic_options is not None:
             raise HTTPException(422, "fast_table: a task whose options change with every request has no table")
         certify, held_out = None, None
@@ -3185,6 +3457,7 @@ def add_routes(app, systemone: SystemOne):
                 held_out,
                 dynamic_options,
                 fast_table,
+                learn,
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
@@ -3194,16 +3467,73 @@ def add_routes(app, systemone: SystemOne):
             raise_client_error(e)
             raise
         out = with_version(TaskStore.public(task), "readout", task["id"])
-        if task.get("certificate"):
-            out["status"] = systemone.task_status(task)
+        if task.get("certificate") or task.get("learn"):
+            out["status"] = systemone.full_status(task)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
                 out[DEBUG_KEY]["readout"] = [[lp.tolist(), h.tolist()] for lp, h in fitted["readout"]]
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
+    async def register_learning(request, body, learn):
+        """A task that learns its fast table from traffic, registered from its question alone."""
+        from decisio.serve.tasks import TaskStore
+
+        set_intent(request)
+        refuse_adapter(body)
+        q = body.get("question")
+        if not isinstance(q, dict):
+            raise HTTPException(
+                422,
+                "question: a wire question ({'type': 'choice', 'instructions', 'criteria'}) for a task that learns "
+                "its fast table from traffic, with no examples",
+            )
+        try:
+            question = SystemOneRequest.model_validate({"state": "", "questions": {"q": q}}).questions["q"]
+        except ValidationError as e:
+            raise HTTPException(422, f"question: {e}")
+        if body.get("options") is not None or body.get("match") is not None:
+            raise HTTPException(422, "fast_table: a task whose options change with every request has no table")
+        spec = body.get("certify")
+        if spec is not None and not isinstance(spec, dict):
+            raise HTTPException(422, "certify: an object {'alpha', 'delta'}")
+        try:
+            task = await run_in_threadpool(systemone.register_learning_task, str(body["id"]), question, learn, spec)
+        except (KeyError, ValueError) as e:
+            raise HTTPException(422, str(e))
+        except TaskPersistError as e:
+            raise not_saved(e)
+        out = with_version(TaskStore.public(task), "readout", task["id"])
+        out["status"] = systemone.full_status(task)
+        return JSONResponse(json.loads(json.dumps(out, default=float)))
+
     register_readout.__annotations__["request"] = Request
     app.post("/v1/tasks")(register_readout)
+
+    async def rollback_fast_table(task_id: str, request: Request):
+        """Serve a kept version of a learning task's fast table again: `{"version": n}`."""
+        from decisio.serve.tasks import TaskStore
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(422, f"request body is not valid JSON: {e}")
+        n = body.get("version") if isinstance(body, dict) else None
+        if isinstance(n, bool) or not isinstance(n, int):
+            raise HTTPException(422, "body: {'version': <the number of a kept version>}")
+        set_intent(request)
+        try:
+            task = await run_in_threadpool(systemone.rollback_table, task_id, n)
+        except KeyError:
+            raise HTTPException(404, f"no task {task_id!r}")
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        out = with_version(TaskStore.public(task), "readout", task["id"])
+        out["status"] = systemone.full_status(task)
+        return JSONResponse(json.loads(json.dumps(out, default=float)))
+
+    rollback_fast_table.__annotations__["request"] = Request
+    app.post("/v1/tasks/{task_id}/fast_table/rollback")(rollback_fast_table)
 
     @app.get("/v1/tasks")
     def readout_tasks(full: int = 0):
@@ -3219,8 +3549,8 @@ def add_routes(app, systemone: SystemOne):
                 if not full
                 else TaskStore.public(t, True)
             )
-            if t.get("certificate") and not full:
-                item["status"] = systemone.task_status(t)
+            if (t.get("certificate") or t.get("learn")) and not full:
+                item["status"] = systemone.full_status(t)
             listed.append(item)
         return {
             "enabled": systemone.tasks_enabled,
@@ -3240,8 +3570,8 @@ def add_routes(app, systemone: SystemOne):
         if t is None:
             raise HTTPException(404, f"no task {task_id!r}")
         out = with_version(TaskStore.public(t), "readout", t["id"])
-        if t.get("certificate"):
-            out["status"] = systemone.task_status(t)
+        if t.get("certificate") or t.get("learn"):
+            out["status"] = systemone.full_status(t)
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
     async def certify_readout(task_id: str, request: Request):
@@ -3271,7 +3601,7 @@ def add_routes(app, systemone: SystemOne):
             raise_client_error(e)
             raise
         out = with_version(TaskStore.public(task), "readout", task["id"])
-        out["status"] = systemone.task_status(task)
+        out["status"] = systemone.full_status(task)
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
     certify_readout.__annotations__["request"] = Request
@@ -3316,6 +3646,7 @@ def add_routes(app, systemone: SystemOne):
             raise not_saved(e)
         if not removed:
             raise HTTPException(404, f"no task {task_id!r}")
+        systemone.learning.drop(task_id)  # its logged rows and versions go with it
         return {"removed": task_id}
 
     remove_readout_task.__annotations__["request"] = Request
