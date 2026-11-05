@@ -70,9 +70,11 @@ jobs:
 
       # The slow tier (tests that load small models on the CPU) is not run here: it peaks at about 20 GB of RAM in one
       # process and is killed on a 16 GB hosted runner. The `slow` jobs below run it one file per process.
-      # The task-registration walk-through (tests/unit/test_tasks_walkthrough.py) starts servers on a small stand-in model.
-      # It is fetched at this exact revision into a cache, and the test is pointed at the local copy, so a run neither
-      # downloads 1.1 GB nor follows a moving branch (other tests fetch small configs from the Hub, so the run is not offline). Change the revision here when the stand-in changes.
+      # Tests that load the small stand-in model (the task-registration walk-through, tests/unit/test_tasks_walkthrough.py,
+      # among them) read it through DECISIO_STAND_IN_MODEL (tests/unit/test_stand_in_env.py). It is fetched at this exact
+      # revision into a cache and the variable points at the local copy, so a run neither downloads 1.1 GB, nor follows a
+      # moving branch, nor asks the Hub for its files at every load and fails on a rate limit (other tests fetch small
+      # configs from the Hub, so the run is not offline). Change the revision here when the stand-in changes.
       - name: Restore the stand-in model
         id: standin
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
