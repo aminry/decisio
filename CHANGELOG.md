@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.40.0](https://github.com/aminry/decisio/compare/v0.39.2...v0.40.0) (2026-11-05)
+
+
+### Features
+
+* **bench:** the fast table's end-to-end latency, table on and off ([408523f](https://github.com/aminry/decisio/commit/408523f4ddde89229a6e6462534a5cf4bf8886a4))
+
+
+### Performance Improvements
+
+* **serve:** the fast table's encoder runs as a pool of two sessions ([0b4c843](https://github.com/aminry/decisio/commit/0b4c843fd59a285017520363bfc0e23db620a7ec))
+
 ## [0.39.2](https://github.com/aminry/decisio/compare/v0.39.1...v0.39.2) (2026-11-04)
 
 
