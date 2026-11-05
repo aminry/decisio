@@ -3,8 +3,9 @@
 # Turns on auto-merge (squash) for a Dependabot pull request whose every update is a patch or minor version, so it
 # merges by itself once the required checks pass. Majors stay for a person, and so do the dependencies decisio pins on
 # purpose (vllm, transformers, setuptools, the vLLM image: also ignored in dependabot.yml) and every Docker update.
-# Auto-merge is turned on with a token of the repository's GitHub App (secrets AUTOMERGE_APP_CLIENT_ID and
-# AUTOMERGE_APP_PRIVATE_KEY, in the Actions and the Dependabot stores), not GITHUB_TOKEN: a merge caused by
+# Auto-merge is turned on with a token of the repository's GitHub App (secrets AUTOMERGE_APP_CLIENT_ID, or
+# AUTOMERGE_APP_ID: GitHub takes either as the App's identifier, and AUTOMERGE_APP_PRIVATE_KEY, in the Actions and the
+# Dependabot stores), not GITHUB_TOKEN: a merge caused by
 # GITHUB_TOKEN starts no workflow, so ci and release-please would not run on main for it.
 # pull_request_target, not pull_request: a Dependabot pull_request run gets a read-only token and no Actions secrets.
 # The job never checks out or runs the pull request's code; it reads Dependabot's metadata and calls `gh pr merge`.
@@ -56,11 +57,11 @@ jobs:
       - name: The App's credentials are set
         if: steps.decide.outputs.auto == 'true'
         env:
-          CLIENT_ID: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          CLIENT_ID: ${{ secrets.AUTOMERGE_APP_CLIENT_ID || secrets.AUTOMERGE_APP_ID }}
           KEY: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
         run: |
           if [ -z "$CLIENT_ID" ] || [ -z "$KEY" ]; then
-            echo "::error::AUTOMERGE_APP_CLIENT_ID or AUTOMERGE_APP_PRIVATE_KEY is not set (Settings, Secrets and variables, Actions and Dependabot)"
+            echo "::error::AUTOMERGE_APP_CLIENT_ID (or AUTOMERGE_APP_ID) or AUTOMERGE_APP_PRIVATE_KEY is not set (Settings, Secrets and variables, Actions and Dependabot)"
             exit 1
           fi
 
@@ -69,7 +70,7 @@ jobs:
         id: app
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID || secrets.AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-pull-requests: write
