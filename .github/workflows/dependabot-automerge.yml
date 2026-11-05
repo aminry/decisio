@@ -1,11 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # Turns on auto-merge (squash) for a Dependabot pull request whose every update is a patch or minor version, so it
-# merges by itself once the required checks pass (through the merge queue when it is on). Majors stay for a person, and
-# so do the dependencies decisio pins on purpose (vllm, transformers, setuptools, the vLLM image: also ignored in
-# dependabot.yml) and every Docker update.
-# pull_request_target, not pull_request: a Dependabot pull_request run gets a read-only token. The job never checks out
-# or runs the pull request's code; it reads Dependabot's metadata and calls `gh pr merge --auto`.
+# merges by itself once the required checks pass. Majors stay for a person, and so do the dependencies decisio pins on
+# purpose (vllm, transformers, setuptools, the vLLM image: also ignored in dependabot.yml) and every Docker update.
+# Auto-merge is turned on with a token of the repository's GitHub App (secrets AUTOMERGE_APP_CLIENT_ID and
+# AUTOMERGE_APP_PRIVATE_KEY, in the Actions and the Dependabot stores), not GITHUB_TOKEN: a merge caused by
+# GITHUB_TOKEN starts no workflow, so ci and release-please would not run on main for it.
+# pull_request_target, not pull_request: a Dependabot pull_request run gets a read-only token and no Actions secrets.
+# The job never checks out or runs the pull request's code; it reads Dependabot's metadata and calls `gh pr merge`.
 name: dependabot auto-merge
 
 on:
@@ -21,8 +23,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+      pull-requests: read
     steps:
       - name: Harden the runner
         uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
@@ -51,9 +53,31 @@ jobs:
           jq -r '.[] | "\(.dependencyName) \(.prevVersion) -> \(.newVersion) (\(.updateType))"' <<< "$DEPS"
           echo "ecosystem $ECOSYSTEM; auto-merge: $ok"
 
+      - name: The App's credentials are set
+        if: steps.decide.outputs.auto == 'true'
+        env:
+          CLIENT_ID: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          KEY: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$CLIENT_ID" ] || [ -z "$KEY" ]; then
+            echo "::error::AUTOMERGE_APP_CLIENT_ID or AUTOMERGE_APP_PRIVATE_KEY is not set (Settings, Secrets and variables, Actions and Dependabot)"
+            exit 1
+          fi
+
+      - name: A token of the App
+        if: steps.decide.outputs.auto == 'true'
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-workflows: write
+
       - name: Turn on auto-merge
         if: steps.decide.outputs.auto == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app.outputs.token }}
           PR: ${{ github.event.pull_request.html_url }}
         run: gh pr merge --auto --squash "$PR"
