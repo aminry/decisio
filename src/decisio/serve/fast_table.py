@@ -35,6 +35,7 @@ import collections
 import math
 import os
 import platform
+import queue
 import threading
 import warnings
 
@@ -55,6 +56,11 @@ TOKENIZER_FILE = "tokenizer.json"
 THREADS = (
     4  # intra-op threads of the ONNX session: explicit and recorded in the timing stack (8, 16: slower at batch 1)
 )
+# encoder sessions that run at once, each with THREADS threads: two kept one request's time (15.3 against 16.3 ms on an
+# Apple M5 Pro) and raised the rate at 16 in flight from 68 to 91 a second; four single-threaded ones reached 99 a
+# second but made one request slower (26 ms). Batching texts in one call was slower per text on the CPU (batch 8 14.6
+# ms, batch 32 18.6, against 13.9 one at a time) and is not used. Recorded in the timing stack.
+ENCODERS = 2
 CS = (0.1, 1.0, 10.0, 100.0)  # the L2 strength of the classifier, chosen by 5-fold cross-validated log loss
 MIN_SAVING = 0.25  # the table is kept when it cuts the expected mean time per request by at least this share
 MIN_EXAMPLES = 100  # fewer fit examples than this fit no table
@@ -66,8 +72,8 @@ SHADOW_N = 30  # and the table is put back when 30 such pairs show it pays (`tim
 SAMPLE_EVERY = 50  # while on, every 50th table answer is also read by decisio and compared
 
 _lock = threading.Lock()
-_run = threading.Lock()  # one encode at a time: the encoder is shared by every table task
-_encoder = None
+_encoder = None  # the first of the pool's encoders, once loaded
+_pool: queue.Queue | None = None  # the ENCODERS encoders, each used by one encode at a time
 
 
 class TableUnavailable(ImportError):
@@ -80,9 +86,10 @@ def _need(what: str) -> TableUnavailable:
 
 class OnnxEncoder:
     """The pinned encoder: `encode(texts)` gives L2-normalised float32 [CLS] embeddings, one row each. Not thread-safe
-    (the tokenizer's padding is set on it): `embed` calls it under a lock."""
+    (the tokenizer's padding is set on it): `embed` takes one of the pool's encoders for each call."""
 
-    def __init__(self, session, tokenizer):
+    def __init__(self, session, tokenizer, files=None):
+        self.files = files  # (the ONNX file, the tokenizer file) it was loaded from, checked: `another` reuses them
         self.session = session
         self.tokenizer = tokenizer
         self.inputs = [i.name for i in session.get_inputs()]
@@ -94,12 +101,12 @@ class OnnxEncoder:
         """The session and tokenizer of the pinned files, fetched from the Hub at REVISION (or taken from the local
         cache) and checked against ONNX_SHA256."""
         try:
-            import onnxruntime as ort
+            import onnxruntime  # noqa: F401  (here only to say what to install before anything is fetched)
         except ImportError as e:
             raise _need("onnxruntime") from e
         try:
             from huggingface_hub import hf_hub_download
-            from tokenizers import Tokenizer
+            from tokenizers import Tokenizer  # noqa: F401  (as above; from_files loads it)
         except ImportError as e:
             raise _need("tokenizers and huggingface_hub") from e
         try:
@@ -115,11 +122,23 @@ class OnnxEncoder:
             raise TableUnavailable(
                 f"{model} has sha256 {digest}, not the pinned {ONNX_SHA256}: the fast table refuses it"
             )
+        return cls.from_files(model, tok)
+
+    @classmethod
+    def from_files(cls, model: str, tok: str) -> OnnxEncoder:
+        """A session and a tokenizer of files already fetched and checked."""
+        import onnxruntime as ort
+        from tokenizers import Tokenizer
+
         options = ort.SessionOptions()
         options.intra_op_num_threads, options.inter_op_num_threads = THREADS, 1
         options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
         session = ort.InferenceSession(model, options, providers=["CPUExecutionProvider"])
-        return cls(session, Tokenizer.from_file(tok))
+        return cls(session, Tokenizer.from_file(tok), files=(model, tok))
+
+    def another(self) -> OnnxEncoder:
+        """A second session and tokenizer of the same checked files (a pool's next encoder)."""
+        return type(self).from_files(*self.files)
 
     def encode(self, texts, batch: int = 32) -> np.ndarray:
         out = []
@@ -147,19 +166,28 @@ def file_sha256(path) -> str:
 
 
 def encoder() -> OnnxEncoder:
-    """The pinned encoder, loaded once on the CPU."""
-    global _encoder
+    """The pinned encoder, loaded once on the CPU with the rest of the pool (ENCODERS sessions of the same files)."""
+    global _encoder, _pool
     with _lock:
         if _encoder is None:
-            _encoder = OnnxEncoder.load()
+            first = OnnxEncoder.load()
+            pool = queue.Queue()
+            pool.put(first)
+            for _ in range(ENCODERS - 1):
+                pool.put(first.another() if first.files else first)
+            _encoder, _pool = first, pool
     return _encoder
 
 
 def embed(texts: list[str]) -> np.ndarray:
-    """L2-normalised embeddings of the texts, float32, one row each."""
-    enc = encoder()
-    with _run:
+    """L2-normalised embeddings of the texts, float32, one row each, on a free encoder of the pool (at most ENCODERS
+    encodes run at once; a further one waits for the first that ends)."""
+    encoder()
+    enc = _pool.get()
+    try:
         return np.asarray(enc.encode(list(texts)), dtype=np.float32)
+    finally:
+        _pool.put(enc)
 
 
 def _pack(a) -> dict:
@@ -405,6 +433,7 @@ def timing_stack(engine_facts: dict) -> dict:
         "tokenizers": lib("tokenizers"),
         "onnx_sha256": ONNX_SHA256[:16],
         "threads": THREADS,
+        "encoders": ENCODERS,
     }
 
 
