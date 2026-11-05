@@ -34,7 +34,7 @@ class Slow:
     def __init__(self):
         type(self).made.append(self)
 
-    def encode(self, texts):
+    def encode(self, texts, long_state=None):
         with Slow.lock:
             Slow.live += 1
             Slow.peak = max(Slow.peak, Slow.live)

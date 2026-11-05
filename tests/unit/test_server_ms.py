@@ -149,10 +149,10 @@ def table_server(monkeypatch):
                 time.sleep(SLEEP)
             return super().answer(state, questions, adapter)
 
-    def slow_embed(texts):
+    def slow_embed(texts, long_state=FT.TRUNC512):
         if sleep["on"]:
             time.sleep(SLEEP)
-        return FTT.fake_embed(texts)
+        return FTT.fake_embed(texts, long_state)
 
     FTT.CLOCK.t, FTT.CLOCK.decisio_ms, FTT.CLOCK.table_ms = 0.0, 60.0, 5.0
     monkeypatch.setattr(FT, "embed", slow_embed)
