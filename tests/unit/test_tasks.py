@@ -18,6 +18,8 @@ T3  served (CPU stand-in): no task, or a task of another list, changes nothing, 
   uv run pytest -q tests/unit/test_tasks.py
 """
 
+import os
+
 import numpy as np
 import pytest
 
@@ -25,7 +27,7 @@ from decisio.readout import calibration, intent_head
 from decisio.readout.debias import log_probs
 from decisio.serve.tasks import TaskStore, answer_keys, gold_index, task_key
 
-MODEL = "Qwen/Qwen3-0.6B-Base"
+MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 CRIT = {"option_0": "card arrival", "option_1": "exchange rate", "option_2": "top up"}
 TOPICS = [
     "card arrival",

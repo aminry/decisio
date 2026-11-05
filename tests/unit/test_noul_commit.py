@@ -11,13 +11,15 @@ N3  on: choice and score answers are untouched, and the served answer (yes above
 """
 
 import functools
+import os
 
 import numpy as np
 import pytest
 
 from decisio.serve.systemone import SystemOne, SystemOneRequest, apply_temperature, commit_noul
 
-TOKENIZER = "Qwen/Qwen3-0.6B-Base"  # usage counting only (the stand-in of tests/unit/test_ties.py)
+# usage counting only (the stand-in of tests/unit/test_ties.py)
+TOKENIZER = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 
 
 @functools.cache
