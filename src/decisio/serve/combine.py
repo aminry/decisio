@@ -71,8 +71,8 @@ class FairLock:
     on it could wait for ever under constant load. Here a release hands the lock to the oldest waiter directly: the
     lock stays held, now by that waiter, and only that waiter is woken (one Event each). Waking every waiter on each
     release, as the first version did, cost a serial server 7 percent of its throughput at 16 clients on an RTX 5090
-    (RLCD experiments/2026-10-21_throughput/session1, S7). The interface is `threading.Lock`'s (acquire with blocking
-    and timeout, release, the context manager, locked)."""
+    (6.68 against 7.19 requests a second, repeated). The interface is `threading.Lock`'s (acquire with blocking and
+    timeout, release, the context manager, locked)."""
 
     _turn = threading.Event  # a waiter's own Event (a class attribute so a test can give one that is interrupted)
 
