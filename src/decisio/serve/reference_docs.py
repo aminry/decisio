@@ -478,7 +478,9 @@ def openapi() -> dict:
     rb["responses"] = {
         "200": _resp("The task, with its status: the restored version is live.", "TaskRecord"),
         "404": _resp("No such task.", "ErrorDetail"),
+        "409": _resp("A read-only replica of a shared task store (`--task-store-readonly`).", "ErrorDetail"),
         "422": _resp("Not a learning task, no such version, or one this server cannot compute.", "ErrorDetail"),
+        "503": _resp("The shared task store cannot be reached; nothing changed.", "ErrorDetail"),
     }
     paths["/v1/tasks/import"]["post"]["requestBody"] = {"required": True, "content": _json("TaskImport")}
     paths["/v1/abstention/tasks"]["post"]["requestBody"] = {

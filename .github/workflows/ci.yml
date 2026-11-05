@@ -100,6 +100,71 @@ jobs:
           path: dist/
           retention-days: 7
 
+  # The shared task store on a real S3-compatible service: the two-replica tests of the task store
+  # (tests/unit/test_task_store_shared.py, S10) and of the fast table that learns across replicas
+  # (tests/unit/test_fast_table_replicas.py, R11), which skip unless DECISIO_TEST_S3_ENDPOINT names a service.
+  # MinIO stopped publishing community images in 2025: Docker Hub's minio/minio and quay.io's ask for credentials.
+  # Chainguard builds MinIO from its source and publishes the image anonymously; it is pinned here by digest (older
+  # digests stay pullable). It is started with `docker run` and not as a service container because the image needs the
+  # `server <dir>` arguments, which a service container cannot pass. The credentials are throwaway values for this
+  # local server, not secrets.
+  s3:
+    name: shared task store on MinIO
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      MINIO_IMAGE: cgr.dev/chainguard/minio@sha256:cee9a8e35885e93f14b3cb32960e5017aff74e2adfb52ba87c65003b0163886b
+      DECISIO_TEST_S3_ENDPOINT: http://127.0.0.1:9000
+      DECISIO_TEST_S3_BUCKET: decisio-test
+      AWS_ACCESS_KEY_ID: decisio-ci
+      AWS_SECRET_ACCESS_KEY: decisio-ci-secret
+      AWS_REGION: us-east-1
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$AWS_ACCESS_KEY_ID" -e MINIO_ROOT_PASSWORD="$AWS_SECRET_ACCESS_KEY" \
+            --tmpfs /data:rw,mode=1777 "$MINIO_IMAGE" server /data --address :9000
+          for _ in $(seq 1 60); do
+            curl -sf http://127.0.0.1:9000/minio/health/live && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:9000/minio/health/live
+
+      # The runner image has the AWS CLI.
+      - name: Create the bucket
+        run: aws --endpoint-url "$DECISIO_TEST_S3_ENDPOINT" s3api create-bucket --bucket "$DECISIO_TEST_S3_BUCKET"
+
+      - name: Install (locked)
+        run: uv sync --extra dev --frozen
+
+      # Both tests must run: a skip (a missing dependency, an unset variable) fails the job.
+      - name: The two-replica tests on MinIO
+        run: |
+          uv run pytest -q -rs -p no:cacheprovider tests/unit/test_task_store_shared.py \
+            tests/unit/test_fast_table_replicas.py -k "s10 or r11" | tee pytest.out
+          grep -Eq '^2 passed' pytest.out
+
+      - name: MinIO's log
+        if: failure()
+        run: docker logs minio
+
   # The slow tier on every pull request that changes code, split over three jobs so that the longest takes about as long
   # as its slowest file (scripts/shard_slow_tier.py). A pull request that changes only documentation skips the work in
   # the first step and still reports success, so the check can be required.

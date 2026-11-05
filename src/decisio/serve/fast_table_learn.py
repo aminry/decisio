@@ -51,8 +51,9 @@ Rows are kept per task in append-only segment files under the tasks directory (`
 <start ms>-<sequence>.seg`, numpy's npz, with a small JSON index), flushed when the buffer holds `SEGMENT_BYTES` or is
 `SEGMENT_SECONDS` old, never rewritten; at most `max_rows` (default 200,000) are kept, the oldest dropped at refit.
 Without a tasks directory they are kept in memory and lost at restart, and the task's status says so. The log and the
-task's learning state sit behind a small storage interface (`DirPlace`, `MemoryPlace`: put, get, delete, list), so
-another backend can hold them.
+task's learning state sit behind a small storage interface (`DirPlace`, `MemoryPlace`: put, get, delete, list). On a
+shared task store (`--task-store`) the replicas learn together, one of them training: `Learning(shared=...)` and
+decisio.serve.fast_table_replicas, which change nothing of the above for one server.
 
 Standard library, numpy and the `table` extra (scikit-learn).
 """
@@ -309,6 +310,39 @@ def _row_bytes(row: dict) -> int:
     return n
 
 
+def concat(parts, students: dict, k: int, drop: int = 0, extra=()) -> dict:
+    """Segments' columns [(arrays, their students' feature ids)] as one set of columns, the rows below id `drop` left
+    out. A student's features from a segment logged with another feature function are left out (zeros, `has_<student>`
+    false). `extra`: more per-row columns every part has."""
+    names = ("id", "t", "kind", "digest", "stack", "top", "would", "conf", "ms_decisio", "table_conf", "dist", *extra)
+    empty = columns([], list(students), k)
+    if not parts:
+        out = {n: empty[n] if n in empty else np.zeros(0, "S1") for n in names}
+    else:
+        out = {n: np.concatenate([a[n] for a, _ in parts]) for n in names}
+    for s, fid in students.items():
+        dims = [a[f"f_{s}"].shape[1] for a, ids in parts if ids.get(s) == fid and f"f_{s}" in a]
+        dim = max(dims, default=0)
+        feats, ms, has = [], [], []
+        for a, ids in parts:
+            n = len(a["id"])
+            ok = ids.get(s) == fid and f"f_{s}" in a and a[f"f_{s}"].shape[1] == dim and dim > 0
+            if ok:
+                feats.append(a[f"f_{s}"])
+                m = a[f"ms_{s}"].astype(np.float32)
+                ms.append(m)
+                has.append(np.isfinite(m))
+            else:
+                feats.append(np.zeros((n, dim), np.float16))
+                ms.append(np.full(n, np.nan, np.float32))
+                has.append(np.zeros(n, bool))
+        out[f"f_{s}"] = np.concatenate(feats) if feats else np.zeros((0, dim), np.float16)
+        out[f"ms_{s}"] = np.concatenate(ms) if ms else np.zeros(0, np.float32)
+        out[f"has_{s}"] = np.concatenate(has) if has else np.zeros(0, bool)
+    keep = out["id"] >= drop
+    return {n: v[keep] for n, v in out.items()}
+
+
 class SegmentLog:
     """A task's rows: `append` a row, `read` every kept row, `drop_before` a row id. Rows are buffered and written as
     immutable segments (`flush`) when the buffer holds `segment_bytes` or is `segment_seconds` old; a small index
@@ -437,33 +471,7 @@ class SegmentLog:
         return self._concat(parts, drop)
 
     def _concat(self, parts, drop) -> dict:
-        names = ("id", "t", "kind", "digest", "stack", "top", "would", "conf", "ms_decisio", "table_conf", "dist")
-        empty = columns([], list(self.students), self.k)
-        if not parts:
-            out = {n: empty[n] for n in names}
-        else:
-            out = {n: np.concatenate([a[n] for a, _ in parts]) for n in names}
-        for s, fid in self.students.items():
-            dims = [a[f"f_{s}"].shape[1] for a, ids in parts if ids.get(s) == fid and f"f_{s}" in a]
-            dim = max(dims, default=0)
-            feats, ms, has = [], [], []
-            for a, ids in parts:
-                n = len(a["id"])
-                ok = ids.get(s) == fid and f"f_{s}" in a and a[f"f_{s}"].shape[1] == dim and dim > 0
-                if ok:
-                    feats.append(a[f"f_{s}"])
-                    m = a[f"ms_{s}"].astype(np.float32)
-                    ms.append(m)
-                    has.append(np.isfinite(m))
-                else:
-                    feats.append(np.zeros((n, dim), np.float16))
-                    ms.append(np.full(n, np.nan, np.float32))
-                    has.append(np.zeros(n, bool))
-            out[f"f_{s}"] = np.concatenate(feats) if feats else np.zeros((0, dim), np.float16)
-            out[f"ms_{s}"] = np.concatenate(ms) if ms else np.zeros(0, np.float32)
-            out[f"has_{s}"] = np.concatenate(has) if has else np.zeros(0, bool)
-        keep = out["id"] >= drop
-        return {k: v[keep] for k, v in out.items()}
+        return concat(parts, self.students, self.k, drop)
 
     def drop_before(self, row_id: int) -> None:
         """Drop every row whose id is below `row_id`: segments wholly below it are deleted, the rest skip them."""
@@ -545,16 +553,13 @@ class Learner:
         self.max_rows = int(s["max_rows"])
         self.alpha, self.delta = float(s["alpha"]), float(s["delta"])
         self.mode = "both" if task.get("certificate") else "learning"
+        self.registration = s.get("registration")  # on a shared store, which registration of the id this is
         self.place = place
         self.lock = threading.RLock()
         self.students = {f["kind"]: f for f in FT.requested_features(self.request)}
         self.ids = {k: feature_id(f) for k, f in self.students.items()}
-        raw = place.get("state.json")
-        st = json.loads(raw) if raw else {}
-        if st and st.get("key") != self.key:  # the rows and versions of another question under this id: not ours
-            place.remove_all()
-            st = {}
-        self.log = SegmentLog(place, self.ids, self.k, clock=manager.now)
+        st = self._load_state()
+        self.log = self._open_log()
         self.unavailable: dict[str, str] = {}  # a student this server cannot load, and why
         # the key of the rows' digests: random, kept with the task's state (a set seed makes it the seed's)
         seed = manager.seed_for("salt:" + self.task_id)
@@ -583,6 +588,17 @@ class Learner:
                 self._set_live(Version(d), suspended=self.suspended)
 
     # ---- state ---------------------------------------------------------------------------------------------------
+
+    def _load_state(self) -> dict:
+        raw = self.place.get("state.json")
+        st = json.loads(raw) if raw else {}
+        if st and st.get("key") != self.key:  # the rows and versions of another question under this id: not ours
+            self.place.remove_all()
+            st = {}
+        return st
+
+    def _open_log(self):
+        return SegmentLog(self.place, self.ids, self.k, clock=self.m.now)
 
     def _load_labels(self):
         raw = self.place.get("labels.npz")
@@ -663,6 +679,15 @@ class Learner:
 
     def has_versions(self) -> bool:
         return bool(self.versions)
+
+    def timing_due(self) -> Version | None:
+        """A live version this server is timing before it answers, when this request is to time it too (a version
+        learned on a shared store is timed on each replica first: decisio.serve.fast_table_replicas); None on one
+        server, whose refits timed it on this host."""
+        return None
+
+    def timed(self, v: Version, table_ms: float, decisio_ms: float) -> None:
+        """One request timed both ways for `timing_due`'s version."""
 
     # ---- the request path ----------------------------------------------------------------------------------------
 
@@ -802,12 +827,7 @@ class Learner:
         with self.lock:
             self.since_refit = 0
             self.last_refit_at = started
-        self.log.flush()
-        rows = self.log.read()
-        n_all = len(rows["id"])
-        if n_all > self.max_rows:  # the oldest rows past max_rows go
-            self.log.drop_before(int(rows["id"][n_all - self.max_rows]))
-            rows = {k: v[n_all - self.max_rows :] for k, v in rows.items()}
+        rows, n_all = self._kept_rows()
         try:
             out = self._refit(rows)
         except Exception as e:  # a refit never stops serving; it says what went wrong
@@ -820,6 +840,21 @@ class Learner:
             self.counters[f"refit_{out['outcome']}"] += 1
         self.persist()
         return out
+
+    def _kept_rows(self) -> tuple[dict, int]:
+        """(the rows a refit fits and certifies on, and how many were kept before `max_rows`)."""
+        self.log.flush()
+        rows = self.log.read()
+        n_all = len(rows["id"])
+        if n_all > self.max_rows:  # the oldest rows past max_rows go
+            self.log.drop_before(int(rows["id"][n_all - self.max_rows]))
+            rows = {k: v[n_all - self.max_rows :] for k, v in rows.items()}
+        return rows, n_all
+
+    def _certificate_rows(self, rows: dict, ci, held_unbiased) -> dict:
+        """More of what an agreement certificate records about the rows it drew on: nothing on one server (on a shared
+        store, the replicas)."""
+        return {}
 
     def _refit(self, rows: dict) -> dict:
         stack = self.m.stack_sha()
@@ -873,13 +908,14 @@ class Learner:
                 Xc = lab[f"cert_X_{s}"].astype(np.float32)
                 ref = lab["cert_y"].astype(int)
                 ms_t, ms_d = lab[f"cert_ms_{s}"].astype(float), lab["cert_ms_decisio"].astype(float)
-                ckind, rows_by = "gold", {"labelled": int(len(ref))}
+                ckind, rows_by, drawn = "gold", {"labelled": int(len(ref))}, {}
             else:
                 Xc = rows[f"f_{s}"][ci].astype(np.float32)
                 ref = target[ci]
                 ms_t, ms_d = rows[f"ms_{s}"][ci].astype(float), rows["ms_decisio"][ci].astype(float)
                 ckind = "agreement"
                 rows_by = {ROW_KINDS[kk]: int((rows["kind"][ci] == kk).sum()) for kk in CERTIFY_KINDS}
+                drawn = self._certificate_rows(rows, ci, held & unbiased & has)
             c["certificate_kind"], c["cert_rows"] = ckind, rows_by
             if len(ref) < need:
                 c["why_not"] = (
@@ -934,6 +970,7 @@ class Learner:
                     "upper_bound": certify.upper_bound(wrong, answered, self.delta) if answered else None,
                     "table_share": share,
                     "rows": rows_by,
+                    **drawn,
                     "stack": stack,
                 },
             )
@@ -1164,9 +1201,11 @@ class Learning:
     """Every learning task's learner on this server, the refit worker and the encoder's background queue.
 
     `background`: run the refit worker and the encoder queue on their own threads (the server); when false, refits run
-    when `refit_task` is called and queued encoder rows when `drain` is (tests)."""
+    when `refit_task` is called and queued encoder rows when `drain` is (tests). `shared`: learning shared across the
+    replicas of a shared task store (`decisio.serve.fast_table_replicas.Shared`), or None: this server alone."""
 
-    def __init__(self, root=None, stack_sha=None, perf=time.perf_counter, now=time.time, background=None, task=None):
+    def __init__(self, root=None, stack_sha=None, perf=time.perf_counter, now=time.time, background=None, task=None,
+                 shared=None):  # fmt: skip
         self.root = Path(root) if root is not None else None  # <tasks-dir>/learn, or None: in memory
         self._stack_sha = stack_sha or (lambda: "0" * 16)
         self._stack_value: str | None = None
@@ -1186,6 +1225,9 @@ class Learning:
         self.encoder_dropped = 0
         self.worker = {"state": "not started", "refits": 0, "cpu_seconds": 0.0, "last": None}
         self._closed = False
+        self.shared = shared
+        if shared is not None:
+            shared.attach(self)
 
     def stack_sha(self) -> str:
         """The serving stack's fingerprint (short), taken once: the server's stack does not change while it runs."""
@@ -1210,14 +1252,28 @@ class Learning:
         if not t or not t.get("learn"):
             return None
         L = self.learners.get(t["id"])
-        if L is not None and L.key == t["key"]:
+        if L is not None and self._same(L, t):
             return L
         with self._lock:
             L = self.learners.get(t["id"])
-            if L is None or L.key != t["key"]:
-                L = self.learners[t["id"]] = Learner(self, t, self.place_for(t["id"]))
+            if L is None or not self._same(L, t):
+                L = self.learners[t["id"]] = self._make(t)
         self.start()
         return L
+
+    @staticmethod
+    def _same(L: Learner, t) -> bool:
+        return L.key == t["key"] and L.registration == t["learn"].get("registration")
+
+    def _make(self, t) -> Learner:
+        if self.shared is not None:
+            return self.shared.learner(t)
+        return Learner(self, t, self.place_for(t["id"]))
+
+    def new_registration(self) -> dict:
+        """What a new registration adds to its `learn` settings: on a shared store an id of its own, under which its
+        rows and versions are kept (a task registered again starts afresh); nothing on one server."""
+        return {"registration": uuid.uuid4().hex[:16]} if self.shared is not None else {}
 
     def start_task(self, t, labels: dict | None = None) -> Learner:
         """A new learning task (registered, or registered again): earlier rows and versions of its id are dropped."""
@@ -1226,14 +1282,30 @@ class Learning:
         if labels:
             L.save_labels(labels)
         L.persist()
+        if self.shared is not None:
+            self.shared.started(L)
         return L
 
     def drop(self, task_id: str) -> None:
         with self._lock:
-            self.learners.pop(task_id, None)
+            L = self.learners.pop(task_id, None)
             place = self._places.pop(task_id, None) if self.root is None else self.place_for(task_id)
+        if self.shared is not None:  # its rows and versions in the shared store go with it
+            if L is not None:
+                self.shared.remove(L)
+            return
         if place is not None:
             place.remove_all()
+
+    def forget(self, task_id: str) -> None:
+        """A task another replica removed or registered again: this server's learner goes, the store is left alone."""
+        with self._lock:
+            self.learners.pop(task_id, None)
+
+    def sync(self) -> None:
+        """Follow the shared store (the task store's poll calls it): nothing on one server."""
+        if self.shared is not None:
+            self.shared.tick()
 
     # the worker
 
@@ -1369,6 +1441,8 @@ class Learning:
                 L.persist()
             except OSError as e:
                 logger.warning("task %s: the fast table's rows could not be written at stop: %s", L.task_id, e)
+        if self.shared is not None:
+            self.shared.close()
 
     def health(self) -> dict:
         learners = list(self.learners.values())
@@ -1384,6 +1458,7 @@ class Learning:
                 "capacity": ENCODE_QUEUE,
                 "dropped": self.encoder_dropped,
             },
+            **({"stored": "the shared task store", "shared": self.shared.health()} if self.shared is not None else {}),
         }
 
 

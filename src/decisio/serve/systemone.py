@@ -144,7 +144,11 @@ class TaskApplier:
     def apply(self, kind: str, records: list) -> None:
         if kind == "readout":
             if self.so.task_store is not None:
-                self.so.task_store.load(records, persist=False)
+                store = self.so.task_store
+                store.load(records, persist=False)
+                for r in records:  # a task that learns: its learner now, so that the poll reads its learned state
+                    if r.get("learn") and same_fingerprint(r.get("fingerprint"), store.fingerprint):
+                        self.so.learning.get(store.snapshot(r["id"]))
         else:
             self.so.load_abstention(records, persist=False)
 
@@ -152,6 +156,7 @@ class TaskApplier:
         if kind == "readout":
             if self.so.task_store is not None:
                 self.so.task_store.remove(task_id, persist=False)
+            self.so.learning.forget(task_id)  # the replica that removed it deletes its learned rows and versions
         else:
             self.so.tasks.pop(task_id, None)
 
@@ -769,19 +774,29 @@ class SystemOne:
         # its stages and prompt figures; None outside a request (a registration's reads are not a request's)
         self._reads = threading.local()
         # fast tables that learn from traffic (decisio.serve.fast_table_learn): their rows are kept under the tasks
-        # directory, or in memory without one; the clocks are this module's, so a test's virtual clock times them too
-        root = None
-        if task_backend is not None and task_backend.describe().get("backend") == "dir":
+        # directory, or in memory without one, or learned across the replicas of a shared task store
+        # (decisio.serve.fast_table_replicas); the clocks are this module's, so a test's virtual clock times them too
+        root, shared = None, None
+        backend_kind = task_backend.describe().get("backend") if task_backend is not None else None
+        if backend_kind == "dir":
             root = Path(task_backend.describe()["path"]) / "learn"
+        elif backend_kind == "object-store":
+            from decisio.serve import fast_table_replicas as FTR
+
+            shared = FTR.Shared(FTR.Objects(task_backend.store), readonly=task_backend.readonly)
         self.learning = FTL.Learning(
             root,
             stack_sha=lambda: stack_sha256(self.stack_facts())[:16],
             perf=lambda: time.perf_counter(),
             now=lambda: time.time(),
             task=lambda task_id: self.task_store.snapshot(task_id) if self.task_store is not None else None,
+            shared=shared,
         )
         for t in list(task_store.by_key.values()) if task_store is not None else []:
             self.learning.get(t)  # a learning task loaded at start resumes its versions and its log
+        if shared is not None:
+            task_backend.followers.append(self.learning.sync)  # the task store's poll follows the learned state too
+            self.learning.sync()  # the promoted versions now, as the tasks were loaded
 
     def models(self) -> dict:
         return {
@@ -1446,7 +1461,12 @@ class SystemOne:
             reads = self.read_certification(task, cert_ex)
             self.decide_fast_table(task, cert_ex, reads, prepared, certify)
         if learn is not None:
-            task["learn"] = {**learn, "alpha": certify["alpha"], "delta": certify["delta"]}
+            task["learn"] = {
+                **learn,
+                "alpha": certify["alpha"],
+                "delta": certify["delta"],
+                **self.learning.new_registration(),
+            }
         registered = self.attach_certificate(task, cert_ex, certify, split, reads)  # stored only once it is made
         previous = self.task_store.snapshot(task["id"])
         self.task_store.put(task, persist=False)  # served from memory for the check below, written once it has run
@@ -1539,7 +1559,12 @@ class SystemOne:
             "head": head,
             "n_examples": 0,
             "per_option_min": None,
-            "learn": {**learn, "alpha": settings["alpha"], "delta": settings["delta"]},
+            "learn": {
+                **learn,
+                "alpha": settings["alpha"],
+                "delta": settings["delta"],
+                **self.learning.new_registration(),
+            },
         }
         self.task_store.put(task)  # written first: a write that fails registers nothing
         self.learning.start_task(task)
@@ -1943,13 +1968,24 @@ class SystemOne:
         """(distribution, via, version) of a learning task's question (decisio.serve.fast_table_learn): the learned
         table's answer where a version is live and sure (one in `FT.SAMPLE_EVERY` also read by decisio, a spot check),
         else decisio's; a share `explore` of the requests the table reads goes to decisio anyway. Every request decisio
-        reads is logged."""
+        reads is logged. A version this replica is still timing (one learned on a shared store) does not answer, and
+        some of the requests decisio answers meanwhile time it too."""
         from decisio.serve.tasks import answer_keys
 
         keys = answer_keys(q)
         text = render_text(state)
         v = L.serving()
         feats, conf, sure, explored = {}, float("nan"), False, False
+        timing, table_ms = (L.timing_due() if v is None else None), None
+        if timing is not None:
+            try:
+                t0 = time.perf_counter()
+                x, f_ms, _ = L.table_read(timing, text)
+                table_ms = (time.perf_counter() - t0) * 1000.0
+            except FT.TableUnavailable as e:
+                L.unavailable[timing.kind] = str(e)
+            else:
+                feats[timing.kind] = (x, f_ms, FTL.feature_id(timing.features))
         if v is not None:
             try:
                 x, f_ms, P = L.table_read(v, text)
@@ -1978,6 +2014,8 @@ class SystemOne:
         t0 = time.perf_counter()
         p = self.served_rows(t, [(state, q)])[0]
         ms = (time.perf_counter() - t0) * 1000.0
+        if table_ms is not None:
+            L.timed(timing, table_ms, ms)
         top = top_index(keys, p)
         if v is None:
             kind = FTL.NO_TABLE
@@ -3528,6 +3566,8 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(404, f"no task {task_id!r}")
         except ValueError as e:
             raise HTTPException(422, str(e))
+        except TaskPersistError as e:  # on a shared store: a read-only replica (409), the store out of reach (503)
+            raise not_saved(e)
         out = with_version(TaskStore.public(task), "readout", task["id"])
         out["status"] = systemone.full_status(task)
         return JSONResponse(json.loads(json.dumps(out, default=float)))

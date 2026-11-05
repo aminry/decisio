@@ -536,8 +536,28 @@
               }
             }
           },
+          "409": {
+            "description": "A read-only replica of a shared task store (`--task-store-readonly`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Not a learning task, no such version, or one this server cannot compute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The shared task store cannot be reached; nothing changed.",
             "content": {
               "application/json": {
                 "schema": {
