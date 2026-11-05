@@ -8,6 +8,39 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the fast table learns from traffic
+
+### What changed
+
+- **A task can learn its fast table from its own traffic, with no labels**: `POST /v1/tasks` with `{"id", "question": <a choice question>, "fast_table": {"learn": true, "kind": "static" | "encoder" | "auto"}}`.
+  Decisio answers every request of the task until a table is certified, exactly as without a table.
+- **Each request decisio reads for the task is logged**: the students' features (float16), decisio's distribution (float16) and confidence, the row's kind (`no_table`, `deferred`, `explored`, `spot_check`), the serving-stack fingerprint and the time.
+  No request text is kept; `"retain_text"` is refused in this version.
+  With `--tasks-dir` the rows are append-only segment files under `<tasks-dir>/learn/`; without it they are kept in memory and lost at restart, and the task's status says so.
+  At most `max_rows` (default 200,000) are kept per task.
+- **A background refit** (one thread, one refit at a time, at low priority on Linux) runs every 2,000 new rows or every hour, once a task has 100 rows.
+  Its certificate is an agreement certificate, made only on held-out rows drawn independently of the table's confidence (`no_table` and `explored`; spot checks come only from the table's own answers, so they feed the drift guard and not the certificate): at most alpha of the table's answers differ from decisio's, with probability 1 - delta (defaults 0.05 and 0.1).
+  It bounds how often the table disagrees with decisio, not how often it is wrong.
+- **A refit's version goes live only if** its certificate holds and its expected saving, timed on this host, is at least 25% and more than the live version's.
+  A refit that fails leaves the live version live.
+  The last 5 versions are kept, and `POST /v1/tasks/{id}/fast_table/rollback` with `{"version": n}` restores one.
+- **Exploration**: a share `explore` (default 0.02) of the requests the live table reads is answered by decisio anyway, so the certificate keeps rows drawn like the traffic.
+  For a request the table would have answered, that costs decisio's time.
+- **Two drift guards suspend a live table** to decisio-only: the share of requests under the table's threshold rising more than 15 points above its share at certification, and a CUSUM on disagreement fed by the spot checks and the explored requests.
+  Logging and refits go on, and the next version that certifies goes live.
+- **A table answer carries `certificate_kind`**: `agreement` for a learned table, `gold` for a certificate made on labelled examples.
+  Every answer that reports `certified` now carries `certificate_kind` too (`gold` for every certificate made before this release).
+- **A labelled task can also learn** (`"learn": true` with `examples`): its examples join every refit's fit, and its certificate stays gold, made on its held-out labelled examples.
+- **`GET /v1/tasks/{id}`** reports the learning under `status.fast_table` (mode, state, rows, versions, kind, coverage, saving, certificate, exploration, both guards, the last refit), and `/health` gets a short summary under `systemone.fast_table_learning`.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| No fast table, or fast tables without `"learn"` | Nothing changes | Nothing |
+| Clients that compare an answer's fields exactly | A certified answer has one more field, `certificate_kind` | Allow the field |
+| Replicas on a shared store (`--task-store`) | Each replica on this release learns from its own traffic and keeps its rows in memory, lost at restart; a replica on an older release keeps the task's `learn` field, serves its labelled table if it has one, and never serves a learned one | To keep the rows, learn on one server with `--tasks-dir`; learning shared across replicas is not in this release |
+
 ## 0.41.0: the fast table's student kinds
 
 ### What changed

@@ -125,7 +125,7 @@ def test_k1_true_is_the_static_student_on_potion_base():
         ({"kind": "bge"}, "fast_table.kind: one of 'static', 'encoder', 'auto', not 'bge'"),
         ({"kind": "static", "static_model": "large"}, "fast_table.static_model: one of 'base', 'multilingual'"),
         ({"kind": "encoder", "static_model": "base"}, "for the 'static' and 'auto' kinds only"),
-        ({"kind": "static", "learn": True}, "not 'learn'"),
+        ({"kind": "static", "speed": 1}, "not 'speed'"),
         ("yes", "true or false, or an object"),
         (1, "true or false, or an object"),
     ],

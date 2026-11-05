@@ -65,6 +65,15 @@ class _Answer(BaseModel):
         None, description="Present when a registered certified task applies: whether this answer carries the promise."
     )
     certificate: str | None = Field(None, description="The certificate's id, with `certified`.")
+    certificate_kind: Literal["gold", "agreement"] | None = Field(
+        None,
+        description="With `certified`: `gold` for a certificate made on labelled examples (at most alpha of the "
+        "certified answers are wrong), `agreement` for a fast table learned from traffic (at most alpha of its "
+        "answers differ from decisio's).",
+    )
+    answered_by: Literal["table", "decisio"] | None = Field(
+        None, description="For a task with a fast table: whether the table or decisio's model answered."
+    )
     certified_reason: (
         Literal[
             "below_threshold",
@@ -203,10 +212,30 @@ class CertifyBlock(BaseModel):
     examples: list[TaskExample] | None = Field(None, description="Labelled like the task's own; never fitted on.")
 
 
+class FastTableBlock(BaseModel):
+    learn: bool = Field(False, description="Learn the table from the task's own traffic (decisio's answers).")
+    kind: Literal["static", "encoder", "auto"] = Field("static", description="The student.")
+    static_model: Literal["base", "multilingual"] | None = Field(
+        None, description="The static student's model, for `static` and `auto` (default `base`)."
+    )
+    explore: float | None = Field(
+        None, description="With `learn`: the share of requests decisio answers anyway, for the certificate (0.02)."
+    )
+    max_rows: int | None = Field(None, description="With `learn`: the logged rows kept for the task (200000).")
+
+
 class TaskRegistration(BaseModel):
     id: str
-    examples: list[TaskExample]
+    examples: list[TaskExample] | None = Field(
+        None, description="Labelled examples; none for a task that learns its fast table from traffic."
+    )
+    question: dict[str, Any] | None = Field(
+        None, description="The task's wire question (a choice), for a task registered without examples."
+    )
     certify: CertifyBlock | None = None
+    fast_table: bool | FastTableBlock | None = Field(
+        None, description="A fast table in front of decisio: `true`, or the student and whether it learns."
+    )
 
 
 class CertifyRequest(BaseModel):
@@ -215,6 +244,10 @@ class CertifyRequest(BaseModel):
     delta: float | None = None
     min_examples: int | None = None
     suspend_on_alert: bool | None = None
+
+
+class RollbackRequest(BaseModel):
+    version: int = Field(description="The number of a kept version of the task's learned fast table.")
 
 
 class TaskImport(BaseModel):
@@ -246,8 +279,8 @@ class TaskRecord(BaseModel):
 
 MODELS = (
     SystemOneRequest, SystemOneResponse, NoulAnswer, ChoiceAnswer, ScoreAnswer, Usage, ModelList, ModelEntry, HealthResponse,
-    DeadEngine, ErrorDetail, ImageError, TaskExample, CertifyBlock, TaskRegistration, CertifyRequest, TaskImport,
-    AbstentionRegistration, TaskRecord,
+    DeadEngine, ErrorDetail, ImageError, TaskExample, CertifyBlock, FastTableBlock, TaskRegistration, CertifyRequest,
+    RollbackRequest, TaskImport, AbstentionRegistration, TaskRecord,
 )  # fmt: skip
 
 RESPONSE_HEADERS = {
@@ -328,11 +361,13 @@ SUMMARIES = {
     (
         "post",
         "/v1/tasks",
-    ): "Register a recurring question from labelled examples (calibration, intent head, certificate)",
+    ): "Register a recurring question from labelled examples (calibration, intent head, certificate), or from its "
+    "question alone for a fast table that learns from traffic",
     ("get", "/v1/tasks"): "List the registered tasks (`full=1` for the form `/v1/tasks/import` takes)",
     ("get", "/v1/tasks/{task_id}"): "One task with its status",
     ("delete", "/v1/tasks/{task_id}"): "Remove a task",
     ("post", "/v1/tasks/{task_id}/certify"): "Make a task's certificate again under the current serving stack",
+    ("post", "/v1/tasks/{task_id}/fast_table/rollback"): "Serve a kept version of a task's learned fast table again",
     ("post", "/v1/tasks/import"): "Load tasks exported with `GET /v1/tasks?full=1`",
     ("get", "/metrics"): "Prometheus metrics (including the traffic monitor's)",
 }
@@ -437,6 +472,13 @@ def openapi() -> dict:
         "200": _resp("The new certificate.", "TaskRecord"),
         "404": _resp("No such task.", "ErrorDetail"),
         "422": _resp("Invalid.", "ErrorDetail"),
+    }
+    rb = paths["/v1/tasks/{task_id}/fast_table/rollback"]["post"]
+    rb["requestBody"] = {"required": True, "content": _json("RollbackRequest")}
+    rb["responses"] = {
+        "200": _resp("The task, with its status: the restored version is live.", "TaskRecord"),
+        "404": _resp("No such task.", "ErrorDetail"),
+        "422": _resp("Not a learning task, no such version, or one this server cannot compute.", "ErrorDetail"),
     }
     paths["/v1/tasks/import"]["post"]["requestBody"] = {"required": True, "content": _json("TaskImport")}
     paths["/v1/abstention/tasks"]["post"]["requestBody"] = {

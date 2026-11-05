@@ -426,7 +426,7 @@
     },
     "/v1/tasks": {
       "post": {
-        "summary": "Register a recurring question from labelled examples (calibration, intent head, certificate)",
+        "summary": "Register a recurring question from labelled examples (calibration, intent head, certificate), or from its question alone for a fast table that learns from traffic",
         "operationId": "register_readout_v1_tasks_post",
         "responses": {
           "200": {
@@ -493,6 +493,66 @@
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks/{task_id}/fast_table/rollback": {
+      "post": {
+        "summary": "Serve a kept version of a task's learned fast table again",
+        "description": "Serve a kept version of a learning task's fast table again: `{\"version\": n}`.",
+        "operationId": "rollback_fast_table_v1_tasks__task_id__fast_table_rollback_post",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task, with its status: the restored version is live.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskRecord"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such task.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Not a learning task, no such version, or one this server cannot compute.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDetail"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RollbackRequest"
               }
             }
           }
@@ -1036,6 +1096,40 @@
             "description": "The certificate's id, with `certified`.",
             "title": "Certificate"
           },
+          "certificate_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gold",
+                  "agreement"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `certified`: `gold` for a certificate made on labelled examples (at most alpha of the certified answers are wrong), `agreement` for a fast table learned from traffic (at most alpha of its answers differ from decisio's).",
+            "title": "Certificate Kind"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "table",
+                  "decisio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "For a task with a fast table: whether the table or decisio's model answered.",
+            "title": "Answered By"
+          },
           "certified_reason": {
             "anyOf": [
               {
@@ -1147,6 +1241,40 @@
             "description": "The certificate's id, with `certified`.",
             "title": "Certificate"
           },
+          "certificate_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gold",
+                  "agreement"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `certified`: `gold` for a certificate made on labelled examples (at most alpha of the certified answers are wrong), `agreement` for a fast table learned from traffic (at most alpha of its answers differ from decisio's).",
+            "title": "Certificate Kind"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "table",
+                  "decisio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "For a task with a fast table: whether the table or decisio's model answered.",
+            "title": "Answered By"
+          },
           "certified_reason": {
             "anyOf": [
               {
@@ -1242,6 +1370,40 @@
             "default": null,
             "description": "The certificate's id, with `certified`.",
             "title": "Certificate"
+          },
+          "certificate_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gold",
+                  "agreement"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `certified`: `gold` for a certificate made on labelled examples (at most alpha of the certified answers are wrong), `agreement` for a fast table learned from traffic (at most alpha of its answers differ from decisio's).",
+            "title": "Certificate Kind"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "table",
+                  "decisio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "For a task with a fast table: whether the table or decisio's model answered.",
+            "title": "Answered By"
           },
           "certified_reason": {
             "anyOf": [
@@ -1721,6 +1883,72 @@
         "title": "CertifyBlock",
         "type": "object"
       },
+      "FastTableBlock": {
+        "properties": {
+          "learn": {
+            "default": false,
+            "description": "Learn the table from the task's own traffic (decisio's answers).",
+            "title": "Learn",
+            "type": "boolean"
+          },
+          "kind": {
+            "default": "static",
+            "description": "The student.",
+            "enum": [
+              "static",
+              "encoder",
+              "auto"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "static_model": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "multilingual"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The static student's model, for `static` and `auto` (default `base`).",
+            "title": "Static Model"
+          },
+          "explore": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `learn`: the share of requests decisio answers anyway, for the certificate (0.02).",
+            "title": "Explore"
+          },
+          "max_rows": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `learn`: the logged rows kept for the task (200000).",
+            "title": "Max Rows"
+          }
+        },
+        "title": "FastTableBlock",
+        "type": "object"
+      },
       "TaskRegistration": {
         "properties": {
           "id": {
@@ -1728,11 +1956,34 @@
             "type": "string"
           },
           "examples": {
-            "items": {
-              "$ref": "#/components/schemas/TaskExample"
-            },
-            "title": "Examples",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskExample"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Labelled examples; none for a task that learns its fast table from traffic.",
+            "title": "Examples"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The task's wire question (a choice), for a task registered without examples.",
+            "title": "Question"
           },
           "certify": {
             "anyOf": [
@@ -1744,11 +1995,26 @@
               }
             ],
             "default": null
+          },
+          "fast_table": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "$ref": "#/components/schemas/FastTableBlock"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A fast table in front of decisio: `true`, or the student and whether it learns.",
+            "title": "Fast Table"
           }
         },
         "required": [
-          "id",
-          "examples"
+          "id"
         ],
         "title": "TaskRegistration",
         "type": "object"
@@ -1815,6 +2081,20 @@
           "examples"
         ],
         "title": "CertifyRequest",
+        "type": "object"
+      },
+      "RollbackRequest": {
+        "properties": {
+          "version": {
+            "description": "The number of a kept version of the task's learned fast table.",
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "title": "RollbackRequest",
         "type": "object"
       },
       "TaskImport": {
