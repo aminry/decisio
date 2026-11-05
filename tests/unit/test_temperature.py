@@ -13,12 +13,14 @@ G3  composition: a registered task's own correction replaces the temperature (no
   uv run pytest -q tests/unit/test_temperature.py
 """
 
+import os
+
 import numpy as np
 import pytest
 
 from decisio.serve.temperature import SERVED_CHOICE_TEMPERATURE, SERVED_TEMPERATURE, apply_temperature
 
-MODEL = "Qwen/Qwen3-0.6B-Base"
+MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 T = 1.307
 
 

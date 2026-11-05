@@ -9,12 +9,13 @@ W1  /v1/systemone on the CPU stand-in: the stages header ends with engine=... ;w
 W2  one request waiting for another request's engine call (not a registration) reports the wait without the header
 """
 
+import os
 import threading
 import time
 
 import pytest
 
-MODEL = "Qwen/Qwen3-0.6B-Base"
+MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 Q = {"q": {"type": "noul", "instructions": "Is it urgent?"}}
 
 

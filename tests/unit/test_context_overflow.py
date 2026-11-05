@@ -16,11 +16,13 @@ X4  the detail: the context and the length vLLM states are in it, and the parame
   uv run pytest -q tests/unit/test_context_overflow.py
 """
 
+import os
+
 import pytest
 
 from decisio.families import BASES
 
-MODEL = "Qwen/Qwen3-0.6B-Base"
+MODEL = os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base")
 LIMIT = 400  # the stand-in's "context", in tokens (its start-up warm-up prompt is shorter)
 CRIT = {f"option_{i}": n for i, n in enumerate(["card_arrival", "card_linking", "exchange_rate", "out of scope"])}
 

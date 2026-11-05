@@ -18,6 +18,7 @@ serialises with sorted keys (imajev's harness, `canonical_bytes`) gets the answe
 
 import itertools
 import json
+import os
 
 import numpy as np
 import pytest
@@ -84,7 +85,7 @@ class OrderFreeEngine:
         from transformers import AutoTokenizer
 
         self.weights, self.adapters = weights, {}
-        self.tok = AutoTokenizer.from_pretrained("Qwen/Qwen3-0.6B-Base")
+        self.tok = AutoTokenizer.from_pretrained(os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base"))
 
     def answer(self, state, questions, adapter=None):
         out = []
