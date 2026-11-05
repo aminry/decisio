@@ -464,48 +464,85 @@ For a task of short texts that arrive in volume, a small classifier on the host 
 It is off unless the registration asks for it, and it keeps itself only where it pays.
 
 **What it is.**
-A sentence encoder (`BAAI/bge-base-en-v1.5`, a pinned revision, run by ONNX Runtime), a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold: a small learned classifier on the server's CPU, not a lookup of earlier answers.
+An embedding of the request's text, a multinomial logistic regression fitted on the task's own labelled examples, and a confidence threshold: a small learned classifier on the server's CPU, not a lookup of earlier answers.
 A request whose table confidence reaches the threshold is answered by the table and the model is not asked.
 Every other request goes to decisio as it would without the table.
+The embedding is the table's student, and since 0.41.0 a task chooses it.
+
+**Choose a kind.**
+`"fast_table": true` asks for the default; an object chooses:
+
+| `fast_table` | Student | Use it for |
+| --- | --- | --- |
+| `true` or `{"kind": "static"}` (the default) | `minishlab/potion-base-8M`: a static embedding, the mean of the text's token vectors (Model2Vec), computed by decisio itself | most tasks: it costs so little that a table of it never makes a request slower |
+| `{"kind": "static", "static_model": "multilingual"}` | `minishlab/potion-multilingual-128M` | traffic that is not English |
+| `{"kind": "encoder"}` | `BAAI/bge-base-en-v1.5` through ONNX Runtime (the only student before 0.41.0) | many-class English tasks where its larger share pays for its time on your host |
+| `{"kind": "auto"}` | fits the static student (and `static_model`) and the encoder, and keeps the one that saves more on this host | when you do not know |
+| `{"kind": "hashed"}` | reserved; refused | not available in this version |
+
+The static models are MIT licensed, as is bge-base.
+Each student's files are pinned to a revision and checked against pinned sha256 hashes when they are fetched.
+
+**What a student costs.**
+The table path (the student and the classifier) for one request, p50 milliseconds, on an Apple M5 Pro:
+
+| Student | A short text (median 22 tokens) | A long text (median 1,416 tokens) |
+| --- | ---: | ---: |
+| static, `base` | 0.05 | 1.0 |
+| static, `multilingual` | 0.05 | 1.9 |
+| encoder | 6.3 | 85 |
+
+On an x86 server CPU the static students cost about the same (0.04 to 0.06 ms a short text, 1 to 4 ms at 1,400 tokens), while bge-base at one thread costs about 25 ms a short text and up to about 450 ms a long one.
+A table runs on every request to find out whether it is sure, so its time is paid by every request; with a static student that time is close to nothing, so a request the table hands on costs about what it would without a table.
 
 **Where it helps, and where it does not.**
-It helps on short, command-style texts with about a thousand labelled examples: an assistant's commands, spam, a fixed set of intents.
-It does not help on long texts.
-The encoder runs in front of every request, on the host CPU.
-With the torch encoder of 0.37.0 that was 21 to 30 ms for a short text and 134 to 183 ms for a text of 600 to 1,150 tokens (the table below), which is more than decisio's own read.
-ONNX Runtime (0.38.0) gives the same embeddings to about 1.5e-6, and is 2.5 times faster on one short text (4.6 ms against 11.6 ms for the whole table path, median, on an Apple M5 Pro at 4 threads); the encoder is about 99% of that path.
-A table made on 0.37.0 serves the same answers and confidences (to about 2e-6).
-A table registered on 0.38.0 is fitted on embeddings that differ by about 1e-6; on the eight sets measured its threshold moved by at most 0.0015 and its certified share by at most 0.3 points, with accuracy unchanged.
-That ratio was not measured on the x86 server CPUs, and the registration times the encoder it will serve on the host it runs on.
+It helps on texts with about a thousand labelled examples where decisio is reliable: an assistant's commands, spam, a fixed set of intents.
+The static students read the whole text; the encoder reads at most 512 tokens (for a longer text, its first 256 and last 254 tokens).
 It does not help where decisio is weak enough that nothing is certified, and it does not help on a task whose options differ from request to request.
-The registration times both paths on your own examples and drops the table when it does not pay (below), so asking for it on the wrong task costs the registration, not the traffic.
+On long or hard tasks a table usually certifies nothing; the registration then keeps no table, and the task is served exactly as without one.
+The registration times every student it fits on your own examples and drops the table when it does not pay (below), so asking for it on the wrong task costs the registration, not the traffic.
 
 **How to ask for it.**
 
 ```bash
-pip install 'decisio[table]'     # onnxruntime and scikit-learn; the image does not carry them
+pip install 'decisio[table]'     # scikit-learn (the fit) and onnxruntime (the encoder); the image does not carry them
 ```
 
 ```json
-{"id": "assistant-commands", "examples": [...], "certify": {"alpha": 0.05, "delta": 0.1}, "fast_table": true}
+{"id": "assistant-commands", "examples": [...], "certify": {"alpha": 0.05, "delta": 0.1}, "fast_table": {"kind": "auto"}}
 ```
 
 - A `certify` block is required: the table is part of the certificate.
 - Choice questions only, with at least 100 fit examples.
 - Without the extra the registration is refused with 422 and says what to install.
-- The encoder's two files (the model's published ONNX export, 436 MB, and its tokenizer) are fetched from the Hugging Face Hub at the pinned revision on first use, and the export is checked against its pinned sha256. A server with no route to the Hub needs them fetched first (`hf download BAAI/bge-base-en-v1.5 onnx/model.onnx tokenizer.json --revision a5beb1e3e68b9ab74eb54cfd186867f64f240e1a`), or the registration is refused naming that command.
+- `static_model` goes with the `static` and `auto` kinds only; with `encoder` it is refused.
+- Each student's files are fetched from the Hugging Face Hub at the pinned revision on first use. A server with no route to the Hub needs them fetched first, or the registration is refused naming the command:
+
+```bash
+hf download minishlab/potion-base-8M model.safetensors tokenizer.json --revision bf8b056651a2c21b8d2565580b8569da283cab23            # static, base (31 MB)
+hf download minishlab/potion-multilingual-128M model.safetensors tokenizer.json --revision 73908c3438cf03b6a01bcb9611d62b23d0726f08  # static, multilingual (531 MB)
+hf download BAAI/bge-base-en-v1.5 onnx/model.onnx tokenizer.json --revision a5beb1e3e68b9ab74eb54cfd186867f64f240e1a                # encoder (436 MB)
+```
 
 **What the registration does.**
 
-1. It fits the table on the fit examples, and embeds the held-out examples one at a time.
+1. It fits each student it is asked for (both under `auto`) on the fit examples, and embeds the held-out examples one at a time.
 2. It reads the held-out examples through decisio, one at a time, as the certificate does.
-3. It makes the cascade's thresholds (below).
-4. It times the two paths on the held-out examples, on this host, one request at a time, with decisio's reads of texts it has not seen: the expected mean time per request is the table's time on every request plus decisio's time on the share the table defers.
-5. It keeps the table only if the expected time falls by at least 25% and a table threshold holds.
+3. It makes the cascade's thresholds (below) for each student.
+4. It times the paths on the held-out examples, on this host, one request at a time, with decisio's reads of texts it has not seen: the expected mean time per request is the table's time on every request plus decisio's time on the share the table defers.
+5. It keeps a table only if the expected time falls by at least 25% and a table threshold holds. Under `auto` it keeps the student with the larger saving; when the two savings are within 1 point it keeps the static one; when neither qualifies there is no table.
 
 The response says what it did.
 `fast_table_report` has `kept`, the `reason` when it is false (for example "it would save 11% of the time per request, under the 25% required"), the `guard` (the table's and decisio's mean milliseconds, the table's share, the saving) and the cascade's thresholds.
+`fast_table_report.kinds` lists every student tried, with its table share, its error at the threshold and the upper bound, its expected saving and its mean table time, which one was kept and why; a student that could not be loaded is listed under `unavailable`.
 A table that is not kept leaves a task that is served, and certified, exactly as it would be without one.
+
+**The table records its feature function.**
+`fast_table.features` in the task's record names the student exactly: its kind, model, revision, the files' sha256 and the long-state rule (`whole` for a static student, `head256+tail254` for the encoder, `trunc512` for an encoder table registered before 0.41.0, read as its first 510 tokens).
+A table is served only with that function.
+A server that cannot compute it (another model, revision or rule) serves the task through decisio and says why in `status.fast_table` (`unavailable`, "register the task again"); the rest of the task (its calibration, its certificate for decisio alone) still applies.
+A table registered before 0.41.0 has no `features` and is served, exported, imported, certified again and timed exactly as before.
+A replica on a version before 0.41.0 checks only the record's `encoder` and `revision`: a new encoder table names its encoder with its rule (`BAAI/bge-base-en-v1.5#head256+tail254`), so such a replica finds an encoder it does not have and serves the task through decisio rather than read the table's features another way.
 
 **The certificate is the cascade's.**
 The table's threshold is the lowest at which at most `alpha` of its answers are wrong, with probability at least 1 - `delta`/2, on the held-out examples.
@@ -520,7 +557,13 @@ Each answer says which stage answered it, `answered_by: "table"` or `"decisio"`.
 The cascade as a whole broke its promise in about 2 to 3 of every 100 simulated draws of the held-out examples, against the 10 allowed (`tests/unit/test_fast_table.py`), because each stage is held to `delta`/2.
 That costs examples: the held-out set needs to be larger than for decisio alone (about 600 or more, at the defaults).
 
-**What was measured.**
+**What was measured with the encoder.**
+These figures are for the `encoder` kind (bge-base), measured before the static student existed.
+With the torch encoder of 0.37.0 the table path was 21 to 30 ms for a short text and 134 to 183 ms for a text of 600 to 1,150 tokens (the table below), which is more than decisio's own read.
+ONNX Runtime (0.38.0) gives the same embeddings to about 1.5e-6, and is 2.5 times faster on one short text (4.6 ms against 11.6 ms for the whole table path, median, on an Apple M5 Pro at 4 threads); the encoder is about 99% of that path.
+A table made on 0.37.0 serves the same answers and confidences (to about 2e-6).
+A table registered on 0.38.0 is fitted on embeddings that differ by about 1e-6; on the eight sets measured its threshold moved by at most 0.0015 and its certified share by at most 0.3 points, with accuracy unchanged.
+That ratio was not measured on the x86 server CPUs, and the registration times the encoder it will serve on the host it runs on.
 Offline, with the server's own code, on public sets at 1,000 labels (the 31B and the 12B; the table on a server CPU with four threads; decisio on one card; medians of two draws of the labelled examples):
 
 **Across the ten sets tried, the table passed the 25% guard on 4: CLINC150, MASSIVE, Snips and SMS spam.**
@@ -545,8 +588,8 @@ The saving is largest where decisio's own read is expensive (CLINC150 and MASSIV
 On short texts with a plain read it needs the table to answer roughly 60 to 75% of requests to clear 25%.
 These are offline figures on one card and one CPU; your hosts decide your own, which is why the registration measures them.
 
-**What the table is, and what a request costs.**
-The table is a small learned classifier: a sentence encoder followed by a logistic regression, both run on the server's CPU, in front of the model.
+**What a request costs with the encoder.**
+The table is a small learned classifier: an embedding of the text followed by a logistic regression, both run on the server's CPU, in front of the model.
 It is not a lookup of earlier answers, and it uses no GPU.
 It has to run on every request to find out whether it is sure, so its time is paid by every request, and the model's time is paid on top of it by the requests it hands on.
 A request the table answers costs the table's own time; a request handed to the model costs the table's time plus the model's.
@@ -571,7 +614,7 @@ Those 200 requests happened to hand on more than the whole test set did: on the 
 The mean time per request is the number that decides whether the table pays; the registration computes it on your own held-out examples, request by request.
 
 **Each replica decides for itself whether to use it.**
-The timing is true for the stack it was made on: the host CPU, the engine and its card, the encoder with its revision, the ONNX file's hash, ONNX Runtime's version and its 4 threads (`fast_table.timing.stack` in the record).
+The timing is true for the stack it was made on: the host CPU, the engine and its card, and the student: for `static` its model and revision, for `encoder` the encoder with its revision, the ONNX file's hash, ONNX Runtime's version, its threads and its sessions (`fast_table.timing.stack` in the record).
 `status.fast_table` on `GET /v1/tasks/{id}` says what this replica is doing:
 
 | `state` | What it does |
@@ -579,14 +622,15 @@ The timing is true for the stack it was made on: the host CPU, the engine and it
 | `active` | The table answers the requests it is sure of. |
 | `timing` | The table is not used and decisio answers everything, under the `decisio_only` certificate. The replica is on another stack than the one the table was timed on, or the table stopped beating decisio under this replica's load. Every tenth request also times the table, after decisio has answered, and when 30 such pairs show the saving the table is taken up again (`retimed`). |
 | `suspended` | The monitor's alarm fired here or on another replica that shares the task store (below). Decisio answers everything, under the `decisio_only` certificate. |
-| `unavailable` | This server cannot run the table: it has another encoder revision than the one the table was fitted with (register the task again), or the `table` extra is not installed. |
+| `unavailable` | This server cannot compute the table's features exactly: another model, revision, file or long-state rule than the record's `fast_table.features` (register the task again), or the `table` extra is not installed. |
 
 **Load.**
 The table's time at registration cannot see contention on the host.
 While the table answers, the server keeps the median of its last 50 table-path times (judged from 20).
 If the expected time per request, with that median on every request and decisio's registered time on the share the table defers, is no longer at least 25% under decisio's, the replica falls back to decisio (`timing`) and the status says why and gives the numbers.
-The encoder runs one text at a time on a replica (it is one model on the CPU), so the rate it can sustain is the reciprocal of its time: with the torch encoder's 21 to 30 ms about 35 to 45 table requests per second; above that, requests queue behind it, its median rises and the replica falls back.
-Size the CPU for the table, or leave it off.
+A static student costs a fraction of a millisecond, so it is not what limits a replica's rate.
+The encoder runs as two sessions of four threads each: at 16 requests in flight it sustained about 90 table requests a second on an Apple M5 Pro, against 68 when it ran one encode at a time (0.39.2 and earlier); above its rate, requests queue behind it, its median rises and the replica falls back.
+Size the CPU for the encoder, or choose a static student.
 
 **The monitor.**
 The monitor of a table task watches the stream of answers the task serves, table and decisio together, with the same checks as any certified task (the answer mix and the confidences, [above](#the-monitor)).
@@ -601,15 +645,23 @@ With `--tasks-dir`, with no store, on a `--task-store-readonly` replica, or when
 Re-certify the task (`POST /v1/tasks/{id}/certify` with new labelled examples) to lift the suspension: the table is kept as fitted, its thresholds and its timing are made again, and the table is dropped if it no longer pays.
 
 **What is stored.**
-The encoder name and revision, the classifier (a matrix of options by 768 floats and their intercepts), the cascade's thresholds and the timing record.
+The student's feature function (`features`), the classifier (a matrix of options by the student's dimension, 256 floats for the static students and 768 for the encoder, with their intercepts), the cascade's thresholds and the timing record.
 No request text, no embedding of a request and no example is stored.
 
 **Limits.**
 - Choice questions on the text route, one order; a yes/no or score question, an image request, an adapter and a task of options that change per request have no table.
 - The table reads the state as text (a string as it is, an object as its JSON); two requests the table cannot tell apart get the same answer.
-- The encoder revision is fixed in the release; a task fitted under another revision is `unavailable` until it is registered again.
+- The static students read the whole text; the encoder reads at most 512 tokens of it (the first 256 and the last 254 of a longer text).
+- Each student's revision is fixed in the release; a task fitted under another revision or rule is `unavailable` until it is registered again.
 - The table cannot answer with an option none of its examples carried; those requests go to decisio.
 - The saving is a mean over requests: a request the table defers takes the table's time and then decisio's.
+
+**Measure it on your own host.**
+`python -m decisio.bench.table_latency --url http://127.0.0.1:8000 --examples train.jsonl --probe probe.jsonl --out table_latency.json` times a certified task with and without its table, end to end, through your running server.
+It registers the task twice, one arm after the other: with `"fast_table": true` (arm `table`), then without it (arm `model`), each timed on its own held-out requests and deleted.
+The cells are each arm at two state lengths (`short`, the requests as they are; `long`, padded to `--long-chars`) and two concurrencies (`--concurrency 1,16`).
+Each line of its output is a cell: the wall time's p50 and p95, the server's time (`x-decisio-server-ms`), the `task` stage (the certified question's read: the table's, or decisio's when the table deferred), the share the table answered and the errors.
+Compare the `table` arm's wall time with the `model` arm's in the same cell: that difference is what the table saves your callers, under your load.
 
 ## Limits
 
