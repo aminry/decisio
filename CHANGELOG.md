@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.42.0](https://github.com/aminry/decisio/compare/v0.41.0...v0.42.0) (2026-11-05)
+
+
+### Features
+
+* **bench:** table_latency --kinds, one table arm per student kind ([#419](https://github.com/aminry/decisio/issues/419)) ([03d6c79](https://github.com/aminry/decisio/commit/03d6c79d2be1d5bf3b9b406ac44a19bff87e0f36))
+* **serve:** a fast table that learns from traffic learns across the replicas of a shared task store ([#421](https://github.com/aminry/decisio/issues/421)) ([23cf8e3](https://github.com/aminry/decisio/commit/23cf8e39596a06f1370d5b53524273f56b6f8038))
+* **serve:** the fast table learns from traffic ([#417](https://github.com/aminry/decisio/issues/417)) ([c008f84](https://github.com/aminry/decisio/commit/c008f84d9d14e677aa1f3f8173f4334aff258938))
+
 ## [0.41.0](https://github.com/aminry/decisio/compare/v0.40.1...v0.41.0) (2026-11-05)
 
 
