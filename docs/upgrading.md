@@ -8,7 +8,9 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: the fast table learns from traffic
+## 0.42.0: the fast table learns from traffic
+
+How to use it: [tasks.md, "A fast table that learns from traffic"](tasks.md#a-fast-table-that-learns-from-traffic).
 
 ### What changed
 
