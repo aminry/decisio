@@ -7,6 +7,8 @@ Under the store's prefix:
     objects/<sha256>.json   one immutable task record per fitted version, named by the digest of its bytes
     MANIFEST.json           {"format", "version", "entries": {"<kind>/<id digest>": {"id", "version", "object",
                             "deleted", "updated"}}}: which object is each task's current record
+    learner/, tasks/        a fast table that learns from traffic, learned across the replicas
+                            (decisio.serve.fast_table_replicas; this module's poll follows it too, `followers`)
 
 A task is taught on any replica (unless it is `readonly`), fitted there exactly as one server fits it, and published as
 the exact fitted record: the object is written (idempotent), then the manifest is rewritten with a compare-and-swap on
@@ -117,6 +119,7 @@ class ObjectBackend:
         self.readonly, self.poll_seconds, self.tombstone_days = readonly, float(poll_seconds), float(tombstone_days)
         self.clock = clock
         self.applier = None  # set by SystemOne: apply(kind, records) and drop(kind, task_id)
+        self.followers: list = []  # more to follow at each poll (a fast table learning on the store: its state)
         self.applied: dict[str, int] = {}  # entry key -> the version this replica applied (or wrote)
         self.ids: dict[str, tuple[str, str]] = {}  # entry key -> (kind, task id), to drop a task whose entry is gone
         self._tag = None  # (e_tag, version) of the manifest as the last sync read it
@@ -418,16 +421,31 @@ class ObjectBackend:
 
     def gc(self, older_than_days: float = 1.0, dry_run: bool = False) -> list[str]:
         """Delete the objects no manifest entry points to and that are older than `older_than_days` (an object just
-        written, for a manifest write still to come, is spared). Returns the paths."""
+        written, for a manifest write still to come, is spared), and the learned rows and versions (`tasks/<digest>/`,
+        decisio.serve.fast_table_replicas) of a registration no live task names, as old. Returns the paths."""
+        from decisio.serve.fast_table_replicas import learning_digest
+
         obs = _obstore()
         manifest, _ = self._read_manifest()
+        live = [e for e in manifest["entries"].values() if e.get("object") and not e.get("deleted")]
         keep = {e["object"] for e in manifest["entries"].values() if e.get("object")}
+        learning = set()
+        for e in live:
+            if e.get("kind") == "readout":
+                record = self._get_object(e["object"])
+                if record.get("learn"):
+                    learning.add(learning_digest(record["id"], record["learn"].get("registration")))
         cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         gone = []
         for batch in obs.list(self.store, "objects/"):
             for item in batch:
                 digest = item["path"].rsplit("/", 1)[-1].removesuffix(".json")
                 if digest not in keep and item["last_modified"] < cutoff:
+                    gone.append(item["path"])
+        for batch in obs.list(self.store, "tasks/"):
+            for item in batch:
+                parts = item["path"].split("/")
+                if len(parts) > 2 and parts[1] not in learning and item["last_modified"] < cutoff:
                     gone.append(item["path"])
         if not dry_run:
             for path in gone:
@@ -454,6 +472,11 @@ class TaskSync(threading.Thread):
                 if not self._warned:
                     log.warning("task store: sync failed (%s); serving what is applied, will retry", e)
                     self._warned = True
+            for follow in list(self.backend.followers):
+                try:
+                    follow()
+                except Exception:  # a follower reports its own state; the poll goes on
+                    log.exception("task store: a follower of the poll failed")
 
     def stop(self):
         self.stop_event.set()
