@@ -1,0 +1,77 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# Keeps auto-merging Dependabot pull requests moving while main requires branches to be up to date: after a push to
+# main, the oldest open Dependabot pull request that has auto-merge on and is behind main gets one `@dependabot rebase` comment, from the repository's GitHub App, so Dependabot rebases it,
+# its checks run on top of main, and auto-merge merges it. One pull request at a time: its own merge is the next push.
+# Never GitHub's "Update branch": a commit that is not Dependabot's stops Dependabot from rebasing the pull request
+# again and dependabot/fetch-metadata from reading it.
+# workflow_dispatch with `pr` comments on that pull request only (the test that Dependabot obeys the App).
+name: dependabot rebase behind
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "a Dependabot pull request number to ask for a rebase (empty: the oldest behind one)"
+        required: false
+
+permissions: {}
+
+concurrency:
+  group: dependabot-rebase-behind
+  cancel-in-progress: false
+
+jobs:
+  rebase:
+    name: ask Dependabot to rebase the oldest behind pull request
+    if: github.repository == 'aminry/decisio'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Harden the runner
+        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        with:
+          egress-policy: audit
+
+      - name: A token of the App
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-pull-requests: write
+          permission-contents: read
+
+      - name: Pick and ask
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          ONLY: ${{ inputs.pr }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ONLY:-}" ]; then
+            case "$ONLY" in *[!0-9]*) echo "::error::pr must be a number"; exit 1;; esac
+            candidates="$ONLY"
+          else
+            # open Dependabot pull requests, oldest first, with auto-merge on
+            candidates=$(gh pr list --repo "$REPO" --author app/dependabot --state open --limit 100 \
+              --json number,createdAt,autoMergeRequest \
+              --jq 'sort_by(.createdAt) | .[] | select(.autoMergeRequest != null) | .number')
+          fi
+          for n in $candidates; do
+            pr=$(gh api "repos/$REPO/pulls/$n")
+            [ "$(jq -r .user.login <<< "$pr")" = "dependabot[bot]" ] || { echo "#$n is not Dependabot's: skipped"; continue; }
+            head=$(jq -r .head.sha <<< "$pr")
+            behind=$(gh api "repos/$REPO/compare/$head...main" --jq .ahead_by)
+            [ "$behind" -gt 0 ] || { echo "#$n is up to date"; continue; }
+            # one request per head: a rebase asked for since the head was pushed is still in progress
+            pushed=$(gh api "repos/$REPO/commits/$head" --jq .commit.committer.date)
+            asked=$(gh api "repos/$REPO/issues/$n/comments" --paginate \
+              --jq ".[] | select(.body == \"@dependabot rebase\" and .created_at > \"$pushed\") | .id" | wc -l)
+            if [ "$asked" -gt 0 ]; then echo "#$n: a rebase was already asked for since $pushed"; break; fi
+            gh pr comment "$n" --repo "$REPO" --body "@dependabot rebase"
+            echo "#$n is $behind behind main: asked Dependabot to rebase it"
+            break
+          done
