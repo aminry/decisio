@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.41.0](https://github.com/aminry/decisio/compare/v0.40.1...v0.41.0) (2026-11-05)
+
+
+### Features
+
+* **serve:** fast-table student kinds: static (the default), encoder and auto ([#414](https://github.com/aminry/decisio/issues/414)) ([3d2847d](https://github.com/aminry/decisio/commit/3d2847d06da0353146fd3f3e5552b2f6fa048119))
+
 ## [0.40.1](https://github.com/aminry/decisio/compare/v0.40.0...v0.40.1) (2026-11-05)
 
 
