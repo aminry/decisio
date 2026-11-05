@@ -659,6 +659,7 @@ No request text, no embedding of a request and no example is stored.
 **Measure it on your own host.**
 `python -m decisio.bench.table_latency --url http://127.0.0.1:8000 --examples train.jsonl --probe probe.jsonl --out table_latency.json` times a certified task with and without its table, end to end, through your running server.
 It registers the task twice, one arm after the other: with `"fast_table": true` (arm `table`), then without it (arm `model`), each timed on its own held-out requests and deleted.
+`--kinds static,encoder,auto` times a table arm for each student kind instead (`static:multilingual` names the static model), each registered on the same examples, and the cells name their kind; the probe file then needs requests for every arm.
 The cells are each arm at two state lengths (`short`, the requests as they are; `long`, padded to `--long-chars`) and two concurrencies (`--concurrency 1,16`).
 Each line of its output is a cell: the wall time's p50 and p95, the server's time (`x-decisio-server-ms`), the `task` stage (the certified question's read: the table's, or decisio's when the table deferred), the share the table answered and the errors.
 Compare the `table` arm's wall time with the `model` arm's in the same cell: that difference is what the table saves your callers, under your load.
