@@ -40,6 +40,7 @@ import numpy as np
 from decisio.names import check_format, record_format, same_fingerprint
 from decisio.readout import calibration, intent_head
 from decisio.readout.debias import log_probs
+from decisio.serve import layout
 from decisio.serve.monitor import MixMonitor
 
 FORMAT = record_format("task")
@@ -169,10 +170,16 @@ def _unpack(d):
 
 
 class TaskStore:
-    """Registered tasks keyed by `task_key`; each holds its calibration prior and its head record."""
+    """Registered tasks keyed by `task_key`; each holds its calibration prior and its head record.
 
-    def __init__(self, fingerprint: str):
-        self.fingerprint = fingerprint
+    `fingerprint`: the one a task is fitted under on this server, for its own layout. `layouts`: {layout: fingerprint}
+    for every layout a request may ask for (decisio.serve.layout); inside `layout.using(L)` the store's fingerprint is
+    L's, so a task is registered under the layout in effect and applies to the requests of that layout only. Without
+    `layouts` the store has the one fingerprint (a library's or a test's store)."""
+
+    def __init__(self, fingerprint: str, layouts: dict | None = None):
+        self._fingerprint = fingerprint
+        self.layouts = dict(layouts or {})
         self.by_key: dict[str, dict] = {}
         self.monitors: dict[str, MixMonitor] = {}  # the answer-mix window of each certified task, by task id
         # a task with a fast table also has the monitor of decisio's own answers, for the requests it answers without
@@ -183,9 +190,48 @@ class TaskStore:
         # the store as it was and the caller learns it (TaskPersistError)
         self.backend = None
 
+    @property
+    def fingerprint(self) -> str:
+        """The fingerprint a task is fitted, and looked up, under: the layout in effect's, else the server's own."""
+        return self.layouts.get(layout.current(), self._fingerprint)
+
+    @fingerprint.setter
+    def fingerprint(self, value: str) -> None:
+        self._fingerprint = value
+
+    def layout_of(self, task) -> str | None:
+        """The layout task was fitted under, among the ones this server serves; None for a task of another model or
+        rendering, or for every task of a store without `layouts`."""
+        fp = task.get("fingerprint") if isinstance(task, dict) else None
+        return next((name for name, f in self.layouts.items() if same_fingerprint(fp, f)), None)
+
+    def applies(self, task) -> bool:
+        """Whether the task applies to this server, to the requests of one of its layouts."""
+        fp = task.get("fingerprint") if isinstance(task, dict) else None
+        return same_fingerprint(fp, self._fingerprint) or self.layout_of(task) is not None
+
+    def _own_layout(self) -> str | None:
+        return next((name for name, f in self.layouts.items() if same_fingerprint(self._fingerprint, f)), None)
+
+    def slot_of(self, key, task_layout: str | None) -> str:
+        """Where a task of question `key` fitted under `task_layout` is kept in `by_key`: its key for the server's own
+        layout (and for a task of no layout this server serves), `key@layout` for the other one. The same question
+        fitted under each layout is two tasks, and neither replaces the other."""
+        return key if task_layout is None or task_layout == self._own_layout() else f"{key}@{task_layout}"
+
+    def slot(self, task) -> str:
+        return self.slot_of(task["key"], self.layout_of(task))
+
     def lookup(self, key):
-        t = self.by_key.get(key)
+        """The task of this key that applies to the requests of the layout in effect, or None."""
+        t = self.by_key.get(self.slot_of(key, layout.current() if self.layouts else None))
+        if t is None and self.layouts:
+            t = self.by_key.get(key)  # a task fitted under no layout this server serves is kept at its key
         return t if t is not None and same_fingerprint(t["fingerprint"], self.fingerprint) else None
+
+    def of_question(self, key) -> list:
+        """Every task kept for the question `key`, whatever it was fitted under: the one at its key first."""
+        return [t for k, t in self.by_key.items() if k == key or k.startswith(key + "@")]
 
     def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
@@ -279,8 +325,9 @@ class TaskStore:
             self.persist_task(task)
         # the new record goes in before the old one goes out, so a reader never finds the task missing (a replica
         # applying another replica's version while it serves)
-        old = [k for k, t in self.by_key.items() if t["id"] == task["id"] and k != task["key"]]
-        self.by_key[task["key"]] = task
+        slot = self.slot(task)
+        old = [k for k, t in self.by_key.items() if t["id"] == task["id"] and k != slot]
+        self.by_key[slot] = task
         for k in old:
             self.by_key.pop(k, None)
         self.monitors.pop(task["id"], None)
@@ -303,7 +350,7 @@ class TaskStore:
         """Put memory back as it was before a `put(..., persist=False)` whose write failed."""
         self._drop(task_id)
         if previous is not None:
-            self.by_key[previous["key"]] = previous
+            self.by_key[self.slot(previous)] = previous
             if previous.get("monitor"):
                 self.monitors[task_id] = MixMonitor(previous["monitor"])
             if previous.get("monitor_alone"):

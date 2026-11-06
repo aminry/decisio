@@ -558,6 +558,9 @@ class Learner:
         self.lock = threading.RLock()
         self.students = {f["kind"]: f for f in FT.requested_features(self.request)}
         self.ids = {k: feature_id(f) for k, f in self.students.items()}
+        # the layout the task was fitted under (decisio.serve.layout; None: the server's own): its rows, versions and
+        # certificates are on that layout's serving stack, the one its requests are answered on
+        self.layout = manager.layout_of(task)
         st = self._load_state()
         self.log = self._open_log()
         self.unavailable: dict[str, str] = {}  # a student this server cannot load, and why
@@ -586,6 +589,10 @@ class Learner:
             d = next((v for v in self.versions if v["version"] == live), None)
             if d is not None:
                 self._set_live(Version(d), suspended=self.suspended)
+
+    def stack_sha(self) -> str:
+        """The serving stack (short) this task's requests are answered on: its layout's."""
+        return self.m.stack_sha(self.layout)
 
     # ---- state ---------------------------------------------------------------------------------------------------
 
@@ -654,7 +661,7 @@ class Learner:
             why = FT.cannot_compute(v.features)
             if why:
                 why = f"version {v.number} was {why}"
-            elif v.stack != self.m.stack_sha():
+            elif v.stack != self.stack_sha():
                 why = (
                     f"version {v.number} was certified on another serving stack (decisio's answers there are another "
                     "teacher's): this server serves through decisio, and its refits make a new version from its own "
@@ -770,7 +777,7 @@ class Learner:
             "t": self.m.now(),
             "kind": int(kind),
             "digest": self.digest(text),
-            "stack": self.m.stack_sha(),
+            "stack": self.stack_sha(),
             "top": int(top),
             "dist": np.asarray(p, dtype=np.float16),
             "conf": float(np.max(p)),
@@ -857,7 +864,7 @@ class Learner:
         return {}
 
     def _refit(self, rows: dict) -> dict:
-        stack = self.m.stack_sha()
+        stack = self.stack_sha()
         on_stack = rows["stack"] == stack.encode()
         bucket = (rows["digest"] % np.uint64(10_000)).astype(np.int64)
         held = bucket < int(HOLDOUT * 10_000)
@@ -1205,10 +1212,13 @@ class Learning:
     replicas of a shared task store (`decisio.serve.fast_table_replicas.Shared`), or None: this server alone."""
 
     def __init__(self, root=None, stack_sha=None, perf=time.perf_counter, now=time.time, background=None, task=None,
-                 shared=None):  # fmt: skip
+                 shared=None, layout_of=None):  # fmt: skip
         self.root = Path(root) if root is not None else None  # <tasks-dir>/learn, or None: in memory
-        self._stack_sha = stack_sha or (lambda: "0" * 16)
-        self._stack_value: str | None = None
+        # `stack_sha()`: the server's serving stack, short; `stack_sha(layout)`: the stack a request of that layout is
+        # answered on. `layout_of(task)`: the layout a task was fitted under, or None (the server's own)
+        self._stack_sha = stack_sha or (lambda layout=None: "0" * 16)
+        self._stack_values: dict = {}
+        self.layout_of = layout_of or (lambda task: None)
         self.task = task or (lambda task_id: None)  # the task record of an id, as the server holds it
         self.perf, self.now = perf, now
         self.background = BACKGROUND if background is None else background
@@ -1229,11 +1239,12 @@ class Learning:
         if shared is not None:
             shared.attach(self)
 
-    def stack_sha(self) -> str:
-        """The serving stack's fingerprint (short), taken once: the server's stack does not change while it runs."""
-        if self._stack_value is None:
-            self._stack_value = self._stack_sha()
-        return self._stack_value
+    def stack_sha(self, layout: str | None = None) -> str:
+        """The serving stack's fingerprint (short) under `layout` (None: the server's own), taken once per layout: the
+        server's stacks do not change while it runs."""
+        if layout not in self._stack_values:
+            self._stack_values[layout] = self._stack_sha() if layout is None else self._stack_sha(layout)
+        return self._stack_values[layout]
 
     def seed_for(self, task_id: str):
         if self.seed is None:
