@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# The fast-table variant of the decisio image (`<version>-table`): the release image as it is, plus decisio[table]
+# (scikit-learn, and onnxruntime on the CPU) and the pinned files of the static students potion-base-8M and
+# potion-multilingual-128M, so a fast table of kind static (base or multilingual) is fitted and served with no Hub
+# access at run time (docs/running.md, "The fast-table image").
+#   docker build -f docker/Dockerfile.table --build-arg BASE=decisio:local -t decisio:local-table .
+# BASE is the release image, by digest in the release workflow, so the variant is that image plus these layers.
+# --build-arg WITH_ENCODER=1 also adds the encoder's pinned files (bge-base-en-v1.5's ONNX file and tokenizer, 436 MB);
+# the default leaves them out: static is the default kind and the faster table on most tasks, and the encoder would
+# nearly double what the variant adds.
+# The students live outside the Hugging Face cache, which is the volume (/data/hf): a mounted volume would hide them.
+ARG BASE
+FROM ${BASE}
+
+ARG WITH_ENCODER=0
+
+LABEL org.opencontainers.image.title="decisio (fast-table variant)" \
+      org.opencontainers.image.description="decisio with the fast-table add-on and its static students built in"
+
+USER root
+# The add-on's packages at the versions of uv.lock, with every package the image ships held at its version (as the
+# release image installs its own additions); then the students, fetched at their pinned revisions and checked against
+# their pinned sha256 (decisio.serve.fast_table.pinned_files), with their model cards and the MIT licence text.
+COPY docker/pin_installed.py docker/check_requirements.py docker/constraints-table.txt docker/fetch_students.py /tmp/docker/
+COPY LICENSES/MIT.txt /tmp/docker/MIT.txt
+RUN python3 /tmp/docker/pin_installed.py > /tmp/pins.txt \
+ && uv pip install --system --break-system-packages --no-cache -c /tmp/pins.txt -c /tmp/docker/constraints-table.txt \
+        scikit-learn onnxruntime \
+ && python3 /tmp/docker/check_requirements.py serve table \
+ && python3 -c "import sklearn, onnxruntime" \
+ && HF_HOME=/tmp/hf python3 /tmp/docker/fetch_students.py /opt/decisio/students --licence /tmp/docker/MIT.txt \
+        $(if [ "$WITH_ENCODER" = "1" ]; then echo --encoder; fi) \
+ && chmod -R a+rX,go-w /opt/decisio \
+ && rm -rf /tmp/hf /tmp/pins.txt /tmp/docker
+
+ENV DECISIO_STUDENTS_DIR=/opt/decisio/students
+USER decisio

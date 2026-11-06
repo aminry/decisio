@@ -58,6 +58,7 @@ import platform
 import queue
 import threading
 import warnings
+from pathlib import Path
 
 import numpy as np
 
@@ -108,6 +109,41 @@ WHOLE = "whole"
 # https://huggingface.co/minishlab/potion-multilingual-128M, model cards, "license: mit"; the model2vec library that
 # made them is MIT too, https://github.com/MinishLab/model2vec). Pinned at their main revisions of 2026-11-05; the
 # sha256 of each file is the Hub's LFS hash where the file is in LFS, else the hash of the file at the revision.
+# where an image with the students built in keeps their files (docker/Dockerfile.table; docs/running.md): a student's
+# pinned file is read from <dir>/<repo>/<revision>/<file> when it is there, before the Hugging Face cache or the Hub
+STUDENTS_DIR_ENV = "DECISIO_STUDENTS_DIR"
+
+
+def student_file(repo: str, filename: str, revision: str, local_files_only: bool = False) -> str:
+    """The path of a student's pinned file: under $DECISIO_STUDENTS_DIR when it holds it, else from the Hugging Face
+    cache or the Hub (`hf_hub_download`). The caller checks its sha256 either way, so a file in the directory that is
+    not the pinned one is refused, never served."""
+    root = os.environ.get(STUDENTS_DIR_ENV)
+    if root:
+        path = Path(root) / repo / revision / filename
+        if path.is_file():
+            return str(path)
+    from huggingface_hub import hf_hub_download
+
+    return hf_hub_download(repo, filename, revision=revision, local_files_only=local_files_only)
+
+
+def pinned_files(encoder: bool = False) -> list[dict]:
+    """Every student file decisio pins: {"repo", "revision", "file", "sha256"}, the static students' and, with
+    `encoder`, the encoder's (what docker/fetch_students.py puts in an image)."""
+    out = [
+        {"repo": spec["repo"], "revision": spec["revision"], "file": f, "sha256": digest}
+        for spec in STATIC_MODELS.values()
+        for f, digest in spec["files_sha256"].items()
+    ]
+    if encoder:
+        out += [
+            {"repo": ENCODER, "revision": REVISION, "file": ONNX_FILE, "sha256": ONNX_SHA256},
+            {"repo": ENCODER, "revision": REVISION, "file": TOKENIZER_FILE, "sha256": TOKENIZER_SHA256},
+        ]
+    return out
+
+
 STATIC_MODELS = {
     "base": {
         "repo": "minishlab/potion-base-8M",
@@ -176,13 +212,13 @@ class OnnxEncoder:
         except ImportError as e:
             raise _need("onnxruntime") from e
         try:
-            from huggingface_hub import hf_hub_download
+            import huggingface_hub  # noqa: F401  (student_file fetches with it)
             from tokenizers import Tokenizer  # noqa: F401  (as above; from_files loads it)
         except ImportError as e:
             raise _need("tokenizers and huggingface_hub") from e
         try:
-            model = hf_hub_download(ENCODER, ONNX_FILE, revision=REVISION, local_files_only=local_files_only)
-            tok = hf_hub_download(ENCODER, TOKENIZER_FILE, revision=REVISION, local_files_only=local_files_only)
+            model = student_file(ENCODER, ONNX_FILE, REVISION, local_files_only)
+            tok = student_file(ENCODER, TOKENIZER_FILE, REVISION, local_files_only)
         except Exception as e:  # no network, no such file, a gated or moved repository
             raise TableUnavailable(
                 f"the fast table's encoder files cannot be fetched ({type(e).__name__}: {e}); fetch them where the "
@@ -273,17 +309,14 @@ class StaticEncoder:
         from the local cache) and checked against their pinned sha256."""
         spec = STATIC_MODELS[name]
         try:
-            from huggingface_hub import hf_hub_download
+            import huggingface_hub  # noqa: F401  (student_file fetches with it)
             from safetensors.numpy import load_file
             from tokenizers import Tokenizer
         except ImportError as e:
             raise _need("tokenizers, safetensors and huggingface_hub") from e
         files = list(spec["files_sha256"])
         try:
-            paths = {
-                f: hf_hub_download(spec["repo"], f, revision=spec["revision"], local_files_only=local_files_only)
-                for f in files
-            }
+            paths = {f: student_file(spec["repo"], f, spec["revision"], local_files_only) for f in files}
         except Exception as e:  # no network, no such file, a gated or moved repository
             raise TableUnavailable(
                 f"the fast table's static model files cannot be fetched ({type(e).__name__}: {e}); fetch them where "

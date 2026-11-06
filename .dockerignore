@@ -9,3 +9,6 @@
 !docker/pin_installed.py
 !docker/check_requirements.py
 !docker/constraints.txt
+!docker/constraints-table.txt
+!docker/fetch_students.py
+!LICENSES/MIT.txt
