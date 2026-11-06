@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.43.0](https://github.com/aminry/decisio/compare/v0.42.0...v0.43.0) (2026-11-06)
+
+
+### Features
+
+* **serve:** a layout per request ([#423](https://github.com/aminry/decisio/issues/423)) ([af64f53](https://github.com/aminry/decisio/commit/af64f5396467ba3a6d034c741e0ba7904bfb3d65))
+
 ## [0.42.0](https://github.com/aminry/decisio/compare/v0.41.0...v0.42.0) (2026-11-05)
 
 
