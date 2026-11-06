@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""Check that every requirement of `decisio[serve]` is satisfied by what is installed, and say which is not.
+"""Check that every requirement of `decisio[serve]` (or of the extras named, `check_requirements.py serve table`) is
+satisfied by what is installed, and say which is not.
 
 The image installs the wheel with --no-deps on top of the vLLM image, because the resolver would re-read vLLM's own
 metadata (which declares conflicting pins for one package) and could replace torch or transformers. This is the check
@@ -12,10 +13,11 @@ import sys
 
 from packaging.requirements import Requirement
 
+EXTRAS = sys.argv[1:] or ["serve"]
 bad = []
 for text in metadata.requires("decisio") or []:
     req = Requirement(text)
-    if req.marker is not None and not any(req.marker.evaluate({"extra": extra}) for extra in ("", "serve")):
+    if req.marker is not None and not any(req.marker.evaluate({"extra": extra}) for extra in ("", *EXTRAS)):
         continue
     try:
         have = metadata.version(req.name)
@@ -27,4 +29,4 @@ for text in metadata.requires("decisio") or []:
 if bad:
     print("decisio's requirements are not met by the vLLM image:\n  " + "\n  ".join(bad), file=sys.stderr)
     sys.exit(1)
-print("decisio[serve]: every requirement is met by the image")
+print(f"decisio[{','.join(EXTRAS)}]: every requirement is met by the image")

@@ -103,6 +103,43 @@ jobs:
           test "$(docker image inspect decisio:ci --format '{{.Config.User}}')" = "decisio"
           test -n "$(docker image inspect decisio:ci --format '{{if .Config.Healthcheck}}yes{{end}}')"
 
+      # The fast-table variant (docker/Dockerfile.table) on top of the image just built: the add-on and the static students,
+      # then a static and a multilingual fast-table task registered and served with the network off.
+      - name: Build the fast-table variant (linux/amd64, not pushed)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile.table
+          platforms: linux/amd64
+          push: false
+          tags: decisio:ci-table
+          build-args: BASE=decisio:ci
+
+      - name: The variant fits and serves static fast tables with no network
+        run: |
+          docker run --rm --network none -e HF_HUB_OFFLINE=1 -v "$PWD/docker:/check:ro" --entrypoint python3 \
+            decisio:ci-table /check/check_table_offline.py
+
+      - name: The release image is unchanged, and the variant is it plus layers
+        run: |
+          # the release image has neither the add-on nor the students
+          docker run --rm --entrypoint python3 decisio:ci -c "import importlib.util as u, os; \
+            assert u.find_spec('sklearn') is None and u.find_spec('onnxruntime') is None; \
+            assert not os.path.exists('/opt/decisio/students') and 'DECISIO_STUDENTS_DIR' not in os.environ"
+          base=$(docker image inspect decisio:ci --format '{{json .RootFS.Layers}}')
+          table=$(docker image inspect decisio:ci-table --format '{{json .RootFS.Layers}}')
+          python3 -c "import json, sys; b, t = json.loads(sys.argv[1]), json.loads(sys.argv[2]); assert t[: len(b)] == b and len(t) > len(b), 'the variant does not start with the release image layers'" "$base" "$table"
+          test "$(docker image inspect decisio:ci-table --format '{{.Config.User}}')" = "decisio"
+          test "$(docker image inspect decisio:ci-table --format '{{json .Config.Entrypoint}}')" = "$(docker image inspect decisio:ci --format '{{json .Config.Entrypoint}}')"
+          b=$(docker image inspect decisio:ci --format '{{.Size}}'); t=$(docker image inspect decisio:ci-table --format '{{.Size}}')
+          {
+            echo "| image | size |"
+            echo "| --- | ---: |"
+            echo "| release | $((b / 1000000)) MB |"
+            echo "| fast-table variant | $((t / 1000000)) MB (+$(((t - b) / 1000000)) MB) |"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          docker run --rm --entrypoint cat decisio:ci-table /opt/decisio/students/MANIFEST.json
+
       - name: Build the image with the optional patch series
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -116,12 +153,13 @@ jobs:
     name: build and push
     if: github.event_name == 'push' && github.event.repository.private == false
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
       packages: write
     outputs:
       digest: ${{ steps.push.outputs.digest }}
+      digest_table: ${{ steps.push_table.outputs.digest }}
       version: ${{ steps.version.outputs.version }}
     steps:
       - name: Harden the runner
@@ -185,11 +223,36 @@ jobs:
           provenance: false
           sbom: false
 
+      # The fast-table variant (docker/Dockerfile.table): the image just pushed, by its digest, plus the add-on and the
+      # static students; its own tag, digest and attestations
+      - name: Build and push the fast-table variant
+        id: push_table
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: docker/Dockerfile.table
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.version }}-table
+          build-args: BASE=${{ env.IMAGE }}@${{ steps.push.outputs.digest }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}-table
+            org.opencontainers.image.revision=${{ github.sha }}
+          provenance: false
+          sbom: false
+
   attest:
-    name: attest provenance and SBOM
+    name: attest provenance and SBOM (${{ matrix.variant }})
     needs: image
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # the release image and its fast-table variant, each on its own runner (each scan unpacks a 9 GB image)
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [release, table]
+    env:
+      DIGEST: ${{ matrix.variant == 'table' && needs.image.outputs.digest_table || needs.image.outputs.digest }}
     permissions:
       contents: read
       id-token: write
@@ -223,7 +286,7 @@ jobs:
         env:
           TMPDIR: ${{ runner.temp }}
         with:
-          image: ${{ env.IMAGE }}@${{ needs.image.outputs.digest }}
+          image: ${{ env.IMAGE }}@${{ env.DIGEST }}
           # CycloneDX, not SPDX: the SPDX document of this 9 GB image is 49 MB and attest-sbom accepts 16 MiB (measured with
           # syft on the 0.1.0 image: SPDX 49 MB, CycloneDX 8.4 MB)
           format: cyclonedx-json
@@ -240,13 +303,13 @@ jobs:
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ needs.image.outputs.digest }}
+          subject-digest: ${{ env.DIGEST }}
           push-to-registry: true
 
       - uses: actions/attest-sbom@c604332985a26aa8cf1bdc465b92731239ec6b9e # v4.1.0
         with:
           subject-name: ${{ env.IMAGE }}
-          subject-digest: ${{ needs.image.outputs.digest }}
+          subject-digest: ${{ env.DIGEST }}
           sbom-path: sbom.cdx.json
           push-to-registry: true
 
@@ -262,6 +325,7 @@ jobs:
       GH_REPO: ${{ github.repository }}
       TAG: ${{ github.ref_name }}
       DIGEST: ${{ needs.image.outputs.digest }}
+      DIGEST_TABLE: ${{ needs.image.outputs.digest_table }}
       VERSION: ${{ needs.image.outputs.version }}
     steps:
       - name: Append the image to the release notes
@@ -275,4 +339,7 @@ jobs:
             printf '%s\n\n### Container image\n\n' "$body"
             printf '`%s:%s`\n\n`%s@%s`\n\n' "$IMAGE" "$VERSION" "$IMAGE" "$DIGEST"
             printf 'Verify: `gh attestation verify oci://%s@%s --repo %s`\n' "$IMAGE" "$DIGEST" "$GH_REPO"
+            printf '\nWith the fast-table add-on and its static students built in, for fast tables with no Hub access (docs/running.md, "The fast-table image"):\n\n'
+            printf '`%s:%s-table`\n\n`%s@%s`\n\n' "$IMAGE" "$VERSION" "$IMAGE" "$DIGEST_TABLE"
+            printf 'Verify: `gh attestation verify oci://%s@%s --repo %s`\n' "$IMAGE" "$DIGEST_TABLE" "$GH_REPO"
           } | gh release edit "$TAG" --notes-file -

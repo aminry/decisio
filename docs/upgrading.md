@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a fast-table image with the static students built in
+
+### What changed
+
+- **Every release also publishes `ghcr.io/aminry/decisio:<version>-table`**: the release image plus `decisio[table]` and the files of both static students (potion-base-8M and potion-multilingual-128M) at their pinned revisions, with its own digest, provenance and SBOM attestations in the release notes ([running.md](running.md#the-fast-table-image)).
+  A fast table of kind `static` (base or multilingual) is fitted and served in it with no Hub access.
+- **`DECISIO_STUDENTS_DIR`**: a directory decisio reads a student's pinned files from (`<dir>/<repo>/<revision>/<file>`) before the Hugging Face cache or the Hub, each checked against its pinned sha256; the fast-table image sets it to `/opt/decisio/students`. Unset, nothing changes.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The release image, or decisio from PyPI | Nothing changes: the release image is built as before, with no new packages | Nothing |
+| Fast tables on a host with no route to the Hub | The `-table` image has the static students built in | Run it instead of fetching the files into the volume |
+| Fast tables of kind `encoder` with no route to the Hub | The encoder is not built in (436 MB) | Build the variant with `WITH_ENCODER=1`, or fetch its files into the volume as before |
+
 ## 0.43.0: a layout per request
 
 How to use it: [running.md, "A layout per request"](running.md#a-layout-per-request-layout) and [tasks.md, "A task under a layout"](tasks.md#a-task-under-a-layout).

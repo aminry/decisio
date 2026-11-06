@@ -518,7 +518,7 @@ pip install 'decisio[table]'     # scikit-learn (the fit) and onnxruntime (the e
 - Choice questions only, with at least 100 fit examples.
 - Without the extra the registration is refused with 422 and says what to install.
 - `static_model` goes with the `static` and `auto` kinds only; with `encoder` it is refused.
-- Each student's files are fetched from the Hugging Face Hub at the pinned revision on first use. A server with no route to the Hub needs them fetched first, or the registration is refused naming the command:
+- Each student's files are fetched from the Hugging Face Hub at the pinned revision on first use. The fast-table image (`ghcr.io/aminry/decisio:<version>-table`, [running.md](running.md#the-fast-table-image)) has both static students built in, so it needs no Hub access for them. Any other server with no route to the Hub needs them fetched first, or the registration is refused naming the command:
 
 ```bash
 hf download minishlab/potion-base-8M model.safetensors tokenizer.json --revision bf8b056651a2c21b8d2565580b8569da283cab23            # static, base (31 MB)

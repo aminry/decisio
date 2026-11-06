@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: Copyright contributors to the decisio project
+# Versions for the packages the fast-table variant (docker/Dockerfile.table) adds to the release image: decisio[table]
+# and what they bring that the image does not ship. Keep in step with uv.lock.
+scikit-learn==1.9.1
+joblib==1.6.0
+threadpoolctl==3.7.0
+onnxruntime==1.31.1
+flatbuffers==25.12.19

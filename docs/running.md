@@ -483,6 +483,21 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 - Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes; to run one instead of building, replace `build:` in `compose.yaml` with `image: ghcr.io/aminry/decisio@sha256:<digest>`.
 - `Dockerfile` and `compose.yaml` explain the rest.
 
+### The fast-table image
+
+Every release also publishes `ghcr.io/aminry/decisio:<version>-table`, with its own digest and attestations in the release notes: the release image, unchanged, plus the fast table's add-on (`decisio[table]`: scikit-learn, and onnxruntime on the CPU) and the files of both static students, potion-base-8M (31 MB) and potion-multilingual-128M (531 MB), at their pinned revisions.
+With it a fast table of kind `static`, with `static_model` `base` or `multilingual`, is fitted and served with no Hub access at run time ([tasks.md](tasks.md#a-fast-table-in-front-of-decisio-opt-in)); `HF_HUB_OFFLINE=1` is safe for the tables (the checkpoint still comes from the volume or the Hub, as for the release image).
+
+```bash
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:<the -table digest in the release notes>
+```
+
+- The students live in the image under `/opt/decisio/students`, outside the Hugging Face cache, which is the volume (`/data/hf`) and would hide them; `DECISIO_STUDENTS_DIR` points decisio at them. A student's file is read from that directory when it is there, checked against its pinned sha256 as any other, and fetched from the Hub only when it is not.
+- The image is the release image's layers plus about 0.6 GB: it changes nothing else (the user, the entry point, the health check and the flags are the release image's).
+- The encoder (`kind: encoder`, bge-base-en-v1.5's ONNX file, 436 MB) is not built in: `static` is the default kind and the faster table on most tasks, and the encoder would nearly double what the variant adds. Build it in with `docker build -f docker/Dockerfile.table --build-arg BASE=ghcr.io/aminry/decisio@sha256:<digest> --build-arg WITH_ENCODER=1 .`, or fetch its files into the volume (the command in tasks.md).
+- Each student's model card is kept beside its files (`MODEL_CARD.md`), with the MIT licence text in `/opt/decisio/students/LICENSES/` and `MANIFEST.json` listing every file with its sha256; the build stops if a file is not the pinned one or a card declares another licence.
+- Every pull request builds the variant on the release image built with it and registers a static and a multilingual fast-table task in it with the network off (`docker/check_table_offline.py`).
+
 First GPU start (2026-10-01, one RTX PRO 6000 Blackwell, the image built on the machine from the `Dockerfile`): healthy in 651 s including the checkpoint download and in 206 s from the cached volume, and the README's example request and the conformance gates C2 to C4 pass against the container (`runs/2026-10-01_docker-first-gpu-start/`).
 The image published with v0.1.0 repeated the start from its digest: healthy in 223 s with the checkpoint cached, example and conformance passing (`pushed_image_0.1.0/` in the same record).
 Those starts were with the Qwen base, the container's default then.
