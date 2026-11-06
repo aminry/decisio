@@ -24,7 +24,7 @@ How to use it: [running.md, "A layout per request"](running.md#a-layout-per-requ
 - **Tasks of both layouts load and apply.** The start no longer warns that plain-fitted tasks are "not applied under header" on a server started with `--layout header`: they apply to the requests that ask for `"layout": "plain"`, and `store.readout.applied` counts them.
   `POST /v1/abstention/tasks/import` no longer refuses a task "fitted under another layout"; `POST /v1/tasks/import` takes a task of either layout.
   `store.abstention` no longer has `other_layout`: an abstention task of either layout applies to the requests of its layout.
-- **A certificate is checked against its own layout's serving stack**, so it holds for its layout's requests on a server whose default layout is the other one.
+- **A certificate is checked against its own layout's serving stack**, so it holds for its layout's requests on a server whose default layout is the other one. On a flavor's server the flavor's layout override in the fingerprint is the request's layout, not the one the server was started with; a server whose requests all use its own layout has the fingerprint it had.
 - **A response served under another layout than what answers was trained or fitted under carries `layout_note`**: an adapter, a tuned repository, `--temperatures-file` or a flavor whose recorded layout differs from the request's.
   This includes a server started with `--layout` against such a record, whose responses now say so.
 - **The held default stays**: a Gemma base holding tasks fitted under plain still serves plain to the requests that name no layout, so their answers do not change; the start line now says that requests may ask for the header.

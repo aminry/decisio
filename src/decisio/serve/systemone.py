@@ -2315,6 +2315,17 @@ class SystemOne:
         with lay.using(layout):
             return self.stack_facts()
 
+    def flavor_facts(self) -> dict:
+        """The flavor's part of the fingerprint under the layout in effect: its layout override is the request's
+        layout against the flavor's, not the one the server was started with, so that a certificate made under one
+        layout matches it on every server that serves the flavor, whatever that server's own layout. A server serving
+        its own layout to every request has the facts it had before requests could choose one."""
+        f = flavors.fingerprint_facts(self.flavor)
+        overrides = {k: v for k, v in f["overrides"].items() if k != "layout"}
+        if self.request_layout != flavors.FLAVOR_LAYOUT:
+            overrides["layout"] = self.request_layout
+        return {**f, "overrides": dict(sorted(overrides.items()))}
+
     def stack_facts(self) -> dict:
         """The live serving stack's fingerprint (decisio.serve.stack) under the layout in effect, taken once per layout:
         the rows of the probe, the prompt format and the task fingerprint are that layout's, so a certificate made under
@@ -2348,7 +2359,7 @@ class SystemOne:
                 **({"think": self.think_facts()} if self.think else {}),
                 # the flavor, only when one is set: a certificate made under another flavor, other overrides or
                 # placeholder values is suspended
-                **({"flavor": flavors.fingerprint_facts(self.flavor)} if self.flavor else {}),
+                **({"flavor": self.flavor_facts()} if self.flavor else {}),
                 # the default adapter, only when one is set: a certificate made when requests were answered by the base
                 # (or by another adapter) is suspended
                 **({"default_adapter": self.default_adapter} if self.default_adapter else {}),

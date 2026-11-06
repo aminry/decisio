@@ -20,6 +20,8 @@ R10  at start: tasks of both layouts load and apply; the held default stays and 
 R11  import across layouts: readout and abstention tasks of either layout load; another model's are still refused
 R12  certificates are per layout's stack: a header certificate holds for header requests on a plain server
 R13  think and two orders read under the request's layout
+R15  a flavor's server: its layout override is the request's, so a certificate made under one layout on a server
+     started under the other holds on a server started under it (the card test's restart), and the reverse
 R14  one question, a task under each layout: both are kept, each answers its own layout's requests, and neither
      replaces the other, whichever is registered or loaded first
 
@@ -685,3 +687,34 @@ def test_r14_one_question_under_each_layout_is_two_tasks(first):
     assert ask(client, layout="header").headers["x-decisio-tasks"] == "t-header"
     miss = ask(client, layout="plain").json()["answers"]["q1"]
     assert miss["certified"] is False and miss["certified_reason"] == "layout_mismatch"
+
+
+# ---- R15 ------------------------------------------------------------------------------------------------------------
+
+
+def flavor_of(layout):
+    """The flavor report a tuned flavor's server gives (decisio.flavors.flavor_report): a header flavor, served
+    under `layout`, with one other override the two servers share."""
+    over = {"think_factor": {"flavor": None, "served": 1.3}}
+    if layout != "header":
+        over["layout"] = {"flavor": "header", "served": layout}
+    return {"name": "calibrated", "served_name": "decisio-test", "overrides": over, "pending": []}
+
+
+def test_r15_a_flavors_certificates_hold_across_servers_started_under_either_layout():
+    a, so_a, _ = cert_server("header", flavor=flavor_of("header"))
+    for layout in ("plain", "header"):
+        body = {"id": f"f-{layout}", "layout": layout, "examples": examples(400, 0.96), "certify": {}}
+        assert post_task(a, body).status_code == 200
+    exported = a.get("/v1/tasks?full=1").json()["tasks"]
+    b, so_b, _ = cert_server("plain", flavor=flavor_of("plain"))
+    assert b.post("/v1/tasks/import", json={"tasks": exported}).status_code == 200
+    for layout in ("plain", "header"):
+        assert so_a.stack_under(layout) == so_b.stack_under(layout), layout
+        r = ask(b, layout=layout)
+        assert r.headers["x-decisio-tasks"] == f"f-{layout}"
+        q = r.json()["answers"]["q1"]
+        assert q["certified"] is True, q
+    # a server that serves its own layout to every request keeps the facts it had: the override is its start's
+    assert so_b.flavor_facts()["overrides"] == {"layout": "plain", "think_factor": 1.3}
+    assert so_a.flavor_facts()["overrides"] == {"think_factor": 1.3}
