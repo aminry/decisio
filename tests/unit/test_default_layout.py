@@ -8,7 +8,7 @@ D2  which stored tasks count as fitted under plain
 D3  through the launcher: the held default with tasks loaded (a directory, a file), an empty directory, `--layout`,
     a tuned repository with and without a recorded layout, adapters with and without one
 D4  the records: `defaults.layout` in a repository, `layout` in an adapter file, the fit tools writing it
-D5  abstention tasks carry the layout they were fitted under and apply only under it
+D5  abstention tasks carry the layout they were fitted under and apply only to the requests of that layout
 D6  what a response and /health say: the prompt header with the cached share, the layout decision, usage counting the
     header
 
@@ -63,7 +63,8 @@ def test_d1_explicit_wins_and_says_what_it_leaves_behind():
     assert d["value"] == "header" and d["why"] == "--layout" and d["held_by"] == []
     assert any("adapter n1 (no recorded layout) was trained on the plain layout" in n for n in d["notes"])
     assert any(
-        "calibration task(s) fitted under the plain layout: ['t']" in n and "not applied" in n for n in d["notes"]
+        "calibration task(s) fitted under the plain layout: ['t']" in n and 'ask for "layout": "plain"' in n
+        for n in d["notes"]
     )
     assert any("abstention task(s)" in n for n in d["notes"])
 
@@ -76,6 +77,7 @@ def test_d1_stored_plain_tasks_hold_the_default_at_plain_and_say_so():
     assert d["value"] == "plain" and "abstention task(s)" in d["held_by"][0]
     line = lay.describe(d)
     assert line.startswith("LAYOUT plain (held at plain; this base's default is header)") and "--layout header" in line
+    assert 'A request may ask for the header ("layout": "header")' in line
     assert decide(default="plain", tasks=["t"])["held_by"] == []  # a base whose default is plain holds nothing
 
 
@@ -106,9 +108,9 @@ def test_d1_a_tuned_repository_serves_its_recorded_layout_and_plain_when_it_has_
     d = decide(tuned=True, recorded="header")
     assert d["value"] == "header" and d["held_by"] == []
     assert decide(tuned=True, recorded="plain")["held_by"] == ["the tuned repository"]
-    # a recorded header beside stored plain tasks: the record wins, the tasks are said not to apply
+    # a recorded header beside stored plain tasks: the record wins, the tasks apply to the requests that ask for plain
     d = decide(tuned=True, recorded="header", tasks=["t"])
-    assert d["value"] == "header" and any("not applied under header" in n for n in d["notes"])
+    assert d["value"] == "header" and any('requests that ask for "layout": "plain"' in n for n in d["notes"])
 
 
 def test_d1_layout_values_are_checked():
@@ -213,7 +215,7 @@ def test_d3_a_bare_gemma_base_serves_the_header(launcher, tmp_path, capsys):
     assert json.loads(plain_so.task_store.fingerprint) == json.loads(FINGERPRINTS["gemma-4-12b"])  # byte for byte
 
 
-def test_d3_stored_plain_tasks_hold_the_default_and_an_explicit_header_leaves_them_unapplied(
+def test_d3_stored_plain_tasks_hold_the_default_and_an_explicit_header_serves_them_to_plain_requests(
     launcher, tmp_path, capsys
 ):
     d, record = plain_task_record(launcher, tmp_path)
@@ -231,8 +233,11 @@ def test_d3_stored_plain_tasks_hold_the_default_and_an_explicit_header_leaves_th
     engine, so = launcher("--base", str(d), "--tasks-dir", str(store_dir), "--layout", "header")
     out = capsys.readouterr().out
     assert engine.fmt.layout == "header" and engine.layout_decision["why"] == "--layout"
-    assert "not applied under header" in out and "WARNING: tasks fitted under another model or rendering" in out
-    assert so.task_store_report()["readout"] == {"loaded": 1, "applied": 0, "other_stack": 1}
+    assert 'apply to the requests that ask for "layout": "plain"' in out
+    assert "WARNING: tasks fitted under another model or rendering" not in out
+    # the task applies to the requests of its layout: the plain ones
+    assert so.task_store_report()["readout"] == {"loaded": 1, "applied": 1, "other_stack": 0}
+    assert so.task_store.layout_of(record) == "plain"
     so.task_backend.close()
 
 
@@ -388,21 +393,21 @@ def test_d5_an_abstention_task_carries_the_layout_it_was_fitted_under():
     record_p, record_h = so_p.tasks["abs"], so_h.tasks["abs"]
     assert so_p.abstention_applies(record_p) and not so_p.abstention_applies(record_h)
     assert so_h.abstention_applies(record_h) and not so_h.abstention_applies(record_p)
-    r = header.post("/v1/abstention/tasks/import", json={"tasks": [record_p]})
-    assert r.status_code == 422 and "another layout" in r.json()["detail"]
+    # a task of either layout loads, and applies to the requests of its layout
+    r = header.post("/v1/abstention/tasks/import", json={"tasks": [{**record_p, "id": "from_plain"}]})
+    assert r.status_code == 200 and r.json()["loaded"] == ["from_plain"]
     so_p.tasks["other"] = {**record_h, "id": "other"}
     assert plain.get("/v1/abstention/tasks").json()["store"]["abstention"] == {
         "loaded": 2,
-        "applied": 1,
+        "applied": 2,
         "other_model": 0,
-        "other_layout": 1,
     }
 
 
-def test_d5_require_tasks_counts_abstention_tasks_of_the_layout_served():
+def test_d5_require_tasks_counts_abstention_tasks_of_either_layout():
     store = TaskStore("fp")
-    records = [{"id": "a", "model": "s"}, {"id": "b", "model": "s", "layout": "header"}]
-    assert TB.usable(store, records, "s", "plain") == 1 and TB.usable(store, records, "s", "header") == 1
+    records = [{"id": "a", "model": "s"}, {"id": "b", "model": "s", "layout": "header"}, {"id": "c", "model": "t"}]
+    assert TB.usable(store, records, "s") == 2
 
 
 # ---- D6 -------------------------------------------------------------------------------------------------------------

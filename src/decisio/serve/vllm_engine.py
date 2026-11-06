@@ -52,6 +52,7 @@ import threading
 import time
 from collections import OrderedDict
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 
@@ -81,13 +82,14 @@ def options_listing(tok, options):
 
 
 from decisio import flavors  # noqa: E402
-from decisio.names import SERVED_NAME, same_fingerprint, task_fingerprint  # noqa: E402
+from decisio.names import SERVED_NAME, task_fingerprint  # noqa: E402
 from decisio.serve import (  # noqa: E402
     adapter_temperatures,
     batch_invariant,
     compile_pin,
     engine_stream,
     header_limit,
+    layout,
     precision_casts,
     task_backends,
 )
@@ -243,12 +245,21 @@ class LettersEngine:
     register_boundary = "after"
     # the server's EngineHealth (decisio.serve.engine_health), shared with the other engines; None in library use
     health = None
-    fmt = DEFAULT_FORMAT  # the prompt format (decisio.readout.letters.PromptFormat); the server sets it from its flags
     over_limit_tokens = (
         None  # --over-limit-tokens: the prompt ceiling a truncating server cuts to, where it is not the context
     )
     # --header-limit as (mode, cap): the header lists only the questions that fit the context (serve.header_limit)
     header_limit_setting = (header_limit.AUTO, None)
+
+    @property
+    def fmt(self):
+        """The prompt format (decisio.readout.letters.PromptFormat) every row is built with: the server's, set from its
+        flags, under the layout a request or a registration asked for (decisio.serve.layout.using)."""
+        return layout.applied(self.__dict__.get("_fmt", DEFAULT_FORMAT))
+
+    @fmt.setter
+    def fmt(self, value):
+        self.__dict__["_fmt"] = value
 
     def __init__(
         self,
@@ -492,6 +503,11 @@ class LettersEngine:
         """Several independent requests [(state, questions)] through the engine together: every
         request's state is prefilled in one batch, then every question. What a loaded server does with
         concurrent requests, so its throughput is what the cost per token is computed from."""
+        if getattr(self, "mode", "separate") == "packed" and self.fmt.layout != "plain":
+            raise layout.LayoutRefused(
+                'packed mode reads the plain layout only: send the request without "layout": "header", or serve it '
+                "from a server in separate mode"
+            )
         todo, derived = [], []
         for _, questions in requests:
             derived.append({i: q["derive"] for i, q in enumerate(questions) if q.get("derive")})
@@ -512,7 +528,8 @@ class LettersEngine:
         try:
             if self.concurrency == "batched" and not reads_serial():
                 # the engine thread scores this call together with every other one waiting (decisio.serve.combine)
-                probs, info = self.combiner.submit(reqs, adapter, current_ticket(), behind)
+                # the requests of one layout only in an engine call: the call builds every row under one layout
+                probs, info = self.combiner.submit(reqs, adapter, current_ticket(), behind, self.fmt.layout)
             else:
                 waiting = Waiting(reqs, adapter, None, behind)  # None: deferred to this thread's own ticket
                 with self._lock:
@@ -549,8 +566,10 @@ class LettersEngine:
         return self.combiner.facts()
 
     def _combined_call(self, batch):
-        """The engine thread's call (the engine's lock held): every waiting call of `batch` in one engine call."""
-        return self._engine_call(batch)
+        """The engine thread's call (the engine's lock held): every waiting call of `batch` in one engine call, built
+        under their layout (the combiner takes calls of one layout together)."""
+        with layout.using(batch[0].layout):
+            return self._engine_call(batch)
 
     def _engine_call(self, batch):
         """One engine call for the `answer_many` calls in `batch` (decisio.serve.combine.Waiting), the engine's lock
@@ -600,18 +619,20 @@ class LettersEngine:
 
     def _template_tail(self):
         """The chat-template text after a user turn's content (constant), rendered once."""
-        if getattr(self, "_tail", None) is None or getattr(self, "_tail_fmt", None) != self.fmt:
+        # the template does not depend on the request-level layouts (`PromptFormat.core`): one entry serves both
+        cache = self.__dict__.setdefault("_tails", {})
+        core = self.fmt.core()
+        if core not in cache:
             mark = "\ue000"
-            full = user_turn(self.tok, mark, self.fmt)
-            self._head_text, self._tail = full.split(mark)
-            self._tail_fmt = self.fmt
-        return self._tail
+            cache[core] = user_turn(self.tok, mark, core).split(mark)[1]
+        return cache[core]
 
     def _labels(self, cands):
         cache = self.__dict__.setdefault("_label_cache", {})
-        key = (tuple(cands), self.fmt)
+        core = self.fmt.core()  # the labels do not depend on the request-level layouts either
+        key = (tuple(cands), core)
         if key not in cache:
-            cache[key] = label_groups(self.tok, cands, self.fmt)
+            cache[key] = label_groups(self.tok, cands, core)
         return cache[key]
 
     def _prepare_separate(self, state, questions):
@@ -1236,6 +1257,8 @@ def make_app(engine, systemone=None, health=None):
         state: str | dict
         questions: list[dict]
         adapter: str | None = None
+        # the layout of the user turn (decisio.serve.layout); None: the server's
+        layout: Literal["plain", "header"] | None = None
 
     app = FastAPI(title="letters readout")
     from decisio.serve.content_type import JsonOnly
@@ -1359,7 +1382,11 @@ def make_app(engine, systemone=None, health=None):
         if req.adapter and req.adapter not in engine.adapters:
             raise HTTPException(404, f"unknown adapter {req.adapter!r}; loaded: {sorted(engine.adapters)}")
         try:
-            probs, info = engine.answer(req.state, req.questions, req.adapter)
+            with layout.using(req.layout):
+                probs, info = engine.answer(req.state, req.questions, req.adapter)
+                used = getattr(engine, "fmt", DEFAULT_FORMAT).layout
+        except layout.LayoutRefused as e:
+            raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         except Exception as e:  # an error vLLM says the request caused (a prompt over the context): a 4xx
@@ -1371,7 +1398,8 @@ def make_app(engine, systemone=None, health=None):
         for q, p in zip(req.questions, probs):
             opts = ["yes", "no"] if q.get("kind", "choice") == "noul" else list(q["options"])
             answers.append({"options": opts, "probs": [float(x) for x in p]})
-        return {"answers": answers, "timing": info, **({"adapter": req.adapter} if req.adapter else {})}
+        timing = {**info, "layout": used}  # the layout the rows were built under
+        return {"answers": answers, "timing": timing, **({"adapter": req.adapter} if req.adapter else {})}
 
     # this module has `from __future__ import annotations`, so `req: Request` is the string "Request", which FastAPI
     # cannot resolve for a class local to make_app and reads as a missing query parameter: every POST /v1/answer got
@@ -2306,14 +2334,15 @@ def build_parser():
         "--layout",
         default=None,
         choices=["plain", "header"],
-        help="the user turn's layout. header (the default of the Gemma bases) lists the request's questions before the "
+        help="the user turn's layout for a request that names none (a request's \"layout\" chooses its own). header "
+        "(the default of the Gemma bases) lists the request's questions before the "
         "state ('Questions that will be asked about the context:' and a '- <question>' line each), then the state and "
         "the question as plain; plain is the state then the question (the Qwen base's default, and what the Gemma "
         "bases were served with before the header became theirs). Without the flag the server holds plain while it "
         "loads tasks fitted under plain, or an adapter or tuned repository that recorded no layout (the start says "
         "so). A state cached for one set of questions is not reused for another under header: a client that asks a "
-        "series of questions about one state wants plain. Tasks fitted and certificates made under one layout are "
-        "not applied under another (docs/running.md)",
+        "series of questions about one state wants plain. Tasks fitted and certificates made under one layout apply "
+        "to the requests of that layout only (docs/running.md)",
     )
     ap.add_argument(
         "--read-twice-under",
@@ -2671,11 +2700,10 @@ def load_tasks(args, store, sources=None):
         )
     except task_backends.TaskPersistError as e:
         raise SystemExit(f"--task-store: {e}" if args.task_store else f"--tasks-dir: {e}")
-    stale = [t["id"] for t in store.by_key.values() if not same_fingerprint(t["fingerprint"], store.fingerprint)]
+    stale = [t["id"] for t in store.by_key.values() if not store.applies(t)]
     if stale:
         print(f"WARNING: tasks fitted under another model or rendering are not applied: {stale}", flush=True)
-    layout = (getattr(args, "layout_decision", None) or {}).get("value", "plain")
-    usable = task_backends.usable(store, abstention_records, args.served_name, layout)
+    usable = task_backends.usable(store, abstention_records, args.served_name)
     task_report["usable"] = usable
     print("TASKS", json.dumps(task_report), flush=True)
     held = task_report.get("from_dir") or task_report.get("from_store")
@@ -2711,6 +2739,23 @@ def task_store_fingerprint(args, fmt) -> str:
         # a base other than Qwen (whose fingerprints predate bases)
         base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
     )
+
+
+def layout_records(args, adapters, adapter_temps) -> dict:
+    """What each thing that answers recorded about the layout it was trained or fitted under, for the note a response
+    served under another layout carries (decisio.serve.layout.notes): every loaded adapter (its file's `layout`, None
+    when it records none or has no file), a tuned repository (its `defaults.layout`, None when none), the temperatures
+    file's (when it records one) and a base flavor's (the header)."""
+    out = {"adapters": {n: (adapter_temps.get(n) or {}).get("layout") for n in adapters}}
+    if getattr(args, "layout_tuned", False):
+        out["repository"] = getattr(args, "layout_recorded", None)
+    tf = (getattr(args, "temperatures_file_facts", None) or {}).get("layout")
+    if tf:
+        out["temperatures_file"] = tf
+    flavor = getattr(args, "flavor_report", None)
+    if flavor and not getattr(args, "layout_tuned", False):  # a tuned repository's flavor is the repository's record
+        out["flavor"] = {"name": flavor["name"], "layout": flavors.FLAVOR_LAYOUT}
+    return out
 
 
 def resolve_layout(args, fmt, sources, adapter_layouts):
@@ -2906,7 +2951,14 @@ def main():
     fmt, args.layout_decision = resolve_layout(
         args, fmt, sources, {n: (adapter_temps.get(n) or {}).get("layout") for n in adapters}
     )
-    store = TaskStore(fingerprint=task_store_fingerprint(args, fmt))
+    # a request may ask for either layout: the store knows each one's fingerprint, and a task applies to the requests
+    # of the layout it was fitted under
+    from dataclasses import replace
+
+    store = TaskStore(
+        fingerprint=task_store_fingerprint(args, fmt),
+        layouts={v: task_store_fingerprint(args, replace(fmt, layout=v)) for v in layout.LAYOUT_VALUES},
+    )
     abstention_records, backend, task_report = load_tasks(args, store, sources)
 
     if one:  # the image engine alone, at the text engine's share of the card, serves both routes
@@ -3140,6 +3192,7 @@ def main():
             "noul": args.think_temperature_noul,
             "score": args.think_temperature_score,
         },
+        layout_records=layout_records(args, adapters, adapter_temps),
     )
     if backend is not None and hasattr(backend, "sync_once"):
         from decisio.serve.task_store_shared import TaskSync

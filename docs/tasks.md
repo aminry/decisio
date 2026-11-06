@@ -767,6 +767,37 @@ A `--task-store-readonly` replica serves the versions and writes nothing: it log
 `GET /v1/tasks/{id}` on any replica shows this replica's part (`replica`: its id, whether it trains, its timing) and the fleet's (`cluster`, from the trainer's last aggregate of the replicas' stats, every 5 minutes).
 Lease expiry is judged on each replica's clock, so keep the clocks synchronised (NTP); a holder whose clock runs behind still cannot publish over its successor.
 
+## A task under a layout
+
+A server serves requests of both layouts of the user turn, the plain one and the header ([running.md](running.md#a-layout-per-request-layout)), and a task is fitted under one of them.
+
+**Registering.** Every registration route takes an optional `"layout": "plain" | "header"`: `POST /v1/tasks` (with examples, `"options": "dynamic"`, or a task that learns from traffic) and `POST /v1/abstention/tasks`.
+Absent, the task is fitted under the server's layout (`/health`, `systemone.layout`).
+The examples are read under that layout, the task's fingerprint names it (a header task's carries `"layout": "header"` in its prompt format; a plain one's is what it always was), and an abstention task's record carries `"layout"` when it is not plain, as before.
+An example whose request names another layout than the task's is refused with 422; one that names the same, or none, is read as the task's.
+An abstention task with image examples takes no `layout`: the image route has none.
+`POST /v1/tasks/{id}/certify` certifies a task again under the layout it was fitted under.
+
+```bash
+curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' \
+  -d '{"id": "ticket-routing", "layout": "plain", "examples": [...], "certify": {}}'
+```
+
+**Serving.** A task applies only to the requests of its layout: a request that names that layout, or names none on a server whose layout it is.
+- A question of a task fitted under the other layout is answered as if the task did not exist: decisio's own read, under the request's layout.
+  If the task is certified, the answer carries `certified: false`, the task's `certificate` and `certified_reason: "layout_mismatch"` (the pattern of `serving_stack_changed`); the traffic monitor does not count it.
+- A fast table, labelled or learned from traffic, never answers a request of the other layout, and a task that learns from traffic logs no row from one: such a row would be decisio's answer under another layout than the one its table is certified against.
+  A learning task's rows, versions and certificates are on its own layout's serving stack.
+- A certificate is checked against the serving stack of its task's layout, so a header task certified on a header server stays certified for header requests on a plain server whose stack is otherwise the same.
+
+**At start, import and export.** Tasks of both layouts load from `--tasks-dir`, `--task-store` and `--tasks-file`, and both apply, each to its own layout's requests (`store.readout.applied` counts both).
+`POST /v1/tasks/import` and `POST /v1/abstention/tasks/import` load a task of either layout; only a task of another model or rendering is refused.
+An export (`GET /v1/tasks?full=1`) carries each task's fingerprint, and so its layout.
+
+**One question, one task per layout.** A server holds one task per question and layout: the same question registered under each layout is two tasks, each serving its own layout's requests, and neither replaces the other, whichever was registered or loaded first.
+Registering the question again under the same layout replaces the task the server serves for it, as for any task (Limits, below).
+Removing one leaves the other; a request of the removed task's layout then gets `layout_mismatch` if the other is certified.
+
 ## Limits
 
 - **Option list identity.** A task is found by its question's type and its options, keys and descriptions, in order (plus the instructions for yes/no and score questions). Renaming, adding, removing or reordering an option makes a different task, which needs its own registration.
@@ -774,5 +805,6 @@ Lease expiry is judged on each replica's clock, so keep the clocks synchronised 
 - **Options that change per input** cannot be registered: exam-style questions whose answers differ every time have no fixed list to learn, and registration refuses them.
 - **The prompt it was fitted under.** A task is fitted on the server's prompt and is applied only by a server with the same prompt and yes/no rendering. The served default changed on 2026-10-03 (the spaced layout, `--prompt-tail spaced`, with yes/no as named letters, `docs/handoffs/tasks.md`): a task registered or exported before then is not applied by the current default, and the server says so at start-up (`WARNING: tasks fitted under another model or rendering are not applied`). Register it again from the same examples; or, to keep using it unchanged, start the server with the compact layout (`--prompt-tail compact --noul-rendering words`).
 - **One task per option list per server.** Registration is per server instance; keep it with `--tasks-dir` (or an export and `--tasks-file`), as above.
+  It holds across layouts: a task applies to the requests of the layout it was fitted under ([A task under a layout](#a-task-under-a-layout)).
 - **Single-engine or second-engine mode.** The default reads the hidden state from the serving engine at the latency cost above; `--head-engine` trades a second weight copy for speed. Both declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`), and a task registered in one mode loads in the other.
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.

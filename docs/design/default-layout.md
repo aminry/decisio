@@ -126,3 +126,11 @@ Not done, and why: a fallback of the whole request to plain (it moves a header-t
 - The hub profile is unchanged (it describes the plain-layout base), so every repository file exported before 0.26.0 still agrees. An older decisio refuses a repository that records `defaults.layout`.
 - Abstention tasks carry `layout` when it is not plain and apply only under it. Responses carry `x-decisio-prompt: layout=...; tokens=...; cached=...`.
 - Not built: the per-request `layout` field (about 8 working hours, if clients ask).
+
+## A layout per request (unreleased)
+
+The second step of decision 2, as recommended: `"layout": "plain" | "header"` on `/v1/systemone` and `/v1/answer`, absent for the server's layout (`running.md`, "A layout per request").
+- A request of either layout is served inside `decisio.serve.layout.using(layout)`: the engines' prompt format is the server's with that layout (the row builder every text engine shares), the task store's fingerprint is that layout's, and so is the serving-stack fingerprint, taken per layout. A request's rows, its tasks and its certificates are then exactly a server of that layout's. The engine thread of a batched server takes the requests of one layout per engine call.
+- Tasks carry the layout they were fitted under in their fingerprint (abstention tasks in `layout`, as before), every registration route takes `layout`, and a task applies to the requests of its layout only. A certified task's question in a request of the other layout is `layout_mismatch`. Tasks of both layouts load, apply and import.
+- An adapter, a tuned repository, the temperatures file and a flavor keep the layout they recorded (decision 4); a request of the other layout is served as asked and its response carries `layout_note`.
+- **The held default (decision 3) stays.** It was proposed that rule 4 (a header default held at plain while plain-fitted tasks apply) was no longer needed, since those tasks are still served to plain requests. It is still needed: the requests that name no layout get the server's, so without the rule a held deployment would move to the header on upgrade and its taught questions would stop being answered by their tasks, which is the silent change of answers decision 3 exists to prevent. The start line now says that a request may ask for the header meanwhile.

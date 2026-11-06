@@ -26,6 +26,7 @@ total-variation distance of each branch from their average) goes to a branch log
 from __future__ import annotations
 
 import base64
+import functools
 import hashlib
 import json
 import logging
@@ -41,10 +42,11 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_core import PydanticCustomError
 
 from decisio import flavors
-from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.names import DEBUG_KEY, check_format, header, request_header
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
+from decisio.serve import layout as lay
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
 from decisio.serve.adapter_temperatures import band_table
@@ -147,7 +149,7 @@ class TaskApplier:
                 store = self.so.task_store
                 store.load(records, persist=False)
                 for r in records:  # a task that learns: its learner now, so that the poll reads its learned state
-                    if r.get("learn") and same_fingerprint(r.get("fingerprint"), store.fingerprint):
+                    if r.get("learn") and store.applies(r):
                         self.so.learning.get(store.snapshot(r["id"]))
         else:
             self.so.load_abstention(records, persist=False)
@@ -635,6 +637,19 @@ def _serial(method):
     return run
 
 
+def _in_layout(method):
+    """A method that takes `layout=` (a request's or a registration's; None: the one in effect, else the server's own)
+    and runs under it (decisio.serve.layout.using): its engine reads build that layout's prompts and its tasks are
+    fitted under that layout's fingerprint."""
+
+    @functools.wraps(method)
+    def run(self, *args, layout=None, **kwargs):
+        with lay.using(layout if layout is not None else self.request_layout):
+            return method(self, *args, **kwargs)
+
+    return run
+
+
 class SystemOne:
     """Serves the wire format on a text engine and, optionally, an image engine (decisio.serve.image_engine): requests
     with images go to the image engine, every other request to the text engine."""
@@ -677,8 +692,12 @@ class SystemOne:
         batch_invariant: dict | None = None,
         precision_casts: dict | None = None,
         compile_pin: dict | None = None,
+        layout_records: dict | None = None,
     ):
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
+        # the layouts what answers was trained or fitted under (decisio.serve.layout.notes): a response served under
+        # another layout says so (`layout_note`); empty for a server that records none
+        self.layout_records = dict(layout_records or {})
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
         # flavor, which is then exactly what it was (the model it echoes, the fingerprint, the headers)
         self.flavor = dict(flavor) if flavor else None
@@ -786,7 +805,8 @@ class SystemOne:
             shared = FTR.Shared(FTR.Objects(task_backend.store), readonly=task_backend.readonly)
         self.learning = FTL.Learning(
             root,
-            stack_sha=lambda: stack_sha256(self.stack_facts())[:16],
+            stack_sha=lambda layout=None: stack_sha256(self.stack_under(layout))[:16],
+            layout_of=lambda t: self.task_store.layout_of(t) if self.task_store is not None else None,
             perf=lambda: time.perf_counter(),
             now=lambda: time.time(),
             task=lambda task_id: self.task_store.snapshot(task_id) if self.task_store is not None else None,
@@ -958,6 +978,31 @@ class SystemOne:
         return req.model_copy(update={"state": text}), report
 
     def answer(
+        self,
+        req: SystemOneRequest,
+        adapter=None,
+        images=None,
+        imajev_ext=False,
+        route=None,
+        debug=None,
+        over_limit=None,
+        think=None,
+        layout=None,
+    ) -> dict:
+        """The response to a request (`_answer`), served under `layout`: the layout of the user turn this request asked
+        for ("plain" or "header"; None: the one in effect, else the server's). A request of the other layout than the
+        server's is built, looked up among the tasks and certified exactly as a server of that layout would; the image
+        route builds its own prompt and refuses the field (LayoutRefused)."""
+        layout = lay.request_value(layout)
+        if layout is not None and (images or route == "image"):
+            raise lay.LayoutRefused(
+                "the image route builds its own prompt (the images, then the state and the question) and has no "
+                'layout: send the request without "layout"'
+            )
+        with lay.using(layout if layout is not None else self.request_layout):
+            return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think)
+
+    def _answer(
         self,
         req: SystemOneRequest,
         adapter=None,
@@ -1219,13 +1264,17 @@ class SystemOne:
                 )
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
-                if stale is not None:  # fitted under another model or rendering: not applied, so not certified
+                if stale is not None:  # fitted under another model, rendering or layout: not applied, not certified
                     answers[name].update(
                         {
                             "certified": False,
                             "certificate": stale["certificate"]["id"],
                             "certificate_kind": "gold",
-                            "certified_reason": "serving_stack_changed",
+                            # a task of this server fitted under the other layout than the request's: decisio's own
+                            # read of this request's layout, which the certificate does not cover
+                            "certified_reason": (
+                                "layout_mismatch" if self.task_store.applies(stale) else "serving_stack_changed"
+                            ),
                         }
                     )
             if via.get(i):  # a task with a fast table says which of the two answered
@@ -1257,7 +1306,7 @@ class SystemOne:
             "_timing": {
                 "server_ms": (time.perf_counter() - t0) * 1000,
                 "route": "image" if use_image else "text",
-                "layout": "plain" if hl is not None and hl["listed"] == 0 else self.layout,
+                "layout": "plain" if hl is not None and hl["listed"] == 0 else self.request_layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
                 # the mean prompt the engine computed or read per question, and how much of it the cache served, for the
                 # x-decisio-prompt header: over the request's engine call and a certified task's own reads
@@ -1279,6 +1328,9 @@ class SystemOne:
         }
         if adapter is not None:
             out["adapter"] = adapter  # which adapter answered; absent when the base did
+        notes = [] if use_image else lay.notes(self.layout_records, self.request_layout, adapter)
+        if notes:  # served as asked, under another layout than what answered was trained or fitted under
+            out["layout_note"] = "; ".join(notes)
         if cut is not None:
             out["state_truncated"] = cut  # absent when the whole state was read
         if hl is not None:
@@ -1370,18 +1422,26 @@ class SystemOne:
         return t
 
     def stale_certified_task(self, q):
-        """A stored task of this question that has a certificate but is not applied because the store's fingerprint
-        (the model and rendering it was fitted under) is not this server's: its answers are plain, so not certified."""
+        """A stored task of this question that has a certificate but is not applied because its fingerprint (the model,
+        rendering and layout it was fitted under) is not this request's: its answers are plain, so not certified. A task
+        that applies to the server's other layout (`TaskStore.applies`) is a layout mismatch, not another stack."""
         store = self.task_store
         if not self.tasks_enabled or store is None or not store.by_key:
             return None
         from decisio.serve.tasks import task_key
 
-        t = store.by_key.get(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
-        if t is None and q.type == "choice" and q.instructions is not None:
-            t = store.by_key.get(dynamic.task_key(render_text(q.instructions)))
-        return t if t is not None and t.get("certificate") and store.lookup(t["key"]) is None else None
+        keys = [task_key(q, render_text, self.described(q), self.noul_rendered(q))]
+        if q.type == "choice" and q.instructions is not None:
+            keys.append(dynamic.task_key(render_text(q.instructions)))
+        for key in keys:
+            if store.lookup(key) is not None:
+                return None  # a task of this question applies to this request
+            certified = [t for t in store.of_question(key) if t.get("certificate")]
+            if certified:
+                return certified[0]
+        return None
 
+    @_in_layout
     @_serial
     def register_readout_task(
         self,
@@ -1402,6 +1462,8 @@ class SystemOne:
         least `FT.MIN_SAVING` faster (decisio.serve.fast_table).
         With `learn` (`FTL.split_request`'s settings) the task's table also learns from its traffic: the examples join
         every refit's fit and give its gold certificate (decisio.serve.fast_table_learn).
+        `layout=`: the layout the task is fitted under (`_in_layout`; the server's by default): its reads, its
+        fingerprint and its certificate are that layout's, and it applies to the requests of that layout only.
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
@@ -1506,6 +1568,7 @@ class SystemOne:
             out[f"cert_ms_{kind}"] = np.asarray(c["feature_ms"], dtype=np.float32)
         return out
 
+    @_in_layout
     @_serial
     def register_learning_task(self, task_id: str, q, learn: dict, certify_spec: dict | None = None) -> dict:
         """Register a task that learns its fast table from traffic, from its question alone: decisio answers it until
@@ -2247,9 +2310,18 @@ class SystemOne:
             out.append(np.asarray(p, dtype=np.float64))
         return out
 
+    def stack_under(self, layout: str | None) -> dict:
+        """`stack_facts` under `layout` (None: the server's own)."""
+        with lay.using(layout):
+            return self.stack_facts()
+
     def stack_facts(self) -> dict:
-        """The live serving stack's fingerprint (decisio.serve.stack), taken once."""
-        if getattr(self, "_stack", None) is None:
+        """The live serving stack's fingerprint (decisio.serve.stack) under the layout in effect, taken once per layout:
+        the rows of the probe, the prompt format and the task fingerprint are that layout's, so a certificate made under
+        one layout is served under it on any server that serves it."""
+        cache = self.__dict__.setdefault("_stack", {})
+        key = self.request_layout
+        if key not in cache:
             from importlib.metadata import PackageNotFoundError, version
 
             from decisio.serve import stack
@@ -2302,7 +2374,7 @@ class SystemOne:
                 # (`concurrency_changed`): a batched answer depends on the traffic it was scored with
                 **({"concurrency": self.concurrency_facts()} if self.batched else {}),
             }
-            self._stack = stack.stack_facts(
+            cache[key] = stack.stack_facts(
                 self.engine,
                 decisio_version=ver,
                 serving=serving,
@@ -2314,7 +2386,7 @@ class SystemOne:
                 },
                 task_fingerprint=self.task_store.fingerprint if self.task_store else None,
             )
-        return self._stack
+        return cache[key]
 
     @property
     def batched(self) -> bool:
@@ -2347,18 +2419,19 @@ class SystemOne:
         }
 
     def stack_with_fit(self, t) -> dict:
-        s = self.stack_facts()
+        """The live stack under the layout the task was fitted under, with the task's fit."""
+        s = self.stack_under(self.task_layout(t))
         return {**s, "calibration": {**s["calibration"], "task_fit": t.get("fit_sha256")}}
 
     def stack_sha(self, t) -> str:
-        """The live stack with the task's fit, hashed; cached per fit."""
+        """The live stack with the task's fit, hashed; cached per layout and fit."""
         from decisio.serve import stack
 
         cache = self.__dict__.setdefault("_stack_sha", {})
-        fit = t.get("fit_sha256")
-        if fit not in cache:
-            cache[fit] = stack.sha256(self.stack_with_fit(t))
-        return cache[fit]
+        key = (self.task_layout(t), t.get("fit_sha256"))
+        if key not in cache:
+            cache[key] = stack.sha256(self.stack_with_fit(t))
+        return cache[key]
 
     def attach_certificate(self, t, cert_ex, settings, split, reads=None):
         """Certify task `t` (fitted, not yet stored) on the held-out examples [(question, state, gold)] and attach the
@@ -2527,11 +2600,16 @@ class SystemOne:
     @_serial
     def recertify_task(self, task_id: str, examples: list[tuple], spec: dict | None):
         """Make the certificate of a stored task again, under this server's stack, on new labelled examples (the fit is
-        kept; the examples must not share an input with the fit's)."""
+        kept; the examples must not share an input with the fit's). Read under the layout the task was fitted under."""
         store = self.task_store
         t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
         if t is None:
             raise KeyError(task_id)
+        with lay.using(self.task_layout(t)):
+            return self._recertify(t, examples, spec)
+
+    def _recertify(self, t, examples: list[tuple], spec: dict | None):
+        store, task_id = self.task_store, t["id"]
         self.task_precheck("readout", task_id)
         if not t.get("certificate"):
             raise ValueError(
@@ -2878,6 +2956,7 @@ class SystemOne:
         T = 1.0 if images else self.temperature
         return (q, apply_temperature(probs[1], T), len(keys2) - 1, keys2, apply_temperature(probs[0], T), keys)
 
+    @_in_layout
     @_serial
     def register_task(self, task_id: str, option: dict, match: str, examples: list[tuple]) -> dict:
         """Fit and store a task from labelled examples [(request, images, imajev_ext, gold)], gold None for
@@ -2929,8 +3008,8 @@ class SystemOne:
             ),
             "config": cfg,
             "model": self.name,
-            # the layout is written only when it is not plain, so a plain server's records are what they were
-            **({"layout": self.layout} if self.layout != "plain" else {}),
+            # the layout it was fitted under, written only when it is not plain, so plain records are what they were
+            **({"layout": self.request_layout} if self.request_layout != "plain" else {}),
         }
         self.save_abstention(task)
         self.tasks[task_id] = task
@@ -2976,32 +3055,38 @@ class SystemOne:
 
     @property
     def layout(self) -> str:
-        """The layout of the user turn this server serves (decisio.serve.layout)."""
-        return getattr(getattr(self.engine, "fmt", None), "layout", "plain")
+        """The layout of the user turn this server serves when a request names none (decisio.serve.layout)."""
+        return getattr(lay.server_fmt(self.engine), "layout", "plain")
+
+    @property
+    def request_layout(self) -> str:
+        """The layout in effect: the one the request (or the registration) being served asked for, else the server's."""
+        return lay.current() or self.layout
+
+    def task_layout(self, t) -> str:
+        """The layout task `t` was fitted under, among this server's; the one in effect where the store cannot tell (a
+        task of another model or rendering, a store without layouts)."""
+        found = self.task_store.layout_of(t) if self.task_store is not None else None
+        return found or self.request_layout
 
     def abstention_applies(self, t: dict) -> bool:
-        """A task fitted under another served model, or under another layout of the user turn, is kept but not applied
-        (its threshold is for that model's probabilities under that prompt); records written before the fields carry no
-        model and apply, and no layout means plain."""
-        return t.get("model") in (None, self.name) and (t.get("layout") or "plain") == self.layout
+        """A task fitted under another served model is kept but not applied (its threshold is for that model's
+        probabilities), and one fitted under the other layout of the user turn applies to the requests of its layout
+        only; records written before the fields carry no model and apply, and no layout means plain."""
+        return t.get("model") in (None, self.name) and (t.get("layout") or "plain") == self.request_layout
 
     def task_store_report(self) -> dict:
         """What /health and GET /v1/tasks say about the saved tasks: where they are kept, how many are loaded, how
         many of those apply to this server's stack, and what the start loaded from where."""
         store = self.task_store
         readout = list(store.by_key.values()) if store else []
-        applied = sum(1 for t in readout if same_fingerprint(t["fingerprint"], store.fingerprint))
-        a_applied = sum(1 for t in self.tasks.values() if self.abstention_applies(t))
+        # a task applies to the requests of the layout it was fitted under: either layout counts
+        applied = sum(1 for t in readout if store.applies(t))
         a_model = sum(1 for t in self.tasks.values() if t.get("model") not in (None, self.name))
         return {
             "saved_to": self.task_backend.describe() if self.task_backend is not None else None,
             "readout": {"loaded": len(readout), "applied": applied, "other_stack": len(readout) - applied},
-            "abstention": {
-                "loaded": len(self.tasks),
-                "applied": a_applied,
-                "other_model": a_model,
-                "other_layout": len(self.tasks) - a_applied - a_model,
-            },
+            "abstention": {"loaded": len(self.tasks), "applied": len(self.tasks) - a_model, "other_model": a_model},
             "at_start": self.task_report,
         }
 
@@ -3176,10 +3261,17 @@ def add_routes(app, systemone: SystemOne):
         if think is not None and not isinstance(think, bool):
             raise HTTPException(422, '"think" must be true, false or null')
         try:
-            out = await run_in_threadpool(systemone.answer, req, adapter, images, ext, route, debug, over_limit, think)
+            layout = lay.request_value((req.model_extra or {}).get("layout"))
+        except lay.LayoutRefused as e:
+            raise HTTPException(422, str(e))
+        try:
+            out = await run_in_threadpool(
+                functools.partial(systemone.answer, layout=layout),
+                req, adapter, images, ext, route, debug, over_limit, think,
+            )  # fmt: skip
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
-        except (over.OverLimit, thinking.ThinkUnavailable) as e:
+        except (over.OverLimit, thinking.ThinkUnavailable, lay.LayoutRefused) as e:
             raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
@@ -3290,10 +3382,12 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, "body: {'id', 'option', 'match', 'examples': [{'request', 'answer'}]}")
         set_intent(request)
         refuse_adapter(body)
+        layout = task_layout_of(body)
         examples = []
         for n, ex in enumerate(body["examples"]):
             payload = dict(ex.get("request") or {})
             refuse_adapter(payload, f"example {n}")
+            example_layout(payload, f"example {n}", layout or systemone.layout)
             ext = "images" in payload
             imgs = payload.pop("images", None) or []
             try:
@@ -3315,10 +3409,16 @@ def add_routes(app, systemone: SystemOne):
                 images = [load_image(b) for b in blobs]
             except (ValueError, TypeError, OSError, ValidationError) as e:
                 raise HTTPException(422, f"example {n}: {e}")
+            if images and layout is not None:
+                raise HTTPException(
+                    422,
+                    f"example {n}: an image example is read by the image route, which has no layout: register the "
+                    'task without "layout"',
+                )
             examples.append((req, images, ext, ex.get("answer")))
         try:
             task = await run_in_threadpool(
-                systemone.register_task,
+                functools.partial(systemone.register_task, layout=layout),
                 str(body["id"]),
                 body.get("option") or {},
                 body.get("match", "option_set"),
@@ -3347,7 +3447,7 @@ def add_routes(app, systemone: SystemOne):
 
     def import_abstention_tasks(body: dict, request: Request):
         """Load abstention tasks as `GET /v1/abstention/tasks` returns them (no re-scoring); refused when fitted for
-        another served model."""
+        another served model. A task of either layout loads, and applies to the requests of its layout."""
         set_intent(request)
         records = body.get("tasks") if isinstance(body, dict) else None
         if not isinstance(records, list):
@@ -3355,11 +3455,6 @@ def add_routes(app, systemone: SystemOne):
         other = [t.get("id") for t in records if isinstance(t, dict) and t.get("model") not in (None, systemone.name)]
         if other:
             raise HTTPException(422, f"fitted for another served model than {systemone.name!r}: {other}")
-        other = [
-            t.get("id") for t in records if isinstance(t, dict) and (t.get("layout") or "plain") != systemone.layout
-        ]
-        if other:
-            raise HTTPException(422, f"fitted under another layout than {systemone.layout!r}: {other}")
         try:
             loaded = systemone.load_abstention(records)
         except (KeyError, TypeError, ValueError) as e:
@@ -3402,13 +3497,35 @@ def add_routes(app, systemone: SystemOne):
         if isinstance(body, dict) and body.get("over_limit") is not None:
             raise HTTPException(422, f"{where}: {NO_OVER_LIMIT}")
 
-    def parse_examples(items, where="example"):
+    def task_layout_of(body) -> str | None:
+        """The layout a task is registered under: the body's `layout` (None: the server's own)."""
+        try:
+            return lay.request_value(body.get("layout") if isinstance(body, dict) else None)
+        except lay.LayoutRefused as e:
+            raise HTTPException(422, str(e))
+
+    def example_layout(payload, where: str, task_layout: str) -> None:
+        """An example's request may carry a `layout`, as a served request does: it must be the task's."""
+        try:
+            given = lay.request_value(payload.get("layout"), f'{where}: "layout"')
+        except lay.LayoutRefused as e:
+            raise HTTPException(422, str(e))
+        if given is not None and given != task_layout:
+            raise HTTPException(
+                422,
+                f'{where}: "layout" is {given!r} and the task is fitted under {task_layout!r}: a task is fitted under '
+                "one layout, the body's \"layout\" (the server's when absent)",
+            )
+
+    def parse_examples(items, where="example", layout=None):
+        """The examples (state, wire question, answer); `layout`: the task's, which an example's `layout` must be."""
         examples = []
         for n, ex in enumerate(items):
             if not isinstance(ex, dict):
                 raise HTTPException(422, f"{where} {n}: must be an object {{'request', 'answer'}}")
             payload = dict(ex.get("request") or {})
             refuse_adapter(payload, f"{where} {n}")
+            example_layout(payload, f"{where} {n}", layout or systemone.layout)
             if (
                 "images" in payload
                 or "assets" in payload
@@ -3450,8 +3567,9 @@ def add_routes(app, systemone: SystemOne):
             )
         set_intent(request)
         refuse_adapter(body)
+        layout = task_layout_of(body)
         debug = debug_of(request)
-        examples = parse_examples(body["examples"])
+        examples = parse_examples(body["examples"], layout=layout)
         dynamic_options = None
         if body.get("options") is not None or body.get("match") is not None:
             if body.get("options") != "dynamic":
@@ -3485,10 +3603,10 @@ def add_routes(app, systemone: SystemOne):
             if body["certify"].get("examples") is not None:
                 if not isinstance(body["certify"]["examples"], list):
                     raise HTTPException(422, "certify.examples: a list of {'request', 'answer'} like examples")
-                held_out = parse_examples(body["certify"]["examples"], "certify.examples")
+                held_out = parse_examples(body["certify"]["examples"], "certify.examples", layout)
         try:
             task, fitted = await run_in_threadpool(
-                systemone.register_readout_task,
+                functools.partial(systemone.register_readout_task, layout=layout),
                 str(body["id"]),
                 examples,
                 certify,
@@ -3519,6 +3637,7 @@ def add_routes(app, systemone: SystemOne):
 
         set_intent(request)
         refuse_adapter(body)
+        layout = task_layout_of(body)
         q = body.get("question")
         if not isinstance(q, dict):
             raise HTTPException(
@@ -3536,7 +3655,8 @@ def add_routes(app, systemone: SystemOne):
         if spec is not None and not isinstance(spec, dict):
             raise HTTPException(422, "certify: an object {'alpha', 'delta'}")
         try:
-            task = await run_in_threadpool(systemone.register_learning_task, str(body["id"]), question, learn, spec)
+            register = functools.partial(systemone.register_learning_task, layout=layout)
+            task = await run_in_threadpool(register, str(body["id"]), question, learn, spec)
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
         except TaskPersistError as e:
@@ -3627,7 +3747,10 @@ def add_routes(app, systemone: SystemOne):
             )
         set_intent(request)
         refuse_adapter(body)
-        examples = parse_examples(body["examples"])
+        store = systemone.task_store
+        known = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
+        # a task is certified again under the layout it was fitted under
+        examples = parse_examples(body["examples"], layout=systemone.task_layout(known) if known else None)
         spec = {k: body[k] for k in ("alpha", "delta", "min_examples", "suspend_on_alert") if k in body}
         try:
             task = await run_in_threadpool(systemone.recertify_task, task_id, examples, spec)
@@ -3656,7 +3779,8 @@ def add_routes(app, systemone: SystemOne):
 
     def import_readout_tasks(body: dict, request: Request):
         """Load tasks as `GET /v1/tasks?full=1` returns them (no re-scoring); refused when fitted under another model or
-        rendering (re-register those from their examples)."""
+        rendering (re-register those from their examples). A task of either layout loads, and applies to the requests
+        of its layout."""
         set_intent(request)
         store = systemone.task_store
         if store is None:
@@ -3664,7 +3788,7 @@ def add_routes(app, systemone: SystemOne):
         tasks = body.get("tasks") if isinstance(body, dict) else None
         if not isinstance(tasks, list):
             raise HTTPException(422, "body: {'tasks': [<task as GET /v1/tasks?full=1 returns it>]}")
-        stale = [t.get("id") for t in tasks if not same_fingerprint(t.get("fingerprint"), store.fingerprint)]
+        stale = [t.get("id") for t in tasks if not store.applies(t)]
         if stale:
             raise HTTPException(422, f"fitted under another model or rendering: {stale}")
         try:

@@ -8,11 +8,11 @@ same bytes whatever else the server is sent. That is what the certificates promi
 two runs needs.
 
 Batched mode trades that for throughput. One engine thread takes every request waiting at that moment (up to
-`max_requests`, those of the oldest request's adapter) and scores all their rows in one engine call, so concurrent
-requests share forward passes. Nothing waits on purpose: a request that arrives at an idle server is taken at once,
-alone, and goes through the same engine call as a serial server's, so a batch of one is the serial answer byte for
-byte, and single-stream latency is unchanged (plus a thread hand-off). A request that arrives while a call runs waits
-for it, as it would behind the lock, and goes in the next call with every other request that arrived meanwhile.
+`max_requests`, those of the oldest request's adapter and layout) and scores all their rows in one engine call, so
+concurrent requests share forward passes. Nothing waits on purpose: a request that arrives at an idle server is taken
+at once, alone, and goes through the same engine call as a serial server's, so a batch of one is the serial answer byte
+for byte, and single-stream latency is unchanged (plus a thread hand-off). A request that arrives while a call runs
+waits for it, as it would behind the lock, and goes in the next call with every other request that arrived meanwhile.
 
 What drifts: a question scored beside other requests' rows can differ from the same question alone, because vLLM's
 kernels choose their tiles and reduction orders by batch shape (measured on the 585 W card: the 31B changed no
@@ -21,6 +21,9 @@ the 12B 3 to 5 choices; the Qwen base 21 choices). So an answer depends on the t
 says so: the mode is in `/health` and in the serving-stack fingerprint, so a certificate made under one mode is not
 served as certified under the other (`concurrency_changed`), and the batch an answer was scored in is in its timing
 (`batch`).
+
+Requests of the two layouts (decisio.serve.layout) never share an engine call: a call's rows are built under one layout,
+the one its requests asked for, as a server of that layout builds them.
 
 What does not change: within one engine call the rows are the ones a serial server builds (the same tokenization,
 padding and labels); the boundary registrations of each request are deferred to that request's own response
@@ -148,12 +151,14 @@ def is_engine_failure(engine, error) -> bool:
 
 
 class Waiting:
-    """One `answer_many` call waiting for the engine: its requests, adapter and ticket, and, once scored, its result."""
+    """One `answer_many` call waiting for the engine: its requests, adapter, layout and ticket, and, once scored, its
+    result. `layout`: the layout its rows are built under (None: the server's own)."""
 
-    __slots__ = ("requests", "adapter", "ticket", "behind", "arrived", "done", "result", "error")
+    __slots__ = ("requests", "adapter", "layout", "ticket", "behind", "arrived", "done", "result", "error")
 
-    def __init__(self, requests, adapter, ticket, behind):
+    def __init__(self, requests, adapter, ticket, behind, layout=None):
         self.requests, self.adapter, self.ticket, self.behind = requests, adapter, ticket, behind
+        self.layout = layout
         self.arrived = time.perf_counter()
         self.done = threading.Event()
         self.result = None
@@ -191,8 +196,8 @@ class Combiner:
                 "requests_per_call": {str(k): v for k, v in sorted(self.sizes.items())},
             }
 
-    def submit(self, requests, adapter, ticket, behind=False):
-        w = Waiting(requests, adapter, ticket, behind)
+    def submit(self, requests, adapter, ticket, behind=False, layout=None):
+        w = Waiting(requests, adapter, ticket, behind, layout)
         with self._cond:
             if self._closed:
                 raise RuntimeError("the server is shutting down: no engine call starts any more")
@@ -209,17 +214,18 @@ class Combiner:
         return w.result
 
     def take(self) -> list[Waiting]:
-        """The next engine call's requests (the caller holds the engine's lock): the oldest waiting call's adapter, and
-        every waiting call of that adapter, oldest first, while the requests stay within `max_requests` (the first is
-        always taken, whatever its size)."""
+        """The next engine call's requests (the caller holds the engine's lock): the oldest waiting call's adapter and
+        layout, and every waiting call of that adapter and layout, oldest first, while the requests stay within
+        `max_requests` (the first is always taken, whatever its size)."""
         with self._cond:
             if not self._waiting:
                 return []
-            adapter = self._waiting[0].adapter
+            adapter, layout = self._waiting[0].adapter, self._waiting[0].layout
             batch, keep, n = [], deque(), 0
             while self._waiting:
                 w = self._waiting.popleft()
-                if w.adapter == adapter and (not batch or n + len(w.requests) <= self.max_requests):
+                same = w.adapter == adapter and w.layout == layout
+                if same and (not batch or n + len(w.requests) <= self.max_requests):
                     batch.append(w)
                     n += len(w.requests)
                 else:

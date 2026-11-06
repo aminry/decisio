@@ -8,6 +8,40 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a layout per request
+
+How to use it: [running.md, "A layout per request"](running.md#a-layout-per-request-layout) and [tasks.md, "A task under a layout"](tasks.md#a-task-under-a-layout).
+
+### What changed
+
+- **A request can name its layout**: `"layout": "plain"` or `"layout": "header"` on `/v1/systemone` and `/v1/answer`.
+  Absent or `null`, the server's layout, as before; any other value is 422.
+  A request of either layout is built token for token as a server started with that `--layout` builds it; `x-decisio-prompt` says which.
+  The image route has no layout and refuses the field (422), and so does `--mode packed` for `"header"`.
+- **Tasks are registered under a layout**: every registration route takes `"layout"` (default: the server's), and a task applies only to the requests of its layout.
+  The same question can have a task under each layout; neither replaces the other.
+  A question of a certified task of the other layout is answered with decisio's own read, `certified: false` with the new reason `layout_mismatch`; a fast table never answers it and a learning task does not log it.
+- **Tasks of both layouts load and apply.** The start no longer warns that plain-fitted tasks are "not applied under header" on a server started with `--layout header`: they apply to the requests that ask for `"layout": "plain"`, and `store.readout.applied` counts them.
+  `POST /v1/abstention/tasks/import` no longer refuses a task "fitted under another layout"; `POST /v1/tasks/import` takes a task of either layout.
+  `store.abstention` no longer has `other_layout`: an abstention task of either layout applies to the requests of its layout.
+- **A certificate is checked against its own layout's serving stack**, so it holds for its layout's requests on a server whose default layout is the other one.
+- **A response served under another layout than what answers was trained or fitted under carries `layout_note`**: an adapter, a tuned repository, `--temperatures-file` or a flavor whose recorded layout differs from the request's.
+  This includes a server started with `--layout` against such a record, whose responses now say so.
+- **The held default stays**: a Gemma base holding tasks fitted under plain still serves plain to the requests that name no layout, so their answers do not change; the start line now says that requests may ask for the header.
+- With `--concurrency batched`, requests of the two layouts are never scored in one engine call.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Clients that send no `layout` | Nothing changes: every request gets the server's layout, built as before | Nothing |
+| A client that asks a series of questions about one state, on a header server | It can keep the cache without a server of its own | Send `"layout": "plain"`; what it gives up is the header's measured gain ([running.md](running.md#a-layout-per-request-layout)) |
+| A server started with `--layout header` that holds tasks fitted under plain | Those tasks now apply to the requests that ask for `"layout": "plain"` (before: to none); the start no longer warns, and `store.readout.applied` counts them | Nothing, or remove the tasks if no client asks for plain |
+| A header-default server held at plain by plain-fitted tasks | Unchanged for requests that name no layout; a request may now ask for the header | To move the default, register the tasks under `"layout": "header"` and start with `--layout header` |
+| A server started with `--layout` against an adapter's, a tuned repository's, the temperatures file's or a flavor's recorded layout | Every response carries `layout_note` | Allow the field, or serve the recorded layout |
+| Clients that compare an answer's fields or `/health` exactly | `layout_mismatch` is a new `certified_reason`; `store.abstention.other_layout` is gone | Allow the reason; read `applied` |
+| Scripts that import abstention tasks across layouts and expect the 422 | The import loads them | Nothing |
+
 ## 0.42.0: the fast table learns from traffic
 
 How to use it: [tasks.md, "A fast table that learns from traffic"](tasks.md#a-fast-table-that-learns-from-traffic).

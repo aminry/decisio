@@ -41,6 +41,7 @@ CERTIFIED_REASONS = (
     "header_limited",
     "think_mode_changed",
     "concurrency_changed",
+    "layout_mismatch",
 )
 
 
@@ -84,6 +85,7 @@ class _Answer(BaseModel):
             "header_limited",
             "think_mode_changed",
             "concurrency_changed",
+            "layout_mismatch",
         ]
         | None
     ) = Field(None, description="Why `certified` is false.")
@@ -123,6 +125,11 @@ class SystemOneResponse(BaseModel):
     answers: dict[str, Answer] = Field(description="By the request's question names.")
     usage: Usage
     adapter: str | None = Field(None, description="The adapter that answered, when the request named one.")
+    layout_note: str | None = Field(
+        None,
+        description="When the request was served under another layout than what answered was trained or fitted under "
+        "(an adapter, a tuned repository, the temperatures file, a flavor): which, and under which layout.",
+    )
     thinking: dict[str, Any] | None = Field(
         None,
         description="When thinking was on for the request (`think`): `questions` that thought, `of`, `tokens`, `ms`, the "
@@ -236,6 +243,10 @@ class TaskRegistration(BaseModel):
     fast_table: bool | FastTableBlock | None = Field(
         None, description="A fast table in front of decisio: `true`, or the student and whether it learns."
     )
+    layout: Literal["plain", "header"] | None = Field(
+        None,
+        description="The layout the task is fitted under, and whose requests it applies to (default: the server's).",
+    )
 
 
 class CertifyRequest(BaseModel):
@@ -261,6 +272,10 @@ class AbstentionRegistration(BaseModel):
     )
     match: Literal["option_set", "option_keys", "imajev_extension"]
     examples: list[TaskExample]
+    layout: Literal["plain", "header"] | None = Field(
+        None,
+        description="The layout the task is fitted under, and whose requests it applies to (default: the server's).",
+    )
 
 
 class TaskRecord(BaseModel):

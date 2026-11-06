@@ -803,7 +803,7 @@ class SharedLearner(FTL.Learner):
 
     def _certificate_rows(self, rows: dict, ci, held_unbiased) -> dict:
         names, counts = np.unique(rows["replica"][ci], return_counts=True)
-        other = held_unbiased & (rows["stack"] != self.m.stack_sha().encode())
+        other = held_unbiased & (rows["stack"] != self.stack_sha().encode())
         return {
             "replicas": {n.decode(): int(c) for n, c in zip(names, counts)},
             "other_stack_rows": int(other.sum()),
@@ -1029,7 +1029,7 @@ class SharedLearner(FTL.Learner):
             "format": STATS_FORMAT,
             "replica": self.sh.replica,
             "at": self.m.now(),
-            "stack": self.m.stack_sha(),
+            "stack": self.stack_sha(),
             "state": self.state(),
             "live": v.number if v is not None else None,
             "rows": {

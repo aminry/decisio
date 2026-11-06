@@ -29,6 +29,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 FLAVOR_NAMES = ("calibrated", "commit", "read-enhanced")
+# the layout every flavor was fitted and measured under; a request may ask for the other one, and its response says so
+# (decisio.serve.layout.notes)
+FLAVOR_LAYOUT = "header"
 # a tuned repository can also be a flavor the bases do not have: the commit rule with thinking on the question types its
 # settings name (`defaults.think`), which a tuned model's training shows where it helps
 TUNED_FLAVOR_NAMES = (*FLAVOR_NAMES, "commit-think")
@@ -60,7 +63,7 @@ class FlavorError(ValueError):
 class Flavor:
     name: str  # calibrated | commit | read-enhanced
     stem: str  # Decisio-31b | Decisio-12b | Decisio-12b-fp8
-    layout: str = "header"
+    layout: str = FLAVOR_LAYOUT
     noul_commit: bool = False
     think: bool = False
     think_factor: float | None = None  # None: the server's default

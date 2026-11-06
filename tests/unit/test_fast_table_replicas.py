@@ -303,7 +303,7 @@ def test_r3_two_state_updates_at_once_one_retries_and_both_land():
 def test_r4_rows_from_both_replicas_reach_one_certificate_and_another_stack_does_not():
     store = MemoryStore()
     a, b, c = replica(store, "a"), replica(store, "b"), replica(store, "c")
-    c.so.learning._stack_value = "e" * 16  # c serves through another stack (another card, another engine)
+    c.so.learning._stack_values[None] = "e" * 16  # c serves through another stack (another card, another engine)
     assert learn(a.client).status_code == 200
     poll(a, b, c)
     log_rows(a.so, 500, seed=1)

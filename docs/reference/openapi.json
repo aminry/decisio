@@ -351,7 +351,7 @@
     "/v1/abstention/tasks/import": {
       "post": {
         "summary": "Import Abstention Tasks",
-        "description": "Load abstention tasks as `GET /v1/abstention/tasks` returns them (no re-scoring); refused when fitted for\nanother served model.",
+        "description": "Load abstention tasks as `GET /v1/abstention/tasks` returns them (no re-scoring); refused when fitted for\nanother served model. A task of either layout loads, and applies to the requests of its layout.",
         "operationId": "import_abstention_tasks_v1_abstention_tasks_import_post",
         "requestBody": {
           "content": {
@@ -731,7 +731,7 @@
     "/v1/tasks/import": {
       "post": {
         "summary": "Load tasks exported with `GET /v1/tasks?full=1`",
-        "description": "Load tasks as `GET /v1/tasks?full=1` returns them (no re-scoring); refused when fitted under another model or\nrendering (re-register those from their examples).",
+        "description": "Load tasks as `GET /v1/tasks?full=1` returns them (no re-scoring); refused when fitted under another model or\nrendering (re-register those from their examples). A task of either layout loads, and applies to the requests\nof its layout.",
         "operationId": "import_readout_tasks_v1_tasks_import_post",
         "requestBody": {
           "required": true,
@@ -1161,7 +1161,8 @@
                   "state_truncated",
                   "header_limited",
                   "think_mode_changed",
-                  "concurrency_changed"
+                  "concurrency_changed",
+                  "layout_mismatch"
                 ],
                 "type": "string"
               },
@@ -1306,7 +1307,8 @@
                   "state_truncated",
                   "header_limited",
                   "think_mode_changed",
-                  "concurrency_changed"
+                  "concurrency_changed",
+                  "layout_mismatch"
                 ],
                 "type": "string"
               },
@@ -1436,7 +1438,8 @@
                   "state_truncated",
                   "header_limited",
                   "think_mode_changed",
-                  "concurrency_changed"
+                  "concurrency_changed",
+                  "layout_mismatch"
                 ],
                 "type": "string"
               },
@@ -1595,6 +1598,19 @@
             "default": null,
             "description": "The adapter that answered, when the request named one.",
             "title": "Adapter"
+          },
+          "layout_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When the request was served under another layout than what answered was trained or fitted under (an adapter, a tuned repository, the temperatures file, a flavor): which, and under which layout.",
+            "title": "Layout Note"
           },
           "thinking": {
             "anyOf": [
@@ -2031,6 +2047,23 @@
             "default": null,
             "description": "A fast table in front of decisio: `true`, or the student and whether it learns.",
             "title": "Fast Table"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plain",
+                  "header"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The layout the task is fitted under, and whose requests it applies to (default: the server's).",
+            "title": "Layout"
           }
         },
         "required": [
@@ -2164,6 +2197,23 @@
             },
             "title": "Examples",
             "type": "array"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "enum": [
+                  "plain",
+                  "header"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The layout the task is fitted under, and whose requests it applies to (default: the server's).",
+            "title": "Layout"
           }
         },
         "required": [
@@ -2341,6 +2391,21 @@
               }
             ],
             "title": "Adapter"
+          },
+          "layout": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "plain",
+                  "header"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Layout"
           }
         },
         "type": "object",

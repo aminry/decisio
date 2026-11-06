@@ -260,17 +260,11 @@ def load_at_start(store, backend, file_tasks=None, file_abstention=None, saved=N
     return list(abstention.values()), report
 
 
-def usable(store, abstention_records, served_name, layout="plain") -> int:
-    """How many loaded tasks apply to this server: readout tasks of its stack, abstention tasks of its served model and
-    layout."""
-    from decisio.names import same_fingerprint
-
-    n = sum(1 for t in store.by_key.values() if same_fingerprint(t["fingerprint"], store.fingerprint))
-    return n + sum(
-        1
-        for t in abstention_records
-        if t.get("model") in (None, served_name) and (t.get("layout") or "plain") == layout
-    )
+def usable(store, abstention_records, served_name) -> int:
+    """How many loaded tasks apply to this server: readout tasks of its stack, under either layout it serves, and
+    abstention tasks of its served model (each applies to the requests of the layout it was fitted under)."""
+    n = sum(1 for t in store.by_key.values() if store.applies(t))
+    return n + sum(1 for t in abstention_records if t.get("model") in (None, served_name))
 
 
 def start_refusal(usable_tasks: int, required: int | None, loaded: int | None, where_held=None) -> str | None:
