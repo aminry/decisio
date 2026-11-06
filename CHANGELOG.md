@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.44.0](https://github.com/aminry/decisio/compare/v0.43.0...v0.44.0) (2026-11-06)
+
+
+### Features
+
+* **image:** a fast-table image variant with the static students built in ([#426](https://github.com/aminry/decisio/issues/426)) ([154e43e](https://github.com/aminry/decisio/commit/154e43e0e9e5ed412a9541d749d8c975fb8e7b17))
+
 ## [0.43.0](https://github.com/aminry/decisio/compare/v0.42.0...v0.43.0) (2026-11-06)
 
 
