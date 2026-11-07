@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.45.0](https://github.com/aminry/decisio/compare/v0.44.0...v0.45.0) (2026-11-07)
+
+
+### Features
+
+* **serve:** batch-invariant mode off by default again for the Gemma 4 12B ([#429](https://github.com/aminry/decisio/issues/429)) ([ac40cad](https://github.com/aminry/decisio/commit/ac40cad19c216501031a363d4edc6819149744a1))
+
 ## [0.44.0](https://github.com/aminry/decisio/compare/v0.43.0...v0.44.0) (2026-11-06)
 
 
