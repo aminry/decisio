@@ -8,6 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.45.0: batch-invariant mode off by default again
+
+### What changed
+
+- **vLLM's batch-invariant mode is off by default for the Gemma 4 12B again**, as before 0.39.0: `gemma-4-12b`, `gemma-4-12b-fp8`, their tuned repositories and adapters applied at run time. It stays available: `--batch-invariant on`, or a tuned repository's `defaults.batch_invariant: true` ([running.md](running.md#batch-invariance---batch-invariant)).
+- **Why:** its cost grows with the input. On the tuned 12B in FP8, requests over 1,000 tokens ran about 30% slower with it on in production (a field report; the documented 1.03 times was measured on short reads).
+- **The trade:** with it off, a repeated request can differ in the last digits, and a near-tie can change its top answer. On the 12B, two reads of 622 requests with the cache on differed on 145 by more than 0.01 and changed 4 top answers (0.6%).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| The 12B (bf16, FP8, a tuned repository, an adapter) with no `--batch-invariant` flag | The server starts with the mode off: answers shift once (last digits, and an occasional near-tie), long reads are faster, and `/health` says `batch_invariant` off | Nothing, or `--batch-invariant on` to keep 0.39.0 to 0.44.0's behaviour |
+| Certificates made on such a server with the mode on | The serving-stack fingerprint holds the mode only when on, so they are suspended (`serving_stack_changed`) | Certify them again, or start with `--batch-invariant on` |
+| Recorded answers (goldens, reference reads) made with the mode on | They will not match bit for bit | Record them again, or pin `--batch-invariant on` |
+| `--batch-invariant on`, or a repository with `defaults.batch_invariant: true` | Unchanged | Nothing |
+| The 31B, the Qwen base, the image route, packed mode | Unchanged (it was off) | Nothing |
+
 ## 0.44.0: a fast-table image with the static students built in
 
 ### What changed

@@ -10,13 +10,12 @@ B4  the repository: `defaults.batch_invariant` is true or absent, `tuned-config 
     covers it, and a repository without it is what it was
 B5  /health carries the setting and the fingerprint holds it only when on, so a certificate made without it is suspended
 B6  the start line says where it came from and what vLLM reads
-B7  the base's default: on for the Gemma 4 12B in bf16 and FP8 served by vLLM in separate mode (adapters applied at
-    run time included), off for the 31B (FP8 and bf16), the Qwen base, an image model, packed mode and other
-    backends; the flag, the repository and the variable each beat it, so `--batch-invariant off` and
-    VLLM_BATCH_INVARIANT=0 are opt-outs
+B7  the base's default: off for every base since 0.45.0 (on for the Gemma 4 12B from 0.39.0 to 0.44.0); the flag, the
+    repository and the variable each beat a base default, so `--batch-invariant on` and a repository's
+    defaults.batch_invariant turn it on, and `off` and VLLM_BATCH_INVARIANT=0 are opt-outs
 B8  decisio sets no batch budget: --engine passes through untouched, and the start line reports vLLM's own budget when
     the mode is on
-B9  every base key is either in the default or named as kept off, so a new base is a decision, not an accident
+B9  no base runs the mode by default: it is opt-in
 B10 the fingerprint holds vLLM's batch budget when the mode is on (a prompt longer than it is prefilled in steps,
     repeatable but other arithmetic), so a certificate made under another budget is suspended; off, nothing changes
 
@@ -195,9 +194,9 @@ def test_b6_the_start_line():
 @pytest.mark.parametrize(
     ("key", "backend", "image", "mode", "want"),
     [
-        ("gemma-4-12b", "vllm", None, "separate", True),
-        ("gemma-4-12b-fp8", "vllm", None, "separate", True),
-        ("gemma-4-31b", "vllm", None, "separate", False),  # the 31B waits for its measurement at that size
+        ("gemma-4-12b", "vllm", None, "separate", False),  # opt-in again since 0.45.0 (on from 0.39.0 to 0.44.0)
+        ("gemma-4-12b-fp8", "vllm", None, "separate", False),
+        ("gemma-4-31b", "vllm", None, "separate", False),
         ("gemma-4-31b-bf16", "vllm", None, "separate", False),
         ("qwen3.6-35b-a3b", "vllm", None, "separate", False),
         ("gemma-4-12b", "vllm", "some/image-model", "separate", False),
@@ -235,12 +234,12 @@ def test_b8_decisio_sets_no_batch_budget_and_the_start_line_reports_vllms():
     )
 
 
-def test_b9_every_base_is_in_the_default_or_named_as_kept_off():
+def test_b9_no_base_runs_the_mode_by_default():
     from decisio.families import BASES
 
-    kept_off = {"gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b"}
-    assert set(bi.DEFAULT_ON) | kept_off == set(BASES), "a new base: decide whether the mode is its default"
-    assert not set(bi.DEFAULT_ON) & kept_off
+    # no base runs the mode by default: it is opt-in (--batch-invariant on, or a repository's defaults)
+    assert bi.DEFAULT_ON == ()
+    assert not any(bi.base_default(k, "vllm", None, "separate") for k in BASES)
 
 
 def test_b10_the_fingerprint_holds_the_batch_budget_when_the_mode_is_on():

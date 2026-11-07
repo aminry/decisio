@@ -2452,10 +2452,11 @@ def build_parser():
         "computed the same whatever else is in its batch, so a repeated request gives the same answer under load and "
         "after a restart, and a read from the prefix cache gives the bits of a read without it (measured on the 12B). "
         "on or off; without it a tuned repository's defaults.batch_invariant decides, then VLLM_BATCH_INVARIANT, then "
-        "the base: on for the Gemma 4 12B in bf16 and FP8 and its tuned repositories (adapters applied at run time "
-        "included), off for the 31B, the image route and the Qwen base. off opts out. A variable in the environment "
-        "that says the opposite of the flag is refused. Costs 1.05 to 1.33 times a single read on bf16 and about "
-        "1.03 on FP8 (12B, one card); the answers are not those of the other kernels",
+        "the default: off for every base (it was on for the Gemma 4 12B from 0.39.0 to 0.44.0). A variable in the "
+        "environment that says the opposite of the flag is refused. It costs time that grows with the input: 1.60 "
+        "times a single bf16 read and 1.03 on FP8 on short reads (12B, one RTX 5090), about 1.3 times on FP8 "
+        "requests over 1,000 tokens (a field report, not yet measured here); the answers are not those of the other "
+        "kernels",
     )
     ap.add_argument(
         "--emulate-precision-casts",
