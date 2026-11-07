@@ -7,11 +7,11 @@ vLLM 0.31.0 reads `VLLM_BATCH_INVARIANT=1` from its environment when it starts a
 kernels whose result does not depend on what else is in the batch.
 A board or a user runs only `--base <repository>`; they do not set an environment variable.
 So the setting can be a tuned repository's `defaults.batch_invariant`, the server's `--batch-invariant on|off`, or the
-base: it is on by default for the Gemma 4 12B in bf16 and in FP8 (`gemma-4-12b`, `gemma-4-12b-fp8`, and a tuned
-repository of either), adapters applied at run time included, where it was measured to make a read give the same bits
-whatever was read before it (the prefix cache, the batch, the start). The 31B (FP8 and bf16) keeps it off until it is
-measured at that size; the image route, packed mode and the Qwen base keep it off as well. This module decides which
-one wins and sets the variable before the engine is built.
+base. No base turns it on (`DEFAULT_ON` is empty): from 0.39.0 to 0.44.0 the Gemma 4 12B (bf16, FP8, tuned repositories
+and adapters) ran it by default, which makes a read give the same bits whatever was read before it (the prefix cache,
+the batch, the start), but it slows long reads (a field report on the tuned FP8 12B: about 30% slower on requests over
+1,000 tokens), so it is opt-in again: `--batch-invariant on`, or a repository's `defaults.batch_invariant: true`.
+This module decides which one wins and sets the variable before the engine is built.
 
     resolve(flag, repository, environ, backend, base_on) -> {"on": bool, "source": ...}
     base_default(family_key, backend, image_model, mode) -> bool
@@ -38,8 +38,9 @@ def _env_value(environ) -> bool | None:
     return raw == "1"
 
 
-# the bases the mode is on by default for: measured with the cache, across batches and starts, adapters included
-DEFAULT_ON = ("gemma-4-12b", "gemma-4-12b-fp8")
+# the bases the mode is on by default for: none since 0.45.0 (the 12B's were from 0.39.0; it slows long reads, so it is
+# opt-in: --batch-invariant on, or a repository's defaults.batch_invariant). A base added here runs it unless told off.
+DEFAULT_ON: tuple[str, ...] = ()
 
 
 def base_default(family_key: str | None, backend: str, image_model, mode: str) -> bool:
