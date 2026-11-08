@@ -58,10 +58,12 @@ def choose_lines(line_tokens: list[int], head_tokens: int, allowed: int) -> int:
 
 def refusal(limit: int, pieces: dict, header_off: bool) -> str:
     """The 422 for a row over the context that no header limit can bring under: where its tokens are and the ways out.
-    `pieces`: {"header": tokens of the full header or 0, "state": n, "question": n of the longest question,
-    "template": n, "row": the longest row's tokens}."""
+    `pieces`: {"header": tokens of the full header or 0, "context": tokens of a task's context (absent: none),
+    "state": n, "question": n of the longest question, "template": n, "row": the longest row's tokens}."""
     row = pieces["row"]
     parts = [f"the state {pieces['state']:,}", f"the longest question {pieces['question']:,}"]
+    if pieces.get("context"):
+        parts.insert(0, f"the task's context {pieces['context']:,}")
     if pieces.get("header"):
         parts.insert(0, f"the header {pieces['header']:,}")
     head = (
@@ -72,7 +74,11 @@ def refusal(limit: int, pieces: dict, header_off: bool) -> str:
     if header_off and pieces.get("header"):
         ways.append("start the server with --header-limit auto, which lists only the questions that fit")
     ways.append('send "over_limit": "truncate" to cut the state to its start')
-    ways.append("shorten the state or the question")
+    ways.append(
+        "shorten the state, the task's context or the question"
+        if pieces.get("context")
+        else "shorten the state or the question"
+    )
     ways.append("or start the server with a longer --max-model-len (up to the base's ceiling)")
     return f"{head}; " + ", ".join(ways[:-1]) + ", " + ways[-1]
 

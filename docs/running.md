@@ -73,6 +73,7 @@ Without it, a later, different question about the state reads the whole state ag
 The one measurement of that at 31,000 tokens (decisio 0.8.0, on another host) is 9.2 s instead of 0.17 (531 ms instead of 47 at 3,000 tokens there).
 The server remembers the last 4,096 states it registered and sends the warm-up again only when a request finds the boundary gone, so a repeated question costs no extra engine call.
 Several questions in one request are not affected, and the Qwen base needs no registration (its padded state already ends on a single question's latest checkpoint).
+A task's context has a boundary of its own, which `--register-boundary` registers the same way, once per context and adapter, on the Gemma bases and on the Qwen base ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
 
 `--register-boundary` sets when a single question on a new state registers it:
 - `after`: the question is answered first, reading the state fresh, and the warm-up is sent once the response has been handed to the server (in library use, once `answer()` returns). The caller does not wait for it.
@@ -241,6 +242,7 @@ uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-d
 
 - **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A client that sends one state with a series of different questions (an agent, a game, a teach-it loop) pays for it: on the 31B a later question about a 3,000-token state costs 485 ms instead of 41 ms, at 16,000 tokens 3,370 ms instead of 94 (the table under "First-question latency by state length"). **Such a client wants the plain layout**: `"layout": "plain"` on its requests ([below](#a-layout-per-request-layout)), or `--layout plain` for the whole server. A workload that asks the same questions of many states, or one question per state, loses nothing. Every response says what its prompt cost: `x-decisio-prompt: layout=header; tokens=<mean prompt tokens per question>; cached=<mean tokens the cache served>`. `usage.input_tokens` counts the header too (what is read).
 - **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
+- **A task's context** goes after the header and before the state: the header, the context, a blank line, the state and the question; under the plain layout the context, a blank line, the state and the question ([tasks.md](tasks.md#task-context)).
 - **Tasks and certificates are per layout.** The layout enters the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name it: a task registered, and a certificate made, under one layout applies only to the requests of that layout (the same rule as `--prompt-tail`, per request). A server holds and applies tasks of both layouts. A plain server's facts, fingerprints and records are what they were.
 - It applies to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was measured with it.
 - **Not part of a base's exported profile** (`decisio.hub`): the profile describes how the base is read, so a repository file exported before the header became the default still agrees with the installed profile.
@@ -526,6 +528,7 @@ The Qwen base:
 - Peak memory at 32,761 tokens of state at 6 and 8 bits: 30.7 GB and 39.4 GB (`runs/2026-10-02_mlx-backend/`).
 - It does not pad a state (`--pad-policy none`, the MLX default; its cache needs no padding), so its prompts are the served ones without the padding, and a question asked alone and inside a request is one prompt.
 - A cross-request prefix cache (`--prefix-cache-mb`, in MiB: the base's default, 2,048 for the Qwen base and Gemma 4 31B and 7,400 for Gemma 4 12B; 0 turns it off) lets a request whose state was seen before continue from the kept cache, with the same answers bit for bit.
+  A task's context is an entry of its own, so the requests of a task with a context continue from it and compute only their states ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
 - The prompts are built with the official tokenizer by default (`--tokenizer`), so they are the vLLM path's byte for byte.
 - At 6 bits, under the current served default, it passes the gates against the FP8 records except the pooled-ECE gate, which changes no setting (`runs/2026-10-03_mlx-regate/summary.md` explains why).
 - At 4 bits, under the current served default, it passes every gate against the same records: suite accuracy and ECE, the intent heads over six draws and conformance (`runs/2026-10-06_mlx-qwen-4bit-regate/summary.md`).
@@ -746,7 +749,7 @@ python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-
 ### Yes/no stays a probability
 
 An adapter's yes/no answer is the calibrated probability, and the server does not commit it.
-`--noul-commit` (the answer as 0.9 or 0.1) remains the operator's choice and applies to an adapter's answers as to the base's.
+`--noul-commit` (a probability of yes strictly between 0.20 and 0.80 reported at the band's edge on its own side, 0.80 or 0.20) remains the operator's choice and applies to an adapter's answers as to the base's.
 On JevBench's 74 public yes/no items an honest adapter hedges (35.1% of its answers fall between 0.2 and 0.8, where the reading counts no answer), while a service that returns two constants never does; the top answers are the same.
 
 ### Score questions

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""A state's boundary registered after the response (`--register-boundary after`, the default on the Gemma bases).
+"""A state's boundary registered after the response (`--register-boundary after`; both Gemma bases default to before).
 
 On the Gemma bases vLLM keeps only a finished request's latest sliding-window checkpoint, which lies inside its
 question, so a later, different question about the state would read the whole state again. decisio registers the

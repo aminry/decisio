@@ -17,7 +17,9 @@ separate (default): one engine request per question, the state shared through vL
     question. `pad_to` inserts pad tokens at the split so the shared prefix ends on a boundary; that
     changes the prompt, and what it does to accuracy is measured, not assumed. For a
     request with more than one question the prefix is prefilled once by a warm-up request of P+1
-    tokens, which registers the state at P, before the questions are submitted. Labels are read by
+    tokens, which registers the state at P, before the questions are submitted. A state read with its task's
+    context aligns the context's end instead, the same on every request of the task, and registers that boundary once
+    per context (`_prepare_separate`, `_answer_separate`). Labels are read by
     restricting the single generated token to the label tokens (`allowed_token_ids`) with
     `logprobs_mode="processed_logprobs"`: the K returned log-probabilities are then exactly the
     log-softmax over the label logits. Isolation is structural: every question is its own sequence.
@@ -51,12 +53,14 @@ import sys
 import threading
 import time
 from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
 
 from decisio.readout.letters import (  # noqa: E402
+    CONTEXT_SEP,
     DEFAULT_FORMAT,
     LETTERS_INSTRUCTION,
     QUESTIONS_HEAD,
@@ -160,6 +164,144 @@ def pad_prompt(ids, n, k, token, where, head_len):
 
 TURN_SEP = "<|im_end|>\n"  # closes an assistant turn left at "Answer:" (packed mode)
 PAD_TOKEN = 198  # "\n"
+
+
+@dataclass(frozen=True)
+class ContextBoundary:
+    """Where a request's task context ends in its rows (`LettersEngine._prepare_separate`).
+
+    `tokens`: the rows' first tokens up to and including the context's blank line, pad tokens before it included; the
+    same on every request of the task under one layout, so an engine keeps them in its prefix cache once (None: not
+    found). `fallback`: why it was not found, and the request was built as one without the boundary would be:
+    "merge", the state's first characters merged with the context's blank line (a state that starts with whitespace);
+    "template", the row does not start with the template's head and the context's own tokens (a chat template that
+    trims or rewrites the start of the content)."""
+
+    tokens: int | None
+    fallback: str | None = None
+
+
+class PreparedRows(tuple):
+    """`_prepare_separate`'s (rows, shared prefix length), unpacked as a pair, and the request's `context` boundary
+    (`ContextBoundary`; None for a request without a task context)."""
+
+    def __new__(cls, rows, shared, context: ContextBoundary | None = None):
+        out = super().__new__(cls, (rows, shared))
+        out.context = context
+        return out
+
+    def __reduce__(self):  # copied and pickled with its boundary
+        return (PreparedRows, (self[0], self[1], self.context))
+
+
+def context_boundary_facts(entries) -> dict:
+    """The context boundaries of an engine call's requests that had a context (per request: `tokens`, None where it was
+    not found, and its `registered`, `found`, `deferred` and `unaligned` counts): the counts summed, and the boundary's
+    tokens when there is one request."""
+    out = {k: sum(e[k] for e in entries) for k in ("registered", "found", "deferred", "unaligned")}
+    if len(entries) == 1:
+        out["tokens"] = entries[0]["tokens"]
+    return out
+
+
+def context_boundary_of(prepared) -> int | None:
+    """The context boundary's token count of a `_prepare_separate` result, or None (no context, not found, or an engine
+    whose builder says nothing of it)."""
+    cb = getattr(prepared, "context", None)
+    return cb.tokens if cb is not None else None
+
+
+class ContextRegistrations:
+    """The task-context boundaries of one engine call's requests (docs/tasks.md, "The context in the prefix cache"): a
+    context's boundary is registered once per context and adapter, with a warm-up of its tokens and one more, sent in an
+    engine call of its own ahead of the call's reads (`--register-boundary before`, or a registration pending but not
+    yet due) or kept pending until the response is out (`after`), through the engine's registry and registrar as a
+    state's boundary. Used by `LettersEngine._answer_separate` and by the intent head's read on the serving engine
+    (decisio.serve.hidden_engine.SingleEngineHidden), so both read the context from the cache the same way.
+
+    That is on a base that registers a state's boundary (the Gemma bases: vLLM keeps only a finished request's latest
+    checkpoint, inside its question) and on one that pads to the block (the Qwen base: a request's latest checkpoint is
+    the last block boundary of its row, inside the state once the state and question pass a block, so the context's
+    aligned end is kept only by its own warm-up); elsewhere vLLM's prefix cache keeps the context's blocks as it keeps
+    any. An engine without a cache hit unit or a prefix cache (the CPU stand-in, a test double) registers nothing."""
+
+    def __init__(self, engine, adapter):
+        self.engine, self.adapter = engine, adapter
+        family = getattr(engine, "family", None)
+        self.hit = getattr(engine, "cache_hit_unit", None)
+        mode = getattr(engine, "register_boundary", "after")
+        self.after = mode == "after"
+        self.on = bool(
+            self.hit
+            and mode != "off"
+            and getattr(engine, "prefix_caching", True)
+            and (getattr(family, "register_state_boundary", False) or getattr(engine, "pad_unit", None))
+        )
+        self.warm = []  # the warm-ups sent ahead of the call's reads
+        self.registering = []  # (key) of the boundaries those warm-ups register
+        self.checking = []  # (key, request, whole hit units) of the boundaries found registered
+        self.deferring = []  # (key, warm-up, request) of the boundaries registered after the response
+        self.each = []  # per request: its boundary and counts, None for a request without a context
+        self._warmed = set()  # the keys of this call's warm-ups (two requests of one context send one)
+
+    def add(self, prepared, k):
+        """Request `k`'s context boundary (`prepared`: its `_prepare_separate` result, `PreparedRows`): its facts
+        (`tokens`, and its `registered`, `found`, `deferred` and `unaligned` counts), or None without a context."""
+        cb = getattr(prepared, "context", None)
+        if cb is None:
+            self.each.append(None)
+            return None
+        ce = {"tokens": cb.tokens, "registered": 0, "found": 0, "deferred": 0, "unaligned": 0}
+        if cb.tokens is None:  # built as without a context (`ContextBoundary.fallback`)
+            ce["unaligned"] = 1
+        elif self.on and cb.tokens >= self.hit:
+            C, eng = cb.tokens, self.engine
+            row = prepared[0][0][0]
+            key = eng._boundary_key(row[:C], self.adapter)
+            if key in self._warmed:  # another request of this call sends the context's warm-up first
+                self.registering.append(key)
+                ce["registered"] += 1
+            elif key in eng._boundaries:
+                eng._boundaries.move_to_end(key)
+                self.checking.append((key, k, (C // self.hit) * self.hit))
+                ce["found"] += 1
+            elif self.after and not eng.registrar.take(key):
+                self.deferring.append((key, row[: C + 1], k))
+                ce["deferred"] += 1
+            else:
+                self.warm.append(row[: C + 1])
+                self._warmed.add(key)
+                self.registering.append(key)
+                ce["registered"] += 1
+        self.each.append(ce)
+        return ce
+
+    def send(self) -> float:
+        """The warm-ups, in an engine call of their own, so the call's reads find their contexts cached; ms."""
+        return self.engine.send_warm(self.warm, self.adapter) if self.warm else 0.0
+
+    def settle(self, first_cached, tickets=None) -> None:
+        """After the call's reads (the engine's lock held). A context found registered is checked on the first engine
+        read of its request that starts from the context's boundary, `first_cached(k)`: the tokens that read took from
+        the prefix cache (None when the engine did not say). That is the state's warm-up when the request sent one, not
+        its question, which reads the context through the warm-up's own checkpoint whether the context was cached or
+        not. Fewer than the context's whole hit units means it was evicted, and the next request of the task registers
+        it again. The warm-ups sent are remembered; the deferred ones are kept pending, due when request k's ticket is
+        released (`tickets[k]`; None: the calling thread's)."""
+        eng = self.engine
+        for key, k, whole in self.checking:
+            c = first_cached(k)
+            if c is not None and c < whole:
+                eng._boundaries.pop(key, None)
+        if self.registering:
+            eng.boundaries_registered(self.registering)
+        for key, w, k in self.deferring:
+            eng.registrar.defer(key, w, self.adapter, ticket=None if tickets is None else tickets[k])
+
+    def facts(self) -> dict | None:
+        """The call's context facts (`context_boundary_facts` over its requests with a context), None without one."""
+        entries = [ce for ce in self.each if ce is not None]
+        return context_boundary_facts(entries) if entries else None
 
 
 def counted_tokens(tok, fmt, state, questions, header_lines=None) -> dict:
@@ -599,6 +741,7 @@ class LettersEngine:
         if not together:
             info.pop("_row_spans", None)
             info.pop("_state_boundary_each", None)
+            info.pop("_context_boundary_each", None)
             info["waited_ms"] = (t0 - batch[0].arrived) * 1000
             info["waited_behind_registration"] = batch[0].behind
             return [(probs, info)]
@@ -641,7 +784,20 @@ class LettersEngine:
         the question's own text and the template tail, tokenized alone. Full-prompt tokenization per
         question cost 0.6 ms (500-token state) to 5.7 ms (8,000) of CPU per question.
         The first row of every request is checked against tokenizing its whole prompt; a mismatch falls
-        back to full tokenization for that request, so the rows are always what evaluation scores."""
+        back to full tokenization for that request, so the rows are always what evaluation scores.
+
+        The context boundary: a state read with its task's context (decisio.readout.letters.ContextState) starts with
+        the same tokens on every request of the task, the template's head, the header under the header layout, the
+        context and its blank line (`_context_boundary`). The padding then aligns the end of those tokens, not the
+        state's: the pad is sized from them, so it is the same on every request of the task, and the context's blocks
+        are the same cache blocks on every request (on a base that pads, to the block; the state's own end is then
+        not aligned, as it is the part that changes). That holds under every pad policy that pads (`always`, and
+        `shared` and `row`, whose single questions would otherwise be unpadded or padded to their own row), with the
+        pad before the context (`front`, `user`); `between` pads after the state, which leaves the context where it
+        is. Rows whose tokens do not start with the context's own tokens are built as without a context, and the
+        boundary says why (`ContextBoundary.fallback`).
+
+        Returns `PreparedRows`: (rows, the padded shared prefix's length), with the context boundary as `.context`."""
         rows, n, _ = self._build_rows(state, questions)
         k = (-n % self.pad_unit) if self.pad_unit else 0
         if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
@@ -653,8 +809,80 @@ class LettersEngine:
             k = -len(rows[0][0]) % self.pad_unit
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         head = len(enc(USER_HEAD))
+        cb = LettersEngine._context_boundary(self, state, questions, rows, n)
+        if cb is not None and cb.tokens is not None:
+            c = cb.tokens
+            before = {"between": n, "front": 0, "user": head}[self.pad_where] <= c  # the pad goes before its end
+            if before and self.pad_unit and self.pad_policy != "none":
+                k = -c % self.pad_unit  # every request of the task: the same pad, the context ending on the block
+            cb = ContextBoundary(c + k if before else c)
         rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
-        return rows, n + k
+        return PreparedRows(rows, n + k, cb)
+
+    def _context_boundary(self, state, questions, rows, n) -> ContextBoundary | None:
+        """Where the task context of a state read with one ends in the request's unpadded `rows` (shared prefix `n`):
+        the tokens of the template's head, the header (as `_rows` writes it, the lines the header limit lists), the
+        context and its blank line, checked against the first row's own tokens. None for a state without a context."""
+        context = getattr(state, "context", None)
+        if not context:
+            return None
+        hp = LettersEngine.header_plan(self, state, questions)
+        listed = hp["listed"] if hp and hp["limited"] else None
+        header = ""
+        if self.fmt.layout == "header" and listed != 0:
+            header = layout_header([q["instructions"] for q in questions][:listed])
+        head = LettersEngine._template_head(self) + header + context
+        ids = LettersEngine._prefix_ids(self, head + CONTEXT_SEP)
+        if len(ids) > n or rows[0][0][: len(ids)] != ids:
+            # why: the row does not even start with the template's head and the context's own tokens (the chat
+            # template or the tokenizer changed them: a template that trims the content), or it does and the state's
+            # first characters merged with the blank line after them (a state that starts with whitespace)
+            own = LettersEngine._prefix_ids(self, head)
+            cause = "merge" if rows[0][0][: len(own)] == own else "template"
+            why = {
+                "merge": "starts its state with characters the tokenizer merges with the context's blank line (a state "
+                "that starts with whitespace)",
+                "template": "has rows that do not start with the context's own tokens: the chat template or the "
+                "tokenizer changes the start of the content (a template that trims it, or a context that merges "
+                "with the text before it)",
+            }[cause]
+            warned = self.__dict__.setdefault("_context_unaligned", set())
+            digest = hashlib.sha256(context.encode()).hexdigest()[:12]
+            if (digest, cause) not in warned:  # once per context and cause in this process; each request counts it
+                warned.add((digest, cause))
+                print(
+                    f"decisio: a request of the task context sha256 {digest}... {why}; such a request is built as "
+                    "without the context boundary, and its context is not read from the cache",
+                    flush=True,
+                )
+            return ContextBoundary(None, cause)
+        return ContextBoundary(len(ids))
+
+    def _template_head(self):
+        """The chat-template text before a user turn's content (constant), rendered once."""
+        cache = self.__dict__.setdefault("_heads", {})
+        core = self.fmt.core()
+        if core not in cache:
+            mark = "\ue000"
+            cache[core] = user_turn(self.tok, mark, core).split(mark)[0]
+        return cache[core]
+
+    CONTEXT_PREFIXES_KEPT = 64  # the contexts' prefix tokens kept (one per task and layout in use)
+
+    def _prefix_ids(self, text):
+        """`text` tokenized, from a small cache: a context's prefix is the same text on every request of its task."""
+        cache = self.__dict__.setdefault("_context_prefixes", OrderedDict())
+        lock = self.__dict__.setdefault("_context_prefixes_lock", threading.Lock())
+        with lock:
+            if text in cache:
+                cache.move_to_end(text)
+                return cache[text]
+        ids = self.tok.encode(text, add_special_tokens=False)
+        with lock:
+            cache[text] = ids
+            while len(cache) > LettersEngine.CONTEXT_PREFIXES_KEPT:
+                cache.popitem(last=False)
+        return ids
 
     def read_plan(self, state, questions) -> dict:
         """What the layout flags do to this request, for the usage count and the record: `twice` (every question's
@@ -854,7 +1082,7 @@ class LettersEngine:
 
         lora = self.adapters[adapter] if adapter else None
         extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
-        warm_ms = self.send_warm(warm, adapter, mm, mm_uuids) if warm else 0.0
+        warm_ms, warm_cached = self._prefill(warm, adapter, mm, mm_uuids) if warm else (0.0, [])
         # SamplingParams defaults leave top-k/top-p/min-p off, so "processed" is the masked logits alone.
         # detokenize=False: labels are read by token id and no text is used; the per-request detokenizer
         # was 73% of the frontend's CPU at an 8,000-token state (profiled)
@@ -910,6 +1138,9 @@ class LettersEngine:
             "prompt_tokens": sum(len(r[0]) for r in rows) + sum(len(w) for w in warm),
             "engine_prompt_tokens": engine_len,
             "cached_tokens": cached,
+            # what each warm-up took from the cache: the first read of its state, which a context's eviction check reads
+            # (ContextRegistrations.settle)
+            **({"warm_cached_tokens": warm_cached} if warm_cached else {}),
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
@@ -1012,15 +1243,20 @@ class LettersEngine:
         cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took. With vLLM's prefix cache
         off nothing is sent: the prefill could not be reused, and it would cost about one more read of the state
         (about 0.8 times a question's own read on the 12B, 214 rows of a median 361 tokens)."""
+        return self._prefill(warm, adapter, mm, mm_uuids)[0]
+
+    def _prefill(self, warm, adapter=None, mm=None, mm_uuids=None) -> tuple[float, list[int]]:
+        """`send_warm`'s engine call: (ms, the tokens each warm-up took from the prefix cache); (0.0, []) with the
+        prefix cache off, where nothing is sent."""
         if not getattr(self, "prefix_caching", True):
-            return 0.0
+            return 0.0, []
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
 
         lora = self.adapters[adapter] if adapter else None
         extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
         t = time.perf_counter()
-        guarded(
+        outs = guarded(
             self,
             self.llm.generate,
             [TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
@@ -1028,7 +1264,8 @@ class LettersEngine:
             lora_request=lora,
             use_tqdm=False,
         )
-        return (time.perf_counter() - t) * 1000
+        ms = (time.perf_counter() - t) * 1000
+        return ms, [getattr(o, "num_cached_tokens", None) or 0 for o in outs or []]
 
     # the states whose boundary this engine registered with a warm-up (register_state_boundary), most recent last
     BOUNDARIES_KEPT = 4096
@@ -1055,7 +1292,14 @@ class LettersEngine:
     def _answer_separate(self, requests, adapter, together=False, tickets=None):
         """`together`: several callers' requests in one engine call (--concurrency batched), every row scored at once
         even under --multi-question sequential. `tickets`: per request, the ticket its deferred boundary registrations
-        go to (None: the calling thread's)."""
+        go to (None: the calling thread's).
+
+        A request read with its task's context (`_prepare_separate`, the context boundary) registers the context's
+        boundary once per context and adapter (`ContextRegistrations`): a warm-up of its tokens and one more, sent on
+        its own ahead of the request's other warm-ups and questions (so they read the context from the cache), or after
+        the response under --register-boundary after. A context found registered is checked for eviction on the
+        request's first read from its boundary: the state's warm-up when one goes ahead of the questions, else the
+        first question. The state's own boundary is handled as for a request without a context."""
         rows, warm, spans, shared = [], [], [], []
         each = []  # per request: its boundary counts, so each caller of a batched call gets its own
         unit = min(self.match_unit, self.pad_unit or self.match_unit)
@@ -1068,20 +1312,30 @@ class LettersEngine:
         after = mode == "after"
         # (key) for the warm-ups sent; (key, row, whole hit units) for the others; (key, warm-up) for those deferred
         registering, checking, deferring = [], [], []
-        warmed = set()  # the warm-ups already in this call (two requests about one new state send one)
+        warmed = {}  # the warm-ups already in this call, by state key, at their place in `warm` (one per new state)
+        # the contexts' boundaries, whose warm-ups go in an engine call of their own before the rows
+        ctx = ContextRegistrations(self, adapter)
+        # per request: its first engine read from the context's boundary, ("warm", i) for a state warm-up sent ahead of
+        # its questions, else ("row", i), its first question (the context's eviction check reads it)
+        first = []
         t = time.perf_counter()
         for k, (state, questions) in enumerate(requests):
             each.append({"registered": 0, "found": 0, "deferred": 0})
-            r, P = self._prepare_separate(state, questions)
+            prepared = self._prepare_separate(state, questions)
+            r, P = prepared
+            ctx.add(prepared, k)
+            first.append(("row", len(rows)))
             # a warm-up pays only when several questions can reuse a registered boundary; --multi-question batch
             # sends the questions without it, each prefilling the state itself, in one engine call
             if len(r) > 1 and P >= unit and self.multi_question != "batch":
+                first[k] = ("warm", len(warm))
                 warm.append(r[0][0][: P + 1])
             elif register and len(r) == 1 and P >= unit and self.multi_question != "batch":
                 # one question: the warm-up only when this engine has not registered the state's boundary, or a
                 # request since found it gone (evicted), so a repeated question costs no extra engine call
                 key = self._boundary_key(r[0][0][:P], adapter)
                 if together and key in warmed:  # another request of this call sends the state's warm-up first
+                    first[k] = ("warm", warmed[key])
                     registering.append(key)
                     each[k]["registered"] += 1
                 elif key in self._boundaries:
@@ -1096,32 +1350,53 @@ class LettersEngine:
                     # before (0.8.1), or this state's warm-up is still pending behind a response not yet sent (two
                     # questions about a new state sent together): sent ahead of the question
                     if not (together and key in warmed):  # a serial call of several requests sends each its own
+                        first[k] = ("warm", len(warm))
+                        warmed[key] = len(warm)
                         warm.append(r[0][0][: P + 1])
-                        warmed.add(key)
                     registering.append(key)
                     each[k]["registered"] += 1
             spans.append((len(rows), len(rows) + len(r)))
             rows += r
             shared.append(P)
         prepare_ms = (time.perf_counter() - t) * 1000
+        # the contexts' warm-ups first, in their own engine call: the rows and their warm-ups then read them cached
+        ctx_ms = ctx.send()
         if self.multi_question == "sequential" and len(rows) > 1 and not together:
             probs, info = self._score_one_at_a_time(rows, adapter, warm)
         else:
             probs, info = self.score_prompts(rows, adapter, warm)
+        cached = info.get("cached_tokens") or []
+        warm_cached = info.get("warm_cached_tokens") or []
+
+        def first_cached(k):
+            """What request k's first read from its context's boundary took from the cache. An engine that does not
+            say what its warm-ups took (a test double) is read on the request's first question instead."""
+            kind, i = first[k]
+            if kind == "warm" and i < len(warm_cached):
+                return warm_cached[i]
+            row = spans[k][0]
+            return cached[row] if row < len(cached) else None
+
         if register:
-            cached = info.get("cached_tokens") or []
             for key, row, whole in checking:
                 if row < len(cached) and cached[row] < whole:
                     self._boundaries.pop(key, None)  # evicted: the next request on this state registers it again
             self.boundaries_registered(registering)
             for key, w, k in deferring:
                 self.registrar.defer(key, w, adapter, ticket=None if tickets is None else tickets[k])
+        ctx.settle(first_cached, tickets)
+        if register:
             info["state_boundary"] = {
                 "registered": len(registering),
                 "found": len(checking),
                 "deferred": len(deferring),
             }
             info["_state_boundary_each"] = each
+        if ctx.facts() is not None:
+            info["context_boundary"] = ctx.facts()
+            info["context_ms"] = ctx_ms  # the contexts' warm-ups sent ahead of the rows (x-decisio-stages)
+            info["prompt_tokens"] = info.get("prompt_tokens", 0) + sum(len(w) for w in ctx.warm)
+            info["_context_boundary_each"] = ctx.each
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
         info["prepare_ms"] = prepare_ms
         info["_row_spans"] = spans
@@ -1237,6 +1512,12 @@ def split_info(info, first, last, rows_total):
         if first == 0 and "ran_before" in (info.get("state_boundary") or {}):  # the call's, said once
             sb.update({k: info["state_boundary"][k] for k in ("ran_before", "ran_before_ms")})
         mine["state_boundary"] = sb
+    ctx = [e for e in (info.get("_context_boundary_each") or [])[first:last] if e is not None]
+    if ctx:  # the context boundaries of its own requests; the contexts' warm-up time is the call's
+        mine["context_boundary"] = context_boundary_facts(ctx)
+    else:
+        mine.pop("context_boundary", None)
+        mine.pop("context_ms", None)
     return mine
 
 
@@ -1259,6 +1540,8 @@ def make_app(engine, systemone=None, health=None):
         adapter: str | None = None
         # the layout of the user turn (decisio.serve.layout); None: the server's
         layout: Literal["plain", "header"] | None = None
+        # refused when given: this route reads the engine's own rows and applies no registered task (/v1/systemone does)
+        task: str | None = None
 
     app = FastAPI(title="letters readout")
     from decisio.serve.content_type import JsonOnly
@@ -1350,6 +1633,12 @@ def make_app(engine, systemone=None, health=None):
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),
                             "head": bool(t["head"].get("applied")),
+                            # a task's context: its length and digest, never its text
+                            **(
+                                {"context": {k: v for k, v in t["context"].items() if k != "text"}}
+                                if t.get("context")
+                                else {}
+                            ),
                         }
                         for t in (systemone.task_store.by_key.values() if systemone.task_store else [])
                     },
@@ -1379,6 +1668,12 @@ def make_app(engine, systemone=None, health=None):
         }
 
     def answer(req: Request):  # sync: FastAPI runs it in a thread; the engine lock serialises
+        if req.task is not None:
+            raise HTTPException(
+                422,
+                '"task": /v1/answer reads the engine\'s own rows and applies no registered task; send the request '
+                "to /v1/systemone",
+            )
         if req.adapter and req.adapter not in engine.adapters:
             raise HTTPException(404, f"unknown adapter {req.adapter!r}; loaded: {sorted(engine.adapters)}")
         try:
@@ -1492,8 +1787,9 @@ def resolve_multi_question(family, choice, engine_process, backend=None):
 
 
 def resolve_register_boundary(family, choice, prefix_caching=True):
-    """--register-boundary's default: the base profile's (gemma-4-12b: after; gemma-4-31b: before, where registering
-    after the response cost it a third of its throughput under load; runs/2026-10-06_latency-585w); off when vLLM's
+    """--register-boundary's default: the base profile's (before on both Gemma bases: on the 31B registering after the
+    response cost a third of its throughput under load, runs/2026-10-06_latency-585w; on the 12B, after from 0.9.0 to
+    0.11.0, a request that follows another waited behind the previous state's registration); off when vLLM's
     prefix cache is off (`--engine '{"enable_prefix_caching": false}'`), where a registration has nowhere to go.
     Asking for after or before with the cache off is refused (boundary_needs_cache, before the weights load)."""
     if choice is not None:

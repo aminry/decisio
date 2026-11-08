@@ -399,17 +399,35 @@ Set `certify.min_examples` above the floor if you want the server to refuse a ce
 - **Concurrency.** On a server with `--concurrency batched` a certified task's questions, and its registration and certification reads, still take the serial path: one request at a time, never sharing an engine call with other traffic, so the promise above holds there too. The mode is part of the serving-stack fingerprint when it is `batched`: a certificate made on a serial server is `certified: false` with the reason `concurrency_changed` on a batching server, and the other way round, until the task is certified again ([running.md](running.md#concurrency)).
 - **Whole inputs.** A request answered from a truncated state (`over_limit: "truncate"`, [api.md](api.md)) is never certified: every answer of a certified task in it is `certified: false` with the reason `state_truncated`, whatever its confidence, and the monitor below does not count it. Registration and certification never truncate: an example over the ceiling is refused.
 - **Traffic like the examples.** The held-out examples must look like what the server will see: the same kind of text and the same mix of options. The monitor below says when the traffic moves away.
-- **What is certified.** Choice and yes/no questions ([below](#yesno-questions)), on text requests, in the single-order form the certificate was made on (a request that asks for two orders is not certified). Score questions are not certified: an ordinal answer has no single wrong answer. A question that matches no task, or an image request, carries no certification fields.
+- **What is certified.** Choice and yes/no questions ([below](#yesno-questions)), on text requests, in the single-order form the certificate was made on.
+  A request that asks for two orders (`"orders": 2`) on a server started with the default `--orders 1` is not certified: its answers carry `certified: false` with `certified_reason: "serving_stack_changed"`, because the certificate records the server's `--orders` among its serving settings and the request asked for another.
+  Nothing on the server changed, and the certificate holds again for the next request with one order.
+  Certification always reads one order, so no certificate covers a two-order answer: send `"orders": 1`, or omit it, for a certified answer.
+  Score questions are not certified: an ordinal answer has no single wrong answer.
+  A question that matches no task, or an image request, carries no certification fields.
 
 ### The monitor
 
 A certified task is watched by three checks that need no labels.
 
 - **The serving-stack fingerprint**, above: any change suspends the certificate. `GET /v1/tasks/{id}` shows the status and what changed.
-- **The confidences.** After every certified answer the server updates a CUSUM on how often the answer's top probability falls below the 5th percentile of the certification examples' (a count and a number, never the question, the state or the option names). It treats up to 1.3 times the examples' share as normal, a share of 2.5 times as worth an alarm, and its limit is the smallest at which a stream at the normal share alarms with probability at most 1 percent in 5,000 answers, simulated at certification with a fixed seed. When it crosses the limit the task's status reads `traffic_changed` with `confidence` among its signals, and it clears when the statistic has fallen to half the limit (about 300 normal answers after the traffic returns). **By default this suspends certification:** every answer of the task is `certified: false` with the reason `traffic_changed` while the alert is on, because the promise is for traffic like the examples and the monitor says it is not; the answers themselves do not change. A certify block with `"suspend_on_alert": false` only reports. A task certified before this signal existed has no confidence statistic and runs the answer mix alone until it is certified again; the certify call that makes the statistic takes the default, `suspend_on_alert` true, when the old certificate names none.
+- **The confidences.** After every answer of the task it counts (its scope, below) the server updates a CUSUM on how often the answer's top probability falls below the 5th percentile of the certification examples' (a count and a number, never the question, the state or the option names). It treats up to 1.3 times the examples' share as normal, a share of 2.5 times as worth an alarm, and its limit is the smallest at which a stream at the normal share alarms with probability at most 1 percent in 5,000 answers, simulated at certification with a fixed seed. When it crosses the limit the task's status reads `traffic_changed` with `confidence` among its signals, and it clears when the statistic has fallen to half the limit (about 300 normal answers after the traffic returns). **By default this suspends certification:** every answer of the task is `certified: false` with the reason `traffic_changed` while the alert is on, because the promise is for traffic like the examples and the monitor says it is not; the answers themselves do not change. A certify block with `"suspend_on_alert": false` only reports. A task certified before this signal existed has no confidence statistic and runs the answer mix alone until it is certified again; the certify call that makes the statistic takes the default, `suspend_on_alert` true, when the old certificate names none.
   On the replay of a CLINC150 task (the stored 31B, 10 examples per intent; 5,363 messages, out-of-scope messages rising from message 1,000 to 30%, which the task has no option for), on the card, under 0.14.0 the answer mix first alerted after message 5,200 with 1,027 wrong certified answers served before it, and under 0.16.0 the confidence signal first withheld an answer at message 1,570 after 40 wrong certified answers (the offline replay of the recorded reads, in `runs/2026-10-17_drift-monitor/`, alerted at message 1,697 after 55). On the 4,500 in-scope messages alone, and on the test split of three BANKING77 draws read through their tasks, it did not alert (`runs/2026-10-17_drift-monitor/`). The thresholds were chosen on the CLINC150 stream, so the first test on traffic it was not chosen on is the card cell that replays a second stream.
 - **The answer mix.** The server counts, for each certified task, how often each option was chosen in the last 500 answers, as counts only, and compares the mix with the certification examples' every 100 answers once the window is full. When the distance is above a line fixed at certification, the task's status reads `traffic_changed` with `answer_mix` among its signals. This says the traffic is no longer like the examples (a new channel, more out-of-scope messages, a launch); **by itself it does not suspend the certificate or change any answer**. It is weak on a task with many options, where a shift spread over them barely moves the mix (the CLINC150 replay's distance sat at 0.19 to 0.28 against a line of 0.28 until message 5,200), and it alerted on normal traffic from another split at its first check on all three BANKING77 draws, whose examples' mix is the training split's and whose traffic was the test split's.
   The state is in `GET /v1/tasks` and `GET /v1/tasks/{id}` (`status`) and in `GET /metrics`, Prometheus text: `decisio_task_state{task,state}`, answers and certified answers, `decisio_task_mix_distance` and `decisio_task_mix_line`, `decisio_task_confidence_statistic`, `_limit` and `_alerts_total`. The counters are in memory and start again with the server.
+
+**Its scope.** A task's `traffic_changed` is this replica's, about the answers this replica served:
+- **Per task and per replica.** Each replica counts its own answers in memory; nothing of the monitor's state is written to `--tasks-dir`, a shared task store or an export, so replicas behind a load balancer each alert on their own traffic.
+  The baseline and the limits are stored with the task, so every replica watches against the same ones.
+- **What starts it again.** A restart, and any new version of the task in this replica's memory: registering it again, certifying it again, an import, or a version another replica wrote to a shared store (a fast table's suspension is one).
+  The counts and the statistics start at zero, and an alert on at that moment is gone.
+- **What it counts.** Every answer of the task from decisio's read or its fast table, certified or not; not a registration's re-read of its sample, not an answer scored in an engine call shared with other requests (`--concurrency batched`, counted as `shared_skipped`), not a truncated request or one whose header was limited, and not decisio's answers on requests a fast table was sure of and left to decisio to explore, or that a learning table deferred.
+  A task with a fast table has two monitors, one for the combined answers and one for decisio's answers alone when the table is off; the status shows the one in use.
+- **Which signals suspend.** The confidence signal, and a dynamic task's unseen-options signal, make every answer of the task `certified: false` with `traffic_changed` while they are on, unless the certify block said `"suspend_on_alert": false`.
+  The answer mix only reports.
+  The confidence alarm (and a table's agreement alarm) also switches a fast table off, and that is written to the task's record and shared ([A fast table](#a-fast-table-in-front-of-decisio-opt-in), "Suspension reaches the fleet through a shared store"); unlike the alert, it does not clear by itself.
+- **What clears it.** The confidence and unseen-options alerts clear when their statistic falls under half its limit; the answer-mix alert clears at the next check (every 100 answers) whose distance is at or under its line.
+  The state is `ok` when none is on.
 
 **A task with no option for a message that fits none of its labels** (no "other", "none of the above" or "out of scope") gets a wrong answer for every such message, and that answer can be certified. Registration says so in the certificate (`warnings`, and its summary) when a choice task has no option whose key says it. Adding one is the remedy; the monitor only tells you after the fact.
 
@@ -819,9 +837,116 @@ curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' \
 `POST /v1/tasks/import` and `POST /v1/abstention/tasks/import` load a task of either layout; only a task of another model or rendering is refused.
 An export (`GET /v1/tasks?full=1`) carries each task's fingerprint, and so its layout.
 
-**One question, one task per layout.** A server holds one task per question and layout: the same question registered under each layout is two tasks, each serving its own layout's requests, and neither replaces the other, whichever was registered or loaded first.
+**One question, one task per layout.** A server holds one task per question and layout (and per context, [Task context](#task-context)): the same question registered under each layout is two tasks, each serving its own layout's requests, and neither replaces the other, whichever was registered or loaded first.
 Registering the question again under the same layout replaces the task the server serves for it, as for any task (Limits, below).
 Removing one leaves the other; a request of the removed task's layout then gets `layout_mismatch` if the other is certified.
+
+## Task context
+
+A task can carry a context: a long, fixed text that the server reads before the state of every request of the task.
+Requests then send only the part that changes, and the server puts the context in front of it.
+
+**When to use it.** When every request of a task is read against the same text that does not change between requests: a policy, a rubric, a catalogue, a set of definitions, a long instruction.
+- The requests get smaller: the context is sent once, at registration.
+- Every request of the task starts with the context, so after the first request the context is read from the prefix cache and only the changing part is computed ([below](#the-context-in-the-prefix-cache)).
+- A fast table encodes the state alone, so it learns from the part that changes, not from a text every request shares.
+
+Keep in the context only what is the same on every request; what changes belongs in the state.
+
+**Registering.** `POST /v1/tasks` takes an optional `"context"`: a string, or an object or array, which is read as compact JSON (`json.dumps(value, separators=(",", ":"), ensure_ascii=False)`).
+The text's leading and trailing whitespace is removed, and the text without it is what is read, stored and hashed: some chat templates trim the start of the content, and a context that started with whitespace would then never match its own tokens in the prompt.
+The labelled registration, the dynamic-option one (`"options": "dynamic"`) and a task that learns from traffic take it.
+The examples' states are the changing part only: the server reads each example with the context, so the task is fitted, certified and timed on exactly what it serves.
+
+```bash
+curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' \
+  -d '{"id": "refund-eligible", "context": "Refund policy: ...", "examples": [...], "certify": {}}'
+```
+
+An empty context, or one that is not a string, an object or an array, is refused with 422.
+Abstention tasks (`POST /v1/abstention/tasks`) take no context: that route does not read the field (Limits, below).
+
+**The prompt.** The context is joined to the state by a blank line, as the state is joined to the question:
+- plain layout: the context, a blank line, the state, a blank line, the question and its options;
+- header layout: the header (`Questions that will be asked about the context:` and its lines), the context, a blank line, the state, a blank line, the question and its options.
+
+A state that is an object is rendered as `key: value` lines after the context, as it is without one.
+The text is that of the same request whose state is the context, a blank line and the rendered state, built by the row builder every text engine shares (vLLM, and the HF and MLX engines, which inherit it).
+The tokens can differ in one place, the padding: a server that pads (the Qwen base on vLLM) sizes the pad so that the context's end, not the state's, falls on the cache block (below).
+So a request of a task with a context is not always the same prompt as the request that sends the context in its state, and their answers can differ slightly; on a server that does not pad (the Gemma bases, and MLX by default) the two are the same tokens.
+On MLX the same tokens are read in two steps, the context and then the rest of the prefix ([below](#the-context-in-the-prefix-cache)), and that arithmetic can make answers differ slightly from reading the same tokens in one step.
+On the Gemma 4 12B on a Mac, probabilities moved by a median of 6e-5 and at most 0.03, and no answer changed.
+
+### The context in the prefix cache
+
+Every request of a task starts with the same tokens: the template's opening, the header under the header layout, the context and its blank line.
+The server finds where they end in each request's rows (the context boundary) and keeps everything up to there in the prefix cache once per context, so a request computes only its state and its questions.
+- **Padding (vLLM, a base that pads).** The pad before the prompt is sized from the context's end, so the context ends on the block (1,056 tokens on the Qwen base) and the pad is the same on every request of the task.
+  The state's own end is then not on the block, since the state is the part that changes.
+  This holds under `--pad-policy always` and also under `shared` and `row`, whose single questions are otherwise unpadded or padded to their whole row; `none` never pads.
+  `--pad-where between` pads after the state, so the pad is sized as without a context and the context stays where it is.
+- **Registration (vLLM).** vLLM keeps a finished request's latest checkpoint only, which lies inside its state or question, not at the context's end.
+  So the server registers the context's boundary with a warm-up of the context's tokens and one more, once per context and adapter, as it registers a state's boundary ([running.md](running.md#a-later-question-about-the-same-state---register-boundary)), on the Gemma bases and on the Qwen base.
+  `--register-boundary` sets when: `before`, ahead of the first request's questions, in an engine call of its own; `after`, once the first response is out; `off`, never.
+  A request that finds the boundary evicted makes the next one register it again.
+  The check reads the request's first read from the context's end: the state's warm-up when one goes ahead of the questions (several questions, or a new state under `before`), else its first question.
+  The question is not enough there: it reads the context through the warm-up's own checkpoint whether the context was in the cache or not.
+  A state's own boundary is registered as for a request without a context.
+- **The intent head.** A task with an intent head reads its hidden state from the same rows, and on vLLM's default head mode, where the serving engine reads it, registers the context's boundary the same way, in the same registry, so the letters path and the head find each other's registration.
+  With `--head-engine` the second engine has no prefix cache, and every head question reads its whole prompt, the context included.
+  On MLX the head reads the letters' own forward, context entry included.
+- **MLX.** The context's tokens are their own entry in the prefix cache (`--prefix-cache-mb`), and each request's state continues from a copy of it.
+  The prefix is always computed in these two steps, whether the context came from the cache or not, so an answer does not depend on it.
+- **What a request computes once the context is cached:** its state, from the context's end (on the Gemma bases from the last 64-token step before it on the 12B, 32-token on the 31B), and its questions.
+  With several questions on the Qwen base each question also reads the state's last partial block again (under 1,056 tokens), because the state's end is no longer on a block.
+- **What the response says.** `x-decisio-stages` has `context=` on every request read with a context: the context's warm-up sent in this request (vLLM; 0 when the boundary was already registered) or the context's part of the prefix, read or computed (MLX).
+  It is summed over every read of the request that read the context: its own engine call, a certified task's questions (`task`) and the intent head's read (`head`), so it lies within those stages.
+  On vLLM, `x-decisio-prompt` counts the context in `cached` once it came from the cache.
+  On MLX, `/health` counts the context entry's lookups in `prefix_cache.context_hits` and `context_misses`.
+- **A state that starts with whitespace** can merge with the context's blank line in the tokenizer, so its tokens do not start with the context's own.
+  Such a request is built as it would be without the context boundary (the pad sized from the state's end, as without a context) and reads the context again; the server logs it once per context, and the response's `context_boundary` counts it as `unaligned`.
+  The same holds, with a log line that names the chat template, when the template changes the start of the content so that the prompt does not start with the context's own tokens.
+
+**Identity.** The context's sha256 is part of the task's identity.
+- The same question registered with another context is another task, kept beside the first (one per context, per layout).
+- Registering an id again with another context moves that task to the new context, with a new certificate.
+- The context enters the task's fit digest, which the certificate's serving stack names (`calibration.task_fit`): a certificate made under one context does not hold under another, and a record whose context was changed has its certificate suspended (`serving_stack_changed`).
+- A task without a context is stored, found and fingerprinted exactly as before.
+
+**Which task a request gets.** A question finds its task by its question (its type and options), as always.
+When several tasks ask the same question, each with its own context, a request names the one it is for with `"task": "<id>"` on `/v1/systemone` ([api.md](api.md)).
+A request that names none gets the one without a context, which is what such a request got before contexts existed; when every one has a context, it is answered 422 and asked to name one.
+`"task"` is refused with 422 for an unknown id, for a task that asks none of the request's questions, for a task fitted under the other layout than the request's (the message names the layout to send), and on the image route; `x-decisio-tasks` says which task answered.
+The questions of one request share one read of the state, so they share one context: a request whose questions' tasks have different contexts, or that mixes a question of a task with a context and one read without, is refused with 422; send them as separate requests.
+A request that names no task, whose question has a task with a context under the other layout only, is refused with 422 naming the task and the layout to send, as a request naming that task is: the context is the task's instruction, so a request is never read without it.
+A request sent after the task was deleted finds no task, and its state is read as sent.
+
+**Limits.**
+- A registration whose context, with the question and the template, is over the context window before any state is refused with 422.
+- **Abstention reads no context.** An abstention task's threshold is fitted on the state read alone, so a question answered through one is always read without a context: it gets only a task without a context of its question, and a `"task"` that names one with a context is refused with 422.
+  A request that mixes such a question with a question of a task with a context is refused as questions with different contexts are.
+  Registering an abstention task for a question that a task with a context asks is refused with 422 naming those tasks; register it for a question no such task asks, or delete them first.
+  A task with a context registered after an abstention task of its question does not change how the abstention question is read.
+- A row over the window is refused with 422 and where its tokens are: the header, the task's context, the state, the question.
+  Under the header layout the header limit lists fewer questions first, as it does without a context (the context counts in the row).
+- `"over_limit": "truncate"` cuts the state only, never the context; a request whose context and questions alone are over the window is refused.
+
+**The fast table.** A labelled table and one that learns from traffic, of every student kind, encode the request's state alone, never the context.
+A learning task logs the features of the state alone.
+The certificates, gold and agreement, are made on decisio's own reads, which have the context in the model's prompt, as served.
+
+**Usage.** `usage.input_tokens` counts the context too, with the blank line after it: it is read.
+
+**Storage.** A task's record holds the context's text, so `--tasks-dir` and `--task-store` keep it across restarts and replicas, as the export does.
+An import needs the text: a record taken from the listing (no text) is refused, and so is one whose context's sha256 is not its text's.
+
+**Status.** `GET /v1/tasks/{id}`, `GET /v1/tasks` and `/health` (`systemone.readout_tasks.<id>.context`) give the context's `sha256`, its length in characters (`chars`) and in tokens (`tokens`), never its text.
+The export (`GET /v1/tasks?full=1`) holds the text, since an import needs it.
+
+**A client that still sends the context in its state** gets it twice: the server cannot tell the context from a state that quotes it, so it reads both, which costs tokens and is not the prompt the task was fitted on.
+A state that starts with the task's context (after the same serialisation, leading whitespace aside) is served as sent, with the response header `x-decisio-warning: state starts with the task's context; send only the varying part`, and the server logs it at warning level once per task.
+A context repeated elsewhere in the state is not detected.
+When you move a client to a task with a context, register the task first, then drop the context from the state the client sends.
 
 ## Limits
 
@@ -830,6 +955,7 @@ Removing one leaves the other; a request of the removed task's layout then gets 
 - **Options that change per input** cannot be registered: exam-style questions whose answers differ every time have no fixed list to learn, and registration refuses them.
 - **The prompt it was fitted under.** A task is fitted on the server's prompt and is applied only by a server with the same prompt and yes/no rendering. The served default changed on 2026-10-03 (the spaced layout, `--prompt-tail spaced`, with yes/no as named letters, `docs/handoffs/tasks.md`): a task registered or exported before then is not applied by the current default, and the server says so at start-up (`WARNING: tasks fitted under another model or rendering are not applied`). Register it again from the same examples; or, to keep using it unchanged, start the server with the compact layout (`--prompt-tail compact --noul-rendering words`).
 - **One task per option list per server.** Registration is per server instance; keep it with `--tasks-dir` (or an export and `--tasks-file`), as above.
+  Tasks of one question with different contexts are kept side by side, and a request names the one it is for ([Task context](#task-context)).
   It holds across layouts: a task applies to the requests of the layout it was fitted under ([A task under a layout](#a-task-under-a-layout)).
 - **Single-engine or second-engine mode.** The default reads the hidden state from the serving engine at the latency cost above; `--head-engine` trades a second weight copy for speed. Both declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`), and a task registered in one mode loads in the other.
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.

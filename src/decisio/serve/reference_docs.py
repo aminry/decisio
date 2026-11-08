@@ -247,6 +247,10 @@ class TaskRegistration(BaseModel):
         None,
         description="The layout the task is fitted under, and whose requests it applies to (default: the server's).",
     )
+    context: str | dict[str, Any] | list[Any] | None = Field(
+        None,
+        description="A fixed text read before every state of the task (an object or array as compact JSON): requests send only the part that changes. Its sha256 is part of the task's identity.",
+    )
 
 
 class CertifyRequest(BaseModel):
@@ -289,6 +293,10 @@ class TaskRecord(BaseModel):
     calibration: dict[str, Any] | None = None
     head: dict[str, Any] | None = None
     certificate: dict[str, Any] | None = None
+    context: dict[str, Any] | None = Field(
+        None,
+        description="The task's context: `sha256`, `chars` and `tokens`; its `text` only in the export (`GET /v1/tasks?full=1`).",
+    )
     status: dict[str, Any] | None = None
 
 
@@ -304,6 +312,7 @@ RESPONSE_HEADERS = {
     "questions and the intent head's too).",
     "x-decisio-route": "The route that served it: `text` or `image`.",
     "x-decisio-tasks": "The registered tasks applied, when any were.",
+    "x-decisio-warning": "Something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part`.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
     "x-decisio-think-ms": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
     "x-decisio-think-tokens": "The reasoning tokens generated, when thinking was on for the request.",
@@ -311,7 +320,9 @@ RESPONSE_HEADERS = {
     "x-decisio-layout": "`header; listed=K; of=N; reason=context`, or `plain; ...`, when the header listed only some "
     "of the request's questions (`--header-limit`).",
     "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`: "
-    "`engine` is the request's own engine call (`prepare` to `readout` are its parts), `task` the questions of a "
+    "`engine` is the request's own engine call (`prepare` to `readout` are its parts), `context` a task context's "
+    "warm-up or prefix when the request was read with one, summed over the reads that read it (within `engine`, `task` "
+    "or `head`), `task` the questions of a "
     "certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the "
     "reasoning pass, `wait` the time spent waiting for the engine.",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
@@ -465,7 +476,8 @@ def openapi() -> dict:
         "404": _resp("An adapter that is not loaded.", "ErrorDetail"),
         "415": _resp("A POST that is not JSON (or a multipart request without `x-decisio-client`)."),
         "422": _resp(
-            "A request that does not validate (for example a choice with more than 255 options).", "HTTPValidationError"
+            "A request that does not validate (for example a choice with more than 255 options), or whose task cannot be found as asked (`task`).",
+            "HTTPValidationError",
         ),
         "500": _resp(
             "The model's arithmetic produced a non-finite probability (not the request's fault).", "ErrorDetail"

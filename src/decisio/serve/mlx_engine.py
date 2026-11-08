@@ -4,7 +4,7 @@
 
 `MLXLettersEngine` subclasses `vllm_engine.LettersEngine`, as the CPU stand-in (`hf_letters`) does, and replaces only
 what needs vLLM: model loading and the forward pass. Everything a request goes through before that is the served code:
-state tokenization, the split into state and question, the front padding to the 1,056-token block, the label tokens,
+state tokenization, the split into state and question, the padding where the policy asks for it, the label tokens,
 derived questions, `/v1/answer` and `/v1/systemone`, the temperature, tasks, the intent head and abstention.
 
 The prompts are byte for byte the vLLM path's:
@@ -15,8 +15,8 @@ The prompts are byte for byte the vLLM path's:
   conversions of Qwen3.6-35B-A3B ship a different `tokenizer.json` and `tokenizer_config.json`, and those of
   gemma-4-12B-it the chat template from before Google's 2026-07-15 fix; `--tokenizer` overrides it (`repo@revision`
   pins a revision);
-- the padding is the served default's (front, to vLLM's 1,056-token block), which MLX's cache does not need but the
-  served prompts carry; `--pad-to none` leaves it out.
+- no padding by default (`--pad-policy none`, the MLX default: its cache needs none), so the prompts are the vLLM
+  path's without its padding; another `--pad-policy` pads as the vLLM path does on a base that pads.
 
 Separate mode only: one forward per question. For each request the state prefix (the tokens every question shares,
 padding included) is prefilled once into a fresh prompt cache and evaluated; each question then continues from a copy
@@ -33,6 +33,12 @@ whose prefix tokens equal a kept entry's continues from that entry instead of pr
 construction: an entry is the cache the engine computed for exactly those tokens (compared in full, not by hash
 alone), and it is never written into, since every question continues from a copy; the forward is deterministic, so a
 hit gives the arrays a miss would compute.
+
+A request read with its task's context (docs/tasks.md, "Task context") shares the context's tokens with every request
+of the task, but not its state prefix. Its prefix is computed in two steps at the context's end, always, cached or not:
+the context's tokens are their own entry, and the rest of the prefix continues from a copy of it, kept as an entry with
+that split (`MLXLettersEngine._score`). So after the first request of a task, a request computes only its own state,
+and the split being fixed keeps the promise above: a hit gives exactly the arrays a miss computes.
 
 The letters are read at the last position: the softmax over the label logits (bf16 out of the output layer, through
 the model's final-logit softcap when it has one, as mlx-lm applies it: Gemma 4's 30; then float64). The final-norm
@@ -59,7 +65,7 @@ import numpy as np
 from decisio.families import QWEN, family_of
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 from decisio.serve.engine_health import guarded
-from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
+from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine, context_boundary_of
 
 # sha256 of each base's official tokenizer.json (the base's checkpoint at its revision, decisio.families). Qwen:
 # Qwen/Qwen3.6-35B-A3B-FP8 and Qwen/Qwen3.6-35B-A3B have identical files. Gemma 4: unchanged since the first upload, and
@@ -160,34 +166,49 @@ def tokenizer_file(tokenizer, name="tokenizer.json", revision=None):
 class PrefixCache:
     """Evaluated prompt caches of state prefixes, kept across requests: least recently used first out, bounded in bytes.
     Exact by construction (see the module docstring): an entry is returned only for exactly the token ids it was
-    computed for, and callers never write into it (`copy_cache`)."""
+    computed for, computed the same way (`split`: the tokens fed first, before the rest was fed into a copy, 0 for
+    one feed from the start; a task context's prefix is fed first, `MLXLettersEngine._score`), and callers never write
+    into it (`copy_cache`). The lookups of a context's own entry are counted apart (`context_hits`,
+    `context_misses`)."""
 
     def __init__(self, max_bytes):
         self.max_bytes, self.entries, self.bytes, self.hits, self.misses = int(max_bytes), OrderedDict(), 0, 0, 0
+        self.context_hits = self.context_misses = 0
 
     @staticmethod
     def _key(ids):
         return hashlib.sha256(np.asarray(ids, dtype=np.int64).tobytes()).hexdigest()
 
-    def get(self, ids):
-        e = self.entries.get(self._key(ids))
-        if e is None or not np.array_equal(e[0], np.asarray(ids, dtype=np.int64)):
-            self.misses += 1
+    @classmethod
+    def _entry_key(cls, ids, split):
+        return cls._key(ids) if not split else f"{cls._key(ids)}@{int(split)}"
+
+    def get(self, ids, split=0, context=False):
+        key = self._entry_key(ids, split)
+        e = self.entries.get(key)
+        if e is None or not np.array_equal(e[0], np.asarray(ids, dtype=np.int64)) or e[3] != int(split):
+            if context:
+                self.context_misses += 1
+            else:
+                self.misses += 1
             return None
-        self.entries.move_to_end(self._key(ids))
-        self.hits += 1
+        self.entries.move_to_end(key)
+        if context:
+            self.context_hits += 1
+        else:
+            self.hits += 1
         return e[1]
 
-    def put(self, ids, cache):
+    def put(self, ids, cache, split=0):
         n = sum(a.nbytes for a in _cache_arrays(cache))
         if n > self.max_bytes:
             return
-        key = self._key(ids)
+        key = self._entry_key(ids, split)
         if key in self.entries:
             self.bytes -= self.entries.pop(key)[2]
         while self.entries and self.bytes + n > self.max_bytes:
             self.bytes -= self.entries.popitem(last=False)[1][2]
-        self.entries[key] = (np.asarray(ids, dtype=np.int64), cache, n)
+        self.entries[key] = (np.asarray(ids, dtype=np.int64), cache, n, int(split))
         self.bytes += n
 
     def facts(self):
@@ -197,6 +218,11 @@ class PrefixCache:
             "mb": round(self.bytes / 2**20, 1),
             "hits": self.hits,
             "misses": self.misses,
+            **(
+                {"context_hits": self.context_hits, "context_misses": self.context_misses}
+                if self.context_hits or self.context_misses
+                else {}
+            ),
         }
 
 
@@ -274,25 +300,49 @@ class MLXLettersEngine(LettersEngine):
             mx.eval(h, *_cache_arrays(cache))
         return h
 
-    def _score(self, rows, prefix):
+    def _score(self, rows, prefix, context=None):
         """[(label log-probabilities float64, hidden state float32)] per row, every row continuing from its first
         `prefix` tokens, which all rows share and which are prefilled once (or taken from the prefix cache); also the
-        prefix's time and whether it came from the cache."""
+        prefix's time, whether it came from the cache, and the context's read (below).
+
+        `context`: the request's task context boundary (`_prepare_separate`, `ContextBoundary.tokens`), inside the
+        prefix. The prefix is then computed in two steps at that fixed split, cached or not: the context's tokens into a
+        new cache (its own prefix cache entry, the same for every request of the task), then the rest of the prefix
+        into a copy of it; the prefix's entry is kept with its split. So a request of the task computes only its own
+        part once the context is cached, and a hit gives exactly the arrays a miss computes. The context's read is
+        (whether its entry was cached, ms); (None, 0.0) for a request without a context, or one answered from the
+        prefix's entry."""
         mx = self._mx
         if any(ids[:prefix] != rows[0][0][:prefix] for ids, _ in rows):
             raise ValueError("the rows do not share their first `prefix` tokens")
         if any(len(ids) <= prefix for ids, _ in rows):
             raise ValueError("every row needs at least one token after the shared prefix")
+        split = int(context) if context and 0 < int(context) < prefix else 0
+        context_read = (None, 0.0)
         t0 = time.perf_counter()
         pre = rows[0][0][:prefix]
-        base = self.prefix_cache.get(pre) if (prefix and self.prefix_cache is not None) else None
+        cache = self.prefix_cache
+        base = cache.get(pre, split) if (prefix and cache is not None) else None
         hit = base is not None
         if not hit:
-            base = self.model.make_cache()
-            if prefix:
-                self._feed(pre, base)
-                if self.prefix_cache is not None:
-                    self.prefix_cache.put(pre, base)
+            if split:
+                t1 = time.perf_counter()
+                head = cache.get(pre[:split], context=True) if cache is not None else None
+                context_hit = head is not None
+                if not context_hit:
+                    head = self.model.make_cache()
+                    self._feed(pre[:split], head)
+                    if cache is not None:
+                        cache.put(pre[:split], head)
+                context_read = (context_hit, (time.perf_counter() - t1) * 1000)
+                base = copy_cache(head)
+                self._feed(pre[split:], base)
+            else:
+                base = self.model.make_cache()
+                if prefix:
+                    self._feed(pre, base)
+            if prefix and cache is not None:
+                cache.put(pre, base, split)
         prefix_ms = (time.perf_counter() - t0) * 1000
         out = []
         for ids, lab in rows:
@@ -307,16 +357,19 @@ class MLXLettersEngine(LettersEngine):
                 lp = z - z.max()
                 lp -= np.log(np.exp(lp).sum())
             out.append((lp, np.array(h.astype(mx.float32))))
-        return out, prefix_ms, hit
+        return out, prefix_ms, hit, context_read
 
     # ---- LettersEngine's engine interface --------------------------------------------------------
 
-    def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, prefix=None):
+    def score_prompts(
+        self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, prefix=None, context=None
+    ):
         """Label distributions for fully-built prompts [(token ids, label ids)], as `LettersEngine.score_prompts`.
 
         `prefix`: the shared prefix length (the request's padded state prefix, as `_prepare_separate` returns it);
-        None takes the rows' longest common prefix (none for one row). `warm` and `skip_cache` are accepted for the
-        interface and have no effect: the prefix is always prefilled once, per call."""
+        None takes the rows' longest common prefix (none for one row). `context`: the request's task context boundary
+        inside the prefix (`_score`), None without one. `warm` and `skip_cache` are accepted for the interface and
+        have no effect: the prefix is always prefilled once, per call."""
         if mm:
             raise ValueError("the MLX engine serves the text route only (no image route in this phase)")
         if adapter:
@@ -328,9 +381,13 @@ class MLXLettersEngine(LettersEngine):
                 first = rows[0][0]
                 while all(len(ids) > prefix + 1 and ids[prefix] == first[prefix] for ids, _ in rows):
                     prefix += 1
-        scored, prefix_ms, hit = guarded(self, self._score, rows, prefix)
+        scored, prefix_ms, hit, (context_hit, context_ms) = guarded(self, self._score, rows, prefix, context)
         probs = [np.exp(lp) / np.exp(lp).sum() for lp, _ in scored]
+        ctx = {}
+        if context:  # the context's own entry: hit, or computed (None: the prefix's entry answered, the context unread)
+            ctx = {"context_tokens": int(context), "context_prefix_hit": context_hit, "context_prefix_ms": context_ms}
         return probs, {
+            **ctx,
             "warm_ms": 0.0,
             "prefix_ms": prefix_ms,
             "prefix_cache_hit": hit,
@@ -347,9 +404,14 @@ class MLXLettersEngine(LettersEngine):
         if adapter:
             raise ValueError("the MLX engine serves no adapters")
         results, infos = [], []
+        contexts = []  # per request with a task context: its boundary as `_prepare_separate` found it
         for state, questions in requests:
-            rows, P = self._prepare_separate(state, questions)
-            probs, info = self.score_prompts(rows, prefix=P)
+            prepared = self._prepare_separate(state, questions)
+            rows, P = prepared
+            cb = getattr(prepared, "context", None)
+            if cb is not None:
+                contexts.append(cb)
+            probs, info = self.score_prompts(rows, prefix=P, context=cb.tokens if cb is not None else None)
             results.append(probs)
             infos.append((P, info))
         info = {
@@ -363,6 +425,14 @@ class MLXLettersEngine(LettersEngine):
             "shared_prefix_tokens": infos[0][0] if len(infos) == 1 else [p for p, _ in infos],
             "questions": sum(len(r) for r in results),
         }
+        if contexts:  # requests read with a task context: the context's entry, hit or computed, and its time
+            read = [i for _, i in infos if "context_tokens" in i]
+            info["context_boundary"] = {"unaligned": sum(cb.tokens is None for cb in contexts)}
+            if len(contexts) == 1:
+                info["context_boundary"]["tokens"] = contexts[0].tokens
+                info["context_prefix_hit"] = read[0]["context_prefix_hit"] if read else None
+            info["context_prefix_hits"] = sum(i["context_prefix_hit"] is True for i in read)
+            info["context_ms"] = sum(i["context_prefix_ms"] for i in read)  # x-decisio-stages
         return results, info
 
     def _answer_packed(self, requests):
@@ -421,6 +491,7 @@ class MLXHiddenReadout:
     def __init__(self, engine):
         self.engine, self.tok, self._lock = engine, engine.tok, engine._lock
         self.mode = "hidden (MLX engine, same forward as the letters)"
+        self._read = threading.local()  # the calling thread's last read (read_info)
 
     def _prepare_separate(self, state, questions):
         return self.engine._prepare_separate(state, questions)
@@ -428,10 +499,19 @@ class MLXHiddenReadout:
     def readout(self, state, questions):
         with self._lock:
             t0 = time.perf_counter()
-            rows, P = self._prepare_separate(state, questions)
-            scored, _, _ = guarded(self.engine, self.engine._score, rows, P)
+            prepared = self._prepare_separate(state, questions)
+            rows, P = prepared
+            # the letters' own split at the task context's boundary, so the hidden state is the same forward's
+            C = context_boundary_of(prepared)
+            scored, _, _, (_, context_ms) = guarded(self.engine, self.engine._score, rows, P, C)
+            self._read.info = {"context_ms": context_ms} if C is not None else None
             self.last_ms = (time.perf_counter() - t0) * 1000
         return scored
+
+    def read_info(self) -> dict | None:
+        """The calling thread's last `readout`: `context_ms`, the context's part of the prefix, read or computed, for a
+        state read with a task's context (x-decisio-stages); None for one without."""
+        return getattr(self._read, "info", None)
 
     def probe(self):
         """The serving engine's probe: this reader is that engine (engine_health)."""

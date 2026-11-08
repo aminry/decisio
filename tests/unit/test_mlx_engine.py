@@ -347,6 +347,67 @@ def test_prefix_cache_answers_are_bit_identical_with_and_without_it(tiny, tiny_n
     assert tiny_no_prefix_cache.facts()["prefix_cache"] is None and tiny.facts()["prefix_cache"]["entries"] >= 2
 
 
+CONTEXT = (
+    "Support policy: an enterprise outage goes to the technical team at once, a billing question to billing, and "
+    "anything about a contract to the account manager. "
+) * 6
+
+
+def test_a_task_context_is_its_own_prefix_cache_entry_and_answers_exactly(tiny, tiny_no_prefix_cache):
+    # docs/tasks.md, "The context in the prefix cache": the context's tokens are their own entry, every request of the
+    # task continues from a copy of it, and the split is the same cached or not, so the answers are bit for bit those
+    # of an engine without a prefix cache, whether the context or the whole prefix came from the cache
+    from decisio.readout.letters import context_state
+    from decisio.serve.mlx_engine import MLXHiddenReadout
+
+    states = [STATE, "Another state, for the task's second request. " * 6, STATE + " Please answer today."]
+    reads = [context_state(CONTEXT, st) for st in states]
+    plain = [tiny_no_prefix_cache.answer(r, QUESTIONS) for r in reads]
+    hits = tiny.prefix_cache.context_hits
+    first = [tiny.answer(r, QUESTIONS) for r in reads]  # the first computes the context (unless cached before)
+    assert all(info["context_prefix_hit"] is True for _, info in first[1:])  # the others read it
+    assert tiny.prefix_cache.context_hits >= hits + len(states) - 1
+    again = [tiny.answer(r, QUESTIONS) for r in reads]  # each request's own prefix entry: the context is not read
+    assert all(info["prefix_cache_hits"] == 1 and info["context_prefix_hit"] is None for _, info in again)
+    for (p, pi), (f, _), (g, _) in zip(plain, first, again):
+        assert pi["context_prefix_hit"] is False and pi["context_prefix_hits"] == 0  # no cache: computed every time
+        assert all(np.array_equal(x, y) and np.array_equal(x, z) for x, y, z in zip(p, f, g))
+    prepared = tiny._prepare_separate(reads[0], QUESTIONS)
+    C = prepared.context.tokens
+    assert 0 < C < prepared[1] and first[0][1]["context_boundary"] == {"unaligned": 0, "tokens": C}
+    assert isinstance(first[0][1]["context_ms"], float) and tiny.facts()["prefix_cache"]["context_hits"] >= 2
+    for r in reads:  # the head's hidden readout splits where the letters do: the same arrays, cached or not
+        a = MLXHiddenReadout(tiny).readout(r, QUESTIONS)
+        b = MLXHiddenReadout(tiny_no_prefix_cache).readout(r, QUESTIONS)
+        assert all(np.array_equal(x[0], y[0]) and np.array_equal(x[1], y[1]) for x, y in zip(a, b))
+
+
+def test_a_request_without_a_context_reads_no_context_entry(tiny):
+    before = (tiny.prefix_cache.context_hits, tiny.prefix_cache.context_misses)
+    _, info = tiny.answer(STATE, QUESTIONS)
+    assert not any(k.startswith("context") for k in info)
+    assert (tiny.prefix_cache.context_hits, tiny.prefix_cache.context_misses) == before
+
+
+def test_prefix_cache_keeps_an_entry_per_split():
+    # an entry is found only for the tokens and the split it was computed with: a context request's prefix (fed in two
+    # steps) is never answered from the same tokens fed in one, nor the other way round
+    pytest.importorskip("mlx_lm")
+    from decisio.serve.mlx_engine import PrefixCache
+
+    cache = PrefixCache(1 << 20)
+    one, two = [], []  # two caches with no arrays (no bytes), told apart by identity
+    cache.put([1, 2, 3], one)
+    cache.put([1, 2, 3], two, split=2)
+    assert cache.get([1, 2, 3]) is one and cache.get([1, 2, 3], 2) is two and cache.get([1, 2, 3], 1) is None
+    assert (cache.hits, cache.misses) == (2, 1) and "context_hits" not in cache.facts()
+    assert cache.get([1, 2], context=True) is None
+    cache.put([1, 2], one)
+    assert cache.get([1, 2], context=True) is one
+    assert (cache.context_hits, cache.context_misses, cache.hits, cache.misses) == (1, 1, 2, 1)
+    assert cache.facts()["context_hits"] == 1 and cache.facts()["context_misses"] == 1
+
+
 def test_prefix_cache_evicts_least_recent_and_never_returns_other_tokens(tiny, monkeypatch):
     from decisio.serve.mlx_engine import PrefixCache
 
