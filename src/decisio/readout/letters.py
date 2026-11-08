@@ -46,6 +46,16 @@ def fmt_state(state):
     return str(state)
 
 
+# a task's context and the request's state are joined by a blank line, as the state and the question are
+CONTEXT_SEP = "\n\n"
+
+
+def context_state(context: str | None, state):
+    """The state a request of a task with a context is read with: the context, a blank line, the rendered state. The
+    context comes first, so it is the same prefix on every request of the task; without a context, the state itself."""
+    return state if not context else f"{context}{CONTEXT_SEP}{fmt_state(state)}"
+
+
 def _candidates():
     letters = string.ascii_uppercase
     yield from letters

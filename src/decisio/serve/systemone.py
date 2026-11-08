@@ -14,8 +14,9 @@ The mapping was fixed before any benchmark item was sent (runs/2026-09-27_boards
   choice        options in the request's key order, shown "<key>: <description>" or "<key>"; letters readout
   score         levels in criteria order as the letters legend; score = probability-weighted mean level
   confidence    the System One adapter's rules (choice: max rescaled from uniform; score: concentration at the mode)
-  usage         input_tokens = state + each question's own text in this tokenizer (plus the header the layout lists, and
-                the second copy of every row under read-twice: what is read); output_tokens = one per question
+  usage         input_tokens = state + each question's own text in this tokenizer (plus the header the layout lists, a
+                task's context, and the second copy of every row under read-twice: what is read); output_tokens = one
+                per question
 
 Two-order mode (after Reflex, github.com/kshetrajna12/reflex, MIT, `prompt.distinct_orders` and
 `ensemble.disagreement`): each question is also read in one distinct second order (seeded by its name; the swap for two
@@ -42,7 +43,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from pydantic_core import PydanticCustomError
 
 from decisio import flavors
-from decisio.names import DEBUG_KEY, check_format, header, request_header
+from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
@@ -60,7 +62,7 @@ from decisio.serve.task_backends import (
     TaskStoreUnavailable,
     WriteIntent,
 )
-from decisio.serve.tasks import FAST_TABLE_VOLATILE
+from decisio.serve.tasks import FAST_TABLE_VOLATILE, TaskSelectionError, context_sha, context_text
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
@@ -173,6 +175,14 @@ class SystemOneRequest(BaseModel):
     # System One's images: placeholders in the state and the questions' texts, replaced by these (`bind_assets` does it
     # before the request is validated, so a validated request never carries them)
     assets: dict[str, Asset] | None = Field(None, min_length=1)
+    # decisio's extensions are read from the extra fields, so that the declared ones stay System One's (C5,
+    # decisio.serve.systemone_conformance): `orders`, `adapter`, `over_limit`, `think`, `layout`, and `task` (a
+    # registered task named by its id: it answers the request's questions that ask its question, whatever task they
+    # would find by themselves, so that two tasks of one question with different contexts can both be served)
+
+
+# the warning of a request whose state already starts with its task's context (x-decisio-warning)
+CONTEXT_TWICE = "state starts with the task's context; send only the varying part"
 
 
 # ---- mapping --------------------------------------------------------------------------------------------------------
@@ -927,10 +937,11 @@ class SystemOne:
         }
         return second, report, ms
 
-    def header_plan(self, state, qs: list[dict], engine) -> dict | None:
+    def header_plan(self, state, qs: list[dict], engine, context: str | None = None) -> dict | None:
         """The engine's header plan for the request (decisio.serve.header_limit): None where the header layout is not in
         use or nothing was over; a request that cannot be answered even from the plain layout, or with the limit off
-        and its header over the context, is refused here with where its tokens are (a 422)."""
+        and its header over the context, is refused here with where its tokens are (a 422). `state`: the state as read,
+        with the task's `context` before it, which the refusal counts apart."""
         plan = getattr(engine, "header_plan", None)
         hp = plan(state, qs) if plan is not None else None
         if hp is None:
@@ -938,18 +949,120 @@ class SystemOne:
         if not hp["fits"]:
             self.header_limited["refused"] += 1
             off = bool(hp.get("off"))
-            raise over.OverLimit(header_limit.refusal(hp["limit"], hp["pieces"], off))
+            pieces = self.context_pieces(engine, hp["pieces"], context)
+            raise over.OverLimit(header_limit.refusal(hp["limit"], pieces, off))
         if hp["limited"]:
             self.header_limited["requests"] += 1
             self.header_limited["plain"] += 1 if hp["listed"] == 0 else 0
             self.header_limited["lines_dropped"] += hp["of"] - hp["listed"]
         return hp
 
-    def truncated_request(self, req: SystemOneRequest, qs: list[dict], engine) -> tuple[SystemOneRequest, dict | None]:
+    @staticmethod
+    def context_pieces(engine, pieces: dict, context: str | None) -> dict:
+        """A refusal's pieces (decisio.serve.header_limit.refusal) with a task's context counted apart from the state it
+        was read with."""
+        if not context:
+            return pieces
+        n = len(engine.tok.encode(context, add_special_tokens=False))
+        return {**pieces, "context": n, "state": max(0, pieces["state"] - n)}
+
+    def refuse_over_context(self, state, qs: list[dict], engine, context: str) -> None:
+        """A request read with a task's context under the plain layout whose longest row is over the engine's prompt
+        ceiling: refused here (a 422) with where its tokens are, the context apart from the state, as the header limit
+        refuses a header row; the engine's own refusal would count them together. `state`: the state as read."""
+        from decisio.readout.letters import DEFAULT_FORMAT
+        from decisio.serve.vllm_engine import question_text, user_turn
+
+        limit = getattr(engine, "prompt_limit", lambda: None)()
+        if limit is None:
+            return
+        tok, fmt = engine.tok, getattr(engine, "fmt", DEFAULT_FORMAT)
+        body = fmt_state(state)
+        texts = [question_text(tok, q, fmt)[0] for q in qs]
+        reserve = int(getattr(engine, "pad_unit", 0) or 0)
+        # a token is at least one byte: a request whose bytes fit without being tokenized fits
+        if len(body.encode("utf-8")) + max(len(t.encode("utf-8")) for t in texts) + 2048 + reserve <= limit:
+            return
+        enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
+        row = max(len(enc(user_turn(tok, f"{body}\n\n{t}", fmt))) for t in texts)
+        if row + reserve <= limit:
+            return
+        pieces = {
+            "state": len(enc(body)),
+            "question": max(len(enc(t)) for t in texts),
+            "template": len(enc(user_turn(tok, "", fmt))),
+            "row": row,
+        }
+        raise over.OverLimit(header_limit.refusal(limit, self.context_pieces(engine, pieces, context), False))
+
+    def context_record(self, text: str | None, q) -> dict | None:
+        """The stored context of a task registered with `text` (None: no context) and asked as question `q`: its
+        text, digest and lengths. Refused (ValueError, a 422) when the context with the question and the template is
+        over the engine's prompt ceiling before any state: no request of the task could be read."""
+        from decisio.readout.letters import DEFAULT_FORMAT, layout_header
+        from decisio.serve.tasks import context_record
+        from decisio.serve.vllm_engine import question_text, user_turn
+
+        if text is None:
+            return None
+        tok = getattr(self.engine, "tok", None)
+        enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
+        rec = context_record(text, len(enc(text)) if tok is not None else None)
+        limit = getattr(self.engine, "prompt_limit", lambda: None)()
+        if limit is None or tok is None:
+            return rec
+        fmt = getattr(self.engine, "fmt", DEFAULT_FORMAT)
+        eq = self.engine_question(q)[0]
+        head = layout_header([eq["instructions"]]) if fmt.layout == "header" else ""
+        row = len(enc(user_turn(tok, f"{head}{text}{CONTEXT_SEP}\n\n{question_text(tok, eq, fmt)[0]}", fmt)))
+        if row + over.MARGIN + int(getattr(self.engine, "pad_unit", 0) or 0) > limit:
+            raise ValueError(
+                f"context: {rec['tokens']:,} tokens; with the question and the template a row takes {row:,} tokens "
+                f"before any state, over the {limit:,} the server answers. Shorten the context (or start the server "
+                "with a longer --max-model-len)"
+            )
+        return rec
+
+    def request_context(self, names: list, rts: list) -> str | None:
+        """The context a request's state is read with: the one context of its questions' tasks, or None. The questions
+        of a request share one read of its state, so they share one context; a request whose questions' tasks have
+        different contexts, or a question of a task with a context beside one without, is refused
+        (TaskSelectionError): send them as separate requests."""
+        shas = {context_sha(t) if t is not None else None for t in rts}
+        if len(shas) <= 1:
+            return next((context_text(t) for t in rts if t is not None and context_sha(t)), None)
+
+        def says(t):
+            if t is None:
+                return "no task"
+            sha = context_sha(t)
+            return f"task {t['id']!r}, " + (f"context sha256 {sha[:12]}" if sha else "no context")
+
+        each = "; ".join(f"{n!r}: {says(t)}" for n, t in zip(names, rts))
+        raise TaskSelectionError(
+            f"the questions of one request are read with one context, and these differ ({each}); send them as separate "
+            "requests"
+        )
+
+    def context_twice(self, t, state, context: str) -> str | None:
+        """The warning of a request whose state already starts with its task's context (`CONTEXT_TWICE`), else None:
+        the context is read twice, because the server cannot tell. Logged once per task in this process."""
+        if not fmt_state(state).lstrip().startswith(context.lstrip()):
+            return None
+        warned = self.__dict__.setdefault("_context_warned", set())
+        if t["id"] not in warned:
+            warned.add(t["id"])
+            logger.warning("task %s: a request's state starts with the task's context (%s)", t["id"], CONTEXT_TWICE)
+        return CONTEXT_TWICE
+
+    def truncated_request(
+        self, req: SystemOneRequest, qs: list[dict], engine, context: str | None = None
+    ) -> tuple[SystemOneRequest, dict | None]:
         """(the request, the report): the request with its state cut to its start where a row would be over the
         engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
-        decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves."""
-        from decisio.readout.letters import DEFAULT_FORMAT, fmt_state, layout_header
+        decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves. A task's
+        `context` is never cut: it counts with the question, and the state takes what both leave."""
+        from decisio.readout.letters import DEFAULT_FORMAT, layout_header
         from decisio.serve.vllm_engine import question_text, user_turn
 
         limit = getattr(engine, "prompt_limit", lambda: None)()
@@ -967,10 +1080,17 @@ class SystemOne:
         limited = hasattr(engine, "header_plan") and getattr(engine, "header_limit_setting", ("auto", None))[0] != "off"
         keep_header = fmt.layout == "header" and not limited
         head = layout_header([q["instructions"] for q in qs]) if keep_header else ""
+        head += f"{context}{CONTEXT_SEP}" if context else ""
         overhead = max(len(enc(user_turn(tok, f"{head}\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
-        text, report = over.fit_state(
-            tok, fmt_state(req.state), overhead, limit, reserve=int(getattr(engine, "pad_unit", 0) or 0)
-        )
+        try:
+            text, report = over.fit_state(
+                tok, fmt_state(req.state), overhead, limit, reserve=int(getattr(engine, "pad_unit", 0) or 0)
+            )
+        except over.OverLimit as e:
+            if not context:
+                raise
+            n = len(enc(context))
+            raise over.OverLimit(f"{e} (the task's context takes {n:,} of them; it is never cut)") from e
         if report is None:
             return req, None
         self.truncated["requests"] += 1
@@ -1062,17 +1182,15 @@ class SystemOne:
                 raise ValueError("the abstain option is served with one order only")
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
-        cut = None
-        if (over_limit or self.over_limit) == "truncate" and not use_image:
-            req, cut = self.truncated_request(req, qs, engine)
-        hp = None if use_image else self.header_plan(req.state, qs, engine)
-        header_lines = hp["listed"] if hp is not None and hp["limited"] else None
-        hl = hp["report"] if hp is not None and hp["limited"] else None
+        task_id = (req.model_extra or {}).get("task")
+        if task_id is not None and use_image:
+            raise TaskSelectionError('"task": the image route applies no registered task')
+        selected = self.selected_task(task_id)
         if adapter is not None:
             # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
             # would be applied to another one: refuse rather than answer with a correction that does not fit
             clash = sorted(
-                {t["id"] for t in (self.readout_task(q) for q in wire) if t is not None}
+                {t["id"] for t in (self.readout_task(q, selected) for q in wire) if t is not None}
                 | {t["id"] for t in (self.task_for(q, imajev_ext) for q in wire) if t is not None}
             )
             if clash:
@@ -1082,9 +1200,30 @@ class SystemOne:
                 )
         # per-task calibration and head: the registered task of each text-route question (None when there is none)
         rts = [
-            self.readout_task(q) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
+            self.readout_task(q, selected) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
             for i, q in enumerate(wire)
         ]
+        if selected is not None and not any(t is selected for t in rts):
+            raise TaskSelectionError(
+                f'"task": {selected["id"]!r} asks another question than this request\'s: its question type and options '
+                "are not those of any of the request's questions"
+            )
+        # a task's context is read before the state (docs/tasks.md, "Task context"): `read` is the state as the engine
+        # reads it; the fast table, the learned rows and the truncation see the request's own state
+        context = None if use_image else self.request_context(names, rts)
+        warning = None
+        if context is not None:
+            warning = self.context_twice(next(t for t in rts if t is not None), req.state, context)
+        cut = None
+        truncate = (over_limit or self.over_limit) == "truncate" and not use_image
+        if truncate:
+            req, cut = self.truncated_request(req, qs, engine, context)
+        read = context_state(context, req.state)
+        hp = None if use_image else self.header_plan(read, qs, engine, context)
+        if context is not None and not truncate and getattr(getattr(engine, "fmt", None), "layout", "plain") == "plain":
+            self.refuse_over_context(read, qs, engine, context)
+        header_lines = hp["listed"] if hp is not None and hp["limited"] else None
+        hl = hp["report"] if hp is not None and hp["limited"] else None
         # a question of a certified task is scored by the function its certificate was made with (`served_rows`): one
         # question at a time, in request order, never batched with the request's other questions (docs/tasks.md)
         own = [
@@ -1135,7 +1274,7 @@ class SystemOne:
             if images:
                 probs, info = engine.answer(req.state, engine_qs, adapter, images=images)
             else:
-                probs, info = engine.answer(req.state, engine_qs, adapter)
+                probs, info = engine.answer(read, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)
         second, think_report, think_ms = {}, None, 0.0
@@ -1146,15 +1285,15 @@ class SystemOne:
             effective_think = False
         if effective_think:
             second, think_report, think_ms = self.think_pass(
-                req.state, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
+                read, names, wire, mapped, swapped, qs, at, probs, plans, rts, orders, abstain, use_image,
                 adapter, engine,
             )  # fmt: skip
         t_head = time.perf_counter()
-        hidden = dict(zip(head, self.hidden_engine.readout(req.state, [qs[i] for i in head]))) if head else {}
+        hidden = dict(zip(head, self.hidden_engine.readout(read, [qs[i] for i in head]))) if head else {}
         head_ms = (time.perf_counter() - t_head) * 1000 if head else 0.0
         dbg = {}
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
-            for i, (lp, h) in enumerate(self.hidden_engine.readout(req.state, qs)):
+            for i, (lp, h) in enumerate(self.hidden_engine.readout(read, qs)):
                 dbg[names[i]] = {"hidden_lp": lp.tolist(), "h": h.tolist()}
         answers, log = {}, []
         for i, (name, q, (eq, keys)) in enumerate(zip(names, wire, mapped)):
@@ -1299,7 +1438,8 @@ class SystemOne:
                 for rec in log:
                     f.write(json.dumps({"t": time.time(), "request_sha256": h, **rec}) + "\n")
         usage = {
-            "input_tokens": self.usage_tokens(req.state, qs, header_lines) + sum(info.get("image_tokens") or []),
+            # what is read: the header, a task's context, the state and each question's text
+            "input_tokens": self.usage_tokens(read, qs, header_lines) + sum(info.get("image_tokens") or []),
             "output_tokens": len(names),
         }
         if think_report is not None:  # the generated tokens are output tokens, and said so
@@ -1314,6 +1454,7 @@ class SystemOne:
                 "route": "image" if use_image else "text",
                 "layout": "plain" if hl is not None and hl["listed"] == 0 else self.request_layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
+                **({"warning": warning} if warning else {}),
                 # the mean prompt the engine computed or read per question, and how much of it the cache served, for the
                 # x-decisio-prompt header: over the request's engine call and a certified task's own reads
                 **prompt_figures([info, *task_reads]),
@@ -1415,16 +1556,57 @@ class SystemOne:
         on = to_engine_question(q, self.hide_index_keys, self.desnake_labels, True)[0]
         return on != to_engine_question(q, self.hide_index_keys, self.desnake_labels, False)[0]
 
-    def readout_task(self, q):
-        if not self.tasks_enabled or self.task_store is None or not self.task_store.by_key:
-            return None
+    def question_keys(self, q) -> list[str]:
+        """The keys a wire question's task can be kept under: its task key (`decisio.serve.tasks.task_key`, under this
+        server's rendering), then, for a choice question with instructions, the key of a dynamic-option task matched on
+        them."""
         from decisio.serve.tasks import task_key
 
-        t = self.task_store.lookup(task_key(q, render_text, self.described(q), self.noul_rendered(q)))
-        if t is None and q.type == "choice" and q.instructions is not None:
-            t = self.task_store.lookup(
-                dynamic.task_key(render_text(q.instructions))
-            )  # a task matched on the instructions
+        keys = [task_key(q, render_text, self.described(q), self.noul_rendered(q))]
+        if q.type == "choice" and q.instructions is not None:
+            keys.append(dynamic.task_key(render_text(q.instructions)))
+        return keys
+
+    def readout_task(self, q, selected=None):
+        """The registered task a text-route question is answered through, or None: the one place a question finds its
+        task. `selected` (`selected_task`, a request's `"task"`): that task, when q asks its question; otherwise the
+        task the question finds under the layout in effect (`TaskStore.lookup`), by its task key first, then by the
+        instructions of a dynamic-option task. Raises TaskSelectionError when several tasks ask the question, each with
+        a context, and the request names none."""
+        if not self.tasks_enabled or self.task_store is None or not self.task_store.by_key:
+            return None
+        keys = self.question_keys(q)
+        if selected is not None and selected["key"] in keys:
+            return selected
+        for key in keys:
+            t = self.task_store.lookup(key)
+            if t is not None:
+                return t
+        return None
+
+    def selected_task(self, task_id):
+        """The task a request names (`"task"`), or None when it names none. Refused (TaskSelectionError, a 422) when
+        there is no task of that id, or it does not apply to this request: fitted under the other layout than the
+        request's (the request may ask for that layout), or under another model or rendering."""
+        if task_id is None:
+            return None
+        store = self.task_store
+        if not self.tasks_enabled or store is None:
+            raise TaskSelectionError('"task": this server applies no registered tasks (--no-tasks)')
+        t = store.by_id(task_id)
+        if t is None:
+            raise TaskSelectionError(f'"task": there is no registered task {task_id!r}')
+        if not same_fingerprint(t["fingerprint"], store.fingerprint):
+            other = store.layout_of(t)
+            if other is not None:
+                raise TaskSelectionError(
+                    f'"task": {task_id!r} is fitted under the {other} layout and this request is read under the '
+                    f'{self.request_layout} one; send the request with "layout": "{other}"'
+                )
+            raise TaskSelectionError(
+                f'"task": {task_id!r} was fitted under another model or rendering than this server\'s; register it '
+                "again from its examples"
+            )
         return t
 
     def commits(self, q) -> bool:
@@ -1442,13 +1624,8 @@ class SystemOne:
         store = self.task_store
         if not self.tasks_enabled or store is None or not store.by_key:
             return None
-        from decisio.serve.tasks import task_key
-
-        keys = [task_key(q, render_text, self.described(q), self.noul_rendered(q))]
-        if q.type == "choice" and q.instructions is not None:
-            keys.append(dynamic.task_key(render_text(q.instructions)))
-        for key in keys:
-            if store.lookup(key) is not None:
+        for key in self.question_keys(q):
+            if store.matches(key):
                 return None  # a task of this question applies to this request
             certified = [t for t in store.of_question(key) if t.get("certificate")]
             if certified:
@@ -1486,6 +1663,7 @@ class SystemOne:
         dynamic_options: dict | None = None,
         fast_table: bool | dict = False,
         learn: dict | None = None,
+        context: str | None = None,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
@@ -1498,6 +1676,8 @@ class SystemOne:
         every refit's fit and give its gold certificate (decisio.serve.fast_table_learn).
         `layout=`: the layout the task is fitted under (`_in_layout`; the server's by default): its reads, its
         fingerprint and its certificate are that layout's, and it applies to the requests of that layout only.
+        `context`: the text read before every state of the task (`decisio.serve.tasks.serialise_context`), the
+        examples' included, so the task is fitted, certified and timed on what it serves.
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
@@ -1510,9 +1690,10 @@ class SystemOne:
         if dynamic_options is not None and fast_table:
             raise ValueError("fast_table: a task whose options change with every request has no table")
         if dynamic_options is not None:
-            return self.register_dynamic_task(task_id, examples, certify, certify_examples, dynamic_options)
+            return self.register_dynamic_task(task_id, examples, certify, certify_examples, dynamic_options, context)
         from decisio.serve.tasks import task_key
 
+        ctx = self.context_record(context, examples[0][1]) if examples else None
         full = [(q, s, g) for s, q, g in examples]
         cert_ex, split = [], None
         if certify is not None:
@@ -1525,7 +1706,7 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _, swapped = self.engine_question(q)
-                probs, _ = self.engine.answer(state, [eq])
+                probs, _ = self.engine.answer(context_state(context, state), [eq])
                 require_finite(probs[0], "a registration example's probability")
                 out.append(probs[0][::-1] if swapped else probs[0])
             return out
@@ -1534,7 +1715,7 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                lp, h = self.hidden_engine.readout(state, [eq])[0]
+                lp, h = self.hidden_engine.readout(context_state(context, state), [eq])[0]
                 require_finite(lp, "a registration example's label log-probability")
                 require_finite(h, "a registration example's hidden state")
                 out.append((lp, h))
@@ -1547,6 +1728,7 @@ class SystemOne:
             hidden if self.hidden_engine is not None else None,
             key_fn=lambda q: task_key(q, render_text, self.described(q), self.noul_rendered(q)),
             **({"commit": False} if certify is not None else {}),
+            **({"context": ctx} if ctx else {}),
         )
         if certify is None:
             self.learning.drop(task_id)  # a task registered again without learning keeps no rows
@@ -1604,10 +1786,13 @@ class SystemOne:
 
     @_in_layout
     @_serial
-    def register_learning_task(self, task_id: str, q, learn: dict, certify_spec: dict | None = None) -> dict:
+    def register_learning_task(
+        self, task_id: str, q, learn: dict, certify_spec: dict | None = None, context: str | None = None
+    ) -> dict:
         """Register a task that learns its fast table from traffic, from its question alone: decisio answers it until
         a refit certifies a table on the rows its answers logged (decisio.serve.fast_table_learn). `learn`:
-        `FTL.split_request`'s settings; `certify_spec`: alpha and delta of the agreement certificate."""
+        `FTL.split_request`'s settings; `certify_spec`: alpha and delta of the agreement certificate; `context`: the
+        text decisio reads before every state of the task (the table learns on the states alone)."""
         from decisio.serve.tasks import FORMAT as TASK_FORMAT
         from decisio.serve.tasks import answer_keys, dynamic_placeholders, task_key
 
@@ -1642,6 +1827,7 @@ class SystemOne:
                 missing.append(str(e))
         if len(missing) == len(feats):
             raise ValueError("fast_table: no student can be had: " + "; ".join(missing))
+        ctx = self.context_record(context, q)
         calibration, head = dynamic_placeholders(
             "a task that learns its fast table from traffic: nothing is fitted on decisio's readout"
         )
@@ -1662,6 +1848,7 @@ class SystemOne:
                 "delta": settings["delta"],
                 **self.learning.new_registration(),
             },
+            **({"context": ctx} if ctx else {}),
         }
         self.task_store.put(task)  # written first: a write that fails registers nothing
         self.learning.start_task(task)
@@ -1714,7 +1901,7 @@ class SystemOne:
             "gold_real": gi if gi != none_i else -1,
         }
 
-    def register_dynamic_task(self, task_id, examples, certify, certify_examples, opts: dict):
+    def register_dynamic_task(self, task_id, examples, certify, certify_examples, opts: dict, context=None):
         """Fit and store a task whose options change with every request (decisio.serve.dynamic): matched on the
         instructions, certified on its top probability whatever the options, with a re-ranker where cross-validation
         shows a gain. Always certified: the certificate is what a dynamic task adds. Nothing is stored when refused."""
@@ -1734,12 +1921,13 @@ class SystemOne:
                 raise ValueError("certify.examples must carry the same instructions as the examples")
             certify_examples = [(s, q, g) for q, s, g in held]
         fit_ex, cert_ex, split = self.certification_split(task_id, full, certify, certify_examples)
+        ctx = self.context_record(context, full[0][0])
 
         def read(ex):
             out = []
             for q, state, gold in ex:
                 eq, _, swapped = self.engine_question(q)
-                probs, _ = self.engine.answer(state, [eq])
+                probs, _ = self.engine.answer(context_state(context, state), [eq])
                 p = np.asarray(probs[0], dtype=np.float64)
                 require_finite(p, "a registration example's probability")
                 out.append(self.dynamic_example(state, q, p[::-1].copy() if swapped else p, gold, none_key))
@@ -1769,6 +1957,7 @@ class SystemOne:
             "dynamic": rec,
             "n_examples": len(fit_ex),
             "per_option_min": None,
+            **({"context": ctx} if ctx else {}),
         }
         registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
         previous = self.task_store.snapshot(task["id"])
@@ -2293,7 +2482,9 @@ class SystemOne:
             return self.dynamic_rows(t, pairs)
         out = []
         with_head = t["head"].get("applied") and self.hidden_engine is not None
+        context = context_text(t)  # read before each state; the states themselves are the requests'
         for state, q in pairs:
+            state = context_state(context, state)
             if with_head:
                 # the head's answer comes from the hidden-state read alone, as serving always read it. Registration
                 # used to make a plain read first and discard it, but that read ran before the hidden-state one, and on
@@ -2330,7 +2521,7 @@ class SystemOne:
         out = []
         for state, q in pairs:
             eq, _, swapped = self.engine_question(q)
-            probs, info = self.engine.answer(state, [eq])
+            probs, info = self.engine.answer(context_state(context_text(t), state), [eq])
             self.collect_read(info)
             p = np.asarray(probs[0], dtype=np.float64)
             require_finite(p, "a dynamic task's probability")
@@ -2611,7 +2802,8 @@ class SystemOne:
         try:
             for i in idx:
                 q, state, _ = cert_ex[i]
-                out = self.answer(SystemOneRequest(state=state, questions={"q": q}))
+                # the task named, as a request of a question several tasks ask (each with its context) names it
+                out = self.answer(SystemOneRequest(state=state, questions={"q": q}, task=t["id"]))
                 a = out["answers"]["q"]
                 applied += t["id"] in out["_timing"]["tasks"]
                 if a["type"] == "noul":
@@ -3333,6 +3525,9 @@ def add_routes(app, systemone: SystemOne):
             layout = lay.request_value((req.model_extra or {}).get("layout"))
         except lay.LayoutRefused as e:
             raise HTTPException(422, str(e))
+        task = (req.model_extra or {}).get("task")
+        if task is not None and not isinstance(task, str):
+            raise HTTPException(422, '"task" must be the id of a registered task, or null')
         try:
             out = await run_in_threadpool(
                 functools.partial(systemone.answer, layout=layout),
@@ -3340,7 +3535,7 @@ def add_routes(app, systemone: SystemOne):
             )  # fmt: skip
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
-        except (over.OverLimit, thinking.ThinkUnavailable, lay.LayoutRefused) as e:
+        except (over.OverLimit, thinking.ThinkUnavailable, lay.LayoutRefused, TaskSelectionError) as e:
             raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
@@ -3358,6 +3553,8 @@ def add_routes(app, systemone: SystemOne):
             headers[header("flavor")] = flavors.header_value(systemone.flavor)
         if timing.get("tasks"):
             headers[header("tasks")] = ",".join(timing["tasks"])
+        if timing.get("warning"):  # the request was served as sent; something in it is likely a mistake
+            headers[header("warning")] = timing["warning"]
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
         # what the prompt cost: the layout, the mean prompt tokens per question and how many of them the cache served
@@ -3565,6 +3762,19 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, f"{where}: {NO_ADAPTER}")
         if isinstance(body, dict) and body.get("over_limit") is not None:
             raise HTTPException(422, f"{where}: {NO_OVER_LIMIT}")
+        if isinstance(body, dict) and body.get("task") is not None:
+            raise HTTPException(422, f'{where}: "task" names the task a served request is for; an example names none')
+
+    def context_of(body) -> str | None:
+        """A registration's `context` as the text read before the state, or None."""
+        from decisio.serve.tasks import serialise_context
+
+        if not isinstance(body, dict) or body.get("context") is None:
+            return None
+        try:
+            return serialise_context(body["context"])
+        except ValueError as e:
+            raise HTTPException(422, str(e))
 
     def task_layout_of(body) -> str | None:
         """The layout a task is registered under: the body's `layout` (None: the server's own)."""
@@ -3638,6 +3848,7 @@ def add_routes(app, systemone: SystemOne):
         refuse_adapter(body)
         layout = task_layout_of(body)
         debug = debug_of(request)
+        context = context_of(body)
         examples = parse_examples(body["examples"], layout=layout)
         dynamic_options = None
         if body.get("options") is not None or body.get("match") is not None:
@@ -3683,6 +3894,7 @@ def add_routes(app, systemone: SystemOne):
                 dynamic_options,
                 fast_table,
                 learn,
+                context,
             )
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
@@ -3723,9 +3935,10 @@ def add_routes(app, systemone: SystemOne):
         spec = body.get("certify")
         if spec is not None and not isinstance(spec, dict):
             raise HTTPException(422, "certify: an object {'alpha', 'delta'}")
+        context = context_of(body)
         try:
             register = functools.partial(systemone.register_learning_task, layout=layout)
-            task = await run_in_threadpool(register, str(body["id"]), question, learn, spec)
+            task = await run_in_threadpool(register, str(body["id"]), question, learn, spec, context)
         except (KeyError, ValueError) as e:
             raise HTTPException(422, str(e))
         except TaskPersistError as e:

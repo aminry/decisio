@@ -1259,6 +1259,8 @@ def make_app(engine, systemone=None, health=None):
         adapter: str | None = None
         # the layout of the user turn (decisio.serve.layout); None: the server's
         layout: Literal["plain", "header"] | None = None
+        # refused when given: this route reads the engine's own rows and applies no registered task (/v1/systemone does)
+        task: str | None = None
 
     app = FastAPI(title="letters readout")
     from decisio.serve.content_type import JsonOnly
@@ -1350,6 +1352,12 @@ def make_app(engine, systemone=None, health=None):
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),
                             "head": bool(t["head"].get("applied")),
+                            # a task's context: its length and digest, never its text
+                            **(
+                                {"context": {k: v for k, v in t["context"].items() if k != "text"}}
+                                if t.get("context")
+                                else {}
+                            ),
                         }
                         for t in (systemone.task_store.by_key.values() if systemone.task_store else [])
                     },
@@ -1379,6 +1387,12 @@ def make_app(engine, systemone=None, health=None):
         }
 
     def answer(req: Request):  # sync: FastAPI runs it in a thread; the engine lock serialises
+        if req.task is not None:
+            raise HTTPException(
+                422,
+                '"task": /v1/answer reads the engine\'s own rows and applies no registered task; send the request '
+                "to /v1/systemone",
+            )
         if req.adapter and req.adapter not in engine.adapters:
             raise HTTPException(404, f"unknown adapter {req.adapter!r}; loaded: {sorted(engine.adapters)}")
         try:

@@ -125,6 +125,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-warning": {
+                "description": "Something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-adapter": {
                 "description": "The adapter that answered, when one did.",
                 "schema": {
@@ -200,7 +206,7 @@
             "description": "A POST that is not JSON (or a multipart request without `x-decisio-client`)."
           },
           "422": {
-            "description": "A request that does not validate (for example a choice with more than 255 options).",
+            "description": "A request that does not validate (for example a choice with more than 255 options), or whose task cannot be found as asked (`task`).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2064,6 +2070,27 @@
             "default": null,
             "description": "The layout the task is fitted under, and whose requests it applies to (default: the server's).",
             "title": "Layout"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "A fixed text read before every state of the task (an object or array as compact JSON): requests send only the part that changes. Its sha256 is part of the task's identity.",
+            "title": "Context"
           }
         },
         "required": [
@@ -2342,6 +2369,20 @@
             "default": null,
             "title": "Certificate"
           },
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The task's context: `sha256`, `chars` and `tokens`; its `text` only in the export (`GET /v1/tasks?full=1`).",
+            "title": "Context"
+          },
           "status": {
             "anyOf": [
               {
@@ -2406,6 +2447,17 @@
               }
             ],
             "title": "Layout"
+          },
+          "task": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task"
           }
         },
         "type": "object",

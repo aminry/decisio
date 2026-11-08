@@ -67,6 +67,18 @@ A request of either layout is built token for token as a server started with tha
 
 **`over_limit` (optional, decisio's extension).** What to do with a state that makes a row longer than the engine's prompt ceiling (the served context less the one generated token): `"refuse"` or `"truncate"`; absent or `null`, the server's setting (`--over-limit`, or a tuned repository's `defaults.over_limit`; refuse unless one of them says otherwise). A refused request is answered 422, as the engine says. With `"truncate"` the state, never a question, is cut once to its start, so that the longest question of the request still fits, and the request is answered from what was kept. The response then carries `"state_truncated": {"kept_tokens": N, "of_tokens": M, "part": "start", "limit": L}` (the state's tokens kept and in all, and the ceiling) and the header `x-decisio-state-truncated`; both are absent when the whole state was read. **No answer of a truncated state is certified**: a question of a certified task carries `certified: false` with `certified_reason: "state_truncated"`, and the traffic monitor does not count it. A request whose questions alone are over the ceiling is answered 422 whatever the setting; a value other than the two is 422. A server whose engine has no ceiling to read (the MLX build) takes `--over-limit-tokens` to say where to cut. Image requests are not cut.
 
+**`task` (optional, decisio's extension).** The id of a registered task (`POST /v1/tasks`) that this request is for.
+It answers the request's questions that ask its question (the same type and options; for a task whose options change with every request, the same instructions), whatever task they would find by themselves, and its context, if it has one, is read before the state ([tasks.md](tasks.md#task-context)).
+Without the field each question finds its task by its question, as always; when several tasks ask the same question, each with its own context, a request that names none gets the one without a context, and is answered 422 when there is none without one.
+The field is 422 when no task has that id, when the task asks none of the request's questions, when the task was fitted under the other layout than the request's (the message names the layout to send), and on the image route.
+`x-decisio-tasks` says which task answered.
+`POST /v1/answer` applies no registered task, so it answers the field with 422, and an example of a registration that names a task is 422 too.
+
+**A task's context.** A question of a task registered with a `context` is read with the context before the state, so the request sends only the part that changes ([tasks.md](tasks.md#task-context)).
+The questions of one request share one read of the state, so they must share one context: a request whose questions' tasks have different contexts, or that mixes a question of a task with a context and a question read without one, is answered 422 (send them as separate requests).
+A row over the context window is answered 422 with where its tokens are (the header, the task's context, the state, the question), and `over_limit: truncate` cuts the state only, never the context.
+A request whose state starts with the task's context (leading whitespace aside) is served as sent, so the context is read twice, and the response carries the header `x-decisio-warning: state starts with the task's context; send only the varying part`.
+
 Each question:
 
 | Field | Type | Meaning |
@@ -127,12 +139,13 @@ Request headers:
 | `unknown_probability`, `abstained` | with the abstention extension of imajev (an open-source System One client and test harness, github.com/mohit67890/imajev; `--abstain-option`): the probability of the offered "can't tell" option and whether the server abstained |
 
 `model` echoes the name the request sent, so a client left on the SDK's default model name gets that name back unchanged; a request without one gets the served model's name (`--served-name`, or the base's).
-`usage.input_tokens` counts the state and each question's own text; `usage.output_tokens` is one per question.
+`usage.input_tokens` counts the state and each question's own text, and what else is read with them: the header under the header layout, a task's context, both copies under read twice; `usage.output_tokens` is one per question.
 
 Response headers:
 - `x-decisio-server-ms`: the server's time for the request, from the route receiving it to the response: reading and validating the body, loading its images, and every read, including a certified task's questions and the intent head's.
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
+- `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part` ([tasks.md](tasks.md#task-context)); absent otherwise.
 - `x-decisio-adapter`: the adapter that answered, when one did.
 - `x-decisio-think-ms`, `x-decisio-think-tokens`: the milliseconds spent on reasoning and the second reads, and the reasoning tokens generated, when thinking was on for the request.
 - `x-decisio-state-truncated`: `kept=N; of=M; part=start`, when the state was cut (`over_limit`, above); absent otherwise.
@@ -197,6 +210,13 @@ The server fits a per-task calibration and, for a question with 10 or more optio
 Every later question with the same option list is answered with the task applied.
 An optional `"layout": "plain" | "header"` fits the task under that layout (default: the server's): its examples are read under it, and it applies to the requests of that layout only (`layout` above, [tasks.md](tasks.md#a-task-under-a-layout)); an example whose request names another layout is 422.
 The other registration routes (`"options": "dynamic"`, a task that learns from traffic, `POST /v1/abstention/tasks`) take it too; `POST /v1/tasks/{id}/certify` certifies a task under the layout it was fitted under.
+
+An optional `"context"` is a long, fixed text read before every state of the task, the examples' included: a string as given, an object or array as compact JSON.
+Requests then send only the part that changes, and the context stays in the prefix cache ([tasks.md](tasks.md#task-context)).
+The labelled, dynamic-option and learning registrations take it; `POST /v1/abstention/tasks` does not (abstention tasks take no context).
+Its sha256 is part of the task's identity: the same question registered with another context is another task, kept beside the first, and a request picks between them with `task` (above).
+An empty context, or one of another type, is 422, and so is a context that with the question and the template is over the context window before any state.
+The task's record, its listing and `/health` give the context's `sha256`, `chars` and `tokens`, never its text; the export (`GET /v1/tasks?full=1`) holds the text, which an import needs.
 
 - `GET /v1/tasks` lists the registered tasks, whether tasks are applied (`--tasks`, on by default), whether the server can serve intent heads (`head_engine`), and the server's fingerprint (the model and rendering tasks are fitted under).
 - `GET /v1/tasks?full=1` includes the heads' arrays: the form `--tasks-file` loads at start and `POST /v1/tasks/import` takes.

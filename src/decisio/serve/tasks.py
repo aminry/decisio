@@ -27,6 +27,11 @@ two records are kept, not applied, so every reader of a task finds them).
 A task may also carry a certificate (decisio.readout.certify, made by `SystemOne.register_readout_task` on examples held
 out of the fit) and the baseline of its answer-mix monitor (decisio.serve.monitor); both are stored with the task and
 travel with its export.
+
+A task may carry a context (`context_record`): a long, fixed text read before every request's state, so requests send
+only the part that changes. Its sha256 is part of the task's identity: the same question with another context is
+another task, kept beside it (`TaskStore.slot_of`), and the context enters the fit digest, so a certificate made under
+one context does not hold under another. A task without one is stored, keyed and digested exactly as before.
 """
 
 from __future__ import annotations
@@ -70,6 +75,46 @@ def task_key(q, render_text, described: bool = False, noul_rendering: str | None
     if noul_rendering:
         spec["rendering"] = noul_rendering
     return hashlib.sha256(json.dumps(spec, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
+class TaskSelectionError(ValueError):
+    """A request's task cannot be found as asked (an unknown or inapplicable `"task"`, several tasks that ask the
+    question with no selector, questions of one request with different contexts): a 422."""
+
+
+def serialise_context(value) -> str:
+    """A registration's `context` as the text read before the state: a string as given; an object or an array as
+    compact JSON. Raises ValueError for anything else, and for an empty text."""
+    if isinstance(value, str):
+        text = value
+    elif isinstance(value, (dict, list)):
+        text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+    else:
+        raise ValueError("context: a string, an object or an array (objects and arrays are read as compact JSON)")
+    if not text.strip():
+        raise ValueError("context: an empty text; register the task without one")
+    return text
+
+
+def context_record(text: str, tokens: int | None = None) -> dict:
+    """A task's context as stored: its text, sha256 and length in characters and in tokens (None: not counted)."""
+    return {
+        "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "chars": len(text),
+        "tokens": tokens,
+        "text": text,
+    }
+
+
+def context_text(task) -> str | None:
+    """The text read before the state for a task's requests, or None."""
+    ctx = task.get("context") if isinstance(task, dict) else None
+    return ctx["text"] if ctx else None
+
+
+def context_sha(task) -> str | None:
+    ctx = task.get("context") if isinstance(task, dict) else None
+    return ctx["sha256"] if ctx else None
 
 
 def answer_keys(q) -> list[str]:
@@ -140,6 +185,10 @@ def fit_digest(task) -> str:
                 h.update(base64.b64decode(v["b64"]))
             else:
                 h.update(json.dumps(v, sort_keys=True, default=float).encode())
+    ctx = context_sha(task)
+    if ctx:  # the context read before every state; absent for a task without one, whose digest is what it was
+        h.update(b"context")
+        h.update(ctx.encode())
     ft = task.get("fast_table")
     if ft:  # the table's fit and thresholds; not its timing, agreement baseline or suspension, which are not the fit
         h.update(b"fast_table")
@@ -213,31 +262,51 @@ class TaskStore:
     def _own_layout(self) -> str | None:
         return next((name for name, f in self.layouts.items() if same_fingerprint(self._fingerprint, f)), None)
 
-    def slot_of(self, key, task_layout: str | None) -> str:
-        """Where a task of question `key` fitted under `task_layout` is kept in `by_key`: its key for the server's own
-        layout (and for a task of no layout this server serves), `key@layout` for the other one. The same question
-        fitted under each layout is two tasks, and neither replaces the other."""
-        return key if task_layout is None or task_layout == self._own_layout() else f"{key}@{task_layout}"
+    def slot_of(self, key, task_layout: str | None, context: str | None = None) -> str:
+        """Where a task of question `key` fitted under `task_layout` with the context of sha256 `context` is kept in
+        `by_key`: its key for the server's own layout (and for a task of no layout this server serves), `key@layout`
+        for the other one; `key~<context sha256>` (and `key~<sha256>@layout`) for a task with a context. The same
+        question fitted under each layout, or with each context, is two tasks, and neither replaces the other."""
+        base = f"{key}~{context}" if context else key
+        return base if task_layout is None or task_layout == self._own_layout() else f"{base}@{task_layout}"
 
     def slot(self, task) -> str:
-        return self.slot_of(task["key"], self.layout_of(task))
+        return self.slot_of(task["key"], self.layout_of(task), context_sha(task))
+
+    def matches(self, key) -> list:
+        """Every task of question `key` that applies to the requests of the layout in effect: one per context."""
+        return [t for t in self.of_question(key) if same_fingerprint(t["fingerprint"], self.fingerprint)]
 
     def lookup(self, key):
-        """The task of this key that applies to the requests of the layout in effect, or None."""
-        t = self.by_key.get(self.slot_of(key, layout.current() if self.layouts else None))
-        if t is None and self.layouts:
-            t = self.by_key.get(key)  # a task fitted under no layout this server serves is kept at its key
-        return t if t is not None and same_fingerprint(t["fingerprint"], self.fingerprint) else None
+        """The task of question `key` that a request naming no task gets under the layout in effect, or None: the one
+        task that asks it; of several (the question registered with different contexts), the one without a context,
+        which is what such a request got before contexts existed. Several with a context and none without: no task can
+        be chosen for the request (TaskSelectionError, a 422 that asks for `"task"`)."""
+        found = self.matches(key)
+        if len(found) <= 1:
+            return found[0] if found else None
+        plain = [t for t in found if not context_sha(t)]
+        if plain:
+            return plain[0]
+        raise TaskSelectionError(
+            f"the tasks {sorted(t['id'] for t in found)} all ask this question, each with its own context; name the "
+            'one this request is for with "task": "<id>"'
+        )
+
+    def by_id(self, task_id):
+        """The stored task of this id, or None."""
+        return next((t for t in self.by_key.values() if t["id"] == task_id), None)
 
     def of_question(self, key) -> list:
-        """Every task kept for the question `key`, whatever it was fitted under: the one at its key first."""
-        return [t for k, t in self.by_key.items() if k == key or k.startswith(key + "@")]
+        """Every task kept for the question `key`, whatever it was fitted under or with: the one at its key first."""
+        return [t for k, t in self.by_key.items() if k == key or k.startswith((key + "@", key + "~"))]
 
-    def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True):
+    def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True, context=None):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
         server has none. Returns the stored task (`commit=False`: the fitted task, not yet stored: the caller adds a
-        certificate and calls `put`, and a failure leaves the previous task in place)."""
+        certificate and calls `put`, and a failure leaves the previous task in place). `context`: the task's
+        `context_record`, stored with it; the two functions read each state with it (the caller's concern)."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -311,6 +380,8 @@ class TaskStore:
             "n_examples": len(examples),
             "per_option_min": int(counts.min()),
         }
+        if context is not None:
+            task["context"] = context
         if commit:
             self.put(task)
         return task, {"lps": lps, "labels": labels, "readout": readout}
@@ -390,6 +461,8 @@ class TaskStore:
                 if isinstance(ft.get(k), dict) and "b64" in ft[k]:
                     ft[k] = {"shape": ft[k]["shape"]}
             out["fast_table"] = ft
+        if task.get("context") and not full:  # the listing says how long the context is and its digest, never its text
+            out["context"] = {k: v for k, v in task["context"].items() if k != "text"}
         cert = task.get("certificate")
         if cert and not full:  # the held-in digests are for re-certification; the listing says how many there are
             split = dict(cert["split"])
@@ -417,6 +490,12 @@ class TaskStore:
                 check_format(t["fast_table"], "fast-table", f"{what}, fast_table")
                 if not isinstance(t["fast_table"].get("coef"), dict):
                     raise ValueError(f"task {t['id']!r}: a fast table without its arrays (export with ?full=1)")
+            if t.get("context") is not None:
+                ctx = t["context"]
+                if not isinstance(ctx, dict) or not isinstance(ctx.get("text"), str):
+                    raise ValueError(f"task {t['id']!r}: a context without its text (export with ?full=1)")
+                if context_record(ctx["text"])["sha256"] != ctx.get("sha256"):
+                    raise ValueError(f"task {t['id']!r}: the context's sha256 is not its text's")
         for t in tasks:
             head = dict(t["head"])
             for k in ("A", "c"):

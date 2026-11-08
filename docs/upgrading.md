@@ -8,6 +8,33 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: task context
+
+How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](api.md).
+
+### What changed
+
+- **A task can carry a context**: `POST /v1/tasks` takes an optional `"context"`, a fixed text read before every state of the task (an object or array as compact JSON), on the labelled, dynamic-option and learning registrations.
+  Requests send only the part that changes; the registration's examples are read with the context too.
+- **The context is part of the task's identity**: the same question with another context is another task, kept beside the first, and the context enters the fit digest that certificates name.
+- **A request can name its task**: `"task": "<id>"` on `/v1/systemone` picks among tasks of one question; without it a question finds its task as before, the one without a context when several ask it, and 422 when every one has a context.
+  An unknown id, a task of another question or of the other layout, the image route and `/v1/answer` answer the field with 422; so does a registration example that carries it.
+- **The questions of one request share one context**: mixing questions of tasks with different contexts, or with and without one, is 422.
+- **A state that starts with its task's context** is served as sent, with the new header `x-decisio-warning`, logged once per task.
+- **Limits count the context**: a context over the window before any state refuses the registration, a row over it is 422 with the context named, and truncation cuts the state only.
+- **Status shows the context's sha256 and length, never its text**: the task, the listing and `/health`'s `readout_tasks`; the export holds the text.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| Tasks registered without `context`, clients that send no `task` | Nothing changes: records, keys, fingerprints, certificates and prompts are what they were | Nothing |
+| A client that puts the same long instruction in every state | It can send it once, as the task's context | Register the task again with `"context"`, then drop the instruction from the states (a state that still starts with it is read twice and gets `x-decisio-warning`) |
+| One question asked against different fixed texts | Each can be its own task, side by side | Register each with its context and send `"task"` on the requests |
+| A client that already sent a field named `task` (ignored before) | `/v1/systemone` now applies the named task or answers 422; `/v1/answer` and registration examples answer 422 | Drop or rename the field |
+| Clients that read response headers or `/health` exactly | `x-decisio-warning` is new; a task with a context has `context` in its record and in `systemone.readout_tasks` | Allow them |
+| Rolling back to an earlier decisio with tasks that have a context | The earlier server does not read the field: it serves such a task without its context, and its certificate is suspended (`serving_stack_changed`, the fit digest differs) | Delete or re-register those tasks before rolling back |
+
 ## Unreleased: certified yes/no tasks, and the certification fields of a task under another rendering
 
 How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).

@@ -819,9 +819,76 @@ curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' \
 `POST /v1/tasks/import` and `POST /v1/abstention/tasks/import` load a task of either layout; only a task of another model or rendering is refused.
 An export (`GET /v1/tasks?full=1`) carries each task's fingerprint, and so its layout.
 
-**One question, one task per layout.** A server holds one task per question and layout: the same question registered under each layout is two tasks, each serving its own layout's requests, and neither replaces the other, whichever was registered or loaded first.
+**One question, one task per layout.** A server holds one task per question and layout (and per context, [Task context](#task-context)): the same question registered under each layout is two tasks, each serving its own layout's requests, and neither replaces the other, whichever was registered or loaded first.
 Registering the question again under the same layout replaces the task the server serves for it, as for any task (Limits, below).
 Removing one leaves the other; a request of the removed task's layout then gets `layout_mismatch` if the other is certified.
+
+## Task context
+
+A task can carry a context: a long, fixed text that the server reads before the state of every request of the task.
+Requests then send only the part that changes, and the server puts the context in front of it.
+
+**When to use it.** When every request of a task is read against the same text that does not change between requests: a policy, a rubric, a catalogue, a set of definitions, a long instruction.
+- The requests get smaller: the context is sent once, at registration.
+- The context is the same prefix on every request of the task, so the prefix cache serves it, and only the changing part is computed.
+- A fast table encodes the state alone, so it learns from the part that changes, not from a text every request shares.
+
+Keep in the context only what is the same on every request; what changes belongs in the state.
+
+**Registering.** `POST /v1/tasks` takes an optional `"context"`: a string as given, or an object or array, which is read as compact JSON (`json.dumps(value, separators=(",", ":"), ensure_ascii=False)`).
+The labelled registration, the dynamic-option one (`"options": "dynamic"`) and a task that learns from traffic take it.
+The examples' states are the changing part only: the server reads each example with the context, so the task is fitted, certified and timed on exactly what it serves.
+
+```bash
+curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' \
+  -d '{"id": "refund-eligible", "context": "Refund policy: ...", "examples": [...], "certify": {}}'
+```
+
+An empty context, or one that is not a string, an object or an array, is refused with 422.
+Abstention tasks (`POST /v1/abstention/tasks`) take no context: that route does not read the field.
+
+**The prompt.** The context is joined to the state by a blank line, as the state is joined to the question:
+- plain layout: the context, a blank line, the state, a blank line, the question and its options;
+- header layout: the header (`Questions that will be asked about the context:` and its lines), the context, a blank line, the state, a blank line, the question and its options.
+
+A state that is an object is rendered as `key: value` lines after the context, as it is without one.
+A request of a task with a context is built token for token as the same request whose state is the context, a blank line and the rendered state, by the row builder every text engine shares (vLLM, and the HF and MLX engines, which inherit it).
+
+**Identity.** The context's sha256 is part of the task's identity.
+- The same question registered with another context is another task, kept beside the first (one per context, per layout).
+- Registering an id again with another context moves that task to the new context, with a new certificate.
+- The context enters the task's fit digest, which the certificate's serving stack names (`calibration.task_fit`): a certificate made under one context does not hold under another, and a record whose context was changed has its certificate suspended (`serving_stack_changed`).
+- A task without a context is stored, found and fingerprinted exactly as before.
+
+**Which task a request gets.** A question finds its task by its question (its type and options), as always.
+When several tasks ask the same question, each with its own context, a request names the one it is for with `"task": "<id>"` on `/v1/systemone` ([api.md](api.md)).
+A request that names none gets the one without a context, which is what such a request got before contexts existed; when every one has a context, it is answered 422 and asked to name one.
+`"task"` is refused with 422 for an unknown id, for a task that asks none of the request's questions, for a task fitted under the other layout than the request's (the message names the layout to send), and on the image route; `x-decisio-tasks` says which task answered.
+The questions of one request share one read of the state, so they share one context: a request whose questions' tasks have different contexts, or that mixes a question of a task with a context and one read without, is refused with 422; send them as separate requests.
+A request read under a layout the task was not fitted under, or sent after the task was deleted, finds no task with a context, and its state is read as sent, without one.
+
+**Limits.**
+- A registration whose context, with the question and the template, is over the context window before any state is refused with 422.
+- A row over the window is refused with 422 and where its tokens are: the header, the task's context, the state, the question.
+  Under the header layout the header limit lists fewer questions first, as it does without a context (the context counts in the row).
+- `"over_limit": "truncate"` cuts the state only, never the context; a request whose context and questions alone are over the window is refused.
+
+**The fast table.** A labelled table and one that learns from traffic, of every student kind, encode the request's state alone, never the context.
+A learning task logs the features of the state alone.
+The certificates, gold and agreement, are made on decisio's own reads, which have the context in the model's prompt, as served.
+
+**Usage.** `usage.input_tokens` counts the context too, with the blank line after it: it is read.
+
+**Storage.** A task's record holds the context's text, so `--tasks-dir` and `--task-store` keep it across restarts and replicas, as the export does.
+An import needs the text: a record taken from the listing (no text) is refused, and so is one whose context's sha256 is not its text's.
+
+**Status.** `GET /v1/tasks/{id}`, `GET /v1/tasks` and `/health` (`systemone.readout_tasks.<id>.context`) give the context's `sha256`, its length in characters (`chars`) and in tokens (`tokens`), never its text.
+The export (`GET /v1/tasks?full=1`) holds the text, since an import needs it.
+
+**A client that still sends the context in its state** gets it twice: the server cannot tell the context from a state that quotes it, so it reads both, which costs tokens and is not the prompt the task was fitted on.
+A state that starts with the task's context (after the same serialisation, leading whitespace aside) is served as sent, with the response header `x-decisio-warning: state starts with the task's context; send only the varying part`, and the server logs it at warning level once per task.
+A context repeated elsewhere in the state is not detected.
+When you move a client to a task with a context, register the task first, then drop the context from the state the client sends.
 
 ## Limits
 
@@ -830,6 +897,7 @@ Removing one leaves the other; a request of the removed task's layout then gets 
 - **Options that change per input** cannot be registered: exam-style questions whose answers differ every time have no fixed list to learn, and registration refuses them.
 - **The prompt it was fitted under.** A task is fitted on the server's prompt and is applied only by a server with the same prompt and yes/no rendering. The served default changed on 2026-10-03 (the spaced layout, `--prompt-tail spaced`, with yes/no as named letters, `docs/handoffs/tasks.md`): a task registered or exported before then is not applied by the current default, and the server says so at start-up (`WARNING: tasks fitted under another model or rendering are not applied`). Register it again from the same examples; or, to keep using it unchanged, start the server with the compact layout (`--prompt-tail compact --noul-rendering words`).
 - **One task per option list per server.** Registration is per server instance; keep it with `--tasks-dir` (or an export and `--tasks-file`), as above.
+  Tasks of one question with different contexts are kept side by side, and a request names the one it is for ([Task context](#task-context)).
   It holds across layouts: a task applies to the requests of the layout it was fitted under ([A task under a layout](#a-task-under-a-layout)).
 - **Single-engine or second-engine mode.** The default reads the hidden state from the serving engine at the latency cost above; `--head-engine` trades a second weight copy for speed. Both declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`), and a task registered in one mode loads in the other.
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.
