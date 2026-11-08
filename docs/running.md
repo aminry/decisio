@@ -749,7 +749,7 @@ python -m decisio.serve.adapter_temperatures fit-split --h H_reads.jsonl.gz --h-
 ### Yes/no stays a probability
 
 An adapter's yes/no answer is the calibrated probability, and the server does not commit it.
-`--noul-commit` (the answer as 0.9 or 0.1) remains the operator's choice and applies to an adapter's answers as to the base's.
+`--noul-commit` (a probability of yes strictly between 0.20 and 0.80 reported at the band's edge on its own side, 0.80 or 0.20) remains the operator's choice and applies to an adapter's answers as to the base's.
 On JevBench's 74 public yes/no items an honest adapter hedges (35.1% of its answers fall between 0.2 and 0.8, where the reading counts no answer), while a service that returns two constants never does; the top answers are the same.
 
 ### Score questions
