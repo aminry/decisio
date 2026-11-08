@@ -8,6 +8,27 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: certified yes/no tasks
+
+How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
+
+### What changed
+
+- **The confidence monitor of a yes/no task certified under `--noul-commit` reads the confidence before the rule.**
+  The committed confidences are never below 0.80, so the signal's tail sat at 0.80 with nothing below it and could not alert when unsure answers rose.
+  A certificate made from this release on records `"reads": "before_noul_commit"` in its monitor's confidence block, and serving observes the same.
+  The certificate itself is unchanged: it is made on the committed probabilities, which the answers report, and its threshold and id are what they were.
+- **A yes/no task registered under another `--noul-rendering` than the server's now says so on every answer**: `certified: false`, its `certificate` and `certified_reason: "serving_stack_changed"`.
+  Before, such answers carried no certification fields, while the task's status read `suspended`.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A yes/no task certified under `--noul-commit` (or a tuned repository's `defaults.noul_commit: true`) by an earlier release | Its monitor reads as before, so its confidence signal stays blind to unsure traffic | Certify it again (`POST /v1/tasks/{id}/certify`), which the upgrade asks for anyway |
+| A yes/no task on a server whose `--noul-rendering` differs from the one it was registered under | Its answers carry `certified: false` with `serving_stack_changed` instead of no fields; the answers themselves do not change | Nothing, or register the task again under this rendering |
+| Choice tasks, and yes/no tasks without the commit rule | Unchanged | Nothing |
+
 ## 0.45.0: batch-invariant mode off by default again
 
 ### What changed
