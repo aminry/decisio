@@ -8,7 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: certified yes/no tasks
+## Unreleased: certified yes/no tasks, and the certification fields of a task under another rendering
 
 How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
 
@@ -20,6 +20,7 @@ How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
   The certificate itself is unchanged: it is made on the committed probabilities, which the answers report, and its threshold and id are what they were.
 - **A yes/no task registered under another `--noul-rendering` than the server's now says so on every answer**: `certified: false`, its `certificate` and `certified_reason: "serving_stack_changed"`.
   Before, such answers carried no certification fields, while the task's status read `suspended`.
+- **The same holds for a choice task registered under the other `--describe-options` setting**, for a question whose options the rule changes: its answers carry `certified: false`, its `certificate` and `serving_stack_changed`.
 
 ### Who is affected
 
@@ -27,7 +28,8 @@ How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
 | --- | --- | --- |
 | A yes/no task certified under `--noul-commit` (or a tuned repository's `defaults.noul_commit: true`) by an earlier release | Its monitor reads as before, so its confidence signal stays blind to unsure traffic | Certify it again (`POST /v1/tasks/{id}/certify`), which the upgrade asks for anyway |
 | A yes/no task on a server whose `--noul-rendering` differs from the one it was registered under | Its answers carry `certified: false` with `serving_stack_changed` instead of no fields; the answers themselves do not change | Nothing, or register the task again under this rendering |
-| Choice tasks, and yes/no tasks without the commit rule | Unchanged | Nothing |
+| A choice task on a server whose `--describe-options` setting differs from the one it was registered under (for a question with option descriptions) | The same: `certified: false` with `serving_stack_changed` instead of no fields | Nothing, or register the task again |
+| Other choice tasks, and yes/no tasks without the commit rule | Unchanged | Nothing |
 
 ## 0.45.0: batch-invariant mode off by default again
 

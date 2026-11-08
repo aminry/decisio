@@ -1435,8 +1435,10 @@ class SystemOne:
         """(task, reason) for a stored task of this question that has a certificate but is not applied because its
         fingerprint (the model, rendering and layout it was fitted under) is not this request's, or None: its answers
         are plain, so not certified. A task that applies to the server's other layout (`TaskStore.applies`) is a
-        layout mismatch, not another stack. A yes/no task fitted under another --noul-rendering has another task key
-        (`noul_rendered`), and the rendering is part of the stack its certificate was made on: serving_stack_changed."""
+        layout mismatch, not another stack. A yes/no task fitted under another --noul-rendering, or a choice task
+        fitted under the other --describe-options setting for a question the rule changes, has another task key
+        (`noul_rendered`, `described`), and the rendering is part of the stack its certificate was made on:
+        serving_stack_changed."""
         store = self.task_store
         if not self.tasks_enabled or store is None or not store.by_key:
             return None
@@ -1451,6 +1453,16 @@ class SystemOne:
             certified = [t for t in store.of_question(key) if t.get("certificate")]
             if certified:
                 return certified[0], "layout_mismatch" if store.applies(certified[0]) else "serving_stack_changed"
+        if q.type == "choice":
+            # a choice question --describe-options changes has another key under the other setting of the rule, which is
+            # part of the stack its certificate was made on
+            certified = [
+                t
+                for t in store.of_question(task_key(q, render_text, not self.described(q), None))
+                if t.get("certificate")
+            ]
+            if certified:
+                return certified[0], "serving_stack_changed"
         if q.type == "noul":
             own = self.noul_rendered(q)
             for rendering in (None, *NOUL_RENDERINGS[1:]):  # words enters the key as None

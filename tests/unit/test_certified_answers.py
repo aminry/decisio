@@ -33,7 +33,7 @@ from fastapi.testclient import TestClient
 
 from decisio.readout import certify
 from decisio.serve import monitor
-from decisio.serve.systemone import SystemOne, add_routes
+from decisio.serve.systemone import SystemOne, SystemOneRequest, add_routes
 from decisio.serve.tasks import TaskStore, example_digest, split_holdout
 
 # ---- C1 -------------------------------------------------------------------------------------
@@ -484,3 +484,36 @@ def test_c5_a_checkpoint_path_is_named_by_its_last_component():
 
     f = stack_facts(E(), decisio_version="1", serving={}, temperatures={}, task_fingerprint=None)
     assert f["engine"]["model"] == "abc123" and f["engine"]["tokenizer"] == "org/name"
+
+
+def test_c5_a_choice_task_under_the_other_describe_options_rule_says_so_on_every_answer():
+    """A choice question --describe-options changes has another task key under the other setting, so a task certified on
+    a server with the rule on is not applied by a server with it off: its answers say serving_stack_changed and name the
+    certificate, as the status's suspension does, instead of carrying no certification fields."""
+
+    def server(describe):
+        so = SystemOne(FakeEngine("1.0"), "decisio-test", task_store=TaskStore("fp"), describe_options=describe)
+        app = FastAPI()
+        add_routes(app, so)
+        return TestClient(app), so
+
+    crit = {"billing": "about an invoice", "shipping": "about a parcel", "access": "about a login"}
+    keys = list(crit)
+    exs = [
+        {"request": wire(e["request"]["state"]["message"], crit=crit), "answer": keys[int(e["answer"].split("_")[1])]}
+        for e in examples(400, 0.96)
+    ]
+    on, so_on = server(True)
+    r = post_task(on, {"id": "c", "examples": exs, "certify": {}})
+    assert r.status_code == 200, r.text
+    t = r.json()
+    off, so_off = server(False)
+    q = SystemOneRequest.model_validate(wire("0:0.99:x", crit=crit)).questions["q1"]
+    assert so_on.described(q) and not so_off.described(q), "the fixture's options must be ones the rule changes"
+    exported = on.get("/v1/tasks?full=1").json()["tasks"]
+    assert off.post("/v1/tasks/import", json={"tasks": exported}).status_code == 200
+    r = off.post("/v1/systemone", json=wire("0:0.99:x", crit=crit))
+    assert "x-decisio-tasks" not in r.headers  # another key: not applied
+    a = r.json()["answers"]["q1"]
+    assert a["certified"] is False and a["certified_reason"] == "serving_stack_changed"
+    assert a["certificate"] == t["certificate"]["id"]
