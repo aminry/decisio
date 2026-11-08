@@ -1989,6 +1989,19 @@
             "default": null,
             "description": "With `learn`: the logged rows kept for the task (200000).",
             "title": "Max Rows"
+          },
+          "min_saving": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The share of the expected time per request the table must save to be kept, and to stay on under load, from 0.01 to 0.9 (0.1).",
+            "title": "Min Saving"
           }
         },
         "title": "FastTableBlock",
@@ -2027,7 +2040,7 @@
               }
             ],
             "default": null,
-            "description": "The task's wire question (a choice), for a task registered without examples.",
+            "description": "The task's wire question (a choice or a yes/no), for a task registered without examples.",
             "title": "Question"
           },
           "certify": {

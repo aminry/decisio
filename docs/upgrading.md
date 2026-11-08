@@ -8,6 +8,36 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: yes/no fast tables, and a task's own saving bar
+
+How they work: [tasks.md, "A yes/no table"](tasks.md#a-yesno-table) and ["The saving bar: `min_saving`"](tasks.md#the-saving-bar-min_saving).
+
+### What changed
+
+- **A yes/no task can have a fast table**, labelled (`"fast_table": {...}` on a registration with examples) or learned from traffic (`"learn": true`); before, `fast_table` was refused for it.
+  A table answer reports the table's own P(yes), calibrated by one temperature fitted on the task's held-out examples (against decisio's answers for a learned table), with `answered_by: "table"`.
+  Under `--noul-commit` the commit rule applies to table answers as to decisio's, and the table's threshold is made on the committed confidences.
+- **This is a behaviour change: the default bar a fast table must clear falls from 25% to 10%** of the expected time per request.
+  It decides at registration whether a table is kept, at every refit of a learning table whether a version is promoted, and at run time whether a replica keeps using its table under load.
+  On a measured suite of ten sets it changed no kept table at 25, 15, 10 or 5%, because a table of the static student either certified nothing or certified 30% of the requests and more.
+  The effect is for tasks whose table certifies about 10 to 25% of their requests: such a table can now be kept where it was dropped before.
+- **A task can set its own bar**: `"fast_table": {"min_saving": x}`, from 0.01 to 0.90 inclusive (422 outside).
+  It is stored in the task's record (`fast_table.min_saving`; `learn.request.min_saving` for a learning task) and reported as `fast_table_report.required` and `status.fast_table.min_saving`.
+- **A table registered before keeps its 25% at run time.**
+  Its record has no `min_saving`, and is read as the 25% it was kept under, for the run-time fallback and for a re-certification; the same holds for a learning task's refits.
+- **The confidence monitor of a yes/no task with a table under `--noul-commit` reads the confidence before the rule**, at registration and re-certification (`"reads": "before_noul_commit"`, now also on the decisio-only baseline of a task with a table), and in serving for every answer, the table's included (its calibrated P(yes)).
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A choice task with a fast table registered before this release | Its record has no `min_saving`; it keeps its 25% bar at run time and at re-certification | Nothing, or register it again to be held to 10% (or the bar you set) |
+| A new choice task with a fast table | Kept, and kept on, when it saves 10% or more, where 25% was needed before; a table that saves 10 to 25% now answers | Set `"min_saving": 0.25` to keep the old bar |
+| A learning task registered before this release | Its refits keep promoting only versions that save 25% or more | Nothing, or register it again |
+| A yes/no task that asked for `fast_table` | Was refused with 422; now registers with a table where it pays | Nothing |
+| A client that reads `fast_table_report` or `status.fast_table` exactly | `required`, `calibration` (a yes/no table) and `min_saving` are new fields; `fast_table_report.request` and `learn.request` carry `min_saving` | Allow them |
+| Rolling back to an earlier release with yes/no tables registered | The earlier server serves the table's uncalibrated probability, without the commit rule, and the certificate is suspended (`serving_stack_changed`, the decisio version differs) | Delete or re-register those tasks before rolling back |
+
 ## Unreleased: a request of two orders is not certified, on any server, and says `orders_changed`
 
 How it works: [tasks.md, "Where it stops"](tasks.md#where-it-stops), "One order".

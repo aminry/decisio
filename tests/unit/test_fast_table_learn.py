@@ -5,8 +5,8 @@ decisio.serve.fast_table_learn). No model and no network: the fake engine, the s
 virtual clock of tests/unit/test_fast_table_task.py and tests/unit/test_fast_table_kinds.py; refits and the encoder
 queue run when a test asks (`FTL.BACKGROUND` off), except where a test starts the threads; exploration is seeded.
 
-L1   a learning task starts with no table: decisio answers, nothing is certified; refusals (a yes/no question, raw
-     text, a bad explore share, a dynamic task)
+L1   a learning task starts with no table: decisio answers, nothing is certified; refusals (a score question, raw
+     text, a bad explore share or saving, a dynamic task)
 L2   rows are logged with their kind, the features of the students the task may serve and decisio's distribution,
      float16, and no text (the segment files hold none of the request's words)
 L3   a refit certifies and promotes a table once there are enough rows; its answers carry certificate_kind agreement
@@ -157,7 +157,8 @@ def test_l1_a_learning_task_starts_with_no_table_and_decisio_answers():
     r = learn(client)
     assert r.status_code == 200, r.text
     t = r.json()
-    assert t["learn"]["request"] == {"kind": "static", "static_model": "base"} and t["learn"]["explore"] == 0.02
+    assert t["learn"]["request"] == {"kind": "static", "static_model": "base", "min_saving": FT.MIN_SAVING}
+    assert t["learn"]["explore"] == 0.02
     assert t["learn"]["max_rows"] == 200_000 and t["n_examples"] == 0 and "certificate" not in t
     st = t["status"]["fast_table"]
     assert st["mode"] == "learning" and st["state"] == "learning" and st["version"] == {"live": None, "kept": []}
@@ -172,7 +173,8 @@ def test_l1_a_learning_task_starts_with_no_table_and_decisio_answers():
 @pytest.mark.parametrize(
     "body, words",
     [
-        ({"question": {"type": "noul", "instructions": "Is it?"}}, "choice questions only"),
+        ({"question": {"type": "score", "instructions": "How bad?", "criteria": ["a", "b"]}}, "choice and yes/no"),
+        ({"fast_table": {"learn": True, "min_saving": 0.95}}, "fast_table.min_saving"),
         ({"fast_table": {"learn": True, "retain_text": {"days": 7}}}, "retain_text: keeping request text is not"),
         ({"fast_table": {"learn": True, "explore": 0.9}}, "fast_table.explore"),
         ({"fast_table": {"learn": True, "explore": "a lot"}}, "fast_table.explore"),

@@ -4,7 +4,8 @@
 engine, with --noul-commit off and on, and under both layouts.
 
 N1  registration: the hold-out split, the fit on the fit part, the threshold, `certificate.certified`, the served check
-    reading zero, no catch-all warning; gold given as true/false or "yes"/"no"; a fast table refused
+    reading zero, no catch-all warning; gold given as true/false or "yes"/"no" (a yes/no task's fast table:
+    tests/unit/test_noul_fast_table.py)
 N2  the certificate is made on the confidences the answers report: the committed ones under --noul-commit (never below
     0.80, so no threshold inside the band), and every answer is certified exactly when its reported top probability,
     max(noul, 1 - noul), reaches the threshold
@@ -140,13 +141,6 @@ def test_n1_gold_as_words_or_booleans_is_the_same_task():
     assert ta["certificate"]["id"] == tb["certificate"]["id"] and ta["fit_sha256"] == tb["fit_sha256"]
     bad = noul_examples(80) + [{"request": wire("yes:0.9:z"), "answer": "maybe"}]
     assert a.post("/v1/tasks", json={"id": "x", "examples": bad}).status_code == 422
-
-
-def test_n1_a_yes_no_task_has_no_fast_table():
-    client, so = make()
-    r = client.post("/v1/tasks", json={"id": "t", "examples": noul_examples(400), "certify": {}, "fast_table": True})
-    assert r.status_code == 422 and "choice questions only" in r.json()["detail"]
-    assert not so.task_store.by_key
 
 
 # ---- N2 -------------------------------------------------------------------------------------------------------------

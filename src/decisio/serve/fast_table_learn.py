@@ -4,12 +4,12 @@
 background refit fits and certifies a table on them (`"fast_table": {"learn": true, ...}`).
 
 A learning task is registered with a question and no examples, and is matched to requests as any task is (its question
-type and options, `decisio.serve.tasks.task_key`). Choice questions only, as the table is. Until a table is certified,
-decisio answers every request of the task. Each request decisio reads for it is logged as a row: the features of the
-students the task may serve (`static`: the static student's vector, float16; `encoder`: the encoder's, float16,
+type and options, `decisio.serve.tasks.task_key`). Choice and yes/no questions, as the table is. Until a table is
+certified, decisio answers every request of the task. Each request decisio reads for it is logged as a row: the features
+of the students the task may serve (`static`: the static student's vector, float16; `encoder`: the encoder's, float16,
 computed after the response by a bounded background queue that drops rows under load rather than make a caller wait),
-decisio's served distribution (float16), its confidence and choice, the time decisio's read took and each student's,
-the row's kind, the serving-stack fingerprint and the time. No text is kept. A row's kind:
+decisio's served distribution (float16), its confidence and choice, the time decisio's read took and each student's, the
+row's kind, the serving-stack fingerprint and the time. No text is kept. A row's kind:
 
   no_table    no table was live (or it was suspended): decisio read the request, as it reads all of them then
   deferred    the live table's confidence was under its threshold, so decisio answered
@@ -35,11 +35,19 @@ certificate is made against their gold answers on its held-out labelled examples
 least `certify.minimum_examples(alpha, delta)` of them with the student's features; otherwise against decisio.
 
 A refit's version goes live only if its certificate holds, its expected saving (`fast_table.timing_guard`, from the
-times logged on this host) is at least `fast_table.MIN_SAVING`, and it saves more than the live version did when it was
-promoted (`auto`: the students are compared as `fast_table.choose` does). A refit that fails leaves the live version
-live. The last `VERSIONS_KEPT` promoted versions are kept (the record and the certificate, not the rows), numbered, and
-any of them can be restored (`rollback`). A version is served only with its own feature function and on the serving
-stack it was certified on. The swap is one assignment, so a request is answered by one version or the other.
+times logged on this host) is at least the task's `min_saving` (`fast_table.record_min_saving` of its request: the
+default `fast_table.MIN_SAVING` for a task registered with this setting, `fast_table.LEGACY_MIN_SAVING` for one
+registered before it), and it saves more than the live version did when it was promoted (`auto`: the students are
+compared as `fast_table.choose` does). A refit that fails leaves the live version live. The last `VERSIONS_KEPT`
+promoted versions are kept (the record and the certificate, not the rows), numbered, and any of them can be restored
+(`rollback`). A version is served only with its own feature function and on the serving stack it was certified on. The
+swap is one assignment, so a request is answered by one version or the other.
+
+A yes/no task's table (type "noul") is a two-class one. Each refit calibrates its P(yes) on the rows its certificate is
+made on (`fast_table.fit_temperature`, against the certificate's reference answers: the labelled answers of a gold
+certificate, decisio's of an agreement one), and on a server whose --noul-commit rule is on its threshold, its
+sureness and its low-confidence guard read its confidence after the rule (`commit_band`), as decisio's certified
+yes/no answers are read. Its logged rows hold decisio's distribution before the rule.
 
 Two drift guards watch a live table, and either alarm suspends it (decisio answers every request; logging and refits go
 on, and the next version that certifies goes live): the low-confidence share, the share of the last `LOWCONF_WINDOW`
@@ -546,9 +554,14 @@ class Learner:
         self.task_id, self.key = task["id"], task["key"]
         self.options = list(task["options"])
         self.k = len(self.options)
+        self.noul = task.get("type") == "noul"
+        # a yes/no table's confidence is read after --noul-commit when the server's rule is on (its stack says so, and
+        # a version is served on its own stack only)
+        self.commit_band = manager.commit_band() if self.noul else None
         s = task["learn"]
         self.settings = s
         self.request = s["request"]
+        self.min_saving = FT.record_min_saving(self.request)
         self.explore = float(s["explore"])
         self.max_rows = int(s["max_rows"])
         self.alpha, self.delta = float(s["alpha"]), float(s["delta"])
@@ -931,7 +944,10 @@ class Learner:
                 )
                 continue
             P = FT.predict(rec, Xc)
-            cT, pT = P.max(axis=1), _tops(P, self.options)
+            if self.noul:  # its own P(yes), calibrated on the certificate's rows against their reference answers
+                rec["calibration"] = FT.fit_temperature(P, ref == 0, reference=ckind)
+                P = FT.predict(rec, Xc)
+            cT, pT = FT.top_confidence(P, self.commit_band), _tops(P, self.options)
             correct = pT == ref
             thr = certify.threshold(cT, correct, self.alpha, self.delta)
             holds = bool(np.isfinite(thr))
@@ -943,13 +959,14 @@ class Learner:
             # independently of the table, with the times this host took on them, where there are enough of them (a
             # gold certificate's labelled rows were timed at registration, on traffic that may not be like them)
             if ckind == "gold" and int(ci.sum()) >= need:
-                cT_t = FT.predict(rec, rows[f"f_{s}"][ci].astype(np.float32)).max(axis=1)
+                cT_t = FT.top_confidence(FT.predict(rec, rows[f"f_{s}"][ci].astype(np.float32)), self.commit_band)
                 ms_t, ms_d = rows[f"ms_{s}"][ci].astype(float), rows["ms_decisio"][ci].astype(float)
                 timed_on = "traffic"
             else:
                 cT_t, timed_on = cT, ("traffic" if ckind == "agreement" else "labelled")
             by_t = cT_t >= thr if holds else np.zeros(len(cT_t), bool)
-            guard = FT.timing_guard(ms_t + predict_ms, ms_d, float(by_t.mean()) if len(by_t) else 0.0, deferred=~by_t)
+            guard = FT.timing_guard(ms_t + predict_ms, ms_d, float(by_t.mean()) if len(by_t) else 0.0, self.min_saving,
+                                    deferred=~by_t)  # fmt: skip
             guard["timed_on"] = timed_on
             low_share = float((cT_t < thr).mean()) if holds and len(cT_t) else 1.0
             c.update(
@@ -990,13 +1007,13 @@ class Learner:
             elif not guard["kept"]:
                 c["why_not"] = (
                     f"it would save {guard['saving']:.0%} of the time per request, under the "
-                    f"{FT.MIN_SAVING:.0%} required"
+                    f"{self.min_saving:.0%} required"
                 )
         tried = [_brief(c) for c in candidates]
         eligible = [c for c in candidates if "why_not" not in c]
         if self.request["kind"] == "auto":
             ok = [c for c in candidates if "record" in c]
-            idx, why = FT.choose(ok) if ok else (None, "no kind could be fitted")
+            idx, why = FT.choose(ok, self.min_saving) if ok else (None, "no kind could be fitted")
             chosen = ok[idx] if idx is not None else None
         else:
             chosen = eligible[0] if eligible else None
@@ -1125,6 +1142,7 @@ class Learner:
             else None
         )
         out["saving"] = v.saving if v is not None else None
+        out["min_saving"] = self.min_saving  # what a version must save to be promoted (on a replica: to answer)
         out["certificate"] = dict(v.d["certificate"]) if v is not None else None
         cov = v.d["certificate"]["table_share"] if v is not None else 0.0
         out["explore"] = {
@@ -1212,7 +1230,7 @@ class Learning:
     replicas of a shared task store (`decisio.serve.fast_table_replicas.Shared`), or None: this server alone."""
 
     def __init__(self, root=None, stack_sha=None, perf=time.perf_counter, now=time.time, background=None, task=None,
-                 shared=None, layout_of=None):  # fmt: skip
+                 shared=None, layout_of=None, commit_band=None):  # fmt: skip
         self.root = Path(root) if root is not None else None  # <tasks-dir>/learn, or None: in memory
         # `stack_sha()`: the server's serving stack, short; `stack_sha(layout)`: the stack a request of that layout is
         # answered on. `layout_of(task)`: the layout a task was fitted under, or None (the server's own)
@@ -1220,6 +1238,8 @@ class Learning:
         self._stack_values: dict = {}
         self.layout_of = layout_of or (lambda task: None)
         self.task = task or (lambda task_id: None)  # the task record of an id, as the server holds it
+        # `commit_band()`: the server's --noul-commit band (lo, hi) when the rule is on, else None
+        self.commit_band = commit_band or (lambda: None)
         self.perf, self.now = perf, now
         self.background = BACKGROUND if background is None else background
         self.seed: int | None = SEED

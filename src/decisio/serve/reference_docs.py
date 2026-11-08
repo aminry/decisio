@@ -231,6 +231,10 @@ class FastTableBlock(BaseModel):
         None, description="With `learn`: the share of requests decisio answers anyway, for the certificate (0.02)."
     )
     max_rows: int | None = Field(None, description="With `learn`: the logged rows kept for the task (200000).")
+    min_saving: float | None = Field(
+        None,
+        description="The share of the expected time per request the table must save to be kept, and to stay on under load, from 0.01 to 0.9 (0.1).",
+    )
 
 
 class TaskRegistration(BaseModel):
@@ -239,7 +243,7 @@ class TaskRegistration(BaseModel):
         None, description="Labelled examples; none for a task that learns its fast table from traffic."
     )
     question: dict[str, Any] | None = Field(
-        None, description="The task's wire question (a choice), for a task registered without examples."
+        None, description="The task's wire question (a choice or a yes/no), for a task registered without examples."
     )
     certify: CertifyBlock | None = None
     fast_table: bool | FastTableBlock | None = Field(

@@ -10,8 +10,16 @@ not asked. Every other request goes to decisio as it would without the table.
 
 The table is off unless the registration asks for it (`"fast_table": true`, or `{"kind": ..., "static_model": ...}`),
 and it keeps itself only where it pays: at registration the server times the table and decisio's own path on the task's
-certification examples and keeps the table only if the expected mean time per request falls by at least a quarter
-(`MIN_SAVING`). Where it does not, the registration says so and the task is served as it would be without a table.
+certification examples and keeps the table only if the expected mean time per request falls by at least the task's
+`min_saving` (`"fast_table": {"min_saving": x}`, `MIN_SAVING` by default; `MIN_SAVING_RANGE`). Where it does not, the
+registration says so and the task is served as it would be without a table. A table recorded before the setting existed
+has none, and is held to the bar it was kept under, `LEGACY_MIN_SAVING` (`record_min_saving`).
+
+A yes/no task (type "noul") gets a two-class table: the same certificate, guard and rules, with the table's P(yes)
+calibrated on the certification examples by one temperature on its logit (`fit_temperature`), so that the probability it
+reports is its own and calibrated; the temperature changes neither its decision nor the order of its confidences, so
+the certificate is the one the uncalibrated table would have had. Under --noul-commit its confidence is read after the
+rule, as decisio's certified yes/no answers are (`top_confidence`).
 
 The student is a kind (`KINDS`):
 
@@ -84,7 +92,11 @@ THREADS = (
 # ms, batch 32 18.6, against 13.9 one at a time) and is not used. Recorded in the timing stack.
 ENCODERS = 2
 CS = (0.1, 1.0, 10.0, 100.0)  # the L2 strength of the classifier, chosen by 5-fold cross-validated log loss
-MIN_SAVING = 0.25  # the table is kept when it cuts the expected mean time per request by at least this share
+MIN_SAVING = 0.10  # the table is kept when it cuts the expected mean time per request by at least this share (default)
+MIN_SAVING_RANGE = (0.01, 0.90)  # a task's own `min_saving`, inclusive
+# a table record (or a learning task) made before `min_saving` was a setting was kept under this bar, and is held to it
+LEGACY_MIN_SAVING = 0.25
+TEMPERATURES = (0.02, 50.0)  # the range a yes/no table's calibration temperature is searched in
 MIN_EXAMPLES = 100  # fewer fit examples than this fit no table
 FOLDS = 5
 WINDOW = 50  # table-path latencies kept for the rolling median
@@ -414,20 +426,23 @@ def static_embed(name: str, texts: list[str]) -> np.ndarray:
 
 def parse_request(value) -> dict | None:
     """The fast table a registration asks for, or None: `true` is the default kind; an object names the kind
-    (`KINDS`) and, for `static` or `auto`, the static model (`STATIC_MODELS`). ValueError says what is wrong."""
+    (`KINDS`), for `static` or `auto` the static model (`STATIC_MODELS`), and the saving the table must time
+    (`min_saving`, `parse_min_saving`; `MIN_SAVING` when not given, and always in the result, so the task records the
+    bar it was registered under). ValueError says what is wrong."""
     if value is None or value is False:
         return None
     if value is True:
-        return {"kind": DEFAULT_KIND, "static_model": DEFAULT_STATIC_MODEL}
+        return {"kind": DEFAULT_KIND, "static_model": DEFAULT_STATIC_MODEL, "min_saving": MIN_SAVING}
     shape = (
         f"fast_table: true or false, or an object {{'kind': {' | '.join(map(repr, KINDS))}, "
-        f"'static_model': {' | '.join(map(repr, STATIC_MODELS))}}}"
+        f"'static_model': {' | '.join(map(repr, STATIC_MODELS))}, 'min_saving': <a share>}}"
     )
     if not isinstance(value, dict):
         raise ValueError(shape)
-    extra = sorted(set(value) - {"kind", "static_model"})
+    extra = sorted(set(value) - {"kind", "static_model", "min_saving"})
     if extra:
         raise ValueError(f"{shape}; not {', '.join(map(repr, extra))}")
+    ms = parse_min_saving(value.get("min_saving", MIN_SAVING))
     kind = value.get("kind", DEFAULT_KIND)
     if kind in RESERVED_KINDS:
         raise ValueError(
@@ -438,11 +453,32 @@ def parse_request(value) -> dict | None:
     if kind == "encoder":
         if "static_model" in value:
             raise ValueError("fast_table.static_model: for the 'static' and 'auto' kinds only")
-        return {"kind": kind}
+        return {"kind": kind, "min_saving": ms}
     sm = value.get("static_model", DEFAULT_STATIC_MODEL)
     if sm not in STATIC_MODELS:
         raise ValueError(f"fast_table.static_model: one of {', '.join(map(repr, STATIC_MODELS))}, not {sm!r}")
-    return {"kind": kind, "static_model": sm}
+    return {"kind": kind, "static_model": sm, "min_saving": ms}
+
+
+def parse_min_saving(value) -> float:
+    """A task's `min_saving`: the share of the expected time per request its table must save to be kept, and to stay
+    on under load, within `MIN_SAVING_RANGE` inclusive. ValueError says what is wrong."""
+    lo, hi = MIN_SAVING_RANGE
+    number = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if not number or not lo <= value <= hi:
+        raise ValueError(
+            f"fast_table.min_saving: the share of the expected time per request the table must save to be kept, a "
+            f"number from {lo:g} to {hi:g} (default {MIN_SAVING:g}), not {value!r}"
+        )
+    return float(value)
+
+
+def record_min_saving(rec: dict | None) -> float:
+    """The bar a stored table (or a learning task's request) is held to: its own `min_saving`, or for one recorded
+    before the setting existed the `LEGACY_MIN_SAVING` it was kept under."""
+    if rec and rec.get("min_saving") is not None:
+        return float(rec["min_saving"])
+    return LEGACY_MIN_SAVING
 
 
 def student_features(kind: str, static_model: str = DEFAULT_STATIC_MODEL) -> dict:
@@ -667,9 +703,11 @@ def fit(X: np.ndarray, y, k: int, features: dict | None = None, sample_weight=No
 
 
 def predict(rec: dict, X: np.ndarray) -> np.ndarray:
-    """(n x k) probabilities of the stored table for embeddings X; an option the table never saw gets 0."""
+    """(n x k) probabilities of the stored table for embeddings X; an option the table never saw gets 0. A record with a
+    calibration (a yes/no table's, `fit_temperature`) divides the logits by its temperature first."""
     coef, b = unpack(rec["coef"]).astype(np.float64), unpack(rec["intercept"]).astype(np.float64)
     z = np.asarray(X, dtype=np.float64) @ coef.T + b
+    z = z / temperature_of(rec)
     if rec["binary"]:
         p1 = 1.0 / (1.0 + np.exp(-z[:, 0]))
         q = np.stack([1.0 - p1, p1], axis=1)
@@ -685,6 +723,82 @@ def predict(rec: dict, X: np.ndarray) -> np.ndarray:
 def confidence(P: np.ndarray):
     """(confidence, prediction) of each row: the top probability and its option."""
     return P.max(axis=1), P.argmax(axis=1)
+
+
+# ---- a yes/no table's probability -----------------------------------------------------------------------------------
+
+
+def temperature_of(rec: dict) -> float:
+    """The temperature a stored table's logits are divided by: its calibration's, or 1 (a choice table, and every table
+    recorded before yes/no tables)."""
+    cal = rec.get("calibration")
+    return float(cal["temperature"]) if cal else 1.0
+
+
+def fit_temperature(P: np.ndarray, yes, reference: str) -> dict:
+    """The calibration of a two-class (yes/no) table, fitted on its certification examples: one temperature T that the
+    table's logit for yes is divided by, P(yes) = sigmoid(logit / T), chosen to minimise the log loss against the
+    examples' reference answers `yes` (true where the reference is yes): the gold answers for a gold certificate,
+    decisio's answers for an agreement certificate (`reference`). The targets are Platt's (1999): (N+ + 1) / (N+ + 2)
+    for a yes and 1 / (N- + 2) for a no, which keeps T finite where the table separates the examples perfectly. T is
+    searched in `TEMPERATURES` (golden section on log T; the loss is convex in 1 / T). One parameter and no bias: the
+    sign of the logit, so the table's answer, and the order of its confidences are unchanged, so a certificate made on
+    the calibrated confidences certifies the same answers as one made on the table's own. `P`: the uncalibrated table's
+    (n x 2) probabilities, yes first."""
+    P = np.asarray(P, dtype=np.float64)
+    yes = np.asarray(yes, dtype=bool)
+    z = np.log(np.clip(P[:, 0], 1e-300, 1)) - np.log(np.clip(P[:, 1], 1e-300, 1))
+    n_yes, n_no = int(yes.sum()), int((~yes).sum())
+    target = np.where(yes, (n_yes + 1) / (n_yes + 2), 1.0 / (n_no + 2))
+
+    def loss(log_t):
+        s = z / math.exp(log_t)
+        # -[t log sigmoid(s) + (1 - t) log sigmoid(-s)], computed stably
+        return float(np.mean(np.logaddexp(0.0, -s) * target + np.logaddexp(0.0, s) * (1.0 - target)))
+
+    lo, hi = math.log(TEMPERATURES[0]), math.log(TEMPERATURES[1])
+    g = (math.sqrt(5) - 1) / 2
+    a, b = lo, hi
+    c, d = b - g * (b - a), a + g * (b - a)
+    fc, fd = loss(c), loss(d)
+    for _ in range(80):
+        if fc <= fd:
+            b, d, fd = d, c, fc
+            c = b - g * (b - a)
+            fc = loss(c)
+        else:
+            a, c, fc = c, d, fd
+            d = a + g * (b - a)
+            fd = loss(d)
+    log_t = (a + b) / 2
+    return {
+        "method": "temperature",
+        "temperature": round(math.exp(log_t), 6),
+        "fitted_on": "certification",
+        "reference": reference,
+        "n": int(len(z)),
+        "targets": "platt",
+        "log_loss_before": round(loss(0.0), 6),
+        "log_loss_after": round(loss(log_t), 6),
+        "rule": "P(yes) = sigmoid(logit / temperature), the temperature fitted on the certification examples by log "
+        "loss against Platt's targets of their reference answers; the answer and the order of the confidences are "
+        "unchanged",
+    }
+
+
+def top_confidence(P: np.ndarray, commit_band=None) -> np.ndarray:
+    """The top probability of each row of P (n x k): the confidence a certificate is read on. `commit_band` (lo, hi),
+    for a yes/no table on a server whose --noul-commit rule is on: the top probability after the rule, as decisio's
+    certified yes/no answers are read (a P(yes) strictly inside the band is reported at the band's edge on its own side,
+    hi above 0.5 and lo otherwise)."""
+    P = np.asarray(P, dtype=np.float64)
+    if commit_band is None:
+        return P.max(axis=1)
+    lo, hi = commit_band
+    py = P[:, 0]
+    inside = (py > lo) & (py < hi)
+    pc = np.where(inside, np.where(py > 0.5, hi, lo), py)
+    return np.maximum(pc, 1.0 - pc)
 
 
 # ---- the two-stage certificate ---------------------------------------------------------------------------------------
@@ -961,6 +1075,7 @@ class Runtime:
     def __init__(self, rec: dict, stack: dict):
         self.rec = rec
         self.stack = stack
+        self.min_saving = record_min_saving(rec)  # the bar it was kept under, which it must keep under load
         self.stack_sha = sha256(stack)
         self.share = rec["thresholds"]["table_share"]
         self.registered_ms = rec["timing"]["guard"]["decisio_ms_mean"]
@@ -1004,20 +1119,21 @@ class Runtime:
     def table_answered(self, ms: float) -> None:
         """A request answered by the table in `ms`. Falls back to decisio when the rolling median no longer pays: the
         expected time per request with the table (its median on every request, decisio's registered mean on the share it
-        defers) must still be `MIN_SAVING` below decisio's registered mean."""
+        defers) must still be the table's `min_saving` below decisio's registered mean."""
         self.table_answers += 1
         self.table_ms.append(ms)
         if len(self.table_ms) < MIN_LATENCY_SAMPLES:
             return
         p50 = float(np.median(self.table_ms))
         expected = p50 + (1.0 - self.share) * self.registered_ms
-        if expected > (1.0 - MIN_SAVING) * self.registered_ms:
+        bar = (1.0 - self.min_saving) * self.registered_ms
+        if expected > bar:
             self.state = "timing"
             self.reason = (
                 f"under this replica's load the table's median is {p50:.0f} ms against decisio's registered "
                 f"{self.registered_ms:.0f} ms, so the expected time per request is {expected:.0f} ms, not "
-                f"{(1.0 - MIN_SAVING) * self.registered_ms:.0f} ms or less: serving through decisio while the table is "
-                "timed again on this replica's requests"
+                f"{bar:.0f} ms or less (a saving of {self.min_saving:.0%} required): serving through decisio while the "
+                "table is timed again on this replica's requests"
             )
             self.table_ms.clear()
             self.pairs.clear()
@@ -1037,7 +1153,7 @@ class Runtime:
         self.pairs.append((table_ms, decisio_ms))
         if len(self.pairs) < SHADOW_N:
             return
-        g = timing_guard([a for a, _ in self.pairs], [b for _, b in self.pairs], self.share)
+        g = timing_guard([a for a, _ in self.pairs], [b for _, b in self.pairs], self.share, self.min_saving)
         self.last_guard = g
         self.pairs.clear()
         if g["kept"]:
@@ -1054,6 +1170,7 @@ class Runtime:
             "state": self.state,
             "uses_table": self.uses_table,
             "table_share_registered": self.share,
+            "min_saving": self.min_saving,
             "timed_on": self.rec["timing"]["stack_sha256"][:12],
             "this_stack": self.stack_sha[:12],
         }

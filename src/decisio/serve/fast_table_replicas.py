@@ -695,7 +695,7 @@ class SharedLearner(FTL.Learner):
             if len(t["pairs"]) < FT.SHADOW_N:
                 return
             g = FT.timing_guard([a for a, _ in t["pairs"]], [b for _, b in t["pairs"]],
-                                v.d["certificate"]["table_share"])  # fmt: skip
+                                v.d["certificate"]["table_share"], self.min_saving)  # fmt: skip
             t["last"], t["pairs"] = g, []
             if not g["kept"]:
                 return

@@ -109,12 +109,17 @@ def register(client, fast_table=True, n=800, seed=0):
 
 
 def test_k1_true_is_the_static_student_on_potion_base():
-    assert FT.parse_request(True) == {"kind": "static", "static_model": "base"}
+    m = FT.MIN_SAVING  # every request records the saving it asks for (the default, when it names none)
+    assert FT.parse_request(True) == {"kind": "static", "static_model": "base", "min_saving": m}
     assert FT.parse_request(False) is None and FT.parse_request(None) is None
-    assert FT.parse_request({}) == {"kind": "static", "static_model": "base"}
-    assert FT.parse_request({"static_model": "multilingual"}) == {"kind": "static", "static_model": "multilingual"}
-    assert FT.parse_request({"kind": "encoder"}) == {"kind": "encoder"}
-    assert FT.parse_request({"kind": "auto"}) == {"kind": "auto", "static_model": "base"}
+    assert FT.parse_request({}) == {"kind": "static", "static_model": "base", "min_saving": m}
+    assert FT.parse_request({"static_model": "multilingual"}) == {
+        "kind": "static",
+        "static_model": "multilingual",
+        "min_saving": m,
+    }
+    assert FT.parse_request({"kind": "encoder"}) == {"kind": "encoder", "min_saving": m}
+    assert FT.parse_request({"kind": "auto"}) == {"kind": "auto", "static_model": "base", "min_saving": m}
     assert FT.parse_request({"kind": "auto", "static_model": "multilingual"})["static_model"] == "multilingual"
 
 
@@ -157,7 +162,8 @@ def test_k2_the_default_kind_is_static_and_its_feature_function_is_recorded_and_
         "long_state": "whole",
     }
     assert ft["encoder"] == "minishlab/potion-base-8M" and ft["revision"] == spec["revision"]
-    assert rep["kept"] and rep["kind"] == "static" and rep["request"] == {"kind": "static", "static_model": "base"}
+    assert rep["kept"] and rep["kind"] == "static"
+    assert rep["request"] == {"kind": "static", "static_model": "base", "min_saving": FT.MIN_SAVING}
     assert [k["kind"] for k in rep["kinds"]] == ["static"] and rep["kinds"][0]["chosen"]
     stack = ft["timing"]["stack"]
     assert stack["kind"] == "static" and stack["model"] == "minishlab/potion-base-8M"
@@ -244,7 +250,7 @@ def test_k3_auto_keeps_no_table_when_neither_clears_the_guard():
     rep = t["fast_table_report"]
     assert not rep["kept"] and rep["kind"] is None and "no kind has a table threshold" in rep["reason"]
     assert "fast_table" not in t and [k["eligible"] for k in rep["kinds"]] == [False, False]
-    assert all("under the 25% required" in k["why_not"] for k in rep["kinds"])
+    assert all("under the 10% required" in k["why_not"] for k in rep["kinds"])
     assert t["status"]["fast_table"]["state"] == "off" and t["certificate"]["certified"]
 
 
@@ -257,8 +263,10 @@ def test_k3_the_rule():
     assert FT.choose([c("static", 0.50), c("encoder", 0.51)])[0] == 0  # exactly a point: still a tie
     assert FT.choose([c("static", 0.60), c("encoder", 0.30)])[0] == 0
     assert FT.choose([c("static", 0.60, holds=False), c("encoder", 0.30)])[0] == 1
-    assert FT.choose([c("static", 0.24), c("encoder", 0.20)])[0] is None
-    assert FT.choose([c("static", 0.24), c("encoder", 0.245)])[0] is None  # a tie under the guard is no table
+    assert FT.choose([c("static", 0.09), c("encoder", 0.08)])[0] is None  # under the default 10%
+    assert FT.choose([c("static", 0.09), c("encoder", 0.095)])[0] is None  # a tie under the guard is no table
+    assert FT.choose([c("static", 0.24), c("encoder", 0.20)], min_saving=0.25)[0] is None  # a task's own bar
+    assert FT.choose([c("static", 0.24), c("encoder", 0.20)])[0] == 0
     assert FT.choose([c("encoder", 0.40)])[0] == 0
 
 

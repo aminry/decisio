@@ -847,6 +847,7 @@ class SystemOne:
             now=lambda: time.time(),
             task=lambda task_id: self.task_store.snapshot(task_id) if self.task_store is not None else None,
             shared=shared,
+            commit_band=lambda: (COMMIT_LO, COMMIT_HI) if self.noul_commit else None,
         )
         for t in list(task_store.by_key.values()) if task_store is not None else []:
             self.learning.get(t)  # a learning task loaded at start resumes its versions and its log
@@ -1279,11 +1280,10 @@ class SystemOne:
             t_task = time.perf_counter()
             try:
                 for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
-                    if self.commits(wire[i]) and not rts[i].get("fast_table") and not rts[i].get("learn"):
-                        before[i] = self.served_rows(rts[i], [(req.state, wire[i])], commit=False)[0]
-                        served[i], via[i], learned[i] = commit_noul(before[i]), None, None
-                        continue
-                    served[i], via[i], learned[i] = self.serve_row(rts[i], req.state, wire[i], learn=cut is None)
+                    p, via[i], learned[i] = self.serve_row(rts[i], req.state, wire[i], learn=cut is None)
+                    if self.commits(wire[i]):  # whoever answered, the commit rule last; the monitor reads before it
+                        before[i], p = p, commit_noul(p)
+                    served[i] = p
             finally:
                 self._reads.infos = None
             task_ms = (time.perf_counter() - t_task) * 1000
@@ -1734,6 +1734,11 @@ class SystemOne:
         """Whether --noul-commit moves question q's answer (a yes/no question on a server with the rule on)."""
         return self.noul_commit and q.type == "noul"
 
+    def commit_band(self, q):
+        """(lo, hi) of the --noul-commit band when the rule moves question q's answer, else None: what a fast table's
+        confidence is read after (`FT.top_confidence`), as decisio's certified yes/no answers are."""
+        return (COMMIT_LO, COMMIT_HI) if self.commits(q) else None
+
     def stale_certified_task(self, q):
         """(task, reason) for a stored task of this question that has a certificate but is not applied because its
         fingerprint (the model, rendering and layout it was fitted under) is not this request's, or None: its answers
@@ -1794,13 +1799,15 @@ class SystemOne:
         uses the rest only.
         With `fast_table` (true, or `{"kind", "static_model"}`: `FT.parse_request`) the task also gets a classifier on
         a student's features that answers the requests it is sure of without asking the model, kept only if it times at
-        least `FT.MIN_SAVING` faster (decisio.serve.fast_table).
+        least its `min_saving` faster (`FT.MIN_SAVING` by default; decisio.serve.fast_table).
         With `learn` (`FTL.split_request`'s settings) the task's table also learns from its traffic: the examples join
         every refit's fit and give its gold certificate (decisio.serve.fast_table_learn).
         `layout=`: the layout the task is fitted under (`_in_layout`; the server's by default): its reads, its
         fingerprint and its certificate are that layout's, and it applies to the requests of that layout only.
         `context`: the text read before every state of the task (`decisio.serve.tasks.serialise_context`), the
         examples' included, so the task is fitted, certified and timed on what it serves.
+        A yes/no task's table is a two-class one whose P(yes) is calibrated on the held-out examples
+        (`FT.fit_temperature`); the request's `min_saving` is the saving it must time (`FT.parse_min_saving`).
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
@@ -1921,9 +1928,9 @@ class SystemOne:
 
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
-        if q.type != "choice":
+        if q.type not in ("choice", "noul"):
             raise ValueError(
-                f"fast_table.learn: choice questions only (this one is {q.type}): a yes/no or score question has no "
+                f"fast_table.learn: choice and yes/no questions only (this one is {q.type}): a score question has no "
                 "table"
             )
         spec = dict(certify_spec or {})
@@ -1958,7 +1965,7 @@ class SystemOne:
             "format": TASK_FORMAT,
             "id": task_id,
             "key": task_key(q, render_text, self.described(q), self.noul_rendered(q)),
-            "type": "choice",
+            "type": q.type,
             "options": answer_keys(q),
             "fingerprint": self.task_store.fingerprint,
             "calibration": calibration,
@@ -2104,15 +2111,21 @@ class SystemOne:
         from decisio.serve.tasks import answer_keys, gold_index
 
         q0 = (fit_ex or cert_ex)[0][0]
-        if q0.type != "choice":
-            raise ValueError("fast_table: choice questions only (a yes/no or score question has no table)")
+        if q0.type not in ("choice", "noul"):
+            raise ValueError("fast_table: choice and yes/no questions only (a score question has no table)")
+        noul = q0.type == "noul"
         k = len(answer_keys(q0))
         if existing is not None:
             feats = [FT.record_features(existing)]
             why = FT.cannot_compute(feats[0])
             if why:
                 raise ValueError(f"fast_table: the table was {why}")
-            request = {"kind": feats[0]["kind"], "existing_table": True}  # re-certified with its own features
+            # re-certified with its own features, and held to the saving it was kept under
+            request = {
+                "kind": feats[0]["kind"],
+                "existing_table": True,
+                "min_saving": FT.record_min_saving(existing),
+            }
         else:
             request = request or FT.parse_request(True)
             feats = FT.requested_features(request)
@@ -2142,8 +2155,11 @@ class SystemOne:
             if existing is None:
                 Xf = FT.featurize(f, [render_text(s) for _, s, _ in fit_ex])
                 rec = FT.fit(Xf, [gold_index(q, g) for q, _, g in fit_ex], k, features=f)
-            else:
-                rec = {x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds")}
+            else:  # its calibration, like its thresholds, is made again on the new held-out examples
+                rec = {
+                    x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds", "calibration")
+                }
+            rec["min_saving"] = request["min_saving"]
             FT.featurize(f, ["warm"])  # the student is loaded and warm before anything is timed
             P, ms, X, fms = [], [], [], []
             for _, s, _ in cert_ex:
@@ -2154,21 +2170,31 @@ class SystemOne:
                 ms.append((time.perf_counter() - t0) * 1000.0)
                 X.append(x[0])
                 fms.append((t1 - t0) * 1000.0)
+            P = np.stack(P)
+            if noul:  # a yes/no table reports its own P(yes), calibrated on the held-out examples' gold answers
+                rec["calibration"] = FT.fit_temperature(
+                    P, [gold_index(q, g) == 0 for q, _, g in cert_ex], reference="gold"
+                )
+                P = FT.predict(rec, np.stack(X))
             # the examples' features are kept for a task that also learns from traffic (its refits fit on them)
             candidates.append(
-                {"features": f, "record": rec, "P": np.stack(P), "ms": ms, "X_fit": Xf, "X_cert": np.stack(X),
+                {"features": f, "record": rec, "P": P, "ms": ms, "X_fit": Xf, "X_cert": np.stack(X),
                  "feature_ms": fms}
             )  # fmt: skip
         return {"request": request, "candidates": candidates, "unavailable": unavailable}
 
     def read_certification(self, t, cert_ex) -> dict:
-        """decisio's own distribution for each held-out example, read one at a time with the time each read took."""
-        ps, ms = [], []
+        """decisio's own distribution for each held-out example, read one at a time with the time each read took:
+        `ps` as served (after --noul-commit, for a yes/no question the rule moves) and `before`, before the rule (what
+        the confidence monitor of such a task reads)."""
+        ps, ms, before = [], [], []
         for q, s, _ in cert_ex:
             t0 = time.perf_counter()
-            ps += self.served_rows(t, [(s, q)])
+            p = self.served_rows(t, [(s, q)], commit=False)[0]
             ms.append((time.perf_counter() - t0) * 1000.0)
-        return {"ps": ps, "ms": ms}
+            before.append(p)
+            ps.append(commit_noul(p) if self.commits(q) else p)
+        return {"ps": ps, "ms": ms, "before": before}
 
     def fast_table_stack(self, features: dict | None = None) -> dict:
         """This server's timing stack for a table of `features` (`FT.timing_stack`), made once per student."""
@@ -2181,25 +2207,30 @@ class SystemOne:
     def decide_fast_table(self, t, cert_ex, reads, prepared, settings) -> None:
         """Keep a table on task `t` or say why not. For each student prepared, the cascade's thresholds are made on the
         held-out examples (the table's, then decisio's on the requests the table defers) and the timing guard gives its
-        expected saving; a student is eligible when a table threshold holds and it saves at least `FT.MIN_SAVING` of
-        the expected time per request. One student: kept when eligible. `auto`: the eligible one with the largest
-        saving, the static one on a tie within `FT.TIE` (`FT.choose`); none eligible, no table."""
+        expected saving; a student is eligible when a table threshold holds and it saves at least the request's
+        `min_saving` of the expected time per request. One student: kept when eligible. `auto`: the eligible one with
+        the largest saving, the static one on a tie within `FT.TIE` (`FT.choose`); none eligible, no table. A yes/no
+        table's confidence is its calibrated P(yes)'s top probability, read after --noul-commit when the rule is on, as
+        decisio's certified yes/no answers are."""
         from decisio.serve.tasks import answer_keys, gold_index
 
-        keys = answer_keys(cert_ex[0][0])
+        q0 = cert_ex[0][0]
+        keys = answer_keys(q0)
         y = np.array([gold_index(q, g) for q, _, g in cert_ex])
         cD = np.array([float(max(p)) for p in reads["ps"]])
         pD = np.array([top_index(keys, p) for p in reads["ps"]])
         alpha, delta = settings["alpha"], settings["delta"]
+        request = prepared["request"]
+        need = request.get("min_saving", FT.MIN_SAVING)
         tried = []
         for c in prepared["candidates"]:
             P = c["P"]
-            cT = P.max(axis=1)
+            cT = FT.top_confidence(P, self.commit_band(q0))
             pT = np.array([top_index(keys, p) for p in P])
             casc = FT.cascade(cT, pT, y, cD, pD, alpha, delta)
             holds = casc["table_threshold"] is not None
             deferred = ~(cT >= casc["table_threshold"]) if holds else np.ones(len(cT), bool)
-            guard = FT.timing_guard(c["ms"], reads["ms"], casc["table_share"], deferred=deferred)
+            guard = FT.timing_guard(c["ms"], reads["ms"], casc["table_share"], need, deferred=deferred)
             stage = FT.table_stage(cT, pT, y, casc["table_threshold"], delta)
             if not holds:
                 why = (
@@ -2210,7 +2241,7 @@ class SystemOne:
                 why = (
                     f"it would save {guard['saving']:.0%} of the time per request ({guard['table_ms_mean']} ms for "
                     f"the table on every request, decisio {guard['decisio_ms_mean']} ms on the "
-                    f"{1 - casc['table_share']:.0%} it defers), under the {FT.MIN_SAVING:.0%} required"
+                    f"{1 - casc['table_share']:.0%} it defers), under the {need:.0%} required"
                 )
             else:
                 why = None
@@ -2228,10 +2259,9 @@ class SystemOne:
                     "why": why,
                 }
             )
-        request = prepared["request"]
         auto = request["kind"] == "auto"
         if auto:
-            chosen, why_chosen = FT.choose(tried)
+            chosen, why_chosen = FT.choose(tried, need)
         else:
             chosen, why_chosen = (0, None) if tried[0]["why"] is None else (None, tried[0]["why"])
         kinds = []
@@ -2264,16 +2294,17 @@ class SystemOne:
             "guard": pick["guard"] if pick else None,
             "cascade": pick["casc"] if pick else None,
             "kinds": kinds,
+            "required": need,
             "rule": (
                 f"auto: each kind ({', '.join(c['kind'] + ' ' + c['features']['model'] for c in tried)}) is fitted "
                 "on the fit examples, its table threshold is made on the held-out examples, and its table path is "
                 "timed on this host, one request at a time, on the held-out examples; the kind kept is the one with "
-                f"the largest expected saving that is at least {FT.MIN_SAVING:.0%} and whose threshold holds, and the "
+                f"the largest expected saving that is at least {need:.0%} and whose threshold holds, and the "
                 f"static one when the two savings are within {FT.TIE * 100:.0f} point; when no kind qualifies there "
                 "is no table"
                 if auto
                 else f"kept when a table threshold holds and the expected time per request falls by at least "
-                f"{FT.MIN_SAVING:.0%} (the table's time on every request plus decisio's on the share it defers, both "
+                f"{need:.0%} (the table's time on every request plus decisio's on the share it defers, both "
                 "timed on this host, one request at a time, on the held-out examples)"
             ),
         }
@@ -2286,10 +2317,13 @@ class SystemOne:
             report.update(kept=True, reason=None)
             if auto:
                 report["why"] = why_chosen
+            if c["record"].get("calibration"):  # a yes/no table's P(yes): how it was calibrated
+                report["calibration"] = c["record"]["calibration"]
             by_table = c["cT"] >= c["casc"]["table_threshold"]
             disagree = (c["pT"] != pD)[by_table]
             stack = self.fast_table_stack(c["features"])
             rec = dict(c["record"])
+            rec["min_saving"] = need
             rec["thresholds"] = c["casc"]
             rec["timing"] = {"stack": stack, "stack_sha256": FT.sha256(stack), "guard": c["guard"]}
             rec["agreement"] = FT.agreement_baseline(disagree, t["id"])
@@ -2313,16 +2347,20 @@ class SystemOne:
         decisio's own read. `via`: None (no table), "table", "deferred", "explored" (the table was sure, decisio
         answered: exploration) or "alone" (the table is off on this replica); a learned table's (`learn_row`) are
         "learn:<kind>". `version`: the learned version that read the request, or None. `learn`: false when the
-        request's state was cut, which is neither served by a learned table nor logged."""
+        request's state was cut, which is neither served by a learned table nor logged.
+        The distribution is the one before --noul-commit (the caller applies the rule, and the confidence monitor reads
+        the distribution before it); a yes/no table's sureness is read on its confidence after the rule, as its
+        threshold was made (`commit_band`)."""
         probe = getattr(self._probe, "on", False)  # a registration's re-read does not count in the table's statistics
         L = self.learning.get(t) if learn and not probe else None
         ft = t.get("fast_table")
         if L is not None and (not ft or L.has_versions()):
             return self.learn_row(t, L, state, q)
         if not ft:
-            return self.served_rows(t, [(state, q)])[0], None, None
+            return self.served_rows(t, [(state, q)], commit=False)[0], None, None
         from decisio.serve.tasks import answer_keys
 
+        band = self.commit_band(q)
         rt = self.table_runtime(t)
         text = render_text(state)
         feats, conf = {}, float("nan")
@@ -2337,7 +2375,7 @@ class SystemOne:
             except FT.TableUnavailable as e:
                 rt.unavailable(str(e))
             else:
-                conf = float(P.max())
+                conf = float(FT.top_confidence(P[None], band)[0])
                 feats[rt.features["kind"]] = (x[0], (t1 - t0) * 1000.0, FTL.feature_id(rt.features))
                 sure = conf >= ft["thresholds"]["table_threshold"]
                 explored = L is not None and L.explore_draw()  # a learning task's exploration: decisio answers
@@ -2346,7 +2384,7 @@ class SystemOne:
                         rt.table_answered(ms)
                         if rt.sample_due():  # decisio reads this one too, to compare; its answer is not served
                             t2 = time.perf_counter()
-                            pD = self.served_rows(t, [(state, q)])[0]
+                            pD = self.served_rows(t, [(state, q)], commit=False)[0]
                             d_ms = (time.perf_counter() - t2) * 1000.0
                             keys = answer_keys(q)
                             rt.agreement.observe(top_index(keys, pD) != top_index(keys, P))
@@ -2356,7 +2394,7 @@ class SystemOne:
                     return P, "table", None
         active = rt.uses_table
         t0 = time.perf_counter()
-        p = self.served_rows(t, [(state, q)])[0]
+        p = self.served_rows(t, [(state, q)], commit=False)[0]
         ms = (time.perf_counter() - t0) * 1000.0
         if L is not None:
             sure = active and conf >= ft["thresholds"]["table_threshold"]
@@ -2378,7 +2416,8 @@ class SystemOne:
         table's answer where a version is live and sure (one in `FT.SAMPLE_EVERY` also read by decisio, a spot check),
         else decisio's; a share `explore` of the requests the table reads goes to decisio anyway. Every request decisio
         reads is logged. A version this replica is still timing (one learned on a shared store) does not answer, and
-        some of the requests decisio answers meanwhile time it too."""
+        some of the requests decisio answers meanwhile time it too. As `serve_row`, the distribution is the one before
+        --noul-commit, and a yes/no version's sureness is read on its confidence after the rule (`L.commit_band`)."""
         from decisio.serve.tasks import answer_keys
 
         keys = answer_keys(q)
@@ -2403,7 +2442,7 @@ class SystemOne:
                 v = None
             else:
                 feats[v.kind] = (x, f_ms, FTL.feature_id(v.features))
-                conf = float(P.max())
+                conf = float(FT.top_confidence(P[None], L.commit_band)[0])
                 sure = conf >= v.threshold
                 L.observe_confidence(v, sure)
                 if L.serving() is not v:  # this request raised the alarm: decisio answers it
@@ -2413,7 +2452,7 @@ class SystemOne:
                     if sure and not explored:
                         if L.spot_check_due():  # decisio reads it too; the table's answer is served
                             t0 = time.perf_counter()
-                            pD = self.served_rows(t, [(state, q)])[0]
+                            pD = self.served_rows(t, [(state, q)], commit=False)[0]
                             d_ms = (time.perf_counter() - t0) * 1000.0
                             top = top_index(keys, pD)
                             L.observe_check(v, top != top_index(keys, P))
@@ -2421,7 +2460,7 @@ class SystemOne:
                             return P, "learn:spot_check", v
                         return P, "learn:table", v
         t0 = time.perf_counter()
-        p = self.served_rows(t, [(state, q)])[0]
+        p = self.served_rows(t, [(state, q)], commit=False)[0]
         ms = (time.perf_counter() - t0) * 1000.0
         if table_ms is not None:
             L.timed(timing, table_ms, ms)
@@ -2830,16 +2869,17 @@ class SystemOne:
         t["fit_sha256"] = fit_digest(t)
         # a yes/no task under --noul-commit: the certificate is made on the committed confidences, the ones every
         # answer reports and is marked certified on; the confidence monitor reads them before the rule, which would
-        # otherwise fold every answer between 0.20 and 0.80 onto 0.80 and leave no tail to watch
+        # otherwise fold every answer between 0.20 and 0.80 onto 0.80 and leave no tail to watch. So with reads made
+        # already (a fast table's registration or re-certification: `read_certification`) as without them
         pairs = [(s, q) for q, s, _ in cert_ex]
-        committing = not reads and self.commits(cert_ex[0][0])
-        before = self.served_rows(t, pairs, commit=False) if committing else None
+        committing = self.commits(cert_ex[0][0])
         if reads:
-            ps = reads["ps"]
+            ps, before = reads["ps"], reads["before"] if committing else None
         elif committing:
+            before = self.served_rows(t, pairs, commit=False)
             ps = [commit_noul(p) for p in before]
         else:
-            ps = self.served_rows(t, pairs)
+            ps, before = self.served_rows(t, pairs), None
         dyn = t.get("dynamic")
         keys = answer_keys(cert_ex[0][0])
         # a dynamic task's examples each have their own options: the chosen option indexes the example's own list
@@ -2852,8 +2892,8 @@ class SystemOne:
         fast = t.get("fast_table")
         if fast:
             casc = fast["thresholds"]
-            P = reads["P_table"]
-            cT, pT = P.max(axis=1), np.array([top_index(keys, p) for p in P])
+            P = reads["P_table"]  # a yes/no table's calibrated; its confidence read as `decide_fast_table` read it
+            cT, pT = FT.top_confidence(P, self.commit_band(cert_ex[0][0])), np.array([top_index(keys, p) for p in P])
             by_table, certified, chosen_s = FT.served(cT, pT, conf, np.array(chosen), casc)
             conf_s = np.where(by_table, cT, conf)
             thr_s = np.where(
@@ -2906,8 +2946,18 @@ class SystemOne:
             t["monitor"] = monitor.dynamic_baseline(conf, unseen, cert["id"])
         elif fast:
             conf_s, chosen_s, thr_s = served
-            t["monitor"] = monitor.baseline(chosen_s, len(keys), cert["id"], conf_s)
-            t["monitor_alone"] = monitor.baseline(chosen, len(keys), cert["id"] + "/alone", conf)
+            if committing:  # before the rule: the table's calibrated P(yes) where it answers, decisio's elsewhere
+                conf_b = np.array([float(max(p)) for p in before])
+                seen = np.where(by_table, P.max(axis=1), conf_b)
+                t["monitor"] = monitor.baseline(
+                    chosen_s, len(keys), cert["id"], seen, conf_reads=monitor.BEFORE_NOUL_COMMIT
+                )
+                t["monitor_alone"] = monitor.baseline(
+                    chosen, len(keys), cert["id"] + "/alone", conf_b, conf_reads=monitor.BEFORE_NOUL_COMMIT
+                )
+            else:
+                t["monitor"] = monitor.baseline(chosen_s, len(keys), cert["id"], conf_s)
+                t["monitor_alone"] = monitor.baseline(chosen, len(keys), cert["id"] + "/alone", conf)
             return conf_s, chosen_s, thr_s
         elif committing:
             t["monitor"] = monitor.baseline(
@@ -4077,8 +4127,8 @@ def add_routes(app, systemone: SystemOne):
         if not isinstance(q, dict):
             raise HTTPException(
                 422,
-                "question: a wire question ({'type': 'choice', 'instructions', 'criteria'}) for a task that learns "
-                "its fast table from traffic, with no examples",
+                "question: a wire question ({'type': 'choice', 'instructions', 'criteria'} or {'type': 'noul', "
+                "'instructions'}) for a task that learns its fast table from traffic, with no examples",
             )
         try:
             question = SystemOneRequest.model_validate({"state": "", "questions": {"q": q}}).questions["q"]
