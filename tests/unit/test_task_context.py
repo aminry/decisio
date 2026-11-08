@@ -672,3 +672,35 @@ def test_x14_the_context_is_stored_and_hashed_without_its_outer_whitespace():
     stored = so.task_store.by_id("a")["context"]
     assert stored["text"] == CONTEXT and stored["sha256"] == hashlib.sha256(CONTEXT.encode()).hexdigest()
     assert ask(client).status_code == 200 and eng.states[-1] == read_with(CONTEXT, {"message": "0:0.95:x"})
+
+
+# ---- review cases: a named context task beside a question with no task; a header request naming a plain task -----
+
+
+def test_r1_a_named_context_task_beside_a_question_with_no_task_is_refused():
+    eng = CtxEngine()
+    client, so, _ = make(eng)
+    assert post_task(client, {"id": "f4a", "examples": examples(40, 0.9), "context": CONTEXT}).status_code == 200
+    body = wire("0:0.95:x")
+    other = {"type": "choice", "instructions": "Which colour?", "criteria": {"red": "red", "blue": "blue"}}
+    body["questions"]["q2"] = other
+    n = len(eng.states)
+    for extra in ({"task": "f4a"}, {}):  # named or found by its question, the two questions cannot share one read
+        r = client.post("/v1/systemone", json={**body, **extra})
+        assert r.status_code == 422, (extra, r.status_code, r.headers.get("x-decisio-tasks"))
+        assert "one context" in r.json()["detail"]
+    assert len(eng.states) == n  # nothing was read
+
+
+def test_r2_a_header_request_naming_a_plain_context_task_is_refused_and_says_which_layout():
+    eng = CtxEngine()
+    client, so, _ = make(eng, store=TaskStore(FP["plain"], layouts=FP))
+    assert post_task(client, {"id": "p", "examples": examples(40, 0.9), "context": CONTEXT}).status_code == 200
+    n = len(eng.states)
+    r = ask(client, task="p", layout="header")
+    assert r.status_code == 422 and '"layout": "plain"' in r.json()["detail"]
+    r = ask(client, layout="header")  # naming none: refused the same way, never read without the context
+    assert r.status_code == 422 and '"layout": "plain"' in r.json()["detail"]
+    assert len(eng.states) == n
+    r = ask(client, task="p")
+    assert r.status_code == 200 and r.headers["x-decisio-tasks"] == "p"
