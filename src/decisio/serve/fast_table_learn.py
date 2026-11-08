@@ -43,11 +43,11 @@ promoted versions are kept (the record and the certificate, not the rows), numbe
 (`rollback`). A version is served only with its own feature function and on the serving stack it was certified on. The
 swap is one assignment, so a request is answered by one version or the other.
 
-A yes/no task's table (type "noul") is a two-class one. Each refit calibrates its P(yes) on the rows its certificate is
-made on (`fast_table.fit_temperature`, against the certificate's reference answers: the labelled answers of a gold
-certificate, decisio's of an agreement one), and on a server whose --noul-commit rule is on its threshold, its
-sureness and its low-confidence guard read its confidence after the rule (`commit_band`), as decisio's certified
-yes/no answers are read. Its logged rows hold decisio's distribution before the rule.
+A yes/no task's table (type "noul") is a two-class one. Each refit calibrates its P(yes) on that version's fit rows by
+cross-fitting (`fast_table.cross_fit_temperature`, against the answers it is fitted on: decisio's, and the labelled
+answers of a task that has them), never on the rows its certificate is made on; and on a server whose --noul-commit
+rule is on its threshold, its sureness and its low-confidence guard read its confidence after the rule (`commit_band`),
+as decisio's certified yes/no answers are read. Its logged rows hold decisio's distribution before the rule.
 
 Two drift guards watch a live table, and either alarm suspends it (decisio answers every request; logging and refits go
 on, and the next version that certifies goes live): the low-confidence share, the share of the last `LOWCONF_WINDOW`
@@ -924,6 +924,8 @@ class Learner:
                 c["why_not"] = "decisio chose one option on every row: there is nothing for a table to tell apart"
                 continue
             rec = _fit(X, y, self.k, feat, w)
+            if self.noul:  # its own P(yes), calibrated on this version's fit rows by cross-fitting
+                rec["calibration"] = _calibrate(X, y, rec, w, "decisio+gold" if len(y) > int(fi.sum()) else "decisio")
             if gold_ok and len(lab["cert_y"]) >= need:
                 Xc = lab[f"cert_X_{s}"].astype(np.float32)
                 ref = lab["cert_y"].astype(int)
@@ -944,9 +946,6 @@ class Learner:
                 )
                 continue
             P = FT.predict(rec, Xc)
-            if self.noul:  # its own P(yes), calibrated on the certificate's rows against their reference answers
-                rec["calibration"] = FT.fit_temperature(P, ref == 0, reference=ckind)
-                P = FT.predict(rec, Xc)
             cT, pT = FT.top_confidence(P, self.commit_band), _tops(P, self.options)
             correct = pT == ref
             thr = certify.threshold(cT, correct, self.alpha, self.delta)
@@ -1207,6 +1206,16 @@ def _tops(P: np.ndarray, keys: list[str]) -> np.ndarray:
     rank[order] = np.arange(len(keys))
     tied = np.where(P == m, rank[None, :], len(keys))
     return order[tied.min(axis=1)]
+
+
+def _calibrate(X, y, rec, w, reference: str) -> dict:
+    """`fast_table.cross_fit_temperature` with one BLAS thread, as `_fit`."""
+    try:
+        from threadpoolctl import threadpool_limits
+    except ImportError:
+        return FT.cross_fit_temperature(X, y, rec, sample_weight=w, reference=reference)
+    with threadpool_limits(limits=1):
+        return FT.cross_fit_temperature(X, y, rec, sample_weight=w, reference=reference)
 
 
 def _fit(X, y, k, feat, w) -> dict:

@@ -1806,8 +1806,8 @@ class SystemOne:
         fingerprint and its certificate are that layout's, and it applies to the requests of that layout only.
         `context`: the text read before every state of the task (`decisio.serve.tasks.serialise_context`), the
         examples' included, so the task is fitted, certified and timed on what it serves.
-        A yes/no task's table is a two-class one whose P(yes) is calibrated on the held-out examples
-        (`FT.fit_temperature`); the request's `min_saving` is the saving it must time (`FT.parse_min_saving`).
+        A yes/no task's table is a two-class one whose P(yes) is calibrated on the fit examples by cross-fitting
+        (`FT.cross_fit_temperature`); the request's `min_saving` is the saving it must time (`FT.parse_min_saving`).
         Nothing is stored when the request is refused or the certification fails."""
         if self.task_store is None:
             raise ValueError("this server has no task store (--no-tasks)")
@@ -2154,11 +2154,12 @@ class SystemOne:
             Xf = None
             if existing is None:
                 Xf = FT.featurize(f, [render_text(s) for _, s, _ in fit_ex])
-                rec = FT.fit(Xf, [gold_index(q, g) for q, _, g in fit_ex], k, features=f)
-            else:  # its calibration, like its thresholds, is made again on the new held-out examples
-                rec = {
-                    x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds", "calibration")
-                }
+                yf = [gold_index(q, g) for q, _, g in fit_ex]
+                rec = FT.fit(Xf, yf, k, features=f)
+                if noul:  # its own P(yes), calibrated on the fit examples by cross-fitting, before any held-out label
+                    rec["calibration"] = FT.cross_fit_temperature(Xf, yf, rec, reference="gold")
+            else:  # kept as fitted, its calibration with it (made on the fit examples, not on the held-out ones)
+                rec = {x: v for x, v in existing.items() if x not in (*FAST_TABLE_VOLATILE, "thresholds")}
             rec["min_saving"] = request["min_saving"]
             FT.featurize(f, ["warm"])  # the student is loaded and warm before anything is timed
             P, ms, X, fms = [], [], [], []
@@ -2171,11 +2172,6 @@ class SystemOne:
                 X.append(x[0])
                 fms.append((t1 - t0) * 1000.0)
             P = np.stack(P)
-            if noul:  # a yes/no table reports its own P(yes), calibrated on the held-out examples' gold answers
-                rec["calibration"] = FT.fit_temperature(
-                    P, [gold_index(q, g) == 0 for q, _, g in cert_ex], reference="gold"
-                )
-                P = FT.predict(rec, np.stack(X))
             # the examples' features are kept for a task that also learns from traffic (its refits fit on them)
             candidates.append(
                 {"features": f, "record": rec, "P": P, "ms": ms, "X_fit": Xf, "X_cert": np.stack(X),

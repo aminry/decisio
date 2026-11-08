@@ -8,12 +8,14 @@ no (top 1); the text says yes or no in words the table can learn, or says nothin
 
 Y1  a labelled yes/no table: kept, two classes, answers `answered_by: "table"` with its own P(yes), certified gold,
     without asking the model; what it is not sure of goes to decisio
-Y2  the table's P(yes) is calibrated by one temperature fitted on the held-out examples only (not the fit examples,
-    not traffic): the served value is sigmoid(logit / T); the answer and the certificate are the uncalibrated table's
+Y2  the table's P(yes) is calibrated by one temperature cross-fitted on the fit examples (never the certification
+    examples, never traffic, not refitted by a re-certification): changing only the certification labels leaves the
+    temperature and the table's scores bit for bit; the served value is sigmoid(logit / T); the answer and the order of
+    the confidences are the uncalibrated table's
 Y3  the commit rule on table answers: reported at the band's edge, the answer unchanged; the certificate is read on the
     committed confidences, as decisio's yes/no answers are
-Y4  certificate kinds: a learned yes/no table (agreement, calibrated against decisio's answers) and a labelled task that
-    learns (gold)
+Y4  certificate kinds: a learned yes/no table (agreement, calibrated on its fit rows against decisio's answers) and a
+    labelled task that learns (gold)
 Y5  min_saving: the default 0.10 and its record, the range (422 outside), a per-task bar at registration, the runtime
     fallback under load, and a record without it held to 0.25
 Y6  monitor gap (a): a table registration, a re-certification and a registration whose table is not kept make the
@@ -172,7 +174,7 @@ def test_y1_a_labelled_yes_no_table_is_kept_and_answers_what_it_is_sure_of_witho
     t = r.json()
     rep, ft, c = t["fast_table_report"], t["fast_table"], t["certificate"]
     assert rep["kept"] and ft["k"] == 2 and ft["binary"] and ft["classes"] == [0, 1]
-    assert ft["calibration"]["method"] == "temperature" and rep["calibration"] == ft["calibration"]
+    assert ft["calibration"]["method"] == "cross_fit" and rep["calibration"] == ft["calibration"]
     assert c["certified"] and c["table_threshold"] is not None and c["stages"]["table"]["certified_n"] > 0
     assert t["status"]["fast_table"]["state"] == "active"
     sc = c["served_check"]  # the serving path reads what the certificate was made on, the commit rule included
@@ -200,7 +202,16 @@ def test_y1_a_yes_no_table_needs_a_certify_block_and_enough_fit_examples():
 # ---- Y2 -------------------------------------------------------------------------------------------------------------
 
 
-def test_y2_the_temperature_is_fitted_on_the_held_out_examples_only():
+def parsed(ex):
+    """[(question, state, gold)] of wire examples, as a registration reads them."""
+    out = []
+    for e in ex:
+        req = SystemOneRequest(**e["request"])
+        out.append((req.questions["q1"], req.state, e["answer"]))
+    return out
+
+
+def test_y2_the_temperature_is_cross_fitted_on_the_fit_examples_only():
     client, so, _ = make()
     ex = noul_examples(800)
     r = client.post(
@@ -208,30 +219,53 @@ def test_y2_the_temperature_is_fitted_on_the_held_out_examples_only():
     )
     assert r.status_code == 200, r.text
     t = so.task_store.snapshot("angry")
-    fit = set(t["certificate"]["split"]["fit_digests"])
-    held = []
-    for e in ex:
-        req = SystemOneRequest(**e["request"])
-        if example_digest(req.state, req.questions["q1"])[:16] not in fit:
-            held.append((req.state, e["answer"]))
-    assert len(held) == t["certificate"]["n"] == 400
-    raw = {k: v for k, v in t["fast_table"].items() if k != "calibration"}
-    X = fake_static_embed("base", [s for s, _ in held])
-    want = FT.fit_temperature(FT.predict(raw, X), [g for _, g in held], reference="gold")
+    fit_digests = set(t["certificate"]["split"]["fit_digests"])
+    fit = [(q, s, g) for q, s, g in parsed(ex) if example_digest(s, q)[:16] in fit_digests]
+    assert len(fit) == t["n_examples"] == 400
     cal = t["fast_table"]["calibration"]
-    assert cal == want and cal["n"] == 400 and cal["fitted_on"] == "certification" and cal["reference"] == "gold"
-    assert cal["log_loss_after"] <= cal["log_loss_before"]
-    # fitted on the fit examples instead it would differ: it is not
-    fit_ex = [(SystemOneRequest(**e["request"]), e["answer"]) for e in ex]
-    fit_ex = [(q.state, g) for q, g in fit_ex if example_digest(q.state, q.questions["q1"])[:16] in fit]
-    other = FT.fit_temperature(
-        FT.predict(raw, fake_static_embed("base", [s for s, _ in fit_ex])), [g for _, g in fit_ex], "gold"
-    )
-    assert other["temperature"] != cal["temperature"]
-    # traffic does not move it
+    assert cal["method"] == "cross_fit" and cal["folds"] == FT.FOLDS == 5 and cal["fitted_on"] == "fit"
+    assert cal["n"] == 400 and cal["reference"] == "gold" and cal["log_loss_after"] <= cal["log_loss_before"]
+    # the same function on the fit examples' features and answers gives it, bit for bit: the served table is the one
+    # fitted on all of them, the temperature comes from its folds
+    X = fake_static_embed("base", [s for _, s, _ in fit])
+    y = [0 if g else 1 for _, _, g in fit]
+    raw = {k: v for k, v in t["fast_table"].items() if k != "calibration"}
+    assert FT.cross_fit_temperature(X, y, raw, reference="gold") == cal
+    # traffic does not move it, and neither does a re-certification (it reads no held-out label)
     for i in range(30):
         ask(client, state(True, 0.9, body(bool(i % 2), RNG)))
     assert so.task_store.snapshot("angry")["fast_table"]["calibration"] == cal
+    r = client.post("/v1/tasks/angry/certify", json={"examples": noul_examples(400, seed=91)})
+    assert r.status_code == 200, r.text
+    after = so.task_store.snapshot("angry")
+    assert after["certificate"]["id"] != t["certificate"]["id"] and after["fast_table"]["calibration"] == cal
+
+
+def test_y2_the_certification_labels_do_not_shape_the_temperature_or_the_tables_scores():
+    # on the earlier version of this change (T fitted on the held-out examples) both differ
+    client, so, _ = make()
+    fit, held = parsed(noul_examples(400, seed=3)), parsed(noul_examples(300, seed=4))
+    flipped = [(q, s, (not g) if i % 3 == 0 else g) for i, (q, s, g) in enumerate(held)]  # a third of the labels
+    a = so.prepare_fast_table(fit, held, request=FT.parse_request(True))["candidates"][0]["record"]
+    b = so.prepare_fast_table(fit, flipped, request=FT.parse_request(True))["candidates"][0]["record"]
+    assert a["calibration"] == b["calibration"] and a["calibration"]["temperature"] != 1.0
+    probe = np.random.default_rng(0).normal(size=(50, 256)).astype(np.float32)
+    probe = np.vstack([probe, fake_static_embed("base", [CLEAR_YES, CLEAR_NO, SILENT])])
+    assert np.array_equal(FT.predict(a, probe), FT.predict(b, probe))  # bit for bit, on any input
+    # end to end: the same fit examples, certification examples that differ only in a few labels
+    ex, cert = noul_examples(600, seed=5), noul_examples(400, seed=6)
+    changed = [dict(e, answer=(not e["answer"]) if i % 40 == 0 else e["answer"]) for i, e in enumerate(cert)]
+    tables = []
+    for c in (cert, changed):
+        other, so2, _ = make()
+        body_ = {"id": "angry", "examples": ex, "certify": {"alpha": 0.1, "delta": 0.1, "examples": c}}
+        r = other.post("/v1/tasks", json={**body_, "fast_table": True})
+        assert r.status_code == 200 and r.json()["fast_table_report"]["kept"], r.text
+        tables.append((so2.task_store.snapshot("angry")["fast_table"], ask(other, CLEAR_YES)))
+    (ta, ya), (tb, yb) = tables
+    assert ta["calibration"] == tb["calibration"] and ta["coef"] == tb["coef"] and ta["intercept"] == tb["intercept"]
+    assert np.array_equal(FT.predict(ta, probe), FT.predict(tb, probe))
+    assert ya["answered_by"] == yb["answered_by"] == "table" and ya["noul"] == yb["noul"]
 
 
 def test_y2_the_served_p_yes_is_the_tables_logit_over_the_temperature_and_its_answer_is_unchanged():
@@ -247,26 +281,35 @@ def test_y2_the_served_p_yes_is_the_tables_logit_over_the_temperature_and_its_an
         assert (a["noul"] > 0.5) == (raw > 0.5)
 
 
-def test_y2_fit_temperature_keeps_the_answer_and_the_order_and_stays_finite_on_separated_examples():
+def test_y2_the_temperature_keeps_the_answer_and_the_order_and_stays_finite_on_separated_examples():
     rng = np.random.default_rng(0)
     py = rng.uniform(0.01, 0.99, 300)
-    P = np.stack([py, 1 - py], axis=1)
+    z0 = np.log(py / (1 - py))
     yes = rng.random(300) < py**3 / (py**3 + (1 - py) ** 3)  # truer than the table says: it is underconfident
-    cal = FT.fit_temperature(P, yes, "gold")
-    assert cal["temperature"] < 1.0 and cal["log_loss_after"] < cal["log_loss_before"]
-    z = np.log(py / (1 - py)) / cal["temperature"]
+    T, before, after = FT.temperature_for(z0, yes)
+    assert T < 1.0 and after < before
+    z = z0 / T
     pc = 1 / (1 + np.exp(-z))
     assert ((pc > 0.5) == (py > 0.5)).all()
-    assert (np.argsort(np.abs(z)) == np.argsort(np.abs(np.log(py / (1 - py))))).all()
+    assert (np.argsort(np.abs(z)) == np.argsort(np.abs(z0))).all()
     # the same certificate on the calibrated confidences as on the table's own: the order is the same
     right = (py > 0.5) == yes
     a, b = np.maximum(py, 1 - py), np.maximum(pc, 1 - pc)
     ta, tb = certify.threshold(a, right, 0.2, 0.1), certify.threshold(b, right, 0.2, 0.1)
     assert ((a >= ta) == (b >= tb)).all()
-    sep = FT.fit_temperature(
-        P, py > 0.5, "gold"
-    )  # every reference answer is the table's: Platt's targets keep T finite
-    assert FT.TEMPERATURES[0] < sep["temperature"] < FT.TEMPERATURES[1]
+    # every reference answer is the table's: Platt's targets keep T finite
+    T_sep, _, _ = FT.temperature_for(z0, py > 0.5)
+    assert FT.TEMPERATURES[0] < T_sep < FT.TEMPERATURES[1]
+
+
+def test_y2_cross_fitting_uses_fewer_folds_on_a_small_answer_and_none_below_two():
+    rng = np.random.default_rng(1)
+    X = rng.normal(size=(120, 8))
+    y = np.array([0] * 3 + [1] * 117)
+    rec = {"C": 1.0}
+    assert FT.cross_fit_temperature(X, y, rec)["folds"] == 3
+    one = FT.cross_fit_temperature(X, np.array([0] + [1] * 119), rec)
+    assert one["folds"] == 0 and one["temperature"] == 1.0
 
 
 # ---- Y3 -------------------------------------------------------------------------------------------------------------
@@ -343,8 +386,8 @@ def test_y4_a_learned_yes_no_table_carries_an_agreement_certificate_and_a_p_yes_
     L = so.learning.learners["angry"]
     v = L.live
     cal = v.record["calibration"]
-    assert cal["reference"] == "agreement" and cal["fitted_on"] == "certification"
-    assert v.certificate_kind == "agreement" and cal["n"] == v.d["certificate"]["n"]
+    assert cal["method"] == "cross_fit" and cal["reference"] == "decisio" and cal["fitted_on"] == "fit"
+    assert v.certificate_kind == "agreement" and cal["n"] == v.d["fit_rows"]  # its fit rows, not its held-out ones
     L.explore = 0.0
     calls = FakeEngine.calls
     a = ask(client, CLEAR_YES)

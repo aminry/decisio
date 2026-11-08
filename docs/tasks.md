@@ -597,6 +597,7 @@ The table's threshold is the lowest at which at most `alpha` of its answers are 
 Decisio's threshold is made the same way on the requests the table defers.
 An answer of either stage that reaches its threshold is certified, and the promise is the cascade's: at most `alpha` of the certified answers are wrong, for traffic like the examples and on this serving stack.
 The table's stage keeps that promise by the procedure's proof, with probability at least 1 - `delta`/2.
+That holds because the table's score is fixed before the held-out labels are read: a choice table's probabilities come from the fit examples alone, and a yes/no table's temperature ([below](#a-yesno-table)) is fitted on the fit examples by cross-fitting, never on the held-out ones.
 Decisio's stage is certified on the requests the table's chosen threshold defers, from the same held-out examples, so which requests those are depends on the same labels that set the table's threshold.
 Its promise is therefore supported by simulation and not proved: on simulated populations, including one where the table fails exactly where decisio finds requests easy, it broke its allowance in at most 1.3% of draws against the 5% allowed.
 A stricter mode that certifies the two stages on disjoint examples is possible later.
@@ -730,9 +731,12 @@ The lower default matters for a task whose table certifies about 10 to 25% of it
 A yes/no task (`"type": "noul"`) gets a two-class table, under the same rules as a choice table: the certificate, the bar, the timing, the monitor and its alarms, replicas and suspension, and learning from traffic.
 What differs is the probability it reports.
 - **Its own P(yes), calibrated.** The table's answer carries `noul`, its own probability of yes, never decisio's, and `answered_by: "table"`.
-  A logistic regression's probability is often too sure or not sure enough, so the registration calibrates it: one temperature `T` divides the table's logit for yes, `P(yes) = sigmoid(logit / T)`, and `T` is the one that minimises the log loss on the held-out examples, the certification examples, against their gold answers (with Platt's targets, `(N+ + 1) / (N+ + 2)` for a yes and `1 / (N- + 2)` for a no, which keep `T` finite when the table separates the examples perfectly).
-  The fit examples are not used, and neither is any traffic: a re-certification fits `T` again on its new examples, and serving never moves it.
-  `fast_table.calibration` in the record (and `fast_table_report.calibration`) holds `T`, the examples it was fitted on and the log loss before and after.
+  A logistic regression's probability is often too sure or not sure enough, so the registration calibrates it: one temperature `T` divides the table's logit for yes, `P(yes) = sigmoid(logit / T)`.
+  `T` is fitted on the fit examples by cross-fitting: they are split into 5 deterministic folds (fewer when one answer has fewer than 5 examples), a classifier of the table's strength is fitted on four folds and gives its logit on the fifth, and `T` is the one that minimises the log loss of all those out-of-fold logits against their gold answers (with Platt's targets, `(N+ + 1) / (N+ + 2)` for a yes and `1 / (N- + 2)` for a no, which keep `T` finite when the logits separate the answers perfectly).
+  The table that serves is still the one fitted on all the fit examples.
+  The certification examples are never used, and neither is any traffic, so the table's score is fixed before a single certification label is read, and the table stage's guarantee holds as proved (above): changing only the certification examples' labels changes neither `T` nor any score of the table.
+  A re-certification therefore keeps `T`, and serving never moves it.
+  `fast_table.calibration` in the record (and `fast_table_report.calibration`) holds `T`, the method (`"cross_fit"`), the folds, the examples it was fitted on and the out-of-fold log loss before and after.
 - **Its answer.** Yes when its calibrated P(yes) is above 0.5, no otherwise: exactly 0.5 is no, decisio's own tie-break.
   The temperature has one parameter and no bias, so it changes neither the table's answer nor the order of its confidences: the certificate certifies the same answers it would have certified on the table's uncalibrated probabilities, and only the number reported changes.
 - **Its confidence and its certificate.** The confidence the table's threshold is made on is the one decisio's certified yes/no answers are read on: the top probability, the larger of `noul` and `1 - noul`.
@@ -740,7 +744,7 @@ What differs is the probability it reports.
   The table's threshold, like decisio's, is made on the committed confidences, and the table answers a request when its committed confidence reaches it, so the band is answered by the table as a whole or not at all.
 - **The monitor** reads each answer's confidence before the rule (`"reads": "before_noul_commit"`, [Yes/no questions](#yesno-questions)): a table answer contributes its calibrated P(yes) before the rule, and decisio's answers (deferred, explored, with the table off, or logged while the task learns) their own before the rule.
   The baselines of the cascade's monitor and of the decisio-only monitor are made the same way, at registration and at every re-certification.
-- **A table learned from traffic** calibrates each refit's P(yes) on the rows its certificate is made on, against that certificate's reference answers: decisio's answers for an agreement certificate, so its P(yes) is the chance that decisio says yes; the gold answers for a gold one.
+- **A table learned from traffic** calibrates each refit's P(yes) the same way, by cross-fitting on that version's fit rows, never on the held-out rows its certificate is made on: against decisio's answers, so its P(yes) is the chance that decisio says yes (and, for a labelled task that learns, the labelled examples' gold answers among them).
   Its threshold, its sureness and its low-confidence guard read its confidence after the commit rule when the rule is on.
 
 ### A fast table that learns from traffic

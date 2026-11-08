@@ -16,10 +16,10 @@ registration says so and the task is served as it would be without a table. A ta
 has none, and is held to the bar it was kept under, `LEGACY_MIN_SAVING` (`record_min_saving`).
 
 A yes/no task (type "noul") gets a two-class table: the same certificate, guard and rules, with the table's P(yes)
-calibrated on the certification examples by one temperature on its logit (`fit_temperature`), so that the probability it
-reports is its own and calibrated; the temperature changes neither its decision nor the order of its confidences, so
-the certificate is the one the uncalibrated table would have had. Under --noul-commit its confidence is read after the
-rule, as decisio's certified yes/no answers are (`top_confidence`).
+calibrated by one temperature on its logit, fitted on the fit examples by cross-fitting (`cross_fit_temperature`), so
+that the probability it reports is its own and calibrated, and the score is fixed before any certification label is
+read; the temperature changes neither its decision nor the order of its confidences. Under --noul-commit its confidence
+is read after the rule, as decisio's certified yes/no answers are (`top_confidence`).
 
 The student is a kind (`KINDS`):
 
@@ -704,7 +704,7 @@ def fit(X: np.ndarray, y, k: int, features: dict | None = None, sample_weight=No
 
 def predict(rec: dict, X: np.ndarray) -> np.ndarray:
     """(n x k) probabilities of the stored table for embeddings X; an option the table never saw gets 0. A record with a
-    calibration (a yes/no table's, `fit_temperature`) divides the logits by its temperature first."""
+    calibration (a yes/no table's, `cross_fit_temperature`) divides the logits by its temperature first."""
     coef, b = unpack(rec["coef"]).astype(np.float64), unpack(rec["intercept"]).astype(np.float64)
     z = np.asarray(X, dtype=np.float64) @ coef.T + b
     z = z / temperature_of(rec)
@@ -735,26 +735,21 @@ def temperature_of(rec: dict) -> float:
     return float(cal["temperature"]) if cal else 1.0
 
 
-def fit_temperature(P: np.ndarray, yes, reference: str) -> dict:
-    """The calibration of a two-class (yes/no) table, fitted on its certification examples: one temperature T that the
-    table's logit for yes is divided by, P(yes) = sigmoid(logit / T), chosen to minimise the log loss against the
-    examples' reference answers `yes` (true where the reference is yes): the gold answers for a gold certificate,
-    decisio's answers for an agreement certificate (`reference`). The targets are Platt's (1999): (N+ + 1) / (N+ + 2)
-    for a yes and 1 / (N- + 2) for a no, which keeps T finite where the table separates the examples perfectly. T is
-    searched in `TEMPERATURES` (golden section on log T; the loss is convex in 1 / T). One parameter and no bias: the
-    sign of the logit, so the table's answer, and the order of its confidences are unchanged, so a certificate made on
-    the calibrated confidences certifies the same answers as one made on the table's own. `P`: the uncalibrated table's
-    (n x 2) probabilities, yes first."""
-    P = np.asarray(P, dtype=np.float64)
+def temperature_for(z, yes, weights=None) -> tuple[float, float, float]:
+    """(T, log loss at T = 1, log loss at T) for logits `z` of yes against the reference answers `yes` (true where the
+    reference is yes), each row weighted by `weights` (None: 1): the T in `TEMPERATURES` that minimises the log loss of
+    sigmoid(z / T) against Platt's (1999) targets, (N+ + 1) / (N+ + 2) for a yes and 1 / (N- + 2) for a no, which keep T
+    finite where the logits separate the answers perfectly. Golden section on log T (the loss is convex in 1 / T)."""
+    z = np.asarray(z, dtype=np.float64)
     yes = np.asarray(yes, dtype=bool)
-    z = np.log(np.clip(P[:, 0], 1e-300, 1)) - np.log(np.clip(P[:, 1], 1e-300, 1))
+    w = np.ones(len(z)) if weights is None else np.asarray(weights, dtype=np.float64)
     n_yes, n_no = int(yes.sum()), int((~yes).sum())
     target = np.where(yes, (n_yes + 1) / (n_yes + 2), 1.0 / (n_no + 2))
 
     def loss(log_t):
         s = z / math.exp(log_t)
         # -[t log sigmoid(s) + (1 - t) log sigmoid(-s)], computed stably
-        return float(np.mean(np.logaddexp(0.0, -s) * target + np.logaddexp(0.0, s) * (1.0 - target)))
+        return float(np.average(np.logaddexp(0.0, -s) * target + np.logaddexp(0.0, s) * (1.0 - target), weights=w))
 
     lo, hi = math.log(TEMPERATURES[0]), math.log(TEMPERATURES[1])
     g = (math.sqrt(5) - 1) / 2
@@ -771,19 +766,52 @@ def fit_temperature(P: np.ndarray, yes, reference: str) -> dict:
             d = a + g * (b - a)
             fd = loss(d)
     log_t = (a + b) / 2
-    return {
-        "method": "temperature",
-        "temperature": round(math.exp(log_t), 6),
-        "fitted_on": "certification",
+    return math.exp(log_t), loss(0.0), loss(log_t)
+
+
+def cross_fit_temperature(X: np.ndarray, y, rec: dict, sample_weight=None, reference: str = "gold") -> dict:
+    """The calibration of a two-class (yes/no) table, fitted on its FIT examples by cross-fitting, never on the examples
+    its certificate is made on: the fit examples X (features) and y (their answer indices, 0 for yes) are split into K
+    deterministic stratified folds (`FOLDS`, fewer when the smaller answer has fewer examples), a classifier of the
+    table's own strength (`rec["C"]`, chosen on the fit examples) is fitted on K - 1 folds, its logit for yes is taken
+    on the fold left out, and one temperature is fitted on all the out-of-fold logits against their answers
+    (`temperature_for`), each weighted by `sample_weight` as in the table's fit. `reference` says what the answers are:
+    "gold" (labelled examples), "decisio" (a learned table's logged rows: decisio's answers) or "decisio+gold".
+    The served table stays the one fitted on all the fit examples (`rec`); P(yes) = sigmoid(logit / T). One parameter
+    and no bias: the table's answer and the order of its confidences are unchanged. With fewer than two examples of
+    either answer there is nothing to cross-fit, and T is 1. Needs scikit-learn."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import StratifiedKFold
+
+    X = np.asarray(X, dtype=np.float64)
+    y = np.asarray(y, dtype=int)
+    w = None if sample_weight is None else np.asarray(sample_weight, dtype=np.float64)
+    yes = y == 0
+    folds = min(FOLDS, int(yes.sum()), int((~yes).sum()))
+    out = {
+        "method": "cross_fit",
+        "folds": folds,
+        "fitted_on": "fit",
         "reference": reference,
-        "n": int(len(z)),
+        "n": int(len(y)),
         "targets": "platt",
-        "log_loss_before": round(loss(0.0), 6),
-        "log_loss_after": round(loss(log_t), 6),
-        "rule": "P(yes) = sigmoid(logit / temperature), the temperature fitted on the certification examples by log "
-        "loss against Platt's targets of their reference answers; the answer and the order of the confidences are "
+        "rule": "P(yes) = sigmoid(logit / temperature); the temperature is fitted by log loss against Platt's targets "
+        "on out-of-fold logits of the fit examples (each fold's logit from a classifier fitted on the other folds), so "
+        "it is fixed before any certification example is read; the answer and the order of the confidences are "
         "unchanged",
     }
+    if folds < 2:
+        return {**out, "folds": 0, "temperature": 1.0, "why": "fewer than two fit examples of one answer"}
+    z = np.zeros(len(y))
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # convergence notes
+        for tr, te in StratifiedKFold(folds, shuffle=True, random_state=0).split(X, y):
+            m = LogisticRegression(C=rec["C"], max_iter=2000)
+            m.fit(X[tr], y[tr], sample_weight=None if w is None else w[tr])
+            score = m.decision_function(X[te])  # the logit of classes_[1], the answer no
+            z[te] = -score if list(m.classes_) == [0, 1] else score
+    t, before, after = temperature_for(z, yes, w)
+    return {**out, "temperature": round(t, 6), "log_loss_before": round(before, 6), "log_loss_after": round(after, 6)}
 
 
 def top_confidence(P: np.ndarray, commit_band=None) -> np.ndarray:
