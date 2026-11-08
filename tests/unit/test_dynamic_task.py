@@ -324,4 +324,4 @@ def test_t9_a_two_order_request_is_not_certified_and_does_not_fail():
     a = client.post("/v1/systemone", json=body)
     assert a.status_code == 200, a.text
     ans = a.json()["answers"]["q1"]
-    assert ans["certified"] is False and ans["certified_reason"] == "serving_stack_changed"
+    assert ans["certified"] is False and ans["certified_reason"] == "orders_changed"

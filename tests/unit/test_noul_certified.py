@@ -255,7 +255,7 @@ def test_n3_a_two_order_request_is_not_certified():
     client, so = make()
     register(client)
     a = ask(client, "yes", 0.99, orders=2)
-    assert a["certified"] is False and a["certified_reason"] == "serving_stack_changed"
+    assert a["certified"] is False and a["certified_reason"] == "orders_changed"
 
 
 @pytest.mark.parametrize("commit", [False, True])

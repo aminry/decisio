@@ -19,7 +19,11 @@ serving stack
 C6  the answer-mix monitor: counts of options only, quiet on the certification mix, the alert on a shifted one, in
 the task's
     status and in /metrics; a certified task's export and import keep everything;
-C7  a task without certification serves and lists exactly as before.
+C7  a task without certification serves and lists exactly as before;
+C8  orders: a certificate records the one order certification reads, whatever the server's --orders; a request of
+    another number of orders is certified false with `orders_changed`, served as read, not counted by the monitor,
+    and suspends nothing; a server started with --orders 2 certifies its one-order requests; a certificate an earlier
+    release made on such a server (it recorded orders 2) is read as 1.
 
   uv run pytest -q tests/unit/test_certified_answers.py
 """
@@ -182,9 +186,9 @@ class FakeEngine:
         return out, {}
 
 
-def make(version="1.0", engine=None):
+def make(version="1.0", engine=None, orders=1):
     eng = engine or FakeEngine(version)
-    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"))
+    so = SystemOne(eng, "decisio-test", task_store=TaskStore("fp"), orders=orders)
     app = FastAPI()
     add_routes(app, so)
     return TestClient(app), so
@@ -287,6 +291,7 @@ def test_c4_answers_carry_certified_true_or_false():
     assert lo["certified"] is False and lo["certified_reason"] == "below_threshold" and lo["certificate"] == cid
     two = client.post("/v1/systemone", json={**wire("1:0.99:x"), "orders": 2})
     assert two.status_code == 200 and two.json()["answers"]["q1"]["certified"] is False  # another form than certified
+    assert two.json()["answers"]["q1"]["certified_reason"] == "orders_changed"
 
 
 def test_c7_a_task_without_certification_is_as_before():
@@ -434,7 +439,9 @@ def test_c5_the_stack_names_what_moves_an_answer():
         "mode": "separate",
     }
     other = SystemOne(FakeEngine("1.0"), "x", orders=2, task_store=TaskStore("fp"), temperature=0.8)
-    assert sorted(stack.differences(f, other.stack_facts())) == ["calibration.temperatures.global", "serving.orders"]
+    # the server's --orders is not in it: the stack records the one order certification reads (C8)
+    assert sorted(stack.differences(f, other.stack_facts())) == ["calibration.temperatures.global"]
+    assert other.stack_facts()["serving"]["orders"] == 1
 
 
 def test_c5_another_context_length_suspends_the_certificate():
@@ -517,3 +524,95 @@ def test_c5_a_choice_task_under_the_other_describe_options_rule_says_so_on_every
     a = r.json()["answers"]["q1"]
     assert a["certified"] is False and a["certified_reason"] == "serving_stack_changed"
     assert a["certificate"] == t["certificate"]["id"]
+
+
+# ---- C8 -------------------------------------------------------------------------------------
+
+
+def ask_orders(client, top, conf, orders=None):
+    body = wire(f"{top}:{conf}:x")
+    if orders is not None:
+        body["orders"] = orders
+    r = client.post("/v1/systemone", json=body)
+    assert r.status_code == 200, r.text
+    return r.json()["answers"]["q1"]
+
+
+def answers_seen(so, task_id):
+    return so.task_store.monitors[task_id].answers
+
+
+def test_c8_two_orders_on_a_default_server_are_not_certified_and_say_orders_changed():
+    client, so = make()
+    t = post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}}).json()
+    assert t["certificate"]["stack"]["serving"]["orders"] == 1
+    seen = answers_seen(so, "routing")
+    two = ask_orders(client, 1, 0.99, orders=2)
+    # served as read: the answer and its probabilities are there, only the promise is withheld
+    assert two["certified"] is False and two["certified_reason"] == "orders_changed"
+    assert two["certificate"] == t["certificate"]["id"] and two["certificate_kind"] == "gold"
+    assert two["choice"] in CRIT and set(two["probabilities"]) == set(CRIT)
+    assert answers_seen(so, "routing") == seen  # a two-order confidence is not the baseline's: not counted
+    st = client.get("/v1/tasks/routing").json()["status"]
+    assert st["state"] == "ok"  # per request: the certificate is not suspended
+    one = ask_orders(client, 1, 0.99)
+    assert one["certified"] is True and answers_seen(so, "routing") == seen + 1
+
+
+def test_c8_a_server_started_with_two_orders_certifies_its_one_order_requests():
+    client, so = make(orders=2)
+    t = post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}}).json()
+    c = t["certificate"]
+    assert c["certified"] and c["stack"]["serving"]["orders"] == 1  # the orders certification read, not the server's
+    # the registration-time check reads the path a certified answer takes: one order, through the task
+    assert c["served_check"]["task_applied"] == c["served_check"]["n"] and c["served_check"]["max_shift"] == 0.0
+    one = ask_orders(client, 1, 0.99, orders=1)
+    assert one["certified"] is True and "certified_reason" not in one and one["certificate"] == c["id"]
+    low = ask_orders(client, 1, round(c["threshold"] - 0.2, 3), orders=1)
+    assert low["certified"] is False and low["certified_reason"] == "below_threshold"
+    default = ask_orders(client, 1, 0.99)  # the server's default: two orders
+    assert default["certified"] is False and default["certified_reason"] == "orders_changed"
+    assert client.get("/v1/tasks/routing").json()["status"]["state"] == "ok"
+    # the certificate is the one any server makes: a default server serves it as certified, and the other way round
+    exported = client.get("/v1/tasks?full=1").json()["tasks"]
+    c1, _ = make()
+    assert c1.post("/v1/tasks/import", json={"tasks": exported}).status_code == 200
+    assert ask_orders(c1, 1, 0.99)["certified"] is True
+    assert c1.get("/v1/tasks/routing").json()["status"]["state"] == "ok"
+
+
+def legacy_two_order_record(exported):
+    """The record an earlier release wrote on a server started with --orders 2: its stack said orders 2, and its digest
+    was taken over that."""
+    from decisio.serve.stack import sha256
+
+    old = json.loads(json.dumps(exported))
+    cert = old[0]["certificate"]
+    cert["stack"]["serving"]["orders"] = 2
+    cert["stack_sha256"] = sha256(cert["stack"])
+    return old
+
+
+def test_c8_a_certificate_that_recorded_two_orders_is_read_as_one():
+    client, so = make()
+    post_task(client, {"id": "routing", "examples": examples(400, 0.96), "certify": {}})
+    old = legacy_two_order_record(client.get("/v1/tasks?full=1").json()["tasks"])
+    for orders in (1, 2):  # a default server, and the --orders 2 server it was made on
+        c2, so2 = make(orders=orders)
+        assert c2.post("/v1/tasks/import", json={"tasks": old}).status_code == 200
+        st = c2.get("/v1/tasks/routing").json()["status"]
+        assert st["state"] == "ok", st
+        assert ask_orders(c2, 1, 0.99, orders=1)["certified"] is True
+        assert ask_orders(c2, 1, 0.99, orders=2)["certified_reason"] == "orders_changed"
+        # the stored record is not rewritten
+        again = c2.get("/v1/tasks?full=1").json()["tasks"][0]["certificate"]
+        assert (
+            again["stack"]["serving"]["orders"] == 2 and again["stack_sha256"] == old[0]["certificate"]["stack_sha256"]
+        )
+    # such a record on a stack that differs otherwise is suspended, and the change listed is that one, not the orders
+    c3, _ = make(version="2.0")
+    assert c3.post("/v1/tasks/import", json={"tasks": old}).status_code == 200
+    st = c3.get("/v1/tasks/routing").json()["status"]
+    assert st["state"] == "suspended" and st["changed"] == ["engine.vllm"]
+    a = ask_orders(c3, 1, 0.99)
+    assert a["certified"] is False and a["certified_reason"] == "serving_stack_changed"

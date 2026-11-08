@@ -122,6 +122,7 @@ def test_s5_what_is_not_certified_is_unchanged():
     client, so, task = registered(BatchEngine())
     two = client.post("/v1/systemone", json={**wire("1:0.99:x"), "orders": 2})
     assert two.status_code == 200 and two.json()["answers"]["q1"]["certified"] is False
+    assert two.json()["answers"]["q1"]["certified_reason"] == "orders_changed"
     score = {
         "state": {"message": "0:0.9:1"},
         "model": "m",

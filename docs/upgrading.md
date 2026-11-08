@@ -8,6 +8,43 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a request of two orders is not certified, on any server, and says `orders_changed`
+
+How it works: [tasks.md, "Where it stops"](tasks.md#where-it-stops), "One order".
+
+### What changed
+
+- **A certificate records the one order certification reads, whatever the server's `--orders`.**
+  Certification always read its examples in one order, but the certificate's serving stack recorded the server's `--orders`.
+  On a server started with `--orders 2` that made two errors: a request of two orders, the server's default there, could come back `certified: true` against a threshold made on one-order reads, and a request with `"orders": 1`, read exactly as certified, came back `certified: false` with `serving_stack_changed`.
+  Both are fixed: a one-order request is certified as the certificate allows, and a two-order request is not certified.
+- **A request read in another number of orders than one carries `certified: false` with its own reason, `orders_changed`**, on every server.
+  Before, a two-order request on a default server said `serving_stack_changed`, though the stack had not changed, and the traffic monitor counted it.
+  The answer itself is served as before, the traffic monitor does not count it, and the certificate is not suspended: the task's status stays `ok`.
+- **The registration-time check (`served_check`) reads in one order**, the path a certified answer takes, on a server started with `--orders 2` too.
+  Before, on such a server it read the two-order average and recorded the difference as the certificate's exposure.
+- **The server's `--orders` is no longer part of the serving-stack fingerprint.**
+  A certificate made on a server started with `--orders 2` is the one a default server makes, and either server serves the other's.
+
+### Existing certificates that recorded `"orders": 2`
+
+A certificate made by an earlier release on a server started with `--orders 2` has `"orders": 2` in its `stack.serving`.
+Its reads were one order, so this release reads that value as 1 when it compares the stack; the stored record is not rewritten (the export still shows `"orders": 2`, the same `stack_sha256` and the same certificate id).
+Like every certificate an earlier release made, it is suspended after the upgrade (`serving_stack_changed`), because the decisio version is part of the fingerprint (the note at the top of this page).
+What the reading as 1 changes is that its status lists `decisio` and whatever else really changed, not `serving.orders`, and that on a stack equal in everything else it is served as certified: its one-order requests as its threshold allows, its two-order requests with `orders_changed`.
+Certifying it again records orders 1.
+Whether any such certificate exists in a deployment cannot be known from the code; look for `"orders": 2` under `certificate.stack.serving` in `GET /v1/tasks?full=1`.
+A table that learns from traffic on such a server learns again after the upgrade, as every learned table does after an upgrade: its rows and versions are tagged with the old fingerprint.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| A server started with `--orders 2` and certified tasks | Requests without `orders` (two orders) are now `certified: false` with `orders_changed`; requests with `"orders": 1` are certified as the certificate allows | Send `"orders": 1` on the requests that should carry the promise |
+| A default server, and clients that send `"orders": 2` to a certified task | Those answers say `orders_changed` instead of `serving_stack_changed`; the answers and the task's status do not change | Read `orders_changed` where you read `serving_stack_changed` for such requests |
+| A certificate made by an earlier release on a server started with `--orders 2` | Suspended for the version, as every certificate is after an upgrade; `status.changed` does not list `serving.orders` | Certify it again, which the upgrade asks for anyway |
+| Other servers and requests | Unchanged | Nothing |
+
 ## Unreleased: task context
 
 How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](api.md).
