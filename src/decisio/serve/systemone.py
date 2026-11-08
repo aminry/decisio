@@ -2149,6 +2149,13 @@ class SystemOne:
             raise ValueError(
                 f"fast_table: {len(fit_ex)} fit examples, and at least {FT.MIN_EXAMPLES} are needed to fit a table"
             )
+        if existing is None and noul:
+            yes = sum(1 for q, _, g in fit_ex if gold_index(q, g) == 0)
+            if min(yes, len(fit_ex) - yes) < 2:
+                raise ValueError(
+                    f"fast_table: a yes/no table needs at least two fit examples of each answer ({yes} yes, "
+                    f"{len(fit_ex) - yes} no)"
+                )
         candidates = []
         for f in usable:
             Xf = None

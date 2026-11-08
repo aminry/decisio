@@ -27,6 +27,7 @@ Y8  export and import, a task directory, and a replica on a shared store read th
   uv run pytest -q tests/unit/test_noul_fast_table.py
 """
 
+import json
 import math
 
 import numpy as np
@@ -666,3 +667,53 @@ def test_y8_a_replica_on_a_shared_store_reads_the_table_its_calibration_and_its_
     assert st["state"] == "active" and st["min_saving"] == 0.2
     x, y = ask(a, CLEAR_YES), ask(b, CLEAR_YES)
     assert x == y and y["answered_by"] == "table" and y["certified"] is True
+
+
+# ---- review: bad settings are refused, never a 500 or a task that fails every request ----------------------------
+
+
+def test_y9_a_min_saving_too_large_for_a_float_is_a_422_not_a_500():
+    client, _, _ = make()
+    r = register(client, fast_table={"min_saving": 10**400})
+    assert r.status_code == 422 and "min_saving" in r.json()["detail"]
+
+
+def test_y9_a_yes_no_table_needs_two_fit_examples_of_each_answer():
+    client, _, _ = make()
+    ex = noul_examples(300, seed=3)
+    yes = [e for e in ex if e["answer"]]
+    no = [e for e in ex if not e["answer"]]
+    one_no = yes[:180] + no[:1]  # one fit example of no: refused with a clear message, not a fold that cannot fit
+    req = {
+        "id": "angry",
+        "examples": one_no,
+        "fast_table": True,
+        "certify": {"alpha": 0.1, "delta": 0.1, "examples": yes[180:] + no[1:]},
+    }
+    r = client.post("/v1/tasks", json=req)
+    assert r.status_code == 422 and "two fit examples of each answer" in r.json()["detail"], r.text
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("min_saving", "fast"),
+        ("min_saving", float("nan")),
+        ("min_saving", 2.0),
+        ("temperature", 0.0),
+        ("temperature", -1.0),
+    ],
+)
+def test_y9_an_imported_table_with_a_bad_bar_or_temperature_is_refused_at_import(field, value):
+    client, _, _ = make()
+    assert register(client).status_code == 200
+    full = client.get("/v1/tasks", params={"full": 1}).json()["tasks"]
+    t = next(x for x in full if x["id"] == "angry")
+    if field == "min_saving":
+        t["fast_table"]["min_saving"] = value
+    else:
+        t["fast_table"]["calibration"]["temperature"] = value
+    other, _, _ = make()
+    body = json.dumps({"tasks": full}, allow_nan=True)
+    r = other.post("/v1/tasks/import", content=body, headers={"content-type": "application/json"})
+    assert r.status_code == 422 and ("min_saving" in r.text or "temperature" in r.text), r.text

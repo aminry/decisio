@@ -464,7 +464,10 @@ def parse_min_saving(value) -> float:
     """A task's `min_saving`: the share of the expected time per request its table must save to be kept, and to stay
     on under load, within `MIN_SAVING_RANGE` inclusive. ValueError says what is wrong."""
     lo, hi = MIN_SAVING_RANGE
-    number = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    try:  # an integer too large for a float overflows in isfinite: not a number this setting can take
+        number = isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    except OverflowError:
+        number = False
     if not number or not lo <= value <= hi:
         raise ValueError(
             f"fast_table.min_saving: the share of the expected time per request the table must save to be kept, a "

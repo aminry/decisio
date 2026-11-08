@@ -56,6 +56,26 @@ CERTIFICATE_FORMAT = record_format("certificate")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 
 
+def check_table_settings(rec: dict, what: str) -> None:
+    """A stored fast table's settings, checked where a record is loaded or imported: its `min_saving` (when it has one)
+    in `fast_table.MIN_SAVING_RANGE`, and a yes/no table's calibration temperature in `fast_table.TEMPERATURES`, so a
+    bad record is refused at load and never fails every request of its task. ValueError says which."""
+    from decisio.serve import fast_table as FT
+
+    if rec.get("min_saving") is not None:
+        try:
+            FT.parse_min_saving(rec["min_saving"])
+        except ValueError as e:
+            raise ValueError(f"{what}: {e}") from None
+    cal = rec.get("calibration")
+    if cal is not None:
+        t = cal.get("temperature") if isinstance(cal, dict) else None
+        lo, hi = FT.TEMPERATURES
+        ok = isinstance(t, (int, float)) and not isinstance(t, bool) and lo <= t <= hi
+        if not ok:
+            raise ValueError(f"{what}: a calibration temperature from {lo:g} to {hi:g}, not {t!r}")
+
+
 def task_key(q, render_text, described: bool = False, noul_rendering: str | None = None) -> str:
     """The identity of a wire question's task: type and options in order, plus instructions for yes/no and score.
     `described`: the server's --describe-options rule changes how this question is shown (its options have
@@ -503,6 +523,10 @@ class TaskStore:
                 check_format(t["fast_table"], "fast-table", f"{what}, fast_table")
                 if not isinstance(t["fast_table"].get("coef"), dict):
                     raise ValueError(f"task {t['id']!r}: a fast table without its arrays (export with ?full=1)")
+                check_table_settings(t["fast_table"], f"task {t['id']!r}, fast_table")
+            learn_req = (t.get("learn") or {}).get("request") if isinstance(t.get("learn"), dict) else None
+            if isinstance(learn_req, dict) and learn_req.get("min_saving") is not None:
+                check_table_settings({"min_saving": learn_req["min_saving"]}, f"task {t['id']!r}, learn.request")
             if t.get("context") is not None:
                 ctx = t["context"]
                 if not isinstance(ctx, dict) or not isinstance(ctx.get("text"), str):
