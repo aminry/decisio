@@ -10,7 +10,7 @@ S2  on one stack the registration-time check reads zero: every sampled item went
 S3  when the engine's answers drift between reads, the check records the exposure in the certificate and its summary
 S4  the check does not feed the answer-mix monitor, and is not made when nothing is certified
 S5  what is not certified is unchanged: a task without a certificate, a score question, a two-order request
-S6  --noul-commit is applied once to a certified yes/no answer, and the debug readout names the served path
+S6  the debug readout names the served path (certified yes/no answers under --noul-commit: test_noul_certified.py)
 S7  a re-certification makes the check too
 
   uv run pytest -q tests/unit/test_certified_served_path.py
@@ -130,7 +130,7 @@ def test_s5_what_is_not_certified_is_unchanged():
     assert client.post("/v1/systemone", json=score).status_code == 200
 
 
-def test_s6_noul_commit_once_and_the_debug_readout_names_the_path():
+def test_s6_the_debug_readout_names_the_served_path():
     client, so, task = registered(BatchEngine())
     so.debug_readout = True
     r = client.post("/v1/systemone", json=wire("1:0.97:x"), headers={"x-decisio-debug": "readout"})

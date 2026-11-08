@@ -1097,13 +1097,18 @@ class SystemOne:
             and not abstain
             and not use_image
         ]
-        served, via, learned = {}, {}, {}
+        # before[i]: a yes/no answer's distribution before --noul-commit moved it, which the confidence monitor reads
+        served, via, learned, before = {}, {}, {}, {}
         task_ms, task_reads = 0.0, []
         if own:
             self._reads.infos = task_reads
             t_task = time.perf_counter()
             try:
                 for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
+                    if self.commits(wire[i]) and not rts[i].get("fast_table") and not rts[i].get("learn"):
+                        before[i] = self.served_rows(rts[i], [(req.state, wire[i])], commit=False)[0]
+                        served[i], via[i], learned[i] = commit_noul(before[i]), None, None
+                        continue
                     served[i], via[i], learned[i] = self.serve_row(rts[i], req.state, wire[i], learn=cut is None)
             finally:
                 self._reads.infos = None
@@ -1230,7 +1235,8 @@ class SystemOne:
                 answers[name] = abstain_answer(q, keys, p)
                 continue
             # --noul-commit, the output transform, last (abstention answers above keep theirs)
-            if self.noul_commit and q.type == "noul" and i not in served:  # served rows are committed already
+            if self.commits(q) and i not in served:  # served rows are committed already
+                before[i] = p
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
             if cut is not None and t is not None and t.get("certificate") and q.type != "score":
@@ -1260,7 +1266,9 @@ class SystemOne:
                 # certified task's own read, which is serial) is not observed against the certificate's baseline
                 shared = i not in served and bool(info.get("batch"))
                 answers[name].update(
-                    self.certified_fields(t, q, keys, p, orders, top_index(keys, p), shared, via.get(i))
+                    self.certified_fields(
+                        t, q, keys, p, orders, top_index(keys, p), shared, via.get(i), before=before.get(i)
+                    )
                 )
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
@@ -1268,13 +1276,11 @@ class SystemOne:
                     answers[name].update(
                         {
                             "certified": False,
-                            "certificate": stale["certificate"]["id"],
+                            "certificate": stale[0]["certificate"]["id"],
                             "certificate_kind": "gold",
-                            # a task of this server fitted under the other layout than the request's: decisio's own
-                            # read of this request's layout, which the certificate does not cover
-                            "certified_reason": (
-                                "layout_mismatch" if self.task_store.applies(stale) else "serving_stack_changed"
-                            ),
+                            # layout_mismatch: a task of this server fitted under the other layout than the request's:
+                            # decisio's own read of this request's layout, which the certificate does not cover
+                            "certified_reason": stale[1],
                         }
                     )
             if via.get(i):  # a task with a fast table says which of the two answered
@@ -1421,10 +1427,18 @@ class SystemOne:
             )  # a task matched on the instructions
         return t
 
+    def commits(self, q) -> bool:
+        """Whether --noul-commit moves question q's answer (a yes/no question on a server with the rule on)."""
+        return self.noul_commit and q.type == "noul"
+
     def stale_certified_task(self, q):
-        """A stored task of this question that has a certificate but is not applied because its fingerprint (the model,
-        rendering and layout it was fitted under) is not this request's: its answers are plain, so not certified. A task
-        that applies to the server's other layout (`TaskStore.applies`) is a layout mismatch, not another stack."""
+        """(task, reason) for a stored task of this question that has a certificate but is not applied because its
+        fingerprint (the model, rendering and layout it was fitted under) is not this request's, or None: its answers
+        are plain, so not certified. A task that applies to the server's other layout (`TaskStore.applies`) is a
+        layout mismatch, not another stack. A yes/no task fitted under another --noul-rendering, or a choice task
+        fitted under the other --describe-options setting for a question the rule changes, has another task key
+        (`noul_rendered`, `described`), and the rendering is part of the stack its certificate was made on:
+        serving_stack_changed."""
         store = self.task_store
         if not self.tasks_enabled or store is None or not store.by_key:
             return None
@@ -1438,7 +1452,27 @@ class SystemOne:
                 return None  # a task of this question applies to this request
             certified = [t for t in store.of_question(key) if t.get("certificate")]
             if certified:
-                return certified[0]
+                return certified[0], "layout_mismatch" if store.applies(certified[0]) else "serving_stack_changed"
+        if q.type == "choice":
+            # a choice question --describe-options changes has another key under the other setting of the rule, which is
+            # part of the stack its certificate was made on
+            certified = [
+                t
+                for t in store.of_question(task_key(q, render_text, not self.described(q), None))
+                if t.get("certificate")
+            ]
+            if certified:
+                return certified[0], "serving_stack_changed"
+        if q.type == "noul":
+            own = self.noul_rendered(q)
+            for rendering in (None, *NOUL_RENDERINGS[1:]):  # words enters the key as None
+                if rendering == own:
+                    continue
+                certified = [
+                    t for t in store.of_question(task_key(q, render_text, False, rendering)) if t.get("certificate")
+                ]
+                if certified:
+                    return certified[0], "serving_stack_changed"
         return None
 
     @_in_layout
@@ -2247,9 +2281,10 @@ class SystemOne:
             infos.append(info)
 
     @_serial
-    def served_rows(self, t, pairs) -> list[np.ndarray]:
+    def served_rows(self, t, pairs, commit: bool = True) -> list[np.ndarray]:
         """The distribution this server serves for each (state, question), through the task `t`: what a
-        certification is made on and an answer is checked against."""
+        certification is made on and an answer is checked against. `commit=False`: a yes/no answer before
+        --noul-commit moves it (what the confidence monitor of such a task reads)."""
         from decisio.readout.calibration import apply_task_prior
         from decisio.readout.debias import log_probs
         from decisio.readout.intent_head import apply_intent_head
@@ -2268,7 +2303,7 @@ class SystemOne:
                 eqh, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
                 lp, h = self.hidden_engine.readout(state, [eqh])[0]
                 p = apply_intent_head(lp, h, t["head"], t["options"])
-                if self.noul_commit and q.type == "noul":
+                if commit and self.commits(q):
                     p = commit_noul(p)
                 out.append(np.asarray(p, dtype=np.float64))
                 continue
@@ -2282,7 +2317,7 @@ class SystemOne:
                 p = apply_task_prior(log_probs(p), t["calibration"])
             else:
                 p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
-            if self.noul_commit and q.type == "noul":
+            if commit and self.commits(q):
                 p = commit_noul(p)
             out.append(np.asarray(p, dtype=np.float64))
         return out
@@ -2456,7 +2491,18 @@ class SystemOne:
         from decisio.serve.tasks import CERTIFICATE_FORMAT, answer_keys, fit_digest, gold_index
 
         t["fit_sha256"] = fit_digest(t)
-        ps = reads["ps"] if reads else self.served_rows(t, [(s, q) for q, s, _ in cert_ex])
+        # a yes/no task under --noul-commit: the certificate is made on the committed confidences, the ones every
+        # answer reports and is marked certified on; the confidence monitor reads them before the rule, which would
+        # otherwise fold every answer between 0.20 and 0.80 onto 0.80 and leave no tail to watch
+        pairs = [(s, q) for q, s, _ in cert_ex]
+        committing = not reads and self.commits(cert_ex[0][0])
+        before = self.served_rows(t, pairs, commit=False) if committing else None
+        if reads:
+            ps = reads["ps"]
+        elif committing:
+            ps = [commit_noul(p) for p in before]
+        else:
+            ps = self.served_rows(t, pairs)
         dyn = t.get("dynamic")
         keys = answer_keys(cert_ex[0][0])
         # a dynamic task's examples each have their own options: the chosen option indexes the example's own list
@@ -2526,6 +2572,14 @@ class SystemOne:
             t["monitor"] = monitor.baseline(chosen_s, len(keys), cert["id"], conf_s)
             t["monitor_alone"] = monitor.baseline(chosen, len(keys), cert["id"] + "/alone", conf)
             return conf_s, chosen_s, thr_s
+        elif committing:
+            t["monitor"] = monitor.baseline(
+                chosen,
+                len(keys),
+                cert["id"],
+                np.array([float(max(p)) for p in before]),
+                conf_reads=monitor.BEFORE_NOUL_COMMIT,
+            )
         else:
             t["monitor"] = monitor.baseline(chosen, len(keys), cert["id"], conf)
         return conf, chosen
@@ -2687,7 +2741,7 @@ class SystemOne:
         return new
 
     def certified_fields(
-        self, t, q, keys, p, orders: int, chosen: int, shared: bool = False, via: str | None = None
+        self, t, q, keys, p, orders: int, chosen: int, shared: bool = False, via: str | None = None, before=None
     ) -> dict:
         """The fields an answer of a certified task carries: whether it is certified, the certificate (of kind gold:
         made on labelled examples), and why not. `via`, for a task with a fast table: "table" (the table answered),
@@ -2695,7 +2749,8 @@ class SystemOne:
         certificate decisio's own reads make). For a task that also learns: "explored" (decisio answered a request the
         table was sure of) and a learned table's "learn:deferred" and "learn:explored" are decisio's answers under its
         own certificate, not observed by the answer-mix monitor (the requests a table leaves are not drawn like the
-        traffic its baseline was made on); "learn:no_table" is "alone"."""
+        traffic its baseline was made on); "learn:no_table" is "alone". `before`: a yes/no answer's distribution before
+        --noul-commit moved it, for the confidence monitor."""
         cert = t["certificate"]
         observe = via not in ("explored", "learn:deferred", "learn:explored")
         if via in ("explored", "learn:deferred", "learn:explored", "learn:no_table") and "decisio_only" not in cert:
@@ -2740,7 +2795,10 @@ class SystemOne:
                 extra["unseen"] = dynamic.all_unseen(
                     t["dynamic"], dynamic.question_parts(q.criteria, render_text, none_key)[2]
                 )
-            m.observe(chosen, reason is None, float(max(p)), **extra)
+            # a yes/no task certified under --noul-commit watches the confidence before the rule (`attach_certificate`);
+            # a record made before that watches the committed one, as its baseline was read
+            seen = before if before is not None and m.reads_before_noul_commit else p
+            m.observe(chosen, reason is None, float(max(seen)), **extra)
             if via in ("table", "deferred"):
                 self.check_table_alarm(t, m)
         out = {"certified": reason is None, "certificate": cert["id"], "certificate_kind": "gold"}

@@ -34,6 +34,12 @@ and its line is set high by the same many options; the confidences of such messa
   clears    the alert lasts until S falls under h / 2; S is held at 1.5 h, so that a long shift does not delay the
             clearing (about 300 normal answers after the traffic returns)
 
+A yes/no task certified on a server with --noul-commit is certified on the committed confidences, which are never
+below 0.80 (every answer between 0.20 and 0.80 is reported at the band's edge), so a 5th percentile among them is
+usually 0.80 itself and no answer can fall below it. Its confidence signal reads the confidences before the rule
+instead, at certification and in serving (`"reads": "before_noul_commit"` in the record); a record without the key
+reads the confidence each answer reports, as before.
+
 On the card replay (the 31B, CLINC150 with 10 examples per intent, 5,363 messages, the out-of-scope share rising from
 message 1,000) the answer mix alerted after message 5,200 and 976 wrong certified answers; this signal alerts near
 message 1,700 after 55, and stays quiet on the replay's in-scope messages alone (`runs/2026-10-17_drift-monitor/`).
@@ -55,6 +61,7 @@ import numpy as np
 
 WINDOW, STEP, LINE_QUANTILE, DRAWS = 500, 100, 0.999, 2000
 TAIL_QUANTILE, OK_FACTOR, BAD_FACTOR, HORIZON, FALSE_ALARM, RUNS, CAP = 0.05, 1.3, 2.5, 5000, 0.01, 4000, 1.5
+BEFORE_NOUL_COMMIT = "before_noul_commit"  # the confidence signal reads yes/no confidences before --noul-commit
 
 
 def mix(counts) -> np.ndarray:
@@ -149,13 +156,14 @@ def dynamic_baseline(conf, unseen, seed: str) -> dict:
     return out
 
 
-def baseline(codes, k: int, seed: str, conf=None) -> dict:
+def baseline(codes, k: int, seed: str, conf=None, conf_reads: str | None = None) -> dict:
     """The record stored with a certified task: the answer mix's, and the confidence signal's when `conf` (the
-    certification examples' top probabilities) supports one."""
+    certification examples' top probabilities) supports one. `conf_reads`: which confidence `conf` is when it is not
+    the one each answer reports (`BEFORE_NOUL_COMMIT`), so that serving observes the same one."""
     out = _mix_baseline(codes, k, seed)
     cb = confidence_baseline(conf, seed) if conf is not None else None
     if cb is not None:
-        out["confidence"] = cb
+        out["confidence"] = {**cb, "reads": conf_reads} if conf_reads else cb
     return out
 
 
@@ -195,6 +203,8 @@ class MixMonitor:
         self.statistic = 0.0
         self.conf_alerting = False
         self.conf_alerts = 0
+        # the confidence is read before --noul-commit, as the record's baseline was (a yes/no task under the rule)
+        self.reads_before_noul_commit = bool(c) and c.get("reads") == BEFORE_NOUL_COMMIT
         if c:
             self._up = math.log(c["p_bad"] / c["p_ok"])
             self._down = math.log((1 - c["p_bad"]) / (1 - c["p_ok"]))
@@ -312,5 +322,6 @@ class MixMonitor:
                     "tail_threshold": self._conf["tail_threshold"],
                     "tail_share": self._conf["tail_share"],
                     "alerts": self.conf_alerts,
+                    **({"reads": self._conf["reads"]} if self._conf.get("reads") else {}),
                 }
             return out
