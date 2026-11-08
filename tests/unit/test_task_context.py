@@ -282,10 +282,11 @@ def test_x4_a_task_of_the_other_layout_is_refused_and_says_which_layout():
     r = ask(client, task="h", layout="header")
     assert r.status_code == 200 and r.headers["x-decisio-tasks"] == "h"
     assert eng.states[-1] == read_with(CONTEXT, {"message": "0:0.95:x"})
-    r = ask(client)  # the plain request finds no task of its layout: decisio's own read, no context, and a warning
-    assert r.status_code == 200 and "x-decisio-tasks" not in r.headers
-    assert r.headers["x-decisio-warning"] == CONTEXT_ELSEWHERE.format(id="h", layout="header")
-    assert eng.states[-1] == {"message": "0:0.95:x"}
+    n = len(eng.states)
+    r = ask(client)  # the plain request names no task and finds the context task under the header layout: refused
+    assert r.status_code == 422
+    assert r.json()["detail"] == CONTEXT_ELSEWHERE.format(id="h", layout="header", request_layout="plain")
+    assert len(eng.states) == n  # never read without the context
 
 
 def test_x4_the_engines_route_takes_no_task():

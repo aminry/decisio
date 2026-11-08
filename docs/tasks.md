@@ -889,8 +889,8 @@ When several tasks ask the same question, each with its own context, a request n
 A request that names none gets the one without a context, which is what such a request got before contexts existed; when every one has a context, it is answered 422 and asked to name one.
 `"task"` is refused with 422 for an unknown id, for a task that asks none of the request's questions, for a task fitted under the other layout than the request's (the message names the layout to send), and on the image route; `x-decisio-tasks` says which task answered.
 The questions of one request share one read of the state, so they share one context: a request whose questions' tasks have different contexts, or that mixes a question of a task with a context and one read without, is refused with 422; send them as separate requests.
-A request read under a layout the task was not fitted under, or sent after the task was deleted, finds no task with a context, and its state is read as sent, without one.
-When its question has a task with a context under the other layout, the response says so in `x-decisio-warning` (`task 'id' has a context and is fitted under the header layout; this request was read without it`), logged once per task: send the request with that `layout`.
+A request that names no task, whose question has a task with a context under the other layout only, is refused with 422 naming the task and the layout to send, as a request naming that task is: the context is the task's instruction, so a request is never read without it.
+A request sent after the task was deleted finds no task, and its state is read as sent.
 
 **Limits.**
 - A registration whose context, with the question and the template, is over the context window before any state is refused with 422.

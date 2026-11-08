@@ -76,6 +76,7 @@ The field is 422 when no task has that id, when the task asks none of the reques
 
 **A task's context.** A question of a task registered with a `context` is read with the context before the state, so the request sends only the part that changes ([tasks.md](tasks.md#task-context)).
 The questions of one request share one read of the state, so they must share one context: a request whose questions' tasks have different contexts, or that mixes a question of a task with a context and a question read without one, is answered 422 (send them as separate requests).
+A request read under the other layout than its question's context task is answered 422 naming the task and the layout to send, whether or not it names the task: it is never read without the context.
 A row over the context window is answered 422 with where its tokens are (the header, the task's context, the state, the question), and `over_limit: truncate` cuts the state only, never the context.
 A request whose state starts with the task's context (leading whitespace aside) is served as sent, so the context is read twice, and the response carries the header `x-decisio-warning: state starts with the task's context; send only the varying part`.
 
@@ -145,7 +146,7 @@ Response headers:
 - `x-decisio-server-ms`: the server's time for the request, from the route receiving it to the response: reading and validating the body, loading its images, and every read, including a certified task's questions and the intent head's.
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
-- `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part`, or `task '<id>' has a context and is fitted under the <layout> layout; this request was read without it` ([tasks.md](tasks.md#task-context)); absent otherwise.
+- `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part` ([tasks.md](tasks.md#task-context)); absent otherwise.
 - `x-decisio-adapter`: the adapter that answered, when one did.
 - `x-decisio-think-ms`, `x-decisio-think-tokens`: the milliseconds spent on reasoning and the second reads, and the reasoning tokens generated, when thinking was on for the request.
 - `x-decisio-state-truncated`: `kept=N; of=M; part=start`, when the state was cut (`over_limit`, above); absent otherwise.
