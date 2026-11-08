@@ -458,7 +458,7 @@ An answer reports `noul`, the probability of yes; the confidence the certificate
   Below the threshold, with nothing certified (`nothing_certified`) or on a changed stack, the task's calibration still applies; where the task is not applied at all (a request of the other layout, `layout_mismatch`; a task fitted under another model or rendering, `serving_stack_changed`) the answer is decisio's own read.
   Either way the commit rule, when on, applies last, and the answer carries `certified: false` and the reason.
 - **Status, export and storage** are those of a choice task: `GET /v1/tasks/{id}` gives the state (`ok`, `traffic_changed` or `suspended`) and the monitor, and export, import, `--tasks-dir` and a shared store keep the certificate and the monitor's record.
-- **No fast table.** A yes/no task has none: `fast_table` is refused for it.
+- **A fast table.** A yes/no task can have one, labelled or learned from traffic: a two-class table that reports its own calibrated probability of yes ([A yes/no table](#a-yesno-table)).
 
 ## Tasks whose options change with every request
 
@@ -560,7 +560,8 @@ pip install 'decisio[table]'     # scikit-learn (the fit) and onnxruntime (the e
 ```
 
 - A `certify` block is required: the table is part of the certificate.
-- Choice questions only, with at least 100 fit examples.
+- Choice and yes/no questions ([A yes/no table](#a-yesno-table)), with at least 100 fit examples.
+- `min_saving` sets the share of the time per request the table must save ([The saving bar](#the-saving-bar-min_saving)); the default is 0.10.
 - Without the extra the registration is refused with 422 and says what to install.
 - `static_model` goes with the `static` and `auto` kinds only; with `encoder` it is refused.
 - Each student's files are fetched from the Hugging Face Hub at the pinned revision on first use. The fast-table image (`ghcr.io/aminry/decisio:<version>-table`, [running.md](running.md#the-fast-table-image)) has both static students built in, so it needs no Hub access for them. Any other server with no route to the Hub needs them fetched first, or the registration is refused naming the command:
@@ -577,10 +578,10 @@ hf download BAAI/bge-base-en-v1.5 onnx/model.onnx tokenizer.json --revision a5be
 2. It reads the held-out examples through decisio, one at a time, as the certificate does.
 3. It makes the cascade's thresholds (below) for each student.
 4. It times the paths on the held-out examples, on this host, one request at a time, with decisio's reads of texts it has not seen: the expected mean time per request is the table's time on every request plus decisio's time on the share the table defers.
-5. It keeps a table only if the expected time falls by at least 25% and a table threshold holds. Under `auto` it keeps the student with the larger saving; when the two savings are within 1 point it keeps the static one; when neither qualifies there is no table.
+5. It keeps a table only if the expected time falls by at least the task's `min_saving` (10% by default) and a table threshold holds. Under `auto` it keeps the student with the larger saving; when the two savings are within 1 point it keeps the static one; when neither qualifies there is no table.
 
 The response says what it did.
-`fast_table_report` has `kept`, the `reason` when it is false (for example "it would save 11% of the time per request, under the 25% required"), the `guard` (the table's and decisio's mean milliseconds, the table's share, the saving) and the cascade's thresholds.
+`fast_table_report` has `kept`, the `reason` when it is false (for example "it would save 7% of the time per request, under the 10% required"), `required` (the task's `min_saving`), the `guard` (the table's and decisio's mean milliseconds, the table's share, the saving) and the cascade's thresholds.
 `fast_table_report.kinds` lists every student tried, with its table share, its error at the threshold and the upper bound, its expected saving and its mean table time, which one was kept and why; a student that could not be loaded is listed under `unavailable`.
 A table that is not kept leaves a task that is served, and certified, exactly as it would be without one.
 
@@ -596,6 +597,7 @@ The table's threshold is the lowest at which at most `alpha` of its answers are 
 Decisio's threshold is made the same way on the requests the table defers.
 An answer of either stage that reaches its threshold is certified, and the promise is the cascade's: at most `alpha` of the certified answers are wrong, for traffic like the examples and on this serving stack.
 The table's stage keeps that promise by the procedure's proof, with probability at least 1 - `delta`/2.
+That holds because the table's score is fixed before the held-out labels are read: a choice table's probabilities come from the fit examples alone, and a yes/no table's temperature ([below](#a-yesno-table)) is fitted on the fit examples by cross-fitting, never on the held-out ones.
 Decisio's stage is certified on the requests the table's chosen threshold defers, from the same held-out examples, so which requests those are depends on the same labels that set the table's threshold.
 Its promise is therefore supported by simulation and not proved: on simulated populations, including one where the table fails exactly where decisio finds requests easy, it broke its allowance in at most 1.3% of draws against the 5% allowed.
 A stricter mode that certifies the two stages on disjoint examples is possible later.
@@ -614,6 +616,7 @@ That ratio was not measured on the x86 server CPUs, and the registration times t
 Offline, with the server's own code, on public sets at 1,000 labels (the 31B and the 12B; the table on a server CPU with four threads; decisio on one card; medians of two draws of the labelled examples):
 
 **Across the ten sets tried, the table passed the 25% guard on 4: CLINC150, MASSIVE, Snips and SMS spam.**
+These figures were read at the fixed 25% guard of the time.
 **Without the three assistant-command sets (CLINC150, MASSIVE, Snips) it passed on 1 of 7: SMS spam.**
 Six sets were dropped: CFPB and arXiv (long texts, where the table doubles the time per request), Civil comments (the table answers 70% but its time does not pay), SciCite (nothing certified), and the two sets whose options change per request (brand, entity linking; nothing certified).
 MASSIVE passes only because decisio's own read there goes through the intent head's hidden-state read and is slow; timed as a plain read it saves 21% on the 31B, under the 25%.
@@ -669,12 +672,12 @@ The timing is true for the stack it was made on: the host CPU, the engine and it
 | `active` | The table answers the requests it is sure of. |
 | `timing` | The table is not used and decisio answers everything, under the `decisio_only` certificate. The replica is on another stack than the one the table was timed on, or the table stopped beating decisio under this replica's load. Every tenth request also times the table, after decisio has answered, and when 30 such pairs show the saving the table is taken up again (`retimed`). |
 | `suspended` | The monitor's alarm fired here or on another replica that shares the task store (below). Decisio answers everything, under the `decisio_only` certificate. |
-| `unavailable` | This server cannot compute the table's features exactly: another model, revision, file or long-state rule than the record's `fast_table.features` (register the task again), or the `table` extra is not installed. |
+| `unavailable` | This server cannot compute the table's features exactly: another model, revision, file or long-state rule than the record's `fast_table.features` (register the task again), or the `table` extra is not installed; or a yes/no table's threshold was made under another `--noul-commit` setting than this server's (certify the task again). |
 
 **Load.**
 The table's time at registration cannot see contention on the host.
 While the table answers, the server keeps the median of its last 50 table-path times (judged from 20).
-If the expected time per request, with that median on every request and decisio's registered time on the share the table defers, is no longer at least 25% under decisio's, the replica falls back to decisio (`timing`) and the status says why and gives the numbers.
+If the expected time per request, with that median on every request and decisio's registered time on the share the table defers, is no longer at least the task's `min_saving` under decisio's, the replica falls back to decisio (`timing`) and the status says why and gives the numbers; the 30 paired timings that take the table up again are held to the same bar.
 A static student costs a fraction of a millisecond, so it is not what limits a replica's rate.
 The encoder runs as two sessions of four threads each: at 16 requests in flight it sustained about 90 table requests a second on an Apple M5 Pro, against 68 when it ran one encode at a time (0.39.2 and earlier); above its rate, requests queue behind it, its median rises and the replica falls back.
 Size the CPU for the encoder, or choose a static student.
@@ -696,7 +699,7 @@ The student's feature function (`features`), the classifier (a matrix of options
 No request text, no embedding of a request and no example is stored.
 
 **Limits.**
-- Choice questions on the text route, one order; a yes/no or score question, an image request, an adapter and a task of options that change per request have no table.
+- Choice and yes/no questions on the text route, one order; a score question, an image request, an adapter and a task of options that change per request have no table.
 - The table reads the state as text (a string as it is, an object as its JSON); two requests the table cannot tell apart get the same answer.
 - The static students read the whole text; the encoder reads at most 512 tokens of it (the first 256 and the last 254 of a longer text).
 - Each student's revision is fixed in the release; a task fitted under another revision or rule is `unavailable` until it is registered again.
@@ -710,6 +713,45 @@ It registers the task twice, one arm after the other: with `"fast_table": true` 
 The cells are each arm at two state lengths (`short`, the requests as they are; `long`, padded to `--long-chars`) and two concurrencies (`--concurrency 1,16`).
 Each line of its output is a cell: the wall time's p50 and p95, the server's time (`x-decisio-server-ms`), the `task` stage (the certified question's read: the table's, or decisio's when the table deferred), the share the table answered and the errors.
 Compare the `table` arm's wall time with the `model` arm's in the same cell: that difference is what the table saves your callers, under your load.
+
+### The saving bar: `min_saving`
+
+`"fast_table": {"min_saving": 0.2}` sets the share of the expected time per request a table must save, from 0.01 to 0.90 inclusive; a value outside that range, or not a number, is refused with 422.
+The default is 0.10.
+The same value decides at registration whether the table is kept, and at run time whether a replica keeps using it under load (**Load.**, above); every message that names the required saving names the task's own.
+It is stored in the task's record (`fast_table.min_saving`, and for a task that learns from traffic in `learn.request.min_saving`), so export, import, `--tasks-dir` and a shared store keep it, and `GET /v1/tasks/{id}` shows it under `status.fast_table.min_saving`.
+A table registered before the setting existed has no `min_saving` in its record and was kept under a fixed 25%: it is held to 25% at run time, and a re-certification keeps that bar (and then records it).
+Register the task again to take the new default.
+The saving counts the table's own time on every request, as before: a static student's fraction of a millisecond, an encoder's tens of milliseconds.
+On a measured suite of ten sets the bar changed no kept table at 25, 15, 10 or 5%, because a table of the static student there either certified nothing or certified 30% of the requests and more.
+The lower default matters for a task whose table certifies about 10 to 25% of its requests.
+
+### A yes/no table
+
+A yes/no task (`"type": "noul"`) gets a two-class table, under the same rules as a choice table: the certificate, the bar, the timing, the monitor and its alarms, replicas and suspension, and learning from traffic.
+What differs is the probability it reports.
+- **Its own P(yes), calibrated.** The table's answer carries `noul`, its own probability of yes, never decisio's, and `answered_by: "table"`.
+  A logistic regression's probability is often too sure or not sure enough, so the registration calibrates it: one temperature `T` divides the table's logit for yes, `P(yes) = sigmoid(logit / T)`.
+  `T` is fitted on the fit examples by cross-fitting: they are split into 5 deterministic folds (fewer when one answer has fewer than 5 examples), a classifier of the table's strength is fitted on four folds and gives its logit on the fifth, and `T` is the one that minimises the log loss of all those out-of-fold logits against their gold answers (with Platt's targets, `(N+ + 1) / (N+ + 2)` for a yes and `1 / (N- + 2)` for a no, which keep `T` finite when the logits separate the answers perfectly).
+  The table that serves is still the one fitted on all the fit examples.
+  The certification examples are never used, and neither is any traffic, so the table's score is fixed before a single certification label is read, and the table stage's guarantee holds as proved (above): changing only the certification examples' labels changes neither `T` nor any score of the table.
+  A re-certification therefore keeps `T`, and serving never moves it.
+  `fast_table.calibration` in the record (and `fast_table_report.calibration`) holds `T`, the method (`"cross_fit"`), the folds, the examples it was fitted on and the out-of-fold log loss before and after.
+- **Its answer.** Yes when its calibrated P(yes) is above 0.5, no otherwise: exactly 0.5 is no, decisio's own tie-break.
+  The temperature has one parameter and no bias, so it changes neither the table's answer nor the order of its confidences: the certificate certifies the same answers it would have certified on the table's uncalibrated probabilities, and only the number reported changes.
+- **Its confidence and its certificate.** The confidence the table's threshold is made on is the one decisio's certified yes/no answers are read on: the top probability, the larger of `noul` and `1 - noul`.
+- **The commit rule.** On a server with `--noul-commit`, a table answer is moved as decisio's answers are: a P(yes) between 0.20 and 0.80 is reported at the band's edge on its own side, and the answer never changes.
+  The table's threshold, like decisio's, is made on the committed confidences, and the table answers a request when its committed confidence reaches it, so the band is answered by the table as a whole or not at all.
+  The record says which way it was made (`fast_table.commit_band`: `[0.2, 0.8]`, or `null` without the rule).
+  A server whose rule differs does not use the table: under the rule a P(yes) of 0.55 would score 0.80 against a threshold made without it, and the other way round.
+  It serves the task through decisio, `status.fast_table` reads `unavailable` with the reason, and `POST /v1/tasks/{id}/certify` makes the table's threshold again under this server's rule.
+  A learned version is bound the same way, through the serving stack it was certified on, which includes the rule.
+- **The monitor** reads each answer's confidence before the rule (`"reads": "before_noul_commit"`, [Yes/no questions](#yesno-questions)): a table answer contributes its calibrated P(yes) before the rule, and decisio's answers (deferred, explored, with the table off, or logged while the task learns) their own before the rule.
+  The baselines of the cascade's monitor and of the decisio-only monitor are made the same way, at registration and at every re-certification.
+- **A table learned from traffic** calibrates each refit's P(yes) the same way, by cross-fitting on that version's fit rows, never on the held-out rows its certificate is made on: against decisio's answers, so its P(yes) is the chance that decisio says yes (and, for a labelled task that learns, the labelled examples' gold answers among them).
+  Its threshold and its sureness read its confidence after the commit rule when the rule is on.
+  Its low-confidence guard reads the table's confidence before the rule: an output counts as low when it is inside the band or under the threshold, against that share on the certificate's rows.
+  The committed confidences are never under 0.80, so with a threshold at the band's edge a guard on them could never fire, and traffic that moved to P(yes) 0.4 to 0.6 would stay answered and certified.
 
 ### A fast table that learns from traffic
 
@@ -727,8 +769,9 @@ curl -s localhost:8000/v1/tasks -H 'content-type: application/json' -d '{
 }'
 ```
 
+The question can be a yes/no one too (`{"type": "noul", "instructions": "..."}`); its table reports its own P(yes), calibrated against decisio's answers ([A yes/no table](#a-yesno-table)).
 `kind` is `static` (the default), `encoder` or `auto`, as for a labelled table, and `static_model` names the static model.
-`explore` (default 0.02) and `max_rows` (default 200,000) are the two settings; `retain_text` is refused, because no request text is kept.
+`explore` (default 0.02) and `max_rows` (default 200,000) are the two learning settings, and `min_saving` is the bar, as for a labelled table; `retain_text` is refused, because no request text is kept.
 `"certify": {"alpha": 0.05, "delta": 0.1}` beside `fast_table` sets the certificate's bounds (these are the defaults).
 Until a table certifies, decisio answers every request of the task, exactly as with no table.
 
@@ -754,7 +797,7 @@ That bounds how often the table disagrees with decisio, not how often it is wron
 Answers from a learned table carry `"certificate_kind": "agreement"`; a table certified on labelled examples carries `"gold"`.
 
 **Promotion.**
-A refit's version goes live only if its certificate holds and its expected saving, timed on this host from the logged times, is at least 25% and more than the live version's.
+A refit's version goes live only if its certificate holds and its expected saving, timed on this host from the logged times, is at least the task's `min_saving` (10% by default; 25% for a task registered before the setting) and more than the live version's.
 A refit that fails leaves the live version live.
 The last 5 versions are kept, and `POST /v1/tasks/{id}/fast_table/rollback` with `{"version": n}` serves one of them again.
 
@@ -793,7 +836,7 @@ Its certificate stays gold, made on its held-out labelled examples, as long as t
 `/health` gives a short summary of every learning task under `systemone.fast_table_learning`.
 
 **Limits of learning.**
-- A choice question on the text route, as for a labelled table.
+- A choice or yes/no question on the text route, as for a labelled table.
 - The table learns decisio's answers, including decisio's mistakes.
 - The certificate's rows are weighted as they were logged: before the first table every request is a `no_table` row, and afterwards only the explored share is, so early traffic weighs more in a certificate until `max_rows` drops it. The drift guards watch the live traffic.
 - A server on another serving stack does not serve a version certified elsewhere: decisio's answers there are another teacher's.

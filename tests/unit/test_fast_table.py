@@ -8,7 +8,7 @@ F1  the stored classifier gives the probabilities of the fitted logistic regress
 F2  the regularisation is chosen by cross-validated log loss and the fit is deterministic
 F3  the cascade's thresholds equal a direct reimplementation (the table's at delta/2, decisio's on what the table
     defers, also at delta/2), `served` applies them, and a stage with no threshold that holds is None
-F4  the timing guard keeps the table only when the expected mean time falls by a quarter
+F4  the timing guard keeps the table only when the expected mean time falls by the required share (10% by default)
 F5  without the extra, fitting and embedding say what to install
 F6  the cascade's promise on simulated populations: over many draws of the held-out examples, the share of draws in
     which the wrong share among the certified answers (both stages) exceeds alpha stays within delta
@@ -123,10 +123,13 @@ def test_f3_a_stage_without_a_threshold_is_none():
     assert not sh.any() and not cert.any()
 
 
-def test_f4_the_guard_keeps_the_table_only_when_it_saves_a_quarter():
-    # the table takes 25 ms, decisio 60 ms: with 60% answered by the table, expected 25 + 0.4 * 60 = 49 (18% saved)
-    g = FT.timing_guard([25.0] * 50, [60.0] * 50, 0.6)
+def test_f4_the_guard_keeps_the_table_only_when_it_saves_the_required_share():
+    # the table takes 25 ms, decisio 60 ms: with 60% answered by the table, expected 25 + 0.4 * 60 = 49 (18% saved),
+    # kept at the default 10% and not at 25%
+    g = FT.timing_guard([25.0] * 50, [60.0] * 50, 0.6, min_saving=0.25)
     assert not g["kept"] and g["saving"] == pytest.approx(1 - 49 / 60, abs=1e-3) and g["expected_ms_mean"] == 49.0
+    g = FT.timing_guard([25.0] * 50, [60.0] * 50, 0.6)
+    assert g["kept"] and g["required"] == FT.MIN_SAVING == 0.10
     g = FT.timing_guard([25.0] * 50, [60.0] * 50, 0.8)
     assert g["kept"] and g["saving"] == pytest.approx(1 - 37 / 60, abs=1e-3)
     assert not FT.timing_guard([70.0], [60.0], 0.99)["kept"]  # slower than decisio even at 99%

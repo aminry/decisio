@@ -8,9 +8,9 @@ are set by the test.
 
 H1  registration keeps the table where it pays: the stored table, the cascade certificate, the report; a confident
     request is answered by the table without the engine, an unsure one by decisio, both certified by their stage
-H2  the timing guard: a table that does not save a quarter of the time is not kept, says why, and the task is served
-    as it would be without one
-H3  refusals: no certify block, a yes/no question, too few fit examples, the extra missing
+H2  the timing guard: a table that does not save the required share of the time (10% by default) is not kept, says
+    why, and the task is served as it would be without one
+H3  refusals: no certify block, a score question, too few fit examples, the extra missing
 H4  another stack: a replica whose CPU differs serves through decisio under decisio's own certificate, times the table
     on its own requests, and takes it up when it pays; a replica on another encoder revision cannot use the table
 H5  suspension: the sampled-agreement alarm (or the confidence alarm) switches the table off here at once and, through a
@@ -256,14 +256,15 @@ def test_h1_the_served_check_reads_zero_on_the_same_stack():
 # ---- H2 ----------------------------------------------------------------------------------------------------------
 
 
-def test_h2_a_table_that_does_not_save_a_quarter_of_the_time_is_not_kept_and_says_why():
+def test_h2_a_table_that_does_not_save_the_required_share_of_the_time_is_not_kept_and_says_why():
     CLOCK.table_ms = 55.0  # nearly decisio's own time: no saving
     client, so, _ = make()
     r = register(client)
     assert r.status_code == 200, r.text
     t = r.json()
     rep = t["fast_table_report"]
-    assert not rep["kept"] and "under the 25% required" in rep["reason"] and rep["guard"]["saving"] < 0.25
+    assert not rep["kept"] and "under the 10% required" in rep["reason"] and rep["guard"]["saving"] < 0.10
+    assert rep["required"] == FT.MIN_SAVING == 0.10
     assert "fast_table" not in t and t["certificate"]["certified"] and "table_threshold" not in t["certificate"]
     assert t["status"]["fast_table"] == {"state": "off", "uses_table": False, "reason": rep["reason"]}
     calls = FakeEngine.calls
@@ -301,13 +302,11 @@ def test_h3_refusals():
     dyn["certify"] = {}
     r = client.post("/v1/tasks", json=dyn)
     assert r.status_code == 422 and "change with every request" in r.json()["detail"] and not so.task_store.by_key
-    yn = {"id": "yn", "examples": [], "certify": {}, "fast_table": True}
-    yn["examples"] = [
-        {"request": {"state": "x", "questions": {"q": {"type": "noul", "instructions": "Is it?"}}}, "answer": True}
-        for _ in range(300)
-    ]
-    r = client.post("/v1/tasks", json=yn)
-    assert r.status_code == 422 and "choice" in r.json()["detail"]
+    sc = {"id": "sc", "examples": [], "certify": {}, "fast_table": True}
+    score = {"type": "score", "instructions": "How bad?", "criteria": ["fine", "bad", "awful"]}
+    sc["examples"] = [{"request": {"state": f"x{i}", "questions": {"q": score}}, "answer": "1"} for i in range(300)]
+    r = client.post("/v1/tasks", json=sc)
+    assert r.status_code == 422 and "score" in r.json()["detail"] and not so.task_store.by_key
 
 
 # ---- H4 ----------------------------------------------------------------------------------------------------------
