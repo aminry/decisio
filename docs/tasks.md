@@ -835,7 +835,8 @@ Requests then send only the part that changes, and the server puts the context i
 
 Keep in the context only what is the same on every request; what changes belongs in the state.
 
-**Registering.** `POST /v1/tasks` takes an optional `"context"`: a string as given, or an object or array, which is read as compact JSON (`json.dumps(value, separators=(",", ":"), ensure_ascii=False)`).
+**Registering.** `POST /v1/tasks` takes an optional `"context"`: a string, or an object or array, which is read as compact JSON (`json.dumps(value, separators=(",", ":"), ensure_ascii=False)`).
+The text's leading and trailing whitespace is removed, and the text without it is what is read, stored and hashed: some chat templates trim the start of the content, and a context that started with whitespace would then never match its own tokens in the prompt.
 The labelled registration, the dynamic-option one (`"options": "dynamic"`) and a task that learns from traffic take it.
 The examples' states are the changing part only: the server reads each example with the context, so the task is fitted, certified and timed on exactly what it serves.
 
@@ -845,7 +846,7 @@ curl -s http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' \
 ```
 
 An empty context, or one that is not a string, an object or an array, is refused with 422.
-Abstention tasks (`POST /v1/abstention/tasks`) take no context: that route does not read the field.
+Abstention tasks (`POST /v1/abstention/tasks`) take no context: that route does not read the field (Limits, below).
 
 **The prompt.** The context is joined to the state by a blank line, as the state is joined to the question:
 - plain layout: the context, a blank line, the state, a blank line, the question and its options;
@@ -855,6 +856,8 @@ A state that is an object is rendered as `key: value` lines after the context, a
 The text is that of the same request whose state is the context, a blank line and the rendered state, built by the row builder every text engine shares (vLLM, and the HF and MLX engines, which inherit it).
 The tokens can differ in one place, the padding: a server that pads (the Qwen base on vLLM) sizes the pad so that the context's end, not the state's, falls on the cache block (below).
 So a request of a task with a context is not always the same prompt as the request that sends the context in its state, and their answers can differ slightly; on a server that does not pad (the Gemma bases, and MLX by default) the two are the same tokens.
+On MLX the same tokens are read in two steps, the context and then the rest of the prefix ([below](#the-context-in-the-prefix-cache)), and that arithmetic can make answers differ slightly from reading the same tokens in one step.
+On the Gemma 4 12B on a Mac, probabilities moved by a median of 6e-5 and at most 0.03, and no answer changed.
 
 ### The context in the prefix cache
 
@@ -883,7 +886,8 @@ The server finds where they end in each request's rows (the context boundary) an
   On vLLM, `x-decisio-prompt` counts the context in `cached` once it came from the cache.
   On MLX, `/health` counts the context entry's lookups in `prefix_cache.context_hits` and `context_misses`.
 - **A state that starts with whitespace** can merge with the context's blank line in the tokenizer, so its tokens do not start with the context's own.
-  Such a request is built as it would be without the context boundary (the pad sized from the state's end, as without a context) and reads the context again; the server logs it once per context.
+  Such a request is built as it would be without the context boundary (the pad sized from the state's end, as without a context) and reads the context again; the server logs it once per context, and the response's `context_boundary` counts it as `unaligned`.
+  The same holds, with a log line that names the chat template, when the template changes the start of the content so that the prompt does not start with the context's own tokens.
 
 **Identity.** The context's sha256 is part of the task's identity.
 - The same question registered with another context is another task, kept beside the first (one per context, per layout).
@@ -901,6 +905,10 @@ A request sent after the task was deleted finds no task, and its state is read a
 
 **Limits.**
 - A registration whose context, with the question and the template, is over the context window before any state is refused with 422.
+- **Abstention reads no context.** An abstention task's threshold is fitted on the state read alone, so a question answered through one is always read without a context: it gets only a task without a context of its question, and a `"task"` that names one with a context is refused with 422.
+  A request that mixes such a question with a question of a task with a context is refused as questions with different contexts are.
+  Registering an abstention task for a question that a task with a context asks is refused with 422 naming those tasks; register it for a question no such task asks, or delete them first.
+  A task with a context registered after an abstention task of its question does not change how the abstention question is read.
 - A row over the window is refused with 422 and where its tokens are: the header, the task's context, the state, the question.
   Under the header layout the header limit lists fewer questions first, as it does without a context (the context counts in the row).
 - `"over_limit": "truncate"` cuts the state only, never the context; a request whose context and questions alone are over the window is refused.

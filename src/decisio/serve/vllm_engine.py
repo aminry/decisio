@@ -173,8 +173,9 @@ class ContextBoundary:
     `tokens`: the rows' first tokens up to and including the context's blank line, pad tokens before it included; the
     same on every request of the task under one layout, so an engine keeps them in its prefix cache once (None: not
     found). `fallback`: why it was not found, and the request was built as one without the boundary would be:
-    "merge", the row's tokens do not start with the context's own tokens (the state's first characters merged with
-    the blank line before them, a state that starts with whitespace)."""
+    "merge", the state's first characters merged with the context's blank line (a state that starts with whitespace);
+    "template", the row does not start with the template's head and the context's own tokens (a chat template that
+    trims or rewrites the start of the content)."""
 
     tokens: int | None
     fallback: str | None = None
@@ -830,19 +831,31 @@ class LettersEngine:
         header = ""
         if self.fmt.layout == "header" and listed != 0:
             header = layout_header([q["instructions"] for q in questions][:listed])
-        ids = LettersEngine._prefix_ids(self, LettersEngine._template_head(self) + header + context + CONTEXT_SEP)
+        head = LettersEngine._template_head(self) + header + context
+        ids = LettersEngine._prefix_ids(self, head + CONTEXT_SEP)
         if len(ids) > n or rows[0][0][: len(ids)] != ids:
+            # why: the row does not even start with the template's head and the context's own tokens (the chat
+            # template or the tokenizer changed them: a template that trims the content), or it does and the state's
+            # first characters merged with the blank line after them (a state that starts with whitespace)
+            own = LettersEngine._prefix_ids(self, head)
+            cause = "merge" if rows[0][0][: len(own)] == own else "template"
+            why = {
+                "merge": "starts its state with characters the tokenizer merges with the context's blank line (a state "
+                "that starts with whitespace)",
+                "template": "has rows that do not start with the context's own tokens: the chat template or the "
+                "tokenizer changes the start of the content (a template that trims it, or a context that merges "
+                "with the text before it)",
+            }[cause]
             warned = self.__dict__.setdefault("_context_unaligned", set())
             digest = hashlib.sha256(context.encode()).hexdigest()[:12]
-            if digest not in warned:  # once per context in this process; each request's facts count it
-                warned.add(digest)
+            if (digest, cause) not in warned:  # once per context and cause in this process; each request counts it
+                warned.add((digest, cause))
                 print(
-                    f"decisio: a request of the task context sha256 {digest}... starts its state with characters the "
-                    "tokenizer merges with the context's blank line (a state that starts with whitespace); such a "
-                    "request is built as without the context boundary, and its context is not read from the cache",
+                    f"decisio: a request of the task context sha256 {digest}... {why}; such a request is built as "
+                    "without the context boundary, and its context is not read from the cache",
                     flush=True,
                 )
-            return ContextBoundary(None, "merge")
+            return ContextBoundary(None, cause)
         return ContextBoundary(len(ids))
 
     def _template_head(self):

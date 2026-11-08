@@ -567,3 +567,108 @@ def test_x4_the_selector_is_an_extension_field_and_must_be_a_string():
     r = ask(client, task=3)
     assert r.status_code == 422 and '"task" must be' in r.json()["detail"]
     assert ask(client, task=None).status_code == 200 and CRIT
+
+
+# ---- X12 ------------------------------------------------------------------------------------------------------------
+
+
+def abstention_examples(n=40):
+    """Labelled examples of the CRIT question for an abstention task whose declared abstain option is option_2."""
+    out = []
+    for i in range(n):
+        if i % 3 == 0:
+            out.append({"request": wire(f"2:0.{50 + i % 40}:{i}"), "answer": None})
+        else:
+            out.append({"request": wire(f"{i % 2}:0.{60 + i % 30}:{i}"), "answer": f"option_{i % 2}"})
+    return out
+
+
+def register_abstention(client, id="abs"):
+    body = {"id": id, "option": {"key": "option_2"}, "match": "option_set", "examples": abstention_examples()}
+    return client.post("/v1/abstention/tasks", json=body)
+
+
+def test_x12_an_abstention_task_is_refused_on_a_question_that_a_context_task_asks():
+    client, so, _ = make()
+    assert post_task(client, {"id": "a", "examples": examples(40, 0.9), "context": CONTEXT}).status_code == 200
+    r = register_abstention(client)
+    assert r.status_code == 422 and "context" in r.json()["detail"] and "'a'" in r.json()["detail"]
+    # two tasks with a context and none without: the same refusal, not a request for "task" it cannot carry
+    assert post_task(client, {"id": "b", "examples": examples(40, 0.9), "context": OTHER}).status_code == 200
+    r = register_abstention(client)
+    assert r.status_code == 422 and "context" in r.json()["detail"] and '"task"' not in r.json()["detail"]
+    assert "abs" not in so.tasks
+
+
+def test_x12_an_abstention_question_is_never_read_with_a_context_or_through_a_context_task():
+    client, so, eng = make()
+    assert register_abstention(client).status_code == 200  # fitted on reads without a context
+    # a context task of the same question registered afterwards
+    assert post_task(client, {"id": "a", "examples": examples(40, 0.9), "context": CONTEXT}).status_code == 200
+    r = ask(client, "0:0.95:x")
+    assert r.status_code == 200, r.text
+    assert eng.states[-1] == {"message": "0:0.95:x"}  # the bare state, as the threshold was fitted on
+    assert "x-decisio-tasks" not in r.headers  # not answered through the context task
+    r = ask(client, "0:0.95:x", task="a")  # naming the context task does not read the context either
+    assert r.status_code == 422 and "abstention" in r.json()["detail"]
+
+
+def test_x12_an_abstention_question_of_the_requests_own_layout_is_not_sent_to_another_layout():
+    eng = RowEngine("plain")
+    client, so = server(eng, "plain")
+    assert post_task(client, {"id": "a", "examples": examples(12, 0.9), "context": CONTEXT}).status_code == 200
+    task = {"id": "img", "option": {"append": "can't tell"}, "match": {"imajev_extension": True}}
+    so.tasks = {"img": {**task, "config": {"applied": True, "threshold": 0.5}}}
+    eng.scored.clear()
+    r = client.post("/v1/systemone", json={**wire("0:0.9:x"), "images": []})  # imajev's extension, text route
+    assert r.status_code == 200, r.text  # not a 422 asking for the plain layout this request is already read under
+    assert CONTEXT not in eng.tok.decode(eng.scored[-1])
+    # a context task fitted under the other layout still refuses a plain request without an abstention plan
+    other = RowEngine("plain")
+    c2, so2 = server(other, "plain")
+    assert (
+        post_task(c2, {"id": "h", "examples": examples(12, 0.9), "context": CONTEXT, "layout": "header"}).status_code
+        == 200
+    )
+    r = c2.post("/v1/systemone", json=wire("0:0.9:x"))
+    assert r.status_code == 422 and r.json()["detail"] == CONTEXT_ELSEWHERE.format(
+        id="h", layout="header", request_layout="plain"
+    )
+
+
+# ---- X13 ------------------------------------------------------------------------------------------------------------
+
+
+def test_x13_a_record_with_a_context_has_the_new_format_and_one_without_keeps_the_old():
+    from decisio.serve.tasks import CONTEXT_FORMAT, FORMAT
+
+    client, so, _ = make()
+    assert post_task(client, {"id": "a", "examples": examples(40, 0.9), "context": CONTEXT}).status_code == 200
+    assert post_task(client, {"id": "p", "examples": examples(40, 0.9)}).status_code == 200
+    assert FORMAT == "decisio-task/1" and CONTEXT_FORMAT == "decisio-task/2"
+    full = {t["id"]: t for t in client.get("/v1/tasks?full=1").json()["tasks"]}
+    assert full["a"]["format"] == CONTEXT_FORMAT and full["p"]["format"] == FORMAT
+    # both load again; a format the store does not know is refused, as an earlier server refuses decisio-task/2
+    again = TaskStore("fp")
+    again.load(list(full.values()))
+    assert again.by_id("a")["format"] == CONTEXT_FORMAT
+    for fmt in ("decisio-task/3", None):
+        with pytest.raises(ValueError, match="format"):
+            TaskStore("fp").load([{**full["p"], "format": fmt}])
+    # the format and the context go together
+    with pytest.raises(ValueError, match="context"):
+        TaskStore("fp").load([{**full["a"], "format": FORMAT}])
+    with pytest.raises(ValueError, match="context"):
+        TaskStore("fp").load([{**full["p"], "format": CONTEXT_FORMAT}])
+
+
+# ---- X14 ------------------------------------------------------------------------------------------------------------
+
+
+def test_x14_the_context_is_stored_and_hashed_without_its_outer_whitespace():
+    client, so, eng = make()
+    r = post_task(client, {"id": "a", "examples": examples(40, 0.9), "context": f"\n  {CONTEXT} \n\n"})
+    assert r.status_code == 200, r.text
+    stored = so.task_store.by_id("a")["context"]
+    assert stored["text"] == CONTEXT and stored["sha256"] == hashlib.sha256(CONTEXT.encode()).hexdigest()
+    assert ask(client).status_code == 200 and eng.states[-1] == read_with(CONTEXT, {"message": "0:0.95:x"})

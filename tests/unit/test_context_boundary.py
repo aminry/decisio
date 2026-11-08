@@ -487,3 +487,49 @@ def test_b8_the_intent_heads_read_registers_the_context_as_the_letters_path_does
     # a state without a context: no context facts
     head.readout("no context here", Q2)
     assert head.read_info() is None
+
+
+class TrimTok(StubTok):
+    """The stand-in tokenizer with a chat template that trims the start of the content, as some templates do."""
+
+    def apply_chat_template(self, messages, add_generation_prompt=False, tokenize=False, enable_thinking=None):
+        out = "".join(f"<{m['role']}>\n{m['content'].lstrip()}<end>\n" for m in messages)
+        return out + ("<model>\n" if add_generation_prompt else "")
+
+
+def test_b4_a_context_the_template_changes_is_built_as_without_the_boundary_and_says_why(capsys):
+    from test_layout_flags import engine
+
+    eng = engine(PromptFormat(layout="plain"), TrimTok(), "always")
+    eng.pad_unit, eng.pad_where = 16, "front"
+    read = context_state(" " + CONTEXT, "a state")  # registration strips it; a context with outer space, read as is
+    prepared = eng._prepare_separate(read, Q1)
+    assert prepared.context == ContextBoundary(None, "template")
+    out = capsys.readouterr().out
+    assert "chat template" in out and "starts with whitespace" not in out
+
+
+def test_b5_a_header_limited_to_fewer_questions_keeps_the_tokens_and_the_boundary_has_the_listed_lines():
+    from decisio.readout.letters import layout_header
+
+    third = [{"kind": "noul", "instructions": "Does the customer ask for a refund of the whole order?"}]
+    questions = Q1 + Q2 + third
+    eng = stub_engine(layout="header")
+    eng.prompt_limit = lambda: 10**6
+    cap = len(eng.tok.encode(layout_header([questions[0]["instructions"]])))  # room for the first line only
+    eng.header_limit_setting = ("auto", cap)
+    boundaries = set()
+    for state in ("one state", "another state entirely"):
+        read = context_state(CONTEXT, state)
+        plan = eng.header_plan(read, questions)
+        assert plan["limited"] and plan["listed"] == 1
+        prepared = eng._prepare_separate(read, questions)
+        # the same tokens as the request that carries the context in its state, under the same limited header
+        assert prepared == eng._prepare_separate(str(read), questions)
+        C = prepared.context.tokens
+        head = eng.tok.decode(prepared[0][0][0][:C])
+        assert head.endswith(CONTEXT + CONTEXT_SEP) and QUESTIONS_HEAD in head
+        assert questions[0]["instructions"] in head
+        assert all(q["instructions"] not in head for q in questions[1:])  # only the listed line
+        boundaries.add(tuple(prepared[0][0][0][:C]))
+    assert len(boundaries) == 1  # one boundary for every state of the task

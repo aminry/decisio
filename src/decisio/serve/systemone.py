@@ -1204,9 +1204,15 @@ class SystemOne:
                     f"adapter {adapter!r}: the question matches the registered task(s) {clash}, which were fitted on "
                     "the base's readout; ask without the adapter, or delete the task"
                 )
-        # per-task calibration and head: the registered task of each text-route question (None when there is none)
+        # per-task calibration and head: the registered task of each text-route question (None when there is none). A
+        # question answered through an abstention task (a declared abstain option) gets only a task without a context:
+        # its threshold was fitted on the state read alone, so it is never read with a context (docs/tasks.md)
         rts = [
-            self.readout_task(q, selected) if not use_image and not (plans[i] and plans[i][2]) and not abstain else None
+            None
+            if use_image or (plans[i] and plans[i][2]) or abstain
+            else self.abstention_readout_task(q, selected, imajev_ext)
+            if plans[i]
+            else self.readout_task(q, selected)
             for i, q in enumerate(wire)
         ]
         if selected is not None and not any(t is selected for t in rts):
@@ -1221,7 +1227,8 @@ class SystemOne:
         if context is not None:
             warning = self.context_twice(next(t for t in rts if t is not None), req.state, context)
         elif not use_image:
-            self.refuse_context_elsewhere(wire, rts)
+            # a question answered through an abstention task reads no context, whatever tasks ask it
+            self.refuse_context_elsewhere(wire, rts, skip={i for i, pl in enumerate(plans) if pl or abstain})
         cut = None
         truncate = (over_limit or self.over_limit) == "truncate" and not use_image
         if truncate:
@@ -1592,6 +1599,38 @@ class SystemOne:
             keys.append(dynamic.task_key(render_text(q.instructions)))
         return keys
 
+    def context_tasks_of(self, q) -> list:
+        """The tasks with a context that ask question q under the layout in effect."""
+        store = self.task_store
+        if not self.tasks_enabled or store is None or not store.by_key:
+            return []
+        return [t for key in self.question_keys(q) for t in store.matches(key) if context_sha(t)]
+
+    def plain_readout_task(self, q):
+        """The task without a context that question q finds under the layout in effect, or None: what an abstention
+        question is answered through, at registration and in serving (it reads no context)."""
+        store = self.task_store
+        if not self.tasks_enabled or store is None or not store.by_key:
+            return None
+        for key in self.question_keys(q):
+            plain = [t for t in store.matches(key) if not context_sha(t)]
+            if plain:
+                return plain[0]
+        return None
+
+    def abstention_readout_task(self, q, selected, imajev_ext: bool):
+        """`plain_readout_task` for a question of a request answered through an abstention task (a declared abstain
+        option); the request's `"task"` applies when it is that task, and is refused (TaskSelectionError) when it names
+        a task with a context that asks the question."""
+        if selected is not None and selected["key"] in self.question_keys(q):
+            if context_sha(selected):
+                raise TaskSelectionError(
+                    f'"task": {selected["id"]!r} reads a context, and this question is answered through the abstention '
+                    f'task {self.task_for(q, imajev_ext)["id"]!r}, which reads none; ask without "task"'
+                )
+            return selected
+        return self.plain_readout_task(q)
+
     def readout_task(self, q, selected=None):
         """The registered task a text-route question is answered through, or None: the one place a question finds its
         task. `selected` (`selected_task`, a request's `"task"`): that task, when q asks its question; otherwise the
@@ -1609,18 +1648,26 @@ class SystemOne:
                 return t
         return None
 
-    def refuse_context_elsewhere(self, wire, rts):
+    def refuse_context_elsewhere(self, wire, rts, skip=()):
         """Refuse (TaskSelectionError, a 422) a request whose question has no task under the request's layout but a task
         with a context under the other one (`CONTEXT_ELSEWHERE`): the context is the task's instruction, so the request
-        is never read without it; the message names the layout to send."""
+        is never read without it; the message names the layout to send. `skip`: the indices of questions answered
+        through an abstention task, which read no context."""
         store = self.task_store
         if not self.tasks_enabled or store is None or not store.by_key:
             return
-        for q, t in zip(wire, rts):
-            if t is not None:
+        for i, (q, t) in enumerate(zip(wire, rts)):
+            if t is not None or i in skip:
                 continue
             for key in self.question_keys(q):
-                other = next((x for x in store.of_question(key) if context_sha(x) and store.layout_of(x)), None)
+                other = next(
+                    (
+                        x
+                        for x in store.of_question(key)
+                        if context_sha(x) and store.layout_of(x) not in (None, self.request_layout)
+                    ),
+                    None,
+                )
                 if other is not None:
                     raise TaskSelectionError(
                         CONTEXT_ELSEWHERE.format(
@@ -2403,8 +2450,9 @@ class SystemOne:
 
     def with_readout_task(self, state, q, eq, p):
         """A text-route question's order-1 distribution as served: its registered task's head or calibration applied to
-        the plain readout p (for abstention examples, so a threshold is fitted on what it will decide)."""
-        t = self.readout_task(q)
+        the plain readout p (for abstention examples, so a threshold is fitted on what it will decide). Only a task
+        without a context applies, as in serving: an abstention question reads no context."""
+        t = self.plain_readout_task(q)
         if t is None:
             return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
         if t["head"].get("applied") and self.hidden_engine is not None:
@@ -3250,6 +3298,13 @@ class SystemOne:
         if len(req.questions) != 1:
             raise ValueError("an abstention example carries exactly one question")
         ((name, q),) = req.questions.items()
+        ctx = [] if images else self.context_tasks_of(q)
+        if ctx:
+            raise ValueError(
+                f"the question is asked by the task(s) {sorted(t['id'] for t in ctx)} with a context, and an "
+                "abstention task reads none (its threshold is fitted and served on the state alone); register it for a "
+                "question no task with a context asks, or delete those tasks first"
+            )
         eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
         engine = self.image_engine if images else self.engine
         run = (

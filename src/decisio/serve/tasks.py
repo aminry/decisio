@@ -49,6 +49,9 @@ from decisio.serve import layout
 from decisio.serve.monitor import MixMonitor
 
 FORMAT = record_format("task")
+# a task with a context: a server that does not know contexts refuses the record (its format check) rather than load it
+# into the question's plain slot and serve it without its context; a task without one keeps FORMAT
+CONTEXT_FORMAT = "decisio-task/2"
 CERTIFICATE_FORMAT = record_format("certificate")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 
@@ -91,7 +94,8 @@ def serialise_context(value) -> str:
         text = json.dumps(value, separators=(",", ":"), ensure_ascii=False)
     else:
         raise ValueError("context: a string, an object or an array (objects and arrays are read as compact JSON)")
-    if not text.strip():
+    text = text.strip()  # the outer whitespace is not part of the context: a chat template may trim it
+    if not text:
         raise ValueError("context: an empty text; register the task without one")
     return text
 
@@ -392,6 +396,8 @@ class TaskStore:
         once it has finished with the record, and rolls back with `rollback` if that fails)."""
         if task.get("certificate"):  # the certificate names the fit it was made for; recomputed here, never trusted
             task["fit_sha256"] = fit_digest(task)
+        if task.get("context") is not None:
+            task["format"] = CONTEXT_FORMAT
         if persist:
             self.persist_task(task)
         # the new record goes in before the old one goes out, so a reader never finds the task missing (a replica
@@ -472,12 +478,19 @@ class TaskStore:
 
     def load(self, tasks, persist: bool = True):
         """Load task records as `public(task, full=True)` writes them; records written before the rename (the `rlcd-*/1`
-        formats) load unchanged. A record of another kind is refused before anything is stored. With a backend they are
-        saved as they load (`persist=False`: they came from it); one that cannot be saved stops the load, the ones
-        before it stay loaded and saved."""
+        formats) load unchanged; a task with a context has CONTEXT_FORMAT, and only it. A record of another kind is
+        refused before anything is stored. With a backend they are saved as they load (`persist=False`: they came from
+        it); one that cannot be saved stops the load, the ones before it stay loaded and saved."""
         for t in tasks:
             what = f"task {t.get('id')!r}" if isinstance(t, dict) else "task"
-            check_format(t, "task", what)
+            has_context = isinstance(t, dict) and t.get("context") is not None
+            got = t.get("format") if isinstance(t, dict) else None
+            if has_context and got != CONTEXT_FORMAT:
+                raise ValueError(f"{what}: a task with a context has the format {CONTEXT_FORMAT!r}, not {got!r}")
+            if not has_context and got == CONTEXT_FORMAT:
+                raise ValueError(f"{what}: the format {CONTEXT_FORMAT!r} is a task with a context, and it has none")
+            if not has_context:
+                check_format(t, "task", what)
             check_format(t.get("calibration"), "task-prior", f"{what}, calibration")
             check_format(t.get("head"), "intent-head", f"{what}, head")
             if t.get("dynamic") is not None:
