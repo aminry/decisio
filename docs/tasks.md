@@ -866,6 +866,7 @@ A request that names none gets the one without a context, which is what such a r
 `"task"` is refused with 422 for an unknown id, for a task that asks none of the request's questions, for a task fitted under the other layout than the request's (the message names the layout to send), and on the image route; `x-decisio-tasks` says which task answered.
 The questions of one request share one read of the state, so they share one context: a request whose questions' tasks have different contexts, or that mixes a question of a task with a context and one read without, is refused with 422; send them as separate requests.
 A request read under a layout the task was not fitted under, or sent after the task was deleted, finds no task with a context, and its state is read as sent, without one.
+When its question has a task with a context under the other layout, the response says so in `x-decisio-warning` (`task 'id' has a context and is fitted under the header layout; this request was read without it`), logged once per task: send the request with that `layout`.
 
 **Limits.**
 - A registration whose context, with the question and the template, is over the context window before any state is refused with 422.
@@ -887,7 +888,6 @@ The export (`GET /v1/tasks?full=1`) holds the text, since an import needs it.
 
 **A client that still sends the context in its state** gets it twice: the server cannot tell the context from a state that quotes it, so it reads both, which costs tokens and is not the prompt the task was fitted on.
 A state that starts with the task's context (after the same serialisation, leading whitespace aside) is served as sent, with the response header `x-decisio-warning: state starts with the task's context; send only the varying part`, and the server logs it at warning level once per task.
-A request read under the other layout than a context task's, naming no task, finds no task of its layout and is read without the context; the response says so in `x-decisio-warning` (`task 'id' has a context and is fitted under the header layout; this request was read without it`). Send it with that task's `layout`, or name the task.
 A context repeated elsewhere in the state is not detected.
 When you move a client to a task with a context, register the task first, then drop the context from the state the client sends.
 

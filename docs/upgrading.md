@@ -21,6 +21,7 @@ How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](ap
   An unknown id, a task of another question or of the other layout, the image route and `/v1/answer` answer the field with 422; so does a registration example that carries it.
 - **The questions of one request share one context**: mixing questions of tasks with different contexts, or with and without one, is 422.
 - **A state that starts with its task's context** is served as sent, with the new header `x-decisio-warning`, logged once per task.
+- **A request read under the other layout than its question's context task** is read without the context, with `x-decisio-warning` naming the task and its layout, logged once per task.
 - **Limits count the context**: a context over the window before any state refuses the registration, a row over it is 422 with the context named, and truncation cuts the state only.
 - **Status shows the context's sha256 and length, never its text**: the task, the listing and `/health`'s `readout_tasks`; the export holds the text.
 

@@ -145,7 +145,7 @@ Response headers:
 - `x-decisio-server-ms`: the server's time for the request, from the route receiving it to the response: reading and validating the body, loading its images, and every read, including a certified task's questions and the intent head's.
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
-- `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part` ([tasks.md](tasks.md#task-context)); absent otherwise.
+- `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part`, or `task '<id>' has a context and is fitted under the <layout> layout; this request was read without it` ([tasks.md](tasks.md#task-context)); absent otherwise.
 - `x-decisio-adapter`: the adapter that answered, when one did.
 - `x-decisio-think-ms`, `x-decisio-think-tokens`: the milliseconds spent on reasoning and the second reads, and the reasoning tokens generated, when thinking was on for the request.
 - `x-decisio-state-truncated`: `kept=N; of=M; part=start`, when the state was cut (`over_limit`, above); absent otherwise.

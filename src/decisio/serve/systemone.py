@@ -1603,7 +1603,12 @@ class SystemOne:
             for key in self.question_keys(q):
                 other = next((x for x in store.of_question(key) if context_sha(x) and store.layout_of(x)), None)
                 if other is not None:
-                    return CONTEXT_ELSEWHERE.format(id=other["id"], layout=store.layout_of(other))
+                    warning = CONTEXT_ELSEWHERE.format(id=other["id"], layout=store.layout_of(other))
+                    warned = self.__dict__.setdefault("_context_warned", set())
+                    if ("elsewhere", other["id"]) not in warned:
+                        warned.add(("elsewhere", other["id"]))
+                        logger.warning("%s", warning)
+                    return warning
         return None
 
     def selected_task(self, task_id):
