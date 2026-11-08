@@ -6,7 +6,7 @@ decisio server, checked in the source (no vLLM, no model):
 X1  every `SamplingParams(...)` sets `max_tokens=1` and none sets `min_tokens` (GHSA-4xqp-c3mv-qff7), except `think`
     (think when unsure), whose `max_tokens` is its `budget` argument, a server setting validated to 16..4096 and never
     a request field
-X2  every sampling call sets `allowed_token_ids` except the prefix warm-up (`send_warm`), the health probe and `think`
+X2  every sampling call sets `allowed_token_ids` except the warm-up (`_prefill`), the health probe and `think`
     (free text), the requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
 X3  no source names `mm_processor_kwargs`, `trust_remote_code`, `min_tokens` or vLLM's entrypoints, and decisio never
     starts `vllm serve` (GHSA-h3rc-6mm3-gc2m, GHSA-4xqp-c3mv-qff7)
@@ -19,7 +19,8 @@ import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "decisio"
-UNCONSTRAINED = {"send_warm", "probe", "think"}
+# the warm-up (`send_warm`, whose engine call is `_prefill`), the probe, and thinking
+UNCONSTRAINED = {"_prefill", "probe", "think"}
 FREE_LENGTH = {"think"}  # the one call that writes text; its length is `budget`, a validated server setting
 
 
@@ -50,7 +51,7 @@ def unique_calls():
 
 def test_X0_the_source_has_sampling_calls():
     names = {n for _, n, _ in unique_calls()}
-    assert {"score_prompts", "send_warm", "probe"} <= names, names
+    assert {"score_prompts", "_prefill", "probe"} <= names, names
 
 
 def test_X1_max_tokens_is_one_and_min_tokens_is_never_set():
