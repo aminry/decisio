@@ -45,7 +45,7 @@ from decisio.readout.letters import CONTEXT_SEP, QUESTIONS_HEAD, fmt_state
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
 from decisio.serve import task_backends as TB
-from decisio.serve.systemone import CONTEXT_TWICE, SystemOne, SystemOneRequest, add_routes
+from decisio.serve.systemone import CONTEXT_ELSEWHERE, CONTEXT_TWICE, SystemOne, SystemOneRequest, add_routes
 from decisio.serve.tasks import TaskStore, fit_digest
 
 CONTEXT = "Refund policy: a refund is due within thirty days of purchase, for any reason, once per customer."
@@ -281,8 +281,10 @@ def test_x4_a_task_of_the_other_layout_is_refused_and_says_which_layout():
     r = ask(client, task="h", layout="header")
     assert r.status_code == 200 and r.headers["x-decisio-tasks"] == "h"
     assert eng.states[-1] == read_with(CONTEXT, {"message": "0:0.95:x"})
-    r = ask(client)  # the plain request finds no task of its layout: decisio's own read, no context
+    r = ask(client)  # the plain request finds no task of its layout: decisio's own read, no context, and a warning
     assert r.status_code == 200 and "x-decisio-tasks" not in r.headers
+    assert r.headers["x-decisio-warning"] == CONTEXT_ELSEWHERE.format(id="h", layout="header")
+    assert eng.states[-1] == {"message": "0:0.95:x"}
 
 
 def test_x4_the_engines_route_takes_no_task():

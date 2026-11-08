@@ -183,6 +183,10 @@ class SystemOneRequest(BaseModel):
 
 # the warning of a request whose state already starts with its task's context (x-decisio-warning)
 CONTEXT_TWICE = "state starts with the task's context; send only the varying part"
+# the warning of a request read without the context of the task its question has under the other layout
+CONTEXT_ELSEWHERE = (
+    "task {id!r} has a context and is fitted under the {layout} layout; this request was read without it"
+)
 
 
 # ---- mapping --------------------------------------------------------------------------------------------------------
@@ -1214,6 +1218,8 @@ class SystemOne:
         warning = None
         if context is not None:
             warning = self.context_twice(next(t for t in rts if t is not None), req.state, context)
+        elif not use_image:
+            warning = self.context_elsewhere(wire, rts)
         cut = None
         truncate = (over_limit or self.over_limit) == "truncate" and not use_image
         if truncate:
@@ -1582,6 +1588,22 @@ class SystemOne:
             t = self.task_store.lookup(key)
             if t is not None:
                 return t
+        return None
+
+    def context_elsewhere(self, wire, rts):
+        """The warning of a request whose question has no task under the request's layout but a task with a context
+        under the other one (`CONTEXT_ELSEWHERE`), else None: the client likely sent only the varying part, and the
+        state was read without the context."""
+        store = self.task_store
+        if not self.tasks_enabled or store is None or not store.by_key:
+            return None
+        for q, t in zip(wire, rts):
+            if t is not None:
+                continue
+            for key in self.question_keys(q):
+                other = next((x for x in store.of_question(key) if context_sha(x) and store.layout_of(x)), None)
+                if other is not None:
+                    return CONTEXT_ELSEWHERE.format(id=other["id"], layout=store.layout_of(other))
         return None
 
     def selected_task(self, task_id):
