@@ -511,7 +511,7 @@ class Version:
     """A promoted table: its record, threshold and certificate, as stored (`d`). Never changed once made."""
 
     __slots__ = ("d", "number", "kind", "features", "record", "threshold", "alpha", "certificate_kind", "cert_id",
-                 "saving", "low_share", "stack")  # fmt: skip
+                 "saving", "low_share", "low_below", "stack")  # fmt: skip
 
     def __init__(self, d: dict):
         self.d = d
@@ -526,6 +526,9 @@ class Version:
         self.cert_id = d["certificate"]["id"]
         self.saving = d["guard"]["saving"]
         self.low_share = d["low_share"]
+        # a yes/no version under --noul-commit: the confidence before the rule under which a table output counts as
+        # low for the guard (`Learner._refit`); None (every other version): an output under the threshold is low
+        self.low_below = d.get("low_below")
         self.stack = d["stack"]
 
 
@@ -735,22 +738,31 @@ class Learner:
             self.table_answers += 1
             return self.table_answers % FT.SAMPLE_EVERY == 0
 
-    def observe_confidence(self, v: Version, sure: bool) -> None:
-        """The low-confidence-share guard: one request the live table read."""
+    def observe_confidence(self, v: Version, sure: bool, raw: float | None = None) -> None:
+        """The low-confidence-share guard: one request the live table read. `sure`: its confidence reached the
+        threshold. `raw`: its top probability before --noul-commit, which a yes/no version under the rule
+        (`v.low_below`) counts low on: the committed confidences are never under 0.80, so with a threshold at the
+        band's edge no output would ever be low and the guard could not fire."""
+        low = (raw < v.low_below) if v.low_below is not None and raw is not None else not sure
         with self.lock:
             if self.live is not v:
                 return
             self.evaluated += 1
             self.would_answer += bool(sure)
-            self.low.append(not sure)
+            self.low.append(bool(low))
             if len(self.low) == LOWCONF_WINDOW:
                 share = sum(self.low) / LOWCONF_WINDOW
                 if share > v.low_share + LOWCONF_MARGIN:
+                    under = (
+                        "the threshold"
+                        if v.low_below is None
+                        else f"{v.low_below:.4g} before the --noul-commit rule (in its band or under the threshold)"
+                    )
                     self.suspend(
                         "low_confidence_share",
-                        f"{share:.0%} of the last {LOWCONF_WINDOW} requests had a table confidence under the "
-                        f"threshold, against {v.low_share:.0%} on the certificate's rows (alarm above "
-                        f"+{LOWCONF_MARGIN:.0%}): the traffic moved away from what the table learned",
+                        f"{share:.0%} of the last {LOWCONF_WINDOW} requests had a table confidence under {under}, "
+                        f"against {v.low_share:.0%} on the certificate's rows (alarm above +{LOWCONF_MARGIN:.0%}): the "
+                        "traffic moved away from what the table learned",
                     )
 
     def observe_check(self, v: Version, disagree: bool) -> None:
@@ -958,16 +970,25 @@ class Learner:
             # independently of the table, with the times this host took on them, where there are enough of them (a
             # gold certificate's labelled rows were timed at registration, on traffic that may not be like them)
             if ckind == "gold" and int(ci.sum()) >= need:
-                cT_t = FT.top_confidence(FT.predict(rec, rows[f"f_{s}"][ci].astype(np.float32)), self.commit_band)
+                P_t = FT.predict(rec, rows[f"f_{s}"][ci].astype(np.float32))
+                cT_t = FT.top_confidence(P_t, self.commit_band)
                 ms_t, ms_d = rows[f"ms_{s}"][ci].astype(float), rows["ms_decisio"][ci].astype(float)
                 timed_on = "traffic"
             else:
-                cT_t, timed_on = cT, ("traffic" if ckind == "agreement" else "labelled")
+                P_t, cT_t, timed_on = P, cT, ("traffic" if ckind == "agreement" else "labelled")
             by_t = cT_t >= thr if holds else np.zeros(len(cT_t), bool)
             guard = FT.timing_guard(ms_t + predict_ms, ms_d, float(by_t.mean()) if len(by_t) else 0.0, self.min_saving,
                                     deferred=~by_t)  # fmt: skip
             guard["timed_on"] = timed_on
-            low_share = float((cT_t < thr).mean()) if holds and len(cT_t) else 1.0
+            # the low-confidence guard's share. Under --noul-commit a yes/no table's committed confidences are never
+            # under the band's edge, so a threshold there would leave no output low: the guard reads the confidence
+            # before the rule instead, low under the threshold or inside the band (under max(threshold, hi))
+            low_below = None
+            if self.commit_band is not None and holds:
+                low_below = float(max(thr, self.commit_band[1]))
+                low_share = float((P_t.max(axis=1) < low_below).mean()) if len(P_t) else 1.0
+            else:
+                low_share = float((cT_t < thr).mean()) if holds and len(cT_t) else 1.0
             c.update(
                 record=rec,
                 holds=holds,
@@ -975,6 +996,7 @@ class Learner:
                 saving=guard["saving"],
                 guard=guard,
                 low_share=low_share,
+                low_below=low_below,
                 certificate={
                     "kind": ckind,
                     "procedure": certify.PROCEDURE,
@@ -1068,6 +1090,7 @@ class Learner:
                 "certificate": cert,
                 "guard": c["guard"],
                 "low_share": c["low_share"],
+                **({"low_below": c["low_below"]} if c.get("low_below") is not None else {}),
                 "stack": stack,
                 "promoted_at": self.m.now(),
                 "fit_rows": c["fit_rows"],
@@ -1159,6 +1182,7 @@ class Learner:
                 "requests": len(low),
                 "share": sum(low) / len(low) if low else None,
                 "certified_share": v.low_share if v is not None else None,
+                **({"below_before_commit": v.low_below} if v is not None and v.low_below is not None else {}),
                 "margin": LOWCONF_MARGIN,
                 "alarm": bool(self.suspended and self.suspended.get("alarm") == "low_confidence_share"),
             },

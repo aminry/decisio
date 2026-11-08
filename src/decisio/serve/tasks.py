@@ -58,8 +58,9 @@ MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get
 
 def check_table_settings(rec: dict, what: str) -> None:
     """A stored fast table's settings, checked where a record is loaded or imported: its `min_saving` (when it has one)
-    in `fast_table.MIN_SAVING_RANGE`, and a yes/no table's calibration temperature in `fast_table.TEMPERATURES`, so a
-    bad record is refused at load and never fails every request of its task. ValueError says which."""
+    in `fast_table.MIN_SAVING_RANGE`, a yes/no table's commit band, and its calibration temperature in
+    `fast_table.TEMPERATURES`, so a bad record is refused at load and never fails every request of its task.
+    ValueError says which."""
     from decisio.serve import fast_table as FT
 
     if rec.get("min_saving") is not None:
@@ -67,6 +68,15 @@ def check_table_settings(rec: dict, what: str) -> None:
             FT.parse_min_saving(rec["min_saving"])
         except ValueError as e:
             raise ValueError(f"{what}: {e}") from None
+    if rec.get("commit_band") is not None:  # a yes/no table's --noul-commit band: (lo, hi) inside (0, 1), or null
+        b = rec["commit_band"]
+        nums = (
+            isinstance(b, list)
+            and len(b) == 2
+            and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in b)
+        )
+        if not nums or not 0 < b[0] < 0.5 < b[1] < 1:
+            raise ValueError(f"{what}: commit_band is null or [lo, hi] with 0 < lo < 0.5 < hi < 1, not {b!r}")
     cal = rec.get("calibration")
     if cal is not None:
         t = cal.get("temperature") if isinstance(cal, dict) else None

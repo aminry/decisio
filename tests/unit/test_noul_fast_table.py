@@ -717,3 +717,205 @@ def test_y9_an_imported_table_with_a_bad_bar_or_temperature_is_refused_at_import
     body = json.dumps({"tasks": full}, allow_nan=True)
     r = other.post("/v1/tasks/import", content=body, headers={"content-type": "application/json"})
     assert r.status_code == 422 and ("min_saving" in r.text or "temperature" in r.text), r.text
+
+
+# ---- review round 2 -------------------------------------------------------------------------------------------------
+
+
+def learned_under_the_rule(client, so, n=1500, seed=0):
+    """A learning yes/no task on a server with the commit rule, its version 1 live, its threshold at the band's edge:
+    every text says its answer, one in four in one word only (so some of the table's outputs fall inside the band), and
+    decisio, right and sure, agrees with it."""
+    r = client.post("/v1/tasks", json={"id": "angry", "question": QUESTION, "fast_table": {"learn": True}})
+    assert r.status_code == 200, r.text
+    rng = np.random.default_rng(seed)
+    for _ in range(n):
+        yes = bool(rng.random() < 0.5)
+        words = 4 if rng.random() < 0.75 else 1
+        ask(client, state(yes, float(np.clip(rng.normal(0.93, 0.03), 0.6, 0.995)), body(yes, rng, words)))
+    so.learning.drain()
+    out = so.learning.refit_task("angry")
+    assert out["outcome"] == "promoted", out
+    return so.learning.learners["angry"]
+
+
+def drifted(v, n, seed=1):
+    """n states on which the learned version's P(yes) is between 0.4 and 0.6 (a yes word and a no word among fillers),
+    decisio sure on the table's own side (so no check disagrees)."""
+    rng = np.random.default_rng(seed)
+    out = []
+    while len(out) < n:
+        text = " ".join([str(rng.choice(YES_WORDS)), str(rng.choice(NO_WORDS)), *rng.choice(FILLER, 6, replace=False)])
+        p = float(FT.predict(v.record, fake_static_embed("base", [text]))[0, 0])
+        if 0.4 < p < 0.6:
+            out.append(state(p > 0.5, 0.95, text))
+    return out
+
+
+def test_y10_a_learned_yes_no_tables_low_confidence_guard_fires_under_the_rule():
+    # without the fix: every committed confidence is 0.80 or more, the threshold sits at 0.80, no output is ever low,
+    # and drifted traffic at P(yes) 0.4 to 0.6 stays answered and certified by the table
+    client, so, _ = make(commit=True)
+    L = learned_under_the_rule(client, so)
+    v = L.live
+    assert v.threshold == COMMIT_HI and v.low_below == COMMIT_HI  # the band's edge: the guard reads before the rule
+    assert v.low_share < 0.5
+    L.explore = 0.0
+    sent = drifted(v, FTL.LOWCONF_WINDOW + 10)
+    first = ask(client, sent[0])
+    assert first["answered_by"] == "table" and first["noul"] in (COMMIT_LO, COMMIT_HI) and first["certified"] is True
+    for s in sent[1:]:
+        ask(client, s)
+    assert L.suspended and L.suspended["alarm"] == "low_confidence_share", L.facts()["guards"]
+    assert "before the --noul-commit rule" in L.suspended["reason"]
+    assert ask(client, sent[0])["answered_by"] == "decisio"  # suspended: decisio answers
+    g = L.facts()["guards"]["low_confidence_share"]
+    assert g["alarm"] and g["below_before_commit"] == COMMIT_HI
+
+
+def test_y10_without_the_rule_a_learned_yes_no_tables_guard_reads_as_a_choice_tables():
+    client, so, _ = make(commit=False)
+    L = learned_under_the_rule(client, so)
+    assert L.live.low_below is None and "low_below" not in L.live.d
+
+
+def test_y11_a_labelled_yes_no_table_records_its_band_and_is_not_used_under_another(tmp_path):
+    # without the fix: restarted with the rule switched, the table answers P(yes) 0.55 as a sure 0.80 under a threshold
+    # made with the rule off (or reads a threshold made on committed confidences without the rule)
+    a, so_a, ba = make(commit=True, tasks_dir=tmp_path / "d")
+    t = register(a).json()
+    assert t["fast_table"]["commit_band"] == [COMMIT_LO, COMMIT_HI]
+    assert ask(a, CLEAR_YES)["answered_by"] == "table"
+    ba.close()
+    b, so_b, bb = make(commit=False, tasks_dir=tmp_path / "d")
+    st = b.get("/v1/tasks/angry").json()["status"]
+    assert st["state"] == "suspended" and st["fast_table"]["state"] == "unavailable", st
+    assert "--noul-commit on and this server runs with it off" in st["fast_table"]["reason"]
+    assert not st["fast_table"]["uses_table"]
+    calls = FakeEngine.calls
+    x = ask(b, CLEAR_YES)
+    assert x["answered_by"] == "decisio" and FakeEngine.calls == calls + 1 and x["certified"] is False
+    # re-certified under this server's rule, the table is used again, its band recorded anew
+    r = b.post("/v1/tasks/angry/certify", json={"examples": noul_examples(400, seed=61)})
+    assert r.status_code == 200, r.text
+    assert r.json()["fast_table"]["commit_band"] is None and r.json()["status"]["fast_table"]["state"] == "active"
+    assert ask(b, CLEAR_YES)["answered_by"] == "table"
+    bb.close()
+
+
+def test_y11_a_yes_no_table_made_without_the_rule_is_not_used_under_it():
+    client, so, _ = make(commit=False)
+    t = register(client).json()
+    assert t["fast_table"]["commit_band"] is None
+    full = client.get("/v1/tasks?full=1").json()["tasks"]
+    other, so2, _ = make(commit=True)
+    assert other.post("/v1/tasks/import", json={"tasks": full}).status_code == 200
+    rt = so2.table_runtime(so2.task_store.snapshot("angry"))
+    assert rt.state == "unavailable" and "--noul-commit off and this server runs with it on" in rt.reason
+    assert ask(other, CLEAR_YES)["answered_by"] == "decisio"
+
+
+def test_y11_a_record_without_a_band_is_not_checked_and_a_bad_band_is_refused_at_import():
+    client, so, _ = make(commit=True)
+    assert register(client).status_code == 200
+    full = client.get("/v1/tasks?full=1").json()["tasks"]
+    legacy = json.loads(json.dumps(full))
+    del legacy[0]["fast_table"]["commit_band"]  # as a table record made before the field (a choice table has none)
+    other, so2, _ = make(commit=True)
+    assert other.post("/v1/tasks/import", json={"tasks": legacy}).status_code == 200
+    assert so2.table_runtime(so2.task_store.snapshot("angry")).state == "active"
+    bad = json.loads(json.dumps(full))
+    bad[0]["fast_table"]["commit_band"] = [0.8, 0.2]
+    third, _, _ = make(commit=True)
+    r = third.post("/v1/tasks/import", json={"tasks": bad})
+    assert r.status_code == 422 and "commit_band" in r.text
+
+
+def test_y11_a_learned_version_is_tied_to_its_serving_stack_and_so_to_the_rule(tmp_path):
+    a, so_a, ba = make(commit=True, tasks_dir=tmp_path / "d")
+    L = learned_under_the_rule(a, so_a)
+    assert L.state() == "active"
+    ba.close()
+    b, so_b, bb = make(commit=False, tasks_dir=tmp_path / "d")
+    Lb = so_b.learning.get(so_b.task_store.snapshot("angry"))
+    assert Lb.live is not None and Lb.live.number == 1 and Lb.state() == "off"
+    assert "another serving stack" in Lb.off_reason
+    assert ask(b, CLEAR_YES)["answered_by"] == "decisio"
+    bb.close()
+
+
+def test_y12_the_weights_of_a_learned_fit_reach_the_temperature(monkeypatch):
+    # a row of weight 2 is the same row twice, Platt's counts included
+    rng = np.random.default_rng(2)
+    z = rng.normal(0, 2, 200)
+    yes = rng.random(200) < 1 / (1 + np.exp(-1.7 * z))
+    w = np.where(rng.random(200) < 0.3, 2.0, 1.0)
+    dup = np.repeat(np.arange(200), w.astype(int))
+    T_w, before_w, after_w = FT.temperature_for(z, yes, w)
+    T_d, before_d, after_d = FT.temperature_for(z[dup], yes[dup])
+    assert T_w == pytest.approx(T_d, rel=1e-6) and after_w == pytest.approx(after_d, rel=1e-9)
+    assert FT.temperature_for(z, yes)[0] != pytest.approx(T_w, rel=1e-6)
+    # in a refit: the explored rows the table would have answered weigh 1 / p_logged, the labelled examples LABEL_WEIGHT
+    client, so, _ = make()
+    assert register(client, fast_table={"learn": True}).status_code == 200
+    L = so.learning.learners["angry"]
+    rng = np.random.default_rng(3)
+    for i in range(600):
+        yes = bool(rng.random() < 0.5)
+        kind, would = (FTL.EXPLORED, True) if i % 3 == 0 else (FTL.DEFERRED, False)
+        p = np.array([0.95, 0.05]) if yes else np.array([0.05, 0.95])
+        L.record(state(yes, 0.95, body(yes, rng)), {}, p, 0 if yes else 1, 60.0, kind, 0.99 if would else 0.5, would)
+    seen = []
+    real = FT.cross_fit_temperature
+
+    def spy(X, y, rec, sample_weight=None, reference="gold"):
+        seen.append((np.asarray(sample_weight), reference))
+        return real(X, y, rec, sample_weight=sample_weight, reference=reference)
+
+    monkeypatch.setattr(FT, "cross_fit_temperature", spy)
+    so.learning.refit_task("angry")
+    assert seen, "the refit did not calibrate"
+    weights, reference = seen[0]
+    p_logged = L.explore + (1.0 - L.explore) / FT.SAMPLE_EVERY
+    values = set(np.round(weights, 9).tolist())
+    assert values == {1.0, round(1.0 / p_logged, 9), FTL.LABEL_WEIGHT} and reference == "decisio+gold"
+
+
+@pytest.mark.parametrize("commit", [False, True])
+def test_y13_an_exact_one_half_from_a_table_is_no_with_decisios_confidence(commit):
+    client, so, _ = make(commit)
+    assert register(client).status_code == 200
+    ft = so.task_store.snapshot("angry")["fast_table"]
+    coef, b = FT.unpack(ft["coef"]), FT.unpack(ft["intercept"])
+    ft["coef"], ft["intercept"] = FT._pack(np.zeros_like(coef)), FT._pack(np.zeros_like(b))  # P(yes) 0.5 everywhere
+    ft["thresholds"]["table_threshold"] = 0.5  # and sure of it
+    m = so.task_store.monitors["angry"]
+    seen = []
+    real = m.observe
+    m.observe = lambda index, certified=False, confidence=None, **kw: (
+        seen.append((index, confidence)),
+        real(index, certified, confidence, **kw),
+    )
+    a = ask(client, CLEAR_YES)
+    assert a["answered_by"] == "table"
+    # no, at decisio's confidence: 0.5 itself without the rule, the band's no edge (0.20, confidence 0.80) under it
+    assert a["noul"] == (COMMIT_LO if commit else 0.5)
+    assert seen[-1] == (1, 0.5)  # the answer mix counts no; the monitor reads 0.5 before the rule
+    P = np.array([[0.5, 0.5]])
+    assert FT.top_confidence(P)[0] == 0.5 and FT.top_confidence(P, (COMMIT_LO, COMMIT_HI))[0] == COMMIT_HI
+    assert FTL._tops(P, ["yes", "no"])[0] == 1  # a learned table's choice too
+
+
+def test_y14_all_one_answer_fit_examples_get_a_clear_422():
+    client, so, _ = make()
+    ex = noul_examples(600, seed=8)
+    yes = [e for e in ex if e["answer"]]
+    req = {
+        "id": "angry",
+        "examples": yes[:200],
+        "fast_table": True,
+        "certify": {"alpha": 0.1, "delta": 0.1, "examples": noul_examples(300, seed=9)},
+    }
+    r = client.post("/v1/tasks", json=req)
+    assert r.status_code == 422 and "two fit examples of each answer (200 yes, 0 no)" in r.json()["detail"], r.text
+    assert not so.task_store.by_key

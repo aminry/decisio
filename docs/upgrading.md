@@ -17,6 +17,8 @@ How they work: [tasks.md, "A yes/no table"](tasks.md#a-yesno-table) and ["The sa
 - **A yes/no task can have a fast table**, labelled (`"fast_table": {...}` on a registration with examples) or learned from traffic (`"learn": true`); before, `fast_table` was refused for it.
   A table answer reports the table's own P(yes), with `answered_by: "table"`, calibrated by one temperature fitted on the task's fit examples by cross-fitting (on a learned table's fit rows, against decisio's answers), never on the certification examples, so the table stage's certificate holds as proved.
   Under `--noul-commit` the commit rule applies to table answers as to decisio's, and the table's threshold is made on the committed confidences.
+  The table records the setting it was made under (`fast_table.commit_band`), and a server with the other setting serves the task through decisio until it is certified again.
+  A learned yes/no table's low-confidence guard reads the confidence before the rule, so it can fire under the rule.
 - **This is a behaviour change: the default bar a fast table must clear falls from 25% to 10%** of the expected time per request.
   It decides at registration whether a table is kept, at every refit of a learning table whether a version is promoted, and at run time whether a replica keeps using its table under load.
   On a measured suite of ten sets it changed no kept table at 25, 15, 10 or 5%, because a table of the static student either certified nothing or certified 30% of the requests and more.

@@ -672,7 +672,7 @@ The timing is true for the stack it was made on: the host CPU, the engine and it
 | `active` | The table answers the requests it is sure of. |
 | `timing` | The table is not used and decisio answers everything, under the `decisio_only` certificate. The replica is on another stack than the one the table was timed on, or the table stopped beating decisio under this replica's load. Every tenth request also times the table, after decisio has answered, and when 30 such pairs show the saving the table is taken up again (`retimed`). |
 | `suspended` | The monitor's alarm fired here or on another replica that shares the task store (below). Decisio answers everything, under the `decisio_only` certificate. |
-| `unavailable` | This server cannot compute the table's features exactly: another model, revision, file or long-state rule than the record's `fast_table.features` (register the task again), or the `table` extra is not installed. |
+| `unavailable` | This server cannot compute the table's features exactly: another model, revision, file or long-state rule than the record's `fast_table.features` (register the task again), or the `table` extra is not installed; or a yes/no table's threshold was made under another `--noul-commit` setting than this server's (certify the task again). |
 
 **Load.**
 The table's time at registration cannot see contention on the host.
@@ -742,10 +742,16 @@ What differs is the probability it reports.
 - **Its confidence and its certificate.** The confidence the table's threshold is made on is the one decisio's certified yes/no answers are read on: the top probability, the larger of `noul` and `1 - noul`.
 - **The commit rule.** On a server with `--noul-commit`, a table answer is moved as decisio's answers are: a P(yes) between 0.20 and 0.80 is reported at the band's edge on its own side, and the answer never changes.
   The table's threshold, like decisio's, is made on the committed confidences, and the table answers a request when its committed confidence reaches it, so the band is answered by the table as a whole or not at all.
+  The record says which way it was made (`fast_table.commit_band`: `[0.2, 0.8]`, or `null` without the rule).
+  A server whose rule differs does not use the table: under the rule a P(yes) of 0.55 would score 0.80 against a threshold made without it, and the other way round.
+  It serves the task through decisio, `status.fast_table` reads `unavailable` with the reason, and `POST /v1/tasks/{id}/certify` makes the table's threshold again under this server's rule.
+  A learned version is bound the same way, through the serving stack it was certified on, which includes the rule.
 - **The monitor** reads each answer's confidence before the rule (`"reads": "before_noul_commit"`, [Yes/no questions](#yesno-questions)): a table answer contributes its calibrated P(yes) before the rule, and decisio's answers (deferred, explored, with the table off, or logged while the task learns) their own before the rule.
   The baselines of the cascade's monitor and of the decisio-only monitor are made the same way, at registration and at every re-certification.
 - **A table learned from traffic** calibrates each refit's P(yes) the same way, by cross-fitting on that version's fit rows, never on the held-out rows its certificate is made on: against decisio's answers, so its P(yes) is the chance that decisio says yes (and, for a labelled task that learns, the labelled examples' gold answers among them).
-  Its threshold, its sureness and its low-confidence guard read its confidence after the commit rule when the rule is on.
+  Its threshold and its sureness read its confidence after the commit rule when the rule is on.
+  Its low-confidence guard reads the table's confidence before the rule: an output counts as low when it is inside the band or under the threshold, against that share on the certificate's rows.
+  The committed confidences are never under 0.80, so with a threshold at the band's edge a guard on them could never fire, and traffic that moved to P(yes) 0.4 to 0.6 would stay answered and certified.
 
 ### A fast table that learns from traffic
 

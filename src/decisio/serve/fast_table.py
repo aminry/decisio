@@ -740,13 +740,15 @@ def temperature_of(rec: dict) -> float:
 
 def temperature_for(z, yes, weights=None) -> tuple[float, float, float]:
     """(T, log loss at T = 1, log loss at T) for logits `z` of yes against the reference answers `yes` (true where the
-    reference is yes), each row weighted by `weights` (None: 1): the T in `TEMPERATURES` that minimises the log loss of
-    sigmoid(z / T) against Platt's (1999) targets, (N+ + 1) / (N+ + 2) for a yes and 1 / (N- + 2) for a no, which keep T
-    finite where the logits separate the answers perfectly. Golden section on log T (the loss is convex in 1 / T)."""
+    reference is yes), each row weighted by `weights` (None: 1): the T in `TEMPERATURES` that minimises the weighted log
+    loss of sigmoid(z / T) against Platt's (1999) targets, (N+ + 1) / (N+ + 2) for a yes and 1 / (N- + 2) for a no
+    (N+ and N- the weighted counts), which keep T finite where the logits separate the answers perfectly. Golden
+    section on log T (the loss is convex in 1 / T)."""
     z = np.asarray(z, dtype=np.float64)
     yes = np.asarray(yes, dtype=bool)
     w = np.ones(len(z)) if weights is None else np.asarray(weights, dtype=np.float64)
-    n_yes, n_no = int(yes.sum()), int((~yes).sum())
+    # the counts in Platt's targets are weighted too, so a row of weight 2 counts as the same row twice
+    n_yes, n_no = float(w[yes].sum()), float(w[~yes].sum())
     target = np.where(yes, (n_yes + 1) / (n_yes + 2), 1.0 / (n_no + 2))
 
     def loss(log_t):
@@ -964,6 +966,28 @@ def timing_guard(table_ms, decisio_ms, table_share: float, min_saving: float = M
 # ---- one replica's use of the table -----------------------------------------------------------------------------
 
 
+def band_differs(rec: dict, commit_band) -> str | None:
+    """Why a yes/no table cannot be used under this server's --noul-commit band `commit_band` ((lo, hi), or None when
+    the rule is off), or None when it can: its threshold was made on confidences read under the band it records
+    (`commit_band` in the record), and under another one its least sure answers would score otherwise (P(yes) 0.55
+    scores 0.80 under the rule). A record without the field (a choice table) is not checked."""
+    if "commit_band" not in rec:
+        return None
+    made = tuple(rec["commit_band"]) if rec["commit_band"] else None
+    here = tuple(commit_band) if commit_band else None
+    if made == here:
+        return None
+
+    def name(b):
+        return "on" if b else "off"
+
+    return (
+        f"the table's threshold was made with --noul-commit {name(made)} and this server runs with it {name(here)}: "
+        "serving through decisio; certify the task again (POST /v1/tasks/{id}/certify) to make the table's threshold "
+        "under this server's rule"
+    )
+
+
 def cpu_model() -> str:
     """The host CPU's model name, as the host gives it."""
     try:
@@ -1103,7 +1127,7 @@ class Runtime:
     the table (it computes another feature function: another student, revision or long-state rule; or the `table` extra
     is missing). Not thread-safe by itself: the server calls it from the request path, one task at a time."""
 
-    def __init__(self, rec: dict, stack: dict):
+    def __init__(self, rec: dict, stack: dict, commit_band=None):
         self.rec = rec
         self.stack = stack
         self.min_saving = record_min_saving(rec)  # the bar it was kept under, which it must keep under load
@@ -1119,7 +1143,7 @@ class Runtime:
         self.agreement = Agreement(rec["agreement"]) if rec.get("agreement") else None
         self.state, self.reason = "active", None
         self.features = record_features(rec)
-        why = cannot_compute(self.features)
+        why = cannot_compute(self.features) or band_differs(rec, commit_band)
         if why:
             self.state, self.reason = "unavailable", why
         elif rec["timing"]["stack_sha256"] != self.stack_sha:

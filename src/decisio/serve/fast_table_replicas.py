@@ -835,6 +835,7 @@ class SharedLearner(FTL.Learner):
             "certificate": {**c["certificate"], "id": f"{self.task_id}#learned-v{n}-{ident}"},
             "guard": c["guard"],
             "low_share": c["low_share"],
+            **({"low_below": c["low_below"]} if c.get("low_below") is not None else {}),
             "stack": stack,
             "promoted_at": self.m.now(),
             "fit_rows": c["fit_rows"],

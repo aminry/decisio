@@ -2327,6 +2327,9 @@ class SystemOne:
             stack = self.fast_table_stack(c["features"])
             rec = dict(c["record"])
             rec["min_saving"] = need
+            if q0.type == "noul":  # the --noul-commit band its threshold was made under: served only under the same
+                band = self.commit_band(q0)
+                rec["commit_band"] = list(band) if band else None
             rec["thresholds"] = c["casc"]
             rec["timing"] = {"stack": stack, "stack_sha256": FT.sha256(stack), "guard": c["guard"]}
             rec["agreement"] = FT.agreement_baseline(disagree, t["id"])
@@ -2341,7 +2344,8 @@ class SystemOne:
         cache = self.__dict__.setdefault("_ft_runtime", {})
         rt = cache.get(t["id"])
         if rt is None or rt.rec is not ft:
-            rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack(FT.record_features(ft)))
+            band = (COMMIT_LO, COMMIT_HI) if self.noul_commit else None
+            rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack(FT.record_features(ft)), commit_band=band)
         return rt
 
     def serve_row(self, t, state, q, learn: bool = True):
@@ -2447,7 +2451,7 @@ class SystemOne:
                 feats[v.kind] = (x, f_ms, FTL.feature_id(v.features))
                 conf = float(FT.top_confidence(P[None], L.commit_band)[0])
                 sure = conf >= v.threshold
-                L.observe_confidence(v, sure)
+                L.observe_confidence(v, sure, raw=float(P.max()))  # the guard reads before the rule, too
                 if L.serving() is not v:  # this request raised the alarm: decisio answers it
                     v = None
                 else:
@@ -3207,12 +3211,15 @@ class SystemOne:
         from decisio.serve import stack
 
         if self.certificate_stack_changed(t, cert):
-            return {
+            out = {
                 "state": "suspended",
                 "text": "suspended: serving stack changed",
                 "changed": stack.differences(self.certificate_stack(cert), self.stack_with_fit(t)),
                 "recertify": f"POST /v1/tasks/{t['id']}/certify with new labelled examples",
             }
+            if t.get("fast_table"):  # what this replica does with the table, which can be off for its own reason
+                out["fast_table"] = self.table_runtime(t).facts()
+            return out
         rt = self.table_runtime(t) if t.get("fast_table") else None
         m = (self.task_store.monitors_alone if rt is not None and not rt.uses_table else self.task_store.monitors).get(
             t["id"]
