@@ -21,9 +21,10 @@ What it holds, and where each part comes from:
                 the system turn and the rendering are all in it), and the prompt format's own facts
   calibration   the temperatures served for the questions without a task correction (and each loaded adapter's own),
                 and the task's own fit (the prior's and the head's arrays) as a digest
-  serving       the flags that change what is asked or returned: orders, multi-question mode, pad policy, option
+  serving       the flags that change what is asked or returned: multi-question mode, pad policy, option
   rendering,
-                abstention and --noul-commit
+                abstention and --noul-commit, and the number of orders a certification reads (always 1, whatever the
+                server's --orders: a request's own orders are compared per answer, `orders_changed`)
 
 Standard library only; `engine_facts` is `engine.facts()` and the rest are plain values.
 """

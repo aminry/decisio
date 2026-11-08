@@ -1166,6 +1166,7 @@
                   "traffic_changed",
                   "state_truncated",
                   "header_limited",
+                  "orders_changed",
                   "think_mode_changed",
                   "concurrency_changed",
                   "layout_mismatch"
@@ -1312,6 +1313,7 @@
                   "traffic_changed",
                   "state_truncated",
                   "header_limited",
+                  "orders_changed",
                   "think_mode_changed",
                   "concurrency_changed",
                   "layout_mismatch"
@@ -1443,6 +1445,7 @@
                   "traffic_changed",
                   "state_truncated",
                   "header_limited",
+                  "orders_changed",
                   "think_mode_changed",
                   "concurrency_changed",
                   "layout_mismatch"

@@ -326,6 +326,26 @@ COMMIT_LO, COMMIT_HI = 0.20, 0.80
 # examples.
 SUSPEND_ON_ALERT = True
 
+# The number of orders a certification reads (`served_rows`: one question, one order), whatever the server's --orders.
+# The serving stack records it, so a certificate made on a server started with --orders 2 is the one made anywhere
+# else; a request of another number of orders is not certified (`certified_reason: orders_changed`), and the
+# certificate is not suspended by it. A certificate made by an earlier release on such a server recorded the server's 2,
+# though its reads were one order: it is read as 1 (`SystemOne.certificate_stack`, `SystemOne.stack_sha`).
+CERTIFIED_ORDERS = 1
+
+
+def recorded_orders(stack: dict) -> int:
+    """The orders a stored serving stack (a certificate's) records; absent, the certified number."""
+    return int((stack.get("serving") or {}).get("orders", CERTIFIED_ORDERS))
+
+
+def with_orders(stack: dict, orders: int) -> dict:
+    """`stack` with its serving orders set to `orders` (a copy; the input is not changed)."""
+    if recorded_orders(stack) == orders:
+        return stack
+    return {**stack, "serving": {**(stack.get("serving") or {}), "orders": orders}}
+
+
 # a catch-all option: the words of an option's key that say "none of the above"
 CATCH_ALL = re.compile(
     r"\b(other|others|none|neither|unknown|unclear|irrelevant|miscellaneous|misc|else|nonsense|oos|"
@@ -1247,7 +1267,7 @@ class SystemOne:
             if t is not None
             and (t.get("certificate") or t.get("learn"))
             and wire[i].type != "score"
-            and orders == 1
+            and orders == CERTIFIED_ORDERS
             and not abstain
             and not use_image
         ]
@@ -1414,6 +1434,18 @@ class SystemOne:
                         "certified_reason": "header_limited",
                     }
                 )
+            elif orders != CERTIFIED_ORDERS and t is not None and t.get("certificate") and q.type != "score":
+                # the certificate was made on one-order reads; this request asked for another number of orders. Its
+                # answer is served as read, not certified, and the monitor does not count it (its confidences are not
+                # the ones the baseline was made on); the certificate is not suspended
+                answers[name].update(
+                    {
+                        "certified": False,
+                        "certificate": t["certificate"]["id"],
+                        "certificate_kind": "gold",
+                        "certified_reason": "orders_changed",
+                    }
+                )
             elif via.get(i) in ("learn:table", "learn:spot_check"):  # a learned table's answer: its own certificate
                 answers[name].update(self.learned_fields(learned[i]))
             elif t is not None and t.get("certificate") and q.type != "score":
@@ -1421,9 +1453,7 @@ class SystemOne:
                 # certified task's own read, which is serial) is not observed against the certificate's baseline
                 shared = i not in served and bool(info.get("batch"))
                 answers[name].update(
-                    self.certified_fields(
-                        t, q, keys, p, orders, top_index(keys, p), shared, via.get(i), before=before.get(i)
-                    )
+                    self.certified_fields(t, q, keys, p, top_index(keys, p), shared, via.get(i), before=before.get(i))
                 )
             elif t is None and not use_image and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
@@ -2669,7 +2699,9 @@ class SystemOne:
             except PackageNotFoundError:
                 ver = "unknown"
             serving = {
-                "orders": self.orders,
+                # the orders a certification reads, not the server's --orders: a request's own orders are compared
+                # with it per answer (`orders_changed`), and the server's default does not move the fingerprint
+                "orders": CERTIFIED_ORDERS,
                 "multi_question": getattr(self.engine, "multi_question", None),
                 "pad_policy": getattr(self.engine, "pad_policy", None),
                 "hide_index_keys": self.hide_index_keys,
@@ -2761,15 +2793,28 @@ class SystemOne:
         s = self.stack_under(self.task_layout(t))
         return {**s, "calibration": {**s["calibration"], "task_fit": t.get("fit_sha256")}}
 
-    def stack_sha(self, t) -> str:
-        """The live stack with the task's fit, hashed; cached per layout and fit."""
+    def stack_sha(self, t, orders: int = CERTIFIED_ORDERS) -> str:
+        """The live stack with the task's fit, hashed; cached per layout and fit. `orders`: the stack's orders taken as
+        that number, to compare with a certificate that recorded another (`certificate_stack_changed`)."""
         from decisio.serve import stack
 
         cache = self.__dict__.setdefault("_stack_sha", {})
-        key = (self.task_layout(t), t.get("fit_sha256"))
+        key = (self.task_layout(t), t.get("fit_sha256"), orders)
         if key not in cache:
-            cache[key] = stack.sha256(self.stack_with_fit(t))
+            cache[key] = stack.sha256(with_orders(self.stack_with_fit(t), orders))
         return cache[key]
+
+    @staticmethod
+    def certificate_stack(cert) -> dict:
+        """The serving stack a certificate was made on, as its reads were: one order. A certificate an earlier release
+        made on a server started with --orders 2 recorded the server's 2, though certification read one order, so it is
+        read as 1; the stored record is not changed."""
+        return with_orders(cert["stack"], CERTIFIED_ORDERS)
+
+    def certificate_stack_changed(self, t, cert) -> bool:
+        """Whether the live stack differs from the one task `t`'s certificate was made on, orders read as 1: the
+        digest a certificate stores was taken over the orders it recorded, so the live stack is hashed under those."""
+        return self.stack_sha(t, recorded_orders(cert["stack"])) != cert["stack_sha256"]
 
     def attach_certificate(self, t, cert_ex, settings, split, reads=None):
         """Certify task `t` (fitted, not yet stored) on the held-out examples [(question, state, gold)] and attach the
@@ -2903,8 +2948,11 @@ class SystemOne:
         try:
             for i in idx:
                 q, state, _ = cert_ex[i]
-                # the task named, as a request of a question several tasks ask (each with its context) names it
-                out = self.answer(SystemOneRequest(state=state, questions={"q": q}, task=t["id"]))
+                # the task named, as a request of a question several tasks ask (each with its context) names it, read
+                # in the orders certification reads, whatever the server's --orders: the path a certified answer takes
+                out = self.answer(
+                    SystemOneRequest(state=state, questions={"q": q}, task=t["id"], orders=CERTIFIED_ORDERS)
+                )
                 a = out["answers"]["q"]
                 applied += t["id"] in out["_timing"]["tasks"]
                 if a["type"] == "noul":
@@ -3034,7 +3082,7 @@ class SystemOne:
         return new
 
     def certified_fields(
-        self, t, q, keys, p, orders: int, chosen: int, shared: bool = False, via: str | None = None, before=None
+        self, t, q, keys, p, chosen: int, shared: bool = False, via: str | None = None, before=None
     ) -> dict:
         """The fields an answer of a certified task carries: whether it is certified, the certificate (of kind gold:
         made on labelled examples), and why not. `via`, for a task with a fast table: "table" (the table answered),
@@ -3053,20 +3101,18 @@ class SystemOne:
         else:
             thr = cert["table_threshold"] if via == "table" else cert["threshold"]
             monitors = self.task_store.monitors
-        if self.stack_sha(t) != cert["stack_sha256"]:
+        if self.certificate_stack_changed(t, cert):
             from decisio.serve import stack
 
             # a stack that differs only in how the server thinks is its own reason: a task certified one-pass is not
             # served as certified by a server that thinks, and the other way round; the same for how it batches
-            diff = set(stack.differences(cert["stack"], self.stack_with_fit(t)))
+            diff = set(stack.differences(self.certificate_stack(cert), self.stack_with_fit(t)))
             if all(d == "serving.think" or d.startswith("serving.think.") for d in diff):
                 reason = "think_mode_changed"
             elif diff <= {"serving.concurrency"} | {f"serving.concurrency.{k}" for k in ("mode", "max_requests")}:
                 reason = "concurrency_changed"
             else:
                 reason = "serving_stack_changed"
-        elif orders != cert["stack"]["serving"]["orders"]:
-            reason = "serving_stack_changed"  # this request asked for another number of orders than the certificate's
         elif thr is None:
             reason = "nothing_certified"
         elif float(max(p)) >= thr:
@@ -3107,11 +3153,11 @@ class SystemOne:
             return None
         from decisio.serve import stack
 
-        if self.stack_sha(t) != cert["stack_sha256"]:
+        if self.certificate_stack_changed(t, cert):
             return {
                 "state": "suspended",
                 "text": "suspended: serving stack changed",
-                "changed": stack.differences(cert["stack"], self.stack_with_fit(t)),
+                "changed": stack.differences(self.certificate_stack(cert), self.stack_with_fit(t)),
                 "recertify": f"POST /v1/tasks/{t['id']}/certify with new labelled examples",
             }
         rt = self.table_runtime(t) if t.get("fast_table") else None
