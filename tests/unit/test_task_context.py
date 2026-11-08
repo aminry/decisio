@@ -4,7 +4,8 @@
 
 X1  the prompt, token for token: a request of a task with a context reads the rows of the same request with the context
     put before its state (a blank line between), under both layouts, the header before the context; the registration's
-    examples are read the same way; a task without one reads exactly as before
+    examples are read the same way; a task without one reads exactly as before (on an engine that does not pad; one
+    that pads sizes the pad from the context's end: tests/unit/test_context_boundary.py)
 X2  the field: a string as given, an object or array as compact JSON; empty or of another type refused; a task without
     one is stored and keyed as before
 X3  identity: the context's sha256 is in the record, the slot and the fit digest; the same question with another context

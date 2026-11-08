@@ -24,6 +24,10 @@ How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](ap
 - **A request read under the other layout than its question's context task** is read without the context, with `x-decisio-warning` naming the task and its layout, logged once per task.
 - **Limits count the context**: a context over the window before any state refuses the registration, a row over it is 422 with the context named, and truncation cuts the state only.
 - **Status shows the context's sha256 and length, never its text**: the task, the listing and `/health`'s `readout_tasks`; the export holds the text.
+- **The context is read from the prefix cache after the first request of its task**: the server finds where the context ends in each request's rows and keeps everything up to there once per context ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
+  On vLLM a server that pads (the Qwen base) sizes the pad from the context's end, not the state's, so the pad is the same on every request of the task, and the context's boundary is registered once per context and adapter, as a state's is (`--register-boundary`); on MLX the context is an entry of its own in the prefix cache.
+  So on the Qwen base a request of a task with a context is the same text as the request that carries the context in its state, but not the same tokens, and its answers can differ slightly.
+  `x-decisio-stages` has a new `context=` stage for such requests.
 
 ### Who is affected
 
@@ -33,7 +37,7 @@ How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](ap
 | A client that puts the same long instruction in every state | It can send it once, as the task's context | Register the task again with `"context"`, then drop the instruction from the states (a state that still starts with it is read twice and gets `x-decisio-warning`) |
 | One question asked against different fixed texts | Each can be its own task, side by side | Register each with its context and send `"task"` on the requests |
 | A client that already sent a field named `task` (ignored before) | `/v1/systemone` now applies the named task or answers 422; `/v1/answer` and registration examples answer 422 | Drop or rename the field |
-| Clients that read response headers or `/health` exactly | `x-decisio-warning` is new; a task with a context has `context` in its record and in `systemone.readout_tasks` | Allow them |
+| Clients that read response headers or `/health` exactly | `x-decisio-warning` and the `context=` stage of `x-decisio-stages` are new; a task with a context has `context` in its record and in `systemone.readout_tasks`; on MLX `prefix_cache` has `context_hits` and `context_misses` once a context was read | Allow them |
 | Rolling back to an earlier decisio with tasks that have a context | The earlier server does not read the field: it serves such a task without its context, and its certificate is suspended (`serving_stack_changed`, the fit digest differs) | Delete or re-register those tasks before rolling back |
 
 ## Unreleased: certified yes/no tasks, and the certification fields of a task under another rendering

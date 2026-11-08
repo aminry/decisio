@@ -830,7 +830,7 @@ Requests then send only the part that changes, and the server puts the context i
 
 **When to use it.** When every request of a task is read against the same text that does not change between requests: a policy, a rubric, a catalogue, a set of definitions, a long instruction.
 - The requests get smaller: the context is sent once, at registration.
-- The context is the same prefix on every request of the task, so the prefix cache serves it, and only the changing part is computed.
+- Every request of the task starts with the context, so after the first request the context is read from the prefix cache and only the changing part is computed ([below](#the-context-in-the-prefix-cache)).
 - A fast table encodes the state alone, so it learns from the part that changes, not from a text every request shares.
 
 Keep in the context only what is the same on every request; what changes belongs in the state.
@@ -852,7 +852,31 @@ Abstention tasks (`POST /v1/abstention/tasks`) take no context: that route does 
 - header layout: the header (`Questions that will be asked about the context:` and its lines), the context, a blank line, the state, a blank line, the question and its options.
 
 A state that is an object is rendered as `key: value` lines after the context, as it is without one.
-A request of a task with a context is built token for token as the same request whose state is the context, a blank line and the rendered state, by the row builder every text engine shares (vLLM, and the HF and MLX engines, which inherit it).
+The text is that of the same request whose state is the context, a blank line and the rendered state, built by the row builder every text engine shares (vLLM, and the HF and MLX engines, which inherit it).
+The tokens can differ in one place, the padding: a server that pads (the Qwen base on vLLM) sizes the pad so that the context's end, not the state's, falls on the cache block (below).
+So a request of a task with a context is not always the same prompt as the request that sends the context in its state, and their answers can differ slightly; on a server that does not pad (the Gemma bases, and MLX by default) the two are the same tokens.
+
+### The context in the prefix cache
+
+Every request of a task starts with the same tokens: the template's opening, the header under the header layout, the context and its blank line.
+The server finds where they end in each request's rows (the context boundary) and keeps everything up to there in the prefix cache once per context, so a request computes only its state and its questions.
+- **Padding (vLLM, a base that pads).** The pad before the prompt is sized from the context's end, so the context ends on the block (1,056 tokens on the Qwen base) and the pad is the same on every request of the task.
+  The state's own end is then not on the block, since the state is the part that changes.
+  This holds under `--pad-policy always` and also under `shared` and `row`, whose single questions are otherwise unpadded or padded to their whole row; `none` never pads.
+  `--pad-where between` pads after the state, so the pad is sized as without a context and the context stays where it is.
+- **Registration (vLLM).** vLLM keeps a finished request's latest checkpoint only, which lies inside its state or question, not at the context's end.
+  So the server registers the context's boundary with a warm-up of the context's tokens and one more, once per context and adapter, as it registers a state's boundary ([running.md](running.md#a-later-question-about-the-same-state---register-boundary)), on the Gemma bases and on the Qwen base.
+  `--register-boundary` sets when: `before`, ahead of the first request's questions, in an engine call of its own; `after`, once the first response is out; `off`, never.
+  A request that finds the boundary evicted makes the next one register it again.
+  A state's own boundary is registered as for a request without a context.
+- **MLX.** The context's tokens are their own entry in the prefix cache (`--prefix-cache-mb`), and each request's state continues from a copy of it.
+  The prefix is always computed in these two steps, whether the context came from the cache or not, so an answer does not depend on it.
+- **What a request computes once the context is cached:** its state, from the context's end (on the Gemma bases from the last 64-token step before it on the 12B, 32-token on the 31B), and its questions.
+  With several questions on the Qwen base each question also reads the state's last partial block again (under 1,056 tokens), because the state's end is no longer on a block.
+- **What the response says.** `x-decisio-stages` has `context=`: the context's warm-up sent in this request (vLLM; 0 when the boundary was already registered) or the context's part of the prefix, read or computed (MLX); on vLLM, `x-decisio-prompt` counts the context in `cached` once it came from the cache.
+  On MLX, `/health` counts the context entry's lookups in `prefix_cache.context_hits` and `context_misses`.
+- **A state that starts with whitespace** can merge with the context's blank line in the tokenizer, so its tokens do not start with the context's own.
+  Such a request is built as it would be without the context boundary (the pad sized from the state's end, as without a context) and reads the context again; the server logs it once per context.
 
 **Identity.** The context's sha256 is part of the task's identity.
 - The same question registered with another context is another task, kept beside the first (one per context, per layout).

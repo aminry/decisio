@@ -73,6 +73,7 @@ Without it, a later, different question about the state reads the whole state ag
 The one measurement of that at 31,000 tokens (decisio 0.8.0, on another host) is 9.2 s instead of 0.17 (531 ms instead of 47 at 3,000 tokens there).
 The server remembers the last 4,096 states it registered and sends the warm-up again only when a request finds the boundary gone, so a repeated question costs no extra engine call.
 Several questions in one request are not affected, and the Qwen base needs no registration (its padded state already ends on a single question's latest checkpoint).
+A task's context has a boundary of its own, which `--register-boundary` registers the same way, once per context and adapter, on the Gemma bases and on the Qwen base ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
 
 `--register-boundary` sets when a single question on a new state registers it:
 - `after`: the question is answered first, reading the state fresh, and the warm-up is sent once the response has been handed to the server (in library use, once `answer()` returns). The caller does not wait for it.
@@ -527,6 +528,7 @@ The Qwen base:
 - Peak memory at 32,761 tokens of state at 6 and 8 bits: 30.7 GB and 39.4 GB (`runs/2026-10-02_mlx-backend/`).
 - It does not pad a state (`--pad-policy none`, the MLX default; its cache needs no padding), so its prompts are the served ones without the padding, and a question asked alone and inside a request is one prompt.
 - A cross-request prefix cache (`--prefix-cache-mb`, in MiB: the base's default, 2,048 for the Qwen base and Gemma 4 31B and 7,400 for Gemma 4 12B; 0 turns it off) lets a request whose state was seen before continue from the kept cache, with the same answers bit for bit.
+  A task's context is an entry of its own, so the requests of a task with a context continue from it and compute only their states ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
 - The prompts are built with the official tokenizer by default (`--tokenizer`), so they are the vLLM path's byte for byte.
 - At 6 bits, under the current served default, it passes the gates against the FP8 records except the pooled-ECE gate, which changes no setting (`runs/2026-10-03_mlx-regate/summary.md` explains why).
 - At 4 bits, under the current served default, it passes every gate against the same records: suite accuracy and ECE, the intent heads over six draws and conformance (`runs/2026-10-06_mlx-qwen-4bit-regate/summary.md`).

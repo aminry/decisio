@@ -50,10 +50,29 @@ def fmt_state(state):
 CONTEXT_SEP = "\n\n"
 
 
+class ContextState(str):
+    """The state a request of a task with a context is read with (`context_state`): the text every engine reads, the
+    context, a blank line and the rendered state, which also says where the context ends (`context`), so that a text
+    engine can keep the context's tokens in its prefix cache once for every request of the task
+    (decisio.serve.vllm_engine.LettersEngine._prepare_separate, "the context boundary"). An engine that does not look
+    reads it as the string it is."""
+
+    context: str
+
+    def __new__(cls, context: str, state):
+        out = super().__new__(cls, f"{context}{CONTEXT_SEP}{fmt_state(state)}")
+        out.context = context
+        return out
+
+    def __reduce__(self):  # pickled as its context and the rendered state, which rebuild it
+        return (ContextState, (self.context, str(self)[len(self.context) + len(CONTEXT_SEP) :]))
+
+
 def context_state(context: str | None, state):
-    """The state a request of a task with a context is read with: the context, a blank line, the rendered state. The
-    context comes first, so it is the same prefix on every request of the task; without a context, the state itself."""
-    return state if not context else f"{context}{CONTEXT_SEP}{fmt_state(state)}"
+    """The state a request of a task with a context is read with: the context, a blank line, the rendered state
+    (`ContextState`). The context comes first, so it is the same prefix on every request of the task; without a
+    context, the state itself."""
+    return state if not context else ContextState(context, state)
 
 
 def _candidates():

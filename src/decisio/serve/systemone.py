@@ -1469,7 +1469,15 @@ class SystemOne:
                 "stages": {
                     **{
                         {"server_ms": "engine", "waited_ms": "wait"}.get(k, k[:-3]): info[k]
-                        for k in ("prepare_ms", "warm_ms", "questions_ms", "readout_ms", "server_ms", "waited_ms")
+                        for k in (
+                            "prepare_ms",
+                            "context_ms",  # a task context's warm-up (vLLM) or its prefix (MLX), when read with one
+                            "warm_ms",
+                            "questions_ms",
+                            "readout_ms",
+                            "server_ms",
+                            "waited_ms",
+                        )
                         if isinstance(info.get(k), (int, float))
                     },
                     # a certified task's questions, read one at a time by the certificate's function (or answered by

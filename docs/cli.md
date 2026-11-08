@@ -147,6 +147,7 @@ Measurements: `EVAL_CARD.md` section 4, `runs/2026-10-02_multi-question-and-rend
 
 By default every state is padded to end on the KV cache block, so a single question on a state the server has not seen is prefilled in two engine steps, the state and then the question.
 With `row`, a single-question request is padded so that its whole row, state and question, ends on the block boundary, and vLLM prefills it in one engine step; requests with several questions are padded as by default.
+A request of a task with a context is padded so that the context ends on the block, under `row` as under the default, since every request of the task then shares the context's blocks ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
 It is faster on a new state, and accuracy and calibration stayed within noise on the suite, JevBench, the four Decision Index benchmarks and the intent heads.
 Its cost is repeatability: a repeated identical request can move slightly on long prompts, where the default padding returns the same probabilities every time, so it is off by default.
 The demos ran with it (`docs/demos/README.md`).
