@@ -1299,6 +1299,7 @@ class SystemOne:
         t_head = time.perf_counter()
         hidden = dict(zip(head, self.hidden_engine.readout(read, [qs[i] for i in head]))) if head else {}
         head_ms = (time.perf_counter() - t_head) * 1000 if head else 0.0
+        head_read = self.head_read_info() if head else None
         dbg = {}
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
             for i, (lp, h) in enumerate(self.hidden_engine.readout(read, qs)):
@@ -1445,6 +1446,14 @@ class SystemOne:
             with self._log_lock, open(self.branch_log, "a") as f:
                 for rec in log:
                     f.write(json.dumps({"t": time.time(), "request_sha256": h, **rec}) + "\n")
+        # a task context's warm-up (vLLM) or its prefix (MLX), over every read of the request that read the context:
+        # its own engine call, a certified task's reads and the intent head's (None when no read did)
+        context_ms = [
+            r["context_ms"]
+            for r in (info, *task_reads, head_read or {})
+            if isinstance(r.get("context_ms"), (int, float))
+        ]
+        context_ms = sum(context_ms) if context_ms else None
         usage = {
             # what is read: the header, a task's context, the state and each question's text
             "input_tokens": self.usage_tokens(read, qs, header_lines) + sum(info.get("image_tokens") or []),
@@ -1470,17 +1479,17 @@ class SystemOne:
                 # where the engine's time went, for the x-decisio-stages header (milliseconds)
                 "stages": {
                     **{
-                        {"server_ms": "engine", "waited_ms": "wait"}.get(k, k[:-3]): info[k]
+                        {"server_ms": "engine", "waited_ms": "wait"}.get(k, k[:-3]): v
                         for k in (
                             "prepare_ms",
-                            "context_ms",  # a task context's warm-up (vLLM) or its prefix (MLX), when read with one
+                            "context_ms",
                             "warm_ms",
                             "questions_ms",
                             "readout_ms",
                             "server_ms",
                             "waited_ms",
                         )
-                        if isinstance(info.get(k), (int, float))
+                        if isinstance(v := (context_ms if k == "context_ms" else info.get(k)), (int, float))
                     },
                     # a certified task's questions, read one at a time by the certificate's function (or answered by
                     # its fast table), and the intent head's hidden-state read
@@ -2500,6 +2509,12 @@ class SystemOne:
         }
         return fit_ex, cert_ex, split
 
+    def head_read_info(self) -> dict | None:
+        """What the hidden reader's last read on this thread said of a task context (`read_info`), or None."""
+        read_info = getattr(self.hidden_engine, "read_info", None)
+        out = read_info() if callable(read_info) else None
+        return out if isinstance(out, dict) else None
+
     def collect_read(self, info) -> None:
         """Keep an engine read's info for the request being answered (its stages and prompt figures), if one is."""
         infos = getattr(self._reads, "infos", None)
@@ -2530,6 +2545,7 @@ class SystemOne:
                 # 16 in flight).
                 eqh, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
                 lp, h = self.hidden_engine.readout(state, [eqh])[0]
+                self.collect_read(self.head_read_info())
                 p = apply_intent_head(lp, h, t["head"], t["options"])
                 if commit and self.commits(q):
                     p = commit_noul(p)

@@ -18,7 +18,13 @@ B3  the registration: the context's warm-up (its tokens and one more) is sent on
 B4  the fallback: a state whose tokens do not start with the context's own (the stand-in tokenizer merges a leading
     space with the blank line) is built as without the boundary, counted in the facts and logged once per context
 B5  the header layout: the boundary includes the header the rows carry
-B6  through the server: a task's registration examples and its requests are read with the boundary, one pad for all
+B6  through the server: a task's registration examples and its requests are read with the boundary, one pad for all;
+    `context=` is in `x-decisio-stages` for every request with a context, a certified task's too
+B7  eviction, on a modelled prefix cache: a context found registered is checked on the first engine read of the request
+    that starts from its boundary (the state's warm-up when one is sent, which would otherwise make the question look
+    cached), so a context evicted from the cache is registered again by the next request, under before and after
+B8  the intent head's read on the serving engine (SingleEngineHidden) uses the same context boundary: the rows of the
+    letters path, the context's warm-up once per context, found on the next read, registered again after eviction
 
     uv run pytest -q tests/unit/test_context_boundary.py
 """
@@ -26,6 +32,7 @@ B6  through the server: a task's registration examples and its requests are read
 import os
 import pickle
 
+import numpy as np
 import pytest
 from test_certified_answers import examples, post_task, wire
 from test_layout_flags import StubTok
@@ -35,6 +42,7 @@ from test_state_boundary import OTHER, Q1, Q2, STATE, Recording
 from decisio.readout.letters import CONTEXT_SEP, QUESTIONS_HEAD, ContextState, PromptFormat, context_state
 from decisio.serve import boundary
 from decisio.serve import vllm_engine as sv
+from decisio.serve.hidden_engine import SingleEngineHidden
 from decisio.serve.vllm_engine import ContextBoundary, split_info
 
 TOKENIZER = os.environ.get("DECISIO_TOKENIZER", "Qwen/Qwen3.6-35B-A3B")
@@ -328,3 +336,154 @@ def test_b6_the_server_reads_a_tasks_examples_and_requests_with_the_boundary():
     (k,) = k
     c = len(eng._prefix_ids(eng._template_head() + CONTEXT + CONTEXT_SEP))
     assert (k + c) % 16 == 0 and len({tuple(ids[: k + c]) for ids in eng.scored}) == 1  # one prefix, on the block
+
+
+def test_b6_a_certified_tasks_request_says_context_in_its_stages():
+    eng = RowEngine("plain")
+    client, _ = server(eng, "plain")
+    body = {"id": "t", "examples": examples(400, 0.96), "context": CONTEXT, "certify": {}}
+    r = post_task(client, body)
+    assert r.status_code == 200, r.text
+    assert r.json()["certificate"]  # every question of the request is read by the certificate's function
+    r = client.post("/v1/systemone", json=wire("0:0.9:x"))
+    assert r.status_code == 200 and r.headers["x-decisio-tasks"] == "t"
+    assert "task=" in r.headers["x-decisio-stages"] and "context=" in r.headers["x-decisio-stages"]
+    assert "engine=" not in r.headers["x-decisio-stages"]  # no question left for the request's own engine call
+
+
+# ---- B7 -------------------------------------------------------------------------------------------------------------
+
+
+class Modelled(Recording):
+    """The recording engine with a prefix cache like vLLM's on these bases, modelled: every read (a warm-up or a
+    question row) keeps its latest checkpoint, all its tokens but the last; a read takes from the cache the whole hit
+    units of the longest kept checkpoint it starts with, and says so per warm-up (`warm_cached_tokens`) and per row.
+    `evict()` empties the cache."""
+
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.kept = set()
+
+    def read(self, ids):
+        hit = max((len(p) for p in self.kept if tuple(ids[: len(p)]) == p), default=0)
+        self.kept.add(tuple(ids[:-1]))
+        return (hit // self.cache_hit_unit) * self.cache_hit_unit
+
+    def evict(self):
+        self.kept.clear()
+
+    def score_prompts(self, rows, adapter=None, warm=(), **kw):
+        self.sent.append({"rows": [ids for ids, _ in rows], "warm": list(warm)})
+        warm_cached = [self.read(w) for w in warm]
+        cached = [self.read(ids) for ids, _ in rows]
+        info = {"cached_tokens": cached, **({"warm_cached_tokens": warm_cached} if warm else {})}
+        return [np.ones(len(lab)) / len(lab) for _, lab in rows], info
+
+    def send_warm(self, warm, adapter=None, mm=None, mm_uuids=None):
+        ms = super().send_warm(warm, adapter, mm, mm_uuids)
+        for w in warm:
+            self.read(w)
+        return ms
+
+
+def context_warm_ups(eng, n=0):
+    """The engine calls from the n-th on that were a context's warm-up alone."""
+    return [e for e in eng.sent[n:] if not e["rows"]]
+
+
+@pytest.mark.parametrize(
+    "base,register,questions",
+    [(G12, "before", Q1), (G31, "before", Q1), (G12, "before", Q1 + Q2), (G12, "after", Q1 + Q2), (G12, "after", Q1),
+     (QWEN, "before", Q1 + Q2)],
+    ids=["12b-before-one", "31b-before-one", "12b-before-two", "12b-after-two", "12b-after-one", "qwen-two"],
+)  # fmt: skip
+def test_b7_a_context_evicted_from_the_cache_is_registered_again(tok, base, register, questions):
+    eng = Modelled(tok, base, register=register)
+    states = (f"state number {i} of the task" for i in range(100))  # a new state on every request
+
+    def ask():
+        _, info = eng.answer(context_state(CONTEXT, next(states)), questions)
+        return info["context_boundary"]
+
+    ask()
+    if register == "after":
+        ask()  # the deferred warm-up went ahead of this request's rows
+    cb = ask()
+    assert cb["found"] == 1 and cb["registered"] == 0 and cb["deferred"] == 0  # registered and in the cache
+    eng.evict()
+    assert ask()["found"] == 1  # this request reads the context again, and finds it gone
+    n = len(eng.sent)
+    cb = ask()  # so this one registers it again
+    if register == "after":
+        assert cb["deferred"] == 1
+        cb = ask()
+        assert cb["found"] == 1
+    else:
+        assert cb["registered"] == 1 and len(context_warm_ups(eng, n)) == 1
+    cb = ask()
+    assert cb["found"] == 1 and cb["registered"] == 0 and cb["deferred"] == 0  # and it stays found
+
+
+# ---- B8 -------------------------------------------------------------------------------------------------------------
+
+
+class Head(SingleEngineHidden):
+    """The intent head's reader on the serving engine (`SingleEngineHidden`) over a modelled engine: its label read is
+    the engine's own (`engine`, the Gemma bases) or computed from h (`recompute`, the Qwen base); the hidden-state
+    chunks of a row are one read of the modelled cache, which says what it took from the cache as the vLLM reader
+    does."""
+
+    def __init__(self, engine, label_source):
+        self.engine, self.tok, self._lock, self.label_source = engine, engine.tok, engine._lock, label_source
+        self.hidden = []
+
+    def hidden_rows(self, token_lists):
+        self.hidden += [list(ids) for ids in token_lists]
+        self._cached = [self.engine.read(ids) for ids in token_lists]
+        return [np.ones(4, dtype=np.float32) for _ in token_lists]
+
+    def label_lp(self, h, lab):
+        return np.log(np.ones(len(lab)) / len(lab))
+
+
+@pytest.mark.parametrize(
+    "base,source,register", [(G12, "engine", "before"), (G12, "engine", "after"), (QWEN, "recompute", "before")]
+)
+def test_b8_the_intent_heads_read_registers_the_context_as_the_letters_path_does(tok, base, source, register):
+    eng = Modelled(tok, base, register=register)
+    head = Head(eng, source)
+    states = (f"message number {i} for the head" for i in range(100))
+
+    def read():
+        state = context_state(CONTEXT, next(states))
+        n, h = len(eng.sent), len(head.hidden)
+        out = head.readout(state, Q2)
+        assert len(out) == 1
+        assert head.hidden[h:] == [eng._prepare_separate(state, Q2)[0][0][0]]  # the letters path's row, as before
+        return head.read_info()["context_boundary"], eng.sent[n:], state
+
+    cb, sent, state = read()
+    if register == "after":
+        assert cb["deferred"] == 1 and not context_warm_ups(eng)  # the read did not wait for it
+        cb, sent, state = read()  # the registration went ahead of this read
+        assert sent[0] == {"rows": [], "warm": [ctx_warm(eng, context_state(CONTEXT, "message number 0 for the head"),
+                                                         Q2)]}  # fmt: skip
+        assert cb["found"] == 1
+    else:
+        assert cb["registered"] == 1 and sent[0] == {"rows": [], "warm": [ctx_warm(eng, state, Q2)]}
+        assert isinstance(head.read_info()["context_ms"], float)
+    cb, sent, _ = read()
+    assert cb["found"] == 1 and not [e for e in sent if not e["rows"]]  # found: no warm-up of it
+    eng.evict()
+    assert read()[0]["found"] == 1  # this read finds it gone
+    cb, sent, _ = read()
+    if register == "after":
+        assert cb["deferred"] == 1
+    else:
+        assert cb["registered"] == 1  # so the next one registers it again
+    # the letters path and the head share the registration: a letters request of the task finds it
+    _, info = eng.answer(context_state(CONTEXT, "a letters request"), Q1)
+    assert info["context_boundary"]["found"] == 1
+    # a state without a context: no context facts
+    head.readout("no context here", Q2)
+    assert head.read_info() is None

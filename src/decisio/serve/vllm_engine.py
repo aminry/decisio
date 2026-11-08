@@ -210,6 +210,99 @@ def context_boundary_of(prepared) -> int | None:
     return cb.tokens if cb is not None else None
 
 
+class ContextRegistrations:
+    """The task-context boundaries of one engine call's requests (docs/tasks.md, "The context in the prefix cache"): a
+    context's boundary is registered once per context and adapter, with a warm-up of its tokens and one more, sent in an
+    engine call of its own ahead of the call's reads (`--register-boundary before`, or a registration pending but not
+    yet due) or kept pending until the response is out (`after`), through the engine's registry and registrar as a
+    state's boundary. Used by `LettersEngine._answer_separate` and by the intent head's read on the serving engine
+    (decisio.serve.hidden_engine.SingleEngineHidden), so both read the context from the cache the same way.
+
+    That is on a base that registers a state's boundary (the Gemma bases: vLLM keeps only a finished request's latest
+    checkpoint, inside its question) and on one that pads to the block (the Qwen base: a request's latest checkpoint is
+    the last block boundary of its row, inside the state once the state and question pass a block, so the context's
+    aligned end is kept only by its own warm-up); elsewhere vLLM's prefix cache keeps the context's blocks as it keeps
+    any. An engine without a cache hit unit or a prefix cache (the CPU stand-in, a test double) registers nothing."""
+
+    def __init__(self, engine, adapter):
+        self.engine, self.adapter = engine, adapter
+        family = getattr(engine, "family", None)
+        self.hit = getattr(engine, "cache_hit_unit", None)
+        mode = getattr(engine, "register_boundary", "after")
+        self.after = mode == "after"
+        self.on = bool(
+            self.hit
+            and mode != "off"
+            and getattr(engine, "prefix_caching", True)
+            and (getattr(family, "register_state_boundary", False) or getattr(engine, "pad_unit", None))
+        )
+        self.warm = []  # the warm-ups sent ahead of the call's reads
+        self.registering = []  # (key) of the boundaries those warm-ups register
+        self.checking = []  # (key, request, whole hit units) of the boundaries found registered
+        self.deferring = []  # (key, warm-up, request) of the boundaries registered after the response
+        self.each = []  # per request: its boundary and counts, None for a request without a context
+        self._warmed = set()  # the keys of this call's warm-ups (two requests of one context send one)
+
+    def add(self, prepared, k):
+        """Request `k`'s context boundary (`prepared`: its `_prepare_separate` result, `PreparedRows`): its facts
+        (`tokens`, and its `registered`, `found`, `deferred` and `unaligned` counts), or None without a context."""
+        cb = getattr(prepared, "context", None)
+        if cb is None:
+            self.each.append(None)
+            return None
+        ce = {"tokens": cb.tokens, "registered": 0, "found": 0, "deferred": 0, "unaligned": 0}
+        if cb.tokens is None:  # built as without a context (`ContextBoundary.fallback`)
+            ce["unaligned"] = 1
+        elif self.on and cb.tokens >= self.hit:
+            C, eng = cb.tokens, self.engine
+            row = prepared[0][0][0]
+            key = eng._boundary_key(row[:C], self.adapter)
+            if key in self._warmed:  # another request of this call sends the context's warm-up first
+                self.registering.append(key)
+                ce["registered"] += 1
+            elif key in eng._boundaries:
+                eng._boundaries.move_to_end(key)
+                self.checking.append((key, k, (C // self.hit) * self.hit))
+                ce["found"] += 1
+            elif self.after and not eng.registrar.take(key):
+                self.deferring.append((key, row[: C + 1], k))
+                ce["deferred"] += 1
+            else:
+                self.warm.append(row[: C + 1])
+                self._warmed.add(key)
+                self.registering.append(key)
+                ce["registered"] += 1
+        self.each.append(ce)
+        return ce
+
+    def send(self) -> float:
+        """The warm-ups, in an engine call of their own, so the call's reads find their contexts cached; ms."""
+        return self.engine.send_warm(self.warm, self.adapter) if self.warm else 0.0
+
+    def settle(self, first_cached, tickets=None) -> None:
+        """After the call's reads (the engine's lock held). A context found registered is checked on the first engine
+        read of its request that starts from the context's boundary, `first_cached(k)`: the tokens that read took from
+        the prefix cache (None when the engine did not say). That is the state's warm-up when the request sent one, not
+        its question, which reads the context through the warm-up's own checkpoint whether the context was cached or
+        not. Fewer than the context's whole hit units means it was evicted, and the next request of the task registers
+        it again. The warm-ups sent are remembered; the deferred ones are kept pending, due when request k's ticket is
+        released (`tickets[k]`; None: the calling thread's)."""
+        eng = self.engine
+        for key, k, whole in self.checking:
+            c = first_cached(k)
+            if c is not None and c < whole:
+                eng._boundaries.pop(key, None)
+        if self.registering:
+            eng.boundaries_registered(self.registering)
+        for key, w, k in self.deferring:
+            eng.registrar.defer(key, w, self.adapter, ticket=None if tickets is None else tickets[k])
+
+    def facts(self) -> dict | None:
+        """The call's context facts (`context_boundary_facts` over its requests with a context), None without one."""
+        entries = [ce for ce in self.each if ce is not None]
+        return context_boundary_facts(entries) if entries else None
+
+
 def counted_tokens(tok, fmt, state, questions, header_lines=None) -> dict:
     """The request read once in counted input tokens, the unit of usage.input_tokens: the header (under the header
     layout), the state, and each question's own text, each tokenized alone (no chat template, no system turn).
@@ -976,7 +1069,7 @@ class LettersEngine:
 
         lora = self.adapters[adapter] if adapter else None
         extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
-        warm_ms = self.send_warm(warm, adapter, mm, mm_uuids) if warm else 0.0
+        warm_ms, warm_cached = self._prefill(warm, adapter, mm, mm_uuids) if warm else (0.0, [])
         # SamplingParams defaults leave top-k/top-p/min-p off, so "processed" is the masked logits alone.
         # detokenize=False: labels are read by token id and no text is used; the per-request detokenizer
         # was 73% of the frontend's CPU at an 8,000-token state (profiled)
@@ -1032,6 +1125,9 @@ class LettersEngine:
             "prompt_tokens": sum(len(r[0]) for r in rows) + sum(len(w) for w in warm),
             "engine_prompt_tokens": engine_len,
             "cached_tokens": cached,
+            # what each warm-up took from the cache: the first read of its state, which a context's eviction check reads
+            # (ContextRegistrations.settle)
+            **({"warm_cached_tokens": warm_cached} if warm_cached else {}),
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
@@ -1134,15 +1230,20 @@ class LettersEngine:
         cache (a warm-up of P+1 tokens registers the state at P); the milliseconds it took. With vLLM's prefix cache
         off nothing is sent: the prefill could not be reused, and it would cost about one more read of the state
         (about 0.8 times a question's own read on the 12B, 214 rows of a median 361 tokens)."""
+        return self._prefill(warm, adapter, mm, mm_uuids)[0]
+
+    def _prefill(self, warm, adapter=None, mm=None, mm_uuids=None) -> tuple[float, list[int]]:
+        """`send_warm`'s engine call: (ms, the tokens each warm-up took from the prefix cache); (0.0, []) with the
+        prefix cache off, where nothing is sent."""
         if not getattr(self, "prefix_caching", True):
-            return 0.0
+            return 0.0, []
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
 
         lora = self.adapters[adapter] if adapter else None
         extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
         t = time.perf_counter()
-        guarded(
+        outs = guarded(
             self,
             self.llm.generate,
             [TokensPrompt(prompt_token_ids=w, **extra) for w in warm],
@@ -1150,7 +1251,8 @@ class LettersEngine:
             lora_request=lora,
             use_tqdm=False,
         )
-        return (time.perf_counter() - t) * 1000
+        ms = (time.perf_counter() - t) * 1000
+        return ms, [getattr(o, "num_cached_tokens", None) or 0 for o in outs or []]
 
     # the states whose boundary this engine registered with a warm-up (register_state_boundary), most recent last
     BOUNDARIES_KEPT = 4096
@@ -1180,14 +1282,11 @@ class LettersEngine:
         go to (None: the calling thread's).
 
         A request read with its task's context (`_prepare_separate`, the context boundary) registers the context's
-        boundary once per context and adapter: a warm-up of its tokens and one more, sent on its own ahead of the
-        request's other warm-ups and questions (so they read the context from the cache), or after the response under
-        --register-boundary after, through the same registry, eviction check and registrar as a state's boundary. That
-        is on a base that registers a state's boundary (the Gemma bases: vLLM keeps only a finished request's latest
-        checkpoint, inside its question) and on one that pads to the block (the Qwen base: a request's latest
-        checkpoint is the last block boundary of its row, inside the state once the state and question pass a block,
-        so the context's aligned end is kept only by its own warm-up); elsewhere vLLM's prefix cache keeps the
-        context's blocks as it keeps any. The state's own boundary is handled as for a request without a context."""
+        boundary once per context and adapter (`ContextRegistrations`): a warm-up of its tokens and one more, sent on
+        its own ahead of the request's other warm-ups and questions (so they read the context from the cache), or after
+        the response under --register-boundary after. A context found registered is checked for eviction on the
+        request's first read from its boundary: the state's warm-up when one goes ahead of the questions, else the
+        first question. The state's own boundary is handled as for a request without a context."""
         rows, warm, spans, shared = [], [], [], []
         each = []  # per request: its boundary counts, so each caller of a batched call gets its own
         unit = min(self.match_unit, self.pad_unit or self.match_unit)
@@ -1198,58 +1297,32 @@ class LettersEngine:
         mode = getattr(self, "register_boundary", "after")
         register = bool(getattr(family, "register_state_boundary", False) and hit and mode != "off")
         after = mode == "after"
-        # a task context's boundary (above): where the base would not keep it without a warm-up
-        ctx_register = bool(
-            hit
-            and mode != "off"
-            and getattr(self, "prefix_caching", True)
-            and (getattr(family, "register_state_boundary", False) or getattr(self, "pad_unit", None))
-        )
         # (key) for the warm-ups sent; (key, row, whole hit units) for the others; (key, warm-up) for those deferred
         registering, checking, deferring = [], [], []
-        warmed = set()  # the warm-ups already in this call (two requests about one new state send one)
-        # the same for the contexts' boundaries, whose warm-ups go in an engine call of their own before the rows
-        ctx_registering, ctx_checking, ctx_deferring, ctx_warm = [], [], [], []
-        ctx_each = []  # per request: its context boundary and counts, None for a request without a context
+        warmed = {}  # the warm-ups already in this call, by state key, at their place in `warm` (one per new state)
+        # the contexts' boundaries, whose warm-ups go in an engine call of their own before the rows
+        ctx = ContextRegistrations(self, adapter)
+        # per request: its first engine read from the context's boundary, ("warm", i) for a state warm-up sent ahead of
+        # its questions, else ("row", i), its first question (the context's eviction check reads it)
+        first = []
         t = time.perf_counter()
         for k, (state, questions) in enumerate(requests):
             each.append({"registered": 0, "found": 0, "deferred": 0})
             prepared = self._prepare_separate(state, questions)
             r, P = prepared
-            cb = getattr(prepared, "context", None)
-            ce = None
-            if cb is not None:
-                ce = {"tokens": cb.tokens, "registered": 0, "found": 0, "deferred": 0, "unaligned": 0}
-                if cb.tokens is None:  # built as without a context (`ContextBoundary.fallback`)
-                    ce["unaligned"] = 1
-                elif ctx_register and cb.tokens >= hit:
-                    C = cb.tokens
-                    key = self._boundary_key(r[0][0][:C], adapter)
-                    if key in warmed:  # another request of this call sends the context's warm-up first
-                        ctx_registering.append(key)
-                        ce["registered"] += 1
-                    elif key in self._boundaries:
-                        self._boundaries.move_to_end(key)
-                        ctx_checking.append((key, len(rows), (C // hit) * hit))
-                        ce["found"] += 1
-                    elif after and not self.registrar.take(key):
-                        ctx_deferring.append((key, r[0][0][: C + 1], k))
-                        ce["deferred"] += 1
-                    else:
-                        ctx_warm.append(r[0][0][: C + 1])
-                        warmed.add(key)
-                        ctx_registering.append(key)
-                        ce["registered"] += 1
-            ctx_each.append(ce)
+            ctx.add(prepared, k)
+            first.append(("row", len(rows)))
             # a warm-up pays only when several questions can reuse a registered boundary; --multi-question batch
             # sends the questions without it, each prefilling the state itself, in one engine call
             if len(r) > 1 and P >= unit and self.multi_question != "batch":
+                first[k] = ("warm", len(warm))
                 warm.append(r[0][0][: P + 1])
             elif register and len(r) == 1 and P >= unit and self.multi_question != "batch":
                 # one question: the warm-up only when this engine has not registered the state's boundary, or a
                 # request since found it gone (evicted), so a repeated question costs no extra engine call
                 key = self._boundary_key(r[0][0][:P], adapter)
                 if together and key in warmed:  # another request of this call sends the state's warm-up first
+                    first[k] = ("warm", warmed[key])
                     registering.append(key)
                     each[k]["registered"] += 1
                 elif key in self._boundaries:
@@ -1264,8 +1337,9 @@ class LettersEngine:
                     # before (0.8.1), or this state's warm-up is still pending behind a response not yet sent (two
                     # questions about a new state sent together): sent ahead of the question
                     if not (together and key in warmed):  # a serial call of several requests sends each its own
+                        first[k] = ("warm", len(warm))
+                        warmed[key] = len(warm)
                         warm.append(r[0][0][: P + 1])
-                        warmed.add(key)
                     registering.append(key)
                     each[k]["registered"] += 1
             spans.append((len(rows), len(rows) + len(r)))
@@ -1273,19 +1347,31 @@ class LettersEngine:
             shared.append(P)
         prepare_ms = (time.perf_counter() - t) * 1000
         # the contexts' warm-ups first, in their own engine call: the rows and their warm-ups then read them cached
-        ctx_ms = self.send_warm(ctx_warm, adapter) if ctx_warm else 0.0
+        ctx_ms = ctx.send()
         if self.multi_question == "sequential" and len(rows) > 1 and not together:
             probs, info = self._score_one_at_a_time(rows, adapter, warm)
         else:
             probs, info = self.score_prompts(rows, adapter, warm)
-        if register or ctx_checking or ctx_registering or ctx_deferring:
-            cached = info.get("cached_tokens") or []
-            for key, row, whole in checking + ctx_checking:
+        cached = info.get("cached_tokens") or []
+        warm_cached = info.get("warm_cached_tokens") or []
+
+        def first_cached(k):
+            """What request k's first read from its context's boundary took from the cache. An engine that does not
+            say what its warm-ups took (a test double) is read on the request's first question instead."""
+            kind, i = first[k]
+            if kind == "warm" and i < len(warm_cached):
+                return warm_cached[i]
+            row = spans[k][0]
+            return cached[row] if row < len(cached) else None
+
+        if register:
+            for key, row, whole in checking:
                 if row < len(cached) and cached[row] < whole:
                     self._boundaries.pop(key, None)  # evicted: the next request on this state registers it again
-            self.boundaries_registered(registering + ctx_registering)
-            for key, w, k in deferring + ctx_deferring:
+            self.boundaries_registered(registering)
+            for key, w, k in deferring:
                 self.registrar.defer(key, w, adapter, ticket=None if tickets is None else tickets[k])
+        ctx.settle(first_cached, tickets)
         if register:
             info["state_boundary"] = {
                 "registered": len(registering),
@@ -1293,11 +1379,11 @@ class LettersEngine:
                 "deferred": len(deferring),
             }
             info["_state_boundary_each"] = each
-        if any(ce is not None for ce in ctx_each):
-            info["context_boundary"] = context_boundary_facts([ce for ce in ctx_each if ce is not None])
+        if ctx.facts() is not None:
+            info["context_boundary"] = ctx.facts()
             info["context_ms"] = ctx_ms  # the contexts' warm-ups sent ahead of the rows (x-decisio-stages)
-            info["prompt_tokens"] = info.get("prompt_tokens", 0) + sum(len(w) for w in ctx_warm)
-            info["_context_boundary_each"] = ctx_each
+            info["prompt_tokens"] = info.get("prompt_tokens", 0) + sum(len(w) for w in ctx.warm)
+            info["_context_boundary_each"] = ctx.each
         info.update(shared_prefix_tokens=shared[0] if len(shared) == 1 else shared, questions=len(rows))
         info["prepare_ms"] = prepare_ms
         info["_row_spans"] = spans
@@ -1688,8 +1774,9 @@ def resolve_multi_question(family, choice, engine_process, backend=None):
 
 
 def resolve_register_boundary(family, choice, prefix_caching=True):
-    """--register-boundary's default: the base profile's (gemma-4-12b: after; gemma-4-31b: before, where registering
-    after the response cost it a third of its throughput under load; runs/2026-10-06_latency-585w); off when vLLM's
+    """--register-boundary's default: the base profile's (before on both Gemma bases: on the 31B registering after the
+    response cost a third of its throughput under load, runs/2026-10-06_latency-585w; on the 12B, after from 0.9.0 to
+    0.11.0, a request that follows another waited behind the previous state's registration); off when vLLM's
     prefix cache is off (`--engine '{"enable_prefix_caching": false}'`), where a registration has nowhere to go.
     Asking for after or before with the cache off is refused (boundary_needs_cache, before the weights load)."""
     if choice is not None:

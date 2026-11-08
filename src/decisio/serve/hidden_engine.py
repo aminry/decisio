@@ -36,7 +36,7 @@ import numpy as np
 
 from decisio.serve import engine_stream
 from decisio.serve.engine_health import guarded
-from decisio.serve.vllm_engine import LettersEngine
+from decisio.serve.vllm_engine import ContextRegistrations, LettersEngine
 
 
 def log_softmax(z):
@@ -57,9 +57,15 @@ class HiddenReadout:
         cap = family.softcap if family is not None else None
         return z if cap is None else np.tanh(z / cap) * cap
 
-    def readout(self, state, questions):
+    def label_lp(self, h, lab):
+        """The label log-probabilities from h (float32) for one row's label ids."""
         from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 
+        if is_grouped(lab):  # several forms per label: the log-softmax over all of them, summed per label
+            return label_log_softmax(self.label_logits(h, allowed_ids(lab)), lab)
+        return log_softmax(self.label_logits(h, lab))
+
+    def readout(self, state, questions):
         with self._lock:
             t0 = time.perf_counter()
             rows, _ = self._prepare_separate(state, questions)
@@ -67,10 +73,7 @@ class HiddenReadout:
             out = []
             for (_, lab), h in zip(rows, H):
                 h = np.asarray(h, dtype=np.float32)
-                if is_grouped(lab):  # several forms per label: the log-softmax over all of them, summed per label
-                    out.append((label_log_softmax(self.label_logits(h, allowed_ids(lab)), lab), h))
-                else:
-                    out.append((log_softmax(self.label_logits(h, lab)), h))
+                out.append((self.label_lp(h, lab), h))
             self.last_ms = (time.perf_counter() - t0) * 1000
         return out
 
@@ -321,21 +324,60 @@ class SingleEngineHidden(HiddenReadout):
     def readout(self, state, questions):
         """[(label log-probabilities, h)] per question. Under `engine` the log-probabilities are the engine's own
         readout of the row (the plain path's score_prompts, so they equal what the question gets without a head),
-        read just before the row's hidden-state chunks under the same lock."""
-        if self.label_source != "engine":
-            return HiddenReadout.readout(self, state, questions)
+        read just before the row's hidden-state chunks under the same lock; under `recompute` they are computed from h.
+
+        The rows are the letters path's (`_prepare_separate`), and a state read with its task's context registers the
+        context's boundary in the serving engine's prefix cache as the letters path does (vllm_engine
+        .ContextRegistrations): once per context, ahead of the reads under --register-boundary before, after the
+        response under after, checked for eviction on the request's first read. Registrations of other requests that
+        are due go first, as before any engine call of the letters path. What the read said of the context is
+        `read_info()`."""
         with self._lock:
             t0 = time.perf_counter()
-            rows, _ = self._prepare_separate(state, questions)
-            out = []
+            registrar = getattr(self.engine, "__dict__", {}).get("_registrar")
+            if registrar is not None:
+                registrar.run_due()
+            prepared = self._prepare_separate(state, questions)
+            rows = prepared[0]
+            ctx = ContextRegistrations(self.engine, None)
+            ctx.add(prepared, 0)
+            ctx_ms = ctx.send()
+            out, first = [], None
             for row in rows:
-                (p,), _ = self.engine.score_prompts([row])
-                with np.errstate(divide="ignore"):
-                    lp = np.log(np.asarray(p, dtype=np.float64))
-                (h,) = self.hidden_rows([row[0]])
-                out.append((lp, np.asarray(h, dtype=np.float32)))
+                if self.label_source == "engine":
+                    (p,), info = self.engine.score_prompts([row])
+                    with np.errstate(divide="ignore"):
+                        lp = np.log(np.asarray(p, dtype=np.float64))
+                    if first is None:
+                        first = (info.get("cached_tokens") or [None])[0]
+                    (h,) = self.hidden_rows([row[0]])
+                    h = np.asarray(h, dtype=np.float32)
+                else:
+                    self._cached = None
+                    (h,) = self.hidden_rows([row[0]])
+                    h = np.asarray(h, dtype=np.float32)
+                    lp = self.label_lp(h, row[1])
+                    if first is None:
+                        first = (self._cached or [None])[0]
+                out.append((lp, h))
+            ctx.settle(lambda k: first)
+            facts = ctx.facts()
+            self._read.info = {"context_ms": ctx_ms, "context_boundary": facts} if facts is not None else None
             self.last_ms = (time.perf_counter() - t0) * 1000
         return out
+
+    @property
+    def _read(self):
+        if "_read_local" not in self.__dict__:
+            import threading
+
+            self._read_local = threading.local()
+        return self._read_local
+
+    def read_info(self) -> dict | None:
+        """The calling thread's last `readout`: `context_ms`, the context's warm-up sent in it, and `context_boundary`,
+        its facts, for a state read with a task's context (x-decisio-stages); None for one without."""
+        return getattr(self._read, "info", None)
 
     def hidden_rows(self, token_lists):
         """One engine request per chunk of reserved ids (vLLM allows at most 1,024 ids per request), sent one at a time:
@@ -348,19 +390,22 @@ class SingleEngineHidden(HiddenReadout):
 
         from decisio.vllm_plugin.hidden import recover_hidden_chunks
 
-        rows = []
+        rows, cached = [], []
         for ids in token_lists:
             lps = []
-            for chunk in self.chunks:
+            for j, chunk in enumerate(self.chunks):
                 sp = SamplingParams(
                     max_tokens=1, temperature=0.0, logprobs=len(chunk), allowed_token_ids=chunk, detokenize=False
                 )
                 (o,) = guarded(
                     self.engine, self.llm.generate, [TokensPrompt(prompt_token_ids=ids)], [sp], use_tqdm=False
                 )
+                if j == 0:  # what the row's first read took from the prefix cache (the context's eviction check)
+                    cached.append(getattr(o, "num_cached_tokens", None) or 0)
                 d = o.outputs[0].logprobs[0]
                 lps.append([d[t].logprob for t in chunk])  # KeyError = a reserved column went missing
             rows.append(recover_hidden_chunks(lps).astype(np.float32))
+        self._cached = cached
         return rows
 
     def probe(self):

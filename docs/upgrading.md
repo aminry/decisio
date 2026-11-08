@@ -25,9 +25,9 @@ How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](ap
 - **Limits count the context**: a context over the window before any state refuses the registration, a row over it is 422 with the context named, and truncation cuts the state only.
 - **Status shows the context's sha256 and length, never its text**: the task, the listing and `/health`'s `readout_tasks`; the export holds the text.
 - **The context is read from the prefix cache after the first request of its task**: the server finds where the context ends in each request's rows and keeps everything up to there once per context ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
-  On vLLM a server that pads (the Qwen base) sizes the pad from the context's end, not the state's, so the pad is the same on every request of the task, and the context's boundary is registered once per context and adapter, as a state's is (`--register-boundary`); on MLX the context is an entry of its own in the prefix cache.
+  On vLLM a server that pads (the Qwen base) sizes the pad from the context's end, not the state's, so the pad is the same on every request of the task, and the context's boundary is registered once per context and adapter, as a state's is (`--register-boundary`), by the letters path and by the intent head's read alike; on MLX the context is an entry of its own in the prefix cache.
   So on the Qwen base a request of a task with a context is the same text as the request that carries the context in its state, but not the same tokens, and its answers can differ slightly.
-  `x-decisio-stages` has a new `context=` stage for such requests.
+  `x-decisio-stages` has a new `context=` stage on every such request, a certified task's and an intent head's included.
 
 ### Who is affected
 

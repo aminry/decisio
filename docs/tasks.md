@@ -868,12 +868,19 @@ The server finds where they end in each request's rows (the context boundary) an
   So the server registers the context's boundary with a warm-up of the context's tokens and one more, once per context and adapter, as it registers a state's boundary ([running.md](running.md#a-later-question-about-the-same-state---register-boundary)), on the Gemma bases and on the Qwen base.
   `--register-boundary` sets when: `before`, ahead of the first request's questions, in an engine call of its own; `after`, once the first response is out; `off`, never.
   A request that finds the boundary evicted makes the next one register it again.
+  The check reads the request's first read from the context's end: the state's warm-up when one goes ahead of the questions (several questions, or a new state under `before`), else its first question.
+  The question is not enough there: it reads the context through the warm-up's own checkpoint whether the context was in the cache or not.
   A state's own boundary is registered as for a request without a context.
+- **The intent head.** A task with an intent head reads its hidden state from the same rows, and on vLLM's default head mode, where the serving engine reads it, registers the context's boundary the same way, in the same registry, so the letters path and the head find each other's registration.
+  With `--head-engine` the second engine has no prefix cache, and every head question reads its whole prompt, the context included.
+  On MLX the head reads the letters' own forward, context entry included.
 - **MLX.** The context's tokens are their own entry in the prefix cache (`--prefix-cache-mb`), and each request's state continues from a copy of it.
   The prefix is always computed in these two steps, whether the context came from the cache or not, so an answer does not depend on it.
 - **What a request computes once the context is cached:** its state, from the context's end (on the Gemma bases from the last 64-token step before it on the 12B, 32-token on the 31B), and its questions.
   With several questions on the Qwen base each question also reads the state's last partial block again (under 1,056 tokens), because the state's end is no longer on a block.
-- **What the response says.** `x-decisio-stages` has `context=`: the context's warm-up sent in this request (vLLM; 0 when the boundary was already registered) or the context's part of the prefix, read or computed (MLX); on vLLM, `x-decisio-prompt` counts the context in `cached` once it came from the cache.
+- **What the response says.** `x-decisio-stages` has `context=` on every request read with a context: the context's warm-up sent in this request (vLLM; 0 when the boundary was already registered) or the context's part of the prefix, read or computed (MLX).
+  It is summed over every read of the request that read the context: its own engine call, a certified task's questions (`task`) and the intent head's read (`head`), so it lies within those stages.
+  On vLLM, `x-decisio-prompt` counts the context in `cached` once it came from the cache.
   On MLX, `/health` counts the context entry's lookups in `prefix_cache.context_hits` and `context_misses`.
 - **A state that starts with whitespace** can merge with the context's blank line in the tokenizer, so its tokens do not start with the context's own.
   Such a request is built as it would be without the context boundary (the pad sized from the state's end, as without a context) and reads the context again; the server logs it once per context.

@@ -491,6 +491,7 @@ class MLXHiddenReadout:
     def __init__(self, engine):
         self.engine, self.tok, self._lock = engine, engine.tok, engine._lock
         self.mode = "hidden (MLX engine, same forward as the letters)"
+        self._read = threading.local()  # the calling thread's last read (read_info)
 
     def _prepare_separate(self, state, questions):
         return self.engine._prepare_separate(state, questions)
@@ -501,9 +502,16 @@ class MLXHiddenReadout:
             prepared = self._prepare_separate(state, questions)
             rows, P = prepared
             # the letters' own split at the task context's boundary, so the hidden state is the same forward's
-            scored, _, _, _ = guarded(self.engine, self.engine._score, rows, P, context_boundary_of(prepared))
+            C = context_boundary_of(prepared)
+            scored, _, _, (_, context_ms) = guarded(self.engine, self.engine._score, rows, P, C)
+            self._read.info = {"context_ms": context_ms} if C is not None else None
             self.last_ms = (time.perf_counter() - t0) * 1000
         return scored
+
+    def read_info(self) -> dict | None:
+        """The calling thread's last `readout`: `context_ms`, the context's part of the prefix, read or computed, for a
+        state read with a task's context (x-decisio-stages); None for one without."""
+        return getattr(self._read, "info", None)
 
     def probe(self):
         """The serving engine's probe: this reader is that engine (engine_health)."""

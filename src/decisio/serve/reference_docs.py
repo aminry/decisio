@@ -320,8 +320,9 @@ RESPONSE_HEADERS = {
     "x-decisio-layout": "`header; listed=K; of=N; reason=context`, or `plain; ...`, when the header listed only some "
     "of the request's questions (`--header-limit`).",
     "x-decisio-stages": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`: "
-    "`engine` is the request's own engine call (`prepare` to `readout` are its parts, and `context`, a task context's "
-    "warm-up or prefix, when the request was read with one), `task` the questions of a "
+    "`engine` is the request's own engine call (`prepare` to `readout` are its parts), `context` a task context's "
+    "warm-up or prefix when the request was read with one, summed over the reads that read it (within `engine`, `task` "
+    "or `head`), `task` the questions of a "
     "certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the "
     "reasoning pass, `wait` the time spent waiting for the engine.",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
