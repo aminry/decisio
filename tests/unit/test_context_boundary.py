@@ -43,7 +43,12 @@ CONTEXT = (
     "Items bought on sale are refunded at the price paid. Shipping is refunded only when the item arrived damaged. "
 ) * 3
 CONTEXT = CONTEXT.strip()
-OTHER_CONTEXT = "Escalation policy: route every message that names a lawyer to the legal queue before anything else."
+# as long as CONTEXT, so it passes a cache hit unit on every base, as CONTEXT does
+OTHER_CONTEXT = (
+    "Escalation policy: route every message that names a lawyer to the legal queue before anything else. "
+    "A message that threatens a chargeback goes to billing disputes, and one that names the press goes to the lead. "
+) * 3
+OTHER_CONTEXT = OTHER_CONTEXT.strip()
 STATES = [STATE, OTHER, "short", {"message": "an object state", "order": 7}]
 QWEN, G12, G31 = "qwen3.6-35b-a3b", "gemma-4-12b", "gemma-4-31b"
 

@@ -4,7 +4,7 @@
 
 `MLXLettersEngine` subclasses `vllm_engine.LettersEngine`, as the CPU stand-in (`hf_letters`) does, and replaces only
 what needs vLLM: model loading and the forward pass. Everything a request goes through before that is the served code:
-state tokenization, the split into state and question, the front padding to the 1,056-token block, the label tokens,
+state tokenization, the split into state and question, the padding where the policy asks for it, the label tokens,
 derived questions, `/v1/answer` and `/v1/systemone`, the temperature, tasks, the intent head and abstention.
 
 The prompts are byte for byte the vLLM path's:
@@ -15,8 +15,8 @@ The prompts are byte for byte the vLLM path's:
   conversions of Qwen3.6-35B-A3B ship a different `tokenizer.json` and `tokenizer_config.json`, and those of
   gemma-4-12B-it the chat template from before Google's 2026-07-15 fix; `--tokenizer` overrides it (`repo@revision`
   pins a revision);
-- the padding is the served default's (front, to vLLM's 1,056-token block), which MLX's cache does not need but the
-  served prompts carry; `--pad-to none` leaves it out.
+- no padding by default (`--pad-policy none`, the MLX default: its cache needs none), so the prompts are the vLLM
+  path's without its padding; another `--pad-policy` pads as the vLLM path does on a base that pads.
 
 Separate mode only: one forward per question. For each request the state prefix (the tokens every question shares,
 padding included) is prefilled once into a fresh prompt cache and evaluated; each question then continues from a copy
