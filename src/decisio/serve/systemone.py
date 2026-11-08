@@ -1659,6 +1659,8 @@ class SystemOne:
         store = self.task_store
         if not self.tasks_enabled or store is None or not store.by_key:
             return None
+        from decisio.serve.tasks import task_key
+
         for key in self.question_keys(q):
             if store.matches(key):
                 return None  # a task of this question applies to this request
