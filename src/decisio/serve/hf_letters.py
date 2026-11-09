@@ -88,6 +88,7 @@ class HFLettersEngine(LettersEngine):
             raise ValueError("the text stand-in takes no images (HFImageLettersEngine does)")
         if adapter:
             raise ValueError("the CPU stand-in serves no adapters")
+        self.refuse_over_window(rows)
         t0 = time.perf_counter()
         probs, token_lps = [], []
         with torch.no_grad():
