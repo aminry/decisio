@@ -323,6 +323,7 @@ class MLXLettersEngine(LettersEngine):
         (whether its entry was cached, ms); (None, 0.0) for a request without a context, or one answered from the
         prefix's entry."""
         mx = self._mx
+        self.refuse_over_window(rows)
         if any(ids[:prefix] != rows[0][0][:prefix] for ids, _ in rows):
             raise ValueError("the rows do not share their first `prefix` tokens")
         if any(len(ids) <= prefix for ids, _ in rows):

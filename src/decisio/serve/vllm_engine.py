@@ -97,6 +97,7 @@ from decisio.serve import (  # noqa: E402
     precision_casts,
     task_backends,
 )
+from decisio.serve import over_limit as over  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
 from decisio.serve.boundary import AfterResponse, Registrar, close_ticket, current_ticket, open_ticket  # noqa: E402
@@ -599,6 +600,26 @@ class LettersEngine:
         if config is not None:
             return int(config.model_config.max_model_len) - 1
         return int(self.context_window) - 1 if self.context_window else None
+
+    def refuse_over_window(self, rows) -> None:
+        """The catch-all of the engines that have no ceiling of their own (the MLX and HF builds, `context_window`):
+        refused (`over_limit.OverLimit`, a 422) before any forward pass when a row of `rows` [(token ids, labels)] is
+        over `prompt_limit()`, with the tokens of the longest row and the ceiling. Every path that scores rows calls
+        it (`/v1/systemone`, `/v1/answer`, a registration's reads, the hidden readout), so no route reaches the model
+        with a prompt far over the window. vLLM refuses by itself (`engine_health.client_error`)."""
+        if self.over_limit_tokens is None and self.context_window is None:
+            return
+        llm = getattr(self, "llm", None)
+        if getattr(getattr(llm, "llm_engine", None), "vllm_config", None) is not None:
+            return
+        limit = self.prompt_limit()
+        longest = max((len(ids) for ids, _ in rows), default=0)
+        if limit is not None and longest > limit:
+            raise over.OverLimit(
+                f"the rendered prompt is {longest:,} tokens, over the {limit:,} the server answers; shorten the state "
+                'or the question, send "over_limit": "truncate", or start the server with a longer --max-model-len '
+                "or --over-limit-tokens"
+            )
 
     def facts(self):
         import torch
@@ -1685,7 +1706,7 @@ def make_app(engine, systemone=None, health=None):
             with layout.using(req.layout):
                 probs, info = engine.answer(req.state, req.questions, req.adapter)
                 used = getattr(engine, "fmt", DEFAULT_FORMAT).layout
-        except layout.LayoutRefused as e:
+        except (layout.LayoutRefused, over.OverLimit) as e:
             raise HTTPException(422, str(e))
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))

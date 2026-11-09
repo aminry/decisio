@@ -14,16 +14,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 - **The MLX and HF builds have a prompt ceiling**: `--max-model-len` (32,768 unless set) less the one generated token, as the vLLM build has.
   Before, they had none, and a request far over the window was fed to the model until memory ran out: a registration with a context of about 240,000 tokens kept the server busy for 17 minutes and ended with the server killed at its memory limit.
-- **A task context is checked before any example is read**: a registration (labelled, dynamic-option or learning) or an import whose context is over the window, or fits but not beside its longest example's state, is a 422 that gives the tokens of the context, of that example and the window, and never the context.
-  A huge context is counted on its first part only, so it is refused at once.
-- **The MLX prefix cache keeps a task context's entry once**: the entries of the states read after it no longer push it out.
+  Every row that would reach the model is checked first (`/v1/systemone` with or without a task context, `/v1/answer`, a registration's or a certification's reads, the hidden readout), and one over the ceiling is a 422 that gives its tokens and the ceiling.
+- **A registration or a certification is checked before any example is read**: a context over the window, or fitting but not beside an example's own question and state (the explicit `certify.examples` and `POST /v1/tasks/{id}/certify` examples included), is a 422 that names that example and the tokens, and never the context.
+  A registration with no context whose example state is over the window is a 422 too.
+  A huge text is counted on its first part only, so it is refused at once.
+- **An import counts the context and the template only** (a task record keeps no question text), so a context just under the window can load.
+- **The MLX prefix cache keeps a task context's entry once**: the entries of the states read after it no longer push it out; with a context of more than about half the cache budget the states of that task are not cached.
 
 ### Who is affected
 
 | | Before | Now |
 | --- | --- | --- |
-| A request on the MLX or HF build whose row is over 32,767 tokens | read, until memory ran out | 422 with where its tokens are, or cut with `over_limit: truncate` |
-| A registration or import whose context is over the window, or over it with the longest example | accepted, or never answered | 422 |
+| A request on the MLX or HF build whose row is over 32,767 tokens, with or without a task context | read, until memory ran out | 422 with its tokens and the ceiling, or cut with `over_limit: truncate` |
+| `/v1/answer` with a prompt over 32,767 tokens on the MLX or HF build | read | 422 |
+| A registration or certification with a context, or an example, whose row is over the window | accepted, or never answered | 422 naming the example |
+| An import whose context is over the window | accepted | 422 |
 | `--over-limit truncate` on the MLX build | needed `--over-limit-tokens` | works to `--max-model-len` less 1 |
 
 To serve longer rows on the MLX build, start it with `--over-limit-tokens N` (the memory it takes is yours to budget).
