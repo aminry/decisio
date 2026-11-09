@@ -199,15 +199,25 @@ class PrefixCache:
             self.hits += 1
         return e[1]
 
-    def put(self, ids, cache, split=0):
+    def put(self, ids, cache, split=0, keep=None):
+        """Keep `cache` for `ids`, least recently used out first. `keep`: the token ids of an entry that stays (a task
+        context's own entry, which every request of the task starts from): where `cache` would not fit beside it, it
+        is not stored, so one context entry is kept once and the entries of states read after it never push it out."""
         n = sum(a.nbytes for a in _cache_arrays(cache))
         if n > self.max_bytes:
             return
         key = self._entry_key(ids, split)
+        pinned = self._entry_key(keep, 0) if keep is not None else None
+        held = self.entries.get(pinned) if pinned is not None and pinned != key else None
+        if held is not None and held[2] + n > self.max_bytes:
+            return
         if key in self.entries:
             self.bytes -= self.entries.pop(key)[2]
-        while self.entries and self.bytes + n > self.max_bytes:
-            self.bytes -= self.entries.popitem(last=False)[1][2]
+        while self.bytes + n > self.max_bytes:
+            old = next((k for k in self.entries if k != pinned), None)
+            if old is None:
+                break
+            self.bytes -= self.entries.pop(old)[2]
         self.entries[key] = (np.asarray(ids, dtype=np.int64), cache, n, int(split))
         self.bytes += n
 
@@ -342,7 +352,7 @@ class MLXLettersEngine(LettersEngine):
                 if prefix:
                     self._feed(pre, base)
             if prefix and cache is not None:
-                cache.put(pre, base, split)
+                cache.put(pre, base, split, keep=pre[:split] if split else None)
         prefix_ms = (time.perf_counter() - t0) * 1000
         out = []
         for ids, lab in rows:

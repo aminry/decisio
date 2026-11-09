@@ -970,7 +970,12 @@ A request that names no task, whose question has a task with a context under the
 A request sent after the task was deleted finds no task, and its state is read as sent.
 
 **Limits.**
-- A registration whose context, with the question and the template, is over the context window before any state is refused with 422.
+- A registration whose context, with the question and the template, is over the context window before any state is refused with 422, as is one whose context fits but not beside its longest example's state.
+  The refusal comes before any example is read and gives the tokens of the context, of that example's state and the window; it never repeats the context.
+  A context of more than 64 times the window in characters is counted on its first part only (the message says "more than"), so a huge text is never tokenized whole to be refused.
+  The same rule holds on the dynamic-option and learning registrations, on `POST /v1/tasks/import` (a record whose context is over the window is refused, and nothing is loaded), and on both builds: the MLX and HF builds answer within `--max-model-len` (32,768 by default), as the vLLM build does.
+  The examples are read one at a time.
+  On the MLX build the context is its own prefix cache entry, kept once; the entries of the states read after it never push it out, and one that would not fit beside it is not kept.
 - **Abstention reads no context.** An abstention task's threshold is fitted on the state read alone, so a question answered through one is always read without a context: it gets only a task without a context of its question, and a `"task"` that names one with a context is refused with 422.
   A request that mixes such a question with a question of a task with a context is refused as questions with different contexts are.
   Registering an abstention task for a question that a task with a context asks is refused with 422 naming those tasks; register it for a question no such task asks, or delete them first.

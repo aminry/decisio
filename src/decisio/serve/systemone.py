@@ -1038,10 +1038,25 @@ class SystemOne:
         }
         raise over.OverLimit(header_limit.refusal(limit, self.context_pieces(engine, pieces, context), False))
 
-    def context_record(self, text: str | None, q) -> dict | None:
-        """The stored context of a task registered with `text` (None: no context) and asked as question `q`: its
-        text, digest and lengths. Refused (ValueError, a 422) when the context with the question and the template is
-        over the engine's prompt ceiling before any state: no request of the task could be read."""
+    @staticmethod
+    def bounded_tokens(enc, text: str, ceiling: int) -> tuple[int, bool]:
+        """(tokens, exact) of `text` for a check against `ceiling`: a text of more than 64 times the ceiling in
+        characters is first tokenized on its first `8 * ceiling` characters only, and when those alone are over the
+        ceiling that count is returned (exact False: "at least"), so that a huge text is never tokenized whole to be
+        refused; any other text is counted exactly, once."""
+        head = 8 * max(1, ceiling)
+        if len(text) > 8 * head:
+            n = len(enc(text[:head]))
+            if n > ceiling:
+                return n, False
+        return len(enc(text)), True
+
+    def context_record(self, text: str | None, q, states=()) -> dict | None:
+        """The stored context of a task registered with `text` (None: no context) and asked as question `q` (None:
+        not known, as on import): its text, digest and lengths. Refused (ValueError, a 422) before any model work
+        when the context with the question and the template is over the engine's prompt ceiling before any state (no
+        request of the task could be read), or when it is under it but the longest of `states` (the task's examples)
+        takes it over. The refusal gives the tokens of the context, of that example and the ceiling, never the text."""
         from decisio.readout.letters import DEFAULT_FORMAT, layout_header
         from decisio.serve.tasks import context_record
         from decisio.serve.vllm_engine import question_text, user_turn
@@ -1049,22 +1064,40 @@ class SystemOne:
         if text is None:
             return None
         tok = getattr(self.engine, "tok", None)
-        enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
-        rec = context_record(text, len(enc(text)) if tok is not None else None)
         limit = getattr(self.engine, "prompt_limit", lambda: None)()
         if limit is None or tok is None:
-            return rec
+            return context_record(text, len(tok.encode(text, add_special_tokens=False)) if tok is not None else None)
+        enc = lambda s: tok.encode(s, add_special_tokens=False)  # noqa: E731
         fmt = getattr(self.engine, "fmt", DEFAULT_FORMAT)
-        eq = self.engine_question(q)[0]
-        head = layout_header([eq["instructions"]]) if fmt.layout == "header" else ""
-        row = len(enc(user_turn(tok, f"{head}{text}{CONTEXT_SEP}\n\n{question_text(tok, eq, fmt)[0]}", fmt)))
-        if row + over.MARGIN + int(getattr(self.engine, "pad_unit", 0) or 0) > limit:
+        reserve = over.MARGIN + int(getattr(self.engine, "pad_unit", 0) or 0)
+        n_ctx, exact = self.bounded_tokens(enc, text, limit)
+        said = f"{n_ctx:,}" if exact else f"more than {n_ctx:,}"
+        advice = "Shorten the context (or start the server with a longer --max-model-len)"
+        if not exact:
             raise ValueError(
-                f"context: {rec['tokens']:,} tokens; with the question and the template a row takes {row:,} tokens "
-                f"before any state, over the {limit:,} the server answers. Shorten the context (or start the server "
-                "with a longer --max-model-len)"
+                f"context: {said} tokens, over the {limit:,} the server answers (counted on its first "
+                f"{8 * limit:,} characters, of {len(text):,}). {advice}"
             )
-        return rec
+        eq = self.engine_question(q)[0] if q is not None else None
+        head = layout_header([eq["instructions"]]) if eq is not None and fmt.layout == "header" else ""
+        ask = question_text(tok, eq, fmt)[0] if eq is not None else ""
+        row = len(enc(user_turn(tok, f"{head}{text}{CONTEXT_SEP}\n\n{ask}", fmt)))
+        if row + reserve > limit:
+            raise ValueError(
+                f"context: {said} tokens; with the question and the template a row takes {row:,} tokens "
+                f"before any state, over the {limit:,} the server answers. {advice}"
+            )
+        longest = max((fmt_state(s) for s in states), key=len, default=None)
+        if longest is not None:
+            n_state, state_exact = self.bounded_tokens(enc, longest, limit - row - reserve)
+            if row + n_state + reserve > limit:
+                raise ValueError(
+                    f"context: {said} tokens; the longest example's state is {'' if state_exact else 'more than '}"
+                    f"{n_state:,} tokens, and with the context, the question and the template its row takes "
+                    f"{'at least ' if not state_exact else ''}{row + n_state:,}, over the {limit:,} the server "
+                    f"answers. {advice}, or shorten that example"
+                )
+        return context_record(text, n_ctx)
 
     def request_context(self, names: list, rts: list) -> str | None:
         """The context a request's state is read with: the one context of its questions' tasks, or None. The questions
@@ -1839,7 +1872,7 @@ class SystemOne:
             return self.register_dynamic_task(task_id, examples, certify, certify_examples, dynamic_options, context)
         from decisio.serve.tasks import task_key
 
-        ctx = self.context_record(context, examples[0][1]) if examples else None
+        ctx = self.context_record(context, examples[0][1], (e[0] for e in examples)) if examples else None
         full = [(q, s, g) for s, q, g in examples]
         cert_ex, split = [], None
         if certify is not None:
@@ -2067,7 +2100,7 @@ class SystemOne:
                 raise ValueError("certify.examples must carry the same instructions as the examples")
             certify_examples = [(s, q, g) for q, s, g in held]
         fit_ex, cert_ex, split = self.certification_split(task_id, full, certify, certify_examples)
-        ctx = self.context_record(context, full[0][0])
+        ctx = self.context_record(context, full[0][0], (e[1] for e in full))
 
         def read(ex):
             out = []
@@ -4309,6 +4342,13 @@ def add_routes(app, systemone: SystemOne):
         stale = [t.get("id") for t in tasks if not store.applies(t)]
         if stale:
             raise HTTPException(422, f"fitted under another model or rendering: {stale}")
+        for t in tasks:  # a context over the window is refused before any task is loaded
+            ctx = t.get("context") if isinstance(t, dict) else None
+            if isinstance(ctx, dict) and isinstance(ctx.get("text"), str):
+                try:
+                    systemone.context_record(ctx["text"], None)
+                except ValueError as e:
+                    raise HTTPException(422, f"task {t.get('id')!r}: {e}")
         try:
             store.load(tasks)
         except (KeyError, TypeError, ValueError) as e:

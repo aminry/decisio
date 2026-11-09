@@ -387,6 +387,7 @@ class LettersEngine:
     register_boundary = "after"
     # the server's EngineHealth (decisio.serve.engine_health), shared with the other engines; None in library use
     health = None
+    context_window = None  # the window an engine without vLLM's configuration answers within (MLX, HF): --max-model-len
     over_limit_tokens = (
         None  # --over-limit-tokens: the prompt ceiling a truncating server cuts to, where it is not the context
     )
@@ -587,13 +588,17 @@ class LettersEngine:
 
     def prompt_limit(self) -> int | None:
         """The longest prompt in tokens the engine answers (decisio.serve.over_limit): `--over-limit-tokens` where
-        given, else the served context less the one generated token; None where the engine has no ceiling to read (an
-        engine without vLLM's configuration: the MLX build, whose limit is a memory budget)."""
+        given, else the served context less the one generated token. An engine without vLLM's configuration (the MLX
+        and HF builds) answers within `context_window` (`--max-model-len`, 32,768 by default), so that a prompt far
+        over the window is refused before any model work instead of being fed until memory runs out; None only where
+        no window is set."""
         if self.over_limit_tokens:
             return int(self.over_limit_tokens)
         llm = getattr(self, "llm", None)
         config = getattr(getattr(llm, "llm_engine", None), "vllm_config", None)
-        return int(config.model_config.max_model_len) - 1 if config is not None else None
+        if config is not None:
+            return int(config.model_config.max_model_len) - 1
+        return int(self.context_window) - 1 if self.context_window else None
 
     def facts(self):
         import torch
@@ -3328,6 +3333,8 @@ def main():
     engine.temperatures_file = getattr(args, "temperatures_file_facts", None)
     engine.layout_decision = getattr(args, "layout_decision", None)
     engine.over_limit_tokens = args.over_limit_tokens
+    if args.backend in ("mlx", "hf") and isinstance(args.max_model_len, int):
+        engine.context_window = args.max_model_len
     if args.batch_invariant_report["on"]:
         args.batch_invariant_report["confirmed"] = batch_invariant.engine_state()
         sched = getattr(

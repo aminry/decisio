@@ -78,7 +78,7 @@ Where the columns differ, the value is the base's.
 | `--think`, `--no-think` | off | off | off | think when unsure ([running.md](running.md#thinking-when-unsure)): a question below its type's threshold times `--think-factor` is read again after the served model has written up to `--think-budget` tokens; a request's `think` field decides for that request, a tuned repository's `defaults.think` turns it on, and `--no-think` turns that off |
 | `--think-factor`, `--think-budget` | 1, 512 | 1, 512 | 1, 512 | the factor on the thresholds (choice 0.75, yes/no 0.92, score 0.70) and the most reasoning tokens per question; a tuned repository's defaults state their own |
 | `--over-limit` | refuse | refuse | refuse | a state over the engine's prompt ceiling: `refuse` answers 422, `truncate` cuts the state to its start and answers (never certified; [running.md](running.md#states-over-the-limit)); a request's `over_limit` field decides for that request, and a tuned repository's `defaults` state their own setting |
-| `--over-limit-tokens` | the context less 1 | the context less 1 | the context less 1 | the prompt ceiling a truncating server cuts to; needed on the MLX build, which has no context length to read |
+| `--over-limit-tokens` | the context less 1 | the context less 1 | the context less 1 | the prompt ceiling a truncating server cuts to; on the MLX and HF builds the default is `--max-model-len` less 1 |
 | `--orders` | 1 | 1 | 1 | 2: two-order averaging, each question also read in a second option order |
 | `--branch-log` | none | none | none | a JSONL file for the two orders' disagreement per question |
 

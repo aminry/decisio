@@ -320,7 +320,7 @@ On a 12B at its 65,536-token context, rows of 82,000 and 98,000 tokens were refu
 `--header-limit TOKENS` also keeps the listed header to at most that many tokens, where the context would hold more.
 `--header-limit off` is the earlier behaviour: a row over the context is a 422.
 That refusal (and the refusal when even the plain layout's row is over the context) says where the tokens are: the header, the state, the longest question and the template, against the length the server answers, and what to do: `--header-limit auto`, `"over_limit": "truncate"`, a shorter state or question, or a longer `--max-model-len` up to the base's ceiling.
-The engines with no ceiling to read (the MLX build) take `--over-limit-tokens N` for the context the limit works to.
+The MLX and HF builds work to `--max-model-len` (32,768 unless set) less one; `--over-limit-tokens N` moves the ceiling on any engine.
 
 ### Read twice (`--read-twice-under N`, `--read-twice-max-questions R`)
 
@@ -435,7 +435,7 @@ A ceiling lower than the context can be the repository's: `defaults.over_limit_t
 
 Refuse stays the default. A refusal says what is wrong and costs the caller one retry; an answer from part of a document is made with a confidence that nothing was fitted on. Turn it on for one request with `"over_limit": "truncate"`, for a server with `--over-limit truncate`, or for a tuned model with `over_limit` in the repository's `defaults` (`python -m decisio.hub tuned-config --over-limit truncate`), shown at start and in `/health`. A flag beats the repository's default, and a request's field beats both. The setting is not part of the serving-stack fingerprint: a truncated answer is never certified, so the setting cannot change a certified one.
 
-On the MLX build the limit is a memory budget, not a context length: give the ceiling to cut to with `--over-limit-tokens N`.
+On the MLX build the ceiling is `--max-model-len` (32,768 unless set), so a prompt far over the window is refused before the model reads it; give another ceiling to cut to with `--over-limit-tokens N`.
 
 ## Concurrency
 

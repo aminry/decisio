@@ -8,6 +8,26 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a prompt over the window is refused on the MLX and HF builds, and a context is checked with its examples
+
+### What changed
+
+- **The MLX and HF builds have a prompt ceiling**: `--max-model-len` (32,768 unless set) less the one generated token, as the vLLM build has.
+  Before, they had none, and a request far over the window was fed to the model until memory ran out: a registration with a context of about 240,000 tokens kept the server busy for 17 minutes and ended with the server killed at its memory limit.
+- **A task context is checked before any example is read**: a registration (labelled, dynamic-option or learning) or an import whose context is over the window, or fits but not beside its longest example's state, is a 422 that gives the tokens of the context, of that example and the window, and never the context.
+  A huge context is counted on its first part only, so it is refused at once.
+- **The MLX prefix cache keeps a task context's entry once**: the entries of the states read after it no longer push it out.
+
+### Who is affected
+
+| | Before | Now |
+| --- | --- | --- |
+| A request on the MLX or HF build whose row is over 32,767 tokens | read, until memory ran out | 422 with where its tokens are, or cut with `over_limit: truncate` |
+| A registration or import whose context is over the window, or over it with the longest example | accepted, or never answered | 422 |
+| `--over-limit truncate` on the MLX build | needed `--over-limit-tokens` | works to `--max-model-len` less 1 |
+
+To serve longer rows on the MLX build, start it with `--over-limit-tokens N` (the memory it takes is yours to budget).
+
 ## Unreleased: a replaced task's saved record is removed, and a restart serves the task registered last
 
 How it works: [tasks.md, "Saved to disk"](tasks.md#saved-to-disk---tasks-dir) and ["Replicas: a shared store"](tasks.md#replicas-a-shared-store---task-store).
