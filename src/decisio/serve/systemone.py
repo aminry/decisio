@@ -156,6 +156,22 @@ class TaskApplier:
         else:
             self.so.load_abstention(records, persist=False)
 
+    def occupant(self, record: dict):
+        """The task this replica serves in `record`'s slot (the same question, layout and context), or None."""
+        store = self.so.task_store
+        return None if store is None else store.by_key.get(store.slot(record))
+
+    def applies(self, task: dict) -> bool:
+        store = self.so.task_store
+        return store is not None and store.applies(task)
+
+    def supersede(self, kind: str, record: dict, by_id: str) -> None:
+        """A task the store holds that the task this replica serves in its slot shadows: not served here. One of this
+        server's stack is listed as superseded (DELETE removes it); one of another stack is simply not loaded here."""
+        store = self.so.task_store
+        if kind == "readout" and store is not None and store.applies(record):
+            store.superseded[record["id"]] = by_id
+
     def drop(self, kind: str, task_id: str) -> None:
         if kind == "readout":
             if self.so.task_store is not None:
@@ -2518,7 +2534,13 @@ class SystemOne:
         # what the record says when it is written: it is shared when the store it goes to is
         sus["shared"] = backend is not None and backend.describe().get("backend") == "object-store"
         try:
-            self.task_store.persist_task(t)
+            if not self.task_store.persist_if_current(t):
+                # a registration or removal replaced this task while it was being suspended: its record is not
+                # written again (that would bring back what the other write replaced); the suspension holds here
+                sus["shared"] = False
+                logger.warning(
+                    "task %s: replaced while its table was suspended; the suspension is not written", t["id"]
+                )
         except Exception as e:  # serving goes on: the suspension holds on this replica
             sus["shared"] = False
             sus["write_error"] = f"{type(e).__name__}: {e}"

@@ -185,9 +185,18 @@ class DirBackend:
             os.close(fd)
 
     def load(self) -> dict:
+        """Every saved record, oldest write first (by the file's modification time, then its name), so that where a
+        store written before replaced records were removed holds two records of one slot, the one written last loads
+        last and serves (`load_at_start`)."""
         out = {k: [] for k in KINDS}
         for kind in KINDS:
-            for f in sorted(self.path.glob(f"{kind}-*.json")):
+            found = []
+            for f in self.path.glob(f"{kind}-*.json"):
+                try:
+                    found.append((f.stat().st_mtime_ns, f.name, f))
+                except OSError:
+                    found.append((0, f.name, f))  # read below, where a file that cannot be read stops the start
+            for _, _, f in sorted(found):
                 try:
                     record = json.loads(f.read_text())
                 except (OSError, ValueError) as e:
@@ -210,6 +219,34 @@ class DirBackend:
         return None
 
 
+def shadowed_records(store, records) -> list:
+    """After a load, the saved records that a more recently written record of the same slot replaced (a store written
+    before a replaced task's record was removed): noted in `store.superseded` (not served; DELETE removes the record),
+    logged once each, and returned as [{"id", "by"}] for the start report."""
+    import logging
+
+    serving = {t["id"] for t in store.by_key.values()}
+    out = []
+    for t in records:
+        if t.get("id") in serving or t.get("id") in store.superseded or not store.applies(t):
+            continue  # a task of another stack is kept for its servers, not superseded
+        winner = store.by_key.get(store.slot(t))
+        if winner is None:
+            continue
+        store.superseded[t["id"]] = winner["id"]
+        out.append({"id": t["id"], "by": winner["id"]})
+        logging.getLogger("decisio.tasks").warning(
+            "task store: tasks %r and %r share a slot (the same question, layout and context); serving %r, the more "
+            "recently written. %r is not served: remove its record with DELETE /v1/tasks/%s",
+            t["id"],
+            winner["id"],
+            winner["id"],
+            t["id"],
+            t["id"],
+        )
+    return out
+
+
 def load_at_start(store, backend, file_tasks=None, file_abstention=None, saved=None):
     """Fill `store` at start; returns (the abstention task records to serve, the report of what loaded from where).
 
@@ -227,8 +264,15 @@ def load_at_start(store, backend, file_tasks=None, file_abstention=None, saved=N
         return file_abstention, report
     store.backend = backend
     saved = saved if saved is not None else backend.load()
-    store.load(saved["readout"], persist=False)
-    have = {t["id"] for t in store.by_key.values()}
+    # the backend gives its records oldest write first; a task of another stack maps to the slot of this server's task
+    # of the same question, so this server's tasks load after them (in their own order) and serve their slots
+    readout = sorted(saved["readout"], key=store.applies)
+    store.load(readout, persist=False)
+    superseded = shadowed_records(store, saved["readout"])
+    if superseded:
+        report["superseded"] = superseded
+    # every id the backend holds, the shadowed ones too: a seed file must not bring a replaced task back over the newest
+    have = {t["id"] for t in saved["readout"]}
     # a task another replica seeded first, or a replica that does not teach, leaves the seed unsaved (not an error)
     unsaved = []
     seed = []
