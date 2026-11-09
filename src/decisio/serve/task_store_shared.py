@@ -103,7 +103,12 @@ def written_order(entries: dict) -> list:
     `updated`, then by key, an entry written before `seq` existed counting as written first. A store written before a
     replaced task's entry was removed can hold two live entries of one slot; applied in this order, the one written
     last serves."""
-    return sorted(entries.items(), key=lambda kv: (int(kv[1].get("seq") or 0), str(kv[1].get("updated") or ""), kv[0]))
+    return sorted(entries.items(), key=lambda kv: write_rank(kv[0], kv[1]))
+
+
+def write_rank(key: str, entry: dict) -> tuple:
+    """Where an entry's write falls in the store's order of writes (`written_order`)."""
+    return (int(entry.get("seq") or 0), str(entry.get("updated") or ""), key)
 
 
 class _Raced(Exception):
@@ -130,6 +135,9 @@ class ObjectBackend:
         self.followers: list = []  # more to follow at each poll (a fast table learning on the store: its state)
         self.applied: dict[str, int] = {}  # entry key -> the version this replica applied (or wrote)
         self.ids: dict[str, tuple[str, str]] = {}  # entry key -> (kind, task id), to drop a task whose entry is gone
+        # entry key -> where its live write falls in the order of writes (`write_rank`): which of two tasks of one slot
+        # was written last, when a poll brings an entry for a slot this replica already serves
+        self.ranks: dict[str, tuple] = {}
         self._tag = None  # (e_tag, version) of the manifest as the last sync read it
         self._lock = threading.RLock()
         self.manifest_version = 0
@@ -280,6 +288,52 @@ class ObjectBackend:
                     continue  # another task changed (or this one: the check above says which)
                 self.applied[key] = version
                 self.ids[key] = (kind, task_id)
+                self._rank(key, manifest["entries"][key])
+                return
+            raise TaskStoreUnavailable("the task store's manifest kept changing under this write; try again")
+
+    def _rank(self, key: str, entry: dict) -> None:
+        if entry.get("deleted"):
+            self.ranks.pop(key, None)
+        else:
+            self.ranks[key] = write_rank(key, entry)
+
+    def delete_replaced(self, kind: str, task_id: str, by_id: str) -> None:
+        """Remove the entry of a task that `by_id` replaced in its slot, once `by_id`'s own entry is written. Unlike
+        `delete`, it does not check the caller's write intent (which names `by_id`'s version, not this task's): it
+        removes whatever version the store holds, unless that entry was written after `by_id`'s (another replica
+        taught or re-certified the replaced task since), in which case it is the newer task and stays."""
+        if self.readonly:
+            raise TaskStoreReadOnly(
+                "this replica does not teach tasks (--task-store-readonly); send task writes to the designated replica"
+            )
+        key, mine = entry_key(kind, task_id), entry_key(kind, by_id)
+        with self._lock:
+            for _ in range(MAX_RACES):
+                manifest, tag = self._read_manifest()
+                entry, own = manifest["entries"].get(key), manifest["entries"].get(mine)
+                if entry is None or entry.get("deleted"):
+                    return
+                if own is not None and not own.get("deleted") and write_rank(key, entry) > write_rank(mine, own):
+                    return
+                manifest["version"] = int(manifest.get("version", 0)) + 1
+                manifest["entries"][key] = {
+                    "id": task_id,
+                    "kind": kind,
+                    "version": int(entry["version"]) + 1,
+                    "object": None,
+                    "deleted": True,
+                    "updated": self._now(),
+                    "seq": manifest["version"],
+                }
+                self._drop_old_tombstones(manifest)
+                try:
+                    self._write_manifest(manifest, tag)
+                except _Raced:
+                    continue
+                self.applied[key] = int(entry["version"]) + 1
+                self.ids[key] = (kind, task_id)
+                self.ranks.pop(key, None)
                 return
             raise TaskStoreUnavailable("the task store's manifest kept changing under this write; try again")
 
@@ -303,6 +357,7 @@ class ObjectBackend:
             for key, e in written_order(manifest["entries"]):
                 self.applied[key] = int(e["version"])
                 self.ids[key] = (e["kind"], e["id"])
+                self._rank(key, e)
                 if not e.get("deleted"):
                     out[e["kind"]].append(self._get_object(e["object"]))
             self._tag, self.manifest_version = tag, int(manifest.get("version", 0))
@@ -333,11 +388,17 @@ class ObjectBackend:
                         changed["removed"].append(e["id"])
                     else:
                         record = self._get_object(e["object"])
-                        if self.applier is not None:
-                            self.applier.apply(e["kind"], [record])
-                        changed["applied"].append(e["id"])
+                        keeper = self._keeper(e, record)
+                        if keeper is not None:  # the slot's task here was written after this one: it stays
+                            self.applier.supersede(e["kind"], record, keeper)
+                            changed.setdefault("superseded", []).append(e["id"])
+                        else:
+                            if self.applier is not None:
+                                self.applier.apply(e["kind"], [record])
+                            changed["applied"].append(e["id"])
                     self.applied[key] = version
                     self.ids[key] = (e["kind"], e["id"])
+                    self._rank(key, e)
                 for key in [k for k in self.applied if k not in entries and self.applied[k] > 0]:
                     # a tombstone dropped by the retention rule before this replica polled: the task is gone
                     kind, task_id = self.ids.get(key, (None, None))
@@ -351,6 +412,23 @@ class ObjectBackend:
                 self.last_error = str(e)
                 raise
             return changed
+
+    def _keeper(self, entry: dict, record: dict) -> str | None:
+        """The id of the task this replica serves in `record`'s slot when that task stays: it was written after `record`
+        (two replicas taught the slot at once, under two ids), or it applies to this server and `record` does not (a
+        task of another stack). None: apply `record` as usual."""
+        applier = self.applier
+        if applier is None or entry.get("kind") != "readout" or not hasattr(applier, "occupant"):
+            return None
+        occupant = applier.occupant(record)
+        if occupant is None or occupant["id"] == record.get("id"):
+            return None
+        rank = self.ranks.get(entry_key("readout", occupant["id"]))
+        if rank is not None and rank > write_rank(entry_key("readout", entry["id"]), entry):
+            return occupant["id"]
+        if applier.applies(occupant) and not applier.applies(record):
+            return occupant["id"]
+        return None
 
     # ---- start-up and reporting ---------------------------------------------------------------------------------
 

@@ -228,8 +228,8 @@ def shadowed_records(store, records) -> list:
     serving = {t["id"] for t in store.by_key.values()}
     out = []
     for t in records:
-        if t.get("id") in serving or t.get("id") in store.superseded:
-            continue
+        if t.get("id") in serving or t.get("id") in store.superseded or not store.applies(t):
+            continue  # a task of another stack is kept for its servers, not superseded
         winner = store.by_key.get(store.slot(t))
         if winner is None:
             continue
@@ -264,7 +264,10 @@ def load_at_start(store, backend, file_tasks=None, file_abstention=None, saved=N
         return file_abstention, report
     store.backend = backend
     saved = saved if saved is not None else backend.load()
-    store.load(saved["readout"], persist=False)
+    # the backend gives its records oldest write first; a task of another stack maps to the slot of this server's task
+    # of the same question, so this server's tasks load after them (in their own order) and serve their slots
+    readout = sorted(saved["readout"], key=store.applies)
+    store.load(readout, persist=False)
     superseded = shadowed_records(store, saved["readout"])
     if superseded:
         report["superseded"] = superseded

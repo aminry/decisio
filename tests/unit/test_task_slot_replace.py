@@ -249,3 +249,137 @@ def test_r9_a_store_with_two_live_entries_in_one_slot_loads_and_syncs_to_the_new
     assert listed(b) == ["newer"] and so_b.task_report["superseded"] == [{"id": "older", "by": "newer"}]
     backend_f.sync_once(force=True)
     assert listed(follower) == ["newer"]
+
+
+# ---- review items: concurrency, write intents, resurrection, other stacks ---------------------------------------
+
+
+def test_v1_two_replicas_teaching_one_slot_at_once_both_serve_the_one_written_last():
+    store = MemoryStore()
+    r1, so1, b1 = shared(store)
+    r2, so2, b2 = shared(store)
+    register(r1, "from-r1")  # neither replica has seen the other's task: both entries stay live
+    register(r2, "from-r2", seed=5)
+    assert live_ids(b1) == ["from-r1", "from-r2"]
+    b1.sync_once(force=True)
+    b2.sync_once(force=True)  # before the fix, r2 applied the older "from-r1" over its own newer task
+    assert listed(r1) == ["from-r2"] and listed(r2) == ["from-r2"]
+    assert so2.task_store.superseded == {"from-r1": "from-r2"}
+    r3, so3, _ = shared(store)  # a replica that starts now agrees
+    assert listed(r3) == ["from-r2"]
+
+
+def test_v2_the_replaced_entry_is_removed_whatever_version_the_caller_named_for_the_new_task():
+    store = MemoryStore()
+    a, so, backend = shared(store)
+    register(a, "first")
+    r = a.post(
+        "/v1/tasks", json={"id": "second", "examples": examples(40, 0.9, seed=5)}, headers={"x-decisio-replaces": "0"}
+    )
+    assert r.status_code == 200, r.text
+    assert live_ids(backend) == ["second"]  # before the fix the intent (version 0) refused the tombstone of "first"
+
+
+def test_v2_a_replaced_task_another_replica_rewrote_earlier_is_still_removed():
+    store = MemoryStore()
+    a, so_a, backend_a = shared(store)
+    b, so_b, backend_b = shared(store)
+    register(a, "first")
+    backend_b.sync_once(force=True)
+    register(b, "first", seed=3)  # b rewrites "first" (version 2); a still holds version 1
+    register(a, "second", seed=5)
+    assert live_ids(backend_a) == ["second"]
+
+
+def test_v2_a_replaced_entry_written_after_the_new_one_stays():
+    store = MemoryStore()
+    a, so, backend = shared(store)
+    register(a, "first")
+    first = a.get("/v1/tasks?full=1").json()["tasks"][0]
+    register(a, "second", seed=5)
+    backend.save("readout", first)  # "first" written again, after "second": the newer of the two
+    backend.delete_replaced("readout", "first", "second")
+    assert live_ids(backend) == ["first", "second"]
+
+
+def test_v3_removing_the_task_that_serves_a_slot_removes_the_records_it_superseded(tmp_path):
+    two_in_one_slot(tmp_path)
+    b, so, backend = server(tmp_path)
+    assert listed(b) == ["newer"] and so.task_store.superseded == {"older": "newer"}
+    assert b.delete("/v1/tasks/newer").status_code == 200
+    assert ids_on_disk(tmp_path) == []
+    c, so, backend = restart(tmp_path, backend)
+    assert listed(c) == []  # before the fix the restart served "older" in its place
+
+
+def test_v3_a_replaced_record_that_could_not_be_removed_goes_with_the_task_that_replaced_it(tmp_path, monkeypatch):
+    a, so, backend = server(tmp_path)
+    register(a, "first")
+
+    def refuse(*args, **kwargs):
+        raise TB.TaskPersistError("not removed (Permission denied)")
+
+    monkeypatch.setattr(backend, "delete", refuse)
+    register(a, "second", seed=5)
+    monkeypatch.undo()
+    assert ids_on_disk(tmp_path) == ["first", "second"] and so.task_store.superseded == {"first": "second"}
+    assert a.delete("/v1/tasks/second").status_code == 200
+    assert ids_on_disk(tmp_path) == []
+
+
+def test_v4_a_stale_task_object_is_not_written_back_over_a_replace_or_a_new_version(tmp_path):
+    a, so, backend = server(tmp_path)
+    register(a, "first")
+    stale = so.task_store.snapshot("first")
+    register(a, "second", seed=5)
+    assert so.task_store.persist_if_current(stale) is False
+    assert ids_on_disk(tmp_path) == ["second"]  # not brought back
+    register(a, "second", seed=7)
+    old_second = so.task_store.snapshot("second")
+    register(a, "second", seed=9)
+    current = json.loads(next((tmp_path / "tasks").glob("readout-*.json")).read_text())
+    assert so.task_store.persist_if_current(old_second) is False
+    assert json.loads(next((tmp_path / "tasks").glob("readout-*.json")).read_text()) == current
+    assert so.task_store.persist_if_current(so.task_store.snapshot("second")) is True
+
+
+def foreign_record(tmp_path_factory):
+    """A task of another stack (another model) for the same question."""
+    src, _, src_backend = server(tmp_path_factory.mktemp("other"), fingerprint="other-model")
+    register(src, "theirs", seed=3)
+    rec = src.get("/v1/tasks?full=1").json()["tasks"][0]
+    src_backend.close()
+    return rec
+
+
+def test_v5_a_task_of_another_stack_is_not_removed_by_a_registration_here(tmp_path, tmp_path_factory):
+    rec = foreign_record(tmp_path_factory)
+    a, so, backend = server(tmp_path)
+    backend.save("readout", rec)  # the directory also holds another stack's task of this question
+    b, so, backend = restart(tmp_path, backend)
+    register(b, "ours")
+    assert ids_on_disk(tmp_path) == ["ours", "theirs"]  # kept for the servers of its stack
+    assert "theirs" not in so.task_store.superseded
+    f = next(p for p in (tmp_path / "tasks").glob("readout-*.json") if json.loads(p.read_text())["id"] == "theirs")
+    os.utime(f, (9_000_000_000, 9_000_000_000))  # written last, yet this server's task serves its slot
+    c, so, backend = restart(tmp_path, backend)
+    assert so.task_store.by_key[so.task_store.slot(so.task_store.snapshot("ours"))]["id"] == "ours"
+    assert "superseded" not in so.task_report
+
+
+def test_v5_on_a_shared_store_another_stacks_task_survives_and_each_stack_serves_its_own(tmp_path_factory):
+    store = MemoryStore()
+    ours, so_ours, b_ours = shared(store)
+    theirs_ts = TaskStore("other-model")
+    b_theirs = S.ObjectBackend(store, "memory://t")
+    TB.load_at_start(theirs_ts, b_theirs)
+    so_theirs = SystemOne(FakeEngine(), "decisio-test", task_store=theirs_ts, task_backend=b_theirs)
+    app = FastAPI()
+    add_routes(app, so_theirs)
+    theirs = TestClient(app)
+    register(theirs, "theirs", seed=3)
+    b_ours.sync_once(force=True)
+    register(ours, "ours")
+    assert live_ids(b_ours) == ["ours", "theirs"]
+    b_theirs.sync_once(force=True)
+    assert listed(theirs) == ["theirs"]

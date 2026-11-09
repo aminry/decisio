@@ -40,6 +40,7 @@ import base64
 import hashlib
 import json
 import logging
+import threading
 
 import numpy as np
 
@@ -281,6 +282,9 @@ class TaskStore:
         # saved records that a newer record of the same slot shadowed at load (a store written before a replaced
         # task's record was removed): id -> the id serving the slot; not served, and DELETE removes their records
         self.superseded: dict[str, str] = {}
+        # one writer at a time: a registration's put and write, a removal, and a rewrite of a stored task's record
+        # (`persist_if_current`), so a rewrite never brings back a record another write just replaced or removed
+        self._write_lock = threading.RLock()
 
     @property
     def fingerprint(self) -> str:
@@ -430,6 +434,10 @@ class TaskStore:
         return task, {"lps": lps, "labels": labels, "readout": readout}
 
     def put(self, task, persist: bool = True) -> None:
+        with self._write_lock:
+            self._put(task, persist)
+
+    def _put(self, task, persist: bool) -> None:
         """Store a task, replacing the task of the same id whatever its list; start its monitor when it has a
         baseline. With a backend the task is written first (`persist=False`: the caller writes it with `persist_task`
         once it has finished with the record, and rolls back with `rollback` if that fails)."""
@@ -442,6 +450,10 @@ class TaskStore:
         # the new one is written, so a restart cannot bring it back in place of the task registered last
         displaced = self.by_key.get(slot)
         if displaced is not None and displaced["id"] == task["id"]:
+            displaced = None
+        # a task of another stack (another model or rendering) maps to this slot too, and is kept for the servers of
+        # that stack (a shared store of several stacks): it leaves memory here, its record stays
+        if displaced is not None and not self.applies(displaced):
             displaced = None
         if persist:
             self.persist_task(task, displaced=displaced)
@@ -469,24 +481,47 @@ class TaskStore:
         its slot (`displaced`, or the one `put(..., persist=False)` noted). Raises TaskPersistError when the task's own
         record cannot be written; a replaced record that cannot be removed is logged and left, and the next start
         serves the most recently written record of the slot all the same."""
-        if displaced is None:
-            displaced = self._displaced.get(task["id"])
-        if self.backend is not None:
-            self.backend.save("readout", self.public(task, full=True))
-        self._displaced.pop(task["id"], None)
-        if self.backend is not None and displaced is not None:
-            try:
+        with self._write_lock:
+            if displaced is None:
+                displaced = self._displaced.get(task["id"])
+            if self.backend is not None:
+                self.backend.save("readout", self.public(task, full=True))
+            self._displaced.pop(task["id"], None)
+            if self.backend is not None and displaced is not None:
+                self._remove_replaced(task, displaced)
+
+    def persist_if_current(self, task) -> bool:
+        """Write a stored task's record again (a fast table's suspension), only if `task` is still the object the store
+        holds for its id: a write that replaced or removed it since must not be undone by this one. False when it was
+        not written for that reason."""
+        with self._write_lock:
+            if self.snapshot(task["id"]) is not task:
+                return False
+            self.persist_task(task)
+            return True
+
+    def _remove_replaced(self, task, displaced) -> None:
+        """Remove the saved record of the task `task` replaced in its slot. A shared store removes it only if it is
+        not newer than `task`'s own record (`delete_replaced`), without the caller's write intent, which names `task`'s
+        version and not the replaced task's. A removal that fails is logged, and the record is noted as superseded, so
+        that removing `task` later removes it too (and a restart serves `task`, the more recently written)."""
+        try:
+            remove = getattr(self.backend, "delete_replaced", None)
+            if remove is not None:
+                remove("readout", displaced["id"], task["id"])
+            else:
                 self.backend.delete("readout", displaced["id"])
-            except Exception as e:  # noqa: BLE001  (the new task is saved; a leftover record loses to it at load)
-                log.warning(
-                    "task %r replaced task %r in its slot, and %r's saved record could not be removed (%s); the next "
-                    "start serves %r, the more recently written",
-                    task["id"],
-                    displaced["id"],
-                    displaced["id"],
-                    e,
-                    task["id"],
-                )
+        except Exception as e:  # noqa: BLE001  (the new task is saved; a leftover record loses to it at load)
+            self.superseded[displaced["id"]] = task["id"]
+            log.warning(
+                "task %r replaced task %r in its slot, and %r's saved record could not be removed (%s); the next "
+                "start serves %r, the more recently written",
+                task["id"],
+                displaced["id"],
+                displaced["id"],
+                e,
+                task["id"],
+            )
 
     def snapshot(self, task_id):
         """The stored task of this id (or None), for `rollback`."""
@@ -495,6 +530,10 @@ class TaskStore:
     def rollback(self, task_id, previous) -> None:
         """Put memory back as it was before a `put(..., persist=False)` whose write failed, the task it replaced in
         its slot included."""
+        with self._write_lock:
+            self._rollback(task_id, previous)
+
+    def _rollback(self, task_id, previous) -> None:
         displaced = self._displaced.pop(task_id, None)
         self._drop(task_id)
         if displaced is not None:
@@ -520,7 +559,12 @@ class TaskStore:
 
     def remove(self, task_id, persist: bool = True) -> bool:
         """Remove the task (and its saved record, first). False when there is no such task. A record shadowed at load
-        (`superseded`) is not served, and removing it removes its saved record."""
+        (`superseded`) is not served, and removing it removes its saved record. Removing the task that serves a slot
+        removes the records it superseded too, first: otherwise a restart would serve one of them in its place."""
+        with self._write_lock:
+            return self._remove(task_id, persist)
+
+    def _remove(self, task_id, persist: bool) -> bool:
         if task_id in self.superseded and not any(t["id"] == task_id for t in self.by_key.values()):
             if persist and self.backend is not None:
                 self.backend.delete("readout", task_id)
@@ -528,6 +572,10 @@ class TaskStore:
             return True
         if not any(t["id"] == task_id for t in self.by_key.values()):
             return False
+        for shadowed in [s for s, by in self.superseded.items() if by == task_id]:
+            if persist and self.backend is not None:
+                self.backend.delete("readout", shadowed)
+            del self.superseded[shadowed]
         if persist and self.backend is not None:
             self.backend.delete("readout", task_id)
         return self._drop(task_id)
