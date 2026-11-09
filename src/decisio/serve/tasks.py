@@ -39,6 +39,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import logging
 
 import numpy as np
 
@@ -47,6 +48,8 @@ from decisio.readout import calibration, intent_head
 from decisio.readout.debias import log_probs
 from decisio.serve import layout
 from decisio.serve.monitor import MixMonitor
+
+log = logging.getLogger("decisio.tasks")
 
 FORMAT = record_format("task")
 # a task with a context: a server that does not know contexts refuses the record (its format check) rather than load it
@@ -272,6 +275,12 @@ class TaskStore:
         # before it is stored in memory and removed from the backend before it is dropped, so a write that fails leaves
         # the store as it was and the caller learns it (TaskPersistError)
         self.backend = None
+        # a task that took another id's slot in memory and is not written yet (`put(..., persist=False)`): the task
+        # it replaced, whose record `persist_task` removes once the new one is written and `rollback` puts back
+        self._displaced: dict[str, dict] = {}
+        # saved records that a newer record of the same slot shadowed at load (a store written before a replaced
+        # task's record was removed): id -> the id serving the slot; not served, and DELETE removes their records
+        self.superseded: dict[str, str] = {}
 
     @property
     def fingerprint(self) -> str:
@@ -428,15 +437,26 @@ class TaskStore:
             task["fit_sha256"] = fit_digest(task)
         if task.get("context") is not None:
             task["format"] = CONTEXT_FORMAT
+        slot = self.slot(task)
+        # another id in this slot (the same question, layout and context) is replaced: its saved record goes too, after
+        # the new one is written, so a restart cannot bring it back in place of the task registered last
+        displaced = self.by_key.get(slot)
+        if displaced is not None and displaced["id"] == task["id"]:
+            displaced = None
         if persist:
-            self.persist_task(task)
+            self.persist_task(task, displaced=displaced)
+        elif displaced is not None:
+            self._displaced[task["id"]] = displaced
         # the new record goes in before the old one goes out, so a reader never finds the task missing (a replica
         # applying another replica's version while it serves)
-        slot = self.slot(task)
         old = [k for k, t in self.by_key.items() if t["id"] == task["id"] and k != slot]
         self.by_key[slot] = task
         for k in old:
             self.by_key.pop(k, None)
+        if displaced is not None:
+            self.monitors.pop(displaced["id"], None)
+            self.monitors_alone.pop(displaced["id"], None)
+        self.superseded.pop(task["id"], None)
         self.monitors.pop(task["id"], None)
         self.monitors_alone.pop(task["id"], None)
         if task.get("monitor"):
@@ -444,18 +464,45 @@ class TaskStore:
         if task.get("monitor_alone"):
             self.monitors_alone[task["id"]] = MixMonitor(task["monitor_alone"])
 
-    def persist_task(self, task) -> None:
-        """Write the task's record to the backend, if there is one. Raises TaskPersistError."""
+    def persist_task(self, task, displaced=None) -> None:
+        """Write the task's record to the backend, if there is one, then remove the record of the task it replaced in
+        its slot (`displaced`, or the one `put(..., persist=False)` noted). Raises TaskPersistError when the task's own
+        record cannot be written; a replaced record that cannot be removed is logged and left, and the next start
+        serves the most recently written record of the slot all the same."""
+        if displaced is None:
+            displaced = self._displaced.get(task["id"])
         if self.backend is not None:
             self.backend.save("readout", self.public(task, full=True))
+        self._displaced.pop(task["id"], None)
+        if self.backend is not None and displaced is not None:
+            try:
+                self.backend.delete("readout", displaced["id"])
+            except Exception as e:  # noqa: BLE001  (the new task is saved; a leftover record loses to it at load)
+                log.warning(
+                    "task %r replaced task %r in its slot, and %r's saved record could not be removed (%s); the next "
+                    "start serves %r, the more recently written",
+                    task["id"],
+                    displaced["id"],
+                    displaced["id"],
+                    e,
+                    task["id"],
+                )
 
     def snapshot(self, task_id):
         """The stored task of this id (or None), for `rollback`."""
         return next((t for t in self.by_key.values() if t["id"] == task_id), None)
 
     def rollback(self, task_id, previous) -> None:
-        """Put memory back as it was before a `put(..., persist=False)` whose write failed."""
+        """Put memory back as it was before a `put(..., persist=False)` whose write failed, the task it replaced in
+        its slot included."""
+        displaced = self._displaced.pop(task_id, None)
         self._drop(task_id)
+        if displaced is not None:
+            self.by_key[self.slot(displaced)] = displaced
+            if displaced.get("monitor"):
+                self.monitors[displaced["id"]] = MixMonitor(displaced["monitor"])
+            if displaced.get("monitor_alone"):
+                self.monitors_alone[displaced["id"]] = MixMonitor(displaced["monitor_alone"])
         if previous is not None:
             self.by_key[self.slot(previous)] = previous
             if previous.get("monitor"):
@@ -472,7 +519,13 @@ class TaskStore:
         return bool(keys)
 
     def remove(self, task_id, persist: bool = True) -> bool:
-        """Remove the task (and its saved record, first). False when there is no such task."""
+        """Remove the task (and its saved record, first). False when there is no such task. A record shadowed at load
+        (`superseded`) is not served, and removing it removes its saved record."""
+        if task_id in self.superseded and not any(t["id"] == task_id for t in self.by_key.values()):
+            if persist and self.backend is not None:
+                self.backend.delete("readout", task_id)
+            del self.superseded[task_id]
+            return True
         if not any(t["id"] == task_id for t in self.by_key.values()):
             return False
         if persist and self.backend is not None:
@@ -553,6 +606,8 @@ class TaskStore:
             task = {**t, "head": head}
             task.pop("fit_sha256", None)  # recomputed in `put` from what was loaded
             self.put(task, persist=persist)
+            if not persist:  # loaded from where it is saved: nothing to remove later, nothing to roll back to
+                self._displaced.pop(task["id"], None)
 
 
 def _render(x):

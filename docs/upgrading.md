@@ -8,6 +8,28 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a replaced task's saved record is removed, and a restart serves the task registered last
+
+How it works: [tasks.md, "Saved to disk"](tasks.md#saved-to-disk---tasks-dir) and ["Replicas: a shared store"](tasks.md#replicas-a-shared-store---task-store).
+
+### What changed
+
+- **A task registered (or imported) under another id in an occupied slot** replaces the slot's task in memory, as before, and now also removes the replaced task's file from `--tasks-dir`, or its entry from `--task-store`, once the new record is written.
+  A slot is the question (its type and options), the layout and the context.
+  Before, the replaced task's record stayed. After a restart the server loaded the slot's records in file-name order, which is not the order of registration, and could serve an older task with its older certificate.
+- **A store that already holds two records of one slot** loads the one written last: by file modification time in a directory, by write order in a shared store's manifest.
+  The start logs a warning naming both, and lists the other under `at_start.superseded` in `GET /v1/tasks`, `GET /v1/abstention/tasks` and `/health`.
+  The other is not served, and `DELETE /v1/tasks/{id}` removes its record.
+- **A `--tasks-file` seed whose id the store holds as a superseded record** is left as the store has it, like any id the store holds.
+
+### Who is affected
+
+| You run | What happens | What to do |
+| --- | --- | --- |
+| `--tasks-dir` or `--task-store`, and you registered a second id for a question (same options, layout and context) | The first restart serves the record written last and warns about the other | Check `at_start.superseded` once after the upgrade; `DELETE /v1/tasks/{id}` each superseded id you do not want back |
+| A directory copied with tools that do not keep modification times | The written-last rule reads the copies' times | Copy with times kept (`cp -p`, `rsync -t`), or remove superseded records before the copy |
+| One task per question, or no saved store | Unchanged | Nothing |
+
 ## Unreleased: yes/no fast tables, and a task's own saving bar
 
 How they work: [tasks.md, "A yes/no table"](tasks.md#a-yesno-table) and ["The saving bar: `min_saving`"](tasks.md#the-saving-bar-min_saving).

@@ -98,6 +98,14 @@ def entry_key(kind: str, task_id: str) -> str:
     return f"{kind}/{hashlib.sha256(str(task_id).encode()).hexdigest()[:32]}"
 
 
+def written_order(entries: dict) -> list:
+    """The manifest's entries in the order they were written: by `seq` (the manifest version of the write), then by
+    `updated`, then by key, an entry written before `seq` existed counting as written first. A store written before a
+    replaced task's entry was removed can hold two live entries of one slot; applied in this order, the one written
+    last serves."""
+    return sorted(entries.items(), key=lambda kv: (int(kv[1].get("seq") or 0), str(kv[1].get("updated") or ""), kv[0]))
+
+
 class _Raced(Exception):
     """The manifest changed between its read and its write."""
 
@@ -254,6 +262,7 @@ class ObjectBackend:
                     self.applied[key] = int(entry["version"]) if entry else 0
                     return  # nothing to remove
                 version = self._check(kind, task_id, entry) + 1
+                manifest["version"] = int(manifest.get("version", 0)) + 1
                 manifest["entries"][key] = {
                     "id": task_id,
                     "kind": kind,
@@ -261,8 +270,9 @@ class ObjectBackend:
                     "object": None if deleted else digest,
                     "deleted": deleted,
                     "updated": self._now(),
+                    # the manifest version of this write: the order of writes across tasks (`written_order`)
+                    "seq": manifest["version"],
                 }
-                manifest["version"] = int(manifest.get("version", 0)) + 1
                 self._drop_old_tombstones(manifest)
                 try:
                     self._write_manifest(manifest, tag)
@@ -290,7 +300,7 @@ class ObjectBackend:
         with self._lock:
             manifest, tag = self._read_manifest()
             out = {k: [] for k in KINDS}
-            for key, e in sorted(manifest["entries"].items()):
+            for key, e in written_order(manifest["entries"]):
                 self.applied[key] = int(e["version"])
                 self.ids[key] = (e["kind"], e["id"])
                 if not e.get("deleted"):
@@ -309,7 +319,7 @@ class ObjectBackend:
                     self.last_sync, self.last_error = self.clock(), None
                     return changed
                 entries = manifest["entries"]
-                for key, e in sorted(entries.items()):
+                for key, e in written_order(entries):
                     version = int(e["version"])
                     have = self.applied.get(key, 0)
                     if version < have:
