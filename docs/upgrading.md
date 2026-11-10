@@ -8,7 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: a prompt over the window is refused on the MLX and HF builds, and a context is checked with its examples
+## 0.46.0: a prompt over the window is refused on the MLX and HF builds, and a context is checked with its examples
 
 ### What changed
 
@@ -33,7 +33,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 To serve longer rows on the MLX build, start it with `--over-limit-tokens N` (the memory it takes is yours to budget).
 
-## Unreleased: a replaced task's saved record is removed, and a restart serves the task registered last
+## 0.46.0: a replaced task's saved record is removed, and a restart serves the task registered last
 
 How it works: [tasks.md, "Saved to disk"](tasks.md#saved-to-disk---tasks-dir) and ["Replicas: a shared store"](tasks.md#replicas-a-shared-store---task-store).
 
@@ -55,7 +55,7 @@ How it works: [tasks.md, "Saved to disk"](tasks.md#saved-to-disk---tasks-dir) an
 | A directory copied with tools that do not keep modification times | The written-last rule reads the copies' times | Copy with times kept (`cp -p`, `rsync -t`), or remove superseded records before the copy |
 | One task per question, or no saved store | Unchanged | Nothing |
 
-## Unreleased: yes/no fast tables, and a task's own saving bar
+## 0.46.0: yes/no fast tables, and a task's own saving bar
 
 How they work: [tasks.md, "A yes/no table"](tasks.md#a-yesno-table) and ["The saving bar: `min_saving`"](tasks.md#the-saving-bar-min_saving).
 
@@ -87,7 +87,7 @@ How they work: [tasks.md, "A yes/no table"](tasks.md#a-yesno-table) and ["The sa
 | A client that reads `fast_table_report` or `status.fast_table` exactly | `required`, `calibration` (a yes/no table) and `min_saving` are new fields; `fast_table_report.request` and `learn.request` carry `min_saving` | Allow them |
 | Rolling back to an earlier release with yes/no tables registered | The earlier server serves the table's uncalibrated probability, without the commit rule, and the certificate is suspended (`serving_stack_changed`, the decisio version differs) | Delete or re-register those tasks before rolling back |
 
-## Unreleased: a request of two orders is not certified, on any server, and says `orders_changed`
+## 0.46.0: a request of two orders is not certified, on any server, and says `orders_changed`
 
 How it works: [tasks.md, "Where it stops"](tasks.md#where-it-stops), "One order".
 
@@ -124,7 +124,7 @@ A table that learns from traffic on such a server learns again after the upgrade
 | A certificate made by an earlier release on a server started with `--orders 2` | Suspended for the version, as every certificate is after an upgrade; `status.changed` does not list `serving.orders` | Certify it again, which the upgrade asks for anyway |
 | Other servers and requests | Unchanged | Nothing |
 
-## Unreleased: task context
+## 0.46.0: task context
 
 How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](api.md).
 
@@ -161,7 +161,7 @@ How to use it: [tasks.md, "Task context"](tasks.md#task-context) and [api.md](ap
 | Clients that read response headers or `/health` exactly | `x-decisio-warning` and the `context=` stage of `x-decisio-stages` are new; a task with a context has `context` in its record and in `systemone.readout_tasks`; on MLX `prefix_cache` has `context_hits` and `context_misses` once a context was read | Allow them |
 | A rolling upgrade on a shared task store (`--task-store`), or rolling back, with tasks that have a context | An earlier server refuses a `decisio-task/2` record rather than serve the task without its context: it does not start from a store or a `--tasks-dir` that holds one, refuses it on import, and a running earlier replica stops applying the store's changes (it logs `task store: sync failed` and serves what it has) until it is upgraded or the record is gone. Tasks without a context are read by both | Upgrade every replica before registering a task with a context; to roll back, delete or export and remove those tasks first |
 
-## Unreleased: certified yes/no tasks, and the certification fields of a task under another rendering
+## 0.46.0: certified yes/no tasks, and the certification fields of a task under another rendering
 
 How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
 
