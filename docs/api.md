@@ -214,6 +214,7 @@ The other registration routes (`"options": "dynamic"`, a task that learns from t
 
 An optional `"context"` is a long, fixed text read before every state of the task, the examples' included: a string as given, an object or array as compact JSON.
 Requests then send only the part that changes, and after the first request the context is read from the prefix cache ([tasks.md](tasks.md#the-context-in-the-prefix-cache)).
+On MLX that cuts latency several times; on vLLM, whose prefix cache already reuses a prefix every request repeats, the gain is the smaller request, not speed ([tasks.md](tasks.md#what-a-context-buys-on-each-engine)).
 On a server that pads (the Qwen base on vLLM) the pad is sized so that the context ends on the cache block, so such a request is not always the same tokens as one that sends the context in its state.
 The labelled, dynamic-option and learning registrations take it; `POST /v1/abstention/tasks` does not (abstention tasks take no context).
 Its sha256 is part of the task's identity: the same question registered with another context is another task, kept beside the first, and a request picks between them with `task` (above).

@@ -896,7 +896,9 @@ Requests then send only the part that changes, and the server puts the context i
 
 **When to use it.** When every request of a task is read against the same text that does not change between requests: a policy, a rubric, a catalogue, a set of definitions, a long instruction.
 - The requests get smaller: the context is sent once, at registration.
-- Every request of the task starts with the context, so after the first request the context is read from the prefix cache and only the changing part is computed ([below](#the-context-in-the-prefix-cache)).
+- What else it buys depends on the engine ([below](#what-a-context-buys-on-each-engine)).
+  On MLX, whose prefix cache matches only whole prefixes, the context is read from the cache after the first request and each request computes only its changing part, which cuts latency several times.
+  On vLLM, whose prefix cache already reuses a prefix that every request repeats, a policy at the start of every state is cached just as well: the context gives the same answers with smaller requests, not a speed-up.
 - A fast table encodes the state alone, so it learns from the part that changes, not from a text every request shares.
 
 Keep in the context only what is the same on every request; what changes belongs in the state.
@@ -924,6 +926,20 @@ The tokens can differ in one place, the padding: a server that pads (the Qwen ba
 So a request of a task with a context is not always the same prompt as the request that sends the context in its state, and their answers can differ slightly; on a server that does not pad (the Gemma bases, and MLX by default) the two are the same tokens.
 On MLX the same tokens are read in two steps, the context and then the rest of the prefix ([below](#the-context-in-the-prefix-cache)), and that arithmetic can make answers differ slightly from reading the same tokens in one step.
 On the Gemma 4 12B on a Mac, probabilities moved by a median of 6e-5 and at most 0.03, and no answer changed.
+
+### What a context buys on each engine
+
+Measured with a 1,176-token moderation policy and short comments to judge, the tuned 12B, one question per request, requests one at a time, batch-invariant off:
+
+| Engine | The policy at the start of every state | The policy as the task's context |
+| --- | ---: | ---: |
+| MLX (the 12B MLX conversion, an Apple M5 Pro; the mean of 600 reads) | 1,946 ms a read | 373 ms a read |
+| vLLM 0.31.0 (the 12B in bf16, an RTX PRO 6000; 40 requests) | 61.4 ms p50, 1,216 tokens of each first read from the cache | 60.8 ms p50, 1,216 tokens of each first read from the cache |
+
+- **On MLX** the prefix cache keeps a request's whole prefix and finds it only for exactly the same prefix, so a policy repeated at the start of every state is computed again on every request; as the task's context it is its own cache entry ([below](#the-context-in-the-prefix-cache)), 5.2 times faster here.
+- **On vLLM** the prefix cache reuses any prefix of whole blocks that an earlier request computed, so the repeated policy is read from the cache in both layouts and the two run at the same speed (a ratio of 0.99).
+  What the context adds there is the smaller request, and a boundary registered once (`--register-boundary`), so that the cache holds the context from the task's first request: with registration off, the shared prefix was found from the third request on.
+- The answers are the same either way (the same rows on the Gemma bases, which do not pad); what a context changes is what each request sends and, on MLX, how much of it is computed.
 
 ### The context in the prefix cache
 
