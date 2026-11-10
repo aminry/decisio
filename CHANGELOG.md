@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.46.0](https://github.com/aminry/decisio/compare/v0.45.0...v0.46.0) (2026-11-10)
+
+
+### Features
+
+* **serve:** a task's context, sent once at registration and read before every request's state ([#433](https://github.com/aminry/decisio/issues/433)) ([5b29527](https://github.com/aminry/decisio/commit/5b2952729d6dc2be7753b3f58368db33e4c1d0da))
+* **serve:** yes/no fast tables with their own calibrated P(yes), a per-task saving bar (default 10%), and the yes/no monitor read before the commit rule on table paths ([#436](https://github.com/aminry/decisio/issues/436)) ([983797b](https://github.com/aminry/decisio/commit/983797bb83503a7af6e35244695db85b02ed9083))
+
+
+### Bug Fixes
+
+* **serve:** a certificate records the one order certification reads; a request of other orders says orders_changed ([#435](https://github.com/aminry/decisio/issues/435)) ([deee4f4](https://github.com/aminry/decisio/commit/deee4f4ed6ee17e551679f8e91d326442112bb73))
+* **serve:** a replaced task's saved record is removed, and a restart serves the task registered last ([#437](https://github.com/aminry/decisio/issues/437)) ([c4f2661](https://github.com/aminry/decisio/commit/c4f26613ab3f3c8cdff70b0eb1d45b620ff2450c))
+* **serve:** certified yes/no tasks: a live confidence monitor under the commit rule, and certification fields under another rendering ([#432](https://github.com/aminry/decisio/issues/432)) ([1b8a9d6](https://github.com/aminry/decisio/commit/1b8a9d6589d4d7030b1e883f25c6f8b43b73e9c9))
+* **serve:** refuse a task context over the window before any model work, on every build ([#438](https://github.com/aminry/decisio/issues/438)) ([f1823dd](https://github.com/aminry/decisio/commit/f1823dd31cb0ceb82f6812e6a47ebc25be6ba47b))
+
 ## [0.45.0](https://github.com/aminry/decisio/compare/v0.44.0...v0.45.0) (2026-11-07)
 
 
