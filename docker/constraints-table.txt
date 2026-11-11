@@ -4,6 +4,6 @@
 # and what they bring that the image does not ship. Keep in step with uv.lock.
 scikit-learn==1.9.1
 joblib==1.6.0
-threadpoolctl==3.7.0
+threadpoolctl==3.8.0
 onnxruntime==1.31.1
 flatbuffers==25.12.19
