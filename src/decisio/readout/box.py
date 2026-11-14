@@ -61,19 +61,28 @@ class BoxParseError(ValueError):
         self.text = text
 
 
+def box_target(instructions) -> str:
+    """What the question looks for, as text: a string (as written), an object or an array (compact JSON), or the main
+    subject when the question carries nothing."""
+    if instructions is None:
+        return BOX_DEFAULT_TARGET
+    if isinstance(instructions, str):
+        return instructions.strip().rstrip(".") or BOX_DEFAULT_TARGET
+    return json.dumps(instructions, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
 def render_box_prompt(instructions) -> str:
     """The Box instruction text for one question. The image itself is placed by the image path, not here.
 
     `instructions` is what the question carries: a string (used as the target), an object or an array
     (written out as compact JSON), or None (the main subject).
     """
-    if instructions is None:
-        target = BOX_DEFAULT_TARGET
-    elif isinstance(instructions, str):
-        target = instructions.strip().rstrip(".") or BOX_DEFAULT_TARGET
-    else:
-        target = json.dumps(instructions, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
-    return BOX_INSTRUCTION.format(target=target)
+    return BOX_INSTRUCTION.format(target=box_target(instructions))
+
+
+def presence_instructions(instructions) -> str:
+    """The yes/no question that reads whether a Box question's target is in the picture at all."""
+    return f"Is this in the picture: {box_target(instructions)}?"
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -497,3 +506,12 @@ def fit_confidence_map(raw: Sequence[float], hit: Sequence[float]) -> Confidence
         if hi > lo:
             knots.append((hi, v))
     return ConfidenceMap(tuple(knots))
+
+
+def box_confidence(p_presence: float, raw: float, cmap: ConfidenceMap | None = None) -> tuple[float, bool]:
+    """The confidence the answer carries and whether it is calibrated: the presence probability times the raw edge
+    confidence, through the fitted map when there is one (isotonic on the product, fitted against IoU >= 0.5 on
+    present and absent items alike, so that an absent target pulls it down), else the product itself."""
+    x = min(max(float(p_presence), 0.0), 1.0) * min(max(float(raw), 0.0), 1.0)
+    cmap = cmap or ConfidenceMap()
+    return min(max(cmap.apply(x), 0.0), 1.0), cmap.calibrated
