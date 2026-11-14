@@ -46,6 +46,7 @@ packed: questions are packed into one prompt as consecutive chat turns, each tur
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -1090,13 +1091,18 @@ class LettersEngine:
                         raise ValueError("read twice moved the state's tokens; the first copy must be the prompt")
         return rows, n, plan
 
-    def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
+    def score_prompts(
+        self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, row_mm=None, row_mm_uuids=None
+    ):
         """Label distributions for fully-built prompts [(token ids, label ids)], one engine request each.
 
         `mm`: multimodal data shared by every row and warm-up ({"image": [PIL images]}), for the image engine
         (decisio.serve.image_engine); each image appears once in the token ids as one `<|image_pad|>`, which the
         engine expands to the image's token count. None for text (the default, unchanged). `mm_uuids`: a content id per
         image ({"image": [str]}), so the engine hashes no image itself (every row carries the same images).
+        `row_mm`, `row_mm_uuids`: the same per row (a list with one entry or None per row), for a request whose rows
+        carry different images (the Gemma image route: the state's images and each question's own,
+        decisio.serve.gemma_images); `mm` is then the warm-ups' own data, the state's images.
 
         `warm`: token lists prefilled first, in one batch, so their recurrent states are registered
         before any question is scheduled (a warm-up of P+1 tokens registers the state at P).
@@ -1107,7 +1113,11 @@ class LettersEngine:
         from vllm.inputs import TokensPrompt
 
         lora = self.adapters[adapter] if adapter else None
-        extra = {"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}
+
+        def extra_of(data, mm_uuids):
+            return {"multi_modal_data": data, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if data else {}
+
+        extra = extra_of(mm, mm_uuids)
         warm_ms, warm_cached = self._prefill(warm, adapter, mm, mm_uuids) if warm else (0.0, [])
         # SamplingParams defaults leave top-k/top-p/min-p off, so "processed" is the masked logits alone.
         # detokenize=False: labels are read by token id and no text is used; the per-request detokenizer
@@ -1127,7 +1137,13 @@ class LettersEngine:
         outs = guarded(
             self,
             self.llm.generate,
-            [TokensPrompt(prompt_token_ids=ids, **extra) for ids, _ in rows],
+            [
+                TokensPrompt(
+                    prompt_token_ids=ids,
+                    **(extra if row_mm is None else extra_of(row_mm[i], row_mm_uuids[i] if row_mm_uuids else None)),
+                )
+                for i, (ids, _) in enumerate(rows)
+            ],
             sps,
             lora_request=lora,
             use_tqdm=False,
@@ -1637,6 +1653,11 @@ def make_app(engine, systemone=None, health=None):
                     "temperature": systemone.temperature,
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
+                    **(
+                        {"image_temperature": systemone.image_temperature}
+                        if systemone.image_temperature is not None
+                        else {}
+                    ),
                     **({"think_temperatures": systemone.think_temperatures} if systemone.think_temperatures else {}),
                     "repository_defaults": getattr(engine, "repository_defaults", None),
                     **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
@@ -1693,6 +1714,7 @@ def make_app(engine, systemone=None, health=None):
             # question type gets, and the prompt (decisio.families)
             **({"profile": served_profile(engine, systemone)} if systemone is not None else {}),
             **({"image_engine": image.facts()} if image is not None else {}),
+            "images": images_facts(engine, image),
             **so,
         }
 
@@ -1911,6 +1933,46 @@ def resolve_pad_policy(backend, pad_policy=None):
     return "none" if backend == "mlx" else "always"
 
 
+def resolve_images(args) -> int | None:
+    """`--images` and `--image-budget`: the soft-token budget the engine reads images at (None with images off), or
+    ValueError for a server that cannot read images. Images are for the Gemma bases on the vLLM server, read by the
+    engine that reads text: the Qwen base keeps `--image-model`, the Mac keeps text only, and a head-capable class of
+    the 31B has no multimodal form yet."""
+    from decisio.serve import image_marks
+
+    images = getattr(args, "images", "off")
+    budget = getattr(args, "image_budget", None)
+    if images != "on":
+        if budget is not None:
+            raise ValueError("--image-budget needs --images on")
+        return None
+    fam = args.family
+    if args.backend != "vllm":
+        raise ValueError(
+            f"--images on is for the vLLM server, not --backend {args.backend}: images on a Mac come later"
+        )
+    if not fam.key.startswith("gemma-4"):
+        raise ValueError(
+            f"--images on is for the Gemma bases (this is {fam.key}); the Qwen base reads images with --image-model"
+        )
+    for flag, given in (
+        ("--image-model", args.image_model),
+        ("--one-engine", args.one_engine),
+        ("--mode packed", args.mode == "packed"),
+    ):
+        if given:
+            raise ValueError(f"--images on does not combine with {flag}: one engine reads text and images")
+    if budget is None:
+        budget = image_marks.DEFAULT_BUDGET
+    if budget not in image_marks.BUDGETS:
+        raise ValueError(f"--image-budget {budget}: one of {', '.join(map(str, image_marks.BUDGETS))}")
+    if args.model_class == "hidden-readout" and fam.classes.get("hidden-readout") == "DecisioGemma4HiddenReadout":
+        raise ValueError(
+            "--images on: the 31B's head-capable class has no image form yet; serve images without the head"
+        )
+    return budget
+
+
 def engine_kwargs(args) -> dict:
     """`LLM(...)` keyword arguments of the text engine: --engine's JSON, plus decisio's model class when one is chosen
     (registered here for this process; vLLM's engine processes load the plugin through its entry point)."""
@@ -1940,6 +2002,8 @@ def engine_kwargs(args) -> dict:
         os.environ.setdefault(ENV_START, str(family.hidden_start))
         kw = {**kw, "max_logprobs": 1024}  # a head question reads up to 1,024 columns per request
     arch = family.classes[args.model_class]
+    if getattr(args, "images", "off") == "on" and args.model_class == "text-only":
+        return kw  # images on: the checkpoint's own multimodal class, with its vision tower (the 31B), as one engine
     if arch is None:  # the base's own class, unmodified (Gemma's text path)
         return kw
     return {**kw, **plugin.engine_kwargs(arch)}
@@ -1993,6 +2057,21 @@ def facts_register_boundary(engine):
 
 RESERVED_MIN = 8  # reserved ids a question's reasoning must hold, and be half of it, to count as the readout bug
 HIDDEN_SIZE_MAX = 8192  # wider than any served base's hidden size: the tripwire's window above `hidden_start`
+
+
+def images_facts(engine, image_engine=None) -> dict:
+    """What /health says of image input: on or off, and how. On a Gemma base with `--images on` the engine that reads
+    text reads the pictures (its budget and the most images a request may carry); with `--image-model` a second
+    engine does."""
+    if getattr(engine, "images_enabled", False):
+        return engine.image_facts()
+    if image_engine is not None:
+        return {
+            "enabled": True,
+            "route": "second engine (--image-model)",
+            "max_images": getattr(image_engine, "max_images", None),
+        }
+    return {"enabled": False}
 
 
 def served_profile(engine, systemone) -> dict:
@@ -2572,9 +2651,27 @@ def build_parser():
         "--max-images",
         type=int,
         default=None,
-        help="the most images one request may carry on the --image-model engine (default 128: 128 images of 512 by "
+        help="the most images one request may carry: on the --image-model engine (default 128: 128 images of 512 by "
         "512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal "
-        "profiling memory at start-up, raise it for smaller images)",
+        "profiling memory at start-up, raise it for smaller images), and with --images on (default 16; vLLM sizes its "
+        "start-up profile of the image path from it and from --image-budget, a cost not measured yet)",
+    )
+    ap.add_argument(
+        "--images",
+        choices=("off", "on"),
+        default="off",
+        help="images on a Gemma base (the vLLM server): the engine that reads text reads the pictures too, each at its "
+        "place in the state or in one question's text (docs/api.md, 'Images on Gemma 4'); off (the default, as before) "
+        "loads the text path alone. The 12B raises its image limit; the 31B loads its vision tower. Not measured yet: "
+        "memory at start-up and text latency",
+    )
+    ap.add_argument(
+        "--image-budget",
+        type=int,
+        default=None,
+        help="with --images on, the soft tokens one image may take: 70, 140, 280, 560 or 1120 (default 280, the "
+        "model's own default); an image is scaled to fill the budget, so a request pays about this many tokens per "
+        "image (docs/api.md has the table)",
     )
     ap.add_argument(
         "--hide-index-keys",
@@ -3170,6 +3267,7 @@ def main():
             flag
             for flag, given in (
                 ("--image-model", args.image_model),
+                ("--images on", args.images == "on"),
                 ("--one-engine", args.one_engine),
                 ("--head-engine", args.head_engine),
                 ("--adapter", args.adapter),
@@ -3212,10 +3310,14 @@ def main():
         )
     except ValueError as e:
         ap.error(str(e))
-    if args.max_images is not None and not args.image_model:
-        ap.error("--max-images needs --image-model")
+    if args.max_images is not None and not (args.image_model or args.images == "on"):
+        ap.error("--max-images needs --image-model or --images on")
     if args.max_images is not None and args.max_images < 1:
         ap.error("--max-images must be at least 1")
+    try:
+        args.image_budget = resolve_images(args)
+    except ValueError as e:
+        ap.error(str(e))
     try:
         args.model_class, head_mode = resolve_head_mode(args.model_class, args.head_engine, one)
     except ValueError as e:
@@ -3330,7 +3432,17 @@ def main():
             revision=args.revision,
         )
     else:
-        engine = LettersEngine(
+        if args.images == "on":
+            from decisio.serve.gemma_images import DEFAULT_MAX_IMAGES, GemmaImageLettersEngine
+
+            make = functools.partial(
+                GemmaImageLettersEngine,
+                image_budget=args.image_budget,
+                max_images=args.max_images if args.max_images is not None else DEFAULT_MAX_IMAGES,
+            )
+        else:
+            make = LettersEngine
+        engine = make(
             args.model,
             mode=args.mode,
             pad_to=None if args.pad_to == "none" else args.pad_to,
@@ -3483,6 +3595,7 @@ def main():
         orders=args.orders,
         branch_log=args.branch_log,
         image_engine=image_engine,
+        image_temperature=args.family.image_temperature,
         abstain_option=args.abstain_option,
         hide_index_keys=args.hide_index_keys,
         describe_options=args.describe_options,

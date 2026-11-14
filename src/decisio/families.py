@@ -76,6 +76,10 @@ class Family:
     # the served temperatures: global, and for choice questions (None: the global one)
     temperature: float = 1.0
     choice_temperature: float | None = None
+    # the temperature of a request with images (`--images on`, Gemma bases): None reads it at the text temperatures
+    # above. Not fitted on images yet: the text temperatures were fitted on text, and an image calibration is the
+    # figure that would fill this in (docs/running.md, "Images on Gemma 4")
+    image_temperature: float | None = None
     # beyond those two: a temperature for yes/no ("noul") and for score questions of their own (the global one when
     # absent), and a choice temperature per band of option count ("lo-hi": T, 2 to 255, not overlapping). Both are
     # the profile's last word: a flag, a temperatures file and a tuned repository's defaults come first, and the bands
@@ -364,6 +368,11 @@ def check_profile_temperatures(fam: Family) -> None:
             raise ValueError(f"{fam.key}: temperatures names {k!r}; only noul and score (choice has its own field)")
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
             raise ValueError(f"{fam.key}: the {k} temperature must be a positive number, got {v!r}")
+    it = fam.image_temperature
+    if it is not None and (
+        isinstance(it, bool) or not isinstance(it, (int, float)) or not math.isfinite(it) or it <= 0
+    ):
+        raise ValueError(f"{fam.key}: the image temperature must be a positive number, got {it!r}")
     if fam.choice_bands:
         from decisio.serve.adapter_temperatures import AdapterFileError, validate_temperatures
 
