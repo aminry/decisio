@@ -63,6 +63,12 @@ The extensions decisio reads are `images` and `orders`.
 **Limits.**
 Up to 255 options per question (a request with more gets 422, as on System One), a prompt of 32,768 tokens on the Qwen base (on a Gemma base the largest length the card holds, at most 98,304 on the 31B and 65,536 on the 12B, reported in `/health` as `max_model_len`; 32,768 with `--image-model`), and as many images per request as the context holds (up to `--max-images`, 128 by default), which need a server started with `--image-model`.
 
+**Images.**
+With an image engine (`--image-model`), the SDK's `Image(...)` values work as they do against TypeSafe: the SDK uploads them as a `multipart/form-data` request with an `X-TypeSafe-SDK` header, which decisio accepts (tested on the bytes of the SDK 0.7.5's own request).
+The rules that differ are listed in [`api.md`](api.md#where-this-route-differs-from-system-one): decisio also reads WebP, has no side-length window, and does not need the `TypeSafe-Danger-Zone-Images` header (it accepts it).
+A body over 32 MiB, an image part of another content type than PNG or JPEG, a placeholder name over 1,024 bytes (65,536 in all) and an animated image are refused as TypeSafe refuses them.
+Box questions are not supported.
+
 **Errors.**
 A request that fails validation gets 422 and one the engine cannot answer gets 400, each with a `detail` naming the problem.
 TypeSafe's SDK raises its own error types for them (`TypeSafeUnprocessableEntityError`, `TypeSafeBadRequestError`).

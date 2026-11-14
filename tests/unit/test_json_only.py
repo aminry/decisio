@@ -10,10 +10,11 @@ J1  the middleware: application/json (any case, with parameters) passes; every o
     `accept-post: application/json`; GET and OPTIONS are not touched;
 J2  on every POST route of the served app, a non-JSON POST is 415 and the engine is not called; the same POST as JSON
     reaches it;
-J3  POST /v1/systemone takes multipart/form-data when the request carries an X-Decisio-Client header (any value), and
-    nothing else gets through with it: no other route, no other type;
-J4  the header is only a barrier if a browser cannot add it: the server answers a preflight that asks for it with 405
-    and no Access-Control-Allow-* header (a CORS layer added later fails this test).
+J3  POST /v1/systemone takes multipart/form-data when the request carries an X-Decisio-Client, X-TypeSafe-SDK or
+    TypeSafe-Danger-Zone-Images header (any value), and nothing else gets through with it: no other route, no other
+    type;
+J4  the headers are only a barrier if a browser cannot add them: the server answers a preflight that asks for any of
+    them with 405 and no Access-Control-Allow-* header (a CORS layer added later fails this test).
 
   uv run pytest -q tests/unit/test_json_only.py
 """
@@ -120,17 +121,22 @@ def test_j3_multipart_on_systemone_needs_the_client_header():
     form = {"content-type": "multipart/form-data; boundary=b"}
     without = client.post("/v1/systemone", content=b"--b--", headers=form)
     assert without.status_code == 415 and "X-Decisio-Client" in without.json()["detail"]
-    for value in ("my-app", "", "1"):
-        r = client.post("/v1/systemone", content=b"--b--", headers={**form, "x-decisio-client": value})
-        assert r.status_code != 415, value  # reached the route (it then refuses the empty form)
+    for header in ("x-decisio-client", "x-typesafe-sdk", "TypeSafe-Danger-Zone-Images"):
+        for value in ("my-app", "", "1"):
+            r = client.post("/v1/systemone", content=b"--b--", headers={**form, header: value})
+            assert r.status_code != 415, (header, value)  # reached the route (it then refuses the empty form)
+    other = client.post("/v1/systemone", content=b"--b--", headers={**form, "x-typesafe-runtime": "python"})
+    assert other.status_code == 415  # only the three headers count, not any header the SDK sends
     # the header opens nothing else: not another route, not another type
     for path in post_routes(client):
         if path != "/v1/systemone":
-            r = client.post(path.replace("{task_id}", "t"), content=b"x", headers={**form, "x-decisio-client": "a"})
-            assert r.status_code == 415, path
+            for header in ("x-decisio-client", "x-typesafe-sdk", "typesafe-danger-zone-images"):
+                r = client.post(path.replace("{task_id}", "t"), content=b"x", headers={**form, header: "a"})
+                assert r.status_code == 415, (path, header)
     for kind in ("text/plain", "application/x-www-form-urlencoded", ""):
-        r = client.post("/v1/systemone", content=b"x", headers={"content-type": kind, "x-decisio-client": "a"})
-        assert r.status_code == 415, kind
+        for header in ("x-decisio-client", "x-typesafe-sdk", "typesafe-danger-zone-images"):
+            r = client.post("/v1/systemone", content=b"x", headers={"content-type": kind, header: "a"})
+            assert r.status_code == 415, (kind, header)
     assert eng.calls == 0
 
 
@@ -142,7 +148,7 @@ def test_j4_a_preflight_for_the_client_header_is_refused():
             headers={
                 "origin": "https://example.com",
                 "access-control-request-method": "POST",
-                "access-control-request-headers": "x-decisio-client, content-type",
+                "access-control-request-headers": "x-decisio-client, x-typesafe-sdk, typesafe-danger-zone-images",
             },
         )
         assert r.status_code == 405, path

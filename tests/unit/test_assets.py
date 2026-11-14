@@ -16,6 +16,14 @@ A7  the answers carry System One's fields only (no imajev fields); a score's leg
 A8  assets do not need System One's `TypeSafe-Danger-Zone-Images` header; `assets` with `images` is a 400
 A9  an abstention task's examples may carry assets; a calibration or head task's examples may not
 A10 a server without an image engine says so
+A11 the real bytes of TypeSafe's Python SDK 0.7.5 (a fixture built with the SDK's own multipart encoder: part `request`,
+    then `asset-0`, no X-Decisio-Client) are served through the whole app, with the SDK's headers instead of ours
+A12 an image part's content type: image/png, image/jpeg, image/jpg, application/octet-stream or none are read, any other
+    is a 400 api_usage_error
+A13 placeholder names: 1,024 bytes of UTF-8 each (not characters) and 65,536 in total are 413 above, 400 when empty or
+    whitespace only
+A14 an animated PNG, or any image with more than one frame, is a 400 on `assets` and the 422 shape on the older ones
+A15 `TypeSafe-Danger-Zone-Images` (any value) is accepted and never required
 
   uv run pytest -q tests/unit/test_assets.py
 """
@@ -25,6 +33,7 @@ import hashlib
 import io
 import json
 import zlib
+from pathlib import Path
 
 import numpy as np
 from fastapi import FastAPI
@@ -33,6 +42,7 @@ from PIL import Image
 
 from decisio.serve.systemone import SystemOne, add_routes
 from decisio.serve.tasks import TaskStore
+from decisio.serve.vllm_engine import make_app
 
 
 def png(color, size=(40, 30)):
@@ -198,7 +208,7 @@ def test_a4_unusable_requests_are_400_in_system_ones_shape():
     assert r.status_code == 200  # an unknown placeholder is plain text
     bad({"PHOTO": asset(RED)}, state="no placeholder here", fragment="not used")
     bad({}, fragment="non-empty")
-    bad({"": asset(RED)}, fragment="nonempty placeholder name")
+    bad({"": asset(RED)}, fragment="placeholder name that is not empty")
     bad({"PHOTO": {"type": "image", "data_base64": b64(RED)}}, fragment="format must be png, jpg or jpeg")
     bad({"PHOTO": {**asset(RED), "format": "webp"}}, fragment="png, jpg or jpeg")
     bad({"PHOTO": {"type": "video", "format": "png", "data_base64": b64(RED)}}, fragment="PHOTO")
@@ -308,3 +318,116 @@ def test_a10_no_image_engine():
     c, _, _ = make(image=False)
     r = c.post("/v1/systemone", json=req("PHOTO", assets={"PHOTO": asset(RED)}))
     assert r.status_code == 400 and "no image engine" in json.dumps(r.json())
+
+
+FIXTURES = Path(__file__).resolve().parents[1] / "data" / "typesafe_sdk"
+
+
+def test_a11_the_sdks_own_multipart_bytes():
+    # built once with TypeSafe's Python SDK 0.7.5 (MIT): its encoder, a generated 8 by 8 PNG, a fixed boundary
+    body = (FIXTURES / "typesafe_sdk_multipart.bin").read_bytes()
+    ctype = (FIXTURES / "typesafe_sdk_multipart.content-type").read_text().strip()
+    text, img = Fake(), Fake()
+    so = SystemOne(text, "decisio-test", image_engine=img, task_store=TaskStore("fp"))
+    c = TestClient(make_app(text, so))  # the whole app: the content-type middleware is what refuses a bare multipart
+    sdk = {"content-type": ctype, "x-typesafe-sdk": "typesafe-sdk/0.7.5", "x-typesafe-runtime": "python"}
+    r = c.post("/v1/systemone", content=body, headers=sdk)
+    assert r.status_code == 200, r.text
+    assert img.calls[-1]["state"] == {"photo": "[image 1]"} and len(img.calls[-1]["images"]) == 1 and text.calls == []
+    # the same bytes with none of the headers a page cannot send are still refused
+    r = c.post("/v1/systemone", content=body, headers={"content-type": ctype})
+    assert r.status_code == 415
+    # any one of the three headers is enough
+    from decisio.serve.content_type import CLIENT_HEADERS
+
+    for name in CLIENT_HEADERS:
+        r = c.post("/v1/systemone", content=body, headers={"content-type": ctype, name.decode(): "x"})
+        assert r.status_code == 200, name
+
+
+def test_a12_image_part_content_types():
+    c, _, img = make()
+    c_post.client = c
+    body = req("PHOTO", assets={"PHOTO": {"type": "image", "part": "left"}})
+    for kind in ("image/png", "image/jpeg", "image/jpg", "application/octet-stream", "IMAGE/PNG; x=1", None):
+        files = [("left", ("l.png", RED, kind))] if kind else [("left", ("l.png", RED))]
+        assert c_post(body, files).status_code == 200, kind
+    for kind in ("image/webp", "image/gif", "text/plain", "application/json", "image/svg+xml"):
+        r = c_post(body, [("left", ("l.png", RED, kind))])
+        assert r.status_code == 400 and r.json()["detail"]["error_type"] == "api_usage_error", (kind, r.text)
+        assert kind.lower() in r.json()["detail"]["message"]
+
+
+def test_a13_placeholder_name_limits():
+    c, _, _ = make()
+    ok = "R" * 1024
+    assert c.post("/v1/systemone", json=req(ok, assets={ok: asset(RED)})).status_code == 200
+    for name in ("R" * 1025, "é" * 513):  # 1,025 bytes, 513 characters
+        r = c.post("/v1/systemone", json=req(name, assets={name: asset(RED)}))
+        assert r.status_code == 413 and r.json()["detail"]["error_type"] == "api_usage_error", len(name)
+    two_byte = "é" * 512  # 1,024 bytes
+    assert c.post("/v1/systemone", json=req(two_byte, assets={two_byte: asset(RED)})).status_code == 200
+    # 65 names of 1,024 bytes are 66,560 bytes together; 64 are exactly 65,536
+    names = [f"{i:04d}" + "n" * 1020 for i in range(64)]
+    state = " ".join(names)
+    assert c.post("/v1/systemone", json=req(state, assets={n: asset(RED) for n in names})).status_code == 200
+    names.append("x" * 1024)
+    r = c.post("/v1/systemone", json=req(" ".join(names), assets={n: asset(RED) for n in names}))
+    assert r.status_code == 413 and "in total" in r.json()["detail"]["message"]
+    for name in ("", " ", " \t\n"):
+        r = c.post("/v1/systemone", json=req("x " + name, assets={name: asset(RED)}))
+        assert r.status_code == 400 and r.json()["detail"]["error_type"] == "api_usage_error", repr(name)
+
+
+def apng():
+    frames = [Image.new("RGB", (40, 30), color) for color in ((220, 20, 20), (20, 40, 220))]
+    b = io.BytesIO()
+    frames[0].save(b, "PNG", save_all=True, append_images=frames[1:], duration=100)
+    return b.getvalue()
+
+
+def test_a14_animated_images_are_refused():
+    c, _, img = make()
+    c_post.client = c
+    moving = apng()
+    assert Image.open(io.BytesIO(moving)).n_frames == 2
+    r = c.post("/v1/systemone", json=req("PHOTO", assets={"PHOTO": asset(moving)}))
+    assert r.status_code == 400 and r.json()["detail"]["error_type"] == "api_usage_error"
+    assert "animated" in r.json()["detail"]["message"]
+    body = req("PHOTO", assets={"PHOTO": {"type": "image", "part": "left"}})
+    r = c_post(body, [("left", ("l.png", moving, "image/png"))])
+    assert r.status_code == 400 and "animated" in r.json()["detail"]["message"]
+    webp = io.BytesIO()
+    Image.new("RGB", (40, 30), (1, 2, 3)).save(
+        webp, "WEBP", save_all=True, append_images=[Image.new("RGB", (40, 30), (9, 9, 9))], duration=100
+    )
+    r = c.post("/v1/systemone", json=req("PHOTO", assets={"PHOTO": asset(webp.getvalue())}))
+    assert r.status_code == 400 and "animated" in r.json()["detail"]["message"]
+    # the older encodings keep their 422 shape
+    r = c.post("/v1/systemone", json=req("x", images=[data_url(moving)]))
+    assert r.status_code == 422 and "animated" in r.json()["detail"]
+    r = c.post("/v1/systemone", json=req(data_url(moving)))
+    assert r.status_code == 422
+    n = len(img.calls)
+    assert c.post("/v1/systemone", json=req("PHOTO", assets={"PHOTO": asset(RED)})).status_code == 200
+    assert len(img.calls) == n + 1  # a still image is unaffected
+
+
+def test_a15_the_images_header_is_accepted_and_never_required():
+    c, _, img = make()
+    body = req("PHOTO", assets={"PHOTO": asset(RED)})
+    plain = c.post("/v1/systemone", json=body)
+    assert plain.status_code == 200
+    for value in ("true", "false", "", "anything"):
+        r = c.post("/v1/systemone", json=body, headers={"TypeSafe-Danger-Zone-Images": value})
+        assert r.status_code == 200 and probs(r) == probs(plain), value
+    assert img.calls[0] == img.calls[-1]
+    # on multipart it is also one of the headers that lets the request through
+    c_post.client = c
+    mp = c.post(
+        "/v1/systemone",
+        data={"request": json.dumps(req("PHOTO", assets={"PHOTO": {"type": "image", "part": "left"}}))},
+        files=[("left", ("l.png", RED, "image/png"))],
+        headers={"TypeSafe-Danger-Zone-Images": "true"},
+    )
+    assert mp.status_code == 200 and probs(mp) == probs(plain)
