@@ -39,9 +39,7 @@ result = clf.invoke(
         "state": {"message": "My card was charged twice."},
         "questions": {
             "queue": Choice(instructions="Which queue?", criteria={"billing": "Payments", "access": "Login problems"}),
-            "urgent": Noul(
-                instructions="Is it urgent?", criteria=NoulCriteria(true="needs an answer today", false="can wait")
-            ),
+            "urgent": Noul(instructions="Is it urgent?", criteria=NoulCriteria(true="needs an answer today", false="can wait")),
         },
     }
 )
@@ -157,17 +155,8 @@ from pipecat.classifiers.jev.classifier import JevClassifier
 async def main():
     clf = JevClassifier(api_key="not-used", base_url="http://127.0.0.1:8000")
     state = {"message": "My card was charged twice."}
-    queue = await clf.choice(
-        state,
-        {
-            "queue": ChoiceQuestion(
-                instructions="Which queue?", options={"billing": "Payments", "access": "Login problems"}
-            )
-        },
-    )
-    urgent = await clf.yes_no(
-        state, {"urgent": YesNoQuestion(instructions="Is it urgent?", yes="needs an answer today", no="can wait")}
-    )
+    queue = await clf.choice(state, {"queue": ChoiceQuestion(instructions="Which queue?", options={"billing": "Payments", "access": "Login problems"})})
+    urgent = await clf.yes_no(state, {"urgent": YesNoQuestion(instructions="Is it urgent?", yes="needs an answer today", no="can wait")})
     print(queue["queue"], urgent["urgent"])
     await clf.cleanup()
 
