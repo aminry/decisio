@@ -48,6 +48,7 @@ from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
+from decisio.serve import image_marks as marks
 from decisio.serve import layout as lay
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
@@ -536,17 +537,21 @@ def decode_data_url(value: str) -> bytes:
     return base64.b64decode(m.group(1), validate=False)
 
 
-def extract_state_images(state):
-    """imajev's rule: data:image URIs anywhere in the state become images, in reading order, replaced by "[image N]"."""
+def extract_state_images(state, placed: bool = False, first: int = 1):
+    """imajev's rule: data:image URIs anywhere in the state become images, in reading order, replaced by "[image N]".
+    `placed` (the Gemma image route): each is replaced by its mark (`decisio.serve.image_marks`) instead, numbered from
+    `first`, and a text that already contains a mark is refused."""
     found = []
+
+    def one(m):
+        found.append(m.group(0))
+        return marks.mark(first + len(found) - 1) if placed else f"[image {len(found)}]"
 
     def walk(node):
         if isinstance(node, str):
-            return (
-                IMAGE_DATA_URL.sub(lambda m: (found.append(m.group(0)), f"[image {len(found)}]")[1], node)
-                if "data:image/" in node
-                else node
-            )
+            if placed and marks.OPEN in node:
+                raise ImageRequestError(f"The state contains {marks.OPEN!r}, which is reserved for the images' places.")
+            return IMAGE_DATA_URL.sub(one, node) if "data:image/" in node else node
         if isinstance(node, list):
             return [walk(x) for x in node]
         if isinstance(node, dict):
@@ -583,7 +588,7 @@ def check_image_part_type(name: str, content_type: str | None) -> None:
         )
 
 
-def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
+def bind_assets(payload: dict, parts: dict[str, bytes] | None = None, placed: bool = False, scopes: list | None = None):
     """System One's `assets`: every placeholder (an asset's name, found as or inside a string of the state, a question's
     instructions or its criteria's descriptions, longest name first) becomes the marker "[image N]", N counting the
     occurrences in reading order (the state, then each question: instructions, then criteria), and the asset's bytes
@@ -591,7 +596,12 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
     keys are not searched. Returns (the payload without `assets`, the images' bytes in order, the score questions'
     original levels by name, so the legend can show the text the caller wrote). `parts`: a multipart request's image
     parts by name. Raises ImageRequestError for an asset that is not usable or never used, an image part that no asset
-    uses or two assets share."""
+    uses or two assets share.
+
+    `placed` (the Gemma image route): each occurrence becomes a mark (`decisio.serve.image_marks`) that the engine
+    turns into the image at that place, in the state's text or in one question's own text; a text that already contains
+    a mark is refused. `scopes`, a list the call fills, gets one entry per image in order: None for an image in the
+    state, the question's name for an image in its instructions or criteria."""
     assets = payload.pop("assets", None)
     if assets is None:
         return payload, [], {}
@@ -635,12 +645,20 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
     pattern = re.compile("|".join(re.escape(n) for n in sorted(data, key=len, reverse=True)))
     blobs: list[bytes] = []
     used: set[str] = set()
+    scope: list = [None]  # where the text being searched stands: None for the state, else a question's name
 
     def sub(text: str) -> str:
+        if placed and marks.OPEN in text:
+            raise ImageRequestError(
+                f"A text of the request contains {marks.OPEN!r}, which is reserved for the images' places."
+            )
+
         def one(m):
             blobs.append(data[m.group(0)])
             used.add(m.group(0))
-            return f"[image {len(blobs)}]"
+            if scopes is not None:
+                scopes.append(scope[0])
+            return marks.mark(len(blobs)) if placed else f"[image {len(blobs)}]"
 
         return pattern.sub(one, text)
 
@@ -663,6 +681,7 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
             if not isinstance(q, dict):
                 qs[qname] = q
                 continue
+            scope[0] = qname
             q = dict(q)
             if "instructions" in q:
                 q["instructions"] = walk(q["instructions"])
@@ -742,6 +761,7 @@ class SystemOne:
         release_date: str = "2026-09-27",
         description: str = "",
         image_engine=None,
+        image_temperature: float | None = None,
         abstain_option: str | None = None,
         hide_index_keys: bool = True,
         desnake_labels: bool = True,
@@ -838,6 +858,9 @@ class SystemOne:
         # the global temperature on the text route's plain readout (decisio.serve.temperature); 1.0 is off, bit for bit;
         # a registered task's own correction replaces it
         self.temperature = float(temperature)
+        # the temperature of a request with images on a Gemma base (`--images on`); None reads it at the text route's
+        # own temperatures. Not fitted on images (decisio.families, `image_temperature`)
+        self.image_temperature = None if image_temperature is None else float(image_temperature)
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
         # the choice temperature by the question's number of options, {"lo-hi": temperature}, replacing the choice
@@ -1259,13 +1282,27 @@ class SystemOne:
         server's is built, looked up among the tasks and certified exactly as a server of that layout would; the image
         route builds its own prompt and refuses the field (LayoutRefused)."""
         layout = lay.request_value(layout)
-        if layout is not None and (images or route == "image"):
+        if layout is not None and (images or route == "image") and not self.reads_images_itself():
             raise lay.LayoutRefused(
                 "the image route builds its own prompt (the images, then the state and the question) and has no "
                 'layout: send the request without "layout"'
             )
         with lay.using(layout if layout is not None else self.request_layout):
             return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think)
+
+    def reads_images_itself(self) -> bool:
+        """Whether the server's own engine reads images (`--images on` on a Gemma base,
+        decisio.serve.gemma_images), so that a request with images is read by the engine that reads text, under the
+        text route's prompt, tasks aside."""
+        return self.image_engine is None and getattr(self.engine, "images_enabled", False)
+
+    def image_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
+        """The temperature a question of a request with images is served at: the named adapter's own (an adapter's
+        temperatures are fitted on its own reads), else `image_temperature` where the base has one, else the text
+        route's (`temperature_of`)."""
+        if adapter is None and self.image_temperature is not None:
+            return self.image_temperature
+        return self.temperature_of(qtype, adapter, options)
 
     def _answer(
         self,
@@ -1290,9 +1327,14 @@ class SystemOne:
         and the response's `thinking` says which questions did and what it cost."""
         t0 = time.perf_counter()  # the whole answer: mapping, plans and every read (the route adds its own parsing)
         images = list(images or [])
-        use_image = bool(images) or route == "image"
+        # the server's own engine reads images (Gemma, `--images on`): the request is read as text is, with the images
+        # at their places; the other route is a second engine (`--image-model`)
+        own = self.reads_images_itself()
+        with_images = own and bool(images)
+        use_image = (bool(images) or route == "image") and not own
         if use_image and self.image_engine is None:
-            raise ValueError("this server has no image engine (start it with --image-model)")
+            raise ValueError("this server has no image engine (start it with --images on, or --image-model)")
+        no_tasks = use_image or with_images  # no registered task was fitted on pictures
         adapter = adapter or None
         if adapter is not None:
             if use_image:
@@ -1328,8 +1370,8 @@ class SystemOne:
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
         task_id = (req.model_extra or {}).get("task")
-        if task_id is not None and use_image:
-            raise TaskSelectionError('"task": the image route applies no registered task')
+        if task_id is not None and no_tasks:
+            raise TaskSelectionError('"task": a request with images applies no registered task')
         selected = self.selected_task(task_id)
         if adapter is not None:
             # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
@@ -1348,7 +1390,7 @@ class SystemOne:
         # its threshold was fitted on the state read alone, so it is never read with a context (docs/tasks.md)
         rts = [
             None
-            if use_image or (plans[i] and plans[i][2]) or abstain
+            if no_tasks or (plans[i] and plans[i][2]) or abstain
             else self.abstention_readout_task(q, selected, imajev_ext)
             if plans[i]
             else self.readout_task(q, selected)
@@ -1361,19 +1403,19 @@ class SystemOne:
             )
         # a task's context is read before the state (docs/tasks.md, "Task context"): `read` is the state as the engine
         # reads it; the fast table, the learned rows and the truncation see the request's own state
-        context = None if use_image else self.request_context(names, rts)
+        context = None if no_tasks else self.request_context(names, rts)
         warning = None
         if context is not None:
             warning = self.context_twice(next(t for t in rts if t is not None), req.state, context)
-        elif not use_image:
+        elif not no_tasks:
             # a question answered through an abstention task reads no context, whatever tasks ask it
             self.refuse_context_elsewhere(wire, rts, skip={i for i, pl in enumerate(plans) if pl or abstain})
         cut = None
-        truncate = (over_limit or self.over_limit) == "truncate" and not use_image
+        truncate = (over_limit or self.over_limit) == "truncate" and not no_tasks
         if truncate:
             req, cut = self.truncated_request(req, qs, engine, context)
         read = context_state(context, req.state)
-        hp = None if use_image else self.header_plan(read, qs, engine, context)
+        hp = None if no_tasks else self.header_plan(read, qs, engine, context)
         if context is not None and not truncate and getattr(getattr(engine, "fmt", None), "layout", "plain") == "plain":
             self.refuse_over_context(read, qs, engine, context)
         header_lines = hp["listed"] if hp is not None and hp["limited"] else None
@@ -1388,7 +1430,7 @@ class SystemOne:
             and wire[i].type != "score"
             and orders == CERTIFIED_ORDERS
             and not abstain
-            and not use_image
+            and not no_tasks
         ]
         # before[i]: a yes/no answer's distribution before --noul-commit moved it, which the confidence monitor reads
         served, via, learned, before = {}, {}, {}, {}
@@ -1431,6 +1473,8 @@ class SystemOne:
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)
         second, think_report, think_ms = {}, None, 0.0
+        if effective_think and with_images:
+            effective_think = False  # thinking is not served on a request with images
         if effective_think and cut is not None:
             # a state cut to the ceiling is answered by the single pass: a thinking read on a state that long can take
             # longer than a caller waits, and thinking was not measured there (counted, so a server shows it)
@@ -1516,7 +1560,13 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                t_q = (self.think_temperature_of if i in second else self.temperature_of)(q.type, adapter, len(p))
+                t_q = (
+                    self.image_temperature_of
+                    if with_images
+                    else self.think_temperature_of
+                    if i in second
+                    else self.temperature_of
+                )(q.type, adapter, len(p))
                 if not corrected and t_q != 1.0 and not use_image:
                     p = apply_temperature(p, t_q)
                     if debug:
@@ -1573,7 +1623,7 @@ class SystemOne:
                 answers[name].update(
                     self.certified_fields(t, q, keys, p, top_index(keys, p), shared, via.get(i), before=before.get(i))
                 )
-            elif t is None and not use_image and adapter is None and q.type != "score":
+            elif t is None and not no_tasks and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
                 if stale is not None:  # fitted under another model, rendering or layout: not applied, not certified
                     answers[name].update(
@@ -1611,7 +1661,12 @@ class SystemOne:
         context_ms = sum(context_ms) if context_ms else None
         usage = {
             # what is read: the header, a task's context, the state and each question's text
-            "input_tokens": self.usage_tokens(read, qs, header_lines) + sum(info.get("image_tokens") or []),
+            "input_tokens": (
+                self.usage_tokens(marks.without_marks(read), marks.without_marks(qs), header_lines)
+                if with_images
+                else self.usage_tokens(read, qs, header_lines)
+            )
+            + sum(info.get("image_tokens") or []),
             "output_tokens": len(names),
         }
         if think_report is not None:  # the generated tokens are output tokens, and said so
@@ -1623,7 +1678,7 @@ class SystemOne:
             "usage": usage,
             "_timing": {
                 "server_ms": (time.perf_counter() - t0) * 1000,
-                "route": "image" if use_image else "text",
+                "route": "image" if use_image or with_images else "text",
                 "layout": "plain" if hl is not None and hl["listed"] == 0 else self.request_layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
                 **({"warning": warning} if warning else {}),
@@ -3537,6 +3592,8 @@ class SystemOne:
         if len(req.questions) != 1:
             raise ValueError("an abstention example carries exactly one question")
         ((name, q),) = req.questions.items()
+        if images and self.image_engine is None:
+            raise ValueError("an abstention example with images needs the --image-model engine")
         ctx = [] if images else self.context_tasks_of(q)
         if ctx:
             raise ValueError(
@@ -3809,17 +3866,34 @@ def add_routes(app, systemone: SystemOne):
                 blobs += [decode_data_url(u) for u in imgs]
             except (ValueError, TypeError) as e:
                 raise HTTPException(422, str(e))
+        # a server whose own engine reads images puts each at its place in the text (a mark, image_marks); the second
+        # engine's route writes "[image N]" and puts the images first
+        placed = systemone.reads_images_itself()
         if "assets" in payload:  # System One's images; the imajev encodings are not read beside them
-            payload, blobs, legends = bind_assets(payload, parts)
+            payload, blobs, legends = bind_assets(payload, parts, placed=placed)
             return payload, blobs, False, legends, True
+        lead = len(blobs)  # images that came as a list or as parts have no place of their own
+        spoofed = placed and marks.OPEN in json.dumps(payload, ensure_ascii=False)
         if payload.get("state") is not None:
-            payload["state"], found = extract_state_images(payload["state"])
+            original = payload["state"]
+            payload["state"], found = extract_state_images(original)
             if found:
                 ext = True
+                if placed:  # the same extraction, each image a mark numbered after the leading ones
+                    payload["state"], _ = extract_state_images(original, True, lead + 1)
                 try:
                     blobs += [decode_data_url(u) for u in found]
                 except (ValueError, TypeError) as e:
                     raise HTTPException(422, f"image in the state: {e}")
+        if placed and blobs:
+            if spoofed:
+                raise ImageRequestError(
+                    f"A text of the request contains {marks.OPEN!r}, reserved for the images' places."
+                )
+            if lead and payload.get("state") is not None:
+                # the leading images open the state, as the second engine's route opens the user turn with them
+                head = "".join(marks.mark(i) for i in range(1, lead + 1))
+                payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
         return payload, blobs, ext, {}, False
 
     async def system_one(request: Request):
@@ -3837,7 +3911,7 @@ def add_routes(app, systemone: SystemOne):
                 for err in e.errors(include_url=False)
             ]
             return JSONResponse({"detail": json.loads(json.dumps(detail, default=str))}, status_code=422)
-        limit = getattr(systemone.image_engine, "max_images", DEFAULT_MAX_IMAGES)
+        limit = getattr(systemone.image_engine or systemone.engine, "max_images", DEFAULT_MAX_IMAGES)
         if len(blobs) > limit:
             if from_assets:
                 raise ImageRequestError(f"at most {limit} images per request; the placeholders make {len(blobs)}.")
