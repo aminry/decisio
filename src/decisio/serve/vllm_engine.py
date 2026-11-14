@@ -1114,8 +1114,8 @@ class LettersEngine:
 
         lora = self.adapters[adapter] if adapter else None
 
-        def extra_of(data, uuids):
-            return {"multi_modal_data": data, **({"multi_modal_uuids": uuids} if uuids else {})} if data else {}
+        def extra_of(data, mm_uuids):
+            return {"multi_modal_data": data, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if data else {}
 
         extra = extra_of(mm, mm_uuids)
         warm_ms, warm_cached = self._prefill(warm, adapter, mm, mm_uuids) if warm else (0.0, [])
