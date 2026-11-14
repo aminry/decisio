@@ -202,8 +202,18 @@
               }
             }
           },
+          "413": {
+            "description": "A request body over 32 MiB, refused before it is parsed, or a placeholder name over 1,024 bytes of UTF-8 (65,536 bytes for all of them): `api_usage_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageError"
+                }
+              }
+            }
+          },
           "415": {
-            "description": "A POST that is not JSON (or a multipart request without `x-decisio-client`)."
+            "description": "A POST that is not JSON (or a multipart request with none of `x-decisio-client`, `x-typesafe-sdk` and `typesafe-danger-zone-images`)."
           },
           "422": {
             "description": "A request that does not validate (for example a choice with more than 255 options), or whose task cannot be found as asked (`task`).",
@@ -271,7 +281,16 @@
             "schema": {
               "type": "string"
             },
-            "description": "Required, with any value, on a `multipart/form-data` request (a request a browser can send without a preflight is refused with 415)."
+            "description": "On a `multipart/form-data` request, one of this header, `x-typesafe-sdk` or `typesafe-danger-zone-images` is required, with any value (a request a browser can send without a preflight is refused with 415)."
+          },
+          {
+            "name": "typesafe-danger-zone-images",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "System One's images header: accepted with any value and never required. On a `multipart/form-data` request it also lets the request through."
           }
         ],
         "requestBody": {

@@ -561,6 +561,28 @@ class ImageRequestError(ValueError):
     `{"detail": {"error_type": "api_usage_error", "message": ...}}` (the route's handler does the same)."""
 
 
+class ImageRequestTooLarge(ImageRequestError):
+    """An image reference over System One's size limits: 413 in the same error shape."""
+
+
+MAX_REFERENCE_BYTES = 1024  # one placeholder name, in UTF-8 (System One's limit)
+MAX_REFERENCES_BYTES = 65536  # all the names of a request together
+IMAGE_PART_TYPES = ("image/png", "image/jpeg", "image/jpg", "application/octet-stream")
+
+
+def check_image_part_type(name: str, content_type: str | None) -> None:
+    """System One's rule for a multipart image part: `image/png`, `image/jpeg`, `image/jpg`, `application/octet-stream`
+    or no content type; any other is a 400. Parameters and case do not matter."""
+    if not content_type:
+        return
+    kind = content_type.split(";")[0].strip().lower()
+    if kind not in IMAGE_PART_TYPES:
+        raise ImageRequestError(
+            f'Part "{name}" has content type "{kind}": an image part is image/png, image/jpeg, image/jpg or '
+            "application/octet-stream, or has no content type."
+        )
+
+
 def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
     """System One's `assets`: every placeholder (an asset's name, found as or inside a string of the state, a question's
     instructions or its criteria's descriptions, longest name first) becomes the marker "[image N]", N counting the
@@ -575,11 +597,16 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
         return payload, [], {}
     if not isinstance(assets, dict) or not assets:
         raise ImageRequestError("assets must be a non-empty object of placeholder names to images.")
+    sizes = [len(n.encode()) for n in assets if isinstance(n, str)]
+    if any(n > MAX_REFERENCE_BYTES for n in sizes):
+        raise ImageRequestTooLarge(f"An asset's placeholder name is over {MAX_REFERENCE_BYTES} bytes of UTF-8.")
+    if sum(sizes) > MAX_REFERENCES_BYTES:
+        raise ImageRequestTooLarge(f"The assets' placeholder names are over {MAX_REFERENCES_BYTES} bytes in total.")
     data: dict[str, bytes] = {}
     used_parts: set[str] = set()
     for name, raw in assets.items():
-        if not isinstance(name, str) or not name:
-            raise ImageRequestError("Each asset needs a nonempty placeholder name.")
+        if not isinstance(name, str) or not name.strip():
+            raise ImageRequestError("Each asset needs a placeholder name that is not empty or only whitespace.")
         try:
             asset = Asset.model_validate(raw)
         except ValidationError:
@@ -3705,6 +3732,10 @@ def add_routes(app, systemone: SystemOne):
     def image_request_error(request, exc):
         return JSONResponse({"detail": {"error_type": "api_usage_error", "message": str(exc)}}, status_code=400)
 
+    @app.exception_handler(ImageRequestTooLarge)
+    def image_request_too_large(request, exc):
+        return JSONResponse({"detail": {"error_type": "api_usage_error", "message": str(exc)}}, status_code=413)
+
     @app.exception_handler(NonFiniteReadout)
     async def non_finite_readout(request, exc):
         facts = systemone.engine.facts()
@@ -3752,6 +3783,7 @@ def add_routes(app, systemone: SystemOne):
                         raise ImageRequestError("Each part needs a unique, nonempty name.")
                     if isinstance(f, str):
                         raise ImageRequestError(f'Part "{key}" must be an uploaded image.')
+                    check_image_part_type(key, f.content_type)
                     parts[key] = await f.read()
             else:
                 for key in ("image", "images", "image[]"):

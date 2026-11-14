@@ -13,12 +13,14 @@ reaches the engine.
 `JsonOnly` answers 415 to any POST whose media type is not `application/json` (parameters such as `; charset=utf-8` are
 fine, the case is not significant), on every route, before the application sees the request and before its body is read.
 
-The one exception is `multipart/form-data` on `POST /v1/systemone`, the encoding imajev's image clients send
-(docs/api.md), when the request carries an `X-Decisio-Client` header (any value). A page's request cannot carry a custom
-header unless the browser first asks the server's permission with a preflight `OPTIONS`, and this server answers every
-preflight with 405 and sends no `Access-Control-Allow-*` header, so the browser never sends the POST. The header
-proves nothing about the sender; it only has to be one a page cannot add. A proxy that answers preflights with
-`Access-Control-Allow-Headers` for it re-opens the hole, as it would for JSON.
+The one exception is `multipart/form-data` on `POST /v1/systemone`, the encoding image clients send (imajev's, and the
+one System One's own SDK always uses for images; docs/api.md), when the request carries one of these headers (any
+value): `X-Decisio-Client`, `X-TypeSafe-SDK` (what that SDK sends) or `TypeSafe-Danger-Zone-Images` (System One's
+images header). A page's request cannot carry any header outside the browser's short safelist unless the browser first
+asks the server's permission with a preflight `OPTIONS`, and this server answers every preflight with 405 and sends no
+`Access-Control-Allow-*` header, so the browser never sends the POST. The header proves nothing about the sender; it
+only has to be one a page cannot add. A proxy that answers preflights with `Access-Control-Allow-Headers` for any of
+them re-opens the hole, as it would for JSON.
 
 Standard library only.
 """
@@ -29,14 +31,16 @@ import json
 
 JSON = "application/json"
 MULTIPART = "multipart/form-data"
-CLIENT_HEADER = b"x-decisio-client"
+# Each is a header no web page can add to a cross-site request without a preflight (none is CORS-safelisted).
+CLIENT_HEADERS = (b"x-decisio-client", b"x-typesafe-sdk", b"typesafe-danger-zone-images")
 MESSAGE = (
     "unsupported content type: this server reads application/json only (a request in another type is refused before "
     "it is read, so that a web page cannot make it do work from a browser; docs/api.md)"
 )
 MULTIPART_MESSAGE = (
-    "multipart/form-data needs an X-Decisio-Client header (any value): a web page cannot add one without a preflight "
-    "this server refuses, so a request that has it did not come from a page's simple cross-site POST; docs/api.md"
+    "multipart/form-data needs an X-Decisio-Client header (any value; X-TypeSafe-SDK and TypeSafe-Danger-Zone-Images "
+    "also do): a web page cannot add one without a preflight this server refuses, so a request that has it did not "
+    "come from a page's simple cross-site POST; docs/api.md"
 )
 
 
@@ -62,7 +66,7 @@ class JsonOnly:
             return await self.app(scope, receive, send)
         message = MESSAGE
         if kind == MULTIPART and scope["path"] == "/v1/systemone":
-            if any(key == CLIENT_HEADER for key, _ in scope["headers"]):
+            if any(key in CLIENT_HEADERS for key, _ in scope["headers"]):
                 return await self.app(scope, receive, send)
             message = MULTIPART_MESSAGE
         body = json.dumps({"detail": message}).encode()

@@ -410,7 +410,9 @@ SYSTEMONE_PARAMETERS = [
     {"name": "x-decisio-debug", "in": "header", "required": False, "schema": {"type": "string", "enum": ["readout", "hidden"]},
      "description": "Add the raw readout to the response; only on a server started with `--debug-readout` (verification, never production)."},
     {"name": "x-decisio-client", "in": "header", "required": False, "schema": {"type": "string"},
-     "description": "Required, with any value, on a `multipart/form-data` request (a request a browser can send without a preflight is refused with 415)."},
+     "description": "On a `multipart/form-data` request, one of this header, `x-typesafe-sdk` or `typesafe-danger-zone-images` is required, with any value (a request a browser can send without a preflight is refused with 415)."},
+    {"name": "typesafe-danger-zone-images", "in": "header", "required": False, "schema": {"type": "string"},
+     "description": "System One's images header: accepted with any value and never required. On a `multipart/form-data` request it also lets the request through."},
 ]  # fmt: skip
 
 MULTIPART = {
@@ -480,7 +482,13 @@ def openapi() -> dict:
             "content": {"application/json": {"schema": {"oneOf": [_ref("ImageError"), _ref("ErrorDetail")]}}},
         },
         "404": _resp("An adapter that is not loaded.", "ErrorDetail"),
-        "415": _resp("A POST that is not JSON (or a multipart request without `x-decisio-client`)."),
+        "413": _resp(
+            "A request body over 32 MiB, refused before it is parsed, or a placeholder name over 1,024 bytes of UTF-8 (65,536 bytes for all of them): `api_usage_error`.",
+            "ImageError",
+        ),
+        "415": _resp(
+            "A POST that is not JSON (or a multipart request with none of `x-decisio-client`, `x-typesafe-sdk` and `typesafe-danger-zone-images`)."
+        ),
         "422": _resp(
             "A request that does not validate (for example a choice with more than 255 options), or whose task cannot be found as asked (`task`).",
             "HTTPValidationError",

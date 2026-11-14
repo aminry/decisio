@@ -39,7 +39,8 @@ MAX_PIXELS = 20_000_000
 
 
 def load_image(data: bytes):
-    """Bytes -> an RGB PIL image; PNG, JPEG or WebP; refuses oversize inputs (the imajev limits)."""
+    """Bytes -> an RGB PIL image; PNG, JPEG or WebP; refuses oversize inputs (the imajev limits) and any image with more
+    than one frame (an animated PNG or WebP)."""
     from PIL import Image
 
     if len(data) > MAX_BYTES:
@@ -47,6 +48,8 @@ def load_image(data: bytes):
     img = Image.open(io.BytesIO(data))
     if img.format not in ("PNG", "JPEG", "WEBP"):
         raise ValueError(f"unsupported image format {img.format}")
+    if getattr(img, "n_frames", 1) > 1:  # an animated PNG or WebP: System One refuses it, and so does this route
+        raise ValueError("animated images are not supported")
     if img.width * img.height > MAX_PIXELS:
         raise ValueError("image exceeds 20 megapixels")
     return img.convert("RGB")
