@@ -125,6 +125,36 @@ class ScoreQuestion(BaseModel):
     criteria: list[JSONContent] = Field(..., min_length=1)
 
 
+class BoxQuestion(BaseModel):
+    """Where one target is in an image. No criteria; extra fields are ignored like the other question types.
+
+    Not part of the served `Question` union yet: the request path accepts a Box once the image path can answer it.
+    """
+
+    type: Literal["box"]
+    instructions: JSONContent | None = None
+
+
+class BoxEdges(BaseModel):
+    """The four edges of a box, as fractions of the image's height (top, bottom) and width (left, right)."""
+
+    top: float
+    bottom: float
+    left: float
+    right: float
+
+    @field_validator("top", "bottom", "left", "right")
+    @classmethod
+    def _two_decimals(cls, v: float) -> float:
+        return round(v, 2)
+
+
+class BoxAnswer(BaseModel):
+    type: Literal["box"] = "box"
+    box: BoxEdges
+    confidence: float
+
+
 Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion, Field(discriminator="type")]
 
 
