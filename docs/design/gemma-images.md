@@ -19,7 +19,10 @@ The text-only class's weight rule (`decisio.vllm_plugin.weights.without_vision`)
 ## Where an image stands
 
 `bind_assets` and the `data:image` extraction write a mark (`decisio.serve.image_marks`) where each reference stood, in the state or in one question's own text, and keep the image's number.
-A mark is printable, because a nested state is rendered with `str`, which escapes a character that is not; a request whose own text contains the mark's opening is refused, so a mark cannot come from the user.
+A mark is printable, because a nested state is rendered with `str`, which escapes a character that is not.
+It also carries a tag made fresh for each request (16 random hex characters, `⟦image:<tag>:N⟧`) that only the server knows, and the engine matches that request's exact tag.
+Text a user writes that looks like a mark, with another tag or none, is plain text and is never refused.
+The request's tag is never part of what the model reads.
 The engine renders the text exactly as the text route does (system turn, header, spaced tail, answer slot, labels), cuts the rendered text at the marks, tokenizes each part and puts the model's single `<|image|>` placeholder token at each mark.
 vLLM expands each placeholder to the begin-of-image token, the image's soft tokens and the end-of-image token.
 Because only the marks differ, a request with images and the same request without them have the same tokens apart from the images.

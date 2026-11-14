@@ -24,7 +24,7 @@ returns beside the ids). vLLM 0.31.0 does this itself for the image tokens it ex
 (`decisio.serve.hf_letters.HFGemmaImageLettersEngine`) passes the token types to the model.
 
     eng = GemmaImageLettersEngine(os.environ["DECISIO_MODEL"], image_budget=280, max_images=16)
-    probs, info = eng.answer(f"{mark(1)} The photo.", [{"kind": "noul", "instructions": "Is it a cat?"}], images=[img])
+    probs, info = eng.answer(f"{mark(1, tag)} The photo.", [question], images=[img], tag=tag)
 """
 
 from __future__ import annotations
@@ -68,12 +68,12 @@ class GemmaImageRequests:
         end tokens (the processor's arithmetic, `decisio.serve.image_marks.soft_tokens`)."""
         return marks.image_tokens(img.height, img.width, self.image_budget)
 
-    def _enc_placed(self, text):
+    def _enc_placed(self, text, tag):
         """(token ids, the image numbers in order): `text` cut at its marks, each part tokenized alone, the placeholder
         token at each mark."""
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         ids, found, at = [], [], 0
-        for m in marks.MARK.finditer(text):
+        for m in marks.pattern(tag).finditer(text):
             if m.start() > at:
                 ids += enc(text[at : m.start()])
             ids.append(self.image_token_id)
@@ -85,7 +85,7 @@ class GemmaImageRequests:
             raise ValueError(f"the text contains {IMAGE_TOKEN}, which stands for an image; send the image instead")
         return ids, found
 
-    def _prepare_images(self, state, images, questions):
+    def _prepare_images(self, state, images, questions, tag):
         """The rows of a request whose text carries marks: (rows, the prefix's sent length, its length once the engine
         has expanded the images, the state's image numbers, each row's image numbers, the images' token counts, where
         the state's last image ends in the expanded prefix or 0). A row is the shared prefix (the header, the state)
@@ -95,19 +95,19 @@ class GemmaImageRequests:
             raise ValueError("--read-twice-under is not served with images")
         body = fmt_state(state)
         if fmt.layout == "header":
-            body = layout_header([marks.marks_as_text(q["instructions"]) for q in questions]) + body
+            body = layout_header([marks.marks_as_text(q["instructions"], tag) for q in questions]) + body
         tail = self._template_tail()
         texts = [question_text(self.tok, q, fmt) for q in questions]
-        suffixes = [self._enc_placed(t + tail) for t, _, _ in texts]
+        suffixes = [self._enc_placed(t + tail, tag) for t, _, _ in texts]
         # the state's boundary as the text route finds it (`_rows`): the first question's whole prompt, split where its
         # own tokens begin; a question's first character never merges back unless it is whitespace
-        full0, found0 = self._enc_placed(user_turn(self.tok, f"{body}\n\n{texts[0][0]}", fmt))
+        full0, found0 = self._enc_placed(user_turn(self.tok, f"{body}\n\n{texts[0][0]}", fmt), tag)
         n = len(full0) - len(suffixes[0][0])
         if n > 0 and full0[n:] == suffixes[0][0]:
             prefix = full0[:n]
         else:
-            a, _ = self._enc_placed(user_turn(self.tok, f"{body}\n\nA", fmt))
-            b, _ = self._enc_placed(user_turn(self.tok, f"{body}\n\nB", fmt))
+            a, _ = self._enc_placed(user_turn(self.tok, f"{body}\n\nA", fmt), tag)
+            b, _ = self._enc_placed(user_turn(self.tok, f"{body}\n\nB", fmt), tag)
             n = 0
             while a[n] == b[n]:
                 n += 1
@@ -129,7 +129,7 @@ class GemmaImageRequests:
         k = (-n_exp % self.pad_unit) if self.pad_unit else 0
         if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
             k = 0
-        head = len(self._enc_placed(self._template_head())[0])
+        head = len(self._enc_placed(self._template_head(), tag)[0])
         end = 0
         if state_found:
             last = max(i for i, t in enumerate(prefix) if t == self.image_token_id)
@@ -147,14 +147,18 @@ class GemmaImageRequests:
                 rows = [(pad_prompt(ids, n, k, nl[0], "between", head), lab) for ids, lab in rows]
         return rows, n + k, n_exp + k, state_found, row_found, counts, end
 
-    def answer(self, state, questions, adapter=None, images=None):
+    def answer(self, state, questions, adapter=None, images=None, tag=None):
         if not images:
             return super().answer(state, questions, adapter)
+        if tag is None:
+            raise ValueError("a request with images needs the tag of its marks")
         if len(images) > self.max_images:
             raise ValueError(f"at most {self.max_images} images per request")
         with self._lock:
             t0 = time.perf_counter()
-            rows, p_sent, p_exp, state_found, row_found, counts, end = self._prepare_images(state, images, questions)
+            rows, p_sent, p_exp, state_found, row_found, counts, end = self._prepare_images(
+                state, images, questions, tag
+            )
             ident = [ImageRequests.image_id(img) for img in images]
             state_mm = {"image": [images[i - 1] for i in state_found]} if state_found else None
             state_ids = {"image": [ident[i - 1] for i in state_found]} if state_found else None

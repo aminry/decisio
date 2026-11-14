@@ -17,8 +17,8 @@ prompt, the scoping, the token counts and the wire format, not about any number:
   G6  a text-only request answers bit for bit the same with images on as without
   G7  an adapter serves images: the name reaches the engine, the answer differs from the base's
   G8  the token types reach the forward pass, so the image blocks are bidirectional (and it matters)
-  G9  refusals: more images than --max-images, a budget that is not allowed, --images on where it cannot be served,
-      a text that contains an image mark
+  G9  refusals: more images than --max-images, a budget that is not allowed, --images on where it cannot be served;
+      text that looks like an image mark is plain text, and every request has its own tag
   G10 the wire: bind_assets keeps where each image is; images of every encoding reach the engine
   G11 the temperature of a request with images: the base's text temperature, or the base's `image_temperature`
   G12 /health reports images on or off, the budget and max_images
@@ -42,9 +42,10 @@ from decisio.families import GEMMA4, GEMMA4_31B, QWEN
 from decisio.readout.letters import PromptFormat
 from decisio.serve import image_marks as marks
 from decisio.serve import vllm_engine as sv
-from decisio.serve.systemone import ImageRequestError, bind_assets, extract_state_images
+from decisio.serve.systemone import bind_assets, extract_state_images
 
 FORMAT = PromptFormat(tail="spaced", slot="template", variants="summed", system_prompt=True, layout="header")
+TAG = "0123456789abcdef"  # a request's marks carry its own tag
 BUDGETS = (70, 140, 280, 560, 1120)
 SIZES = [(512, 512), (768, 1024), (1568, 1568), (280, 280), (1080, 1920), (3, 900), (900, 3), (33, 17), (4000, 5000)]
 
@@ -106,7 +107,7 @@ def plain_engine(engine):
 
 
 # no text merges across the mark, so the same state without the image tokenizes to the same tokens around it
-STATE = "Photo:" + marks.mark(1) + "Title: Blue ceramic mug, 350 ml\nPrice: 12 EUR"
+STATE = "Photo:" + marks.mark(1, TAG) + "Title: Blue ceramic mug, 350 ml\nPrice: 12 EUR"
 # a tail after the image long enough that the prefix needs no padding to end past it (G4)
 LONG = STATE + "\nDescription: " + "Hand-made, dishwasher safe, with a matching saucer. " * 8
 QS = [
@@ -148,7 +149,7 @@ def test_g1_the_documented_figures():
 
 def test_g2_an_image_stands_where_its_reference_stands(both):
     e = both
-    rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(STATE, [picture()], QS)
+    rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(STATE, [picture()], QS, TAG)
     ids = rows[0][0]
     at = ids.index(e.image_token_id)
     before = e.tok.decode(ids[:at])
@@ -161,8 +162,8 @@ def test_g2_an_image_stands_where_its_reference_stands(both):
 def test_g2_with_and_without_images_differ_by_the_image_tokens_only(both):
     e = both
     text = plain_engine(e)
-    rows = e._prepare_images(LONG, [picture()], QS)[0]
-    bare = text._prepare_separate(marks.without_marks(LONG), QS)[0]
+    rows = e._prepare_images(LONG, [picture()], QS, TAG)[0]
+    bare = text._prepare_separate(marks.without_marks(LONG, TAG), QS)[0]
     assert e.fmt.layout == "header" and e.fmt.system_prompt and e.fmt.slot == "template"
     for (ids, lab), (tids, tlab) in zip(rows, bare):
         assert without_placeholders(ids, e) == tids and lab == tlab
@@ -173,11 +174,11 @@ def test_g2_with_and_without_images_differ_by_the_image_tokens_only(both):
 def test_g2_the_header_names_a_question_image_and_holds_no_pixels():
     e = make_engine()
     qs = [
-        {"kind": "noul", "instructions": f"Is this the same as {marks.mark(2)}?"},
+        {"kind": "noul", "instructions": f"Is this the same as {marks.mark(2, TAG)}?"},
         {"kind": "noul", "instructions": "Is the mug blue?"},
     ]
     rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(
-        STATE, [picture(), picture(seed=1)], qs
+        STATE, [picture(), picture(seed=1)], qs, TAG
     )
     header = e.tok.decode(rows[0][0][:p_sent])
     assert "[image 2]" in header and "- Is the mug blue?" in header
@@ -191,16 +192,16 @@ def test_g3_a_question_image_is_in_its_own_row_only(both):
     e = both
     imgs = [picture(seed=0), picture(w=200, h=120, seed=1)]
     qs = [
-        {"kind": "noul", "instructions": f"Does the photo match {marks.mark(2)}?"},
+        {"kind": "noul", "instructions": f"Does the photo match {marks.mark(2, TAG)}?"},
         {"kind": "noul", "instructions": "Is the mug blue?"},
     ]
-    rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(STATE, imgs, qs)
+    rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(STATE, imgs, qs, TAG)
     assert state_found == [1] and row_found == [[1, 2], [1]]
     assert rows[0][0][:p_sent] == rows[1][0][:p_sent]  # the prefix is shared
     assert rows[0][0].count(e.image_token_id) == 2 and rows[1][0].count(e.image_token_id) == 1
     assert rows[0][0][p_sent:].count(e.image_token_id) == 1  # the question's own part holds its image
     assert e.image_token_id not in rows[1][0][p_sent:]  # question B's own part has no image
-    probs, info = e.answer(STATE, qs, images=imgs)
+    probs, info = e.answer(STATE, qs, images=imgs, tag=TAG)
     # state image once, question A's image once; question B's tokens do not count it
     assert info["image_tokens"] == [counts[0], counts[1]]
     lens = info["engine_prompt_tokens"]
@@ -213,8 +214,8 @@ def test_g3_a_question_image_is_in_its_own_row_only(both):
 
 def test_g3_images_in_criteria_are_in_that_questions_row(both):
     e = both
-    q = {"kind": "choice", "instructions": "Which is it?", "options": [f"like {marks.mark(2)}", "something else"]}
-    rows, p_sent, _, _, row_found, _, _ = e._prepare_images(STATE, [picture(), picture(seed=3)], [q, QS[0]])
+    q = {"kind": "choice", "instructions": "Which is it?", "options": [f"like {marks.mark(2, TAG)}", "something else"]}
+    rows, p_sent, _, _, row_found, _, _ = e._prepare_images(STATE, [picture(), picture(seed=3)], [q, QS[0]], TAG)
     assert row_found == [[1, 2], [1]]
     listing = e.tok.decode(rows[0][0][p_sent:])
     assert "A. like" in listing and "B. something else" in listing
@@ -222,7 +223,7 @@ def test_g3_images_in_criteria_are_in_that_questions_row(both):
 
 def test_g3_an_image_in_the_state_is_shared_not_repeated(both):
     e = both
-    probs, info = e.answer(STATE, QS, images=[picture()])
+    probs, info = e.answer(STATE, QS, images=[picture()], tag=TAG)
     c = e.image_tokens(picture())
     assert info["image_tokens"] == [c]  # once for the request, however many questions read it
     assert info["engine_prompt_tokens"] == info["expected_prompt_tokens"]
@@ -235,20 +236,22 @@ def test_g4_the_prefix_ends_after_the_last_state_images_end_token():
     e = make_engine()
     unit = e.match_unit
     img = picture()
-    for state in (marks.mark(1), "Photo: " + marks.mark(1), marks.mark(1) + " " + "A short note. " * 2):
-        rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(state, [img], QS)
+    for state in (marks.mark(1, TAG), "Photo: " + marks.mark(1, TAG), marks.mark(1, TAG) + " " + "A short note. " * 2):
+        rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(state, [img], QS, TAG)
         assert end > 0 and p_exp >= end
         assert (p_exp // unit) * unit >= end, state  # the last whole block of the prefix is after the image
     # a long tail after the image needs no padding: the prefix is the state's own tokens
-    long_state = "Photo:" + marks.mark(1) + "Details about the item. " * 40
-    rows, p_sent, p_exp, *_ = e._prepare_images(long_state, [img], QS)
-    shared = plain_engine(e)._prepare_separate(marks.without_marks(long_state), QS)[1]
+    long_state = "Photo:" + marks.mark(1, TAG) + "Details about the item. " * 40
+    rows, p_sent, p_exp, *_ = e._prepare_images(long_state, [img], QS, TAG)
+    shared = plain_engine(e)._prepare_separate(marks.without_marks(long_state, TAG), QS)[1]
     assert p_sent == shared + 1  # the text route's prefix and the image's placeholder, no pad tokens
 
 
 def test_g4_a_prefix_that_is_too_short_is_padded_to_the_block_boundary():
     e = make_engine()
-    rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(marks.mark(1), [picture()], QS)
+    rows, p_sent, p_exp, state_found, row_found, counts, end = e._prepare_images(
+        marks.mark(1, TAG), [picture()], QS, TAG
+    )
     assert p_exp % e.match_unit == 0 and p_exp >= end
     text = plain_engine(e)._prepare_separate("", QS)
     assert p_sent > text[1]  # newline tokens were added after the state's blank line
@@ -256,8 +259,8 @@ def test_g4_a_prefix_that_is_too_short_is_padded_to_the_block_boundary():
 
 def test_g4_no_prefix_image_means_no_pad_for_the_boundary():
     e = make_engine()
-    q = {"kind": "noul", "instructions": f"Is this {marks.mark(1)} a mug?"}
-    rows, p_sent, p_exp, state_found, *_ = e._prepare_images("A short state.", [picture()], [q])
+    q = {"kind": "noul", "instructions": f"Is this {marks.mark(1, TAG)} a mug?"}
+    rows, p_sent, p_exp, state_found, *_ = e._prepare_images("A short state.", [picture()], [q], TAG)
     assert state_found == [] and p_exp == p_sent
 
 
@@ -386,7 +389,7 @@ def test_g8_the_token_types_reach_the_forward_pass(both):
     import torch
 
     e = both
-    probs, info = e.answer(STATE, QS, images=[picture(200, 150)])
+    probs, info = e.answer(STATE, QS, images=[picture(200, 150)], tag=TAG)
     f = e.forwards[-1]
     ids, types = f["input_ids"], f["mm_token_type_ids"]
     c = marks.soft_tokens(150, 200, e.image_budget)
@@ -411,8 +414,8 @@ def test_g8_the_token_types_reach_the_forward_pass(both):
 
 
 def test_g8_every_image_is_its_own_block(engine):
-    state = marks.mark(1) + "\nand\n" + marks.mark(2) + "\nTitle"
-    engine.answer(state, [QS[0]], images=[picture(), picture(seed=4)])
+    state = marks.mark(1, TAG) + "\nand\n" + marks.mark(2, TAG) + "\nTitle"
+    engine.answer(state, [QS[0]], images=[picture(), picture(seed=4)], tag=TAG)
     ids, types = engine.forwards[-1]["input_ids"], engine.forwards[-1]["mm_token_type_ids"]
     runs = 0
     prev = 0
@@ -476,7 +479,7 @@ def test_g9_the_engine_refuses_a_budget_and_too_many_images():
         make_engine(budget=100)
     e = make_engine(max_images=2)
     with pytest.raises(ValueError, match="at most 2 images"):
-        e.answer(STATE, QS, images=[picture()] * 3)
+        e.answer(STATE, QS, images=[picture()] * 3, tag=TAG)
     client, _ = make_client(e)
     body = request_body()
     body["state"] = "ITEM ITEM ITEM"
@@ -488,23 +491,44 @@ def test_g9_the_engine_refuses_a_budget_and_too_many_images():
     assert r.status_code == 422
 
 
-def test_g9_text_that_contains_a_mark_is_refused_when_images_are_bound():
+def test_g9_text_that_looks_like_a_mark_is_plain_text():
+    look_alikes = "see \u27e6image:1\u27e7 and \u27e6image:abc:1\u27e7 and \u27e6image:" + TAG + "x:1\u27e7"
     body = request_body()
-    body["state"] = "ITEM " + marks.mark(1)
-    with pytest.raises(ImageRequestError, match="reserved"):
-        bind_assets(json.loads(json.dumps(body)), placed=True)
-    with pytest.raises(ImageRequestError, match="reserved"):
-        extract_state_images(["data:image/png;base64,AAAA " + marks.mark(1)], True)
-    # a request with no image may say it as it likes
+    body["state"] = {"listing": "ITEM", "note": look_alikes}
     e = make_engine()
     client, _ = make_client(e)
+    r = client.post("/v1/systemone", json=body)
+    assert r.status_code == 200, r.text
+    first = e.forwards[-2]
+    assert first["images"] == 2  # the real images only: the state's and question A's
+    assert e.tok.decode(first["input_ids"]).count("\u27e6image:") >= 3  # the look-alikes reached the model as text
+    # the same text with no image at all is a text request
     r = client.post(
-        "/v1/systemone", json={"state": marks.mark(1), "questions": {"q": {"type": "noul", "instructions": "ok?"}}}
+        "/v1/systemone", json={"state": look_alikes, "questions": {"q": {"type": "noul", "instructions": "ok?"}}}
     )
     assert r.status_code == 200
-    # and the model's own placeholder in a text is refused where it would be mistaken for an image
+    # and through the binders: they pass it through and never refuse it
+    out, blobs, _ = bind_assets(json.loads(json.dumps(body)), placed=True, tag=TAG)
+    assert len(blobs) == 2 and look_alikes in out["state"]["note"]
+    state, found = extract_state_images([look_alikes, "data:image/png;base64,AAAA"], True, tag=TAG)
+    assert state[0] == look_alikes and len(found) == 1
+    # the model's own placeholder in a text is refused where it would be mistaken for an image
     with pytest.raises(ValueError, match="stands for an image"):
-        e.answer(marks.mark(1) + " <|image|>", QS, images=[picture()])
+        e.answer(marks.mark(1, TAG) + " <|image|>", QS, images=[picture()], tag=TAG)
+
+
+def test_g9_each_request_has_its_own_tag():
+    tags = {marks.new_tag() for _ in range(50)}
+    assert len(tags) == 50 and all(len(t) == 16 and int(t, 16) >= 0 for t in tags)
+    a = bind_assets(json.loads(json.dumps(request_body())), placed=True)[0]
+    b = bind_assets(json.loads(json.dumps(request_body())), placed=True)[0]
+    assert a["state"] != b["state"]
+    e = make_engine()
+    client, _ = make_client(e)
+    client.post("/v1/systemone", json=request_body())
+    one = e.tok.decode(e.forwards[-1]["input_ids"])
+    client.post("/v1/systemone", json=request_body())
+    assert e.tok.decode(e.forwards[-1]["input_ids"]) == one  # the tag never reaches the model
 
 
 # ---- G10 -------------------------------------------------------------------------------------------------------------
@@ -520,11 +544,11 @@ def test_g10_bind_assets_keeps_where_each_image_is():
         "assets": {n: asset(seed=i) for i, n in enumerate(["F1", "F2", "QA", "QA2", "QB", "QB2"])},
     }
     scopes = []
-    out, blobs, _ = bind_assets(json.loads(json.dumps(body)), placed=True, scopes=scopes)
+    out, blobs, _ = bind_assets(json.loads(json.dumps(body)), placed=True, scopes=scopes, tag=TAG)
     assert scopes == [None, None, "a", "a", "b", "b"] and len(blobs) == 6
-    assert marks.marks_in(json.dumps(out["state"], ensure_ascii=False)) == [1, 2]
-    assert marks.marks_in(out["questions"]["a"]["instructions"]) == [3]
-    assert marks.marks_in(json.dumps(out["questions"]["b"]["criteria"], ensure_ascii=False)) == [5, 6]
+    assert marks.marks_in(json.dumps(out["state"], ensure_ascii=False), TAG) == [1, 2]
+    assert marks.marks_in(out["questions"]["a"]["instructions"], TAG) == [3]
+    assert marks.marks_in(json.dumps(out["questions"]["b"]["criteria"], ensure_ascii=False), TAG) == [5, 6]
     # the second engine's route keeps its own text exactly
     old, blobs2, _ = bind_assets(json.loads(json.dumps(body)))
     assert old["state"]["frames"] == ["[image 1] ", "x [image 2]"] and len(blobs2) == 6
@@ -569,7 +593,7 @@ def test_g11_the_image_temperature_defaults_to_the_text_temperature():
     from decisio.serve.temperature import apply_temperature
 
     e = make_engine()
-    raw, _ = e.answer(request_text_state(), [QS[1]], images=[picture(200, 150, 1)])
+    raw, _ = e.answer(request_text_state(), [QS[1]], images=[picture(200, 150, 1)], tag=TAG)
     body = request_body()
     del body["questions"]["matches"]
     body["assets"].pop("QPIC")
@@ -585,7 +609,7 @@ def test_g11_the_image_temperature_defaults_to_the_text_temperature():
 
 
 def request_text_state():
-    return "listing: " + marks.mark(1) + "\ntitle: Blue ceramic mug, 350 ml"
+    return "listing: " + marks.mark(1, TAG) + "\ntitle: Blue ceramic mug, 350 ml"
 
 
 def test_g11_the_family_field_defaults_to_none_and_is_checked():
@@ -656,7 +680,7 @@ def test_g13_a_square_in_each_corner_is_placed():
                     "options": ["left", "right"],
                 },
             ]
-            probs, _ = e.answer(marks.mark(1), qs, images=[img])
+            probs, _ = e.answer(marks.mark(1, TAG), qs, images=[img], tag=TAG)
             if probs[0][["top", "bottom"].index(vertical)] < 0.5:
                 wrong.append((vertical, horizontal, "vertical", probs[0].tolist()))
             if probs[1][["left", "right"].index(horizontal)] < 0.5:

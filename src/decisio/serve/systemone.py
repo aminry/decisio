@@ -537,20 +537,19 @@ def decode_data_url(value: str) -> bytes:
     return base64.b64decode(m.group(1), validate=False)
 
 
-def extract_state_images(state, placed: bool = False, first: int = 1):
+def extract_state_images(state, placed: bool = False, first: int = 1, tag: str | None = None):
     """imajev's rule: data:image URIs anywhere in the state become images, in reading order, replaced by "[image N]".
     `placed` (the Gemma image route): each is replaced by its mark (`decisio.serve.image_marks`) instead, numbered from
-    `first`, and a text that already contains a mark is refused."""
+    `first`, carrying `tag` (the request's, a fresh one when not given)."""
     found = []
+    tag = tag or marks.new_tag()
 
     def one(m):
         found.append(m.group(0))
-        return marks.mark(first + len(found) - 1) if placed else f"[image {len(found)}]"
+        return marks.mark(first + len(found) - 1, tag) if placed else f"[image {len(found)}]"
 
     def walk(node):
         if isinstance(node, str):
-            if placed and marks.OPEN in node:
-                raise ImageRequestError(f"The state contains {marks.OPEN!r}, which is reserved for the images' places.")
             return IMAGE_DATA_URL.sub(one, node) if "data:image/" in node else node
         if isinstance(node, list):
             return [walk(x) for x in node]
@@ -588,7 +587,13 @@ def check_image_part_type(name: str, content_type: str | None) -> None:
         )
 
 
-def bind_assets(payload: dict, parts: dict[str, bytes] | None = None, placed: bool = False, scopes: list | None = None):
+def bind_assets(
+    payload: dict,
+    parts: dict[str, bytes] | None = None,
+    placed: bool = False,
+    scopes: list | None = None,
+    tag: str | None = None,
+):
     """System One's `assets`: every placeholder (an asset's name, found as or inside a string of the state, a question's
     instructions or its criteria's descriptions, longest name first) becomes the marker "[image N]", N counting the
     occurrences in reading order (the state, then each question: instructions, then criteria), and the asset's bytes
@@ -599,8 +604,9 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None, placed: bo
     uses or two assets share.
 
     `placed` (the Gemma image route): each occurrence becomes a mark (`decisio.serve.image_marks`) that the engine
-    turns into the image at that place, in the state's text or in one question's own text; a text that already contains
-    a mark is refused. `scopes`, a list the call fills, gets one entry per image in order: None for an image in the
+    turns into the image at that place, in the state's text or in one question's own text; the marks carry `tag`, the
+    request's own (a fresh one when not given), so text that merely looks like a mark stays text.
+    `scopes`, a list the call fills, gets one entry per image in order: None for an image in the
     state, the question's name for an image in its instructions or criteria."""
     assets = payload.pop("assets", None)
     if assets is None:
@@ -645,20 +651,16 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None, placed: bo
     pattern = re.compile("|".join(re.escape(n) for n in sorted(data, key=len, reverse=True)))
     blobs: list[bytes] = []
     used: set[str] = set()
+    tag = tag or marks.new_tag()
     scope: list = [None]  # where the text being searched stands: None for the state, else a question's name
 
     def sub(text: str) -> str:
-        if placed and marks.OPEN in text:
-            raise ImageRequestError(
-                f"A text of the request contains {marks.OPEN!r}, which is reserved for the images' places."
-            )
-
         def one(m):
             blobs.append(data[m.group(0)])
             used.add(m.group(0))
             if scopes is not None:
                 scopes.append(scope[0])
-            return marks.mark(len(blobs)) if placed else f"[image {len(blobs)}]"
+            return marks.mark(len(blobs), tag) if placed else f"[image {len(blobs)}]"
 
         return pattern.sub(one, text)
 
@@ -1276,6 +1278,7 @@ class SystemOne:
         over_limit=None,
         think=None,
         layout=None,
+        image_tag=None,
     ) -> dict:
         """The response to a request (`_answer`), served under `layout`: the layout of the user turn this request asked
         for ("plain" or "header"; None: the one in effect, else the server's). A request of the other layout than the
@@ -1288,7 +1291,7 @@ class SystemOne:
                 'layout: send the request without "layout"'
             )
         with lay.using(layout if layout is not None else self.request_layout):
-            return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think)
+            return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag)
 
     def reads_images_itself(self) -> bool:
         """Whether the server's own engine reads images (`--images on` on a Gemma base,
@@ -1314,6 +1317,7 @@ class SystemOne:
         debug=None,
         over_limit=None,
         think=None,
+        image_tag=None,
     ) -> dict:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
@@ -1467,7 +1471,9 @@ class SystemOne:
         probs, info = [], {}
         if engine_qs:
             if images:
-                probs, info = engine.answer(req.state, engine_qs, adapter, images=images)
+                probs, info = engine.answer(
+                    req.state, engine_qs, adapter, images=images, **({"tag": image_tag} if with_images else {})
+                )
             else:
                 probs, info = engine.answer(read, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
@@ -1662,7 +1668,9 @@ class SystemOne:
         usage = {
             # what is read: the header, a task's context, the state and each question's text
             "input_tokens": (
-                self.usage_tokens(marks.without_marks(read), marks.without_marks(qs), header_lines)
+                self.usage_tokens(
+                    marks.without_marks(read, image_tag), marks.without_marks(qs, image_tag), header_lines
+                )
                 if with_images
                 else self.usage_tokens(read, qs, header_lines)
             )
@@ -3869,32 +3877,27 @@ def add_routes(app, systemone: SystemOne):
         # a server whose own engine reads images puts each at its place in the text (a mark, image_marks); the second
         # engine's route writes "[image N]" and puts the images first
         placed = systemone.reads_images_itself()
+        tag = marks.new_tag()  # this request's marks carry it; no text of the request can contain it
         if "assets" in payload:  # System One's images; the imajev encodings are not read beside them
-            payload, blobs, legends = bind_assets(payload, parts, placed=placed)
-            return payload, blobs, False, legends, True
+            payload, blobs, legends = bind_assets(payload, parts, placed=placed, tag=tag)
+            return payload, blobs, False, legends, True, tag
         lead = len(blobs)  # images that came as a list or as parts have no place of their own
-        spoofed = placed and marks.OPEN in json.dumps(payload, ensure_ascii=False)
         if payload.get("state") is not None:
             original = payload["state"]
             payload["state"], found = extract_state_images(original)
             if found:
                 ext = True
                 if placed:  # the same extraction, each image a mark numbered after the leading ones
-                    payload["state"], _ = extract_state_images(original, True, lead + 1)
+                    payload["state"], _ = extract_state_images(original, True, lead + 1, tag)
                 try:
                     blobs += [decode_data_url(u) for u in found]
                 except (ValueError, TypeError) as e:
                     raise HTTPException(422, f"image in the state: {e}")
-        if placed and blobs:
-            if spoofed:
-                raise ImageRequestError(
-                    f"A text of the request contains {marks.OPEN!r}, reserved for the images' places."
-                )
-            if lead and payload.get("state") is not None:
-                # the leading images open the state, as the second engine's route opens the user turn with them
-                head = "".join(marks.mark(i) for i in range(1, lead + 1))
-                payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
-        return payload, blobs, ext, {}, False
+        if placed and blobs and lead and payload.get("state") is not None:
+            # the leading images open the state, as the second engine's route opens the user turn with them
+            head = "".join(marks.mark(i, tag) for i in range(1, lead + 1))
+            payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
+        return payload, blobs, ext, {}, False, tag
 
     async def system_one(request: Request):
         from decisio.serve.image_engine import DEFAULT_MAX_IMAGES, load_image
@@ -3902,7 +3905,7 @@ def add_routes(app, systemone: SystemOne):
         # x-decisio-server-ms: from here, before the body is read, to the response: reading and validating the body,
         # loading its images, the whole answer (every question's read, a certified task's and the head's included)
         t_request = time.perf_counter()
-        payload, blobs, ext, legends, from_assets = await read(request)
+        payload, blobs, ext, legends, from_assets, tag = await read(request)
         try:
             req = SystemOneRequest.model_validate(payload)
         except ValidationError as e:
@@ -3956,7 +3959,7 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, '"task" must be the id of a registered task, or null')
         try:
             out = await run_in_threadpool(
-                functools.partial(systemone.answer, layout=layout),
+                functools.partial(systemone.answer, layout=layout, image_tag=tag),
                 req, adapter, images, ext, route, debug, over_limit, think,
             )  # fmt: skip
         except UnknownAdapter as e:
