@@ -107,3 +107,53 @@ def test_b3_the_served_app():
     ok = {"state": "x" * 1_000_000, "questions": q}
     r = client.post("/v1/systemone", content=json.dumps(ok), headers={"content-type": "application/json"})
     assert r.status_code == 200 and eng.calls == 1
+
+
+def test_b4_a_body_that_sends_more_than_it_declared_is_refused():
+    c, seen = small_app()
+    r = c.post("/v1/systemone", content=b"x" * 2000, headers={"content-length": "10"})
+    assert r.status_code == 413 and r.json() == SHAPE and seen["read"] <= 1000
+
+
+def chunked(total, size=1 << 20):
+    """`total` bytes as chunks of a generator: no Content-Length."""
+    left = total
+    while left > 0:
+        n = min(size, left)
+        left -= n
+        yield b"\0" * n
+
+
+def test_b5_the_served_app_counts_a_chunked_body():
+    eng = Engine()
+    client = TestClient(make_app(eng, SystemOne(eng, "decisio-test")))
+    q = json.dumps({"state": "s", "questions": {"q": {"type": "noul", "instructions": "Is it x?"}}})
+    # JSON: the parser reads the body inside the route
+    head = b'{"state": "'
+    over = head + b"x" * MAX_BODY_BYTES + b'", "questions": {}}'
+
+    def json_chunks():
+        for i in range(0, len(over), 1 << 20):
+            yield over[i : i + (1 << 20)]
+
+    r = client.post("/v1/systemone", content=json_chunks(), headers={"content-type": "application/json"})
+    assert r.status_code == 413 and r.json() == SHAPE and eng.calls == 0
+    # multipart: the form parser reads the body inside the route
+    boundary = "bb"
+    pre = (
+        f'--{boundary}\r\nContent-Disposition: form-data; name="request"\r\n\r\n{q}\r\n'
+        f'--{boundary}\r\nContent-Disposition: form-data; name="p"; filename="p.png"\r\n'
+        "Content-Type: image/png\r\n\r\n"
+    ).encode()
+
+    def form_chunks():
+        yield pre
+        yield from chunked(MAX_BODY_BYTES + 1)
+        yield f"\r\n--{boundary}--\r\n".encode()
+
+    r = client.post(
+        "/v1/systemone",
+        content=form_chunks(),
+        headers={"content-type": f"multipart/form-data; boundary={boundary}", "x-typesafe-sdk": "t"},
+    )
+    assert r.status_code == 413 and r.json() == SHAPE and eng.calls == 0
