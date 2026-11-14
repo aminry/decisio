@@ -35,7 +35,7 @@ Check which server a client is pointed at before comparing confidences or sendin
 | `state` | string, object or array | the text the questions are about; an object is rendered as `key: value` lines |
 | `questions` | object, at least one entry | the questions, by name; the names are the keys of the response's `answers` |
 | `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it. The response's `model` is the name the request sent, or the served model's name when it sent none |
-| `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`) |
+| `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`, or a Gemma base with `--images on`) |
 | `assets` | object, optional | System One's images: placeholder names mapped to images, each placeholder found in the state or a question's text is replaced by its image (below) |
 
 A prompt, the state with one question, can hold 32,768 tokens on the Qwen base. On a Gemma base it can hold the largest length that fits the card (at least 32,768, at most 98,304 on the 31B and 65,536 on the 12B), which the server chooses at start-up and `/health` reports as `max_model_len` with its reason, unless `--max-model-len` fixed it; with `--image-model` it is 32,768 ([`running.md`](running.md#the-context-length)). Every measured record in `EVAL_CARD.md` is at 32,768.
@@ -57,7 +57,8 @@ A request of either layout is built token for token as a server started with tha
 - The response says the layout it was read under in `x-decisio-prompt` (`layout=plain; ...`).
 - An adapter, a tuned repository, the temperatures file (`--temperatures-file`) or a flavor that recorded another layout than the request's still answers, as asked, and the response carries `"layout_note"`, for example `"the adapter n1 was trained, and its temperatures fitted, under the header layout"`.
   It is absent when nothing differs.
-- A request with images has no layout (the image route builds its own prompt): the field is 422 there.
+- A request with images has no layout on the `--image-model` route (it builds its own prompt): the field is 422 there.
+  With `--images on` on a Gemma base the layout applies to images as to text.
   A server in `--mode packed` reads the plain layout only, so `"header"` is 422 there.
 - The two layouts share no cached prefix for a state: a client that alternates them reads the state again on each change ([running.md](running.md#the-header-layout---layout)).
 
@@ -118,6 +119,55 @@ What an image costs and where it is cut down (the image route runs on the Qwen b
 - The processor then resizes the image, keeping its proportions and rounding both sides to multiples of 32, so that it has between 65,536 pixels (256 by 256) and 16,777,216 (4,096 by 4,096). An image of 200 by 200 is read as 256 by 256; one of 4,000 by 6,000 as 3,328 by 4,992.
 - Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context that a server with `--image-model` serves: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224).
 - The Ollama listings are not this route. `ollama show` (2026-10-14) lists the Qwen listing `aminroudaki/decisio` with the capabilities `decision` and `vision`, and the Gemma listing `aminroudaki/decisio-gemma` (every tag) with `decision` only. Whether the Qwen listing's image answers match this route's was not measured.
+
+### Images on Gemma 4 (`--images on`)
+
+A Gemma base started with `--images on` reads the pictures of a request with the same engine that reads its text.
+There is no second engine, no second copy of the weights and no route to choose: a request without images is answered exactly as before, and a request with images is the same request with the pictures in it.
+Every encoding above works (`assets`, data URLs in `images`, `data:image` URIs in the state, multipart parts).
+
+**Where an image stands.**
+An image is put in the prompt at the place its reference stands, inside the state's value or inside the question's sentence, and not all at the start.
+A frame history such as `{"frames": [{"at": "10:01", "view": "<photo>"}, {"at": "10:02", "view": "<photo>"}]}` is read as written, each photo after its own `"at"`.
+An image of a request that came as a list or as multipart parts, with no place of its own, opens the state.
+
+**Which questions see it.**
+An image in the state is part of what every question is asked about.
+It sits in the shared prefix, which the server computes once and every question of the request, and a later question about the same state, reads from its cache.
+An image in a question's `instructions` or `criteria` belongs to that question alone: no other question of the request sees it, and no other question's tokens count it.
+Under the header layout, which lists every question's instructions before the state, a question's image is named there as `[image N]` and appears as pixels only in that question's own part of the prompt.
+
+**What the prompt looks like.**
+The state and the questions are rendered exactly as for text: the same system prompt, layout, wording, answer slot and label forms, so that a request with images and the same request without them differ by the image tokens only.
+`--read-twice-under` is not served with images.
+An image's own tokens attend to each other in both directions on the model's sliding-window layers, as Gemma 4 was trained.
+
+**What an image costs.**
+The picture is scaled, keeping its proportions and enlarging it if need be, so that its area fills the server's budget, then each side is cut down to a multiple of 48 pixels; each 48 by 48 block is one token, and a begin and an end token wrap them.
+`--image-budget` sets the budget: 70, 140, 280 (the model's own default), 560 or 1120 soft tokens.
+`usage.input_tokens` counts the text and every image's tokens, begin and end included: an image of the state once, an image of a question once for the question that carries it.
+
+| Image (height by width) | 70 | 140 | 280 | 560 | 1120 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 512 by 512 | 64 | 121 | 256 | 529 | 1,089 |
+| 768 by 1,024 | 63 | 130 | 266 | 540 | 1,064 |
+| 1,080 by 1,920 | 66 | 120 | 264 | 527 | 1,100 |
+
+Add two tokens to each figure for the begin and end tokens.
+The figures are the processor's arithmetic, which a test checks against the model's own processor at every budget.
+A request with more images than `--max-images` (16 here unless set) is refused; the images, more than their count, are what fills the context.
+
+**Adapters and temperature.**
+A request with images may name an adapter (`adapter`): the adapter's weights change the language model only, the image path is the base's.
+How well a tuned model reads pictures is not measured: it was trained on text.
+The probabilities are served at the base's text temperature, which was fitted on text; a base's `image_temperature` replaces it for images once one is fitted on images (none is yet), and an adapter keeps its own temperatures.
+
+**What stays different from System One.**
+- `layout` works with images here (it does not on the `--image-model` route).
+- No registered task (calibration, intent head, certificate, abstention threshold, fast table) is applied to a request with images; `task` is refused there; thinking when unsure is not served with images, and neither is a state cut with `over_limit: "truncate"`.
+- The server needs `--images on`, on the vLLM server and a Gemma base; a server without it answers 400 and says how to start one.
+- Image sizes are not limited to System One's window; the scaling above applies to any size, up to the 20 MB and 20 megapixel limits.
+- Memory at start-up, text latency with the vision path loaded, and how well each base reads images are not measured yet; `/health` reports `images` (`enabled`, `budget`, `max_images`).
 
 Every POST must have `Content-Type: application/json` (parameters such as `; charset=utf-8` are fine): any other type, or none, is refused with 415 and `accept-post: application/json` before the body is read (`SECURITY.md`, "Cross-site requests from a web page"). The one exception is `multipart/form-data` on this route, with an `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` header (any value): a web page cannot add a header outside the browser's short safelist to a cross-site request without a preflight, which the server refuses.
 

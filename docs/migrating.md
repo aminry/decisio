@@ -18,16 +18,21 @@ from typesafe_sdk import TypeSafeClient
 
 client = TypeSafeClient(
     base_url="http://127.0.0.1:8000",
-    api_key="unused",                          # the SDK requires one; decisio ignores it
-    model="decisio-gemma-4-31b-it-letters",    # the name GET /v1/models lists
+    api_key="unused",  # the SDK requires one; decisio ignores it
+    model="decisio-gemma-4-31b-it-letters",  # the name GET /v1/models lists
 )
 answer = client.system_one(
     state="Since this morning none of our staff can log in to the dashboard.",
-    questions={"category": {"type": "choice", "instructions": "Which team should handle this ticket?",
-                            "criteria": {"billing": None, "access": None, "bug": None}}},
+    questions={
+        "category": {
+            "type": "choice",
+            "instructions": "Which team should handle this ticket?",
+            "criteria": {"billing": None, "access": None, "bug": None},
+        }
+    },
 )
 category = answer.choices["category"]
-print(category.choice, category.confidence)   # the chosen label and its confidence, for example: access 0.96
+print(category.choice, category.confidence)  # the chosen label and its confidence, for example: access 0.96
 ```
 
 Or leave the code as it is and set the SDK's environment variables:

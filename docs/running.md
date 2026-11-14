@@ -365,6 +365,35 @@ When the profile contributes, the start prints a `BASE TEMPERATURES` line and `/
 The exported hub profile does not carry them, so a repository file exported before this still agrees with the installed profile.
 No base sets them yet: every served temperature is what it was.
 
+## Images on Gemma 4 (`--images on`)
+
+A Gemma base reads pictures with the engine that reads its text.
+
+```bash
+python -m decisio.serve.vllm_engine --base gemma-4-12b --images on
+python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budget 560 --max-images 8
+```
+
+- `--images on` (default `off`, which loads the text path alone, as before) is for the vLLM server and the Gemma bases.
+  The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
+  The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
+  A request without images then runs under that class too, so the 31B's text answers under `--images on` are to be checked against the text-only server before the flag is relied on (not measured yet).
+- `--image-budget` is the soft tokens an image may take: 70, 140, 280 (the default, the model's own), 560 or 1120.
+  An image is scaled to fill the budget, so the budget is also what a request pays per image (`docs/api.md` has the table); `/health` reports it.
+- `--max-images` is the most images one request may carry (16 here unless set).
+  vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers; at 1120 and a large limit it may not fit a card.
+  The profile's cost is not measured yet: start with a small limit.
+- `--images on` does not combine with `--image-model` (that is the Qwen base's second engine, which keeps working unchanged), `--one-engine` or `--mode packed`.
+  It is refused at start with `--backend mlx` (images on a Mac come later), with the CPU stand-in and with a base that is not Gemma.
+  The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet and is refused with `--images on`.
+- An adapter (`--adapter`) serves images: vLLM applies it to the language model only, which is what the tuned adapters are.
+  Whether a tuned model reads pictures as well as its base is not measured.
+- A base's temperatures were fitted on text.
+  A request with images is served at them unless the base has an `image_temperature` (`decisio.families`, listed in the model's `decision_config.json` as `temperatures.image` when set), which none has yet: it needs a calibration on labelled images.
+
+Not measured yet, and to be read from a card before the flag's default changes: the memory the start-up profile takes at each budget and limit, the text latency and answers of the 31B under the multimodal class, the cost of an image's first read and of a cached one, and prefix-cache hits that begin inside an image of a question's own text.
+The design is in `docs/design/gemma-images.md`.
+
 ## Flavors
 
 A flavor is a named configuration of one base's weights for one job (`--flavor NAME`; design and decisions in [design/flavors.md](design/flavors.md)).
