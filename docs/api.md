@@ -167,7 +167,42 @@ The probabilities are served at the base's text temperature, which was fitted on
 - No registered task (calibration, intent head, certificate, abstention threshold, fast table) is applied to a request with images; `task` is refused there; thinking when unsure is not served with images, and neither is a state cut with `over_limit: "truncate"`.
 - The server needs `--images on`, on the vLLM server and a Gemma base; a server without it answers 400 and says how to start one.
 - Image sizes are not limited to System One's window; the scaling above applies to any size, up to the 20 MB and 20 megapixel limits.
-- Memory at start-up, text latency with the vision path loaded, and how well each base reads images are not measured yet; `/health` reports `images` (`enabled`, `budget`, `max_images`).
+- Memory at start-up, text latency with the vision path loaded, and how well each base reads images are not measured yet; `/health` reports `images` (`enabled`, `budget`, `max_images`, and `box`: true when this server answers Box questions).
+
+### Box questions
+
+A Box question asks where something is in an image.
+Its answer is one box, as fractions of the image, with a confidence.
+The page [box.md](box.md) says how to ask well and how to read the answer; this section is the wire.
+
+```json
+{"state": "The photo: PHOTO",
+ "questions": {"mug": {"type": "box", "instructions": "the blue mug"}},
+ "assets": {"PHOTO": {"type": "image", "format": "png", "data_base64": "..."}}}
+```
+
+```json
+{"answers": {"mug": {"type": "box", "box": {"top": 0.12, "bottom": 0.58, "left": 0.31, "right": 0.66}, "confidence": 0.93}}}
+```
+
+- `box`: `top` and `bottom` are fractions of the image's height from the top, `left` and `right` fractions of its width from the left, each rounded to two decimals, with `top < bottom` and `left < right`.
+- `confidence`: from 0 to 1, the probability that the target is in the picture times how sure the model is of the box's edges.
+  Until a calibration for the served model is loaded (`--box-confidence`), it is that product itself and not a measured rate; the response header `x-decisio-box` says `calibrated=false`.
+- `instructions` says what to find: a sentence, or an object or array (written out as compact JSON).
+  A target given as a picture is an asset placeholder in the instructions (`"the shape in REFERENCE that matches the shape in SCENE"`); the image of a question belongs to that question alone.
+- A request may mix Box questions with noul, choice and score questions, and carry several Box questions; each is one box.
+- `usage.output_tokens` counts the tokens a Box question wrote (at most 32), one per question for the others.
+
+Each Box question is one greedy generation after the state and the question's own text, in one batch with the request's other Box questions, on the cached prefix of the state.
+Beside it the server reads one yes/no question, "Is this in the picture: ...", on the same prefix, which is what makes the confidence fall when the target is absent.
+Because the reply is forced to be one box, a Box question always has a box, even when the target is absent: read `confidence`, or ask a noul question beside it.
+
+Refused with 400 and `{"detail": {"error_type": "api_usage_error", "message": ...}}`:
+- a request with a Box question and no image;
+- a server that cannot answer one: no `--images on` (text only), the `--image-model` route, or the MLX backend;
+- a Box question with `orders` 2, with the abstention extension, with a `task`, or under the header layout (`"layout": "header"`).
+
+The model's reply is read for four numbers; when it holds none, the answer is 502 `api_error` naming the question, never a made-up box.
 
 Every POST must have `Content-Type: application/json` (parameters such as `; charset=utf-8` are fine): any other type, or none, is refused with 415 and `accept-post: application/json` before the body is read (`SECURITY.md`, "Cross-site requests from a web page"). The one exception is `multipart/form-data` on this route, with an `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` header (any value): a web page cannot add a header outside the browser's short safelist to a cross-site request without a preflight, which the server refuses.
 
@@ -195,6 +230,7 @@ Request headers:
 | `probabilities` | the distribution over the options (choice) or the levels by index (score) |
 | `confidence` | System One's confidence: for a choice, the top probability rescaled from uniform; for a score, the concentration at the mode |
 | `legend` | each level's index and description |
+| `box` | a Box question's box: `top`, `bottom`, `left`, `right`, fractions of the image |
 | `unknown_probability`, `abstained` | with the abstention extension of imajev (an open-source System One client and test harness, github.com/mohit67890/imajev; `--abstain-option`): the probability of the offered "can't tell" option and whether the server abstained |
 
 `model` echoes the name the request sent, so a client left on the SDK's default model name gets that name back unchanged; a request without one gets the served model's name (`--served-name`, or the base's).
@@ -212,6 +248,7 @@ Response headers:
 - `x-decisio-prompt`: `layout=header; tokens=1523; cached=1440`: the layout of the user turn the request was read under (its `layout`, else the server's), the mean prompt tokens the engine read per question, and the mean of them the prefix cache served. Under the header layout a state cached for another set of questions shows as a low `cached`. Absent when the engine does not report prompt sizes.
 - `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the request's own engine call; `wait` is the time before it, from the request reaching the engine until it took the engine's lock. A request read with a task's context has `context`: the context's warm-up sent in this request (vLLM) or the context's part of the prefix (MLX), summed over the reads that read the context, so within `engine`, `task` or `head` ([tasks.md](tasks.md#the-context-in-the-prefix-cache)). A certified task's questions, read one at a time by the certificate's function or answered by its fast table, are `task`; the intent head's read is `head`; the reasoning pass is `think`. So `engine + wait + task + head + think` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server. With `--concurrency batched`, a request that shared an engine call (`x-decisio-batch`) reports the whole call's `questions` and `engine` times.
 - `x-decisio-batch`: `requests=N; rows=M` when the server batches concurrent requests (`--concurrency batched`) and this request's questions were scored in one engine call with other requests' (N requests, M rows in all); absent when it was scored alone. On `POST /v1/answer` the same facts are `timing.batch`.
+- `x-decisio-box`: `calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`).
 - `x-decisio-wait-behind`: `registration` when a boundary registration (`--register-boundary after`) was running when the request arrived, so the `wait` was behind it; absent otherwise. On `POST /v1/answer` the same facts are `timing.waited_ms` and `timing.waited_behind_registration`.
 
 ## `GET /v1/models`
@@ -223,7 +260,7 @@ The served model in System One's format; the name is the base's served name unle
 The conformance check compares the request and response fields with System One's published OpenAPI document (version 0.2.0) and fails on any difference that is not in this list:
 - **`model` is optional.** System One requires it and refuses a request without it with 422; here a request without it is answered and the response names the served model.
 - **A score may have more than 10 levels.** System One refuses more than 10 with 422 (`too_long`); decisio accepts more (up to the engine's 255 labels) and does not cap them.
-- **`box` questions are not supported.** A request with `"type": "box"` is refused with 422.
+- **`box` questions are answered on a Gemma server started with `--images on`.** Elsewhere a request with `"type": "box"` is refused with 400 and the reason ([Box questions](#box-questions)).
 - **Images (`assets`) are read, with these differences.** Images per request are limited by the context, as on System One (about 110 images of 320 by 320 pixels in System One's 32k tokens, more with its long-context header), up to the engine's `--max-images` (128 by default); no size window (System One takes sides of 280 to 1,568 pixels and refuses others with "Invalid image dimensions"; here the image is resized, up to 20 megapixels and 20 MB per image); WebP bytes are accepted besides PNG and JPEG (System One refuses them); an animated image is refused, a body over 32 MiB is a 413, an image part's content type, a placeholder name's length (1,024 bytes, 65,536 in all) and an empty or whitespace-only name follow System One's rules, and the `TypeSafe-Danger-Zone-Images` header is accepted and never required; a placeholder is replaced longest name first (System One replaces naively, so `PHOTO_1` inside `PHOTO_10` breaks it); an image costs the Qwen image engine's tokens, not System One's; a multipart request needs `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` (TypeSafe's SDK sends the second); and the image route runs on a server started with `--image-model`, on the Qwen base.
 - **Unknown fields are accepted.** System One refuses a request with an unknown top-level field (400 `Invalid request.`), so its `images`-style extensions cannot be sent to it; decisio ignores unknown fields (imajev's `images` and `orders` are such extensions).
 - **`usage.output_tokens` is 1 per question**, not the tokens a generating model produced.

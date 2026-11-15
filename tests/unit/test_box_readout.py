@@ -527,7 +527,7 @@ def test_box_answer_rounds_to_two_decimals():
         BoxAnswer(box={"top": 0.1}, confidence=0.5)
 
 
-def test_box_is_not_in_the_served_union_yet():
+def test_box_is_in_the_served_union():
     from decisio.serve import systemone
 
     members = (
@@ -535,4 +535,4 @@ def test_box_is_not_in_the_served_union_yet():
         if hasattr(systemone.Question, "__origin__")
         else set()
     )
-    assert "BoxQuestion" not in members
+    assert "BoxQuestion" in members

@@ -351,6 +351,76 @@ class HFGemmaImageLettersEngine(GemmaImageRequests, HFLettersEngine):
                         params[n].sub_(d)
         return self._score_rows(rows, mm, row_mm)
 
+    def generate_rows(self, rows, adapter=None, row_mm=None, row_mm_uuids=None, max_tokens=32, top=20):
+        """The stand-in's greedy text (`LettersEngine.generate_rows`): each step runs the whole expanded prompt again,
+        float32 on the CPU, no cache; the same figures."""
+        import torch
+
+        if adapter and adapter not in self.adapters:
+            raise ValueError(f"unknown adapter {adapter!r}")
+        if adapter:
+            self.adapter_calls.append(adapter)
+            params = dict(self.model.named_parameters())
+            with torch.no_grad():
+                for n, d in self.adapters[adapter].items():
+                    params[n].add_(d)
+        try:
+            t0 = time.perf_counter()
+            ip = self._image_processor()
+            gens, lens = [], []
+            for i, ids in enumerate(rows):
+                pics = list(((row_mm[i] if row_mm is not None else None) or {}).get("image") or [])
+                enc = ip(images=pics, max_soft_tokens=self.image_budget, return_tensors="pt") if pics else None
+                counts = [int(c) for c in enc["num_soft_tokens_per_image"]] if pics else []
+                exp, k = [], 0
+                for t in ids:
+                    if t == self.image_token_id:
+                        exp += [self.boi] + [t] * counts[k] + [self.eoi]
+                        k += 1
+                    else:
+                        exp.append(t)
+                if k != len(pics):
+                    raise ValueError("a row's placeholders and its images differ")
+                lens.append(len(exp))
+                kw = (
+                    {"pixel_values": enc["pixel_values"], "image_position_ids": enc["image_position_ids"]}
+                    if pics
+                    else {}
+                )
+                steps = []
+                with torch.no_grad():
+                    for _ in range(max_tokens):
+                        types = torch.tensor([[int(t == self.image_token_id) for t in exp]])
+                        self.forwards.append(
+                            {"input_ids": list(exp), "mm_token_type_ids": types[0].tolist(), "images": len(pics)}
+                        )
+                        out = guarded(
+                            self,
+                            self.model,
+                            input_ids=torch.tensor([exp]),
+                            attention_mask=torch.ones(1, len(exp), dtype=torch.long),
+                            mm_token_type_ids=types,
+                            logits_to_keep=1,
+                            **kw,
+                        )
+                        lp = torch.log_softmax(out.logits[0, -1].double(), -1)
+                        v, ix = lp.topk(top)
+                        names = self.tok.convert_ids_to_tokens(ix.tolist())
+                        steps.append((names[0], list(zip(names, v.tolist()))))
+                        exp.append(int(ix[0]))
+                gens.append(steps)
+        finally:
+            if adapter:
+                with torch.no_grad():
+                    for n, d in self.adapters[adapter].items():
+                        params[n].sub_(d)
+        return gens, {
+            "generate_ms": (time.perf_counter() - t0) * 1000,
+            "generated_tokens": [len(g) for g in gens],
+            "cached_tokens": [0] * len(gens),
+            "engine_prompt_tokens": lens,
+        }
+
     def _score_rows(self, rows, mm, row_mm):
         import torch
 

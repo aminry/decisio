@@ -44,6 +44,7 @@ from pydantic_core import PydanticCustomError
 
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
+from decisio.readout import box as boxmod
 from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
@@ -128,7 +129,7 @@ class ScoreQuestion(BaseModel):
 class BoxQuestion(BaseModel):
     """Where one target is in an image. No criteria; extra fields are ignored like the other question types.
 
-    Not part of the served `Question` union yet: the request path accepts a Box once the image path can answer it.
+    Served on the Gemma image route only (`--images on`); a request with a Box and no image is refused.
     """
 
     type: Literal["box"]
@@ -155,7 +156,7 @@ class BoxAnswer(BaseModel):
     confidence: float
 
 
-Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion, Field(discriminator="type")]
+Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion | BoxQuestion, Field(discriminator="type")]
 
 
 class Asset(BaseModel):
@@ -595,6 +596,14 @@ class ImageRequestError(ValueError):
     `{"detail": {"error_type": "api_usage_error", "message": ...}}` (the route's handler does the same)."""
 
 
+class BoxRequestError(ImageRequestError):
+    """A Box question this request or this server cannot answer: 400 `api_usage_error`, with what to change."""
+
+
+class BoxReadError(RuntimeError):
+    """The model's reply to a Box question had no readable box: 502, naming the question. No box is ever made up."""
+
+
 class ImageRequestTooLarge(ImageRequestError):
     """An image reference over System One's size limits: 413 in the same error shape."""
 
@@ -808,6 +817,7 @@ class SystemOne:
         task_store=None,
         hidden_engine=None,
         debug_readout: bool = False,
+        debug_box_tree: bool = False,
         temperature: float = 1.0,
         temperatures: dict | None = None,
         adapter_temperatures: dict | None = None,
@@ -824,7 +834,11 @@ class SystemOne:
         precision_casts: dict | None = None,
         compile_pin: dict | None = None,
         layout_records: dict | None = None,
+        box_confidence=None,
     ):
+        # the map from presence times raw edge confidence to the confidence a Box answer carries (decisio.readout.box);
+        # the identity until a card read has fitted one for the served model
+        self.box_confidence = box_confidence or boxmod.ConfidenceMap()
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         # the layouts what answers was trained or fitted under (decisio.serve.layout.notes): a response served under
         # another layout says so (`layout_note`); empty for a server that records none
@@ -887,6 +901,7 @@ class SystemOne:
         # engine (decisio.serve.hidden_engine); `debug_readout` lets a request ask for its raw readout (verification)
         self.tasks_enabled, self.task_store, self.hidden_engine = tasks_enabled, task_store, hidden_engine
         self.debug_readout = debug_readout
+        self.debug_box_tree = debug_box_tree
         # the global temperature on the text route's plain readout (decisio.serve.temperature); 1.0 is off, bit for bit;
         # a registered task's own correction replaces it
         self.temperature = float(temperature)
@@ -1323,6 +1338,112 @@ class SystemOne:
         with lay.using(layout if layout is not None else self.request_layout):
             return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag)
 
+    # ---- Box -------------------------------------------------------------------------------------------------------
+
+    PRESENCE_PREFIX = "__box_presence__"
+
+    def check_box_request(self, req, images, imajev_ext) -> None:
+        """The rules of a request with a Box question; each is a 400 `api_usage_error` that says what to change."""
+        if self.image_engine is not None:
+            raise BoxRequestError(
+                "Box questions are not answered on the --image-model route; serve a Gemma 4 base with --images on"
+            )
+        if not getattr(self.engine, "images_enabled", False):
+            raise BoxRequestError(
+                "this server does not answer Box questions: start the vLLM server on a Gemma 4 base with --images on"
+            )
+        if not hasattr(self.engine, "box"):
+            raise BoxRequestError(
+                "this server's engine does not answer Box questions (the vLLM engine on Gemma 4 does)"
+            )
+        extra = req.model_extra or {}
+        if int(extra.get("orders") or self.orders) != 1:
+            raise BoxRequestError("a Box question is read in one order: send the request without orders 2")
+        if self.abstain_option and imajev_ext:
+            raise BoxRequestError("a Box question is not served with abstention")
+        if extra.get("task") is not None:
+            raise BoxRequestError('a Box question applies no registered task: send the request without "task"')
+        if not images:
+            raise BoxRequestError(
+                "a Box question needs an image: put one in the state or in the question's instructions"
+            )
+        reason = self.engine.box_blocked()
+        if reason:
+            raise BoxRequestError(reason)
+
+    def _answer_with_box(self, req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag, t0):
+        """A request with Box questions: the other questions are answered as ever, together with one presence read per
+        Box (a yes/no question on the same prefix, "Is this in the picture: ..."); then every Box is one greedy
+        generation, in one batch. The answers come back in the request's order."""
+        self.check_box_request(req, images, imajev_ext)
+        names = list(req.questions)
+        box_names = [n for n in names if req.questions[n].type == "box"]
+        rest = {n: q for n, q in req.questions.items() if q.type != "box"}
+        pres = {}
+        for n in box_names:
+            key = f"{self.PRESENCE_PREFIX}{n}"
+            while key in rest or key in req.questions:
+                key += "_"
+            pres[n] = key
+            rest[key] = NoulQuestion(
+                type="noul", instructions=boxmod.presence_instructions(req.questions[n].instructions)
+            )
+        out = self._answer(
+            req.model_copy(update={"questions": rest}),
+            adapter,
+            images,
+            imajev_ext,
+            route,
+            debug,
+            over_limit,
+            think,
+            image_tag,
+        )
+        p_yes = {n: float(out["answers"].pop(k)["noul"]) for n, k in pres.items()}
+        exact_tree = debug == "box_tree"
+        results, info = self.engine.box(
+            req.state,
+            [{"kind": "box", "instructions": req.questions[n].instructions} for n in box_names],
+            adapter,
+            images=images,
+            tag=image_tag,
+            presence=[{"kind": "noul", "instructions": rest[pres[n]].instructions} for n in box_names],
+            exact_tree=exact_tree,
+        )
+        boxes, details, trees = {}, {}, {}
+        for i, (n, toks, res) in enumerate(zip(box_names, info["generated_tokens"], results)):
+            if isinstance(res, boxmod.BoxParseError):
+                raise BoxReadError(f'Box question "{n}": the model wrote no readable box ({res.reason})') from res
+            rd = res
+            conf, calibrated = boxmod.box_confidence(p_yes[n], rd.raw_confidence, self.box_confidence)
+            boxes[n] = BoxAnswer(box=BoxEdges(**boxmod.wire_box(rd.box)), confidence=conf).model_dump()
+            br = info["branches"][i]
+            details[n] = {
+                "tokens": toks,
+                "flags": list(rd.flags),
+                "calibrated": calibrated,
+                "branches_decoded": br["decoded"],
+                **({"branches_capped": True} if br["capped"] else {}),
+                **({"presence": p_yes[n], "raw_confidence": rd.raw_confidence, "edges": rd.summary()} if debug else {}),
+            }
+            if exact_tree and info.get("tree") and info["tree"][i] is not None:
+                trees[n] = dict(zip(boxmod.EDGE_NAMES, info["tree"][i], strict=True))
+        out["answers"] = {n: boxes[n] if n in boxes else out["answers"][n] for n in names}
+        out["usage"]["output_tokens"] += (
+            sum(info["generated_tokens"]) - len(box_names) + info["branch_tokens"]
+        )  # the presence reads were counted; the branch decodes are extra generation, as the main reply is
+        out["usage"]["input_tokens"] += sum(info["box_input_tokens"])
+        timing = out["_timing"]
+        timing["box"] = {"generate_ms": info["generate_ms"], "questions": details}
+        timing["stages"]["box"] = info["generate_ms"]
+        timing["server_ms"] = (time.perf_counter() - t0) * 1000
+        if debug and self.debug_readout:
+            out.setdefault(DEBUG_KEY, {}).update({n: {"box": d} for n, d in details.items()})
+        if trees:
+            for n, tree in trees.items():
+                out.setdefault(DEBUG_KEY, {}).setdefault(n, {})["box_tree"] = tree
+        return out
+
     def reads_images_itself(self) -> bool:
         """Whether the server's own engine reads images (`--images on` on a Gemma base,
         decisio.serve.gemma_images), so that a request with images is read by the engine that reads text, under the
@@ -1361,6 +1482,10 @@ class SystemOne:
         and the response's `thinking` says which questions did and what it cost."""
         t0 = time.perf_counter()  # the whole answer: mapping, plans and every read (the route adds its own parsing)
         images = list(images or [])
+        if any(q.type == "box" for q in req.questions.values()):
+            return self._answer_with_box(
+                req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag, t0
+            )
         # the server's own engine reads images (Gemma, `--images on`): the request is read as text is, with the images
         # at their places; the other route is a second engine (`--image-model`)
         own = self.reads_images_itself()
@@ -3996,6 +4121,10 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(404, str(e))
         except (over.OverLimit, thinking.ThinkUnavailable, lay.LayoutRefused, TaskSelectionError) as e:
             raise HTTPException(422, str(e))
+        except ImageRequestError:
+            raise  # the app's handlers: 400 or 413 in System One's error shape
+        except BoxReadError as e:
+            raise HTTPException(502, {"error_type": "api_error", "message": str(e)})
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         except Exception as e:
@@ -4034,6 +4163,13 @@ def add_routes(app, systemone: SystemOne):
         # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
         if timing.get("stages"):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
+        if timing.get("box"):  # the Box questions: whether their confidence was calibrated, their tokens and flags
+            qs = timing["box"]["questions"]
+            headers[header("box")] = (
+                f"calibrated={'true' if all(d['calibrated'] for d in qs.values()) else 'false'}; "
+                f"tokens={sum(d['tokens'] for d in qs.values())}; "
+                f"flags={','.join(sorted({f for d in qs.values() for f in d['flags']})) or 'none'}"
+            )
         if timing.get("waited_behind_registration"):  # the wait in `stages` was behind a boundary registration (#132)
             headers[header("wait-behind")] = "registration"
         if timing.get("batch"):  # --concurrency batched: the engine call this request shared with others
@@ -4043,14 +4179,20 @@ def add_routes(app, systemone: SystemOne):
 
     def debug_of(request):
         """`x-decisio-debug: readout` (the served readout before any task, the path taken) or `hidden` (also the hidden
-        readout of every question); only on a server started with --debug-readout (verification, never production)."""
+        readout of every question), only on a server started with --debug-readout; `box_tree` (a Box answer's exact
+        digit-tree readout beside the served estimator's and the plain greedy value), only on a server started with
+        --debug-box-tree. Verification and one card session's own check, never production."""
         debug = request_header(request.headers, "debug")
         if debug is None:
             return None
+        if debug == "box_tree":
+            if not systemone.debug_box_tree:
+                raise HTTPException(422, "x-decisio-debug: box_tree needs a server started with --debug-box-tree")
+            return debug
         if not systemone.debug_readout:
             raise HTTPException(422, "x-decisio-debug needs a server started with --debug-readout")
         if debug not in ("readout", "hidden"):
-            raise HTTPException(422, "x-decisio-debug must be 'readout' or 'hidden'")
+            raise HTTPException(422, "x-decisio-debug must be 'readout', 'hidden' or 'box_tree'")
         return debug
 
     # this module has `from __future__ import annotations`: give FastAPI the Request class itself, or it reads the

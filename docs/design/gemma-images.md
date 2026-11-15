@@ -57,3 +57,45 @@ A real checkpoint test (a square in each corner, answering top or bottom and lef
 The text temperatures were fitted on text.
 A base's `image_temperature` replaces them for requests with images and defaults to none, which reads images at the text temperatures.
 An adapter keeps its own temperatures on every request.
+
+## Box questions
+
+A Box question asks where a target is, and the answer is one box.
+The wire is in `docs/api.md`; this section is what the server does.
+
+**The read.**
+Each Box is one greedy generation on its own prompt: the state with its images (the cached prefix), then the question's own text and images, rendered with the model's chat template, the thought channel closed, and a reply that is forced to begin `{"box_2d": [`.
+The instruction asks for one box as JSON in Gemma's documented format, `[y_min, x_min, y_max, x_max]` on a 0-1000 grid.
+Forcing the start means the first tokens are the digits of `y_min`, and a reply cannot be anything but one box.
+At most 32 tokens are generated, at temperature 0, with the top 20 log-probabilities of each step.
+The Boxes of a request are one batch, and their prefix is the one the request's yes/no reads use, so it is read once.
+Under the header layout the prefix carries a list of the request's questions, which a generation does not want, so a Box is refused there.
+
+**The expected value.**
+Gemma writes each digit as its own token.
+For each coordinate the server follows the greedy path and, at every digit, takes the distribution over the next digits and the end of the number from the logprobs, with mass under 0.01 dropped.
+A branch off the greedy path with probability at least 0.05 is decoded for real: one short extra greedy generation from that branch's digit to its terminator, in the same batch as the request's other branches, on the cached prefix (`decisio.readout.box.expand_branches`).
+A branch below that probability keeps the cheaper approximation, the greedy path's own expected lower digits, which is exact when only the last digit and the end are uncertain and otherwise has a real but small error; the real decodes fix the larger errors, a digit-count ambiguity (a `9,` read as the end against a `95,` that keeps going).
+At most 16 branches are decoded per Box question; past the cap, the rest keep the approximation and the server's timing says so (`branches_capped`).
+The edge is the expected value, clipped to the grid and ordered; a degenerate side is widened to one grid unit.
+The probability that an edge lies within 0.02 of the image of the reported value comes from the same distribution, and the raw confidence is the geometric mean of that over the four edges.
+The estimator sits behind one function (`estimate_coordinate`, branch by branch), so a decoded branch's real value and the approximation share one code path; `assemble_box` turns four edges into the box, flags and raw confidence, whichever estimator produced them.
+
+**The exact-tree debug readout.**
+A card session needs to check the branch-expanded estimator itself against the full digit tree: `--debug-box-tree` on the server, `x-decisio-debug: box_tree` on a request, turn on one more read per edge, a real recursive expansion of the tree (`exact_coordinate_tree`).
+Along the greedy path the digit and end probabilities are already known from the main generation's own logprobs, read at a finer cut (1e-4) than the served estimator keeps (0.01); off it, each node visited is one more real decode, at most 64 per coordinate.
+The response's debug object then carries, per edge, the exact expected value, the served (branch-expanded) estimator's own value, the plain greedy value, and the tree mass actually covered (under 1.0 only when the cap cut a branch short).
+This is an operator's tool for one check, not part of the public answer: it costs a real decode per tree node and is never on by itself.
+
+**The confidence.**
+The raw edge confidence alone separates a present target from an absent one poorly, because the forced reply is confident in its digits whatever the picture shows.
+The server therefore reads presence separately: one yes/no question, "Is this in the picture: <the Box's instructions>?", in the same request on the same prefix, through the ordinary noul readout and temperature, which costs one forward pass.
+The confidence is the presence probability times the raw edge confidence.
+A calibration, when the served model has one, is an isotonic map (pool adjacent violators) from that product to the rate at which a box has IoU of 0.5 or more with the truth on a calibration set of present and absent targets; it is a file of knots loaded with `--box-confidence` or found beside the model's weights.
+Until then the product is served as it is and the `x-decisio-box` header says `calibrated=false`.
+Isotonic was chosen over a two-feature logistic fit because it needs no assumption about how the two factors combine and is monotone by construction.
+
+**Cost and counts.**
+`usage.output_tokens` adds the tokens a Box wrote: the main reply, and every decoded branch's continuation.
+The batch's generation time is the `box` entry of `x-decisio-stages`; `x-decisio-box` carries whether the confidence is calibrated, the tokens written and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`); under a debug readout the presence probability, the raw confidence, how many branches were decoded and whether the cap was hit are added per question.
+How accurate the boxes are and what a Box costs are not measured yet.

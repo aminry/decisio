@@ -113,8 +113,12 @@ class _Dist:
     term: float  # probability that the number ends here
 
 
-def _position_dist(step: RawStep, n_before: int) -> _Dist:
-    """Digits (if fewer than four are written) and terminators (if at least one is) from a step's top-k."""
+def _position_dist(step: RawStep, n_before: int, prune_below: float = PRUNE_BELOW) -> _Dist:
+    """Digits (if fewer than four are written) and terminators (if at least one is) from a step's top-k.
+
+    `prune_below`: the production default (PRUNE_BELOW, 0.01); the exact-tree debug readout reads the same
+    top-k at a finer cut (down to its own `min_prob`), since a step's top-k can carry more resolution than the
+    served estimator keeps."""
     chosen, top = step
     allow_digit = n_before < MAX_DIGITS
     allow_term = n_before >= 1
@@ -148,8 +152,8 @@ def _position_dist(step: RawStep, n_before: int) -> _Dist:
     digits = [d / total for d in digits]
     term /= total
     keep_digit = _digit_value(chosen) if ck == "digit" else -1
-    digits = [d if (d >= PRUNE_BELOW or i == keep_digit) else 0.0 for i, d in enumerate(digits)]
-    if term < PRUNE_BELOW and ck != "term":
+    digits = [d if (d >= prune_below or i == keep_digit) else 0.0 for i, d in enumerate(digits)]
+    if term < prune_below and ck != "term":
         term = 0.0
     total = sum(digits) + term
     return _Dist(tuple(d / total for d in digits), term / total)
@@ -171,14 +175,24 @@ class EdgeEstimate:
     support: tuple[tuple[float, float], ...] = field(default=(), repr=False)  # (value, probability), by value
 
 
-def estimate_coordinate(digit_steps: Sequence[RawStep], term_step: RawStep | None) -> EdgeEstimate:
-    """Expected value of a number from the steps of its digits and of the step that ended it (None: not seen)."""
+def estimate_coordinate(
+    digit_steps: Sequence[RawStep],
+    term_step: RawStep | None,
+    branch_values: dict[tuple[int, int], float] | None = None,
+) -> EdgeEstimate:
+    """Expected value of a number from the steps of its digits and of the step that ended it (None: not seen).
+
+    `branch_values`, keyed `(position, digit)`: for a branch off the greedy path at that position (position `n`
+    is the terminator step reading one more digit instead), the real value of that branch (`expand_branches`'s
+    decode, exact), used in place of the greedy path's own expected lower digits (the plain estimator's
+    approximation, kept when a branch is not in `branch_values`, including when `branch_values` is None)."""
     n = len(digit_steps)
     if not 1 <= n <= MAX_DIGITS:
         raise BoxParseError(f"a coordinate has 1 to {MAX_DIGITS} digits, found {n}")
     dists = [_position_dist(s, j) for j, s in enumerate(digit_steps)]
     greedy_digits = [_digit_value(s[0]) for s in digit_steps]
     final = _position_dist(term_step, n) if term_step is not None else _Dist((0.0,) * 10, 1.0)
+    branch_values = branch_values or {}
 
     # mean of each position's digit, given the greedy prefix and that the number goes on
     means = []
@@ -202,7 +216,10 @@ def estimate_coordinate(digit_steps: Sequence[RawStep], term_step: RawStep | Non
         d = dists[j]
         for dd in range(10):
             if dd != greedy_digits[j] and d.digits[dd] > 0:
-                add((prefix * 10 + dd) * 10 ** (n - j - 1) + tail[j + 1], reach * d.digits[dd])
+                v = branch_values.get((j, dd))
+                if v is None:
+                    v = (prefix * 10 + dd) * 10 ** (n - j - 1) + tail[j + 1]
+                add(v, reach * d.digits[dd])
         if j > 0:
             add(prefix, reach * d.term)
         reach *= d.digits[greedy_digits[j]]
@@ -210,7 +227,10 @@ def estimate_coordinate(digit_steps: Sequence[RawStep], term_step: RawStep | Non
     p_greedy = reach * final.term
     add(prefix, reach * final.term)
     for dd in range(10):
-        add(prefix * 10 + dd, reach * final.digits[dd])
+        v = branch_values.get((n, dd))
+        if v is None:
+            v = prefix * 10 + dd
+        add(v, reach * final.digits[dd])
 
     z = sum(points.values())
     items = sorted((v, p / z) for v, p in points.items())
@@ -239,13 +259,21 @@ def _normalise_steps(steps: Iterable) -> list[RawStep]:
 
 
 def parse_coordinates(
-    steps: Sequence[RawStep], prefix_in_steps: bool = True
-) -> tuple[list[tuple[list[RawStep], RawStep | None]], int]:
+    steps: Sequence[RawStep], prefix_in_steps: bool = True, with_offsets: bool = False
+) -> (
+    tuple[list[tuple[list[RawStep], RawStep | None]], int]
+    | tuple[list[tuple[list[RawStep], RawStep | None]], int, list[list[int]]]
+):
     """Locate the first `box_2d` list and split it into four (digit steps, terminator step) pairs.
 
     Returns the pairs and the index of the step after the last one used. With `prefix_in_steps` the steps include
     the text up to the list's "[" (the list start is found in the text of the chosen tokens); without it the steps
     are the tokens after a forced BOX_REPLY_PREFIX and the numbers start at the first step.
+
+    `with_offsets`: also return, per coordinate, the index in `steps` of each of its digits (`offsets[ci][j]` is
+    where `digit_steps[j]` sits in `steps`; the coordinate's terminator step, when it has one, sits right after
+    the last of them). What a branch's continuation (`expand_branches`) replays from: the chosen tokens of
+    `steps` up to a branch's own position, then the branch's digit instead of the greedy one.
     """
     text = "".join(c for c, _ in steps)
     flat = text.replace("▁", " ")
@@ -266,7 +294,9 @@ def parse_coordinates(
                 break
             pos += len(c)
     pairs: list[tuple[list[RawStep], RawStep | None]] = []
+    offsets: list[list[int]] = []
     cur: list[RawStep] = []
+    cur_off: list[int] = []
     i = start
     while i < len(steps) and len(pairs) < 4:
         step = steps[i]
@@ -276,22 +306,32 @@ def parse_coordinates(
                 raise BoxParseError("whitespace inside a number", flat)
         elif k == "digit":
             cur.append(step)
+            cur_off.append(i)
             if len(cur) > MAX_DIGITS:
                 raise BoxParseError("a number with more than four digits", flat)
         elif k == "term":
             if not cur:
                 raise BoxParseError("a number is missing from the box_2d list", flat)
             pairs.append((cur, step))
-            cur = []
+            offsets.append(cur_off)
+            cur, cur_off = [], []
         else:
             raise BoxParseError(f"unexpected token {step[0]!r} in the box_2d list", flat)
         i += 1
     if cur and len(pairs) == 3:
         pairs.append((cur, None))  # generation stopped right after the last digit
-        cur = []
+        offsets.append(cur_off)
+        cur, cur_off = [], []
     if len(pairs) < 4:
         raise BoxParseError(f"box_2d has {len(pairs)} numbers, 4 needed", flat)
-    return pairs, i
+    return (pairs, i, offsets) if with_offsets else (pairs, i)
+
+
+def branch_step_index(offsets_ci: Sequence[int], position: int) -> int:
+    """Where a branch at `position` sits in the generation's steps: one of its coordinate's own digits
+    (`offsets_ci[position]`), or, at `position == len(offsets_ci)`, the terminator step right after the last of
+    them (an alternative read of it as one more digit instead of the number ending)."""
+    return offsets_ci[position] if position < len(offsets_ci) else offsets_ci[-1] + 1
 
 
 @dataclass(frozen=True)
@@ -326,14 +366,10 @@ class BoxReadout:
 EDGE_NAMES = ("y_min", "x_min", "y_max", "x_max")
 
 
-def read_box(steps: Iterable, prefix_in_steps: bool = True) -> BoxReadout:
-    """The box and raw confidence of one generation. Raises BoxParseError when there is no readable box.
-
-    `prefix_in_steps=False` reads steps that start after the forced reply prefix, at the first digit.
-    """
-    steps = _normalise_steps(steps)
-    pairs, used = parse_coordinates(steps, prefix_in_steps)
-    est = [estimate_coordinate(d, t) for d, t in pairs]
+def assemble_box(est: Sequence[EdgeEstimate]) -> BoxReadout:
+    """The box, its flags and its raw confidence from four already-estimated edges (y_min, x_min, y_max, x_max):
+    what `read_box` and a branch-expanded read (`expand_branches`) both finish with. `diagnostics` is empty; the
+    caller fills in what it has (the generation's text and token counts)."""
     edges = dict(zip(EDGE_NAMES, est, strict=True))
     flags: list[str] = []
 
@@ -364,13 +400,131 @@ def read_box(steps: Iterable, prefix_in_steps: bool = True) -> BoxReadout:
         edges=edges,
         raw_confidence=conf,
         flags=tuple(flags),
-        diagnostics={
-            "steps": len(steps),
-            "steps_used": used,
-            "digits": [e.n_digits for e in est],
-            "text": "".join(c for c, _ in steps).replace("▁", " "),
-        },
+        diagnostics={},
     )
+
+
+def read_box(steps: Iterable, prefix_in_steps: bool = True) -> BoxReadout:
+    """The box and raw confidence of one generation, by the plain estimator (no branch expansion). Raises
+    BoxParseError when there is no readable box.
+
+    `prefix_in_steps=False` reads steps that start after the forced reply prefix, at the first digit.
+    """
+    steps = _normalise_steps(steps)
+    pairs, used = parse_coordinates(steps, prefix_in_steps)
+    est = [estimate_coordinate(d, t) for d, t in pairs]
+    rd = assemble_box(est)
+    rd.diagnostics.update(
+        steps=len(steps),
+        steps_used=used,
+        digits=[e.n_digits for e in est],
+        text="".join(c for c, _ in steps).replace("▁", " "),
+    )
+    return rd
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# branch expansion: real continuations off the greedy path, for the estimator's larger errors
+
+
+@dataclass(frozen=True)
+class BranchCandidate:
+    """One alternative digit off a Box's greedy path, worth a real decode: `coordinate` (0: y_min, 1: x_min,
+    2: y_max, 3: x_max), `position` (one of its digits, or `len(digit_steps)` for the terminator step reading
+    one more digit instead), the alternative `digit` and its probability under the pruned distribution there."""
+
+    coordinate: int
+    position: int
+    digit: int
+    prob: float
+
+
+def coordinate_branches(
+    digit_steps: Sequence[RawStep], term_step: RawStep | None, min_prob: float = 0.05
+) -> list[tuple[int, int, float]]:
+    """`(position, digit, probability)` of every digit off one coordinate's greedy path with probability at least
+    `min_prob`, highest first. A terminator branch (the number ending earlier) needs no decode, is already exact
+    in `estimate_coordinate`, and is not returned here."""
+    n = len(digit_steps)
+    dists = [_position_dist(s, j) for j, s in enumerate(digit_steps)]
+    greedy_digits = [_digit_value(s[0]) for s in digit_steps]
+    out = []
+    for j in range(n):
+        d = dists[j]
+        for dd in range(10):
+            if dd != greedy_digits[j] and d.digits[dd] >= min_prob:
+                out.append((j, dd, d.digits[dd]))
+    final = _position_dist(term_step, n) if term_step is not None else _Dist((0.0,) * 10, 1.0)
+    for dd in range(10):
+        if final.digits[dd] >= min_prob:
+            out.append((n, dd, final.digits[dd]))
+    return sorted(out, key=lambda t: -t[2])
+
+
+def box_branches(
+    pairs: Sequence[tuple[Sequence[RawStep], RawStep | None]], min_prob: float = 0.05
+) -> list[BranchCandidate]:
+    """Every branch of a Box's four coordinates worth a real decode, highest probability first."""
+    out = [
+        BranchCandidate(ci, j, dd, p)
+        for ci, (ds, ts) in enumerate(pairs)
+        for j, dd, p in coordinate_branches(ds, ts, min_prob)
+    ]
+    return sorted(out, key=lambda b: -b.prob)
+
+
+def branch_prefix_digits(
+    pairs: Sequence[tuple[Sequence[RawStep], RawStep | None]], branch: BranchCandidate
+) -> tuple[int, ...]:
+    """The digits a branch's continuation completes: its coordinate's greedy digits up to `branch.position`, then
+    `branch.digit` itself."""
+    digit_steps, _ = pairs[branch.coordinate]
+    greedy = tuple(_digit_value(s[0]) for s in digit_steps[: branch.position])
+    return greedy + (branch.digit,)
+
+
+def branch_value(prefix_digits: Sequence[int], continuation: Iterable) -> int:
+    """The coordinate value of one decoded branch: `prefix_digits`, then more digits from `continuation`'s own
+    chosen tokens (a greedy decode; its alternatives are not read) until a terminator token, or its end."""
+    digits = list(prefix_digits)
+    for step in continuation:
+        tok = step[0] if isinstance(step, (tuple, list)) else step
+        k = _kind(tok)
+        if k == "term":
+            break
+        if k == "ws":
+            continue
+        if k != "digit" or len(digits) >= MAX_DIGITS:
+            raise BoxParseError(f"a branch's continuation is not a number: {tok!r}")
+        digits.append(_digit_value(tok))
+    return min(int("".join(map(str, digits))), BOX_GRID)
+
+
+def expand_branches(
+    pairs: Sequence[tuple[Sequence[RawStep], RawStep | None]],
+    decode: Callable[[Sequence[BranchCandidate]], dict[BranchCandidate, float]],
+    min_prob: float = 0.05,
+    max_branches: int = 16,
+) -> tuple[list[EdgeEstimate], int, bool]:
+    """The four coordinates' estimates with their highest-probability branches decoded exactly in place of the
+    plain estimator's greedy-tail approximation (the fix for its larger errors, a digit-count ambiguity: a `9,`
+    read as the end against a `95,` that keeps going).
+
+    `decode(branches)` resolves a batch of branches (an engine call, real generations) to their coordinate values,
+    keyed by the branch; at most `max_branches` are asked for, by probability, over the whole box (not per
+    coordinate). Returns (the four estimates, how many branches were decoded, whether more branches had enough
+    probability than the cap allowed, so the rest fell back to the approximation)."""
+    cands = box_branches(pairs, min_prob)
+    capped = len(cands) > max_branches
+    chosen = cands[:max_branches]
+    values = decode(chosen) if chosen else {}
+    by_coord: dict[int, dict[tuple[int, int], float]] = {}
+    for b in chosen:
+        if b in values:
+            by_coord.setdefault(b.coordinate, {})[(b.position, b.digit)] = float(values[b])
+    est = [estimate_coordinate(ds, ts, by_coord.get(ci)) for ci, (ds, ts) in enumerate(pairs)]
+    expanded = sum(len(v) for v in by_coord.values())
+    return est, expanded, capped
 
 
 def wire_box(box: Box) -> dict[str, float]:
@@ -395,6 +549,14 @@ def wire_box(box: Box) -> dict[str, float]:
 
 # conditional next-token distribution given the digits so far: (10 digit probabilities, probability of ending)
 NextDist = Callable[[tuple[int, ...]], tuple[Sequence[float], float]]
+
+
+def step_distribution(step: RawStep, n_before: int, min_prob: float = PRUNE_BELOW) -> tuple[tuple[float, ...], float]:
+    """The digit probabilities and the end probability at one generation step, pruned at `min_prob`: a public
+    entry point to `_position_dist`, for a caller outside this module that has decoded a fresh step (a Box
+    engine's `exact_coordinate_tree` decode)."""
+    d = _position_dist(step, n_before, prune_below=min_prob)
+    return d.digits, d.term
 
 
 def exact_coordinate_distribution(next_dist: NextDist) -> dict[int, float]:
@@ -423,6 +585,76 @@ def exact_coordinate_distribution(next_dist: NextDist) -> dict[int, float]:
 
     rec((), 1.0)
     return out
+
+
+DecodeStep = Callable[[tuple[int, ...]], tuple[Sequence[float], float]]
+
+
+def exact_coordinate_tree(
+    digit_steps: Sequence[RawStep],
+    term_step: RawStep | None,
+    decode: DecodeStep,
+    min_prob: float = 1e-4,
+    max_decodes: int = 64,
+) -> tuple[float, float, int]:
+    """The debug readout's exact expected value of one coordinate, from a real recursive expansion of its digit
+    tree: along the greedy path the digit and end probabilities are already known (the generation's own top-k,
+    read at `min_prob` rather than the served estimator's coarser prune), so no new call is made there. Off the
+    greedy path, `decode(prefix)` is a real decode (one short extra generation): the digit probabilities and the
+    end probability that follow that exact prefix. It is called once per prefix visited, only for a prefix
+    reached with at least `min_prob` of the coordinate's total probability, and at most `max_decodes` times in
+    all (a prefix beyond the cap is left out).
+
+    Returns (the expected value over the mass actually covered, that covered mass, how many real decodes it
+    took). The covered mass is 1.0 exactly when nothing was left out; `box()`'s debug readout reports it so a
+    reader can tell a true exact value from one the cap cut short."""
+    n = len(digit_steps)
+    greedy = tuple(_digit_value(s[0]) for s in digit_steps)
+
+    def known(prefix: tuple[int, ...]) -> tuple[Sequence[float], float] | None:
+        if prefix != greedy[: len(prefix)]:
+            return None
+        if len(prefix) < n:
+            d = _position_dist(digit_steps[len(prefix)], len(prefix), prune_below=min_prob)
+            return d.digits, d.term
+        d = _position_dist(term_step, n, prune_below=min_prob) if term_step is not None else _Dist((0.0,) * 10, 1.0)
+        return d.digits, d.term
+
+    points: dict[int, float] = {}
+    decodes = 0
+
+    def rec(prefix: tuple[int, ...], prob: float) -> None:
+        nonlocal decodes
+        got = known(prefix)
+        if got is None:
+            if decodes >= max_decodes:
+                return
+            decodes += 1
+            got = decode(prefix)
+        digits = [float(x) for x in got[0]]
+        end = float(got[1])
+        if len(prefix) >= MAX_DIGITS:
+            digits = [0.0] * 10
+        if not prefix:
+            end = 0.0
+        z = sum(digits) + end
+        if z <= 0:
+            return
+        value = int("".join(map(str, prefix))) if prefix else 0
+        if end > 0:
+            points[min(value, BOX_GRID)] = points.get(min(value, BOX_GRID), 0.0) + prob * end / z
+        for d, p in enumerate(digits):
+            if p <= 0:
+                continue
+            pp = prob * p / z
+            if pp >= min_prob:
+                rec(prefix + (d,), pp)
+
+    rec((), 1.0)
+    covered = min(1.0, sum(points.values()))
+    greedy_value = min(int("".join(map(str, greedy))) if greedy else 0, BOX_GRID)
+    expected = sum(v * p for v, p in points.items()) / covered if covered > 0 else float(greedy_value)
+    return expected, covered, decodes
 
 
 # ---------------------------------------------------------------------------------------------------------------

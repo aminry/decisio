@@ -54,7 +54,7 @@ class Usage(BaseModel):
         description="The state and each question's own text in the served tokenizer, plus the image tokens."
     )
     output_tokens: int = Field(
-        description="One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`)."
+        description="One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`); a Box question counts the tokens it wrote."
     )
     thinking_tokens: int | None = Field(
         None, description="The reasoning tokens generated for the request; present when thinking was on for it."
@@ -119,7 +119,24 @@ class ScoreAnswer(_Answer):
     probabilities: dict[str, float] = Field(description="The distribution over the levels, by index.")
 
 
-Answer = Annotated[NoulAnswer | ChoiceAnswer | ScoreAnswer, Field(discriminator="type")]
+class BoxAnswerEdges(BaseModel):
+    top: float = Field(description="The box's top edge, a fraction of the image's height from the top, two decimals.")
+    bottom: float = Field(description="The bottom edge, a fraction of the height; larger than `top`.")
+    left: float = Field(description="The left edge, a fraction of the image's width from the left.")
+    right: float = Field(description="The right edge, a fraction of the width; larger than `left`.")
+
+
+class BoxAnswer(_Answer):
+    type: Literal["box"]
+    box: BoxAnswerEdges = Field(
+        description="The one box the model reads for the question, in the image's own fractions."
+    )
+    confidence: float = Field(
+        description="How much to trust the box, from 0 to 1: the probability the target is in the picture times how sure the edges are. Not calibrated until a calibration for the served model is loaded (`--box-confidence`)."
+    )
+
+
+Answer = Annotated[NoulAnswer | ChoiceAnswer | ScoreAnswer | BoxAnswer, Field(discriminator="type")]
 
 
 class SystemOneResponse(BaseModel):
@@ -307,7 +324,7 @@ class TaskRecord(BaseModel):
 
 
 MODELS = (
-    SystemOneRequest, SystemOneResponse, NoulAnswer, ChoiceAnswer, ScoreAnswer, Usage, ModelList, ModelEntry, HealthResponse,
+    SystemOneRequest, SystemOneResponse, NoulAnswer, ChoiceAnswer, ScoreAnswer, BoxAnswerEdges, BoxAnswer, Usage, ModelList, ModelEntry, HealthResponse,
     DeadEngine, ErrorDetail, ImageError, TaskExample, CertifyBlock, FastTableBlock, TaskRegistration, CertifyRequest,
     RollbackRequest, TaskImport, AbstentionRegistration, TaskRecord,
 )  # fmt: skip
@@ -331,6 +348,7 @@ RESPONSE_HEADERS = {
     "or `head`), `task` the questions of a "
     "certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the "
     "reasoning pass, `wait` the time spent waiting for the engine.",
+    "x-decisio-box": "`calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`).",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
 }
 

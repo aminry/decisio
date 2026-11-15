@@ -31,7 +31,8 @@ from __future__ import annotations
 
 import time
 
-from decisio.readout.letters import fmt_state, layout_header
+from decisio.readout import box as boxmod
+from decisio.readout.letters import check_thinking_closed, fmt_state, layout_header
 from decisio.serve import image_marks as marks
 from decisio.serve.image_engine import ImageRequests
 from decisio.serve.vllm_engine import LettersEngine, pad_prompt, question_text, user_turn
@@ -40,6 +41,19 @@ IMAGE_TOKEN = "<|image|>"
 # the most images one request may carry unless `--max-images` says otherwise: vLLM sizes its start-up profile of the
 # image path from it and from the budget, and that cost is not measured yet
 DEFAULT_MAX_IMAGES = 16
+# a Box reply: at most this many new tokens, each with its top logprobs (the box_2d list is 19 tokens)
+BOX_MAX_TOKENS = 32
+BOX_TOP_LOGPROBS = 20
+# branch expansion (the estimator's fix for digit-count ambiguity, decisio.readout.box.expand_branches): a branch
+# worth a real decode is at least this likely, and at most this many are decoded per Box question
+BOX_BRANCH_MIN_PROB = 0.05
+BOX_MAX_BRANCHES = 16
+BOX_BRANCH_MAX_TOKENS = 6  # a branch's continuation: the rest of its digits (at most 3 more) and its terminator
+# the exact-tree debug readout (decisio.readout.box.exact_coordinate_tree): a card session's own check, never on by
+# itself (the server needs --debug-box-tree, and a request needs its debug field)
+BOX_TREE_MIN_PROB = 1e-4
+BOX_TREE_MAX_DECODES = 64
+BOX_TREE_TOP_LOGPROBS = 64
 
 
 class GemmaImageRequests:
@@ -193,6 +207,173 @@ class GemmaImageRequests:
                 server_ms=(time.perf_counter() - t0) * 1000,
             )
         return probs, info
+
+    # ---- Box -------------------------------------------------------------------------------------------------------
+
+    box_enabled = True
+
+    def _box_tail(self):
+        """The chat template's text after a user turn's content, with the model turn opened and thinking closed (the
+        empty thought channel), and no answer slot: the reply that follows is the forced `box_2d` prefix."""
+        cache = self.__dict__.setdefault("_box_tails", {})
+        sysp = bool(self.fmt.system_prompt)
+        if sysp not in cache:
+            mark = "\ue000"
+            cache[sysp] = self._box_turn(mark).split(mark)[1]
+        return cache[sysp]
+
+    def _box_turn(self, content):
+        messages = [{"role": "user", "content": content}]
+        if self.fmt.system_prompt:
+            from decisio.readout.system_prompt import SYSTEM_PROMPT
+
+            messages.insert(0, {"role": "system", "content": SYSTEM_PROMPT})
+        out = self.tok.apply_chat_template(messages, add_generation_prompt=True, tokenize=False, enable_thinking=False)
+        check_thinking_closed(out, content)
+        return out
+
+    def box_blocked(self) -> str | None:
+        """Why this engine cannot answer a Box question, or None."""
+        if self.fmt.layout == "header":
+            return 'a Box question is read under the plain layout; send the request without "layout": "header"'
+        return None
+
+    def _box_branch_prompts(self, pairs, offsets, full_ids, gen_ids):
+        """The continuation prompts of the branches worth a real decode off these four coordinates' greedy paths
+        (at most `BOX_MAX_BRANCHES`, by probability): the generation replayed up to each branch's own digit, then
+        the branch's digit instead of the greedy one. Returns (the branches asked for, their prompts, whether more
+        branches had enough probability than the cap allowed)."""
+        cands = boxmod.box_branches(pairs, BOX_BRANCH_MIN_PROB)
+        capped = len(cands) > BOX_MAX_BRANCHES
+        chosen = cands[:BOX_MAX_BRANCHES]
+        prompts = []
+        for b in chosen:
+            idx = boxmod.branch_step_index(offsets[b.coordinate], b.position)
+            prompts.append(full_ids + gen_ids[:idx] + [self.tok.convert_tokens_to_ids(str(b.digit))])
+        return chosen, prompts, capped
+
+    def _box_exact_tree(self, pairs, offsets, full_ids, gen_ids, adapter, mm, mm_ids, fast):
+        """The debug readout: per coordinate, a real recursive expansion of the digit tree (`exact_coordinate_tree`),
+        beside the fast estimator's own value (`fast`, already computed) and the plain greedy value."""
+        out = []
+        for ci, (ds, ts) in enumerate(pairs):
+            base = full_ids + gen_ids[: offsets[ci][0]]
+
+            def decode(prefix, base=base):
+                ids = base + [self.tok.convert_tokens_to_ids(str(d)) for d in prefix]
+                gens, _ = self.generate_rows(
+                    [ids], adapter, row_mm=[mm], row_mm_uuids=[mm_ids], max_tokens=1, top=BOX_TREE_TOP_LOGPROBS
+                )
+                return boxmod.step_distribution(gens[0][0], len(prefix), min_prob=BOX_TREE_MIN_PROB)
+
+            expected, covered, decodes = boxmod.exact_coordinate_tree(
+                ds, ts, decode, min_prob=BOX_TREE_MIN_PROB, max_decodes=BOX_TREE_MAX_DECODES
+            )
+            greedy = min(int("".join(s[0] for s in ds)), boxmod.BOX_GRID)
+            out.append(
+                {
+                    "exact": round(expected / boxmod.BOX_GRID, 4),
+                    "fast": round(fast[ci] / boxmod.BOX_GRID, 4),
+                    "greedy": round(greedy / boxmod.BOX_GRID, 4),
+                    "tree_mass": round(covered, 4),
+                    "decodes": decodes,
+                }
+            )
+        return out
+
+    def box(self, state, questions, adapter=None, images=None, tag=None, presence=None, exact_tree=False):
+        """One greedy generation per Box question, then its box from the branch-expanded estimator (real decodes
+        of the likeliest alternatives off the greedy path, `decisio.readout.box.expand_branches`; a terminator
+        branch is exact already and needs none). `questions`: dicts with `instructions` (the text carries its
+        marks); `presence`: the yes/no questions read beside them (their prompts share the state's prefix, so the
+        rows here share it with them, and the first of them fixes where it ends). `exact_tree`: also read the full
+        digit tree by real decodes, for the debug readout (`--debug-box-tree`); never on without it.
+
+        Returns (`results`, `info`): `results` is a `decisio.readout.box.BoxReadout` per question, or the
+        `BoxParseError` the model's reply raised (never a made-up box); `info["generated_tokens"]` is the main
+        reply's tokens per question, `info["branch_tokens"]` the branch decodes' tokens in all (both count toward
+        usage), and `info["branches"]` is, per question, how many branches were decoded and whether the cap was
+        hit; `info["tree"]`, present when `exact_tree`, is the exact readout per question (None for a question
+        that had no readable box)."""
+        if not images:
+            raise ValueError("a Box question needs an image")
+        reason = self.box_blocked()
+        if reason:
+            raise ValueError(reason)
+        with self._lock:
+            t0 = time.perf_counter()
+            probe = presence or [{"kind": "noul", "instructions": "Is this a picture?"}]
+            rows, p_sent, p_exp, state_found, row_found, counts, end = self._prepare_images(state, images, probe, tag)
+            prefix = rows[0][0][:p_sent]
+            tail = self._box_tail()
+            suffixes = [
+                self._enc_placed(boxmod.render_box_prompt(q.get("instructions")) + tail + boxmod.BOX_REPLY_PREFIX, tag)
+                for q in questions
+            ]
+            full = [prefix + ids for ids, _ in suffixes]
+            found = [state_found + f for _, f in suffixes]
+            for f in found:
+                if len(set(f)) != len(f) or any(not 1 <= i <= len(images) for i in f):
+                    raise ValueError("the request's image marks do not match its images")
+            row_mm = [{"image": [images[i - 1] for i in f]} for f in found]
+            ident = [ImageRequests.image_id(img) for img in images]
+            row_ids = [{"image": [ident[i - 1] for i in f]} for f in found]
+            prep_ms = (time.perf_counter() - t0) * 1000
+            gens, info = self.generate_rows(
+                full, adapter, row_mm=row_mm, row_mm_uuids=row_ids, max_tokens=BOX_MAX_TOKENS, top=BOX_TOP_LOGPROBS
+            )
+
+            results, branches_info, tree_info = [], [], []
+            branch_tokens = 0
+            for qi, steps in enumerate(gens):
+                try:
+                    pairs, _, offsets = boxmod.parse_coordinates(steps, prefix_in_steps=False, with_offsets=True)
+                except boxmod.BoxParseError as e:
+                    results.append(e)
+                    branches_info.append({"decoded": 0, "capped": False})
+                    tree_info.append(None)
+                    continue
+                gen_ids = [self.tok.convert_tokens_to_ids(tok) for tok, _ in steps]
+                chosen, prompts, capped = self._box_branch_prompts(pairs, offsets, full[qi], gen_ids)
+                decoded = {}
+                if prompts:
+                    br_gens, br_info = self.generate_rows(
+                        prompts,
+                        adapter,
+                        row_mm=[row_mm[qi]] * len(prompts),
+                        row_mm_uuids=[row_ids[qi]] * len(prompts),
+                        max_tokens=BOX_BRANCH_MAX_TOKENS,
+                        top=1,
+                    )
+                    branch_tokens += sum(br_info["generated_tokens"])
+                    for b, continuation in zip(chosen, br_gens):
+                        try:
+                            decoded[b] = boxmod.branch_value(boxmod.branch_prefix_digits(pairs, b), continuation)
+                        except boxmod.BoxParseError:
+                            pass  # this one branch keeps the plain estimator's approximation
+                by_coord: dict[int, dict] = {}
+                for b, v in decoded.items():
+                    by_coord.setdefault(b.coordinate, {})[(b.position, b.digit)] = float(v)
+                est = [boxmod.estimate_coordinate(ds, ts, by_coord.get(ci)) for ci, (ds, ts) in enumerate(pairs)]
+                results.append(boxmod.assemble_box(est))
+                branches_info.append({"decoded": len(decoded), "capped": capped})
+                tree_info.append(
+                    self._box_exact_tree(
+                        pairs, offsets, full[qi], gen_ids, adapter, row_mm[qi], row_ids[qi], [e.expected for e in est]
+                    )
+                    if exact_tree
+                    else None
+                )
+
+            info.update(
+                prepare_ms=prep_ms,
+                server_ms=(time.perf_counter() - t0) * 1000,
+                branch_tokens=branch_tokens,
+                branches=branches_info,
+                **({"tree": tree_info} if exact_tree else {}),
+            )
+            info["box_input_tokens"] = [len(ids) - len(f[len(state_found) :]) for (ids, _), f in zip(suffixes, found)]
+        return results, info
 
 
 class GemmaImageLettersEngine(GemmaImageRequests, LettersEngine):
