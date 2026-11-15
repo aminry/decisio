@@ -84,3 +84,35 @@ def soft_tokens(height: int, width: int, budget: int = DEFAULT_BUDGET) -> int:
 def image_tokens(height: int, width: int, budget: int = DEFAULT_BUDGET) -> int:
     """What one image adds to a prompt: its soft tokens and the begin and end tokens around them."""
     return soft_tokens(height, width, budget) + 2
+
+
+def block_tokens(budget: int) -> int:
+    """The longest image block a budget can make: its most soft tokens and the begin and end tokens around them."""
+    return budget + 2
+
+
+def allowed_budgets(window: int | None) -> tuple[int, ...]:
+    """The budgets whose largest image block fits a sliding window of `window` tokens (all of them when the window is
+    not known)."""
+    return BUDGETS if window is None else tuple(b for b in BUDGETS if block_tokens(b) <= window)
+
+
+def check_budget_fits_window(budget: int, window: int | None) -> None:
+    """Refuse a budget whose largest image block is longer than the base's sliding window. Gemma 4 lets an image's
+    tokens see each other in both directions on a sliding layer only within the window, so in a longer block the
+    later tokens could not see the top rows. A refusal, not a clamp: the operator asked for that budget."""
+    if window is None or block_tokens(budget) <= window:
+        return
+    ok = allowed_budgets(window)
+    use = f"use {ok[-1]} or lower" if ok else "no image budget fits this window"
+    raise ValueError(
+        f"--image-budget {budget} makes an image of up to {block_tokens(budget):,} tokens, longer than this model's "
+        f"{window:,}-token sliding window, so the image's later tokens could not see its top rows; {use}"
+    )
+
+
+def sliding_window_of(config: dict) -> int | None:
+    """The sliding window a checkpoint's config.json declares (`text_config.sliding_window`), None when it declares
+    none."""
+    w = (config.get("text_config") or config).get("sliding_window")
+    return int(w) if isinstance(w, int) and w > 0 else None

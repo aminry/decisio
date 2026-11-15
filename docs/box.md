@@ -57,7 +57,7 @@ Until a calibration for the served model is loaded (`--box-confidence FILE`, or 
 
 An image is read at a fixed number of pieces (`--image-budget`), so a large image gives each object fewer.
 A small object in a large image is found better when you crop the image to the region first and ask again in the crop; the fractions then refer to the crop.
-A higher `--image-budget` (560 or 1120) spends more tokens per image and helps in the same way.
+A higher `--image-budget` (560) spends more tokens per image and helps in the same way.
 
 ## Limits
 

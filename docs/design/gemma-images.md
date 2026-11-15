@@ -48,6 +48,11 @@ A prefix hit that begins or ends inside an image of a question's own text is lef
 Gemma 4's text config says `use_bidirectional_attention = "vision"`: on the sliding-window layers the tokens of one image attend to each other, not only to the tokens before them; the global layers stay causal.
 The model builds the blocks from `mm_token_type_ids`, 1 on image tokens and 0 elsewhere (the begin and end tokens are text), and each image is its own block.
 vLLM 0.31.0 does this for the tokens it expands, through its multimodal prefix ranges, clamped to the sliding window.
+The rule on a sliding layer is the window AND (causal OR the same image block), as in the reference implementation: the window is not lifted inside an image, so tokens of a block more than one window apart do not see each other.
+A block longer than the window would therefore leave its later tokens unable to see its top rows, and the readout would lose the top of the picture.
+The server refuses a budget whose largest block (the budget's soft tokens plus the begin and end tokens) is longer than the base's sliding window, read from the checkpoint's `text_config.sliding_window`: 1120 (up to 1,122 tokens) against the 1,024-token window of the Gemma 4 bases, while 560 (up to 562) fits.
+It refuses rather than lowers the budget, so the operator sees what the server does; a base with a longer window allows more.
+The default budget (280) is still under measurement.
 A runtime that drops the token types reads an image causally and loses its vertical axis; a Mac port has to pass them itself.
 The CPU stand-in passes them, a test asserts what reaches its forward pass, and another shows that dropping them changes the readout.
 A real checkpoint test (a square in each corner, answering top or bottom and left or right) is kept beside the others and runs when the local Gemma 4 E2B is named by an environment variable.
