@@ -89,6 +89,7 @@ def test_r5_a_bad_image_model_stops_the_start_before_any_engine(monkeypatch, cap
         order.append("engine")
         raise AssertionError("an engine was built")
 
+    monkeypatch.delenv("VLLM_ENABLE_V1_MULTIPROCESSING", raising=False)
     monkeypatch.delenv("DECISIO_BASE", raising=False)
     monkeypatch.setattr(sv, "resolve_base", resolve)
     monkeypatch.setattr(families, "family_of", unreadable)
