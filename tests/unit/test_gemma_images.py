@@ -478,12 +478,11 @@ def test_g9_the_flags_resolve():
     assert sv.resolve_head_mode(plain12.model_class, None) == ("hidden-readout", "single-engine")
 
 
-def test_g9_the_12b_takes_images_on_a_mac_and_the_31b_does_not():
+def test_g9_both_gemma_bases_take_images_on_a_mac():
     assert sv.resolve_images(parsed("--images", "on", "--backend", "mlx")) == 280
     big = parsed("--images", "on", "--backend", "mlx")
     big.family = GEMMA4_31B
-    with pytest.raises(ValueError, match="serves the 12B"):
-        sv.resolve_images(big)
+    assert sv.resolve_images(big) == 280  # the 31B reads through its vision tower, with the base's vision add-on
 
 
 def test_g9_the_engine_refuses_a_budget_and_too_many_images():
