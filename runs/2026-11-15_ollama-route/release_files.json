@@ -1,0 +1,8 @@
+{
+ "decisio-gemma/decisio-gemma-4-12b-Q4_K_M.gguf": "2059c6a45dcaf2d44463b3cb8a57af5fe2827bd178b00834e1f81cd5d296006b",
+ "decisio-gemma/decisio-gemma-4-12b-Q8_0.gguf": "7f388fdcd85f0df9ce77dd605bc15fafba64d3d0a4c53f91f5b3de8817cc5f9e",
+ "decisio-gemma/mmproj-gemma-4-12B-it-f16.gguf": "563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+ "decisio-gemma-tuned/decisio-gemma-tuned-Q4_K_M.gguf": "d2f8e1916abff916c5e6f53f2fed7509fe6afaa39f0ffc69a9fccab556df7123",
+ "decisio-gemma-tuned/decisio-gemma-tuned-Q8_0.gguf": "3446cd7bd384a971f566de01957c5ffe03f97d5c9fa7d42819e5521994e16a64",
+ "decisio-gemma-tuned/mmproj-gemma-4-12B-it-f16.gguf": "563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272"
+}

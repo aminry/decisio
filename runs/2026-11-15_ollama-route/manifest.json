@@ -1,0 +1,31 @@
+{
+ "id": "2026-11-15_ollama-route",
+ "title": "The Gemma listings on Ollama's decision route: versions, answers against decisio, memory",
+ "date": "2026-11-15",
+ "submitted": false,
+ "typesafe_api_calls": 0,
+ "hardware": "Apple M5 Pro, 64 GB unified memory (one Mac), macOS 26.6.2",
+ "software": {
+  "ollama": [
+   "0.40.4",
+   "0.40.9",
+   "0.40.16"
+  ],
+  "mlx": "0.32.4",
+  "mlx_lm": "0.32.2",
+  "decisio_hub_gguf": "0b8680f"
+ },
+ "checkpoints": {
+  "base_gguf": "bartowski/gemma-4-12B-it-GGUF@2ae7d41be21ca62de00a2d320ee9cec50daa3aa6",
+  "base": "google/gemma-4-12B-it@707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7",
+  "tuned": "tachara-ai/Decisio-12b-tuned-calibrated@baa731aae8e94a5b13dd49c10436ef8d51b17f69",
+  "decisio_mlx_base": [
+   "mlx-community/gemma-4-12B-it-4bit@73bcf09092aa277861d5a191b989b666f7f32e8f",
+   "mlx-community/gemma-4-12B-it-8bit@200bb6db075e137a4deb08838865ac4ddb86292e"
+  ],
+  "decisio_mlx_tuned": [
+   "tachara-ai/Decisio-12b-tuned-mlx-calibrated@7062c6fa2aa6d1f6ec1ece59bf110f00c9eb5a0b",
+   "tachara-ai/Decisio-12b-tuned-mlx8-calibrated@fc10c70aafc6fd3b98279e36b5f280852651148b"
+  ]
+ }
+}

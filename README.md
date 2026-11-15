@@ -204,12 +204,12 @@ Ollama on a laptop, then pip on a GPU, then Docker.
 
 ### On a laptop, with Ollama
 
-**Ollama 0.40.4 and later refuse these listings on `/v1/systemone`** (they work on 0.35.1 through 0.40.3; [details](#ollama)). On a newer Ollama use decisio's own server with MLX ([Mac with MLX](#mac-with-mlx)).
-
-The Gemma listing's smallest tag takes 8.6 GB in Ollama (measured on a 64 GB Mac), and it has not been tried on a smaller machine ([docs/running.md](docs/running.md#ollama)):
+`aminroudaki/decisio-gemma` serves the Gemma 4 12B base on Ollama's decision route with decisio's own prompt and temperature, and it reads images.
+On the questions measured, its `q8_0` tag chooses the same answer as decisio's own server for 98% of them ([details](#ollama)).
+It works on Ollama 0.40.4 and later (checked on 0.40.4, 0.40.9 and 0.40.16), and its smallest tag takes 11.1 GB in memory:
 
 ```bash
-ollama pull aminroudaki/decisio-gemma      # Gemma 4 12B, 8.6 GB in Ollama at its smallest tag
+ollama pull aminroudaki/decisio-gemma      # Gemma 4 12B, q4_k_m
 curl http://localhost:11434/v1/systemone -d '{
   "model": "aminroudaki/decisio-gemma",
   "state": "Hi, since this morning none of our 40 staff can log in to the dashboard. We get \"session expired\" right after entering the password. Payroll is due today.",
@@ -221,7 +221,8 @@ curl http://localhost:11434/v1/systemone -d '{
 }'
 ```
 
-Ollama builds its own prompt and applies no calibration, so its numbers are the ones on its model page, not the ones in this repository.
+An image goes in the request's `images` field, base64-encoded.
+Where Ollama's answers differ from decisio's (several questions in one request, images placed before the state, no Box) is in [docs/running.md](docs/running.md#ollama).
 
 ### On a GPU, with pip
 
@@ -470,7 +471,7 @@ Four demos call a decisio server for every move (`examples/demos/`), and each cl
 | Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured (an 80 GB H100 also runs the 31B); each base's weights are in [Choosing a base](#choosing-a-base) |
 | Linux with one NVIDIA card and Docker | [Docker](#docker) | as the GPU server |
 | Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | each base's, in [docs/running.md](docs/running.md#mac-with-mlx) |
-| Mac, Linux or Windows with Ollama | [Ollama](#ollama) | 8.6 GB for the Gemma base's smallest tag (measured on a 64 GB Mac); each tag's size is on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio](https://ollama.com/aminroudaki/decisio)) |
+| Mac, Linux or Windows with Ollama 0.40.4 or later | [Ollama](#ollama) | 11.1 GB for the Gemma base's `q4_k_m` tag and 15.9 GB for its `q8_0` (measured on a 64 GB Mac); the tuned 12B's are on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio-gemma-tuned](https://ollama.com/aminroudaki/decisio-gemma-tuned)) |
 | Any machine, for development | [CPU stand-in](#cpu-stand-in-for-development) | a small Hugging Face model on the CPU |
 
 [`docs/running.md`](docs/running.md) has the details of every path.
@@ -520,14 +521,14 @@ Both Gemma bases also read pictures on a Mac: install the `mlx-images` extra and
 ### Ollama
 
 ```bash
-ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base
-ollama pull aminroudaki/decisio          # the Qwen base
+ollama pull aminroudaki/decisio-gemma          # the Gemma 4 12B base
+ollama pull aminroudaki/decisio-gemma-tuned    # the tuned 12B (calibrated)
 ```
 
-Requires Ollama 0.35.1 through 0.40.3.
-These model files work on Ollama 0.35.1 through 0.40.3. Ollama 0.40.4 (2026-10-12) and later answer `/v1/systemone` for them with "was downloaded in a format that is no longer supported" (checked on 0.40.4, 0.40.7 and 0.40.9, and after a fresh `ollama pull`): their decision route takes only models whose GGUF carries Ollama's own decision head. On a newer Ollama, run decisio's own server on the Mac ([Mac with MLX](docs/running.md#mac-with-mlx)).
-The Gemma listing's smallest tag takes 8.6 GB in Ollama (measured on a 64 GB Mac, not tried on a smaller machine); the Qwen listing's is a 23 GB download ([docs/running.md](docs/running.md#ollama)).
-Ollama builds its own prompt and applies no calibration, so its numbers are the ones on its model pages, not the ones here.
+Both answer `/v1/systemone` with decisio's own prompt and temperatures, text and images, on Ollama 0.40.4 and later (checked on 0.40.4, 0.40.9 and 0.40.16).
+The base's `q8_0` tag chooses the same answer as decisio's own server for 98.3% of 300 text questions, and both listings for 97% to 98% of 257 image questions ([docs/running.md](docs/running.md#ollama), which also lists where they differ).
+Each listing's `q4_k_m` tag takes about 11 GB in memory (11.1 GB the base, 10.8 GB the tuned model) and its `q8_0` tag 15.9 GB (measured on a Mac).
+The Qwen listing, `aminroudaki/decisio`, needs Ollama 0.35.1 through 0.40.3; on a newer Ollama use the Gemma listings or decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
 
 ### CPU stand-in for development
 
@@ -615,7 +616,7 @@ In plain words:
   - Its answers repeated an earlier session's record on another card of the same type on all 1,400 suite items to 1.1e-16 (`EVAL_CARD.md` 6.2), where the 31B's near-tied answers moved between sessions (7.5).
   - On the 77-option BANKING77 items of the suite its calibration error is 0.055 against the 31B's 0.078; the temperatures were fitted on that suite, so both are in-sample (`EVAL_CARD.md` 3, 4 and 7.2).
 - **Gemma 4 12B for machines smaller than the 31B's.**
-  It runs on a 32 GB Mac from its MLX conversion ([Mac with MLX](#mac-with-mlx)), and its Ollama listing takes 8.6 GB loaded ([Ollama](#ollama)).
+  It runs on a 32 GB Mac from its MLX conversion ([Mac with MLX](#mac-with-mlx)), and its Ollama listing takes 11.1 GB at its smallest tag ([Ollama](#ollama)).
   On vLLM its weights are the smallest of the three (22.8 GiB), but it did not start on a card limited to 32 GB; on an 80 GB H100 it served its ceiling of 65,536 tokens at the default share (`docs/running.md`), and cards between 32 and 80 GB were not measured (`EVAL_CARD.md` 6.6).
   In FP8 (`--base gemma-4-12b-fp8`) it serves its full 65,536 tokens on a 32 GB RTX 5090 (12.74 GiB of weights, 11.66 GiB of KV cache) at 0.64 times the bf16 12B's server time, with its own answers: the top answer is the bf16 12B's on 96% of 200 requests ([`docs/running.md`](docs/running.md#the-12b-in-two-precisions)).
 - On JevBench's published items the 12B and Qwen are level (200 of 231 each).

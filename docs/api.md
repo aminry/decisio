@@ -133,7 +133,7 @@ What an image costs and where it is cut down (the image route runs on the Qwen b
 - An image over 20 MiB, or over 20 megapixels (width times height), or in another format, is refused with 422 (`bad image: ...`) before it is read; a request with more images than `--max-images` (128 unless set) is a 400 `api_usage_error`, as the paragraph above says.
 - The processor then resizes the image, keeping its proportions and rounding both sides to multiples of 32, so that it has between 65,536 pixels (256 by 256) and 16,777,216 (4,096 by 4,096). An image of 200 by 200 is read as 256 by 256; one of 4,000 by 6,000 as 3,328 by 4,992.
 - Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context that a server with `--image-model` serves: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224), plus the two vision delimiter tokens around each image (`usage.input_tokens` counts them, as it counts the Gemma bases' begin and end tokens).
-- The Ollama listings are not this route. `ollama show` (2026-10-14) lists the Qwen listing `aminroudaki/decisio` with the capabilities `decision` and `vision`, and the Gemma listing `aminroudaki/decisio-gemma` (every tag) with `decision` only. Whether the Qwen listing's image answers match this route's was not measured.
+- The Ollama listings are not this route: `aminroudaki/decisio-gemma` and `aminroudaki/decisio-gemma-tuned` read images through Ollama's own `images` field, placed before the state, near each image's own resolution ([running.md](running.md#ollama)).
 
 ### Images on Gemma 4 (`--images on`)
 

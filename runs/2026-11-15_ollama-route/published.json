@@ -1,0 +1,150 @@
+{
+ "published_layers": {
+  "aminroudaki/decisio-gemma:q4_k_m": {
+   "model": "sha256:2059c6a45dcaf2d44463b3cb8a57af5fe2827bd178b00834e1f81cd5d296006b",
+   "projector": "sha256:563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+   "params": "sha256:fe4c0ec48705e97241d70fde4caeb39053f9bf055bfed88828e7188e573fdd6e"
+  },
+  "aminroudaki/decisio-gemma:latest": {
+   "model": "sha256:2059c6a45dcaf2d44463b3cb8a57af5fe2827bd178b00834e1f81cd5d296006b",
+   "projector": "sha256:563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+   "params": "sha256:fe4c0ec48705e97241d70fde4caeb39053f9bf055bfed88828e7188e573fdd6e"
+  },
+  "aminroudaki/decisio-gemma:q8_0": {
+   "model": "sha256:7f388fdcd85f0df9ce77dd605bc15fafba64d3d0a4c53f91f5b3de8817cc5f9e",
+   "projector": "sha256:563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+   "params": "sha256:fe4c0ec48705e97241d70fde4caeb39053f9bf055bfed88828e7188e573fdd6e"
+  },
+  "aminroudaki/decisio-gemma:q4_k_m-ollama0.40.3": {
+   "model": "sha256:3962624dcd25b947d889dc9ae1bf275b61db6cd4dbe694057f34fffef1671509",
+   "system": "sha256:3e86cb9347aeb07622816cf2f1857504eae6689df7a16015c488f7eaaf49d2f1",
+   "params": "sha256:ce4a164fc04605703b485251fe9f1a181688ba0eb6badb80cc6335c0de17ca0d"
+  },
+  "aminroudaki/decisio-gemma:q8_0-ollama0.40.3": {
+   "model": "sha256:929bd294cbdc59e41450488bea524a174f1c6ddc43f140fdb5905a5fd1e41969",
+   "system": "sha256:3e86cb9347aeb07622816cf2f1857504eae6689df7a16015c488f7eaaf49d2f1",
+   "params": "sha256:ce4a164fc04605703b485251fe9f1a181688ba0eb6badb80cc6335c0de17ca0d"
+  },
+  "aminroudaki/decisio-gemma-tuned:q4_k_m": {
+   "model": "sha256:d2f8e1916abff916c5e6f53f2fed7509fe6afaa39f0ffc69a9fccab556df7123",
+   "projector": "sha256:563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+   "params": "sha256:fe4c0ec48705e97241d70fde4caeb39053f9bf055bfed88828e7188e573fdd6e"
+  },
+  "aminroudaki/decisio-gemma-tuned:latest": {
+   "model": "sha256:d2f8e1916abff916c5e6f53f2fed7509fe6afaa39f0ffc69a9fccab556df7123",
+   "projector": "sha256:563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+   "params": "sha256:fe4c0ec48705e97241d70fde4caeb39053f9bf055bfed88828e7188e573fdd6e"
+  },
+  "aminroudaki/decisio-gemma-tuned:q8_0": {
+   "model": "sha256:3446cd7bd384a971f566de01957c5ffe03f97d5c9fa7d42819e5521994e16a64",
+   "projector": "sha256:563192209f002b0a13af16a4992fdb9dd61187a36919eaf65f408bb47af3d272",
+   "params": "sha256:fe4c0ec48705e97241d70fde4caeb39053f9bf055bfed88828e7188e573fdd6e"
+  }
+ },
+ "pulled_back": {
+  "0.40.16 aminroudaki/decisio-gemma-tuned:q4_k_m": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.16 aminroudaki/decisio-gemma-tuned:q8_0": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.16 aminroudaki/decisio-gemma:q4_k_m": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.16 aminroudaki/decisio-gemma:q8_0": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.4 aminroudaki/decisio-gemma-tuned:q4_k_m": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0006
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0483
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.4 aminroudaki/decisio-gemma:q4_k_m": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0007
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0189
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.9 aminroudaki/decisio-gemma-tuned:q4_k_m": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0006
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0483
+   },
+   "blobs_hash_ok": true
+  },
+  "0.40.9 aminroudaki/decisio-gemma:q4_k_m": {
+   "w2_text": {
+    "answered": 20,
+    "same_top": 20,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0007
+   },
+   "w2_images": {
+    "answered": 10,
+    "same_top": 10,
+    "max_abs_dp_vs_0.40.16_release_file": 0.0189
+   },
+   "blobs_hash_ok": true
+  }
+ }
+}
