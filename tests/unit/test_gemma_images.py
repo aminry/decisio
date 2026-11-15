@@ -479,7 +479,7 @@ def test_g9_the_flags_resolve():
 
 
 def test_g9_both_gemma_bases_take_images_on_a_mac():
-    assert sv.resolve_images(parsed("--images", "on", "--backend", "mlx")) == 280
+    assert sv.resolve_images(parsed("--images", "on", "--backend", "mlx")) == 560  # the 12B's default
     big = parsed("--images", "on", "--backend", "mlx")
     big.family = GEMMA4_31B
     assert sv.resolve_images(big) == 280  # the 31B reads through its vision tower, with the base's vision add-on
