@@ -2149,10 +2149,15 @@ HIDDEN_SIZE_MAX = 8192  # wider than any served base's hidden size: the tripwire
 
 def images_facts(engine, image_engine=None, systemone=None) -> dict:
     """What /health says of image input: on or off, and how; `box`, whether this server answers a Box question
-    (`"type": "box"`): true only on a Gemma base with `--images on` (the vLLM server), serving no second image
-    engine. On a Gemma base with `--images on` the engine that reads text reads the pictures too (its budget and
+    (`"type": "box"`): true only on a Gemma base with `--images on` on the vLLM server (false on a Mac), serving no
+    second image engine. On a Gemma base with `--images on` the engine that reads text reads the pictures too (its budget and
     the most images a request may carry); with `--image-model` a second engine does, and `box` is false."""
-    box = bool(systemone is not None and systemone.reads_images_itself() and getattr(engine, "images_enabled", False))
+    box = bool(
+        systemone is not None
+        and systemone.reads_images_itself()
+        and getattr(engine, "images_enabled", False)
+        and getattr(engine, "box_enabled", True)
+    )
     if getattr(engine, "images_enabled", False):
         return {**engine.image_facts(), "box": box}
     if image_engine is not None:

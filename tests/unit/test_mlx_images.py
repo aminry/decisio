@@ -310,9 +310,7 @@ def test_m6_the_engine_refuses_adapters_box_and_too_many_images(engine):
     e = engine
     with pytest.raises(ValueError, match="serves no adapters"):
         e.answer(STATE, QS, adapter="a", images=[picture()], tag=TAG)
-    with pytest.raises(ValueError, match="Box is not served with --backend mlx"):
-        e.refuse_box()
-    assert e.box_supported is False
+    assert "Box is not served with --backend mlx" in e.box_blocked() and e.box_enabled is False
     many = [picture(seed=i) for i in range(e.max_images + 1)]
     state = "".join(marks.mark(i + 1, TAG) for i in range(len(many)))
     with pytest.raises(ValueError, match=f"at most {e.max_images} images"):

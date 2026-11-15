@@ -33,8 +33,8 @@ state's last image's end token by construction: the prefix ends where the first 
 Memory. MLX's cache limit (`--mlx-cache-limit-gb`, 2 GiB) bounds the buffers it keeps for reuse, and the engine clears
 them after every request that carried images; the family's `mlx_working_images_gb` sizes the memory limit.
 
-Box (a bounding box read) is not served on the Mac yet. `generate` is what it will need: a greedy decode on the image
-prompt that returns the top-k log-probabilities at every step.
+Box (a bounding box read) is not served on the Mac yet. `generate` is what a Mac Box will build on: a greedy decode
+on the image prompt that returns the top-k log-probabilities at every step.
 """
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
     instead of loading `model`, for the tests (no download of weights)."""
 
     score_takes_prefix = True
-    box_supported = False
+    box_enabled = False  # Box is not served on a Mac yet (`box_blocked`)
 
     def __init__(self, model, image_budget=marks.DEFAULT_BUDGET, max_images=DEFAULT_MAX_IMAGES, random=None, **kw):
         if image_budget not in marks.BUDGETS:
@@ -231,8 +231,8 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
 
         return {**super().facts(), "mlx_vlm": version("mlx-vlm"), "images": self.image_facts()}
 
-    def refuse_box(self):
-        raise ValueError(BOX_REFUSED)
+    def box_blocked(self):
+        return BOX_REFUSED
 
     # ---- the forward pass with images --------------------------------------------------------------
 

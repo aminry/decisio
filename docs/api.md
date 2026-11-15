@@ -193,7 +193,7 @@ An adapter keeps its own temperatures.
 - The server needs `--images on`, on the vLLM server with a Gemma base, or on a Mac (`--backend mlx`) with the 12B and a conversion that keeps its vision weights; a server without it answers 400 and says how to start one.
 - On a Mac the 12B reads noul, choice and score questions about images as above; Box is not served there yet, the 31B's MLX build has no vision weights and is refused, and an adapter is refused as it is for text ([Images on a Mac](running.md#images-on-a-mac)).
 - Image sizes are not limited to System One's window; the scaling above applies to any size, up to the 20 MB and 20 megapixel limits.
-- Memory at start-up, text latency, first-read latency and how well each base reads images are measured in `EVAL_CARD.md` section 10; `/health` reports `images` (`enabled`, `budget`, `max_images`, and `box`: true when this server answers Box questions).
+- Memory at start-up, text latency, first-read latency and how well each base reads images are measured in `EVAL_CARD.md` section 10; `/health` reports `images` (`enabled`, `budget`, `max_images`, and `box`: true when this server answers Box questions, false on a Mac).
 
 ### Box questions
 
