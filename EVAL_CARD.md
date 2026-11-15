@@ -4,7 +4,7 @@
 # Evaluation card
 
 What each base is, what it can do, how it measures, and what was fitted on what.
-Sections 1 to 5 are the Qwen base (`--base qwen3.6-35b-a3b`); section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`), the default; section 8 is the Decision Index's whole suite on all three, self-run and submitted.
+Sections 1 to 5 are the Qwen base (`--base qwen3.6-35b-a3b`); section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`), the default; section 8 is the Decision Index's whole suite on all three, self-run and submitted; section 10 is images on the Gemma bases.
 Every number is on the base's served settings as they were when it was measured and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
 ## 1. The system measured
@@ -386,3 +386,241 @@ Prompt length, each card's own words, prompt against prompt: Prompt length: 32,7
 That is decisio's context as its card stated it at revision c23ae405 (a fixed 32,768 tokens).
 The 31B now serves the largest length the card holds, at least 32,768 and at most 98,304 tokens (`docs/running.md`, the context length), so against 8,000 tokens the ratio is 4.1 times at the 32,768-token minimum and 12.3 times at 98,304.
 These are the limits the cards state, not measured accuracy at those lengths.
+
+## 10. Images on the Gemma bases
+
+A Gemma base started with `--images on` reads pictures in the state, in a question's instructions and in its options, and answers Box questions: where is it in the picture.
+This section says how well each base does it, what it costs, and what was fitted on what.
+Every figure is on the reporting half of the image eval set (10.2), with intervals where a difference is stated, and comes from one run named below.
+
+### 10.1 The system measured
+
+| Part | The image run |
+| --- | --- |
+| Hardware | one NVIDIA RTX PRO 6000 Blackwell (96 GB) at 600 W, vLLM 0.31.0 |
+| decisio | commits `aa647858ba2a`, `e30c78f9b5ee`, `b262749eb3c4` (the run crossed three builds), with `--images on --image-budget B --max-images N` |
+| Models | `google/gemma-4-12B-it` at revision `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7`; the tuned 12B, `tachara-ai/Decisio-12b-tuned-commit` at `245e00dc45abad14d693b1ebae4d4c7aa9cf72f1`; the 31B base in FP8, `tachara-ai/decisio-gemma-4-31b` at `eaf1e4fa30a351ab87d07803ca60f1fa5606f882` |
+| Image budgets | 280 (the 31B's default) and 1,120 soft tokens on the 12B and the 31B, and 560 on the 12B (the 12B at 1,120 is the measurement behind its refusal, 10.5); the tuned 12B at one budget, 280 (the one the 12B base read better); `--max-images` 16 for the accuracy starts and 128 for the memory start |
+| Readout | the text route's, unchanged: letters for the decision types, one greedy box reply for Box (10.9); a Box question is read under the plain layout on any server; the 31B with `--images on` is started in its multimodal class, without the head (10.6) |
+| Run | 2026-11-14, one session on that card |
+
+**The eval set.**
+It is made only to measure, never to train: a generated part, a real-photo part and a public benchmark.
+
+| Part | Content | Items | Licence of the pictures |
+| --- | --- | ---: | --- |
+| S, generated scenes | shapes, colours, sizes, positions, distractors and counts; two-image comparisons; frame pairs (what changed); options and score levels given as pictures; rendered forms with a field to locate; absent targets; wide and tall images; questions that carry their own picture | 800 (noul, choice, score, per-question-image and Box) | made by the generator |
+| R, real photos | Open Images V7 validation: image-level labels give noul and choice questions (verified positives and negatives); single-instance boxes give Box questions with the class as the target | 600 | images CC BY 2.0, labels and boxes CC BY 4.0 |
+| I, ImajevBench lite | the 254 development items of ImajevBench v2.0-lite | 254 | CC BY 4.0, images CC0 |
+
+Every item is in one of two halves chosen by item seed: a calibration half, where the image temperatures are fitted, and a reporting half, which every figure below uses.
+Every truth that depends on pixels (two-image, picture, position and frame truths) is re-derived from the named image's pixels.
+The scorer is the same for every model and for the TypeSafe baseline of `docs/comparison.md`.
+
+### 10.2 Decisions on images
+
+Noul, choice and score questions with the picture in the state, and the per-question-image set, where the picture is in the question's own instructions or options.
+Each cell is accuracy / log loss / ECE (10 equal-width bins) on the reporting half; a score row's accuracy is the share of questions whose most probable level is right.
+The per-question image row pools three answer kinds (noul, choice and score) and gives accuracy / log loss only.
+
+| part and type | n | 12B base, 280 | 12B base, 560 | 12B base, 1,120 | tuned 12B | 31B base, 280 | 31B base, 1,120 |
+| --- | ---: | --- | --- | --- | --- | --- | --- |
+| S noul | 53 | 0.981 / 0.081 / 0.037 | 0.962 / 0.103 / 0.076 | 0.868 / 0.289 / 0.077 | 1.000 / 0.130 / 0.119 | 0.981 / 0.090 / 0.011 | 0.981 / 0.071 / 0.038 |
+| S choice | 52 | 1.000 / 0.081 / 0.071 | 0.981 / 0.099 / 0.069 | 0.827 / 0.568 / 0.166 | 0.962 / 0.131 / 0.102 | 1.000 / 0.026 / 0.026 | 1.000 / 0.028 / 0.027 |
+| S score | 55 | 0.945 / 0.213 / 0.073 | 0.982 / 0.134 / 0.113 | 0.418 / 1.177 / 0.189 | 0.964 / 0.255 / 0.145 | 1.000 / 0.051 / 0.050 | 1.000 / 0.063 / 0.060 |
+| S per-question image | 48 | 0.938 / 0.186 | 0.917 / 0.186 | 0.854 / 0.493 | 0.917 / 0.227 | 0.917 / 0.189 | 0.938 / 0.166 |
+| R noul | 76 | 0.921 / 0.237 / 0.055 | 0.921 / 0.272 / 0.053 | 0.671 / 0.657 / 0.179 | 0.908 / 0.286 / 0.052 | 0.895 / 0.294 / 0.074 | 0.921 / 0.277 / 0.059 |
+| R choice | 83 | 0.783 / 0.664 / 0.136 | 0.783 / 0.669 / 0.116 | 0.590 / 1.043 / 0.144 | 0.807 / 0.532 / 0.131 | 0.735 / 1.024 / 0.212 | 0.759 / 0.968 / 0.192 |
+| I noul | 56 | 0.857 / 0.300 / 0.053 | 0.839 / 0.326 / 0.103 | 0.696 / 0.572 / 0.054 | 0.786 / 0.463 / 0.111 | 0.839 / 0.385 / 0.122 | 0.857 / 0.419 / 0.116 |
+| I choice | 63 | 0.889 / 0.244 / 0.072 | 0.921 / 0.192 / 0.104 | 0.635 / 0.893 / 0.166 | 0.952 / 0.188 / 0.096 | 0.952 / 0.108 / 0.046 | 0.968 / 0.070 / 0.046 |
+| I score | 5 | 1.000 / 0.096 / 0.089 | 1.000 / 0.101 / 0.093 | 1.000 / 0.097 / 0.089 | 0.800 / 0.245 / 0.162 | 1.000 / 0.046 / 0.045 | 1.000 / 0.044 / 0.043 |
+
+The score rows' mean absolute error against the true level is 0.185 for the 12B base at 280 (the other cells are in the run's report).
+
+### 10.3 Box
+
+Mean IoU, the share of boxes at IoU 0.5 or more and at 0.75 or more, and the mean absolute error of the four edges (fractions of the image), over the items whose target is in the picture.
+Confidence ECE is the calibration error of the answer's `confidence` against the event IoU >= 0.5.
+Absent-target AUROC is how well a score separates the items whose target is in the picture from those where it is not (generated scenes only: the real-photo items all have a target); it is given for the Box answer's own `confidence` and for a companion noul question "is it in the picture", as `docs/box.md` advises.
+
+| measure | n | 12B base, 280 | 12B base, 560 | 12B base, 1,120 | tuned 12B | 31B base, 280 | 31B base, 1,120 |
+| --- | ---: | --- | --- | --- | --- | --- | --- |
+| S mean IoU | 175 | 0.862 | 0.925 | 0.046 | 0.875 | 0.886 | 0.915 |
+| S IoU >= 0.5 | 175 | 0.920 | 0.989 | 0.000 | 0.943 | 0.994 | 0.989 |
+| S IoU >= 0.75 | 175 | 0.863 | 0.954 | 0.000 | 0.880 | 0.914 | 0.943 |
+| S edge MAE | 175 | 0.014 | 0.007 | 0.238 | 0.012 | 0.008 | 0.007 |
+| S confidence ECE | 175 | 0.064 | 0.122 | 0.441 | 0.160 | 0.004 | 0.005 |
+| R mean IoU | 151 | 0.818 | 0.828 | 0.213 | 0.804 | 0.828 | 0.831 |
+| R IoU >= 0.5 | 151 | 0.861 | 0.868 | 0.113 | 0.861 | 0.868 | 0.868 |
+| R IoU >= 0.75 | 151 | 0.815 | 0.801 | 0.007 | 0.781 | 0.801 | 0.795 |
+| R edge MAE | 151 | 0.031 | 0.027 | 0.205 | 0.033 | 0.027 | 0.030 |
+| R confidence ECE | 151 | 0.136 | 0.135 | 0.351 | 0.208 | 0.188 | 0.191 |
+| S absent-target AUROC, Box `confidence` | 32 absent | 0.972 | 0.973 | 0.778 | 0.930 | 0.984 | 0.987 |
+| S absent-target AUROC, companion noul | 32 absent | 0.997 | 0.997 | 0.940 | 0.990 | 0.999 | 1.000 |
+
+A Box question writes one box in one greedy reply of at most 32 tokens; the coordinates are read as an expected value over the digits the model considered (10.8).
+Its `confidence` is a presence read of the target times how sure the model is of the edges.
+No calibration was loaded in this run, so the confidence ECE above is that of the product itself, not of a fitted map (`docs/box.md` says how to load one).
+A Box on an absent target that the model answers with `null` gets the whole image at confidence 0, and counts as an absent target in the AUROC.
+
+### 10.4 The tuned 12B against its base
+
+The tuned 12B was trained on text only, with its vision weights untouched.
+These are paired differences, tuned minus base, on the same reporting items at the budget of the tuned start, with 95% percentile bootstrap intervals over items (10,000 resamples).
+
+| measure | n | tuned minus base | 95% interval |
+| --- | ---: | ---: | --- |
+| S decisions, accuracy | 208 | -0.005 | [-0.029, +0.019] |
+| R decisions, accuracy | 159 | +0.006 | [-0.025, +0.038] |
+| I decisions, accuracy | 124 | -0.008 | [-0.065, +0.056] |
+| S decisions, log loss | 208 | +0.045 | [+0.012, +0.076] |
+| R decisions, log loss | 159 | -0.046 | [-0.114, +0.015] |
+| I decisions, log loss | 124 | +0.051 | [-0.018, +0.122] |
+| S Box mean IoU | 175 | +0.013 | [+0.001, +0.026] |
+| R Box mean IoU | 151 | -0.014 | [-0.032, +0.002] |
+| S Box IoU >= 0.5 | 175 | +0.023 | [+0.006, +0.046] |
+| R Box IoU >= 0.5 | 151 | +0.000 | [-0.026, +0.026] |
+
+The rule set before the run was that the tuned model is not worse than its base by more than 2 points of accuracy or of Box mean IoU, on S and on R.
+Two readings are given, and no verdict: by the point differences, which lie between -1.4 and +1.3 points (none below -2); by the lower end of the interval, 3 of the 4 measures are below -2 points (S accuracy -2.9, R accuracy -2.5, R Box mean IoU -3.2), by up to 1.2 points beyond it.
+
+### 10.5 Where the picture is read: budgets, and why the 12B refuses 1,120
+
+An image is read at a fixed number of soft tokens, `--image-budget`: 70, 140, 280, 560 or 1,120.
+A larger budget gives small objects more tokens and costs more prefill per image.
+On Gemma 4's sliding-window layers the window is 1,024 tokens, and the block of an image at budget 1,120 is up to 1,122 tokens, longer than the window.
+On the 12B the rows at the top of the picture then fall out of reach of the tokens that follow.
+The 31B reads pictures through its own vision encoder and is not affected.
+The corner probe puts a black square in each corner of a white image and asks top or bottom and left or right; a model that has lost the vertical axis answers "bottom" for a top square.
+
+| model and budget | corner probe, passed of 8 |
+| --- | ---: |
+| 12B base, 280 | 8 |
+| 12B base, 560 | 8 |
+| 12B base, 1,120 | 6 |
+| tuned 12B | 8 |
+| 31B base, 280 | 8 |
+| 31B base, 1,120 | 8 |
+
+What the budgets measured, from the tables above:
+- On the 12B, 560 against 280: the decisions of 10.2 are about equal and Box is better (S mean IoU 0.925 against 0.862), at 117 / 155 ms for one image against 85 / 95 ms (median / 95th percentile).
+- On the 12B, 1,120 collapses the reading: the corner probe fails, S mean IoU falls to 0.046 and the decisions fall below those at 280.
+- On the 31B, 1,120 against 280: a small Box gain (S mean IoU 0.915 against 0.886) at about 3.5 times the first-read latency (504 / 514 ms for one image against 143 / 145 ms).
+
+decisio therefore refuses `--image-budget 1120` at start on the 12B (a rule by architecture: the window above) and takes every budget on the 31B.
+The default budget follows these figures, per base: 560 on the 12B (Box mean IoU 0.925 against 0.862 at 280, decisions within about 2 points, and about 1.8 times the tokens of a one-image request, 619 against 346) and 280 on the 31B, where 1,120 is an opt-in (a small Box gain at about 3.5 times the latency).
+Detail that needs more tokens is better served by cropping to the region and asking again: the answers' fractions then refer to the crop (`docs/box.md`).
+
+### 10.6 Text answers with images on
+
+The same 200 text-only requests (100 yes/no from BoolQ and 100 choice among 77 options from BANKING77) were answered with `--images off` and with `--images on`.
+Two starts of the same model differ by themselves, so the reference for "unchanged" is the largest difference between two starts of the same kind: two images-off starts for the tuned 12B and the 31B, two images-on starts for the 12B (it has no second images-off start).
+
+| model | start | max abs difference in a probability | choices changed | between two starts of the same kind, max / changed |
+| --- | --- | ---: | ---: | --- |
+| 12B base | images on, budget 280 | 0.1475 | 2 | 0.1216 / 1 |
+| tuned 12B | images on, budget 280 | 0.0344 | 2 | 0.0729 / 0 |
+| 31B base | images on, budget 280 | 0.4618 | 7 | 0.1341 / 1 |
+| 31B base | images on, budget 1,120 | 0.1324 | 3 | 0.1341 / 1 |
+
+On the 12B and the tuned 12B the largest differences are of the size of the start-to-start spread, and 2 choices of 200 changed on each.
+The 12B's spread between starts is a fact about the 12B, not about images.
+On the 31B the class switch at budget 280 moved BANKING77 from 73 to 69 right answers of 100 (BoolQ unchanged at 90), a change beyond its spread between two images-off starts (both 73).
+At budget 1,120 the 31B's largest difference is within that spread (0.1324 against 0.1341), and BANKING77 is 71 of 100.
+A deployment that serves mostly text on the 31B can keep images off, or serve images from a separate server.
+
+### 10.7 Memory and first-read latency
+
+Start-up memory is the GPU memory in use once the server answers, and the peak during the start, for each start.
+
+| model | start | ready | seconds to ready | GPU MiB after ready | peak MiB during the start |
+| --- | --- | --- | ---: | ---: | ---: |
+| 12B base | images off | yes | 192 | 86,705 | 88,067 |
+| 12B base | images on, 280, 16 images | yes | 210 | 86,759 | 88,025 |
+| 12B base | images on, 560, 16 images | yes | 212 | 86,761 | 88,027 |
+| 12B base | images on, 1,120, 16 images | yes | 210 | 86,763 | 88,029 |
+| 12B base | images on, 1,120, 128 images | yes | 210 | 86,763 | 88,029 |
+| tuned 12B | images off | yes | 192 | 86,705 | 88,067 |
+| tuned 12B | images on, tuned start | yes | 211 | 86,759 | 88,025 |
+| tuned 12B | images on, 1,120, 128 images | yes | 210 | 86,763 | 88,029 |
+| 31B base | images off | yes | 254 | 85,611 | 88,529 |
+| 31B base | images on, 280, 16 images | yes | 290 | 85,887 | 88,639 |
+| 31B base | images on, 1,120, 16 images | yes | 293 | 86,367 | 88,627 |
+| 31B base | images on, 1,120, 128 images | yes | 293 | 86,367 | 88,627 |
+
+First-read latency is the end-to-end time of a request whose text and images are new to the server (nothing is read from the cache), median / 95th percentile in milliseconds over 20 requests, one request at a time; images are generated 512 by 512 pictures at the start's budget.
+
+| model and budget | 1 image | 4 images | 16 images | request tokens per added image |
+| --- | ---: | ---: | ---: | ---: |
+| 12B base, 280 | 85 / 95 | 202 / 220 | 727 / 768 | 264 |
+| 12B base, 560 | 117 / 155 | 353 / 419 | 1,379 / 1,557 | 537 |
+| 12B base, 1,120 | 174 / 176 | 633 / 660 | 2,905 / 2,947 | 1,097 |
+| tuned 12B | 86 / 95 | 204 / 219 | 732 / 802 | 264 |
+| 31B base, 280 | 143 / 145 | 372 / 374 | 1,426 / 1,460 | 264 |
+| 31B base, 1,120 | 504 / 514 | 1,955 / 1,991 | 8,728 / 8,783 | 1,097 |
+
+A request's tokens for one image include its text (346 at 280 and 1,179 at 1,120); each added image costs the figure in the last column, a few more than the image's own tokens counted in `docs/api.md`.
+
+A Box question on one image takes 914 ms on the 12B base at 280 and 1,168 ms on the 31B.
+A second question on the same pictures reads them from the cache: 22 of 22 requests did, and a probability changed by at most 0.0174 against the first read.
+
+### 10.8 What was fitted on what
+
+| Component | Fitted or chosen on |
+| --- | --- |
+| Model weights | nothing by us for the images: the vision weights are Google's; the tuned 12B's language-model weights were trained on text only |
+| Image temperature, one per model | the calibration half's noul and choice items, by minimum log loss on the model's own answers at its budget; no reporting item and no JevBench or Decision Index item; the 31B's image answers are read at its text temperatures times its fitted scale (1.376), and the Qwen route's placed layout is read at the temperature 0.80 itself (its legacy layout stays at 1.0); the 12B and the tuned 12B apply none, because their fits gained under 0.005 in log loss |
+| Box confidence map | not fitted in this run: `confidence` is the uncalibrated product of 10.3, and `--box-confidence FILE` loads a map |
+| Default image budget | the figures in 10.2, 10.3 and 10.5 |
+
+| model and budget | image temperature | calibration log loss before / after | reporting log loss before / after |
+| --- | ---: | --- | --- |
+| 12B base, 280 | 1.045 | 0.325 / 0.325 | 0.293 / 0.293 |
+| 12B base, 560 | 1.062 | 0.322 / 0.321 | 0.298 / 0.299 |
+| 12B base, 1,120 | 1.105 | 0.688 / 0.686 | 0.672 / 0.671 |
+| tuned 12B | 0.866 | 0.323 / 0.319 | 0.301 / 0.296 |
+| 31B base, 280 | 1.376 | 0.359 / 0.328 | 0.362 / 0.333 |
+| 31B base, 1,120 | 1.333 | 0.343 / 0.318 | 0.338 / 0.314 |
+
+The text temperature (sections 6.4 and 7.4) is unchanged for requests without pictures.
+
+### 10.9 The Box estimator, checked against the exact digit tree
+
+A Box coordinate is written as digits, one token each, so its expected value is a sum over a tree of digit sequences.
+The server follows the model's greedy path and expands the other branches whose probability is at least 0.05 with short extra decodes on the cached prefix, up to 16 per question.
+The check compares that served value, and the plain greedy value, with the exact expectation over the whole tree on 200 coordinates of the 12B base at budget 280, in fractions of the image.
+
+| estimator | mean error | 99th percentile | largest |
+| --- | ---: | ---: | ---: |
+| served (greedy path plus expanded branches) | 0.0002 | 0.0048 | 0.0056 |
+| plain greedy value | 0.0011 | 0.0268 | 0.0932 |
+
+The rows count the 196 coordinates whose exact tree is complete (mass at least 0.99); 4 coordinates hit the 64-decode cap and have no exact reference.
+The rule written before the run was a mean error of at most 0.005 and a 99th percentile of at most 0.02, judged on the complete trees only.
+
+### 10.10 The Qwen base's image route: placed layout against the legacy one
+
+`--image-model` serves the Qwen base's pictures.
+Its new layout puts each image at the place its reference stands and keeps a question's own picture to that question; the legacy layout (`--image-prompt legacy`) puts every image at the start of the prompt.
+These are paired differences, new minus legacy, on the reporting half of S and I, with 95% bootstrap intervals.
+
+| measure | n | new minus legacy | 95% interval |
+| --- | ---: | ---: | --- |
+| S decisions, accuracy | 208 | +0.062 | [+0.029, +0.101] |
+| I decisions, accuracy | 124 | +0.024 | [-0.016, +0.065] |
+| S decisions, log loss | 208 | -0.150 | [-0.206, -0.099] |
+| I decisions, log loss | 124 | -0.007 | [-0.036, +0.019] |
+
+On the generated items the placed layout reads better, with an interval above zero; on ImajevBench lite the interval includes zero.
+The image temperature fitted on the calibration half is 0.801 for the placed layout and 0.823 for the legacy one; the server reads the placed layout at 0.80 and the legacy layout at 1.0 (see 10.8).
+`--image-model` loads the image engine's model at the revision pinned for its base (or the one `--image-model-revision` names), also from an offline cache, and a model it cannot use stops the start before the text engine compiles.
+
+### 10.11 Limits
+
+- One card, one session, one decisio commit; the figures are the reporting half of the eval set, and a smaller or larger set moves the intervals.
+- The generated part is easier than photographs: read the R rows for real images.
+- Box answers on small objects in a large image are limited by the budget (10.5); crop and ask again.
+- Box `confidence` was not calibrated in this run (10.3), so read it to rank and to compare, not as a probability.
+- A tuned model other than the tuned 12B has not been measured on images.
+- Images are not served with registered tasks, intent heads or thinking when unsure (`docs/api.md`).
+- The text figures of sections 3 to 9 were measured without pictures; 10.6 says how far a text request moves on a server started with `--images on`.
