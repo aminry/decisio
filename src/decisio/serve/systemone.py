@@ -626,6 +626,53 @@ def check_image_part_type(name: str, content_type: str | None) -> None:
         )
 
 
+def place_listed_images(payload: dict, count: int, tag: str):
+    """Images that came as a list (imajev's `images`, multipart parts) carry no place of their own, but the text may
+    name it: a literal "[image N]" in the state or in a question's instructions or criteria is image N's reference
+    position (the first occurrence in reading order: the state, then each question's instructions, then its criteria;
+    a later one stays text, as one image has one place). That occurrence becomes the image's mark, exactly as an asset's
+    placeholder or a data:image URI in the same place does, so every encoding of a picture reads the same. Returns the
+    payload and the numbers of the images with no marker in the text, which open the state."""
+    found: set[int] = set()
+    literal = re.compile(r"\[image (\d+)\]")
+
+    def sub(text: str) -> str:
+        def one(m):
+            n = int(m.group(1))
+            if 1 <= n <= count and n not in found:
+                found.add(n)
+                return marks.mark(n, tag)
+            return m.group(0)
+
+        return literal.sub(one, text) if "[image " in text else text
+
+    def walk(node):
+        if isinstance(node, str):
+            return sub(node)
+        if isinstance(node, list):
+            return [walk(x) for x in node]
+        if isinstance(node, dict):
+            return {k: walk(v) for k, v in node.items()}
+        return node
+
+    out = dict(payload)
+    if "state" in out:
+        out["state"] = walk(out["state"])
+    if isinstance(out.get("questions"), dict):
+        qs = {}
+        for qname, q in out["questions"].items():
+            if isinstance(q, dict):
+                q = dict(q)
+                if "instructions" in q:
+                    q["instructions"] = walk(q["instructions"])
+                if isinstance(q.get("criteria"), (dict, list)):
+                    c = q["criteria"]
+                    q["criteria"] = {k: walk(v) for k, v in c.items()} if isinstance(c, dict) else walk(c)
+            qs[qname] = q
+        out["questions"] = qs
+    return out, [i for i in range(1, count + 1) if i not in found]
+
+
 def bind_assets(
     payload: dict,
     parts: dict[str, bytes] | None = None,
@@ -908,6 +955,8 @@ class SystemOne:
         # the temperature of a request with images on a Gemma base (`--images on`); None reads it at the text route's
         # own temperatures. Not fitted on images (decisio.families, `image_temperature`)
         self.image_temperature = None if image_temperature is None else float(image_temperature)
+        # --image-prompt legacy (deprecated): requests served on the old layout, for the notice's log line
+        self.legacy_image_requests = 0
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
         # the choice temperature by the question's number of options, {"lo-hi": temperature}, replacing the choice
@@ -1492,6 +1541,32 @@ class SystemOne:
         text route's prompt, tasks aside."""
         return self.image_engine is None and getattr(self.engine, "images_enabled", False)
 
+    def images_placed(self) -> bool:
+        """Whether the engine that reads a request's images writes each at its place in the text (a mark,
+        decisio.serve.image_marks): the Gemma engine with `--images on`, and the `--image-model` engine unless it is
+        started with `--image-prompt legacy`."""
+        return bool(getattr(self.image_engine or self.engine, "images_placed", False)) and (
+            self.image_engine is not None or self.reads_images_itself()
+        )
+
+    def legacy_images(self) -> bool:
+        """Whether the `--image-model` engine writes images in the deprecated layout (`--image-prompt legacy`)."""
+        return self.image_engine is not None and getattr(self.image_engine, "image_prompt", "placed") == "legacy"
+
+    LEGACY_NOTICE_EVERY = 1000  # the deprecation log line: the first legacy request and every this many after it
+    LEGACY_WARNING = (
+        "--image-prompt legacy is deprecated: images at the start of the turn, visible to every question, "
+        "are removed in a later release; drop the flag to read each image at its place (docs/upgrading.md)"
+    )
+
+    def note_legacy_request(self) -> None:
+        """Counts a request answered on the legacy image layout and logs the deprecation on the first and then once per
+        `LEGACY_NOTICE_EVERY` requests, never once per request."""
+        self.legacy_image_requests += 1
+        n = self.legacy_image_requests
+        if n == 1 or n % self.LEGACY_NOTICE_EVERY == 0:
+            logger.warning("%s (%d request%s so far)", self.LEGACY_WARNING, n, "" if n == 1 else "s")
+
     def image_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
         """The temperature a question of a request with images is served at: the named adapter's own (an adapter's
         temperatures are fitted on its own reads), else `image_temperature` where the base has one, else the text
@@ -1533,6 +1608,7 @@ class SystemOne:
         own = self.reads_images_itself()
         with_images = own and bool(images)
         use_image = (bool(images) or route == "image") and not own
+        tagged = bool(images) and (with_images or (use_image and self.images_placed()))  # the images have marks
         if use_image and self.image_engine is None:
             raise ValueError("this server has no image engine (start it with --images on, or --image-model)")
         no_tasks = use_image or with_images  # no registered task was fitted on pictures
@@ -1669,7 +1745,7 @@ class SystemOne:
         if engine_qs:
             if images:
                 probs, info = engine.answer(
-                    req.state, engine_qs, adapter, images=images, **({"tag": image_tag} if with_images else {})
+                    req.state, engine_qs, adapter, images=images, **({"tag": image_tag} if tagged else {})
                 )
             else:
                 probs, info = engine.answer(read, engine_qs, adapter)
@@ -1868,7 +1944,7 @@ class SystemOne:
                 self.usage_tokens(
                     marks.without_marks(read, image_tag), marks.without_marks(qs, image_tag), header_lines
                 )
-                if with_images
+                if tagged
                 else self.usage_tokens(read, qs, header_lines)
             )
             + sum(info.get("image_tokens") or []),
@@ -3790,7 +3866,7 @@ class SystemOne:
             out.update(unknown_probability=float(p[idx]), abstained=bool(abstain))
         return out
 
-    def score_example(self, req: SystemOneRequest, images, option: dict, imajev_ext: bool):
+    def score_example(self, req: SystemOneRequest, images, option: dict, imajev_ext: bool, tag: str | None = None):
         """One labelled example of a task, scored exactly as served: (p with the abstain option, its index, keys with
         it, the plain behaviour's distribution and keys). Declared option: one scoring, plain is the argmax over the
         customer's options. Appended option: scored with and without it (plain is the question without it)."""
@@ -3809,7 +3885,7 @@ class SystemOne:
         eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
         engine = self.image_engine if images else self.engine
         run = (
-            (lambda qs: engine.answer(req.state, qs, None, images=images))
+            (lambda qs: engine.answer(req.state, qs, None, images=images, **({"tag": tag} if tag else {})))
             if images
             else (lambda qs: engine.answer(req.state, qs, None))
         )
@@ -3829,7 +3905,7 @@ class SystemOne:
     @_in_layout
     @_serial
     def register_task(self, task_id: str, option: dict, match: str, examples: list[tuple]) -> dict:
-        """Fit and store a task from labelled examples [(request, images, imajev_ext, gold)], gold None for
+        """Fit and store a task from labelled examples [(request, images, imajev_ext, gold, tag)], gold None for
         unanswerable (decisio.serve.abstention.fit, its acceptance rule)."""
         from decisio.serve.abstention import decide, fit
 
@@ -3841,8 +3917,8 @@ class SystemOne:
         if option.get("append") and match != "imajev_extension" and not all(e[2] for e in examples):
             raise ValueError("an appended abstain option is answered only through imajev's extension")
         p_abs, unans, ok, plain_right, plain_false, fps, kps = [], [], [], [], [], set(), set()
-        for req, images, ext, gold in examples:
-            q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext)
+        for req, images, ext, gold, tag in examples:
+            q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext, tag)
             fps.add(option_set(q, self.described(q)))
             kps.add(option_keys(q))
             gold_key = gold_key_of(q, gold)
@@ -4071,14 +4147,17 @@ def add_routes(app, systemone: SystemOne):
                 blobs += [decode_data_url(u) for u in imgs]
             except (ValueError, TypeError) as e:
                 raise HTTPException(422, str(e))
-        # a server whose own engine reads images puts each at its place in the text (a mark, image_marks); the second
-        # engine's route writes "[image N]" and puts the images first
-        placed = systemone.reads_images_itself()
+        # a server that reads images puts each at its place in the text (a mark, image_marks); only the deprecated
+        # `--image-prompt legacy` layout of the second engine writes "[image N]" and puts the images first
+        placed = systemone.images_placed()
         tag = marks.new_tag()  # this request's marks carry it; no text of the request can contain it
         if "assets" in payload:  # System One's images; the imajev encodings are not read beside them
             payload, blobs, legends = bind_assets(payload, parts, placed=placed, tag=tag)
             return payload, blobs, False, legends, True, tag
-        lead = len(blobs)  # images that came as a list or as parts have no place of their own
+        lead = len(blobs)  # images that came as a list or as parts: a literal "[image N]" names the place, else none
+        opening = list(range(1, lead + 1))
+        if placed and lead and systemone.image_engine is not None:  # the Qwen route only; Gemma opens the state
+            payload, opening = place_listed_images(payload, lead, tag)
         if payload.get("state") is not None:
             original = payload["state"]
             payload["state"], found = extract_state_images(original)
@@ -4090,9 +4169,9 @@ def add_routes(app, systemone: SystemOne):
                     blobs += [decode_data_url(u) for u in found]
                 except (ValueError, TypeError) as e:
                     raise HTTPException(422, f"image in the state: {e}")
-        if placed and blobs and lead and payload.get("state") is not None:
-            # the leading images open the state, as the second engine's route opens the user turn with them
-            head = "".join(marks.mark(i, tag) for i in range(1, lead + 1))
+        if placed and opening and payload.get("state") is not None:
+            # the listed images that no text places open the state
+            head = "".join(marks.mark(i, tag) for i in opening)
             payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
         return payload, blobs, ext, {}, False, tag
 
@@ -4185,6 +4264,10 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if timing.get("warning"):  # the request was served as sent; something in it is likely a mistake
             headers[header("warning")] = timing["warning"]
+        if images and systemone.legacy_images():  # the old layout: served as asked, and said to be going away
+            headers["Deprecation"] = "true"
+            headers["Warning"] = f'299 - "{systemone.LEGACY_WARNING}"'
+            systemone.note_legacy_request()
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
         # what the prompt cost: the layout, the mean prompt tokens per question and how many of them the cache served
@@ -4301,18 +4384,30 @@ def add_routes(app, systemone: SystemOne):
             example_layout(payload, f"example {n}", layout or systemone.layout)
             ext = "images" in payload
             imgs = payload.pop("images", None) or []
+            placed = systemone.images_placed()  # an example is read as a request is: each image at its place
+            tag = marks.new_tag()
             try:
                 if "assets" in payload:
                     if imgs:
                         raise ValueError('a request carries its images in "assets" or in "images", not both')
-                    payload, blobs, _ = bind_assets(payload)
+                    payload, blobs, _ = bind_assets(payload, placed=placed, tag=tag)
                     ext = False
                 else:
                     blobs = [decode_data_url(u) for u in imgs]
+                lead = len(blobs) if "assets" not in ex.get("request", {}) else 0
+                opening = list(range(1, lead + 1))
+                if placed and lead and systemone.image_engine is not None:  # the Qwen route only
+                    payload, opening = place_listed_images(payload, lead, tag)
                 if "assets" not in ex.get("request", {}) and payload.get("state") is not None:
-                    payload["state"], found = extract_state_images(payload["state"])
+                    original = payload["state"]
+                    payload["state"], found = extract_state_images(original)
+                    if found and placed:
+                        payload["state"], _ = extract_state_images(original, True, lead + 1, tag)
                     ext = ext or bool(found)
                     blobs += [decode_data_url(u) for u in found]
+                if placed and opening and payload.get("state") is not None:
+                    head = "".join(marks.mark(i, tag) for i in opening)
+                    payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
                 limit = getattr(systemone.image_engine, "max_images", DEFAULT_MAX_IMAGES)
                 if len(blobs) > limit:
                     raise ValueError(f"at most {limit} images per request")
@@ -4326,7 +4421,7 @@ def add_routes(app, systemone: SystemOne):
                     f"example {n}: an image example is read by the image route, which has no layout: register the "
                     'task without "layout"',
                 )
-            examples.append((req, images, ext, ex.get("answer")))
+            examples.append((req, images, ext, ex.get("answer"), tag if placed else None))
         try:
             task = await run_in_threadpool(
                 functools.partial(systemone.register_task, layout=layout),

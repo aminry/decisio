@@ -594,6 +594,29 @@ def test_g10_every_encoding_reaches_the_engine_with_its_images_in_place():
     assert pic.size == (96, 96)
 
 
+def test_g10_listed_images_open_the_state_and_a_literal_marker_stays_text():
+    """On a Gemma base the `images` list is placed as it always was: every listed image opens the state, and a literal
+    "[image 1]" in the text is plain text, not a place (only the Qwen `--image-model` route reads it as one). The
+    request's token ids are the state with the image's mark first, then a newline, then the text as written."""
+    from decisio.readout.letters import fmt_state
+
+    e = make_engine()
+    client, so = make_client(e)
+    url = "data:image/png;base64," + base64.b64encode(png(96, 96)).decode()
+    qs = {"q": {"type": "noul", "instructions": "Is it a mug?"}}
+    e.scored_rows.clear()
+    r = client.post("/v1/systemone", json={"state": "Photo: [image 1]", "questions": qs, "images": [url]})
+    assert r.status_code == 200, r.text
+    sent = e.scored_rows[-1][0]
+    question = [{"kind": "noul", "instructions": "Is it a mug?"}]
+    state = f"{marks.mark(1, TAG)}\n{fmt_state('Photo: [image 1]')}"
+    want = e._prepare_images(state, [picture()], question, TAG)[0][0][0]
+    assert sent == want  # the same token ids: the image first, "Photo: [image 1]" as plain words after it
+    assert sent.count(e.image_token_id) == 1
+    assert "Photo" not in e.tok.decode(sent[: sent.index(e.image_token_id)])  # the image comes before the text
+    assert "[image 1]" in e.tok.decode(sent)
+
+
 def test_g10_an_asset_in_a_question_reaches_only_that_question():
     e = make_engine()
     client, _ = make_client(e)
@@ -656,6 +679,7 @@ def test_g12_health_reports_the_image_settings():
         "enabled": True,
         "route": "second engine (--image-model)",
         "max_images": 9,
+        "prompt": "placed",
         "box": False,
     }
 

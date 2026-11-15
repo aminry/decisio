@@ -36,6 +36,12 @@ uv run python -m decisio.serve.vllm_engine
 - `patches/` holds an optional latency patch series, off by default and not needed for correct answers (`patches/README.md`).
 - The server refuses to start when `VLLM_USE_DEEP_GEMM` is set to anything other than `0`, unless `--allow-deep-gemm` is given.
 - It listens on `127.0.0.1:8000` (`--host`, `--port`); put a reverse proxy in front of it to expose it.
+- `--image-prompt placed|legacy` (with `--image-model`, `placed` by default) chooses how the Qwen image route writes images into the prompt.
+  `placed` puts each image where its reference stands and shows a question's own image to that question only, as the Gemma bases do (`docs/api.md`); the vision tokens, the Qwen processor's token counts, M-RoPE, the separate engine and the 1,056-token block padding are unchanged.
+  `legacy` is the earlier layout, every image at the start of the turn and visible to every question; it is deprecated and removed in a later release.
+  With it every image response carries `Deprecation` and `Warning` headers and the server logs a warning at start and once for every 1,000 such requests.
+  The Qwen route's measured figures were taken on the legacy layout and are not yet measured on the placed one.
+  Box questions need a Gemma base: on the Qwen base they are refused with 400.
 - `--image-model` adds a second engine on the same card for requests that carry images. The two engines default to the shares they were measured with, 0.47 for the text engine and 0.49 for the image engine (`EVAL_CARD.md` section 1); a pair that cannot fit, such as the text engine given at 0.90 beside the image engine's default, is refused at start, before either is loaded; the start prints the shares it uses (`ENGINE SHARES`). `--one-engine` serves both routes from the image engine alone, at `--gpu-memory-utilization`.
 - The image engine loads its checkpoint at a pinned revision, as the text engine does.
   `--image-model-revision` gives it; without it, an image model that is a base's own checkpoint (such as `Qwen/Qwen3.6-35B-A3B-FP8`) takes that base's pinned revision, and any other checkpoint is read at its hub head.

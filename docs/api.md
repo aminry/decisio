@@ -57,7 +57,7 @@ A request of either layout is built token for token as a server started with tha
 - The response says the layout it was read under in `x-decisio-prompt` (`layout=plain; ...`).
 - An adapter, a tuned repository, the temperatures file (`--temperatures-file`) or a flavor that recorded another layout than the request's still answers, as asked, and the response carries `"layout_note"`, for example `"the adapter n1 was trained, and its temperatures fitted, under the header layout"`.
   It is absent when nothing differs.
-- A request with images has no layout on the `--image-model` route (it builds its own prompt): the field is 422 there.
+- A request with images has no layout on the `--image-model` route (it writes its prompts in the plain layout): the field is 422 there.
   With `--images on` on a Gemma base the layout applies to images as to text.
   A server in `--mode packed` reads the plain layout only, so `"header"` is 422 there.
 - The two layouts share no cached prefix for a state: a client that alternates them reads the state again on each change ([running.md](running.md#the-header-layout---layout)).
@@ -114,10 +114,25 @@ The route's own image limits (20 MB and 20 megapixels per image, the engine's `-
 System One's `TypeSafe-Danger-Zone-Images` header (any value) is accepted and never required: a request without it is read the same way.
 A calibration or head task's examples (`POST /v1/tasks`) are text only and refuse `assets`; the examples of `POST /v1/abstention/tasks` may carry them.
 
+Where an image stands, and who reads it (the Qwen base, `--image-model`; the same rules as the Gemma bases below).
+An image is read at the place its reference stands: a placeholder of `assets`, a `data:image` URI in the state, or, for the `images` list and the multipart `image` parts, a literal `[image N]` in the state or in a question's instructions or criteria (the first occurrence of each is its place; a later one stays text).
+An image of the list that no `[image N]` names opens the state.
+Every encoding of one picture therefore reads the same.
+An image in the state is in the prompt every question shares, so it is read from the prefix cache after the first question.
+An image in a question's instructions or criteria is in that question's own part of the prompt only: no other question's prompt, tokens or `usage.input_tokens` carry it.
+The prefix is padded to the engine's block and ends after the state's last image, never inside it.
+`usage.input_tokens` is the request's text plus each image's tokens, the state's once and a question's own once.
+A `box` question is refused with 400 on this route ("Box questions are not answered on the --image-model route; serve a Gemma 4 base with --images on"); Box needs a Gemma base, and the Qwen base's grounding is not verified.
+
+Deprecated: the earlier layout of this route, every image at the start of the turn and so visible to every question, stays for a notice period as `--image-prompt legacy` and is removed in a later release (`docs/upgrading.md`).
+With it every response to a request with images carries `Deprecation: true` and `Warning: 299 - "..."` headers, and the server logs a warning when it starts and once for every 1,000 such requests.
+The figures this route has measured so far (ImajevBench, the image temperature of 1.0) were taken on that layout.
+They are not yet measured on the placed layout, and a new measurement follows; until then they describe the legacy layout only.
+
 What an image costs and where it is cut down (the image route runs on the Qwen base, `--image-model Qwen/Qwen3.6-35B-A3B-FP8`; the numbers are that model's processor settings and `smart_resize` from the pinned transformers, computed on 2026-10-14):
 - An image over 20 MiB, or over 20 megapixels (width times height), or in another format, is refused with 422 (`bad image: ...`) before it is read; a request with more images than `--max-images` (128 unless set) is a 400 `api_usage_error`, as the paragraph above says.
 - The processor then resizes the image, keeping its proportions and rounding both sides to multiples of 32, so that it has between 65,536 pixels (256 by 256) and 16,777,216 (4,096 by 4,096). An image of 200 by 200 is read as 256 by 256; one of 4,000 by 6,000 as 3,328 by 4,992.
-- Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context that a server with `--image-model` serves: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224).
+- Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context that a server with `--image-model` serves: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224), plus the two vision delimiter tokens around each image (`usage.input_tokens` counts them, as it counts the Gemma bases' begin and end tokens).
 - The Ollama listings are not this route. `ollama show` (2026-10-14) lists the Qwen listing `aminroudaki/decisio` with the capabilities `decision` and `vision`, and the Gemma listing `aminroudaki/decisio-gemma` (every tag) with `decision` only. Whether the Qwen listing's image answers match this route's was not measured.
 
 ### Images on Gemma 4 (`--images on`)

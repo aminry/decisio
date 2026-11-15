@@ -112,6 +112,7 @@ Where the columns differ, the value is the base's.
 | Flag | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` | What it does |
 | --- | --- | --- | --- | --- |
 | `--image-model` | none | none | none | the full multimodal checkpoint, as a second engine serving only requests that carry images; measured with the Qwen base only |
+| `--image-prompt` | placed | placed | placed | with `--image-model`: `placed` reads each image at its place and a question's own image in that question only, as on the Gemma bases; `legacy` (deprecated, removed in a later release) puts every image at the start of the turn, visible to every question, and marks every image response with `Deprecation` and `Warning` headers |
 | `--max-images` | 128 | 128 | 128 | with `--image-model`: the most images one request may carry (128 images of 512 by 512 pixels fill the context, so for photos the context ends a request; lower it to save multimodal profiling memory at start-up, raise it for smaller images) |
 | `--image-gpu-memory-utilization` | 0.49 | 0.49 | 0.49 | the image engine's share of the card, beside the text engine's 0.47; a pair with a default in it may total at most 0.96, a pair given in full at most 1.0 |
 | `--one-engine` | off | off | off | load only the image engine and serve text requests on it too, for a card that cannot hold both; changes the text route's class |

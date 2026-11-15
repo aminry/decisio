@@ -2155,6 +2155,7 @@ def images_facts(engine, image_engine=None, systemone=None) -> dict:
             "enabled": True,
             "route": "second engine (--image-model)",
             "max_images": getattr(image_engine, "max_images", None),
+            "prompt": getattr(image_engine, "image_prompt", "placed"),
             "box": False,
         }
     return {"enabled": False, "box": False}
@@ -2752,6 +2753,16 @@ def build_parser():
         default=None,
         help="the --image-model checkpoint's revision on the Hugging Face hub (default: the pinned revision of the "
         "base whose checkpoint it is, else the hub's head; a local directory has none)",
+    )
+    ap.add_argument(
+        "--image-prompt",
+        choices=("placed", "legacy"),
+        default="placed",
+        help="with --image-model: how the Qwen route writes a request's images into the prompt. placed (the default): "
+        "each image at its place in the state or in one question's text, and a question's own image visible to that "
+        "question only, as on the Gemma bases. legacy (deprecated, removed in a later release): every image at the "
+        "start of the turn, visible to every question; every image response then carries Deprecation and Warning "
+        "headers, and the server logs a warning",
     )
     ap.add_argument(
         "--max-images",
@@ -3434,6 +3445,8 @@ def main():
         )
     except ValueError as e:
         ap.error(str(e))
+    if args.image_prompt != "placed" and not args.image_model:
+        ap.error("--image-prompt legacy needs --image-model (it is the Qwen image route's old layout)")
     if args.max_images is not None and not (args.image_model or args.images == "on"):
         ap.error("--max-images needs --image-model or --images on")
     if args.max_images is not None and args.max_images < 1:
@@ -3523,13 +3536,18 @@ def main():
             from decisio.serve.hf_letters import HFImageLettersEngine
 
             engine = HFImageLettersEngine(
-                args.image_model, pad_to=pad_to, pad_where=args.pad_where, revision=args.image_revision
+                args.image_model,
+                pad_to=pad_to,
+                pad_where=args.pad_where,
+                revision=args.image_revision,
+                image_prompt=args.image_prompt,
             )
         else:
             from decisio.serve.image_engine import ImageLettersEngine
 
             engine = ImageLettersEngine(
                 args.image_model,
+                image_prompt=args.image_prompt,
                 **({"max_images": args.max_images} if args.max_images is not None else {}),
                 revision=args.image_revision,
                 pad_to=pad_to,
@@ -3647,13 +3665,18 @@ def main():
             from decisio.serve.hf_letters import HFImageLettersEngine
 
             image_engine = HFImageLettersEngine(
-                args.image_model, pad_to=pad_to, pad_where=args.pad_where, revision=args.image_revision
+                args.image_model,
+                pad_to=pad_to,
+                pad_where=args.pad_where,
+                revision=args.image_revision,
+                image_prompt=args.image_prompt,
             )
         else:
             from decisio.serve.image_engine import ImageLettersEngine
 
             image_engine = ImageLettersEngine(
                 args.image_model,
+                image_prompt=args.image_prompt,
                 **({"max_images": args.max_images} if args.max_images is not None else {}),
                 revision=args.image_revision,
                 pad_to=pad_to,
@@ -3662,6 +3685,10 @@ def main():
                 engine_kw=json.loads(args.engine),
             )
         print("IMAGE ENGINE", json.dumps(image_engine.facts()), flush=True)
+    if getattr(image_engine, "image_prompt", "placed") == "legacy":
+        from decisio.serve.systemone import SystemOne as _SystemOne
+
+        print(f"decisio: DEPRECATED: {_SystemOne.LEGACY_WARNING}", flush=True)
     hidden_engine = None
     if head_mode == "single-engine":
         if args.backend == "mlx":

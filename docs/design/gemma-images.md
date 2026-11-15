@@ -14,6 +14,7 @@ The 12B (`gemma4_unified`) has no vision tower: its image path is a linear proje
 The 31B (`gemma4`) has a SigLIP-style tower that its text route leaves out by loading vLLM's text class.
 `--images on` loads the multimodal class instead, so one set of weights serves text and images.
 A second engine, as the Qwen route has, would load the 31B twice.
+The placement, scope and cache-boundary rules below are shared code (`decisio.serve.placed_images`), and the Qwen route's second engine uses them too; what is Gemma's is the placeholder, the soft-token arithmetic and the engine.
 The text-only class's weight rule (`decisio.vllm_plugin.weights.without_vision`) matches Qwen's `visual.` names only, and the Gemma classes do not use it: vLLM's own Gemma 4 text class skips the checkpoint's `vision_tower`, `embed_vision`, `audio_tower` and `embed_audio` tensors itself, so nothing in the 31B path depends on that rule.
 
 ## Where an image stands

@@ -3,7 +3,8 @@
 """System One's `assets` (placeholders bound to images) on `/v1/systemone`, with fake engines that record what they get.
 
 A1  an image sent through `assets` reaches the image engine exactly as the same image sent through the encodings
-    decisio already had: the same state, the same question texts and the same image, so the same probabilities
+    decisio already had: the same state, the same question texts and the same image, so the same probabilities; the
+    engine gets each image as a mark at its place, which the fake records as "[image N]"
 A2  a placeholder is found in the state (a string, inside a string, inside an object or an array), in a question's
     instructions and in its criteria descriptions (choice, noul, score), not in option keys; longest name first
 A3  a placeholder used twice is two images, in reading order; the count is the engine's (`max_images`), not a fixed 2
@@ -32,6 +33,7 @@ import base64
 import hashlib
 import io
 import json
+import re
 import zlib
 from pathlib import Path
 
@@ -76,6 +78,7 @@ class Fake:
     multi_question = "sequential"
     pad_policy = "always"
     adapters = {}
+    images_placed = True  # the engine reads each image at its place (a mark), as the served engines do by default
 
     def __init__(self):
         self.calls = []
@@ -86,7 +89,11 @@ class Fake:
     def _prepare_separate(self, state, questions):
         return ([1, 2, 3, len(questions)],)
 
-    def answer(self, state, questions, adapter=None, images=None):
+    def answer(self, state, questions, adapter=None, images=None, tag=None):
+        if tag:  # the request's marks, recorded as the text a person reads: "[image N]"
+            seen_marks = re.compile(re.escape(f"\u27e6image:{tag}:") + r"(\d+)" + re.escape("\u27e7"))
+            plain = lambda x: json.loads(seen_marks.sub(r"[image \1]", json.dumps(x, ensure_ascii=False)))  # noqa: E731
+            state, questions = plain(state), plain(questions)
         # the probabilities depend on everything the engine is given, so equal probabilities mean equal input
         seen = [hashlib.sha256(i.tobytes()).hexdigest()[:8] for i in images or []]
         self.calls.append({"state": state, "questions": json.loads(json.dumps(questions)), "images": seen})
@@ -431,3 +438,19 @@ def test_a15_the_images_header_is_accepted_and_never_required():
         headers={"TypeSafe-Danger-Zone-Images": "true"},
     )
     assert mp.status_code == 200 and probs(mp) == probs(plain)
+
+
+def test_a16_listed_images_are_placed_by_a_literal_marker_or_open_the_state():
+    """The `images` list names an image's place with "[image N]" in the text, as an asset's placeholder or a data:image
+    URI does; an image no marker names opens the state."""
+    c, text, img = make()
+    r = c.post("/v1/systemone", json=req("a [image 2] b [image 1]", images=[data_url(RED), data_url(BLUE)]))
+    assert (
+        r.status_code == 200
+        and img.calls[-1]["state"] == "a [image 2] b [image 1]"
+        and len(img.calls[-1]["images"]) == 2
+    )
+    r = c.post("/v1/systemone", json=req("no marker here", images=[data_url(RED)]))
+    assert r.status_code == 200 and img.calls[-1]["state"] == "[image 1]\nno marker here"
+    r = c.post("/v1/systemone", json=req("only [image 2]", images=[data_url(RED), data_url(BLUE)]))
+    assert r.status_code == 200 and img.calls[-1]["state"] == "[image 1]\nonly [image 2]"

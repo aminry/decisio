@@ -116,8 +116,10 @@ def test_X3_no_request_controlled_engine_options_and_no_vllm_server():
 def test_X4_multimodal_ids_come_from_the_decoded_pixels():
     src = (SRC / "serve" / "image_engine.py").read_text()
     assert 'mm_uuids={"image": ids}' in src and "ids = [self.image_id(img) for img in images]" in src
+    shared = (SRC / "serve" / "placed_images.py").read_text()  # the placed layout's ids come from the same function
+    assert "ident = [image_id(img) for img in images]" in shared
     body = ast.get_source_segment(
-        src, next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "image_id")
+        shared, next(n for n in ast.walk(ast.parse(shared)) if isinstance(n, ast.FunctionDef) and n.name == "image_id")
     )
     assert "hashlib.sha256(img.tobytes())" in body
     # the only places that put multi_modal_uuids on a prompt take the argument the image engine passes

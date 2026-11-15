@@ -2,6 +2,9 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """Image requests on the Gemma 4 bases (`--images on`): the same engine that reads text reads the pictures.
 
+The placement, scope and cache-boundary rules are shared with the Qwen route (`decisio.serve.placed_images`); this
+module is what is Gemma's: the placeholder, the soft-token arithmetic, the engine.
+
 A request's text carries its images as marks (`decisio.serve.image_marks`): one where each image's reference stands,
 in the state or in one question's own text. This module renders the text exactly as the text route does (system turn,
 layout header, spaced tail, answer slot, label forms), cuts it at the marks and puts the model's image placeholder
@@ -32,11 +35,11 @@ from __future__ import annotations
 import time
 
 from decisio.readout import box as boxmod
-from decisio.readout.letters import check_thinking_closed, fmt_state, layout_header
+from decisio.readout.letters import check_thinking_closed
 from decisio.serve import image_marks as marks
 from decisio.serve import layout as lay
-from decisio.serve.image_engine import ImageRequests
-from decisio.serve.vllm_engine import LettersEngine, pad_prompt, question_text, user_turn
+from decisio.serve.placed_images import PlacedImageRequests, image_id
+from decisio.serve.vllm_engine import LettersEngine
 
 IMAGE_TOKEN = "<|image|>"
 # the most images one request may carry unless `--max-images` says otherwise: vLLM sizes its start-up profile of the
@@ -57,7 +60,7 @@ BOX_TREE_MAX_DECODES = 64
 BOX_TREE_TOP_LOGPROBS = 64
 
 
-class GemmaImageRequests:
+class GemmaImageRequests(PlacedImageRequests):
     """Mixin for a LettersEngine on a Gemma 4 base: `answer(..., images=[...])` for a text that carries marks. Needs
     `self.tok` and the LettersEngine request-building attributes; the engine's `score_prompts` takes `row_mm`."""
 
@@ -87,146 +90,9 @@ class GemmaImageRequests:
         end tokens (the processor's arithmetic, `decisio.serve.image_marks.soft_tokens`)."""
         return marks.image_tokens(img.height, img.width, self.image_budget)
 
-    def _enc_placed(self, text, tag):
-        """(token ids, the image numbers in order): `text` cut at its marks, each part tokenized alone, the placeholder
-        token at each mark."""
-        enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
-        ids, found, at = [], [], 0
-        for m in marks.pattern(tag).finditer(text):
-            if m.start() > at:
-                ids += enc(text[at : m.start()])
-            ids.append(self.image_token_id)
-            found.append(int(m.group(1)))
-            at = m.end()
-        if at < len(text):
-            ids += enc(text[at:])
-        if ids.count(self.image_token_id) != len(found):
-            raise ValueError(f"the text contains {IMAGE_TOKEN}, which stands for an image; send the image instead")
-        return ids, found
-
-    def _prepare_images(self, state, images, questions, tag):
-        """The rows of a request whose text carries marks: (rows, the prefix's sent length, its length once the engine
-        has expanded the images, the state's image numbers, each row's image numbers, the images' token counts, where
-        the state's last image ends in the expanded prefix or 0). A row is the shared prefix (the header, the state)
-        and the question's own tokens; every image number is counted from 1."""
-        fmt = self.fmt
-        if fmt.read_twice_under:
-            raise ValueError("--read-twice-under is not served with images")
-        body = fmt_state(state)
-        if fmt.layout == "header":
-            body = layout_header([marks.marks_as_text(q["instructions"], tag) for q in questions]) + body
-        tail = self._template_tail()
-        texts = [question_text(self.tok, q, fmt) for q in questions]
-        suffixes = [self._enc_placed(t + tail, tag) for t, _, _ in texts]
-        # the state's boundary as the text route finds it (`_rows`): the first question's whole prompt, split where its
-        # own tokens begin; a question's first character never merges back unless it is whitespace
-        full0, found0 = self._enc_placed(user_turn(self.tok, f"{body}\n\n{texts[0][0]}", fmt), tag)
-        n = len(full0) - len(suffixes[0][0])
-        if n > 0 and full0[n:] == suffixes[0][0]:
-            prefix = full0[:n]
-        else:
-            a, _ = self._enc_placed(user_turn(self.tok, f"{body}\n\nA", fmt), tag)
-            b, _ = self._enc_placed(user_turn(self.tok, f"{body}\n\nB", fmt), tag)
-            n = 0
-            while a[n] == b[n]:
-                n += 1
-            prefix = a[:n]
-        state_found = found0[: prefix.count(self.image_token_id)]
-        rows = [(prefix + sfx, self._labels(cands)) for (sfx, _), (_, cands, _) in zip(suffixes, texts)]
-        for ids, _ in rows:
-            if ids[:n] != prefix:
-                raise ValueError(
-                    "a question's text merges with the state's last token; questions must not start with whitespace"
-                )
-        row_found = [state_found + f for _, f in suffixes]
-        for found in row_found:
-            if len(set(found)) != len(found) or any(not 1 <= i <= len(images) for i in found):
-                raise ValueError("the request's image marks do not match its images")
-        counts = [self.image_tokens(img) for img in images]
-        extra = sum(counts[i - 1] - 1 for i in state_found)  # what the engine's expansion adds to the prefix
-        n_exp = n + extra
-        k = (-n_exp % self.pad_unit) if self.pad_unit else 0
-        if self.pad_policy == "none" or (self.pad_policy == "shared" and len(questions) == 1):
-            k = 0
-        head = len(self._enc_placed(self._template_head(), tag)[0])
-        end = 0
-        if state_found:
-            last = max(i for i, t in enumerate(prefix) if t == self.image_token_id)
-            end = last + 1 + extra + (k if self.pad_where in ("front", "user") else 0)
-        rows = [(pad_prompt(ids, n, k, self.pad_token, self.pad_where, head), lab) for ids, lab in rows]
-        if state_found and k == 0:
-            # the cache hits whole blocks: where the last whole block of the prefix ends inside the last image, pad
-            # with newlines up to the block boundary, which is then after the image's end token
-            unit = self.match_unit
-            if (n_exp // unit) * unit < end:
-                nl = self.tok.encode("\n", add_special_tokens=False)
-                if len(nl) != 1:
-                    raise ValueError("the tokenizer has no single newline token to pad the prefix with")
-                k = -n_exp % unit
-                rows = [(pad_prompt(ids, n, k, nl[0], "between", head), lab) for ids, lab in rows]
-        return rows, n + k, n_exp + k, state_found, row_found, counts, end
-
-    def warm_images(self, rounds: int = 2):
-        """Read one blank picture `rounds` times, through the same request path as a served one (a fresh tag, a mark,
-        the image at its place), so the multimodal path is compiled before the first request arrives."""
-        from PIL import Image
-
-        blank = Image.new("RGB", (512, 512), (128, 128, 128))
-        tag = marks.new_tag()
-        for _ in range(rounds):
-            self.answer(
-                f"{marks.mark(1, tag)} Warm-up.",
-                [{"kind": "noul", "instructions": "Is this a warm-up request?"}],
-                images=[blank],
-                tag=tag,
-            )
-
-    def answer(self, state, questions, adapter=None, images=None, tag=None):
-        if not images:
-            return super().answer(state, questions, adapter)
-        if tag is None:
-            raise ValueError("a request with images needs the tag of its marks")
-        if len(images) > self.max_images:
-            raise ValueError(f"at most {self.max_images} images per request")
-        with self._lock:
-            t0 = time.perf_counter()
-            rows, p_sent, p_exp, state_found, row_found, counts, end = self._prepare_images(
-                state, images, questions, tag
-            )
-            ident = [ImageRequests.image_id(img) for img in images]
-            state_mm = {"image": [images[i - 1] for i in state_found]} if state_found else None
-            state_ids = {"image": [ident[i - 1] for i in state_found]} if state_found else None
-            row_mm = [{"image": [images[i - 1] for i in f]} if f else None for f in row_found]
-            row_ids = [{"image": [ident[i - 1] for i in f]} if f else None for f in row_found]
-            unit = min(self.match_unit, self.pad_unit or self.match_unit)
-            # as for text: a warm-up of the prefix plus one token registers the state (and its images) in the cache
-            keeps = len(rows) > 1 or getattr(getattr(self, "family", None), "register_state_boundary", False)
-            warm = [rows[0][0][: p_sent + 1]] if keeps and p_exp >= unit else []
-            expected = [
-                len(ids) - len(f) + sum(counts[i - 1] for i in f) for (ids, _), f in zip(rows, row_found)
-            ]  # the prompt the engine builds from each row: every placeholder expanded
-            prep_ms = (time.perf_counter() - t0) * 1000
-            probs, info = self.score_prompts(
-                rows, adapter, warm, mm=state_mm, mm_uuids=state_ids, row_mm=row_mm, row_mm_uuids=row_ids
-            )
-            seen = info.get("engine_prompt_tokens")
-            if seen and list(seen) != expected:
-                raise RuntimeError(
-                    f"the engine's prompts are {list(seen)} tokens, the image arithmetic made {expected}: the image "
-                    "token counts do not match this checkpoint's processor"
-                )
-            info.update(
-                shared_prefix_tokens=p_exp,
-                state_image_end=end,
-                # state images once, each question's own images once for the question that carries them
-                image_tokens=[counts[i - 1] for i in state_found]
-                + [counts[i - 1] for f in row_found for i in f[len(state_found) :]],
-                expected_prompt_tokens=expected,
-                prepare_ms=prep_ms,
-                questions=len(rows),
-                server_ms=(time.perf_counter() - t0) * 1000,
-            )
-        return probs, info
+    def expanded_tokens(self, img) -> int:
+        """One `<|image|>` placeholder becomes the begin token, the image's soft tokens and the end token."""
+        return self.image_tokens(img)
 
     # ---- Box -------------------------------------------------------------------------------------------------------
 
@@ -337,7 +203,7 @@ class GemmaImageRequests:
                 if len(set(f)) != len(f) or any(not 1 <= i <= len(images) for i in f):
                     raise ValueError("the request's image marks do not match its images")
             row_mm = [{"image": [images[i - 1] for i in f]} for f in found]
-            ident = [ImageRequests.image_id(img) for img in images]
+            ident = [image_id(img) for img in images]
             row_ids = [{"image": [ident[i - 1] for i in f]} for f in found]
             prep_ms = (time.perf_counter() - t0) * 1000
             gens, info = self.generate_rows(
