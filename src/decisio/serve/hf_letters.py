@@ -129,20 +129,24 @@ class HFImageLettersEngine:
         from decisio.serve.image_engine import ImageRequests
 
         class _Engine(ImageRequests, HFLettersEngine):
-            def __init__(self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64):
+            def __init__(
+                self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64, revision=None
+            ):
                 import torch
                 from transformers import AutoModelForImageTextToText, AutoTokenizer
 
                 self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
                 self.adapters = {}
-                self.tok = AutoTokenizer.from_pretrained(model)
-                self.model = AutoModelForImageTextToText.from_pretrained(model, torch_dtype=torch.float32).eval()
-                self.model_name = model
+                self.tok = AutoTokenizer.from_pretrained(model, revision=revision)
+                self.model = AutoModelForImageTextToText.from_pretrained(
+                    model, torch_dtype=torch.float32, revision=revision
+                ).eval()
+                self.model_name, self.revision = model, revision
                 self.block_size = self.match_unit = block_size
                 self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
                 self._lock = FairLock()
                 self.scored_rows = []
-                self._image_setup(model)
+                self._image_setup(model, revision)
                 self._warm_up()
 
             def facts(self):

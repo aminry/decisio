@@ -1923,6 +1923,21 @@ IMAGE_PAIR = (0.47, 0.49)  # the shares of the text and image engines that were 
 IMAGE_PAIR_LIMIT = 0.96  # the largest total of the two that is vouched for: the measured pair (EVAL_CARD section 1)
 
 
+def resolve_image_model(args):
+    """The revision the `--image-model` engine loads at, checked before any engine is built: `--image-model-revision`,
+    else the pin of the base whose checkpoint the image model is, else None (the hub's head). The checkpoint's
+    config.json is read at that revision and its base resolved here, so a checkpoint no base serves, or one whose
+    config cannot be read (offline, and the revision not in the cache), stops the start in seconds instead of after the
+    text engine's compile. Returns the revision."""
+    from decisio.families import family_of, pinned_revision
+
+    if not args.image_model:
+        return None
+    revision = pinned_revision(args.image_model, getattr(args, "image_model_revision", None))
+    family_of(args.image_model, revision, lenient=args.backend == "hf")
+    return revision
+
+
 def resolve_memory_shares(text, image, image_model, one_engine=False, backend="vllm"):
     """(the text engine's share of the card, the image engine's) from the flags (None where not given).
 
@@ -2733,6 +2748,12 @@ def build_parser():
         "unchanged",
     )
     ap.add_argument(
+        "--image-model-revision",
+        default=None,
+        help="the --image-model checkpoint's revision on the Hugging Face hub (default: the pinned revision of the "
+        "base whose checkpoint it is, else the hub's head; a local directory has none)",
+    )
+    ap.add_argument(
         "--max-images",
         type=int,
         default=None,
@@ -3474,6 +3495,10 @@ def main():
         )
     args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
+    try:  # the image model's revision and config, before the text engine is built
+        args.image_revision = resolve_image_model(args) if args.backend != "mlx" else None
+    except ValueError as e:
+        ap.error(str(e))
     from decisio.serve.tasks import TaskStore
 
     # what the stores hold decides the layout (a base with plain-fitted tasks loaded stays on plain), and the layout is
@@ -3497,13 +3522,16 @@ def main():
         if args.backend == "hf":
             from decisio.serve.hf_letters import HFImageLettersEngine
 
-            engine = HFImageLettersEngine(args.image_model, pad_to=pad_to, pad_where=args.pad_where)
+            engine = HFImageLettersEngine(
+                args.image_model, pad_to=pad_to, pad_where=args.pad_where, revision=args.image_revision
+            )
         else:
             from decisio.serve.image_engine import ImageLettersEngine
 
             engine = ImageLettersEngine(
                 args.image_model,
                 **({"max_images": args.max_images} if args.max_images is not None else {}),
+                revision=args.image_revision,
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.gpu_memory_utilization,
@@ -3618,13 +3646,16 @@ def main():
         if args.backend == "hf":
             from decisio.serve.hf_letters import HFImageLettersEngine
 
-            image_engine = HFImageLettersEngine(args.image_model, pad_to=pad_to, pad_where=args.pad_where)
+            image_engine = HFImageLettersEngine(
+                args.image_model, pad_to=pad_to, pad_where=args.pad_where, revision=args.image_revision
+            )
         else:
             from decisio.serve.image_engine import ImageLettersEngine
 
             image_engine = ImageLettersEngine(
                 args.image_model,
                 **({"max_images": args.max_images} if args.max_images is not None else {}),
+                revision=args.image_revision,
                 pad_to=pad_to,
                 pad_where=args.pad_where,
                 gpu_memory_utilization=args.image_gpu_memory_utilization,

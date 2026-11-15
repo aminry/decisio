@@ -59,10 +59,10 @@ class ImageRequests:
     """Mixin for a LettersEngine: `answer(..., images=[...])`. Needs `self.tok`, `self.processor` (the model's
     AutoProcessor) and the LettersEngine request-building attributes; the engine's `score_prompts` takes `mm`."""
 
-    def _image_setup(self, model):
+    def _image_setup(self, model, revision=None):
         from transformers import AutoProcessor
 
-        self.processor = AutoProcessor.from_pretrained(model)
+        self.processor = AutoProcessor.from_pretrained(model, revision=revision)
         self.image_pad_id = self.tok.convert_tokens_to_ids("<|image_pad|>")
         self.merge = self.processor.image_processor.merge_size
 
@@ -145,7 +145,7 @@ class ImageLettersEngine(ImageRequests, LettersEngine):
         self.max_images = int(max_images)
         engine_kw = {"limit_mm_per_prompt": {"image": self.max_images, "video": 0}, **(engine_kw or {})}
         LettersEngine.__init__(self, model, engine_kw=engine_kw, **kw)
-        self._image_setup(model)
+        self._image_setup(model, kw.get("revision"))
         # warm the image path too: the vision tower and the multimodal prefill compile on their first image request
         from PIL import Image
 
