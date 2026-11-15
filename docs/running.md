@@ -627,12 +627,28 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decis
 - Box is not served on a Mac yet: a request for it is refused with a 400 that says so, and `/health` reports `images.box` as false.
 - The figures below are from one Apple silicon Mac with 64 GB, measured through the Mac server; no other Mac has been tried.
 
-Measured through the Mac server on one Apple silicon Mac with 64 GB (the 12B, Google's bf16 checkpoint, budget 280 unless said):
-- A square in each corner of a picture is placed right, 8 of 8 questions (top or bottom, left or right), at budgets 280 and 560.
-  Without the image blocks' bidirectional attention a square in a top corner is read as "bottom".
-- Against decisio on vLLM with the same base and prompt, on 20 noul and choice items with one picture each: the probabilities differ by at most 0.024 (0.004 on average) and no answer changes.
-  Two backends in bf16 differ by a few hundredths at most.
-- At budget 560, the 12B's default: a request with one picture and a short state takes about 1.0 s (median of 10, 0.9 s of it the prefix: the picture and the state, 653 tokens), and the process's memory stays flat at about 24 GB (MLX's peak 23.0 GB, the process's footprint 24.2 GB), after the first requests.
+Measured through the Mac server on one Apple silicon Mac with 64 GB, at budget 280 unless said:
+
+| | 12B, Google's bf16 checkpoint | tuned 12B, 6-bit MLX conversion with the add-on | 31B, 4-bit MLX build with the add-on |
+| --- | --- | --- | --- |
+| A square in each corner placed right (8 questions), at 280 and at 560 | 8 of 8 | 8 of 8 | 8 of 8 |
+| One picture and a short state at 560, median of 10 | 1.0 s (0.9 s of it the prefix, 653 tokens) | 1.1 s | 3.4 s (3.0 s the prefix) |
+| Process memory at 560 (MLX's peak), flat over the requests | 24.2 GB (23.0 GB) | 11.1 GB (9.9 GB) | 20.7 GB (20.3 GB) |
+
+- Without the image blocks' bidirectional attention a square in a top corner is read as "bottom".
+- **Against decisio on vLLM**, same prompt and request path, on noul and choice items with one picture:
+  - The 12B base, bf16 on both sides, 20 items: the probabilities differ by at most 0.024 (0.004 on average) and no answer changes.
+  - The two Mac builds above are other weights than the vLLM runs they were compared with, so they differ more, and the figures are as measured, on 60 items of a reporting split:
+
+    | | |P(a) on Mac - P(a) on vLLM|: max, mean, median | answers flipped | right on the Mac and on vLLM |
+    | --- | --- | --- | --- |
+    | 31B, 4-bit MLX against the FP8 card | 0.23, 0.060, 0.041 | 0 | 55 and 55 |
+    | tuned 12B, 6-bit MLX against its bf16 merge | 0.060, 0.016, 0.010 (48 items; the 12 whose vLLM answer was committed are compared by side) | 0 | 57 and 57 |
+
+  - So an answer the Mac reads for the 31B differs from the FP8 card's by 0.06 on average, because it is the 4-bit build and not the FP8 weights, and the tuned 12B's by 0.02, because it is the 6-bit conversion and not bf16.
+    Where a probability is near a half, a quantised build can land on the other side: one item of the tuned 12B read 0.44 on the Mac and 0.5 to 0.8 on vLLM.
+  - A tuned repository's yes/no commit rule (`--noul-commit`) reports a probability between 0.20 and 0.80 as exactly 0.80 or 0.20 by its side of a half, which turns that kind of near-tie into a 0.6 gap; the tuned figures above were read with the rule off on the Mac.
+- The process's memory stays flat over the requests (the first and the last request differ by under 0.2 GB).
 
 The Gemma 31B base (`--base gemma-4-31b`):
 - The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the default, on a 64 GB Mac. The 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` (group size 32, 19.2 GB of weights) is for Macs with 48 GB of memory; its figures are below. `--revision v0.15.0` names the repository's tag of the build that was measured, so a later change to its main does not change what you serve (decisio 0.15.1 or later; before it, `--revision` was ignored for the download). The 8-bit one is not measured.
