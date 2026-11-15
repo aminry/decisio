@@ -42,7 +42,10 @@ The edges are an expected value over the digits the model considered, not only i
 
 ## Confidence, and "is it there"
 
-A Box question always answers with a box, because the reply is one box by construction.
+A Box question always answers with a box, as the wire has no "not found" form.
+When the model itself writes that the target is absent (`null` where the box would be), decisio answers the whole image (`top` 0, `bottom` 1, `left` 0, `right` 1) at `confidence` 0.0, and the `x-decisio-box` header and the question's `timing.box` entry carry `absent`.
+The presence read is still read and is unchanged.
+The model does not always say so for an absent target, so pairing with a noul question is still the way to ask "is it there".
 When the target may not be in the picture, the answer's `confidence` is the signal: it is the probability that the target is in the picture, from a yes/no read of the same image on the same prefix, times how sure the model is of the box's edges.
 Pair the Box with a noul question for a decision your code makes ("is there a mug?") and use the Box only where that answers yes:
 
@@ -61,7 +64,7 @@ A higher `--image-budget` (560) spends more tokens per image and helps in the sa
 
 ## Limits
 
-- One box per question, never none.
+- One box per question, never none: a target the model calls absent is answered by the whole image at confidence 0.
 - Not served with two orders, abstention, a task, or a request that asks for `"layout": "header"`; the server needs `--images on` on a Gemma base (not `--image-model`, not the MLX backend).
 - A Box question is always read under the plain layout, whatever the server's default, so a request without `"layout"` is answered on a Gemma base too.
 - A request that mixes a Box with other questions on a server whose layout is the header one reads the state twice: once for the other questions under the header layout, and once for the Box questions and their presence reads under the plain layout.

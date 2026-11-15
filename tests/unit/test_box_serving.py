@@ -428,6 +428,79 @@ def test_x6_an_unreadable_reply_is_a_502_naming_the_question(engine):
     assert 'Box question "where"' in r.json()["detail"]["message"]
 
 
+@pytest.mark.parametrize("reply", [[sure("null"), sure("]}")], [sure("▁"), sure("null"), sure(",")]])
+def test_x6_a_null_reply_is_the_whole_image_at_confidence_zero(engine, reply):
+    engine.reply = lambda i, r: reply
+    client, _ = make_client(engine)
+    r = client.post("/v1/systemone", json=body())
+    assert r.status_code == 200, r.text
+    ans = r.json()["answers"]["where"]
+    assert ans["box"] == {"top": 0.0, "bottom": 1.0, "left": 0.0, "right": 1.0}
+    assert ans["confidence"] == 0.0
+    assert r.headers["x-decisio-box"] == "calibrated=false; tokens=%d; flags=none; absent=true" % len(reply)
+    assert r.json()["answers"]["colour"]["type"] == "choice"
+    from decisio.serve.systemone import SystemOne
+
+    req, tag = request_for(engine)
+    out = SystemOne(engine, "decisio-test").answer(req, None, [Image.new("RGB", (96, 96))], image_tag=tag)
+    q = out["_timing"]["box"]["questions"]["where"]
+    assert q["absent"] is True and q["tokens"] == len(reply) and q["flags"] == []
+
+
+def test_x6_a_null_reply_counts_its_tokens_and_keeps_the_presence_read(engine):
+    from decisio.serve.systemone import SystemOne
+
+    img = Image.new("RGB", (96, 96), "white")
+    req, tag = request_for(engine)
+    so = SystemOne(engine, "decisio-test", debug_readout=True)
+    reply = [sure("null"), sure("]}")]
+    engine.reply = lambda i, r: reply
+    out = so.answer(req, None, [img], image_tag=tag, debug="readout")
+    assert out["usage"]["output_tokens"] == 1 + len(reply)  # the noul's one and the null reply's tokens
+    q = out["_timing"]["box"]["questions"]["where"]
+    assert q["absent"] is True and 0.0 <= q["presence"] <= 1.0 and q["branches_decoded"] == 0
+    assert out["answers"]["where"]["confidence"] == 0.0
+
+
+def test_x6_a_bad_token_is_still_a_502_and_a_number_before_null_too(engine):
+    for reply in ([sure("Sorry"), sure(",")], [sure("1"), sure(","), sure("null"), sure("]}")]):
+        engine.reply = lambda i, r, reply=reply: reply
+        client, _ = make_client(engine)
+        r = client.post("/v1/systemone", json=body())
+        assert r.status_code == 502
+
+
+def test_x6_one_absent_and_one_normal_box_answer_both(engine):
+    engine.reply = lambda i, r: [sure("null"), sure("]}")] if i == 0 else script([100, 200, 500, 800])
+    client, _ = make_client(engine)
+    b = body()
+    b["questions"] = {
+        "gone": {"type": "box", "instructions": "the unicorn"},
+        "n": {"type": "noul", "instructions": "Is it blue?"},
+        "mug": {"type": "box", "instructions": "the mug"},
+    }
+    r = client.post("/v1/systemone", json=b)
+    assert r.status_code == 200, r.text
+    ans = r.json()["answers"]
+    assert list(ans) == ["gone", "n", "mug"]
+    assert (
+        ans["gone"]["box"] == {"top": 0.0, "bottom": 1.0, "left": 0.0, "right": 1.0}
+        and ans["gone"]["confidence"] == 0.0
+    )
+    assert ans["mug"]["box"] == {"top": 0.1, "bottom": 0.5, "left": 0.2, "right": 0.8}
+    assert ans["mug"]["confidence"] > 0.0
+    assert r.headers["x-decisio-box"].endswith("absent=true")
+    assert "calibrated=false" in r.headers["x-decisio-box"]
+
+
+def test_x6_the_exact_tree_debug_says_a_null_reply_has_no_tree(engine):
+    engine.reply = lambda i, r: [sure("null"), sure("]}")]
+    client, _ = make_client(engine, debug_box_tree=True)
+    r = client.post("/v1/systemone", json=body(), headers={"x-decisio-debug": "box_tree"})
+    assert r.status_code == 200, r.text
+    assert r.json()["decisio_debug"]["where"]["box_tree"] == {"absent": True}
+
+
 # ------------------------------------------------------------------------------------------------------ X7
 
 

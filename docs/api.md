@@ -200,14 +200,16 @@ The page [box.md](box.md) says how to ask well and how to read the answer; this 
 
 Each Box question is one greedy generation after the state and the question's own text, in one batch with the request's other Box questions, on the cached prefix of the state.
 Beside it the server reads one yes/no question, "Is this in the picture: ...", on the same prefix, which is what makes the confidence fall when the target is absent.
-Because the reply is forced to be one box, a Box question always has a box, even when the target is absent: read `confidence`, or ask a noul question beside it.
+A Box question always has a box, even when the target is absent: read `confidence`, or ask a noul question beside it.
+When the model's reply says there is no box (`null` as the list or as its first coordinate), the answer is 200 with the whole image (`top` 0, `bottom` 1, `left` 0, `right` 1) and `confidence` 0.0, the header `x-decisio-box` ends with `absent=true`, and the question's entry in `timing.box.questions` has `"absent": true`.
+The presence read is unchanged.
 
 Refused with 400 and `{"detail": {"error_type": "api_usage_error", "message": ...}}`:
 - a request with a Box question and no image;
 - a server that cannot answer one: no `--images on` (text only), the `--image-model` route, or the MLX backend;
 - a Box question with `orders` 2, with the abstention extension, with a `task`, or under the header layout (`"layout": "header"`).
 
-The model's reply is read for four numbers; when it holds none, the answer is 502 `api_error` naming the question, never a made-up box.
+The model's reply is read for four numbers; when it holds none, and it is not the `null` reply above, the answer is 502 `api_error` naming the question, never a made-up box.
 
 Every POST must have `Content-Type: application/json` (parameters such as `; charset=utf-8` are fine): any other type, or none, is refused with 415 and `accept-post: application/json` before the body is read (`SECURITY.md`, "Cross-site requests from a web page"). The one exception is `multipart/form-data` on this route, with an `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` header (any value): a web page cannot add a header outside the browser's short safelist to a cross-site request without a preflight, which the server refuses.
 
@@ -253,7 +255,7 @@ Response headers:
 - `x-decisio-prompt`: `layout=header; tokens=1523; cached=1440`: the layout of the user turn the request was read under (its `layout`, else the server's), the mean prompt tokens the engine read per question, and the mean of them the prefix cache served. Under the header layout a state cached for another set of questions shows as a low `cached`. Absent when the engine does not report prompt sizes.
 - `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the request's own engine call; `wait` is the time before it, from the request reaching the engine until it took the engine's lock. A request read with a task's context has `context`: the context's warm-up sent in this request (vLLM) or the context's part of the prefix (MLX), summed over the reads that read the context, so within `engine`, `task` or `head` ([tasks.md](tasks.md#the-context-in-the-prefix-cache)). A certified task's questions, read one at a time by the certificate's function or answered by its fast table, are `task`; the intent head's read is `head`; the reasoning pass is `think`. So `engine + wait + task + head + think` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server. With `--concurrency batched`, a request that shared an engine call (`x-decisio-batch`) reports the whole call's `questions` and `engine` times.
 - `x-decisio-batch`: `requests=N; rows=M` when the server batches concurrent requests (`--concurrency batched`) and this request's questions were scored in one engine call with other requests' (N requests, M rows in all); absent when it was scored alone. On `POST /v1/answer` the same facts are `timing.batch`.
-- `x-decisio-box`: `calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`).
+- `x-decisio-box`: `calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`); `; absent=true` is added when a Box reply said the target is not there.
 - `x-decisio-wait-behind`: `registration` when a boundary registration (`--register-boundary after`) was running when the request arrived, so the `wait` was behind it; absent otherwise. On `POST /v1/answer` the same facts are `timing.waited_ms` and `timing.waited_behind_registration`.
 
 ## `GET /v1/models`

@@ -1441,6 +1441,21 @@ class SystemOne:
         for i, (n, toks, res) in enumerate(zip(box_names, info["generated_tokens"], results)):
             if isinstance(res, boxmod.BoxParseError):
                 raise BoxReadError(f'Box question "{n}": the model wrote no readable box ({res.reason})') from res
+            if isinstance(res, boxmod.BoxAbsent):
+                # TypeSafe's Box answer always carries a box: the model says the target is not there, so the whole
+                # image at confidence 0 (the presence read is still read, and still in the debug readout)
+                whole = {"top": 0.0, "bottom": 1.0, "left": 0.0, "right": 1.0}
+                boxes[n] = BoxAnswer(box=BoxEdges(**whole), confidence=0.0).model_dump()
+                details[n] = {
+                    "tokens": toks,
+                    "flags": [],
+                    "absent": True,
+                    "branches_decoded": 0,
+                    **({"presence": p_yes[n]} if debug else {}),
+                }
+                if exact_tree:
+                    trees[n] = {"absent": True}  # no digit tree to read: the model wrote null
+                continue
             rd = res
             conf, calibrated = boxmod.box_confidence(p_yes[n], rd.raw_confidence, self.box_confidence)
             boxes[n] = BoxAnswer(box=BoxEdges(**boxmod.wire_box(rd.box)), confidence=conf).model_dump()
@@ -4192,10 +4207,12 @@ def add_routes(app, systemone: SystemOne):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
         if timing.get("box"):  # the Box questions: whether their confidence was calibrated, their tokens and flags
             qs = timing["box"]["questions"]
+            cal = [d["calibrated"] for d in qs.values() if not d.get("absent")]  # an absent answer has no confidence
             headers[header("box")] = (
-                f"calibrated={'true' if all(d['calibrated'] for d in qs.values()) else 'false'}; "
+                f"calibrated={'true' if cal and all(cal) else 'false'}; "
                 f"tokens={sum(d['tokens'] for d in qs.values())}; "
                 f"flags={','.join(sorted({f for d in qs.values() for f in d['flags']})) or 'none'}"
+                + ("; absent=true" if any(d.get("absent") for d in qs.values()) else "")
             )
         if timing.get("waited_behind_registration"):  # the wait in `stages` was behind a boundary registration (#132)
             headers[header("wait-behind")] = "registration"

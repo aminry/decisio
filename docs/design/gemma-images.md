@@ -73,7 +73,7 @@ The wire is in `docs/api.md`; this section is what the server does.
 **The read.**
 Each Box is one greedy generation on its own prompt: the state with its images (the cached prefix), then the question's own text and images, rendered with the model's chat template, the thought channel closed, and a reply that is forced to begin `{"box_2d": [`.
 The instruction asks for one box as JSON in Gemma's documented format, `[y_min, x_min, y_max, x_max]` on a 0-1000 grid.
-Forcing the start means the first tokens are the digits of `y_min`, and a reply cannot be anything but one box.
+Forcing the start means the first tokens are the digits of `y_min`, and a reply is one box, or `null` for no box.
 At most 32 tokens are generated, at temperature 0, with the top 20 log-probabilities of each step.
 The Boxes of a request are one batch, and their prefix is the one the request's yes/no reads use, so it is read once.
 Under the header layout the prefix carries a list of the request's questions, which a generation does not want, so every Box and its presence read is read under the plain layout, whatever the server's default.
@@ -103,6 +103,13 @@ The confidence is the presence probability times the raw edge confidence.
 A calibration, when the served model has one, is an isotonic map (pool adjacent violators) from that product to the rate at which a box has IoU of 0.5 or more with the truth on a calibration set of present and absent targets; it is a file of knots loaded with `--box-confidence` or found beside the model's weights.
 Until then the product is served as it is and the `x-decisio-box` header says `calibrated=false`.
 Isotonic was chosen over a two-feature logistic fit because it needs no assumption about how the two factors combine and is monotone by construction.
+
+**A target the model calls absent.**
+The wire has no "not found" form: a Box answer always carries a box.
+When the reply holds `null` where the list, or its first coordinate, would be (`{"box_2d": null`, `[null`), with no coordinate before it, the readout returns an absent result instead of an error.
+The answer is then the whole image at confidence 0.0, `absent` is added to the `x-decisio-box` header and to the question's `timing.box` entry, the presence read is read as usual, and the tokens the reply wrote count in usage.
+Branch expansion and the exact-tree debug readout skip the question; the debug readout says `{"absent": true}` for it.
+Any other unreadable reply is still a 502.
 
 **Cost and counts.**
 `usage.output_tokens` adds the tokens a Box wrote: the main reply, and every decoded branch's continuation.
