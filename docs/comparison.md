@@ -165,7 +165,7 @@ The differences below are what each states or does, on TypeSafe's documentation 
 | Formats | PNG, JPEG and WebP; an animated image is refused | PNG and JPEG, WebP refused (400 on a live WebP) |
 | Size of a file | up to 20 MiB and 20 megapixels | up to 16 MiB decoded; the request body up to 32 MiB (413) |
 | Side lengths | no window: the processor scales any size to the budget | 280 to 1,568 pixels a side and an area of 78,400 to 2,458,624, never resized; a live 270 pixel image got 400 |
-| Image tokens | fixed per budget whatever the size: about 256 at the default budget of 280, 529 at 560 | grow with the area: a 280 by 280 image cost 487 input tokens and a 1,568 by 1,568 image 6,559 |
+| Image tokens | fixed per budget whatever the size: about 256 at budget 280 (the 31B's default), 529 at 560 (the 12B's) | grow with the area: a 280 by 280 image cost 487 input tokens and a 1,568 by 1,568 image 6,559 |
 | Scope of a question's picture | a picture in a question's instructions or options belongs to that question only | the same (a live probe: the other question did not see it) |
 | The images header | `TypeSafe-Danger-Zone-Images` accepted, never required | required, else 400 |
 | Box on a request with no image | refused (400): a Box needs an image | answered with a box at low confidence (a live check of 2026-11-14 on `jev-1.14.0`: 200, a near-full-image box, left 0.02, top 0.03, right 0.98, bottom 0.96, at confidence 0.05) |
@@ -194,7 +194,7 @@ It is a reference, on that many items: a single run, so the intervals are wide, 
 | R Box, IoU >= 0.5 | 45 | 0.844 | 0.867 | 0.844 |
 
 A Box row counts every item, those whose target is absent included; its IoU figures are over the items whose target is in the picture.
-decisio's columns are the models scored on exactly those items at budget 280; the paired differences with intervals are in `EVAL_CARD.md` section 10.
+decisio's columns are the models scored on exactly those items at budget 280, which is not the 12B's default (560); the paired differences with intervals are in `EVAL_CARD.md` section 10.
 TypeSafe's hosted service changes between releases and its documentation calls images and Box not yet ready for production, so its figures describe 2026-11-14 only.
 
 ## 4. Summary

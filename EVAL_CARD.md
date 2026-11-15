@@ -400,7 +400,7 @@ Every figure is on the reporting half of the image eval set (10.2), with interva
 | Hardware | one NVIDIA RTX PRO 6000 Blackwell (96 GB) at 600 W, vLLM 0.31.0 |
 | decisio | commits `aa647858ba2a`, `e30c78f9b5ee`, `b262749eb3c4` (the run crossed three builds), with `--images on --image-budget B --max-images N` |
 | Models | `google/gemma-4-12B-it` at revision `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7`; the tuned 12B, `tachara-ai/Decisio-12b-tuned-commit` at `245e00dc45abad14d693b1ebae4d4c7aa9cf72f1`; the 31B base in FP8, `tachara-ai/decisio-gemma-4-31b` at `eaf1e4fa30a351ab87d07803ca60f1fa5606f882` |
-| Image budgets | 280 (the model's own default) and 1,120 soft tokens on the 12B and the 31B, and 560 on the 12B (the 12B at 1,120 is the measurement behind its refusal, 10.5); the tuned 12B at one budget, 280 (the one the 12B base read better); `--max-images` 16 for the accuracy starts and 128 for the memory start |
+| Image budgets | 280 (the 31B's default) and 1,120 soft tokens on the 12B and the 31B, and 560 on the 12B (the 12B at 1,120 is the measurement behind its refusal, 10.5); the tuned 12B at one budget, 280 (the one the 12B base read better); `--max-images` 16 for the accuracy starts and 128 for the memory start |
 | Readout | the text route's, unchanged: letters for the decision types, one greedy box reply for Box (10.9); a Box question is read under the plain layout on any server; the 31B with `--images on` is started in its multimodal class, without the head (10.6) |
 | Run | 2026-11-14, one session on that card |
 
@@ -508,7 +508,7 @@ What the budgets measured, from the tables above:
 - On the 31B, 1,120 against 280: a small Box gain (S mean IoU 0.915 against 0.886) at about 3.5 times the first-read latency (504 / 514 ms for one image against 143 / 145 ms).
 
 decisio therefore refuses `--image-budget 1120` at start on the 12B (a rule by architecture: the window above) and takes every budget on the 31B.
-Its default budget stays 280; a change of default is decided separately.
+The default budget follows these figures, per base: 560 on the 12B (Box mean IoU 0.925 against 0.862 at 280, decisions within about 2 points, and about 1.8 times the tokens of a one-image request, 619 against 346) and 280 on the 31B, where 1,120 is an opt-in (a small Box gain at about 3.5 times the latency).
 Detail that needs more tokens is better served by cropping to the region and asking again: the answers' fractions then refer to the crop (`docs/box.md`).
 
 ### 10.6 Text answers with images on
@@ -569,7 +569,7 @@ A second question on the same pictures reads them from the cache: 22 of 22 reque
 | Component | Fitted or chosen on |
 | --- | --- |
 | Model weights | nothing by us for the images: the vision weights are Google's; the tuned 12B's language-model weights were trained on text only |
-| Image temperature, one per model | the calibration half's noul and choice items, by minimum log loss on the model's own answers at its budget; no reporting item and no JevBench or Decision Index item; reported here, not applied by the server |
+| Image temperature, one per model | the calibration half's noul and choice items, by minimum log loss on the model's own answers at its budget; no reporting item and no JevBench or Decision Index item; the 31B's image answers apply its fitted scale (1.376) on its text temperatures, and the Qwen route's placed layout applies 0.80; the 12B and the tuned 12B apply none, because their fits gained under 0.005 in log loss |
 | Box confidence map | not fitted in this run: `confidence` is the uncalibrated product of 10.3, and `--box-confidence FILE` loads a map |
 | Default image budget | the figures in 10.2, 10.3 and 10.5 |
 
@@ -612,7 +612,7 @@ These are paired differences, new minus legacy, on the reporting half of S and I
 | I decisions, log loss | 124 | -0.007 | [-0.036, +0.019] |
 
 On the generated items the placed layout reads better, with an interval above zero; on ImajevBench lite the interval includes zero.
-The image temperature fitted on the calibration half is 0.801 for the placed layout and 0.823 for the legacy one; the server does not apply either.
+The image temperature fitted on the calibration half is 0.801 for the placed layout and 0.823 for the legacy one; the server applies the placed layout's (see 10.8).
 `--image-model` loads the image engine's model at the revision pinned for its base (or the one `--image-model-revision` names), also from an offline cache, and a model it cannot use stops the start before the text engine compiles.
 
 ### 10.11 Limits
