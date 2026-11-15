@@ -410,6 +410,7 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   The Qwen `--image-model` route reads images at temperature 1.0, so its scale, 0.80, is the temperature itself (placed layout only; `--image-prompt legacy` keeps 1.0).
 
 Memory at start-up, the 31B's text answers under the multimodal class, and the cost of an image's first read and of a cached one are measured in `EVAL_CARD.md` section 10 (10.6 and 10.7).
+Not measured yet: a prefix-cache hit that begins inside an image in a question's own text (section 10 measures a second question read from the cache on a state that holds the image).
 The design is in `docs/design/gemma-images.md`.
 
 ## Flavors
