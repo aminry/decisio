@@ -12,10 +12,11 @@ temperatures, the readout. Run under the machine's memory guard and on its own (
   DECISIO_MLX_IMAGES_WIRE=<wire folder> DECISIO_MLX_IMAGES_VLLM_ANSWERS=<answers.jsonl> \\
   [DECISIO_MLX_IMAGES_BUDGET=280] uv run pytest -q -m mlx_model tests/mlx/test_mlx_images_vllm_parity.py
 
-Two references. Same weights on both sides (the 12B in bf16 against bf16): the strict rule. Other weights on the Mac
-(the 31B's 4-bit build against the FP8 card, the tuned 12B's 6-bit MLX conversion against its bf16 merge): set
+Two references. Same weights on both sides (the 12B in bf16 against bf16): the strict rule. Other weights on
+the Mac (the 31B's 4-bit build against the FP8 build served with vLLM, the tuned 12B's 6-bit MLX conversion against
+its bf16 merge): set
 `DECISIO_MLX_IMAGES_REFERENCE=different` and `DECISIO_MLX_IMAGES_EVALSET=<eval set folder>`.
-Then 60 reporting-split noul and choice items with one picture are read.
+Then 60 held-out noul and choice items with one picture are read.
 No answer may flip outside a near-tie (vLLM's top two within 0.10; for noul, P(yes) within 0.05 of 0.5).
 The Mac may be right on at most one item fewer than vLLM.
 The spread (max, mean and median |dp|) is reported as measured, with no bar on the mean.
@@ -121,7 +122,7 @@ def server():
 
 
 def pick_items(evalset, per=15):
-    """60 reporting-split noul and choice items with one picture: `per` of each of S noul, S choice, R noul, R choice,
+    """60 held-out noul and choice items with one picture: `per` of each of S noul, S choice, R noul, R choice,
     evenly spaced through the ids in order. Returns [(id, truth index into the probabilities)]."""
     out = []
     for part in ("S", "R"):

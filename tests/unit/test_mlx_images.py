@@ -64,7 +64,15 @@ def vision_dir(tmp_path, model_type="gemma4_unified", vision=True, index=True, n
     return d
 
 
-def addon_file(tmp_path, name="addon", payload="vision weights"):
+VISION_CONFIG = {
+    "source_repo": "google/gemma-4-12B-it",
+    "model_type": "gemma4_unified",
+    "vision_config": {"model_type": "gemma4_unified_vision", "mm_embed_dim": 3840},
+}
+
+
+def addon_file(tmp_path, name="addon", payload="vision weights", config=None):
+    """An add-on folder: a valid (empty) safetensors file and its vision_config.json."""
     d = tmp_path / name
     d.mkdir()
     header = json.dumps(
@@ -74,22 +82,25 @@ def addon_file(tmp_path, name="addon", payload="vision weights"):
         }
     ).encode()
     (d / "vision.safetensors").write_bytes(len(header).to_bytes(8, "little") + header)
+    (d / "vision_config.json").write_text(json.dumps(config or VISION_CONFIG))
     return d
 
 
-def file_sha(d):
+def file_sha(d, name="vision.safetensors"):
     import hashlib
 
-    return hashlib.sha256((d / "vision.safetensors").read_bytes()).hexdigest()
+    return hashlib.sha256((d / name).read_bytes()).hexdigest()
 
 
-def family_with(sha, key="gemma-4-12b"):
+def family_with(folder=None, key="gemma-4-12b", revision=""):
+    """The 12B's family pinned to the files of `folder` (zero hashes when None), at `revision`."""
     import dataclasses
 
-    return dataclasses.replace(GEMMA4, key=key, vision_addon_sha256=sha)
-
-
-BASE_CONFIG = {"vision_config": {"model_type": "gemma4_unified_vision", "mm_embed_dim": 3840}, "audio_config": {"x": 1}}
+    sha = file_sha(folder) if folder else "0" * 64
+    cfg = file_sha(folder, "vision_config.json") if folder else "0" * 64
+    return dataclasses.replace(
+        GEMMA4, key=key, vision_addon_sha256=sha, vision_addon_config_sha256=cfg, vision_addon_revision=revision
+    )
 
 
 # ---- the vision weights (no MLX needed) ------------------------------------------------------------------------------
@@ -107,30 +118,24 @@ def test_v1_a_conversion_with_the_weights_is_loaded_as_it_is(tmp_path, index):
         mlx_vision.prepare(d, GEMMA4, vision_weights=str(tmp_path))
 
 
-def test_v2_a_conversion_without_them_takes_the_add_on_from_vision_weights(tmp_path):
+def test_v2_a_conversion_without_them_takes_the_add_on_from_vision_weights(tmp_path, monkeypatch):
     from decisio.serve import mlx_vision
 
+    monkeypatch.setenv("DECISIO_MLX_VISION_DIR", str(tmp_path / "m"))
     d = vision_dir(tmp_path, vision=False)
     assert not mlx_vision.has_vision(d)
     addon = addon_file(tmp_path)
-    fam = family_with(file_sha(addon))
-    for given in (addon, addon / "vision.safetensors"):  # a folder or the file
-        out, facts = (
-            mlx_vision.merged_dir(
-                d, fam, given / "vision.safetensors" if given.is_dir() else given, BASE_CONFIG, tmp_path / "m"
-            ),
-            None,
-        )
-        cfg = json.loads((out / "config.json").read_text())
-        assert cfg["vision_config"] == BASE_CONFIG["vision_config"] and cfg["audio_config"] is None
+    fam = family_with(addon)
+    for given in (addon, addon / "vision.safetensors"):  # a folder, or the weights file with its config beside it
+        got, facts = mlx_vision.prepare(d, fam, vision_weights=str(given))
+        cfg = json.loads((got / "config.json").read_text())
+        assert cfg["vision_config"] == VISION_CONFIG["vision_config"] and cfg["audio_config"] is None
         assert cfg["model_type"] == "gemma4_unified" and "quantization" not in cfg
-        assert (out / "vision.safetensors").resolve() == (addon / "vision.safetensors").resolve()
-        assert (out / "model-00001-of-00001.safetensors").is_symlink() and (out / "tokenizer.json").is_symlink()
-        assert mlx_vision.weight_names(out) >= {"language_model.model.embed_tokens.weight"}
-        assert mlx_vision.has_vision(out)  # the merged directory is a conversion with the vision tensors
-    got, facts = mlx_vision.prepare(d, fam, vision_weights=str(addon))
-    assert facts["source"] == "add-on" and facts["sha256"] == file_sha(addon)
-    assert got != d and (got / "vision.safetensors").exists()
+        assert (got / "vision.safetensors").resolve() == (addon / "vision.safetensors").resolve()
+        assert (got / "model-00001-of-00001.safetensors").is_symlink() and (got / "tokenizer.json").is_symlink()
+        assert mlx_vision.weight_names(got) >= {"language_model.model.embed_tokens.weight"}
+        assert mlx_vision.has_vision(got)  # the merged directory is a conversion with the vision tensors
+        assert facts["source"] == "add-on" and facts["sha256"] == file_sha(addon) and got != d
 
 
 def test_v3_a_file_that_is_not_the_pinned_one_is_refused_with_both_hashes(tmp_path):
@@ -138,22 +143,78 @@ def test_v3_a_file_that_is_not_the_pinned_one_is_refused_with_both_hashes(tmp_pa
 
     d = vision_dir(tmp_path, vision=False)
     addon = addon_file(tmp_path, payload="another file")
-    fam = family_with(file_sha(addon_file(tmp_path, name="pinned")))
+    fam = family_with(addon_file(tmp_path, name="pinned"))
     with pytest.raises(mlx_vision.ImagesRefused) as e:
         mlx_vision.prepare(d, fam, vision_weights=str(addon))
     assert file_sha(addon) in str(e.value) and fam.vision_addon_sha256 in str(e.value)
 
 
-def test_v4_a_folder_without_the_file_is_refused(tmp_path):
+def test_v3_a_vision_config_that_is_not_the_pinned_one_is_refused_with_both_hashes(tmp_path):
+    import dataclasses
+
+    from decisio.serve import mlx_vision
+
+    d = vision_dir(tmp_path, vision=False)
+    addon = addon_file(tmp_path, config={**VISION_CONFIG, "vision_config": {"model_type": "other"}})
+    fam = dataclasses.replace(family_with(addon_file(tmp_path, name="pinned")), vision_addon_sha256=file_sha(addon))
+    with pytest.raises(mlx_vision.ImagesRefused) as e:
+        mlx_vision.prepare(d, fam, vision_weights=str(addon))
+    assert "vision_config.json" in str(e.value) and fam.vision_addon_config_sha256 in str(e.value)
+
+
+def test_v4_a_folder_without_the_files_is_refused(tmp_path):
     from decisio.serve import mlx_vision
 
     d = vision_dir(tmp_path, vision=False)
     (tmp_path / "empty").mkdir()
     with pytest.raises(mlx_vision.ImagesRefused, match="no vision.safetensors there"):
-        mlx_vision.prepare(d, family_with("0" * 64), vision_weights=str(tmp_path / "empty"))
+        mlx_vision.prepare(d, family_with(), vision_weights=str(tmp_path / "empty"))
+    bare = addon_file(tmp_path, name="bare")
+    (bare / "vision_config.json").unlink()
+    with pytest.raises(mlx_vision.ImagesRefused, match="no vision_config.json beside"):
+        mlx_vision.prepare(d, family_with(), vision_weights=str(bare / "vision.safetensors"))
 
 
-def test_v5_offline_with_no_cache_says_to_give_vision_weights(tmp_path, monkeypatch):
+def test_v5_a_family_with_no_pinned_revision_refuses_a_download(tmp_path, monkeypatch):
+    import huggingface_hub
+
+    from decisio.serve import mlx_vision
+
+    def never(*a, **k):
+        raise AssertionError("the hub must not be asked for an unpinned add-on")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", never)
+    d = vision_dir(tmp_path, vision=False)
+    with pytest.raises(mlx_vision.ImagesRefused) as e:
+        mlx_vision.prepare(d, GEMMA4)  # the family's revision is empty until the repository is published
+    assert "is not published yet" in str(e.value) and "--vision-weights PATH" in str(e.value)
+
+
+def test_v6_a_pinned_revision_is_passed_to_the_hub(tmp_path, monkeypatch):
+    import huggingface_hub
+
+    from decisio.serve import mlx_vision
+
+    addon = addon_file(tmp_path)
+    asked = []
+
+    def cached(repo, filename, **k):
+        asked.append((repo, filename, k.get("revision")))
+        return str(addon / filename)
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", cached)
+    monkeypatch.setenv("DECISIO_MLX_VISION_DIR", str(tmp_path / "m"))
+    d = vision_dir(tmp_path, vision=False)
+    got, facts = mlx_vision.prepare(d, family_with(addon, revision="abc123"))
+    assert asked == [
+        (GEMMA4.vision_addon_repo, "vision.safetensors", "abc123"),
+        (GEMMA4.vision_addon_repo, "vision_config.json", "abc123"),
+    ]
+    assert facts["repository"] == GEMMA4.vision_addon_repo and facts["revision"] == "abc123"
+    assert (got / "vision.safetensors").exists()
+
+
+def test_v6_offline_with_a_pinned_revision_and_nothing_cached_names_vision_weights(tmp_path, monkeypatch):
     import huggingface_hub
 
     from decisio.serve import mlx_vision
@@ -164,31 +225,31 @@ def test_v5_offline_with_no_cache_says_to_give_vision_weights(tmp_path, monkeypa
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", offline)
     d = vision_dir(tmp_path, vision=False)
     with pytest.raises(mlx_vision.ImagesRefused) as e:
-        mlx_vision.prepare(d, GEMMA4)
-    assert "--vision-weights PATH" in str(e.value) and GEMMA4.vision_addon_repo in str(e.value)
+        mlx_vision.prepare(d, family_with(addon_file(tmp_path), revision="abc123"))
+    assert "--vision-weights PATH" in str(e.value)
 
 
-def test_v6_the_add_on_comes_from_the_families_repository_once_cached(tmp_path, monkeypatch):
+def test_v6_an_offline_start_needs_no_copy_of_the_base(tmp_path, monkeypatch):
+    """The add-on folder and the conversion are all it takes: no Google checkpoint, no hub (an empty cache, offline)."""
     import huggingface_hub
 
     from decisio.serve import mlx_vision
 
-    addon = addon_file(tmp_path) / "vision.safetensors"
-    asked = []
-
-    def cached(repo, filename, **k):
-        asked.append((repo, filename))
-        return str(addon)
-
-    monkeypatch.setattr(huggingface_hub, "hf_hub_download", cached)
-    monkeypatch.setattr("decisio.families.read_config", lambda *a, **k: BASE_CONFIG)
+    empty = tmp_path / "empty_hub"
+    empty.mkdir()
+    monkeypatch.setenv("HF_HUB_CACHE", str(empty))
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.setenv("DECISIO_MLX_VISION_DIR", str(tmp_path / "m"))
+
+    def no_network(*a, **k):
+        raise AssertionError("no hub access")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", no_network)
     d = vision_dir(tmp_path, vision=False)
-    got, facts = mlx_vision.prepare(d, family_with(file_sha(addon.parent)))
-    assert (
-        asked == [(GEMMA4.vision_addon_repo, "vision.safetensors")] and facts["repository"] == GEMMA4.vision_addon_repo
-    )
-    assert (got / "vision.safetensors").exists()
+    addon = addon_file(tmp_path)
+    got, facts = mlx_vision.prepare(d, family_with(addon), vision_weights=str(addon))
+    assert json.loads((got / "config.json").read_text())["vision_config"] == VISION_CONFIG["vision_config"]
+    assert facts["source"] == "add-on"
 
 
 def test_v7_the_wrong_architecture_is_refused(tmp_path):
@@ -565,7 +626,8 @@ def test_v10_the_add_on_merges_into_the_model_mlx_vlm_loads(tmp_path, mlx_stack,
     mlx_stack.save_safetensors(
         str(addon / "vision.safetensors"), {"model." + k: v for k, v in params.items() if is_vision(k)}
     )
-    fam = family_with(file_sha(addon), key="gemma-4-12b" if kind == "unified" else "gemma-4-31b")
+    (addon / "vision_config.json").write_text(json.dumps({"vision_config": cfg["vision_config"]}))
+    fam = family_with(addon, key="gemma-4-12b" if kind == "unified" else "gemma-4-31b")
     out = mlx_vision.merged_dir(
         conv, fam, addon / "vision.safetensors", {"vision_config": cfg["vision_config"]}, tmp_path / "m"
     )

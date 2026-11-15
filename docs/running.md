@@ -599,7 +599,7 @@ uv sync --extra mlx-images
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model google/gemma-4-12B-it --images on
 # a tuned model's MLX conversion: the base's vision add-on supplies the vision weights, found in the Hugging Face cache
 uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on
-# offline: the add-on's file or folder
+# the add-on's folder (both files), which also works offline
 uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on --vision-weights ./gemma-4-12b-vision
 ```
 
@@ -607,11 +607,12 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decis
   Text requests are answered as before; a request with pictures puts each at its place in the state or in one question's text, a question's own picture is read by that question alone, and `--image-budget` and `--max-images` are as on vLLM (`--max-images` only bounds a request on a Mac).
 - **The vision weights.**
   An MLX conversion made for text drops the vision tensors, so it cannot read pictures by itself.
-  The conversion needs them, or the base's **vision add-on** supplies them: a small versioned repository per base with one `vision.safetensors`, copied bit for bit from the base's own checkpoint and shared by the base and every model tuned from it.
-  The 12B's is `tachara-ai/decisio-gemma-4-12b-vision` (10 tensors, 100 MB) and the 31B's `tachara-ai/decisio-gemma-4-31b-vision` (356 tensors, 1.15 GB).
-  - Where the server finds it: `--vision-weights PATH` (the file, or a folder holding it; for offline use), otherwise the base's repository, downloaded once into the Hugging Face cache.
-  - How it is checked: decisio is pinned to the file's sha256, which is verified on every start; a file that differs is refused with both hashes.
-    The repository's revision is not pinned; the content is.
+  The conversion needs them, or the base's **vision add-on** supplies them: a small versioned repository per base with two files, `vision.safetensors` (the vision tensors, copied bit for bit from the base's own checkpoint) and `vision_config.json` (the base's vision settings, so no copy of the base's checkpoint is needed).
+  It is shared by the base and every model tuned from it.
+  The 12B's is `tachara-ai/decisio-gemma-4-12b-vision` (10 tensors, 100 MB) and the 31B's `tachara-ai/decisio-gemma-4-31b-vision` (356 tensors, 1.15 GB); a release reads them at the revision it pins, and until a release pins one, pass `--vision-weights`.
+  - Where the server finds it: `--vision-weights PATH` (a folder holding both files, or the weights file with `vision_config.json` beside it; this works offline), otherwise the base's repository at the pinned revision, downloaded once into the Hugging Face cache.
+    A repository whose revision is not pinned in the release is never read: the server refuses to start and says to pass `--vision-weights`.
+  - How it is checked: decisio is pinned to the sha256 of both files, which is verified on every start; a file that differs is refused with both hashes.
   - Offline with nothing cached, the server refuses to start and names `--vision-weights`.
   - A conversion that already has the tensors (`google/gemma-4-12B-it`, `mlx-community/gemma-4-12B-it-6bit`) needs no add-on, and `--vision-weights` with one is refused.
   - Nothing is added to a model repository's `decision_config.json`: the pin is in decisio.
@@ -638,14 +639,14 @@ Measured through the Mac server on one Apple silicon Mac with 64 GB, at budget 2
 - Without the image blocks' bidirectional attention a square in a top corner is read as "bottom".
 - **Against decisio on vLLM**, same prompt and request path, on noul and choice items with one picture:
   - The 12B base, bf16 on both sides, 20 items: the probabilities differ by at most 0.024 (0.004 on average) and no answer changes.
-  - The two Mac builds above are other weights than the vLLM runs they were compared with, so they differ more, and the figures are as measured, on 60 items of a reporting split:
+  - The two Mac builds above are other weights than the vLLM runs they were compared with, so they differ more, and the figures are as measured, on 60 held-out items:
 
     | | |P(a) on Mac - P(a) on vLLM|: max, mean, median | answers flipped | right on the Mac and on vLLM |
     | --- | --- | --- | --- |
-    | 31B, 4-bit MLX against the FP8 card | 0.23, 0.060, 0.041 | 0 | 55 and 55 |
+    | 31B, 4-bit MLX against the FP8 build served with vLLM | 0.23, 0.060, 0.041 | 0 | 55 and 55 |
     | tuned 12B, 6-bit MLX against its bf16 merge | 0.060, 0.016, 0.010 (48 items; the 12 whose vLLM answer was committed are compared by side) | 0 | 57 and 57 |
 
-  - So an answer the Mac reads for the 31B differs from the FP8 card's by 0.06 on average, because it is the 4-bit build and not the FP8 weights, and the tuned 12B's by 0.02, because it is the 6-bit conversion and not bf16.
+  - So an answer the Mac reads for the 31B differs from the FP8 build's by 0.06 on average, because it is the 4-bit build and not the FP8 weights, and the tuned 12B's by 0.02, because it is the 6-bit conversion and not bf16.
     Where a probability is near a half, a quantised build can land on the other side: one item of the tuned 12B read 0.44 on the Mac and 0.5 to 0.8 on vLLM.
   - A tuned repository's yes/no commit rule (`--noul-commit`) reports a probability between 0.20 and 0.80 as exactly 0.80 or 0.20 by its side of a half, which turns that kind of near-tie into a 0.6 gap; the tuned figures above were read with the rule off on the Mac.
 - The process's memory stays flat over the requests (the first and the last request differ by under 0.2 GB).

@@ -2005,8 +2005,9 @@ def resolve_pad_policy(backend, pad_policy=None):
 def resolve_images(args) -> int | None:
     """`--images` and `--image-budget`: the soft-token budget the engine reads images at (None with images off), or
     ValueError for a server that cannot read images. Images are for the Gemma bases, read by the engine that reads
-    text: on the vLLM server, and on a Mac (`--backend mlx`) for the 12B (decisio.serve.mlx_images). The Qwen base
-    keeps `--image-model`, and a head-capable class of the 31B has no multimodal form yet."""
+    text: on the vLLM server, and on a Mac (`--backend mlx`, decisio.serve.mlx_images) for either Gemma base, from a
+    conversion that keeps the vision weights or with the base's vision add-on. The Qwen base keeps `--image-model`,
+    and a head-capable class of the 31B has no multimodal form yet on vLLM."""
     from decisio.families import read_config
     from decisio.serve import image_marks
 
@@ -2783,11 +2784,12 @@ def build_parser():
         "--images",
         choices=("off", "on"),
         default="off",
-        help="images on a Gemma base (the vLLM server, and the 12B with --backend mlx on a Mac): the engine that reads "
-        "text reads the pictures too, each at its place in the state or in one question's text (docs/api.md, 'Images "
-        "on Gemma 4'); off (the default, as before) loads the text path alone. The 12B raises its image limit; the 31B "
-        "loads its vision tower. On a Mac the conversion must keep the vision weights (docs/running.md, 'Images on a "
-        "Mac'). Not measured yet on vLLM: memory at start-up and text latency",
+        help="images on a Gemma base (the vLLM server, or --backend mlx on a Mac): the engine that reads text "
+        "reads the pictures too, each at its place in the state or in one question's text (docs/api.md, "
+        "'Images on Gemma 4'); off (the default, as before) loads the text path alone. On vLLM the 12B raises "
+        "its image limit and the 31B loads its vision tower. On a Mac either base reads pictures from a "
+        "conversion that keeps the vision weights, or with the base's vision add-on for one that dropped them "
+        "(--vision-weights; docs/running.md, 'Images on a Mac')",
     )
     ap.add_argument(
         "--box-confidence",
@@ -2802,10 +2804,11 @@ def build_parser():
         "--vision-weights",
         default=None,
         metavar="PATH",
-        help="--backend mlx --images on: the base's vision add-on (its vision.safetensors, or a folder holding it), "
-        "for an MLX conversion that has no vision weights; without the flag the base's add-on repository is "
-        "downloaded once into the Hugging Face cache. Checked against the sha256 this release is pinned to "
-        "(docs/running.md, 'Images on a Mac')",
+        help="--backend mlx --images on: the base's vision add-on (a folder holding its vision.safetensors and "
+        "vision_config.json, or the weights file with the config beside it) for an MLX conversion that has no vision "
+        "weights. Without the flag the add-on is downloaded once from the base's repository at the revision this "
+        "release pins, and until that repository is published the flag is needed. Both files are checked against the "
+        "sha256 this release is pinned to (docs/running.md, 'Images on a Mac')",
     )
     ap.add_argument(
         "--image-budget",
