@@ -136,7 +136,7 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
             raise ValueError("--images on: a checkpoint with per-layer inputs (the small Gemma 4 models) is not served")
         self._embed = lm.embed_tokens
         self._embed_scale = lm.embed_scale
-        self._warm_images()
+        self.warm_images(rounds=1)  # the first picture compiles the vision path: before the first request
 
     # ---- loading -------------------------------------------------------------------------------
 
@@ -213,18 +213,6 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
 
             self._processor = Gemma4UnifiedImageProcessor()
         return self._processor
-
-    def _warm_images(self):
-        """The first picture compiles the vision path: do it before the first request."""
-        from PIL import Image
-
-        blank = Image.new("RGB", (512, 512), (128, 128, 128))
-        self.answer(
-            f"{marks.mark(1, 'warm')} Warm-up.",
-            [{"kind": "noul", "instructions": "Is this a warm-up request?"}],
-            images=[blank],
-            tag="warm",
-        )
 
     def facts(self):
         from importlib.metadata import version
