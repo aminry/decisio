@@ -76,10 +76,14 @@ class Family:
     # the served temperatures: global, and for choice questions (None: the global one)
     temperature: float = 1.0
     choice_temperature: float | None = None
-    # the temperature of a request with images (`--images on`, Gemma bases): None reads it at the text temperatures
-    # above. Not fitted on images yet: the text temperatures were fitted on text, and an image calibration is the
-    # figure that would fill this in (docs/running.md, "Images on Gemma 4")
-    image_temperature: float | None = None
+    # a factor on the temperature of a request with images (`--images on`, Gemma bases): a question with images is
+    # read at `image_temperature_scale` times the temperature its type has for text. None reads images at the text
+    # temperatures. The text temperatures were fitted on text; this is the correction fitted on images
+    # (docs/running.md, "Images on Gemma 4")
+    image_temperature_scale: float | None = None
+    # the soft-token budget an image is read at when `--image-budget` is not given (None: image_marks.DEFAULT_BUDGET,
+    # 280, the model's own)
+    image_budget: int | None = None
     # beyond those two: a temperature for yes/no ("noul") and for score questions of their own (the global one when
     # absent), and a choice temperature per band of option count ("lo-hi": T, 2 to 255, not overlapping). Both are
     # the profile's last word: a flag, a temperatures file and a tuned repository's defaults come first, and the bands
@@ -147,6 +151,10 @@ QWEN = Family(
     },
     temperature=1.506,
     choice_temperature=1.370,
+    # the `--image-model` route reads images at temperature 1.0, not at the text temperatures above, so this is the
+    # image temperature itself: 0.80, fitted on the placed layout (held-out log loss 0.189 before, 0.173 after);
+    # the legacy layout keeps 1.0
+    image_temperature_scale=0.80,
     # not needed: the state is padded to end on the 1,056-token block, also the cache's hit unit, and a question is
     # shorter than a block, so the state's end is already the latest checkpoint of a request with one question
     register_state_boundary=False,
@@ -162,6 +170,9 @@ GEMMA4 = Family(
     pad_to="none",
     limit_mm={"image": 0, "video": 0, "audio": 0},
     context_ceiling=65536,
+    # images are read at 560 soft tokens unless --image-budget says otherwise: about 1.8 times the tokens of 280, and
+    # a Box read with a mean IoU of 0.925 against 0.862 at 280, with decisions within about 2 points
+    image_budget=560,
     # text-only is vLLM's own class with every multimodal input off: Gemma has no M-RoPE, so a text prompt gets the
     # language model's own positions
     classes={"text-only": None, "hidden-readout": "DecisioGemma4UnifiedHiddenReadout"},
@@ -219,6 +230,10 @@ GEMMA4_31B = Family(
     head_rows=GEMMA4.head_rows,
     softcap=30.0,
     head_label_logprobs="engine",
+    # images: read at 280 soft tokens (image_budget stays None: the model's own default). The scale is a temperature
+    # fitted on images that softens the probabilities served at the text temperatures by a further factor of
+    # 1.3761675778532716, fitted at budget 280 on 377 calibration items (held-out log loss 0.362 before, 0.333 after)
+    image_temperature_scale=1.376,
     # 210,000 to 215,376: the 12B's 170,000 would put a label form (174,960) inside 5,376 dimensions
     hidden_start=210_000,
     temperature=5.252,
@@ -368,11 +383,11 @@ def check_profile_temperatures(fam: Family) -> None:
             raise ValueError(f"{fam.key}: temperatures names {k!r}; only noul and score (choice has its own field)")
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
             raise ValueError(f"{fam.key}: the {k} temperature must be a positive number, got {v!r}")
-    it = fam.image_temperature
+    it = fam.image_temperature_scale
     if it is not None and (
         isinstance(it, bool) or not isinstance(it, (int, float)) or not math.isfinite(it) or it <= 0
     ):
-        raise ValueError(f"{fam.key}: the image temperature must be a positive number, got {it!r}")
+        raise ValueError(f"{fam.key}: the image temperature scale must be a positive number, got {it!r}")
     if fam.choice_bands:
         from decisio.serve.adapter_temperatures import AdapterFileError, validate_temperatures
 

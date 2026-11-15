@@ -223,7 +223,6 @@ def profile_of(fam: Family) -> dict:
         "temperatures": {
             "global": fam.temperature,
             "choice": fam.choice_temperature,
-            **({"image": fam.image_temperature} if fam.image_temperature is not None else {}),
         },
         "serving": {
             "served_name": fam.served_name,

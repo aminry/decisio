@@ -389,11 +389,11 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
   The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
   A request without images then runs under that class too, so the 31B's text answers under `--images on` are to be checked against the text-only server before the flag is relied on (not measured yet).
-- `--image-budget` is the soft tokens an image may take: 70, 140, 280 (the default, the model's own), 560 or 1120; 1120 is not allowed on Gemma 4 12B.
+- `--image-budget` is the soft tokens an image may take: 70, 140, 280, 560 or 1120; 1120 is not allowed on Gemma 4 12B.
+  The default depends on the base: 560 on Gemma 4 12B (bf16, FP8 and a tuned repository on it), 280 (the model's own) on Gemma 4 31B.
   On the 12B, which has no vision encoder, an image's block (its soft tokens plus the begin and end tokens) must fit the sliding window, 1,024 tokens, and 1120 makes blocks of up to 1,122.
   The server refuses it at start, with the budgets that fit, rather than lower it silently; a base with a longer window would allow it.
   Gemma 4 31B reads pictures through its own vision encoder, so every budget fits it, 1120 included.
-  The default budget is still under measurement.
   An image is scaled to fill the budget, so the budget is also what a request pays per image (`docs/api.md` has the table); `/health` reports it.
 - `--max-images` is the most images one request may carry (16 here unless set).
   vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers; at 560 and a large limit it may not fit a card.
@@ -404,7 +404,9 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
 - An adapter (`--adapter`) serves images: vLLM applies it to the language model only, which is what the tuned adapters are.
   Whether a tuned model reads pictures as well as its base is not measured.
 - A base's temperatures were fitted on text.
-  A request with images is served at them unless the base has an `image_temperature` (`decisio.families`, listed in the model's `decision_config.json` as `temperatures.image` when set), which none has yet: it needs a calibration on labelled images.
+  A request with images is served at the text temperatures times the base's `image_temperature_scale` (`decisio.families`), which Gemma 4 31B has (1.376, fitted on images at budget 280) and Gemma 4 12B does not.
+  An adapter's own temperatures win.
+  The Qwen `--image-model` route reads images at temperature 1.0, so its scale, 0.80, is the temperature itself (placed layout only; `--image-prompt legacy` keeps 1.0).
 
 Not measured yet, and to be read from a card before the flag's default changes: the memory the start-up profile takes at each budget and limit, the text latency and answers of the 31B under the multimodal class, the cost of an image's first read and of a cached one, and prefix-cache hits that begin inside an image of a question's own text.
 The design is in `docs/design/gemma-images.md`.

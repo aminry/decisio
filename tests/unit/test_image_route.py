@@ -526,3 +526,58 @@ def test_i13_a_box_question_is_refused_with_a_clear_400(served, picture):
     r = client.post("/v1/systemone", json=req)
     assert r.status_code == 400, r.text
     assert "not answered on the --image-model route" in r.text and "Gemma 4 base" in r.text
+
+
+def test_i14_the_qwen_image_scale_is_the_temperature_itself_on_the_placed_layout(served, legacy_engine):
+    """The route reads images at 1.0, not at the text temperatures: a scale of 0.8 serves 0.8 (never 0.8 times the
+    text temperature), on the placed layout only."""
+    from fastapi.testclient import TestClient
+
+    from decisio.families import QWEN
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.temperature import apply_temperature
+    from decisio.serve.vllm_engine import make_app
+
+    client, text, placed = served
+    assert QWEN.image_temperature_scale == 0.80
+    req = {"state": STATE, "questions": QUESTIONS, "images": [data_url(picture_of(300, 200))]}
+    plain = client.post("/v1/systemone", json=req).json()["answers"]["colour"]["probabilities"]
+
+    def read(image_engine, **kw):
+        so = SystemOne(text, "decisio-test", image_engine=image_engine, temperature=1.506, **kw)
+        c = TestClient(make_app(text, so), headers={"x-decisio-client": "test"})
+        return so, c.post("/v1/systemone", json=req).json()["answers"]["colour"]["probabilities"]
+
+    so, scaled = read(placed, image_temperature_scale=0.80)
+    assert so.qwen_image_temperature() == 0.80
+    want = apply_temperature(np.asarray(list(plain.values()), dtype=np.float64), 0.80)
+    assert np.allclose(list(scaled.values()), want, atol=1e-6)
+    legacy_so = SystemOne(text, "decisio-test", image_engine=legacy_engine, image_temperature_scale=0.80)
+    assert legacy_so.qwen_image_temperature() == 1.0  # the fit was for the placed layout
+    assert SystemOne(text, "decisio-test", image_engine=placed).qwen_image_temperature() == 1.0  # no scale
+
+
+def test_i15_an_image_request_applies_no_task_and_reads_at_the_image_temperature(served, monkeypatch):
+    """No registered task was fitted on pictures, so a request with images applies none, even where a task matches its
+    question: it is read at the image temperature alone. (The image temperature also never applies on top of a task's
+    correction, as the text temperature never does; the request path guards that too.)"""
+    from fastapi.testclient import TestClient
+
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.temperature import apply_temperature
+    from decisio.serve.vllm_engine import make_app
+
+    _, text, placed = served
+    req = {"state": STATE, "questions": QUESTIONS, "images": [data_url(picture_of(300, 200))]}
+    so = SystemOne(text, "decisio-test", image_engine=placed, image_temperature_scale=0.80, debug_readout=True)
+    k = len(QUESTIONS["colour"]["criteria"])
+    task = {"id": "cal", "calibration": {"applied": True, "bias": [0.4] + [-0.1] * (k - 1)}, "head": {"applied": False}}
+    monkeypatch.setattr(SystemOne, "readout_task", lambda self, q, selected=None: task)
+    client = TestClient(make_app(text, so), headers={"x-decisio-client": "test"})
+    r = client.post("/v1/systemone", json=req, headers={"x-decisio-debug": "readout"})
+    assert r.status_code == 200, r.text
+    assert "x-decisio-tasks" not in r.headers
+    d = r.json()["decisio_debug"]["colour"]
+    assert d["path"] == "temperature" and d["temperature"] == 0.80
+    want = apply_temperature(np.asarray(d["p"], dtype=np.float64), 0.80)
+    assert np.allclose(list(r.json()["answers"]["colour"]["probabilities"].values()), want, atol=1e-9)

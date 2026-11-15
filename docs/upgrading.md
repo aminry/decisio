@@ -34,6 +34,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 Answers of the Qwen image route can differ after the upgrade, because the prompt differs.
 If you rely on the earlier answers, start with `--image-prompt legacy` for now, and plan to move to the default before the flag is removed.
 
+## Unreleased: the 12B reads images at 560 soft tokens by default, and the 31B's image answers use a fitted temperature
+
+With `--images on` and no `--image-budget`, Gemma 4 12B (bf16, FP8 and any tuned 12B repository) now reads images at 560 soft tokens, where every base read them at 280.
+An image request costs about 1.8 times the tokens per image, and reads Boxes better.
+Pass `--image-budget 280` to keep the old cost.
+Gemma 4 31B keeps 280 by default, and 1120 stays an opt-in.
+`/health` reports the budget in use.
+
+Gemma 4 31B now serves a request with images at a temperature fitted on images: its text temperature for the question's type times 1.376 (`image_temperature_scale`), so its image probabilities are less sharp than before.
+Requests without images, an adapter's own temperatures and Gemma 4 12B are unchanged.
+
+The Qwen image route (`--image-model`) read images at temperature 1.0, and now reads them at 0.80, fitted on the placed layout.
+`--image-prompt legacy` keeps 1.0.
+Its image probabilities are therefore sharper than before.
+
 ## 0.46.0: a prompt over the window is refused on the MLX and HF builds, and a context is checked with its examples
 
 ### What changed

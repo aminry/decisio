@@ -1708,8 +1708,8 @@ def make_app(engine, systemone=None, health=None):
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
                     **(
-                        {"image_temperature": systemone.image_temperature}
-                        if systemone.image_temperature is not None
+                        {"image_temperature_scale": systemone.image_temperature_scale}
+                        if systemone.image_temperature_scale is not None
                         else {}
                     ),
                     **({"think_temperatures": systemone.think_temperatures} if systemone.think_temperatures else {}),
@@ -2033,7 +2033,7 @@ def resolve_images(args) -> int | None:
         if given:
             raise ValueError(f"--images on does not combine with {flag}: one engine reads text and images")
     if budget is None:
-        budget = image_marks.DEFAULT_BUDGET
+        budget = fam.image_budget or image_marks.DEFAULT_BUDGET
     if budget not in image_marks.BUDGETS:
         raise ValueError(f"--image-budget {budget}: one of {', '.join(map(str, image_marks.BUDGETS))}")
     image_marks.check_budget_fits_window(
@@ -2795,10 +2795,11 @@ def build_parser():
         "--image-budget",
         type=int,
         default=None,
-        help="with --images on, the soft tokens one image may take: 70, 140, 280, 560 or 1120 (default 280, the "
-        "model's own default); an image is scaled to fill the budget, so a request pays about this many tokens per "
-        "image (docs/api.md has the table); on a base without a vision encoder, a budget whose largest image block is "
-        "longer than its sliding window is refused at start (1120 on Gemma 4 12B, whose window is 1,024 tokens)",
+        help="with --images on, the soft tokens one image may take: 70, 140, 280, 560 or 1120 (default 560 on "
+        "Gemma 4 12B, 280, the model's own, on Gemma 4 31B); an image is scaled to fill the budget, so a request "
+        "pays about this many tokens per image (docs/api.md has the table); on a base without a vision encoder, a "
+        "budget whose largest image block is longer than its sliding window is refused at start (1120 on Gemma 4 "
+        "12B, whose window is 1,024 tokens)",
     )
     ap.add_argument(
         "--hide-index-keys",
@@ -3756,7 +3757,7 @@ def main():
         orders=args.orders,
         branch_log=args.branch_log,
         image_engine=image_engine,
-        image_temperature=args.family.image_temperature,
+        image_temperature_scale=args.family.image_temperature_scale,
         box_confidence=_box_confidence(args),
         abstain_option=args.abstain_option,
         hide_index_keys=args.hide_index_keys,
