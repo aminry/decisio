@@ -1,0 +1,37 @@
+[
+ {
+  "path": "comparison.json",
+  "bytes": 27891,
+  "sha256": "50720c16d027cff0e76936931b4bcb2d3395055189dc22bb265ad5a6d487ac77"
+ },
+ {
+  "path": "host.txt",
+  "bytes": 208,
+  "sha256": "6cdb95b4fa6ea680f81f51efd81ff18138141bc22d46d58ad4156dd3cff31e5b"
+ },
+ {
+  "path": "manifest.json",
+  "bytes": 1116,
+  "sha256": "7f60f095a4087ee856f20a1c8c2d855b246be8b8652a68129cfaf3d8a7ac2707"
+ },
+ {
+  "path": "memory.json",
+  "bytes": 574,
+  "sha256": "ac198cb0c72e92d3ce7c51f153b811a4fab6e69f498e77f1465cf92bddb11a18"
+ },
+ {
+  "path": "ollama_versions.json",
+  "bytes": 1411,
+  "sha256": "aa5b0de35443e4dc4a8ea8496e9b9fec9f5a85ef6e54bd987cdfd985e4f6343c"
+ },
+ {
+  "path": "release_files.json",
+  "bytes": 722,
+  "sha256": "7ef4bdaa232e0c23d68d34ef5be6ab352d2355fc2c86ece2edc6059efadb7ff3"
+ },
+ {
+  "path": "summary.md",
+  "bytes": 3457,
+  "sha256": "0d5dd7a59c0e958cb794e3c19ee11ecb493c7638b86ec518f2fded788516fd7a"
+ }
+]

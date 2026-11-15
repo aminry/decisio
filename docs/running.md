@@ -946,17 +946,69 @@ Leave it off on the 31B: in the card check its cold starts already agreed, and t
 ## Ollama
 
 ```bash
-ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base, for 16 GB laptops
-ollama pull aminroudaki/decisio          # the Qwen base
+ollama pull aminroudaki/decisio-gemma          # the Gemma 4 12B base: q4_k_m (also latest) and q8_0
+ollama pull aminroudaki/decisio-gemma-tuned    # the tuned 12B (the calibrated flavor): q4_k_m (also latest) and q8_0
 ```
 
-Requires Ollama 0.35.1 through 0.40.3.
-These model files work on Ollama 0.35.1 through 0.40.3. Ollama 0.40.4 (2026-10-12) and later answer `/v1/systemone` for them with "was downloaded in a format that is no longer supported" (checked on 0.40.4, 0.40.7 and 0.40.9, and after a fresh `ollama pull`): their decision route takes only models whose GGUF carries Ollama's own decision head. On a newer Ollama, run decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
-The model pages, [decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma) and [decisio](https://ollama.com/aminroudaki/decisio), package laptop versions of the two bases for Ollama's decision route and list their tags and their sizes.
-- The Gemma listing is the path for 16 GB laptops: its `q4_k_m` tag (also `latest`) is a 7.7 GB download and takes 8.6 GB in Ollama at the listing's 8,192-token context; its `q8_0` tag takes 13.6 GB (Ollama 0.35.1 on an Apple M5 Pro, `runs/2026-10-07_ollama-gemma-memory/`).
-- The Qwen listing's smallest tag is a 23 GB download, so it needs a machine with more memory.
+Both listings answer Ollama's decision route, `/v1/systemone`, with decisio's own prompt and temperatures, and they read images.
+They were checked on Ollama 0.40.4, 0.40.9 and 0.40.16 (2026-11-15): each loads the files and answers text and image requests with the same top answer on every question tried; the probabilities differ by at most 0.001 on text and 0.05 on images between versions.
+On the questions measured, the `q8_0` tag of the base chooses the same answer as decisio's own server on the same Mac (MLX, 8-bit) for 98.3% of 300 questions, the tuned model's `q8_0` for 99.0%, and every tag matches decisio's image answers on 97% to 98% of 257 image questions (below).
 
-Ollama builds its own prompt and applies no calibration, so its numbers are the ones on those pages, not the ones in this repository.
+```bash
+curl http://localhost:11434/v1/systemone -d '{
+  "model": "aminroudaki/decisio-gemma",
+  "state": "The customer sent this photo of the parcel.",
+  "images": ["'"$(base64 < parcel.jpg | tr -d '\n')"'"],
+  "questions": {"damaged": {"type": "noul", "instructions": "Is the parcel damaged?"}}
+}'
+```
+
+### What the files carry
+
+- **The prompt.** A GGUF's `systemone` chat template is decisio's prompt for one question: the system turn, the questions header, the state, the question, the option letters and the answer line, with decisio's option rules (index keys hidden, snake_case labels shown with spaces, an option shown as its description).
+  For a request of one question with at most 68 options it is decisio's prompt byte for byte.
+- **The temperatures.** The base's 3.592 for every type; the tuned model's fitted ones (yes/no 3.314, score 2.1109, choice by number of options: 2.1317 up to 10, 1.8766 from 11).
+- **The weights.** The base is `bartowski/gemma-4-12B-it-GGUF` at revision `2ae7d41b` (Google's `gemma-4-12B-it` at `707f0a3b`), its tensors unchanged.
+  The tuned model is `tachara-ai/Decisio-12b-tuned-calibrated` at `baa731aa`, converted with llama.cpp and quantized with an importance matrix from the same calibration text as the base's files.
+  Both carry Gemma 4's vision projector (`mmproj-gemma-4-12B-it-f16.gguf`, 122 MB).
+- `python -m decisio.hub_gguf` writes and checks these keys for any Gemma 4 GGUF ([decisio.hub_gguf](../src/decisio/hub_gguf.py)).
+
+### Where it differs from decisio's own server
+
+- **Several questions in one request:** each question's prompt lists only its own question in the header, where decisio lists every question.
+  On 40 requests of three questions, the base's `q8_0` chose decisio's answer for 87.5% of the measured question.
+- **More than 68 options:** the option letters past the 68th are llama.cpp's codes, not decisio's; the readout stays consistent with what the prompt shows (30 questions of 77 options: the same answer as decisio for all of them at `q8_0`).
+- **Label forms:** decisio adds the probability of " A" to that of "A"; Ollama reads "A".
+- **Images:** a request's images go before the state, not at their places in it; an image is not limited to one question; there is no Box question.
+  Ollama reads an image near its own resolution, from about 80 tokens (a small image) to 487 (1,200 pixels and larger), where decisio's 12B reads every image at its budget of 560.
+- **What decisio does that Ollama does not:** the commit flavor, thinking, read twice, tasks, abstention and the fast table.
+
+### Measured (2026-11-15, Apple M5 Pro, Ollama 0.40.16)
+
+Answers to the same questions from a private decision suite (300 questions of at most 26 options, 30 of 77 options) and from an image set of synthetic scenes and real photos (257 questions, one image each), against decisio's own servers: MLX on the same Mac for text, and the bf16 model on vLLM for images (the 12B base at an image budget of 560, the tuned model at 280).
+
+| | Text: same answer as decisio | Text accuracy (choice / yes-no) | Images: same answer as decisio | Image accuracy (real-photo choice / yes-no) |
+| --- | --- | --- | --- | --- |
+| Base `q4_k_m` | 87.0% (MLX 4-bit) | 0.667 / 0.877 | 97.3% | 0.795 / 0.908 |
+| Base `q8_0` | 98.3% (MLX 8-bit) | 0.698 / 0.871 | 97.7% | 0.771 / 0.921 |
+| decisio, base (MLX 8-bit; bf16 for images) | | 0.674 / 0.877 | | 0.783 / 0.921 |
+| Tuned `q4_k_m` | 94.7% (MLX 8-bit) | 0.682 / 0.871 | 97.3% | 0.819 / 0.882 |
+| Tuned `q8_0` | 99.0% (MLX 8-bit) | 0.682 / 0.871 | 97.3% | 0.807 / 0.895 |
+| decisio, tuned (MLX 8-bit; bf16 for images) | | 0.698 / 0.865 | | 0.807 / 0.908 |
+
+- decisio's own MLX 4-bit and 8-bit conversions of the base choose the same answer for 86.3% of the text questions, so most of the `q4_k_m` row's difference is the 4-bit quantization, not the route.
+- No accuracy difference between an Ollama tag and decisio is outside its 95% interval (paired bootstrap).
+  Log loss differs in six places, all small: lower than decisio for the base `q8_0` on text choice (-0.017 [-0.030, -0.005]) and synthetic yes/no images (-0.017 [-0.039, -0.001]), and for the tuned `q8_0` on yes/no in requests of several questions (-0.021 [-0.038, -0.007]); higher for the tuned `q4_k_m` on text choice (+0.051 [+0.025, +0.077]) and for both tuned tags on synthetic yes/no images (+0.043 [+0.017, +0.075] and +0.049 [+0.023, +0.080]).
+- Calibration: on images the Ollama tags' calibration error is higher than decisio's on some kinds (the tuned `q4_k_m`: 0.112 against 0.052 on real-photo yes/no).
+- Memory at the listings' 8,192-token context, the runner's resident set while it answered text, an image and a 6,600-token text: 11.1 GB for the base's `q4_k_m` (10.8 GB for the tuned one) and 15.9 GB for either `q8_0`: the weights, mapped from the file, and about 3.5 GB of buffers.
+  Ollama's own `/api/ps` reports 4.2 GB for every tag, which leaves out the mapped weights.
+  A 16 GB machine was not tried.
+
+The Qwen listing, `aminroudaki/decisio`, needs Ollama 0.35.1 through 0.40.3: later versions refuse it on the decision route ("was downloaded in a format that is no longer supported"), and its readout cannot yet be carried in a GGUF.
+On a current Ollama use the Gemma listings above, or decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
+The files of the Gemma listing that worked on Ollama 0.35.1 through 0.40.3 stay under `q4_k_m-ollama0.40.3` and `q8_0-ollama0.40.3`.
+
+The record of these measurements is `runs/2026-11-15_ollama-route/`.
 
 ## CPU stand-in for development
 
