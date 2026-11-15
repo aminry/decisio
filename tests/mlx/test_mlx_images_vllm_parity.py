@@ -7,7 +7,8 @@ the vLLM answers are a JSON-lines file of `{"id", "answer"}` recorded from decis
 budget). The server is started here as a subprocess, so the whole path is the served one: prompt, image tokens, the
 temperatures, the readout. Run under the machine's memory guard and on its own (the server holds the model):
 
-  DECISIO_MLX_IMAGES_MODEL=<dir or repository> [DECISIO_MLX_IMAGES_VISION=<add-on>] [DECISIO_MLX_IMAGES_BASE=...] \\
+  DECISIO_MLX_IMAGES_MODEL=<dir or repository> [DECISIO_MLX_IMAGES_VISION=<add-on>] \\
+  [DECISIO_MLX_IMAGES_BASE=<base key, or a tuned repository owner/name[@revision] served with its own defaults>] \\
   DECISIO_MLX_IMAGES_WIRE=<wire folder> DECISIO_MLX_IMAGES_VLLM_ANSWERS=<answers.jsonl> \\
   [DECISIO_MLX_IMAGES_BUDGET=280] uv run pytest -q -m mlx_model tests/mlx/test_mlx_images_vllm_parity.py
 
@@ -76,8 +77,7 @@ def server():
         "mlx",
         "--base",
         base,
-        "--model",
-        os.environ["DECISIO_MLX_IMAGES_MODEL"],
+        *([] if "/" in base else ["--model", os.environ["DECISIO_MLX_IMAGES_MODEL"]]),  # a tuned repository is the base
         "--images",
         "on",
         "--image-budget",
