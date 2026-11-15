@@ -385,7 +385,7 @@ python -m decisio.serve.vllm_engine --base gemma-4-12b --images on
 python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budget 560 --max-images 8
 ```
 
-- `--images on` (default `off`, which loads the text path alone, as before) is for the vLLM server and the Gemma bases, and for the 12B on a Mac ([Images on a Mac](#images-on-a-mac)).
+- `--images on` (default `off`, which loads the text path alone, as before) is for the Gemma bases, on the vLLM server and on a Mac ([Images on a Mac](#images-on-a-mac)).
   The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
   The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
   A request without images then runs under that class too, so the 31B's text answers under `--images on` differ from the text-only server's: at budget 280 BANKING77 moved from 73 to 69 right answers of 100 (`EVAL_CARD.md` section 10.6).
@@ -566,7 +566,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
-- It refuses the Qwen base's second image engine (`--image-model`), packed mode, LoRA adapters and the second-engine head; the 12B reads images with `--images on` ([Images on a Mac](#images-on-a-mac)).
+- It refuses the Qwen base's second image engine (`--image-model`), packed mode, LoRA adapters and the second-engine head; both Gemma bases read images with `--images on` ([Images on a Mac](#images-on-a-mac)).
 - **A tuned model can be an MLX repository.** `python -m decisio.hub tuned-config --mlx-conversion mlx-lm@0.32.0 --mlx-bits 6 --mlx-group-size 64 ...` writes the `decision_config.json` of a directory that holds an MLX conversion of a tuned model's merged weights (`--merge-report` is the merge report of the bf16 model it was converted from; `--weights-dir` is the conversion, whose own `config.json` must declare the same affine quantization). The file says the weights are `mlx_affine` and records the conversion in `tuned.conversion`; the rest is the tuned repository of [Shipping a tuned model](#shipping-a-tuned-model): the temperatures, the layout and the flavor. `--backend mlx --base owner/name[@revision]` then serves it with those defaults, loading the weights at that revision. A server for vLLM refuses such a repository, and `--backend mlx` refuses a repository whose weights are FP8.
 - It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `tachara-ai/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
 
