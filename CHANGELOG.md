@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.47.0](https://github.com/aminry/decisio/compare/v0.46.0...v0.47.0) (2026-11-15)
+
+
+### Features
+
+* **serve:** Box questions on the Gemma image route ([#449](https://github.com/aminry/decisio/issues/449)) ([b262749](https://github.com/aminry/decisio/commit/b262749eb3c4200d3ae8dc8487e35b109126ec66))
+* **serve:** image defaults by base: Gemma 4 12B reads images at a 560-token budget, Gemma 4 31B at 280 with 1120 as an opt-in, and image answers on the 31B and on the Qwen route use fitted temperatures ([9f44a78](https://github.com/aminry/decisio/commit/9f44a78e5f9582059ffe7fea5b2ab31ee40b8ac1))
+* **serve:** images on Gemma 4 (vLLM) ([#448](https://github.com/aminry/decisio/issues/448)) ([39b3b11](https://github.com/aminry/decisio/commit/39b3b112367ad5fa47c0749386b4547a0c5930bc))
+* **serve:** the Qwen image route reads images at their places; the old layout (--image-prompt legacy) is deprecated ([#451](https://github.com/aminry/decisio/issues/451)) ([2a7c451](https://github.com/aminry/decisio/commit/2a7c45177089d7281fea844a15652967795ee627))
+
+
+### Bug Fixes
+
+* **serve:** a Gemma server with --images on starts again (the image warm-up carries its mark's tag) ([#452](https://github.com/aminry/decisio/issues/452)) ([85a4c9a](https://github.com/aminry/decisio/commit/85a4c9a859a2a8abcb2d6b9968c535309719e746))
+* **serve:** answer a Box whose reply says no box with the whole image at confidence 0 ([#456](https://github.com/aminry/decisio/issues/456)) ([1b87dec](https://github.com/aminry/decisio/commit/1b87dec89d3b2bdc0c3128c46599a1216573e63c))
+* **serve:** Gemma 4 31B takes image budget 1120; the window limit applies to a model without a vision encoder ([#457](https://github.com/aminry/decisio/issues/457)) ([223da1e](https://github.com/aminry/decisio/commit/223da1e94dbca8d2e7c81e0bf7154638f6f59ef1))
+* **serve:** image uploads from client SDKs are accepted, and the image wire rules cover part content types, reference lengths, animated images and a 32 MiB request body ([052dfd0](https://github.com/aminry/decisio/commit/052dfd0db52ae3898328000cfc8545b38ed36be5))
+* **serve:** load the --image-model engine at a pinned revision and check it before any engine is built ([#458](https://github.com/aminry/decisio/issues/458)) ([6ddb0bb](https://github.com/aminry/decisio/commit/6ddb0bba48a2c554384091d466293d6fa155bfb6))
+* **serve:** read Box questions under the plain layout on any server ([2227856](https://github.com/aminry/decisio/commit/22278568e1b4db9a761b2fef54705c5fda096341))
+* **serve:** refuse an image budget whose image block is longer than the sliding window ([d5368b3](https://github.com/aminry/decisio/commit/d5368b378a27edd68000f63668fa91ed0cf0a4db))
+* **serve:** the 31B starts with --images on as documented (its multimodal class, without the head) ([#455](https://github.com/aminry/decisio/issues/455)) ([20a8367](https://github.com/aminry/decisio/commit/20a8367ce6249f36a625b197ec2049ec7ac97127))
+
 ## [0.46.0](https://github.com/aminry/decisio/compare/v0.45.0...v0.46.0) (2026-11-10)
 
 
