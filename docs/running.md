@@ -378,9 +378,10 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
   The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
   A request without images then runs under that class too, so the 31B's text answers under `--images on` are to be checked against the text-only server before the flag is relied on (not measured yet).
-- `--image-budget` is the soft tokens an image may take: 70, 140, 280 (the default, the model's own) or 560; 1120 is not allowed on the Gemma 4 bases.
-  An image's block (its soft tokens plus the begin and end tokens) must fit the base's sliding window, which is 1,024 tokens on both Gemma 4 bases, and 1120 makes blocks of up to 1,122.
+- `--image-budget` is the soft tokens an image may take: 70, 140, 280 (the default, the model's own), 560 or 1120; 1120 is not allowed on Gemma 4 12B.
+  On the 12B, which has no vision encoder, an image's block (its soft tokens plus the begin and end tokens) must fit the sliding window, 1,024 tokens, and 1120 makes blocks of up to 1,122.
   The server refuses it at start, with the budgets that fit, rather than lower it silently; a base with a longer window would allow it.
+  Gemma 4 31B reads pictures through its own vision encoder, so every budget fits it, 1120 included.
   The default budget is still under measurement.
   An image is scaled to fill the budget, so the budget is also what a request pays per image (`docs/api.md` has the table); `/health` reports it.
 - `--max-images` is the most images one request may carry (16 here unless set).

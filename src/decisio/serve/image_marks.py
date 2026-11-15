@@ -116,3 +116,20 @@ def sliding_window_of(config: dict) -> int | None:
     none."""
     w = (config.get("text_config") or config).get("sliding_window")
     return int(w) if isinstance(w, int) and w > 0 else None
+
+
+def has_vision_encoder(config: dict) -> bool:
+    """Whether a checkpoint reads pictures through a vision encoder of its own (`vision_config.num_hidden_layers`, the
+    31B's 27-layer tower), as against patches embedded straight into the language model (the 12B's encoder-free
+    model, whose vision config declares no layers)."""
+    layers = (config.get("vision_config") or {}).get("num_hidden_layers")
+    return isinstance(layers, int) and layers > 0
+
+
+def image_window_limit(config: dict) -> int | None:
+    """The sliding window an image block must fit, or None when there is no such limit. Only an encoder-free model
+    is limited: there the language model's attention is all that links an image's top rows to its later tokens, and
+    on a sliding layer it reaches back only one window. A model with a vision encoder has every image token carry the
+    whole picture already (the encoder attends over all of it), so a block longer than the window loses nothing: on
+    Gemma 4 31B a 1,120 budget reads the corners of a picture as well as 280 does."""
+    return None if has_vision_encoder(config) else sliding_window_of(config)

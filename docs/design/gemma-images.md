@@ -50,7 +50,9 @@ The model builds the blocks from `mm_token_type_ids`, 1 on image tokens and 0 el
 vLLM 0.31.0 does this for the tokens it expands, through its multimodal prefix ranges, clamped to the sliding window.
 The rule on a sliding layer is the window AND (causal OR the same image block), as in the reference implementation: the window is not lifted inside an image, so tokens of a block more than one window apart do not see each other.
 A block longer than the window would therefore leave its later tokens unable to see its top rows, and the readout would lose the top of the picture.
-The server refuses a budget whose largest block (the budget's soft tokens plus the begin and end tokens) is longer than the base's sliding window, read from the checkpoint's `text_config.sliding_window`: 1120 (up to 1,122 tokens) against the 1,024-token window of the Gemma 4 bases, while 560 (up to 562) fits.
+That matters only where the language model's attention is all that links the parts of a picture: on the 12B, which embeds patches straight into the language model.
+The 31B reads pictures through its own 27-layer vision encoder, which attends over the whole picture, so every image token already carries all of it and a block longer than the window loses nothing (measured: at 1120 the 31B reads a square in each corner correctly, where the 12B reads the top ones as bottom).
+So on a base without a vision encoder (`vision_config` declares no `num_hidden_layers`), the server refuses a budget whose largest block (the budget's soft tokens plus the begin and end tokens) is longer than the sliding window, read from the checkpoint's `text_config.sliding_window`: 1120 (up to 1,122 tokens) against the 12B's 1,024-token window, while 560 (up to 562) fits; the 31B takes every budget.
 It refuses rather than lowers the budget, so the operator sees what the server does; a base with a longer window allows more.
 The default budget (280) is still under measurement.
 A runtime that drops the token types reads an image causally and loses its vertical axis; a Mac port has to pass them itself.

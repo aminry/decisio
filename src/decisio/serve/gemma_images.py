@@ -408,7 +408,7 @@ class GemmaImageLettersEngine(GemmaImageRequests, LettersEngine):
         from decisio.families import read_config
 
         family = kw.get("family") or family_of(model, kw.get("revision"))
-        self.image_window = marks.sliding_window_of(read_config(model, kw.get("revision")))
+        self.image_window = marks.image_window_limit(read_config(model, kw.get("revision")))
         marks.check_budget_fits_window(image_budget, self.image_window)
         # video and audio stay off; the image limit is the one place a request's pictures are bounded in memory
         engine_kw = {
