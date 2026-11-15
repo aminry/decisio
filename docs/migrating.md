@@ -67,7 +67,24 @@ Up to 255 options per question (a request with more gets 422, as on System One),
 With an image engine (`--image-model`), the SDK's `Image(...)` values work as they do against TypeSafe: the SDK uploads them as a `multipart/form-data` request with an `X-TypeSafe-SDK` header, which decisio accepts (tested on the bytes of the SDK 0.7.5's own request).
 The rules that differ are listed in [`api.md`](api.md#where-this-route-differs-from-system-one): decisio also reads WebP, has no side-length window, and does not need the `TypeSafe-Danger-Zone-Images` header (it accepts it).
 A body over 32 MiB, an image part of another content type than PNG or JPEG, a placeholder name over 1,024 bytes (65,536 in all) and an animated image are refused as TypeSafe refuses them.
-Box questions are answered on a Gemma server started with `--images on` ([box.md](box.md)), not with `--image-model`.
+Box questions are answered on a Gemma server started with `--images on` ([box.md](box.md)), not with `--image-model`; the section on images and Box below says what moves unchanged.
+
+**Images and Box, moving a TypeSafe image client.**
+A client that sends pictures to TypeSafe's `POST /v1/systemone` can send the same requests here and get answers to the same questions: where in a picture is the mug, does this photo match that one, which of these options does the picture show.
+
+What works unchanged:
+- `assets` with `image` placeholders in the state, in a question's instructions and in its options, as base64 in JSON or as multipart parts; the SDK's `Image(...)` values and its uploads.
+- The `TypeSafe-Danger-Zone-Images` header: accepted, never required.
+- Box questions: `{"type": "box", "instructions": ...}`, answered with `box` (four fractions of the image) and `confidence`; a Box can be mixed with other question types in one request.
+- A picture in a question's instructions or options belongs to that question only, as there.
+
+What differs:
+- Start the server with `--images on` (and `--image-budget`, which sets how many tokens each picture costs: [api.md](api.md#images-on-gemma-4---images-on)); a server without it answers 400 and says how to start one.
+- Box needs a Gemma base on vLLM; it is not served with `--image-model`, on the MLX backend, with a task, or under the header layout (`docs/box.md`).
+- A Box question needs an image in the request: without one the answer is 400.
+- `confidence` is calibrated to the observed rate of IoU >= 0.5 once a calibration is loaded, and a repeated Box gives the same answer.
+- The limits are decisio's own: WebP is read, there is no side-length window, and a picture costs a fixed number of tokens per budget instead of growing with its area ([comparison.md](comparison.md#31-images-and-box-set-beside-typesafes)).
+- Measured accuracy on the same items is in `EVAL_CARD.md` section 10.
 
 **Errors.**
 A request that fails validation gets 422 and one the engine cannot answer gets 400, each with a `detail` naming the problem.

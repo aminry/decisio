@@ -9,7 +9,7 @@ The board now lists decisio's three rows, read from its data files generated 202
 Those are runs under the board's later editions, so their numbers differ from the table's 0.2.1 runs.
 The context lengths in the table are those of the versions measured (32,768 tokens for every base); the Gemma bases serve the largest context that fits the card ([`running.md`](running.md#the-context-length)).
 Jev's and the other entries' values come only from the public boards, with each board's revision, the fields read and the date read in [`runs/2026-10-05_comparison/`](../runs/2026-10-05_comparison/).
-No figure here comes from any call of ours to TypeSafe's API, and nothing here is a rank.
+No figure in sections 1 to 4 comes from any call of ours to TypeSafe's API, and nothing here is a rank; the one exception is section 3.1's reference figures for images and Box, from 150 requests of 2026-11-14.
 
 **What a cell shows.** A value with its date and, where there is one, its 95% interval. No cell is marked ahead or behind; the rule of 2026-10-05 stays in [`RULE.md`](../runs/2026-10-05_comparison/RULE.md) as a record.
 The other entries' columns are shown as the board has them.
@@ -147,13 +147,54 @@ Where a row says the documentation does not state something, that is about the p
 | Self-hosting | yes: one 80 or 96 GB card on vLLM, the Docker image, or a Mac (below) | served by "the same endpoint, `POST /v1/systemone`"; the pages read describe the hosted API and no self-hosted option ([models](https://docs.typesafe.ai/models)) |
 | Open weights | the bases' official weights, downloaded at pinned revisions, never redistributed | "the same weights serve every account"; the pages read name no downloadable weights ([models](https://docs.typesafe.ai/models)) |
 | Teaching from labelled examples | `POST /v1/tasks` fits a per-task calibration and, for long option lists, an intent head on your labelled examples; the model stays frozen | "Jev is not fine-tuned or LoRA-adapted with customer data", and "You shape its answers to your domain through the request rather than through per-account weights" ([models](https://docs.typesafe.ai/models)) |
-| Image input | PNG, JPEG and WebP photos in the state, through a second engine on the same card (`--image-model`); measured on the Qwen base only; sent as TypeSafe's SDK sends them (`assets`, multipart or base64), and read as the same placeholders at the same places in the state, the instructions and the criteria, with System One's size and format rules for a request's body, an image part's type, a placeholder's length and animated images (`docs/api.md`); no Box question on this route (a Gemma server with `--images on` answers them, [box.md](box.md)) | PNG and JPEG images in the state, in instructions and criteria, and Box questions (locate a target in an image), on Jev 1.13 and 1.14 since 2026-10-14; the images header `TypeSafe-Danger-Zone-Images: true` is required ([images](https://docs.typesafe.ai/images)) |
+| Image input and Box | pictures in the state, in a question's instructions and in its options, and Box questions (where is it in the picture), on Gemma 4 12B, the tuned 12B and Gemma 4 31B with `--images on`, from one engine on the same card; the Qwen base's route uses a second engine (`--image-model`); sent as TypeSafe's SDK sends them (`assets`, multipart or base64); PNG, JPEG and WebP; measured on all three Gemma models (`EVAL_CARD.md` section 10, and section 3.1 here) | PNG and JPEG images in the state, in instructions and criteria, and Box questions (locate a target in an image), on Jev 1.13 and 1.14 since 2026-10-14 (Box on 1.14 only); the images header `TypeSafe-Danger-Zone-Images: true` is required ([images](https://docs.typesafe.ai/images)) |
 | Repeatability | checkpoints at pinned revisions; Qwen: a repeated request returns the same probabilities bit for bit; Gemma 4 12B: probabilities move between two freshly started servers (up to 0.060 on 200 requests, one exact tie changed) and between a first read and a cached one (up to 0.113), so a repeat is not bit for bit; Gemma 4 31B: a request repeats exactly on a freshly started server; on a server that has already answered it, a repeat can differ (5 of 200 items, up to 0.031, no top answer changed, 31B on vLLM 0.30.0 and 0.31.0); across sessions near-tied answers can move (`EVAL_CARD.md` sections 5 to 7) | "An alias moves when a new release ships, so the answers behind it can change without a change on your side." The pages read do not state whether a repeated request returns the same probabilities ([models](https://docs.typesafe.ai/models)) |
 | Calibration | fitted temperatures per base; JevBench ECE on the standard and hard tiers: Qwen 0.121 and 0.043, Gemma 4 12B 0.033 and 0.085, Gemma 4 31B 0.035 and 0.091 | "System One models are trained for calibrated decisions: their probabilities are optimized against outcomes to reflect uncertainty." ([System One](https://docs.typesafe.ai/concepts/system-one)) |
 | Where data goes | to the machine that runs the server, and nowhere else | "Jev is not trained on customer requests or responses."; zero data retention is offered "for enterprise customers" ([models](https://docs.typesafe.ai/models), [legal](https://docs.typesafe.ai/legal)) |
 | Mac and Ollama | Qwen, Gemma 4 12B and Gemma 4 31B (up to 16,383 tokens of state) on Apple silicon with MLX; the Qwen base on Ollama (`aminroudaki/decisio`), with Ollama's own prompt and no calibration | the pages read describe the hosted API only |
 | Licence | Apache-2.0; the weights are Qwen's under Apache-2.0 and Google's Gemma 4 under Apache-2.0 | a hosted service under TypeSafe's customer agreements, which "govern your use of TypeSafe" ([legal](https://docs.typesafe.ai/legal)) |
 | Price | no per-call price; the card's cost (section 1, e) | "$42 / $0.042" per billion / million tokens, "Charged per input token. Output tokens are free." ([models](https://docs.typesafe.ai/models)) |
+
+### 3.1 Images and Box, set beside TypeSafe's
+
+Both accept pictures in the state, in a question's instructions and in its options, with the same `assets`, multipart and base64 forms, and both answer a Box question with four edges and a confidence.
+The differences below are what each states or does, on TypeSafe's documentation and live answers of 2026-11-14 (`jev-1.14.0`) and on decisio's own documentation.
+
+| | decisio (a Gemma base with `--images on`) | TypeSafe (Jev 1.14) |
+| --- | --- | --- |
+| Formats | PNG, JPEG and WebP; an animated image is refused | PNG and JPEG, WebP refused (400 on a live WebP) |
+| Size of a file | up to 20 MiB and 20 megapixels | up to 16 MiB decoded; the request body up to 32 MiB (413) |
+| Side lengths | no window: the processor scales any size to the budget | 280 to 1,568 pixels a side and an area of 78,400 to 2,458,624, never resized; a live 270 pixel image got 400 |
+| Image tokens | fixed per budget whatever the size: about 256 at the default budget of 280, 529 at 560 | grow with the area: a 280 by 280 image cost 487 input tokens and a 1,568 by 1,568 image 6,559 |
+| Scope of a question's picture | a picture in a question's instructions or options belongs to that question only | the same (a live probe: the other question did not see it) |
+| The images header | `TypeSafe-Danger-Zone-Images` accepted, never required | required, else 400 |
+| Box on a request with no image | 400, saying so | not stated in the documentation, which says a Box question needs an image |
+| Box on a target that is absent | a box, with a `confidence` that falls (a presence read of the target is part of it); the documentation advises a companion noul | a box, with a confidence; the documentation advises pairing a Box with a noul |
+| What `confidence` means | the probability that the target is in the picture times how sure the model is of the edges, mapped to the observed rate of IoU >= 0.5 once a calibration is loaded (`docs/box.md`) | "Higher means the model is more sure of its answer"; no definition and no recommended threshold |
+| Repeating a Box | the same answer, every time (greedy reply, expected value over its digits) | a repeat can differ |
+| Box edges | fractions of the image, two decimals, left < right and top < bottom | the same |
+| A model that reads it | Gemma 4 12B, the tuned 12B and Gemma 4 31B, on your card | Jev 1.14 only; Box is refused on `jev-1.13.0` (400) |
+
+**Figures on the same items.**
+TypeSafe's Jev 1.14 answered {{FIG:ts.n}} requests drawn from the reporting half of the eval set of `EVAL_CARD.md` section 10, on 2026-11-14.
+It is a reference, on that many items: a single run, so the intervals are wide, and it was not retuned or repeated.
+
+| On the same items | n | TypeSafe Jev 1.14 | decisio, Gemma 4 12B | decisio, Gemma 4 31B |
+| --- | ---: | ---: | ---: | ---: |
+| S noul, accuracy | {{FIG:ts.n.S.noul}} | {{FIG:ts.S.noul.accuracy}} | {{FIG:tsc.b12.S.noul.accuracy}} | {{FIG:tsc.b31.S.noul.accuracy}} |
+| S choice, accuracy | {{FIG:ts.n.S.choice}} | {{FIG:ts.S.choice.accuracy}} | {{FIG:tsc.b12.S.choice.accuracy}} | {{FIG:tsc.b31.S.choice.accuracy}} |
+| S score, accuracy | {{FIG:ts.n.S.score}} | {{FIG:ts.S.score.accuracy}} | {{FIG:tsc.b12.S.score.accuracy}} | {{FIG:tsc.b31.S.score.accuracy}} |
+| R noul, accuracy | {{FIG:ts.n.R.noul}} | {{FIG:ts.R.noul.accuracy}} | {{FIG:tsc.b12.R.noul.accuracy}} | {{FIG:tsc.b31.R.noul.accuracy}} |
+| R choice, accuracy | {{FIG:ts.n.R.choice}} | {{FIG:ts.R.choice.accuracy}} | {{FIG:tsc.b12.R.choice.accuracy}} | {{FIG:tsc.b31.R.choice.accuracy}} |
+| S Box, mean IoU | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.mean_iou}} | {{FIG:tsc.b12.S.box.mean_iou}} | {{FIG:tsc.b31.S.box.mean_iou}} |
+| S Box, IoU >= 0.5 | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.iou50}} | {{FIG:tsc.b12.S.box.iou50}} | {{FIG:tsc.b31.S.box.iou50}} |
+| S Box, confidence ECE | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.conf_ece}} | {{FIG:tsc.b12.S.box.conf_ece}} | {{FIG:tsc.b31.S.box.conf_ece}} |
+| S Box, absent-target AUROC of `confidence` | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.absent_auroc}} | {{FIG:tsc.b12.S.box.absent_auroc}} | {{FIG:tsc.b31.S.box.absent_auroc}} |
+| R Box, mean IoU | {{FIG:ts.n.R.box}} | {{FIG:ts.R.box.mean_iou}} | {{FIG:tsc.b12.R.box.mean_iou}} | {{FIG:tsc.b31.R.box.mean_iou}} |
+| R Box, IoU >= 0.5 | {{FIG:ts.n.R.box}} | {{FIG:ts.R.box.iou50}} | {{FIG:tsc.b12.R.box.iou50}} | {{FIG:tsc.b31.R.box.iou50}} |
+
+decisio's columns are the models scored on exactly those items at budget {{FIG:decision.default_budget}}; the paired differences with intervals are in `EVAL_CARD.md` section 10.
+TypeSafe's hosted service changes between releases and its documentation calls images and Box not yet ready for production, so its figures describe 2026-11-14 only.
 
 ## 4. Summary
 

@@ -4,7 +4,7 @@
 # Evaluation card
 
 What each base is, what it can do, how it measures, and what was fitted on what.
-Sections 1 to 5 are the Qwen base (`--base qwen3.6-35b-a3b`); section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`), the default; section 8 is the Decision Index's whole suite on all three, self-run and submitted.
+Sections 1 to 5 are the Qwen base (`--base qwen3.6-35b-a3b`); section 6 is the second base, Gemma 4 12B (`--base gemma-4-12b`); section 7 is the third, Gemma 4 31B (`--base gemma-4-31b`), the default; section 8 is the Decision Index's whole suite on all three, self-run and submitted; section 10 is images on the Gemma bases.
 Every number is on the base's served settings as they were when it was measured and names the record it comes from; each run under `runs/` has a `manifest.json` with its configuration and harness versions and a `files.json` with every file's sha256.
 
 ## 1. The system measured
@@ -386,3 +386,213 @@ Prompt length, each card's own words, prompt against prompt: Prompt length: 32,7
 That is decisio's context as its card stated it at revision c23ae405 (a fixed 32,768 tokens).
 The 31B now serves the largest length the card holds, at least 32,768 and at most 98,304 tokens (`docs/running.md`, the context length), so against 8,000 tokens the ratio is 4.1 times at the 32,768-token minimum and 12.3 times at 98,304.
 These are the limits the cards state, not measured accuracy at those lengths.
+
+## 10. Images on the Gemma bases
+
+A Gemma base started with `--images on` reads pictures in the state, in a question's instructions and in its options, and answers Box questions: where is it in the picture.
+This section says how well each base does it, what it costs, and what was fitted on what.
+Every figure is on the reporting half of the image eval set (10.2), with intervals where a difference is stated, and comes from one run named below.
+
+### 10.1 The system measured
+
+| Part | The image run |
+| --- | --- |
+| Hardware | one NVIDIA RTX PRO 6000 Blackwell (96 GB) at {{FIG:run.power_limit_w}} W, vLLM 0.31.0 |
+| decisio | commit `{{FIG:run.decisio_sha}}` with `--images on --image-budget B --max-images N` |
+| Models | `google/gemma-4-12B-it` at revision `707f0a3b8a3c7ad586ed01e27eafbad8a27dd0f7`; the tuned 12B, `tachara-ai/Decisio-12b-tuned-commit` at `245e00dc45abad14d693b1ebae4d4c7aa9cf72f1`; the 31B base in FP8, `tachara-ai/decisio-gemma-4-31b` at `eaf1e4fa30a351ab87d07803ca60f1fa5606f882` |
+| Image budgets | 280 (the model's own default) and 1,120 soft tokens on the 12B and the 31B; the tuned 12B at one budget, {{FIG:run.m16_budget}} (the one the 12B base read better); `--max-images` 16 for the accuracy starts and 128 for the memory start |
+| Readout | the text route's, unchanged: letters for the decision types, one greedy box reply for Box (10.5) |
+| Run | {{FIG:run.date}}, record `runs/{{FIG:run.folder}}/`, whose `files.json` lists every file's sha256 |
+
+**The eval set.**
+It is made only to measure, never to train: a generated part, a real-photo part and a public benchmark.
+
+| Part | Content | Items | Licence of the pictures |
+| --- | --- | ---: | --- |
+| S, generated scenes | shapes, colours, sizes, positions, distractors and counts; two-image comparisons; frame pairs (what changed); options and score levels given as pictures; rendered forms with a field to locate; absent targets; wide and tall images; questions that carry their own picture | 800 (noul, choice, score, per-question-image and Box) | made by the generator |
+| R, real photos | Open Images V7 validation: image-level labels give noul and choice questions (verified positives and negatives); single-instance boxes give Box questions with the class as the target | 600 | images CC BY 2.0, labels and boxes CC BY 4.0 |
+| I, ImajevBench lite | the 254 development items of ImajevBench v2.0-lite | 254 | CC BY 4.0, images CC0 |
+
+Every item is in one of two halves chosen by item seed: a calibration half, where the image temperatures and the Box confidence map are fitted, and a reporting half, which every figure below uses.
+Every truth that depends on pixels (two-image, picture, position and frame truths) is re-derived from the named image's pixels.
+The scorer is the same for every model and for the TypeSafe baseline of `docs/comparison.md`.
+
+### 10.2 Decisions on images
+
+Noul, choice and score questions with the picture in the state, and the per-question-image set, where the picture is in the question's own instructions or options.
+Each cell is accuracy / log loss / ECE (10 equal-width bins) on the reporting half; a score row's accuracy is the share of questions whose most probable level is right.
+
+| part and type | n | 12B base, 280 | 12B base, 1,120 | tuned 12B | 31B base, 280 | 31B base, 1,120 |
+| --- | ---: | --- | --- | --- | --- | --- |
+| S noul | {{FIG:n.S.noul}} | {{FIG:m.b12.280.S.noul.accuracy}} / {{FIG:m.b12.280.S.noul.logloss}} / {{FIG:m.b12.280.S.noul.ece}} | {{FIG:m.b12.1120.S.noul.accuracy}} / {{FIG:m.b12.1120.S.noul.logloss}} / {{FIG:m.b12.1120.S.noul.ece}} | {{FIG:m.m16.sel.S.noul.accuracy}} / {{FIG:m.m16.sel.S.noul.logloss}} / {{FIG:m.m16.sel.S.noul.ece}} | {{FIG:m.b31.280.S.noul.accuracy}} / {{FIG:m.b31.280.S.noul.logloss}} / {{FIG:m.b31.280.S.noul.ece}} | {{FIG:m.b31.1120.S.noul.accuracy}} / {{FIG:m.b31.1120.S.noul.logloss}} / {{FIG:m.b31.1120.S.noul.ece}} |
+| S choice | {{FIG:n.S.choice}} | {{FIG:m.b12.280.S.choice.accuracy}} / {{FIG:m.b12.280.S.choice.logloss}} / {{FIG:m.b12.280.S.choice.ece}} | {{FIG:m.b12.1120.S.choice.accuracy}} / {{FIG:m.b12.1120.S.choice.logloss}} / {{FIG:m.b12.1120.S.choice.ece}} | {{FIG:m.m16.sel.S.choice.accuracy}} / {{FIG:m.m16.sel.S.choice.logloss}} / {{FIG:m.m16.sel.S.choice.ece}} | {{FIG:m.b31.280.S.choice.accuracy}} / {{FIG:m.b31.280.S.choice.logloss}} / {{FIG:m.b31.280.S.choice.ece}} | {{FIG:m.b31.1120.S.choice.accuracy}} / {{FIG:m.b31.1120.S.choice.logloss}} / {{FIG:m.b31.1120.S.choice.ece}} |
+| S score | {{FIG:n.S.score}} | {{FIG:m.b12.280.S.score.accuracy}} / {{FIG:m.b12.280.S.score.logloss}} / {{FIG:m.b12.280.S.score.ece}} | {{FIG:m.b12.1120.S.score.accuracy}} / {{FIG:m.b12.1120.S.score.logloss}} / {{FIG:m.b12.1120.S.score.ece}} | {{FIG:m.m16.sel.S.score.accuracy}} / {{FIG:m.m16.sel.S.score.logloss}} / {{FIG:m.m16.sel.S.score.ece}} | {{FIG:m.b31.280.S.score.accuracy}} / {{FIG:m.b31.280.S.score.logloss}} / {{FIG:m.b31.280.S.score.ece}} | {{FIG:m.b31.1120.S.score.accuracy}} / {{FIG:m.b31.1120.S.score.logloss}} / {{FIG:m.b31.1120.S.score.ece}} |
+| S per-question image | {{FIG:n.S.qimg}} | {{FIG:m.b12.280.S.qimg.accuracy}} / {{FIG:m.b12.280.S.qimg.logloss}} / {{FIG:m.b12.280.S.qimg.ece}} | {{FIG:m.b12.1120.S.qimg.accuracy}} / {{FIG:m.b12.1120.S.qimg.logloss}} / {{FIG:m.b12.1120.S.qimg.ece}} | {{FIG:m.m16.sel.S.qimg.accuracy}} / {{FIG:m.m16.sel.S.qimg.logloss}} / {{FIG:m.m16.sel.S.qimg.ece}} | {{FIG:m.b31.280.S.qimg.accuracy}} / {{FIG:m.b31.280.S.qimg.logloss}} / {{FIG:m.b31.280.S.qimg.ece}} | {{FIG:m.b31.1120.S.qimg.accuracy}} / {{FIG:m.b31.1120.S.qimg.logloss}} / {{FIG:m.b31.1120.S.qimg.ece}} |
+| R noul | {{FIG:n.R.noul}} | {{FIG:m.b12.280.R.noul.accuracy}} / {{FIG:m.b12.280.R.noul.logloss}} / {{FIG:m.b12.280.R.noul.ece}} | {{FIG:m.b12.1120.R.noul.accuracy}} / {{FIG:m.b12.1120.R.noul.logloss}} / {{FIG:m.b12.1120.R.noul.ece}} | {{FIG:m.m16.sel.R.noul.accuracy}} / {{FIG:m.m16.sel.R.noul.logloss}} / {{FIG:m.m16.sel.R.noul.ece}} | {{FIG:m.b31.280.R.noul.accuracy}} / {{FIG:m.b31.280.R.noul.logloss}} / {{FIG:m.b31.280.R.noul.ece}} | {{FIG:m.b31.1120.R.noul.accuracy}} / {{FIG:m.b31.1120.R.noul.logloss}} / {{FIG:m.b31.1120.R.noul.ece}} |
+| R choice | {{FIG:n.R.choice}} | {{FIG:m.b12.280.R.choice.accuracy}} / {{FIG:m.b12.280.R.choice.logloss}} / {{FIG:m.b12.280.R.choice.ece}} | {{FIG:m.b12.1120.R.choice.accuracy}} / {{FIG:m.b12.1120.R.choice.logloss}} / {{FIG:m.b12.1120.R.choice.ece}} | {{FIG:m.m16.sel.R.choice.accuracy}} / {{FIG:m.m16.sel.R.choice.logloss}} / {{FIG:m.m16.sel.R.choice.ece}} | {{FIG:m.b31.280.R.choice.accuracy}} / {{FIG:m.b31.280.R.choice.logloss}} / {{FIG:m.b31.280.R.choice.ece}} | {{FIG:m.b31.1120.R.choice.accuracy}} / {{FIG:m.b31.1120.R.choice.logloss}} / {{FIG:m.b31.1120.R.choice.ece}} |
+| I noul | {{FIG:n.I.noul}} | {{FIG:m.b12.280.I.noul.accuracy}} / {{FIG:m.b12.280.I.noul.logloss}} / {{FIG:m.b12.280.I.noul.ece}} | {{FIG:m.b12.1120.I.noul.accuracy}} / {{FIG:m.b12.1120.I.noul.logloss}} / {{FIG:m.b12.1120.I.noul.ece}} | {{FIG:m.m16.sel.I.noul.accuracy}} / {{FIG:m.m16.sel.I.noul.logloss}} / {{FIG:m.m16.sel.I.noul.ece}} | {{FIG:m.b31.280.I.noul.accuracy}} / {{FIG:m.b31.280.I.noul.logloss}} / {{FIG:m.b31.280.I.noul.ece}} | {{FIG:m.b31.1120.I.noul.accuracy}} / {{FIG:m.b31.1120.I.noul.logloss}} / {{FIG:m.b31.1120.I.noul.ece}} |
+| I choice | {{FIG:n.I.choice}} | {{FIG:m.b12.280.I.choice.accuracy}} / {{FIG:m.b12.280.I.choice.logloss}} / {{FIG:m.b12.280.I.choice.ece}} | {{FIG:m.b12.1120.I.choice.accuracy}} / {{FIG:m.b12.1120.I.choice.logloss}} / {{FIG:m.b12.1120.I.choice.ece}} | {{FIG:m.m16.sel.I.choice.accuracy}} / {{FIG:m.m16.sel.I.choice.logloss}} / {{FIG:m.m16.sel.I.choice.ece}} | {{FIG:m.b31.280.I.choice.accuracy}} / {{FIG:m.b31.280.I.choice.logloss}} / {{FIG:m.b31.280.I.choice.ece}} | {{FIG:m.b31.1120.I.choice.accuracy}} / {{FIG:m.b31.1120.I.choice.logloss}} / {{FIG:m.b31.1120.I.choice.ece}} |
+| I score | {{FIG:n.I.score}} | {{FIG:m.b12.280.I.score.accuracy}} / {{FIG:m.b12.280.I.score.logloss}} / {{FIG:m.b12.280.I.score.ece}} | {{FIG:m.b12.1120.I.score.accuracy}} / {{FIG:m.b12.1120.I.score.logloss}} / {{FIG:m.b12.1120.I.score.ece}} | {{FIG:m.m16.sel.I.score.accuracy}} / {{FIG:m.m16.sel.I.score.logloss}} / {{FIG:m.m16.sel.I.score.ece}} | {{FIG:m.b31.280.I.score.accuracy}} / {{FIG:m.b31.280.I.score.logloss}} / {{FIG:m.b31.280.I.score.ece}} | {{FIG:m.b31.1120.I.score.accuracy}} / {{FIG:m.b31.1120.I.score.logloss}} / {{FIG:m.b31.1120.I.score.ece}} |
+
+The score rows' mean absolute error against the true level is {{FIG:m.b12.280.S.score.mae}} for the 12B base at 280 (the other cells are in the run's report).
+
+### 10.3 Box
+
+Mean IoU, the share of boxes at IoU 0.5 or more and at 0.75 or more, and the mean absolute error of the four edges (fractions of the image), over the items whose target is in the picture.
+Confidence ECE is the calibration error of the answer's `confidence` against the event IoU >= 0.5.
+Absent-target AUROC is how well a score separates the items whose target is in the picture from those where it is not (generated scenes only: the real-photo items all have a target); it is given for the Box answer's own `confidence` and for a companion noul question "is it in the picture", as `docs/box.md` advises.
+
+| measure | n | 12B base, 280 | 12B base, 1,120 | tuned 12B | 31B base, 280 | 31B base, 1,120 |
+| --- | ---: | --- | --- | --- | --- | --- |
+| S mean IoU | {{FIG:n_present.S.box}} | {{FIG:m.b12.280.S.box.mean_iou}} | {{FIG:m.b12.1120.S.box.mean_iou}} | {{FIG:m.m16.sel.S.box.mean_iou}} | {{FIG:m.b31.280.S.box.mean_iou}} | {{FIG:m.b31.1120.S.box.mean_iou}} |
+| S IoU >= 0.5 | {{FIG:n_present.S.box}} | {{FIG:m.b12.280.S.box.iou50}} | {{FIG:m.b12.1120.S.box.iou50}} | {{FIG:m.m16.sel.S.box.iou50}} | {{FIG:m.b31.280.S.box.iou50}} | {{FIG:m.b31.1120.S.box.iou50}} |
+| S IoU >= 0.75 | {{FIG:n_present.S.box}} | {{FIG:m.b12.280.S.box.iou75}} | {{FIG:m.b12.1120.S.box.iou75}} | {{FIG:m.m16.sel.S.box.iou75}} | {{FIG:m.b31.280.S.box.iou75}} | {{FIG:m.b31.1120.S.box.iou75}} |
+| S edge MAE | {{FIG:n_present.S.box}} | {{FIG:m.b12.280.S.box.edge_mae}} | {{FIG:m.b12.1120.S.box.edge_mae}} | {{FIG:m.m16.sel.S.box.edge_mae}} | {{FIG:m.b31.280.S.box.edge_mae}} | {{FIG:m.b31.1120.S.box.edge_mae}} |
+| S confidence ECE | {{FIG:n_present.S.box}} | {{FIG:m.b12.280.S.box.conf_ece}} | {{FIG:m.b12.1120.S.box.conf_ece}} | {{FIG:m.m16.sel.S.box.conf_ece}} | {{FIG:m.b31.280.S.box.conf_ece}} | {{FIG:m.b31.1120.S.box.conf_ece}} |
+| R mean IoU | {{FIG:n_present.R.box}} | {{FIG:m.b12.280.R.box.mean_iou}} | {{FIG:m.b12.1120.R.box.mean_iou}} | {{FIG:m.m16.sel.R.box.mean_iou}} | {{FIG:m.b31.280.R.box.mean_iou}} | {{FIG:m.b31.1120.R.box.mean_iou}} |
+| R IoU >= 0.5 | {{FIG:n_present.R.box}} | {{FIG:m.b12.280.R.box.iou50}} | {{FIG:m.b12.1120.R.box.iou50}} | {{FIG:m.m16.sel.R.box.iou50}} | {{FIG:m.b31.280.R.box.iou50}} | {{FIG:m.b31.1120.R.box.iou50}} |
+| R IoU >= 0.75 | {{FIG:n_present.R.box}} | {{FIG:m.b12.280.R.box.iou75}} | {{FIG:m.b12.1120.R.box.iou75}} | {{FIG:m.m16.sel.R.box.iou75}} | {{FIG:m.b31.280.R.box.iou75}} | {{FIG:m.b31.1120.R.box.iou75}} |
+| R edge MAE | {{FIG:n_present.R.box}} | {{FIG:m.b12.280.R.box.edge_mae}} | {{FIG:m.b12.1120.R.box.edge_mae}} | {{FIG:m.m16.sel.R.box.edge_mae}} | {{FIG:m.b31.280.R.box.edge_mae}} | {{FIG:m.b31.1120.R.box.edge_mae}} |
+| R confidence ECE | {{FIG:n_present.R.box}} | {{FIG:m.b12.280.R.box.conf_ece}} | {{FIG:m.b12.1120.R.box.conf_ece}} | {{FIG:m.m16.sel.R.box.conf_ece}} | {{FIG:m.b31.280.R.box.conf_ece}} | {{FIG:m.b31.1120.R.box.conf_ece}} |
+| S absent-target AUROC, Box `confidence` | {{FIG:n_absent.S.box}} absent | {{FIG:m.b12.280.S.box.absent_auroc}} | {{FIG:m.b12.1120.S.box.absent_auroc}} | {{FIG:m.m16.sel.S.box.absent_auroc}} | {{FIG:m.b31.280.S.box.absent_auroc}} | {{FIG:m.b31.1120.S.box.absent_auroc}} |
+| S absent-target AUROC, companion noul | {{FIG:n_absent.S.box}} absent | {{FIG:box_companion_auroc.b12.280}} | {{FIG:box_companion_auroc.b12.1120}} | {{FIG:box_companion_auroc.m16.sel}} | {{FIG:box_companion_auroc.b31.280}} | {{FIG:box_companion_auroc.b31.1120}} |
+
+A Box question writes one box in one greedy reply of at most 32 tokens; the coordinates are read as an expected value over the digits the model considered (10.8).
+Its `confidence` is a presence read of the target times how sure the model is of the edges, mapped to the observed rate of IoU >= 0.5 on the calibration half ({{FIG:box.confidence_map}}).
+
+### 10.4 The tuned 12B against its base
+
+The tuned 12B was trained on text only, with its vision weights untouched.
+These are paired differences, tuned minus base, on the same reporting items at the budget of the tuned start, with 95% percentile bootstrap intervals over items (10,000 resamples).
+
+| measure | n | tuned minus base | 95% interval |
+| --- | ---: | ---: | --- |
+| S decisions, accuracy | {{FIG:pair.n.S_accuracy}} | {{FIG:pair.diff.S_accuracy}} | [{{FIG:pair.lo.S_accuracy}}, {{FIG:pair.hi.S_accuracy}}] |
+| R decisions, accuracy | {{FIG:pair.n.R_accuracy}} | {{FIG:pair.diff.R_accuracy}} | [{{FIG:pair.lo.R_accuracy}}, {{FIG:pair.hi.R_accuracy}}] |
+| I decisions, accuracy | {{FIG:pair.n.I_accuracy}} | {{FIG:pair.diff.I_accuracy}} | [{{FIG:pair.lo.I_accuracy}}, {{FIG:pair.hi.I_accuracy}}] |
+| S decisions, log loss | {{FIG:pair.n.S_logloss}} | {{FIG:pair.diff.S_logloss}} | [{{FIG:pair.lo.S_logloss}}, {{FIG:pair.hi.S_logloss}}] |
+| R decisions, log loss | {{FIG:pair.n.R_logloss}} | {{FIG:pair.diff.R_logloss}} | [{{FIG:pair.lo.R_logloss}}, {{FIG:pair.hi.R_logloss}}] |
+| I decisions, log loss | {{FIG:pair.n.I_logloss}} | {{FIG:pair.diff.I_logloss}} | [{{FIG:pair.lo.I_logloss}}, {{FIG:pair.hi.I_logloss}}] |
+| S Box mean IoU | {{FIG:pair.n.S_mean_iou}} | {{FIG:pair.diff.S_mean_iou}} | [{{FIG:pair.lo.S_mean_iou}}, {{FIG:pair.hi.S_mean_iou}}] |
+| R Box mean IoU | {{FIG:pair.n.R_mean_iou}} | {{FIG:pair.diff.R_mean_iou}} | [{{FIG:pair.lo.R_mean_iou}}, {{FIG:pair.hi.R_mean_iou}}] |
+| S Box IoU >= 0.5 | {{FIG:pair.n.S_iou50}} | {{FIG:pair.diff.S_iou50}} | [{{FIG:pair.lo.S_iou50}}, {{FIG:pair.hi.S_iou50}}] |
+| R Box IoU >= 0.5 | {{FIG:pair.n.R_iou50}} | {{FIG:pair.diff.R_iou50}} | [{{FIG:pair.lo.R_iou50}}, {{FIG:pair.hi.R_iou50}}] |
+
+The rule set before the run was that the tuned model is not worse than its base by more than 2 points of accuracy or of Box mean IoU, on S and on R: it {{FIG:pair.gate_verdict}}.
+
+### 10.5 Where the picture is read: budgets, and why 1,120 is refused
+
+An image is read at a fixed number of soft tokens, `--image-budget`: 70, 140, 280, 560 or 1,120.
+A larger budget gives small objects more tokens and costs more prefill per image.
+On Gemma 4's sliding-window layers the window is 1,024 tokens, and an image at budget 1,120 is about 1,089 tokens, longer than the window, so the rows at the top of the picture fall out of reach of the tokens that follow.
+The corner probe puts a black square in each corner of a white image and asks top or bottom and left or right; a model that has lost the vertical axis answers "bottom" for a top square.
+
+| model and budget | corner probe, passed of 8 |
+| --- | ---: |
+| 12B base, 280 | {{FIG:corner.b12.280}} |
+| 12B base, 1,120 | {{FIG:corner.b12.1120}} |
+| tuned 12B | {{FIG:corner.m16.sel}} |
+| 31B base, 280 | {{FIG:corner.b31.280}} |
+| 31B base, 1,120 | {{FIG:corner.b31.1120}} |
+
+decisio therefore refuses `--image-budget 1120` on a Gemma base at start (reason: the corner probe, above), and its default budget is {{FIG:decision.default_budget}}.
+Detail that needs more tokens is better served by cropping to the region and asking again: the answers' fractions then refer to the crop (`docs/box.md`).
+
+### 10.6 Text answers with images on
+
+The same 200 text-only requests (100 yes/no and 100 choice among 77 options) were answered with `--images off` and with `--images on`.
+The reference for "unchanged" is the largest difference between two images-on starts of the same model, since two starts differ by themselves (section 6.5 and 7.5).
+
+| model | start | max abs difference in a probability | choices changed | between two images-on starts, max / changed | verdict |
+| --- | --- | ---: | ---: | --- | --- |
+| 12B base | images on, budget 280 | {{FIG:parity.b12.max_dp}} | {{FIG:parity.b12.changed}} | {{FIG:parity.b12.rep_max_dp}} / {{FIG:parity.b12.rep_changed}} | {{FIG:parity.b12.verdict}} |
+| tuned 12B | images on, budget {{FIG:run.m16_budget}} | {{FIG:parity.m16.max_dp}} | {{FIG:parity.m16.changed}} | {{FIG:parity.m16.rep_max_dp}} / {{FIG:parity.m16.rep_changed}} | {{FIG:parity.m16.verdict}} |
+| 31B base | images on, budget 280 | {{FIG:parity.b31.max_dp}} | {{FIG:parity.b31.changed}} | {{FIG:parity.b31.rep_max_dp}} / {{FIG:parity.b31.rep_changed}} | {{FIG:parity.b31.verdict}} |
+
+### 10.7 Memory and first-read latency
+
+Start-up memory is the GPU memory in use once the server answers, and the peak during the start, for each start.
+
+| model | start | ready | seconds to ready | GPU MiB after ready | peak MiB during the start |
+| --- | --- | --- | ---: | ---: | ---: |
+| 12B base | images off | {{FIG:start.b12.off1.ready}} | {{FIG:start.b12.off1.seconds}} | {{FIG:start.b12.off1.mib}} | {{FIG:start.b12.off1.peak}} |
+| 12B base | images on, 280, 16 images | {{FIG:start.b12.on280.ready}} | {{FIG:start.b12.on280.seconds}} | {{FIG:start.b12.on280.mib}} | {{FIG:start.b12.on280.peak}} |
+| 12B base | images on, 1,120, 16 images | {{FIG:start.b12.on1120.ready}} | {{FIG:start.b12.on1120.seconds}} | {{FIG:start.b12.on1120.mib}} | {{FIG:start.b12.on1120.peak}} |
+| 12B base | images on, 1,120, 128 images | {{FIG:start.b12.m128.ready}} | {{FIG:start.b12.m128.seconds}} | {{FIG:start.b12.m128.mib}} | {{FIG:start.b12.m128.peak}} |
+| tuned 12B | images off | {{FIG:start.m16.off1.ready}} | {{FIG:start.m16.off1.seconds}} | {{FIG:start.m16.off1.mib}} | {{FIG:start.m16.off1.peak}} |
+| tuned 12B | images on, tuned start | {{FIG:start.m16.on.ready}} | {{FIG:start.m16.on.seconds}} | {{FIG:start.m16.on.mib}} | {{FIG:start.m16.on.peak}} |
+| tuned 12B | images on, 1,120, 128 images | {{FIG:start.m16.m128.ready}} | {{FIG:start.m16.m128.seconds}} | {{FIG:start.m16.m128.mib}} | {{FIG:start.m16.m128.peak}} |
+| 31B base | images off | {{FIG:start.b31.off1.ready}} | {{FIG:start.b31.off1.seconds}} | {{FIG:start.b31.off1.mib}} | {{FIG:start.b31.off1.peak}} |
+| 31B base | images on, 280, 16 images | {{FIG:start.b31.on280.ready}} | {{FIG:start.b31.on280.seconds}} | {{FIG:start.b31.on280.mib}} | {{FIG:start.b31.on280.peak}} |
+| 31B base | images on, 1,120, 16 images | {{FIG:start.b31.on1120.ready}} | {{FIG:start.b31.on1120.seconds}} | {{FIG:start.b31.on1120.mib}} | {{FIG:start.b31.on1120.peak}} |
+| 31B base | images on, 1,120, 128 images | {{FIG:start.b31.m128.ready}} | {{FIG:start.b31.m128.seconds}} | {{FIG:start.b31.m128.mib}} | {{FIG:start.b31.m128.peak}} |
+
+First-read latency is the end-to-end time of a request whose text and images are new to the server (nothing is read from the cache), median / 95th percentile in milliseconds over 20 requests, one request at a time; images are generated 512 by 512 pictures at the start's budget.
+
+| model and budget | 1 image | 4 images | 16 images | image tokens per image |
+| --- | ---: | ---: | ---: | ---: |
+| 12B base, 280 | {{FIG:lat.b12.280.1}} | {{FIG:lat.b12.280.4}} | {{FIG:lat.b12.280.16}} | {{FIG:lat.b12.280.tok}} |
+| 12B base, 1,120 | {{FIG:lat.b12.1120.1}} | {{FIG:lat.b12.1120.4}} | {{FIG:lat.b12.1120.16}} | {{FIG:lat.b12.1120.tok}} |
+| tuned 12B | {{FIG:lat.m16.sel.1}} | {{FIG:lat.m16.sel.4}} | {{FIG:lat.m16.sel.16}} | {{FIG:lat.m16.sel.tok}} |
+| 31B base, 280 | {{FIG:lat.b31.280.1}} | {{FIG:lat.b31.280.4}} | {{FIG:lat.b31.280.16}} | {{FIG:lat.b31.280.tok}} |
+| 31B base, 1,120 | {{FIG:lat.b31.1120.1}} | {{FIG:lat.b31.1120.4}} | {{FIG:lat.b31.1120.16}} | {{FIG:lat.b31.1120.tok}} |
+
+A Box question on one image takes {{FIG:lat.b12.280.box}} ms on the 12B base at 280 and {{FIG:lat.b31.280.box}} ms on the 31B.
+A second question on the same pictures reads them from the cache: {{FIG:prefix.b12.280}}.
+
+### 10.8 What was fitted on what
+
+| Component | Fitted or chosen on |
+| --- | --- |
+| Model weights | nothing by us for the images: the vision weights are Google's; the tuned 12B's language-model weights were trained on text only |
+| Image temperature, one per model | the calibration half's noul and choice items, by minimum log loss on the model's own answers at its budget; no reporting item and no JevBench or Decision Index item |
+| Box confidence map | the calibration half's Box items, an isotonic map from the raw confidence to the observed rate of IoU >= 0.5, per model |
+| Default image budget | the figures in 10.2, 10.3 and 10.5 |
+
+| model and budget | image temperature | calibration log loss before / after | reporting log loss before / after |
+| --- | ---: | --- | --- |
+| 12B base, 280 | {{FIG:fitT.b12.280.T}} | {{FIG:fitT.b12.280.cb}} / {{FIG:fitT.b12.280.ca}} | {{FIG:fitT.b12.280.rb}} / {{FIG:fitT.b12.280.ra}} |
+| 12B base, 1,120 | {{FIG:fitT.b12.1120.T}} | {{FIG:fitT.b12.1120.cb}} / {{FIG:fitT.b12.1120.ca}} | {{FIG:fitT.b12.1120.rb}} / {{FIG:fitT.b12.1120.ra}} |
+| tuned 12B | {{FIG:fitT.m16.sel.T}} | {{FIG:fitT.m16.sel.cb}} / {{FIG:fitT.m16.sel.ca}} | {{FIG:fitT.m16.sel.rb}} / {{FIG:fitT.m16.sel.ra}} |
+| 31B base, 280 | {{FIG:fitT.b31.280.T}} | {{FIG:fitT.b31.280.cb}} / {{FIG:fitT.b31.280.ca}} | {{FIG:fitT.b31.280.rb}} / {{FIG:fitT.b31.280.ra}} |
+| 31B base, 1,120 | {{FIG:fitT.b31.1120.T}} | {{FIG:fitT.b31.1120.cb}} / {{FIG:fitT.b31.1120.ca}} | {{FIG:fitT.b31.1120.rb}} / {{FIG:fitT.b31.1120.ra}} |
+
+The text temperature (sections 6.4 and 7.4) is unchanged for requests without pictures.
+
+### 10.9 The Box estimator, checked against the exact digit tree
+
+A Box coordinate is written as digits, one token each, so its expected value is a sum over a tree of digit sequences.
+The server follows the model's greedy path and expands the other branches whose probability is at least 0.05 with short extra decodes on the cached prefix, up to 16 per question.
+The check compares that served value, and the plain greedy value, with the exact expectation over the whole tree on 200 coordinates of the 12B base at budget 280, in fractions of the image.
+
+| estimator | mean error | 99th percentile | largest |
+| --- | ---: | ---: | ---: |
+| served (greedy path plus expanded branches) | {{FIG:tree.fast.mean}} | {{FIG:tree.fast.p99}} | {{FIG:tree.fast.max}} |
+| plain greedy value | {{FIG:tree.greedy.mean}} | {{FIG:tree.greedy.p99}} | {{FIG:tree.greedy.max}} |
+
+The rows count the {{FIG:tree.complete}} coordinates whose exact tree is complete (mass at least 0.99); {{FIG:tree.capped}} coordinates hit the 64-decode cap and have no exact reference.
+The rule written before the run was a mean error of at most 0.005 and a 99th percentile of at most 0.02.
+
+### 10.10 The Qwen base's image route: placed layout against the legacy one
+
+`--image-model` serves the Qwen base's pictures.
+Its new layout puts each image at the place its reference stands and keeps a question's own picture to that question; the legacy layout (`--image-prompt legacy`) puts every image at the start of the prompt.
+These are paired differences, new minus legacy, on the reporting half of S and I, with 95% bootstrap intervals.
+
+| measure | n | new minus legacy | 95% interval |
+| --- | ---: | ---: | --- |
+| S decisions, accuracy | {{FIG:q35.n.S_accuracy}} | {{FIG:q35.diff.S_accuracy}} | [{{FIG:q35.lo.S_accuracy}}, {{FIG:q35.hi.S_accuracy}}] |
+| I decisions, accuracy | {{FIG:q35.n.I_accuracy}} | {{FIG:q35.diff.I_accuracy}} | [{{FIG:q35.lo.I_accuracy}}, {{FIG:q35.hi.I_accuracy}}] |
+| S decisions, log loss | {{FIG:q35.n.S_logloss}} | {{FIG:q35.diff.S_logloss}} | [{{FIG:q35.lo.S_logloss}}, {{FIG:q35.hi.S_logloss}}] |
+| I decisions, log loss | {{FIG:q35.n.I_logloss}} | {{FIG:q35.diff.I_logloss}} | [{{FIG:q35.lo.I_logloss}}, {{FIG:q35.hi.I_logloss}}] |
+
+The image temperature fitted on the calibration half is {{FIG:q35.T.new}} for the new layout and {{FIG:q35.T.legacy}} for the legacy one.
+
+### 10.11 Limits
+
+- One card, one session, one decisio commit; the figures are the reporting half of the eval set, and a smaller or larger set moves the intervals.
+- The generated part is easier than photographs: read the R rows for real images.
+- Box answers on small objects in a large image are limited by the budget (10.5); crop and ask again.
+- A tuned model other than the tuned 12B has not been measured on images.
+- Images are not served with registered tasks, intent heads or thinking when unsure (`docs/api.md`).
+- The text figures of sections 3 to 9 are unchanged by this section: a request without pictures is answered as before (10.6).
