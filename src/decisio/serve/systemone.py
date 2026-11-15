@@ -1330,6 +1330,11 @@ class SystemOne:
         server's is built, looked up among the tasks and certified exactly as a server of that layout would; the image
         route builds its own prompt and refuses the field (LayoutRefused)."""
         layout = lay.request_value(layout)
+        if layout == "header" and any(q.type == "box" for q in req.questions.values()):
+            raise BoxRequestError(
+                'a Box question is read under the plain layout: send the request with "layout": "plain" '
+                'or without "layout"'
+            )
         if layout is not None and (images or route == "image") and not self.reads_images_itself():
             raise lay.LayoutRefused(
                 "the image route builds its own prompt (the images, then the state and the question) and has no "
@@ -1388,17 +1393,39 @@ class SystemOne:
             rest[key] = NoulQuestion(
                 type="noul", instructions=boxmod.presence_instructions(req.questions[n].instructions)
             )
-        out = self._answer(
-            req.model_copy(update={"questions": rest}),
-            adapter,
-            images,
-            imajev_ext,
-            route,
-            debug,
-            over_limit,
-            think,
-            image_tag,
-        )
+        # every Box and its presence read is read under the plain layout, whatever the server's default (the header
+        # layout would list the request's questions in the prefix they share); the other questions keep the
+        # request's layout, so a mixed request on a header layout reads the state twice
+        decisions = {n: q for n, q in rest.items() if n not in pres.values()}
+        presence = {k: rest[k] for k in pres.values()}
+        shared = not decisions or self.request_layout == "plain"
+
+        def read(questions):
+            return self._answer(
+                req.model_copy(update={"questions": questions}),
+                adapter,
+                images,
+                imajev_ext,
+                route,
+                debug,
+                over_limit,
+                think,
+                image_tag,
+            )
+
+        if shared:
+            with lay.using("plain"):
+                out = read(rest)
+        else:
+            out = read(decisions)
+            with lay.using("plain"):
+                pout = read(presence)
+            out["answers"].update(pout["answers"])
+            for k in ("input_tokens", "output_tokens"):
+                out["usage"][k] += pout["usage"][k]
+            stages = out["_timing"]["stages"]
+            for k, v in pout["_timing"]["stages"].items():
+                stages[k] = stages.get(k, 0.0) + v
         p_yes = {n: float(out["answers"].pop(k)["noul"]) for n, k in pres.items()}
         exact_tree = debug == "box_tree"
         results, info = self.engine.box(
@@ -1434,7 +1461,7 @@ class SystemOne:
         )  # the presence reads were counted; the branch decodes are extra generation, as the main reply is
         out["usage"]["input_tokens"] += sum(info["box_input_tokens"])
         timing = out["_timing"]
-        timing["box"] = {"generate_ms": info["generate_ms"], "questions": details}
+        timing["box"] = {"generate_ms": info["generate_ms"], "layout": "plain", "questions": details}
         timing["stages"]["box"] = info["generate_ms"]
         timing["server_ms"] = (time.perf_counter() - t0) * 1000
         if debug and self.debug_readout:

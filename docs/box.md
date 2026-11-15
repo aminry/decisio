@@ -62,6 +62,9 @@ A higher `--image-budget` (560 or 1120) spends more tokens per image and helps i
 ## Limits
 
 - One box per question, never none.
-- Not served with two orders, abstention, a task, or the header layout; the server needs `--images on` on a Gemma base (not `--image-model`, not the MLX backend).
+- Not served with two orders, abstention, a task, or a request that asks for `"layout": "header"`; the server needs `--images on` on a Gemma base (not `--image-model`, not the MLX backend).
+- A Box question is always read under the plain layout, whatever the server's default, so a request without `"layout"` is answered on a Gemma base too.
+- A request that mixes a Box with other questions on a server whose layout is the header one reads the state twice: once for the other questions under the header layout, and once for the Box questions and their presence reads under the plain layout.
+  The `x-decisio-prompt` header reports the layout of the other questions, and `timing.box.layout` says `plain`.
 - A Box question writes up to 32 tokens, so it costs more than a noul or choice question; several Box questions of one request run as one batch on the cached prefix of the state.
 - How accurate the boxes are, how well the confidence tracks them and what a Box costs in time are not measured yet; this page will carry the figures when they are.

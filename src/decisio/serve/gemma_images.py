@@ -34,6 +34,7 @@ import time
 from decisio.readout import box as boxmod
 from decisio.readout.letters import check_thinking_closed, fmt_state, layout_header
 from decisio.serve import image_marks as marks
+from decisio.serve import layout as lay
 from decisio.serve.image_engine import ImageRequests
 from decisio.serve.vllm_engine import LettersEngine, pad_prompt, question_text, user_turn
 
@@ -248,9 +249,9 @@ class GemmaImageRequests:
         return out
 
     def box_blocked(self) -> str | None:
-        """Why this engine cannot answer a Box question, or None."""
-        if self.fmt.layout == "header":
-            return 'a Box question is read under the plain layout; send the request without "layout": "header"'
+        """Why this engine cannot answer a Box question, or None. The layout is not one of the reasons: a Box is read
+        under the plain layout whatever the server's default (`box` puts `decisio.serve.layout.using("plain")`
+        around its reads)."""
         return None
 
     def _box_branch_prompts(self, pairs, offsets, full_ids, gen_ids):
@@ -315,7 +316,7 @@ class GemmaImageRequests:
         reason = self.box_blocked()
         if reason:
             raise ValueError(reason)
-        with self._lock:
+        with self._lock, lay.using("plain"):
             t0 = time.perf_counter()
             probe = presence or [{"kind": "noul", "instructions": "Is this a picture?"}]
             rows, p_sent, p_exp, state_found, row_found, counts, end = self._prepare_images(state, images, probe, tag)
