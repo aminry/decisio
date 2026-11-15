@@ -55,7 +55,7 @@ That matters only where the language model's attention is all that links the par
 The 31B reads pictures through its own 27-layer vision encoder, which attends over the whole picture, so every image token already carries all of it and a block longer than the window loses nothing (measured: at 1120 the 31B reads a square in each corner correctly, where the 12B reads the top ones as bottom).
 So on a base without a vision encoder (`vision_config` declares no `num_hidden_layers`), the server refuses a budget whose largest block (the budget's soft tokens plus the begin and end tokens) is longer than the sliding window, read from the checkpoint's `text_config.sliding_window`: 1120 (up to 1,122 tokens) against the 12B's 1,024-token window, while 560 (up to 562) fits; the 31B takes every budget.
 It refuses rather than lowers the budget, so the operator sees what the server does; a base with a longer window allows more.
-The default budget (280) is still under measurement.
+The default budget is 560 on the 12B and 280 on the 31B (`Family.image_budget`, used when `--image-budget` is not given).
 A runtime that drops the token types reads an image causally and loses its vertical axis; a Mac port has to pass them itself.
 The CPU stand-in passes them, a test asserts what reaches its forward pass, and another shows that dropping them changes the readout.
 A real checkpoint test (a square in each corner, answering top or bottom and left or right) is kept beside the others and runs when the local Gemma 4 E2B is named by an environment variable.
@@ -63,8 +63,11 @@ A real checkpoint test (a square in each corner, answering top or bottom and lef
 ## Temperature
 
 The text temperatures were fitted on text.
-A base's `image_temperature` replaces them for requests with images and defaults to none, which reads images at the text temperatures.
-An adapter keeps its own temperatures on every request.
+A base's `image_temperature_scale` multiplies them for requests with images: a question is read at the scale times the temperature its type has for text, and the default, none, reads images at the text temperatures.
+A scale keeps the per-type structure of the text temperatures, which one absolute temperature could not.
+The 31B's is 1.376, the multiplier fitted on top of the probabilities served at the text temperatures, at budget 280 on 377 calibration items (held-out log loss 0.362 before, 0.333 after); the 12B has none.
+On the Qwen `--image-model` route, which reads images at 1.0 rather than at its text temperatures, the scale (0.80, fitted on the placed layout) is the image temperature itself, and the legacy layout keeps 1.0.
+An adapter keeps its own temperatures on every request, without the scale.
 
 ## Box questions
 

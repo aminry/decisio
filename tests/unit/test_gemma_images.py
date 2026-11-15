@@ -38,7 +38,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from decisio.families import GEMMA4, GEMMA4_31B, QWEN
+from decisio.families import GEMMA4, GEMMA4_31B, GEMMA4_FP8, QWEN
 from decisio.readout.letters import PromptFormat
 from decisio.serve import image_marks as marks
 from decisio.serve import vllm_engine as sv
@@ -444,8 +444,9 @@ def parsed(*argv):
 
 def test_g9_the_flags_resolve():
     assert sv.resolve_images(parsed()) is None
-    assert sv.resolve_images(parsed("--images", "on")) == 280
+    assert sv.resolve_images(parsed("--images", "on")) == 560
     assert sv.resolve_images(parsed("--images", "on", "--image-budget", "560")) == 560
+    assert sv.resolve_images(parsed("--images", "on", "--image-budget", "280")) == 280
     for flags, why in [
         (["--image-budget", "280"], "needs --images on"),
         (["--images", "on", "--image-budget", "300"], "one of 70, 140, 280, 560, 1120"),
@@ -464,7 +465,7 @@ def test_g9_the_flags_resolve():
     with pytest.raises(ValueError, match="no image form"):
         sv.resolve_images(big)
     ok = parsed("--images", "on", "--model-class", "hidden-readout")
-    assert sv.resolve_images(ok) == 280  # the 12B's class is multimodal already
+    assert sv.resolve_images(ok) == 560  # the 12B's class is multimodal already
     # the 31B with no --model-class: its default (head-capable) class is text-only, so images on takes the
     # checkpoint's multimodal class instead, and the head mode that follows is "no head", not the hidden readout
     plain31 = parsed("--images", "on")
@@ -473,7 +474,7 @@ def test_g9_the_flags_resolve():
     assert sv.resolve_head_mode(plain31.model_class, None) == ("text-only", None)
     # the 12B keeps its default: its head-capable class reads images
     plain12 = parsed("--images", "on")
-    assert sv.resolve_images(plain12) == 280 and plain12.model_class is None
+    assert sv.resolve_images(plain12) == 560 and plain12.model_class is None
     assert sv.resolve_head_mode(plain12.model_class, None) == ("hidden-readout", "single-engine")
 
 
@@ -637,15 +638,60 @@ def test_g11_the_image_temperature_defaults_to_the_text_temperature():
     body = request_body()
     del body["questions"]["matches"]
     body["assets"].pop("QPIC")
-    for kw, want in (({"temperature": 3.0}, 3.0), ({"temperature": 3.0, "image_temperature": 1.5}, 1.5)):
+    for kw, want in (({"temperature": 3.0}, 3.0), ({"temperature": 3.0, "image_temperature_scale": 2.0}, 6.0)):
         client, so = make_client(e, **kw)
         got = client.post("/v1/systemone", json=body).json()["answers"]["colour"]["probabilities"]
         expect = apply_temperature(np.asarray(raw[0], dtype=np.float64), want)
         assert np.allclose(list(got.values()), expect, atol=1e-6), kw
     # a request without images keeps the text temperature
-    client, so = make_client(e, temperature=3.0, image_temperature=1.5)
-    assert so.image_temperature_of("choice") == 1.5 and so.temperature_of("choice") == 3.0
+    client, so = make_client(e, temperature=3.0, image_temperature_scale=2.0)
+    assert so.image_temperature_of("choice") == 6.0 and so.temperature_of("choice") == 3.0
     assert so.image_temperature_of("choice", "tuned") == so.temperature_of("choice", "tuned")
+
+
+def test_g11_the_scale_multiplies_each_question_types_text_temperature():
+    from decisio.serve.systemone import SystemOne
+
+    so = SystemOne(None, "x", temperature=3.0, temperatures={"noul": 5.0, "choice": 4.0}, image_temperature_scale=1.5)
+    assert so.image_temperature_of("noul") == 7.5
+    assert so.image_temperature_of("choice") == 6.0
+    assert so.image_temperature_of("score") == 4.5
+    off = SystemOne(None, "x", temperature=3.0, temperatures={"noul": 5.0})
+    assert off.image_temperature_of("noul") == 5.0 and off.image_temperature_of("score") == 3.0
+
+
+def test_g11_the_31b_scales_its_text_temperatures_and_the_12b_does_not():
+    from decisio.serve.systemone import SystemOne
+
+    def served(fam):
+        return SystemOne(
+            None,
+            "x",
+            temperature=fam.temperature,
+            temperatures={"choice": fam.choice_temperature, **fam.temperatures}
+            if fam.choice_temperature is not None
+            else dict(fam.temperatures),
+            image_temperature_scale=fam.image_temperature_scale,
+        )
+
+    so = served(GEMMA4_31B)
+    assert GEMMA4_31B.image_temperature_scale == 1.376
+    assert so.image_temperature_of("choice") == pytest.approx(4.672 * 1.376)
+    assert so.image_temperature_of("noul") == pytest.approx(5.252 * 1.376)
+    for fam in (GEMMA4, GEMMA4_FP8):
+        assert fam.image_temperature_scale is None
+        s12 = served(fam)
+        for q in ("choice", "noul", "score"):
+            assert s12.image_temperature_of(q) == s12.temperature_of(q)
+
+
+def test_g11_an_adapters_own_temperatures_win_over_the_scale():
+    from decisio.serve.systemone import SystemOne
+
+    so = SystemOne(None, "x", temperature=3.0, image_temperature_scale=2.0)
+    so.adapter_temperatures = {"tuned": {"choice": 1.25}}
+    assert so.image_temperature_of("choice", "tuned") == 1.25
+    assert so.image_temperature_of("choice") == 6.0
 
 
 def request_text_state():
@@ -657,11 +703,21 @@ def test_g11_the_family_field_defaults_to_none_and_is_checked():
 
     from decisio.families import check_profile_temperatures
 
-    assert GEMMA4.image_temperature is None and GEMMA4_31B.image_temperature is None
-    check_profile_temperatures(replace(GEMMA4, image_temperature=2.5))
+    assert GEMMA4.image_temperature_scale is None and GEMMA4_31B.image_temperature_scale == 1.376
+    check_profile_temperatures(replace(GEMMA4, image_temperature_scale=2.5))
     for bad in (0, -1.0, float("nan"), True):
-        with pytest.raises(ValueError, match="image temperature"):
-            check_profile_temperatures(replace(GEMMA4, image_temperature=bad))
+        with pytest.raises(ValueError, match="image temperature scale"):
+            check_profile_temperatures(replace(GEMMA4, image_temperature_scale=bad))
+
+
+def test_g11_the_scale_is_not_part_of_the_exported_decision_config():
+    """Like the image budget, the scale is a serving default of the base in code: a published repository's file still
+    verifies against the profile, whatever the scale."""
+    from decisio import hub
+
+    for fam in (GEMMA4, GEMMA4_31B):
+        t = hub.profile_of(fam)["temperatures"]
+        assert set(t) == {"global", "choice"}
 
 
 # ---- G12 -------------------------------------------------------------------------------------------------------------
@@ -792,6 +848,20 @@ def test_a_model_with_a_vision_encoder_takes_every_budget(monkeypatch, budget):
     a = parsed("--images", "on", "--image-budget", budget)
     a.family = GEMMA4_31B
     assert sv.resolve_images(a) == int(budget)
+
+
+def test_the_default_budget_is_per_base(monkeypatch):
+    """The 12B reads images at 560 and the 31B at 280 when --image-budget is not given."""
+    _window(monkeypatch, 1024)
+    assert GEMMA4.image_budget == 560 and GEMMA4_31B.image_budget is None
+    assert sv.resolve_images(parsed("--images", "on")) == 560
+    _window(monkeypatch, 1024, encoder_layers=27)
+    a = parsed("--images", "on")
+    a.family = GEMMA4_31B
+    assert sv.resolve_images(a) == 280
+    a = parsed("--images", "on", "--image-budget", "1120")
+    a.family = GEMMA4_31B
+    assert sv.resolve_images(a) == 1120
 
 
 def test_a_longer_window_allows_1120(monkeypatch):

@@ -849,7 +849,7 @@ class SystemOne:
         release_date: str = "2026-09-27",
         description: str = "",
         image_engine=None,
-        image_temperature: float | None = None,
+        image_temperature_scale: float | None = None,
         abstain_option: str | None = None,
         hide_index_keys: bool = True,
         desnake_labels: bool = True,
@@ -952,9 +952,9 @@ class SystemOne:
         # the global temperature on the text route's plain readout (decisio.serve.temperature); 1.0 is off, bit for bit;
         # a registered task's own correction replaces it
         self.temperature = float(temperature)
-        # the temperature of a request with images on a Gemma base (`--images on`); None reads it at the text route's
-        # own temperatures. Not fitted on images (decisio.families, `image_temperature`)
-        self.image_temperature = None if image_temperature is None else float(image_temperature)
+        # the factor on the temperature of a request with images on a Gemma base (`--images on`); None reads images at
+        # the text route's own temperatures (decisio.families, `image_temperature_scale`)
+        self.image_temperature_scale = None if image_temperature_scale is None else float(image_temperature_scale)
         # --image-prompt legacy (deprecated): requests served on the old layout, for the notice's log line
         self.legacy_image_requests = 0
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
@@ -1567,13 +1567,22 @@ class SystemOne:
         if n == 1 or n % self.LEGACY_NOTICE_EVERY == 0:
             logger.warning("%s (%d request%s so far)", self.LEGACY_WARNING, n, "" if n == 1 else "s")
 
+    def qwen_image_temperature(self) -> float:
+        """The temperature of a question read by the `--image-model` route: that route reads images at 1.0, not at the
+        text temperatures, so `image_temperature_scale` is the temperature itself, and only on the placed layout (the
+        scale was fitted there; `--image-prompt legacy` keeps 1.0)."""
+        if self.image_temperature_scale is None or not getattr(self.image_engine, "images_placed", False):
+            return 1.0
+        return self.image_temperature_scale
+
     def image_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
         """The temperature a question of a request with images is served at: the named adapter's own (an adapter's
-        temperatures are fitted on its own reads), else `image_temperature` where the base has one, else the text
-        route's (`temperature_of`)."""
-        if adapter is None and self.image_temperature is not None:
-            return self.image_temperature
-        return self.temperature_of(qtype, adapter, options)
+        temperatures are fitted on its own reads), else the text route's (`temperature_of`) times
+        `image_temperature_scale` where the base has one."""
+        t = self.temperature_of(qtype, adapter, options)
+        if adapter is None and self.image_temperature_scale is not None:
+            return t * self.image_temperature_scale
+        return t
 
     def _answer(
         self,
@@ -1850,6 +1859,10 @@ class SystemOne:
                     p = apply_temperature(p, t_q)
                     if debug:
                         dbg[name].update(path="temperature", temperature=t_q, adapter=adapter)
+                elif use_image and (t_img := self.qwen_image_temperature()) != 1.0:
+                    p = apply_temperature(p, t_img)
+                    if debug:
+                        dbg[name].update(path="temperature", temperature=t_img, adapter=adapter)
             if plans[i]:
                 answers[name] = self.abstention_answer(q, keys, p, plans[i], imajev_ext)
                 continue

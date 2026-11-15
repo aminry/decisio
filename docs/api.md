@@ -160,11 +160,12 @@ An image's own tokens attend to each other in both directions on the model's sli
 **What an image costs.**
 The picture is scaled, keeping its proportions and enlarging it if need be, so that its area fills the server's budget, then each side is cut down to a multiple of 48 pixels; each 48 by 48 block is one token, and a begin and an end token wrap them.
 `--image-budget` sets the budget: 70, 140, 280 (the model's own default), 560 or 1120 soft tokens.
+Without the flag, Gemma 4 12B (bf16, FP8 and any tuned repository on that base) reads images at 560 and Gemma 4 31B at 280; the flag wins on either.
+At 560 an image costs about 1.8 times the tokens of 280 and Box answers read better.
 On a base without a vision encoder, a budget whose largest image block (its soft tokens plus the begin and end tokens) is longer than the base's sliding window is refused at start.
 On Gemma 4 12B the window is 1,024 tokens, so 1120 (blocks of up to 1,122 tokens) is not allowed there: the later tokens of such an image could not see its top rows.
 Gemma 4 31B reads pictures through its own vision encoder, so it takes every budget, 1120 included.
 `/health` reports the budget in use and the budgets the base allows.
-The default budget is still under measurement.
 `usage.input_tokens` counts the text and every image's tokens, begin and end included: an image of the state once, an image of a question once for the question that carries it.
 
 | Image (height by width) | 70 | 140 | 280 | 560 | 1120 |
@@ -180,7 +181,11 @@ A request with more images than `--max-images` (16 here unless set) is refused; 
 **Adapters and temperature.**
 A request with images may name an adapter (`adapter`): the adapter's weights change the language model only, the image path is the base's.
 How well a tuned model reads pictures is not measured: it was trained on text.
-The probabilities are served at the base's text temperature, which was fitted on text; a base's `image_temperature` replaces it for images once one is fitted on images (none is yet), and an adapter keeps its own temperatures.
+The probabilities are served at the base's text temperatures, which were fitted on text.
+For a request with images, a base may carry an `image_temperature_scale`, a factor on the temperature of each question's type: the question is read at the scale times its text temperature.
+Gemma 4 31B has one, 1.376, fitted on images at budget 280; Gemma 4 12B has none and reads images at its text temperatures.
+The Qwen `--image-model` route reads images at temperature 1.0 rather than at its text temperatures, so its scale, 0.80 (fitted on the placed layout), is the temperature itself; with `--image-prompt legacy` it stays 1.0.
+An adapter keeps its own temperatures.
 
 **What stays different from System One.**
 - `layout` works with images here (it does not on the `--image-model` route).
