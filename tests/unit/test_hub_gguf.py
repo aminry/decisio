@@ -159,6 +159,18 @@ def test_g1_template_renders_the_engine_row(gemma, settings, state, qid):
     assert gemma.encode(text, add_special_tokens=False) == engine_rows(gemma, settings, state, {qid: QUESTIONS[qid]})[0]
 
 
+@pytest.mark.parametrize("decision_type", hg.TYPES)
+def test_g1_escapes_every_lexer_reads(gemma, settings, decision_type):
+    """Every backslash escape in the template is one llama.cpp's Jinja lexer has read since the systemone route
+    (Ollama 0.40.4's lexer refuses \\x and \\u, and refused this template's first form at load)."""
+    template = hg.systemone_template(gemma, settings, decision_type)
+    i, seen = 0, set()
+    while (i := template.find("\\", i)) >= 0:
+        seen.add(template[i + 1])
+        i += 2
+    assert seen and seen <= hg.LEXER_ESCAPES, seen - hg.LEXER_ESCAPES
+
+
 def test_g2_nimble_header_lists_every_question(gemma, settings):
     template = hg.systemone_template(gemma, settings, "nimble")
     codes = llama_codes(gemma)
