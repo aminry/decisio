@@ -12,9 +12,16 @@ temperatures, the readout. Run under the machine's memory guard and on its own (
   DECISIO_MLX_IMAGES_WIRE=<wire folder> DECISIO_MLX_IMAGES_VLLM_ANSWERS=<answers.jsonl> \\
   [DECISIO_MLX_IMAGES_BUDGET=280] uv run pytest -q -m mlx_model tests/mlx/test_mlx_images_vllm_parity.py
 
-The bar is set from the measured spread: bf16 on two backends differ by a few hundredths at most. On the 12B base at 280
-the 20 items differed by at most 0.024 and 0.004 on average, with no answer changed; the bar is twice the maximum, and a
-changed answer fails it.
+Two references. Same weights on both sides (the 12B in bf16 against bf16): the strict rule. A different precision (the
+Mac 31B is the 4-bit MLX build and the vLLM card's is FP8, other weights): set `DECISIO_MLX_IMAGES_REFERENCE=fp8` and
+`DECISIO_MLX_IMAGES_EVALSET=<eval set folder>`. Then 60 reporting-split noul and choice items with one picture are read;
+no answer may flip outside a near-tie (vLLM's top two within 0.10; for noul, P(yes) within 0.05 of 0.5); the Mac may be
+right on at most one item fewer than vLLM; and the spread (max, mean and median |dp|) is reported as measured, with no
+bar on the mean.
+
+The strict rule's bar is set from the measured spread: bf16 on two backends differ by a few hundredths at most. On the
+12B base at 280 the 20 items differed by at most 0.024 and 0.004 on average, with no answer changed; the bar is
+twice the maximum (0.05, and 0.01 on the mean), and a changed answer fails it.
 """
 
 import json
@@ -103,6 +110,92 @@ def server():
         proc.wait(timeout=60)
 
 
+def pick_items(evalset, per=15):
+    """60 reporting-split noul and choice items with one picture: `per` of each of S noul, S choice, R noul, R choice,
+    evenly spaced through the ids in order. Returns [(id, truth index into the probabilities)]."""
+    out = []
+    for part in ("S", "R"):
+        rows = [json.loads(line) for line in open(f"{evalset}/{part}/items.jsonl")]
+        for kind in ("noul", "choice"):
+            pool = sorted(
+                (r for r in rows if r["kind"] == kind and r["split"] == "report" and len(r["request"]["assets"]) == 1),
+                key=lambda r: r["id"],
+            )
+            step = max(1, len(pool) // per)
+            for r in pool[::step][:per]:
+                out.append((r["id"], r["truth"]["q"]["answer"], kind, r["request"]["questions"]["q"].get("criteria")))
+    return out
+
+
+def truth_index(kind, truth, criteria):
+    if kind == "noul":
+        return 0 if truth is True else 1
+    return sorted(criteria).index(str(truth))
+
+
+def near_tie(kind, theirs):
+    if kind == "noul":
+        return abs(theirs[0] - 0.5) < 0.05
+    top = sorted(theirs, reverse=True)
+    return top[0] - top[1] < 0.10
+
+
+def post(server, wire, name):
+    body = json.load(open(f"{wire}/{name}.json"))
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{server}/v1/systemone",
+        data=json.dumps(body).encode(),
+        headers={"content-type": "application/json", "x-decisio-client": "test"},
+    )
+    return probabilities(find_answer(json.loads(urllib.request.urlopen(req, timeout=600).read())))
+
+
+def reference_answers():
+    ref = {}
+    for line in open(os.environ["DECISIO_MLX_IMAGES_VLLM_ANSWERS"]):
+        a = json.loads(line)
+        ref[a["id"]] = a["answer"]
+    return ref
+
+
+@pytest.mark.skipif(os.environ.get("DECISIO_MLX_IMAGES_REFERENCE") != "fp8", reason="the other-precision comparison")
+def test_p2_a_different_precision_differs_by_a_measured_spread_and_no_answer_flips_outside_near_ties(server):
+    evalset = os.environ["DECISIO_MLX_IMAGES_EVALSET"]
+    wire, ref = f"{evalset}/wire", reference_answers()
+    rows = []
+    for name, truth, kind, criteria in pick_items(evalset):
+        mine, theirs = post(server, wire, name), probabilities(ref[name])
+        t = truth_index(kind, truth, criteria)
+        rows.append(
+            {
+                "id": name,
+                "dp": float(np.abs(np.array(mine) - np.array(theirs)).max()),
+                "flip": int(np.argmax(mine) != np.argmax(theirs)),
+                "tie": near_tie(kind, theirs),
+                "mac_right": int(np.argmax(mine) == t),
+                "vllm_right": int(np.argmax(theirs) == t),
+            }
+        )
+    dp = [r["dp"] for r in rows]
+    report = {
+        "n": len(rows),
+        "max": max(dp),
+        "mean": float(np.mean(dp)),
+        "median": float(np.median(dp)),
+        "flips": sum(r["flip"] for r in rows),
+        "flips_in_near_ties": sum(r["flip"] and r["tie"] for r in rows),
+        "mac_right": sum(r["mac_right"] for r in rows),
+        "vllm_right": sum(r["vllm_right"] for r in rows),
+    }
+    print("PARITY", json.dumps(report))
+    if os.environ.get("DECISIO_MLX_IMAGES_REPORT"):
+        with open(os.environ["DECISIO_MLX_IMAGES_REPORT"], "w") as f:
+            json.dump({"summary": report, "rows": rows}, f, indent=1)
+    assert [r["id"] for r in rows if r["flip"] and not r["tie"]] == []
+    assert report["mac_right"] >= report["vllm_right"] - 1, report
+
+
+@pytest.mark.skipif(os.environ.get("DECISIO_MLX_IMAGES_REFERENCE") == "fp8", reason="the same-weights comparison")
 def test_p1_the_mac_server_answers_as_decisio_on_vllm_does(server):
     wire = os.environ["DECISIO_MLX_IMAGES_WIRE"]
     ref = {}
