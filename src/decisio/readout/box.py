@@ -21,6 +21,8 @@ value comes from the same distribution, and the raw confidence is the geometric 
 `ConfidenceMap` turns the raw confidence into a rate of IoU >= 0.5 on a calibration split.
 
 Nothing here invents a box: a generation without four numbers inside a `box_2d` list raises BoxParseError.
+The one reply that is not an error is the model saying there is no box: `null` where the list, or its first
+coordinate, would be. `parse_coordinates` raises `BoxAbsentSignal` for it and `read_box` returns a `BoxAbsent`.
 """
 
 from __future__ import annotations
@@ -59,6 +61,32 @@ class BoxParseError(ValueError):
         super().__init__(f"{reason}: {text[:120]!r}" if text else reason)
         self.reason = reason
         self.text = text
+
+
+class BoxAbsentSignal(Exception):
+    """The generation says there is no box: `null` as the `box_2d` value or as its first element, with no number
+    before it. Not a parse error; `parse_coordinates` raises it and the readout turns it into a `BoxAbsent`."""
+
+    def __init__(self, text: str = ""):
+        super().__init__(f"the model wrote no box: {text[:120]!r}")
+        self.text = text
+
+
+@dataclass(frozen=True)
+class BoxAbsent:
+    """The readout of a reply that says the target is not there. The route answers the whole image at confidence 0."""
+
+    text: str = ""
+    tokens: int = 0
+
+
+def _starts_null(text: str) -> bool:
+    """Whether `text`, past whitespace, starts with the word `null` (not `nullable`, not a number)."""
+    t = text.lstrip(_WS)
+    if not t.startswith("null"):
+        return False
+    rest = t[4:]
+    return rest == "" or not (rest[0].isalnum() or rest[0] == "_")
 
 
 def box_target(instructions) -> str:
@@ -283,6 +311,9 @@ def parse_coordinates(
         if at < 0:
             raise BoxParseError("no box_2d in the generation", flat)
         lb = flat.find("[", at)
+        between = flat[at + len("box_2d") : lb if lb >= 0 else len(flat)].lstrip('" ' + _WS)
+        if between.startswith(":") and _starts_null(between[1:]):
+            raise BoxAbsentSignal(flat)  # `{"box_2d": null`
         if lb < 0:
             raise BoxParseError("no list after box_2d", flat)
         # the first step that starts after the "["
@@ -300,6 +331,8 @@ def parse_coordinates(
     i = start
     while i < len(steps) and len(pairs) < 4:
         step = steps[i]
+        if not pairs and not cur and _starts_null("".join(c for c, _ in steps[i:]).replace("▁", " ")):
+            raise BoxAbsentSignal(flat)  # `[null`: no coordinate before it
         k = _kind(step[0])
         if k == "ws":
             if cur:
@@ -404,14 +437,17 @@ def assemble_box(est: Sequence[EdgeEstimate]) -> BoxReadout:
     )
 
 
-def read_box(steps: Iterable, prefix_in_steps: bool = True) -> BoxReadout:
+def read_box(steps: Iterable, prefix_in_steps: bool = True) -> BoxReadout | BoxAbsent:
     """The box and raw confidence of one generation, by the plain estimator (no branch expansion). Raises
-    BoxParseError when there is no readable box.
+    BoxParseError when there is no readable box; returns a BoxAbsent when the model wrote `null` for it.
 
     `prefix_in_steps=False` reads steps that start after the forced reply prefix, at the first digit.
     """
     steps = _normalise_steps(steps)
-    pairs, used = parse_coordinates(steps, prefix_in_steps)
+    try:
+        pairs, used = parse_coordinates(steps, prefix_in_steps)
+    except BoxAbsentSignal as a:
+        return BoxAbsent(a.text, len(steps))
     est = [estimate_coordinate(d, t) for d, t in pairs]
     rd = assemble_box(est)
     rd.diagnostics.update(

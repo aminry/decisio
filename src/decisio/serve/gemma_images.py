@@ -310,11 +310,12 @@ class GemmaImageRequests:
         digit tree by real decodes, for the debug readout (`--debug-box-tree`); never on without it.
 
         Returns (`results`, `info`): `results` is a `decisio.readout.box.BoxReadout` per question, or the
-        `BoxParseError` the model's reply raised (never a made-up box); `info["generated_tokens"]` is the main
+        `BoxParseError` the model's reply raised (never a made-up box), or a `BoxAbsent` when it wrote
+        `null` for the box; `info["generated_tokens"]` is the main
         reply's tokens per question, `info["branch_tokens"]` the branch decodes' tokens in all (both count toward
         usage), and `info["branches"]` is, per question, how many branches were decoded and whether the cap was
         hit; `info["tree"]`, present when `exact_tree`, is the exact readout per question (None for a question
-        that had no readable box)."""
+        that had no readable box or whose reply was absent)."""
         if not images:
             raise ValueError("a Box question needs an image")
         reason = self.box_blocked()
@@ -348,6 +349,11 @@ class GemmaImageRequests:
             for qi, steps in enumerate(gens):
                 try:
                     pairs, _, offsets = boxmod.parse_coordinates(steps, prefix_in_steps=False, with_offsets=True)
+                except boxmod.BoxAbsentSignal as a:  # the model wrote null: no branches, no tree, no box
+                    results.append(boxmod.BoxAbsent(a.text, len(steps)))
+                    branches_info.append({"decoded": 0, "capped": False})
+                    tree_info.append(None)
+                    continue
                 except boxmod.BoxParseError as e:
                     results.append(e)
                     branches_info.append({"decoded": 0, "capped": False})

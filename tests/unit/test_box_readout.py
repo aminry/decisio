@@ -137,7 +137,9 @@ def test_generation_stopping_right_after_last_digit():
     [
         [sure("Sorry"), sure(","), sure("▁"), sure("no")],
         list(PREFIX_STEPS) + [sure("▁"), sure("1"), sure(","), sure("▁"), sure("2"), sure("]}")],
-        list(PREFIX_STEPS) + [sure("null"), sure("]}")],
+        list(PREFIX_STEPS) + [sure("nope"), sure("]}")],
+        list(PREFIX_STEPS) + [sure("1"), sure(","), sure("null"), sure("]}")],  # a coordinate before the null
+        list(PREFIX_STEPS) + [sure("nullable"), sure("]}")],
         list(PREFIX_STEPS) + [sure("▁"), sure("1"), sure("2"), sure("."), sure("5")],
         list(PREFIX_STEPS) + [sure("▁"), sure(","), sure("▁"), sure("1")],
         list(PREFIX_STEPS),
@@ -148,6 +150,36 @@ def test_generation_stopping_right_after_last_digit():
 def test_malformed_raises(steps):
     with pytest.raises(B.BoxParseError):
         B.read_box(steps)
+
+
+@pytest.mark.parametrize(
+    "tail",
+    [
+        [sure("null"), sure("]}")],
+        [sure("▁"), sure("null"), sure(",")],
+        [sure("n"), sure("ull"), sure("]}")],
+        [sure("null")],
+    ],
+)
+def test_null_as_the_first_element_is_absent(tail):
+    rd = B.read_box(list(PREFIX_STEPS) + tail)
+    assert isinstance(rd, B.BoxAbsent)
+    assert rd.tokens == len(PREFIX_STEPS) + len(tail)
+
+
+def test_null_as_the_list_is_absent():
+    rd = B.read_box([sure('{"'), sure("box_2d"), sure('":'), sure("▁"), sure("null"), sure(",")])
+    assert isinstance(rd, B.BoxAbsent)
+
+
+def test_null_without_the_forced_prefix_in_steps_is_absent():
+    assert isinstance(B.read_box([sure("null"), sure("]}")], prefix_in_steps=False), B.BoxAbsent)
+    with pytest.raises(B.BoxAbsentSignal):
+        B.parse_coordinates([sure("▁"), sure("null")], prefix_in_steps=False)
+
+
+def test_a_real_box_is_not_absent():
+    assert not isinstance(B.read_box(gen([10, 20, 30, 40])), B.BoxAbsent)
 
 
 def test_no_list_after_box_2d():
