@@ -56,6 +56,14 @@ mlx = [
     "mlx==0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "mlx-lm==0.32.2; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
+# Apple silicon with images (`--backend mlx --images on`, Gemma 4): the MLX extra and mlx-vlm, which holds the Gemma 4
+# vision embedder; decisio.serve.mlx_images calls its language model itself (mlx-vlm's own call does not pass the image
+# token types on, docs/design/mlx-backend.md)
+mlx-images = [
+    "mlx==0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-lm==0.32.2; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-vlm==0.7.12; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 
 [project.urls]
 Repository = "https://github.com/aminry/decisio"

@@ -121,6 +121,11 @@ class Family:
     # (docs/running.md: Qwen 4-bit 19.5 -> 22.7 GB, Gemma 4 12B 9.7 -> 15.1, Gemma 4 31B 24.9 -> 33.7), rounded up;
     # decisio.serve.mlx_memory sizes MLX's memory limit from it (0: the default, 6)
     mlx_working_gb: float = 0
+    # --backend mlx --images on: the same figure for a server that also reads images (0: the text figure). The 12B's is
+    # the text figure plus what the vision path adds at the largest budget (1,120), measured on one Apple M5 Pro with
+    # 64 GB: the MLX peak went from 23.3 to 24.6 GB between budgets 280 and 1,120 on a 1.4k-token prompt, so +1.3 GB,
+    # rounded up with the text figure's 6 GB (docs/running.md, "Images on a Mac")
+    mlx_working_images_gb: float = 0
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -202,6 +207,7 @@ GEMMA4 = Family(
     # 8,000: two thirds of a 32 GiB Mac (22.906 GB) less the 15.125 GB peak at 32k tokens leaves 7.781 GB = 7,421 MiB
     mlx_prefix_cache_mb=7400,
     mlx_working_gb=6,
+    mlx_working_images_gb=7.5,
     precision="bf16",
 )
 

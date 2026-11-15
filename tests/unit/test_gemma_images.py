@@ -452,7 +452,7 @@ def test_g9_the_flags_resolve():
         (["--images", "on", "--image-budget", "300"], "one of 70, 140, 280, 560, 1120"),
         (["--images", "on", "--image-model", "q"], "--image-model"),
         (["--images", "on", "--one-engine"], "--one-engine"),
-        (["--images", "on", "--backend", "mlx"], "not --backend mlx"),
+        (["--images", "on", "--backend", "hf"], "vLLM server and --backend mlx"),
     ]:
         with pytest.raises(ValueError, match=why):
             sv.resolve_images(parsed(*flags))
@@ -478,18 +478,12 @@ def test_g9_the_flags_resolve():
     assert sv.resolve_head_mode(plain12.model_class, None) == ("hidden-readout", "single-engine")
 
 
-def test_g9_images_on_is_refused_on_the_mac_at_start(monkeypatch, capsys):
-    def resolve(args):  # what resolve_base leaves on the arguments, without a checkpoint to read
-        args.repository, args.repository_defaults, args.flavor_report = None, None, None
-        args.profile_temperatures, args.temperature = None, 1.0
-        return GEMMA4, FORMAT
-
-    monkeypatch.setattr(sv, "resolve_base", resolve)
-    monkeypatch.setattr("sys.argv", ["decisio", "--backend", "mlx", "--model", "x", "--images", "on"])
-    with pytest.raises(SystemExit) as e:
-        sv.main()
-    err = capsys.readouterr().err
-    assert e.value.code == 2 and "--backend mlx serves the text route" in err and "--images on" in err
+def test_g9_the_12b_takes_images_on_a_mac_and_the_31b_does_not():
+    assert sv.resolve_images(parsed("--images", "on", "--backend", "mlx")) == 280
+    big = parsed("--images", "on", "--backend", "mlx")
+    big.family = GEMMA4_31B
+    with pytest.raises(ValueError, match="serves the 12B"):
+        sv.resolve_images(big)
 
 
 def test_g9_the_engine_refuses_a_budget_and_too_many_images():

@@ -2004,10 +2004,11 @@ def resolve_pad_policy(backend, pad_policy=None):
 
 def resolve_images(args) -> int | None:
     """`--images` and `--image-budget`: the soft-token budget the engine reads images at (None with images off), or
-    ValueError for a server that cannot read images. Images are for the Gemma bases on the vLLM server, read by the
-    engine that reads text: the Qwen base keeps `--image-model`, the Mac keeps text only, and a head-capable class of
-    the 31B has no multimodal form yet."""
+    ValueError for a server that cannot read images. Images are for the Gemma bases, read by the engine that reads
+    text: on the vLLM server, and on a Mac (`--backend mlx`) for the 12B (decisio.serve.mlx_images). The Qwen base
+    keeps `--image-model`, and a head-capable class of the 31B has no multimodal form yet."""
     from decisio.families import read_config
+
     from decisio.serve import image_marks
 
     images = getattr(args, "images", "off")
@@ -2017,10 +2018,14 @@ def resolve_images(args) -> int | None:
             raise ValueError("--image-budget needs --images on")
         return None
     fam = args.family
-    if args.backend != "vllm":
-        raise ValueError(
-            f"--images on is for the vLLM server, not --backend {args.backend}: images on a Mac come later"
-        )
+    if args.backend not in ("vllm", "mlx"):
+        raise ValueError(f"--images on is for the vLLM server and --backend mlx, not --backend {args.backend}")
+    if args.backend == "mlx" and fam.key != "gemma-4-12b":
+        if fam.key.startswith("gemma-4"):
+            raise ValueError(
+                f"--images on with --backend mlx serves the 12B ({fam.key} is not it): the 31B's MLX conversion has no "
+                "vision tensors, so a Mac reads images with the 12B, or with the 31B on the vLLM server"
+            )
     if not fam.key.startswith("gemma-4"):
         raise ValueError(
             f"--images on is for the Gemma bases (this is {fam.key}); the Qwen base reads images with --image-model"
@@ -2771,16 +2776,18 @@ def build_parser():
         help="the most images one request may carry: on the --image-model engine (default 128: 128 images of 512 by "
         "512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal "
         "profiling memory at start-up, raise it for smaller images), and with --images on (default 16; vLLM sizes its "
-        "start-up profile of the image path from it and from --image-budget, a cost not measured yet)",
+        "start-up profile of the image path from it and from --image-budget, a cost not measured yet; on a Mac it "
+        "only bounds a request)",
     )
     ap.add_argument(
         "--images",
         choices=("off", "on"),
         default="off",
-        help="images on a Gemma base (the vLLM server): the engine that reads text reads the pictures too, each at its "
-        "place in the state or in one question's text (docs/api.md, 'Images on Gemma 4'); off (the default, as before) "
-        "loads the text path alone. The 12B raises its image limit; the 31B loads its vision tower. Not measured yet: "
-        "memory at start-up and text latency",
+        help="images on a Gemma base (the vLLM server, and the 12B with --backend mlx on a Mac): the engine that reads "
+        "text reads the pictures too, each at its place in the state or in one question's text (docs/api.md, 'Images "
+        "on Gemma 4'); off (the default, as before) loads the text path alone. The 12B raises its image limit; the 31B "
+        "loads its vision tower. On a Mac the conversion must keep the vision weights (docs/running.md, 'Images on a "
+        "Mac'). Not measured yet on vLLM: memory at start-up and text latency",
     )
     ap.add_argument(
         "--box-confidence",
@@ -3403,7 +3410,6 @@ def main():
             flag
             for flag, given in (
                 ("--image-model", args.image_model),
-                ("--images on", args.images == "on"),
                 ("--one-engine", args.one_engine),
                 ("--head-engine", args.head_engine),
                 ("--adapter", args.adapter),
@@ -3569,7 +3575,17 @@ def main():
     elif args.backend == "mlx":
         from decisio.serve.mlx_engine import MLXLettersEngine
 
-        engine = MLXLettersEngine(
+        make = MLXLettersEngine
+        if args.images == "on":
+            from decisio.serve.gemma_images import DEFAULT_MAX_IMAGES
+            from decisio.serve.mlx_images import MLXGemmaImageLettersEngine
+
+            make = functools.partial(
+                MLXGemmaImageLettersEngine,
+                image_budget=args.image_budget,
+                max_images=args.max_images if args.max_images is not None else DEFAULT_MAX_IMAGES,
+            )
+        engine = make(
             args.model,
             tokenizer=args.tokenizer,
             family=args.family,
