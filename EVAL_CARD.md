@@ -569,7 +569,7 @@ A second question on the same pictures reads them from the cache: 22 of 22 reque
 | Component | Fitted or chosen on |
 | --- | --- |
 | Model weights | nothing by us for the images: the vision weights are Google's; the tuned 12B's language-model weights were trained on text only |
-| Image temperature, one per model | the calibration half's noul and choice items, by minimum log loss on the model's own answers at its budget; no reporting item and no JevBench or Decision Index item; the 31B's image answers apply its fitted scale (1.376) on its text temperatures, and the Qwen route's placed layout applies 0.80; the 12B and the tuned 12B apply none, because their fits gained under 0.005 in log loss |
+| Image temperature, one per model | the calibration half's noul and choice items, by minimum log loss on the model's own answers at its budget; no reporting item and no JevBench or Decision Index item; the 31B's image answers are read at its text temperatures times its fitted scale (1.376), and the Qwen route's placed layout is read at the temperature 0.80 itself (its legacy layout stays at 1.0); the 12B and the tuned 12B apply none, because their fits gained under 0.005 in log loss |
 | Box confidence map | not fitted in this run: `confidence` is the uncalibrated product of 10.3, and `--box-confidence FILE` loads a map |
 | Default image budget | the figures in 10.2, 10.3 and 10.5 |
 
@@ -612,7 +612,7 @@ These are paired differences, new minus legacy, on the reporting half of S and I
 | I decisions, log loss | 124 | -0.007 | [-0.036, +0.019] |
 
 On the generated items the placed layout reads better, with an interval above zero; on ImajevBench lite the interval includes zero.
-The image temperature fitted on the calibration half is 0.801 for the placed layout and 0.823 for the legacy one; the server applies the placed layout's (see 10.8).
+The image temperature fitted on the calibration half is 0.801 for the placed layout and 0.823 for the legacy one; the server reads the placed layout at 0.80 and the legacy layout at 1.0 (see 10.8).
 `--image-model` loads the image engine's model at the revision pinned for its base (or the one `--image-model-revision` names), also from an offline cache, and a model it cannot use stops the start before the text engine compiles.
 
 ### 10.11 Limits
