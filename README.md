@@ -448,7 +448,7 @@ On the Gemma 4 31B base, decisio scored 57.58 on the Decision Index 0.2.1 at a m
 | Probabilities | a distribution per question, tempered by fitted temperatures, with per-task calibration from labelled examples |
 | Task registration | `POST /v1/tasks` learns one recurring question from labelled examples: a calibration and, for long option lists, an intent head; with a `certify` block it also certifies answers against your labels (`docs/tasks.md`, "Certified answers") |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
-| Image input and Box | pictures in the state, in a question's instructions and in its options, read by Gemma 4 12B and 31B on the same engine (`--images on`, [api.md](docs/api.md#images-on-gemma-4---images-on)) or by the Qwen base through a second engine (`--image-model`); Box questions answer where something is in a picture, with four edges and a confidence ([box.md](docs/box.md)); measured figures are in `EVAL_CARD.md` section 10 |
+| Image input and Box | pictures in the state, in a question's instructions and in its options, read by Gemma 4 12B and 31B on the same engine (`--images on`, [api.md](docs/api.md#images-on-gemma-4---images-on)), on vLLM or on a Mac ([Images on a Mac](docs/running.md#images-on-a-mac)), or by the Qwen base through a second engine (`--image-model`); Box questions answer where something is in a picture, with four edges and a confidence, on vLLM ([box.md](docs/box.md)); measured figures are in `EVAL_CARD.md` section 10 |
 
 ## Watch it play
 
@@ -515,6 +515,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 The Qwen base runs from its 6-bit MLX conversion, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
 The Gemma 4 12B base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](docs/running.md#mac-with-mlx)).
 The default base, Gemma 4 31B, runs from its 6-bit MLX conversion on a 64 GB Mac (the only size measured), or from its 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` on a 48 GB Mac (derived from the 64 GB measurement), which scores 1.5 points lower on MMLU-Pro; both are documented for states up to 16,383 tokens; a Mac always names its conversion with `--model` ([docs/running.md](docs/running.md#mac-with-mlx)).
+Both Gemma bases also read pictures on a Mac: install the `mlx-images` extra and add `--images on`; a conversion made for text takes the base's small vision add-on, downloaded once and checked by its sha256 ([Images on a Mac](docs/running.md#images-on-a-mac)).
 
 ### Ollama
 
