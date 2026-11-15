@@ -25,13 +25,18 @@
   "sha256": "aa5b0de35443e4dc4a8ea8496e9b9fec9f5a85ef6e54bd987cdfd985e4f6343c"
  },
  {
+  "path": "published.json",
+  "bytes": 4969,
+  "sha256": "1eb731d2cf8c1ade60712f75fbbb7c2f5fefb88808846a87d514850330932dda"
+ },
+ {
   "path": "release_files.json",
   "bytes": 722,
   "sha256": "7ef4bdaa232e0c23d68d34ef5be6ab352d2355fc2c86ece2edc6059efadb7ff3"
  },
  {
   "path": "summary.md",
-  "bytes": 3457,
-  "sha256": "0d5dd7a59c0e958cb794e3c19ee11ecb493c7638b86ec518f2fded788516fd7a"
+  "bytes": 4011,
+  "sha256": "38444ef2653ebae6bc3a25146ad2832f676b19d2ecd802b504428d2734e4a84f"
  }
 ]

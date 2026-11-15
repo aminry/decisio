@@ -43,6 +43,11 @@ Each tag was loaded alone on Ollama 0.40.16 at its 8,192-token context and answe
 The resident set counts the weights, which llama.cpp maps from the file, and about 3.5 GB of buffers.
 Ollama's `/api/ps` reports 4.24 GB for every tag, and the process's physical footprint 3.5 GB: neither counts the mapped weights.
 
+## Published (`published.json`)
+
+The tags on ollama.com carry exactly these files: each tag's model and projector layers are the sha256 in `release_files.json`, and the `-ollama0.40.3` tags keep the earlier files' layers.
+Each listing's `q4_k_m` was pulled back from ollama.com on Ollama 0.40.4, 0.40.9 and 0.40.16, and each `q8_0` on 0.40.16: every pulled file hashed to its name, and the 20 text and 10 image questions got the same top answers as before, identical on 0.40.16.
+
 ## Files
 
-`comparison.json`, `ollama_versions.json`, `memory.json`, `release_files.json` (the sha256 of every file the listings carry), `host.txt`.
+`comparison.json`, `ollama_versions.json`, `memory.json`, `release_files.json` (the sha256 of every file the listings carry), `published.json` (the layers ollama.com serves and the pull-back checks), `host.txt`.
