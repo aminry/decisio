@@ -14,13 +14,14 @@ and tests), or in the Hugging Face cache, downloaded once from the repository. I
 carries the file's sha256, which is checked on every start, and a file that differs is refused. Nothing is added to a
 model repository's `decision_config.json` (a published repository's config must equal the profile).
 
-Merging. mlx-vlm's loader reads every `*.safetensors` in a directory and its `sanitize` strips the leading `model.`
-from a name, so the add-on's names (`model.vision_embedder.*`, `model.embed_vision.*`, and `model.vision_tower.*` for
-the 31B) are the names it expects: no renaming is needed (a test checks the names and shapes against the architecture).
-The merged model is therefore built without copying a weight: a small directory under the Hugging Face home holds links
-to the conversion's files and to the add-on, and a `config.json` that is the conversion's with the base's
-`vision_config` added (and audio off). mlx-vlm loads that directory. Quantised language weights stay as they are and
-the vision tensors stay bf16, since mlx-vlm quantises only the modules that have scales in the weights.
+Merging. mlx-vlm's loader reads the files of the directory's index (every `*.safetensors` when there is none), and its
+`sanitize` strips the leading `model.` from a name, so the add-on's names (`model.vision_embedder.*`,
+`model.embed_vision.*`, and `model.vision_tower.*` for the 31B) are the names it expects: no renaming is needed (tests
+check the names and shapes against the architecture). The merged model is therefore built without copying a weight: a
+small directory under the Hugging Face home holds links to the conversion's files and to the add-on, an index that lists
+the add-on's tensors too, and a `config.json` that is the conversion's with the base's `vision_config` added (and audio
+off). mlx-vlm loads that directory. Quantised language weights stay as they are and the vision tensors stay bf16, since
+mlx-vlm quantises only the modules that have scales in the weights.
 """
 
 from __future__ import annotations
@@ -157,7 +158,7 @@ def merged_dir(model_dir, family, addon, config_of_base=None, root=None) -> Path
     out = Path(root) / key
     out.mkdir(parents=True, exist_ok=True)
     for f in d.iterdir():
-        if f.name in ("config.json", ADDON_FILE) or f.name.startswith("."):
+        if f.name in ("config.json", "model.safetensors.index.json", ADDON_FILE) or f.name.startswith("."):
             continue
         link = out / f.name
         if link.is_symlink() or link.exists():
@@ -168,6 +169,19 @@ def merged_dir(model_dir, family, addon, config_of_base=None, root=None) -> Path
         link.unlink()
     link.symlink_to(Path(addon).resolve())
     (out / "config.json").write_text(json.dumps(config, indent=2))
+    # mlx-vlm's loader reads the files an index names and ignores any other: with an index, the add-on must be in it
+    index = d / "model.safetensors.index.json"
+    if index.exists():
+        merged = json.loads(index.read_text())
+        merged["weight_map"] = {
+            **merged["weight_map"],
+            **{k: ADDON_FILE for k in safetensors_names([Path(addon)])},
+        }
+        (out / "model.safetensors.index.json").write_text(json.dumps(merged, indent=2))
+    else:
+        link = out / "model.safetensors.index.json"
+        if link.is_symlink() or link.exists():
+            link.unlink()
     return out
 
 

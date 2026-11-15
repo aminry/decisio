@@ -64,23 +64,29 @@ def vision_dir(tmp_path, model_type="gemma4_unified", vision=True, index=True, n
     return d
 
 
-def addon_file(tmp_path, name="addon", payload=b"vision weights"):
+def addon_file(tmp_path, name="addon", payload="vision weights"):
     d = tmp_path / name
     d.mkdir()
-    (d / "vision.safetensors").write_bytes(payload)
+    header = json.dumps(
+        {
+            "__metadata__": {"payload": payload},
+            "model.vision_embedder.patch_dense.weight": {"dtype": "BF16", "shape": [1], "data_offsets": [0, 0]},
+        }
+    ).encode()
+    (d / "vision.safetensors").write_bytes(len(header).to_bytes(8, "little") + header)
     return d
+
+
+def file_sha(d):
+    import hashlib
+
+    return hashlib.sha256((d / "vision.safetensors").read_bytes()).hexdigest()
 
 
 def family_with(sha, key="gemma-4-12b"):
     import dataclasses
 
     return dataclasses.replace(GEMMA4, key=key, vision_addon_sha256=sha)
-
-
-def sha(payload):
-    import hashlib
-
-    return hashlib.sha256(payload).hexdigest()
 
 
 BASE_CONFIG = {"vision_config": {"model_type": "gemma4_unified_vision", "mm_embed_dim": 3840}, "audio_config": {"x": 1}}
@@ -107,7 +113,7 @@ def test_v2_a_conversion_without_them_takes_the_add_on_from_vision_weights(tmp_p
     d = vision_dir(tmp_path, vision=False)
     assert not mlx_vision.has_vision(d)
     addon = addon_file(tmp_path)
-    fam = family_with(sha(b"vision weights"))
+    fam = family_with(file_sha(addon))
     for given in (addon, addon / "vision.safetensors"):  # a folder or the file
         out, facts = (
             mlx_vision.merged_dir(
@@ -121,11 +127,9 @@ def test_v2_a_conversion_without_them_takes_the_add_on_from_vision_weights(tmp_p
         assert (out / "vision.safetensors").resolve() == (addon / "vision.safetensors").resolve()
         assert (out / "model-00001-of-00001.safetensors").is_symlink() and (out / "tokenizer.json").is_symlink()
         assert mlx_vision.weight_names(out) >= {"language_model.model.embed_tokens.weight"}
-        assert (
-            mlx_vision.has_vision(out) is False
-        )  # the index lists the conversion's own tensors; the file is the add-on
+        assert mlx_vision.has_vision(out)  # the merged directory is a conversion with the vision tensors
     got, facts = mlx_vision.prepare(d, fam, vision_weights=str(addon))
-    assert facts["source"] == "add-on" and facts["sha256"] == sha(b"vision weights")
+    assert facts["source"] == "add-on" and facts["sha256"] == file_sha(addon)
     assert got != d and (got / "vision.safetensors").exists()
 
 
@@ -133,11 +137,11 @@ def test_v3_a_file_that_is_not_the_pinned_one_is_refused_with_both_hashes(tmp_pa
     from decisio.serve import mlx_vision
 
     d = vision_dir(tmp_path, vision=False)
-    addon = addon_file(tmp_path, payload=b"another file")
-    fam = family_with(sha(b"vision weights"))
+    addon = addon_file(tmp_path, payload="another file")
+    fam = family_with(file_sha(addon_file(tmp_path, name="pinned")))
     with pytest.raises(mlx_vision.ImagesRefused) as e:
         mlx_vision.prepare(d, fam, vision_weights=str(addon))
-    assert sha(b"another file") in str(e.value) and sha(b"vision weights") in str(e.value)
+    assert file_sha(addon) in str(e.value) and fam.vision_addon_sha256 in str(e.value)
 
 
 def test_v4_a_folder_without_the_file_is_refused(tmp_path):
@@ -146,7 +150,7 @@ def test_v4_a_folder_without_the_file_is_refused(tmp_path):
     d = vision_dir(tmp_path, vision=False)
     (tmp_path / "empty").mkdir()
     with pytest.raises(mlx_vision.ImagesRefused, match="no vision.safetensors there"):
-        mlx_vision.prepare(d, family_with(sha(b"x")), vision_weights=str(tmp_path / "empty"))
+        mlx_vision.prepare(d, family_with("0" * 64), vision_weights=str(tmp_path / "empty"))
 
 
 def test_v5_offline_with_no_cache_says_to_give_vision_weights(tmp_path, monkeypatch):
@@ -180,7 +184,7 @@ def test_v6_the_add_on_comes_from_the_families_repository_once_cached(tmp_path, 
     monkeypatch.setattr("decisio.families.read_config", lambda *a, **k: BASE_CONFIG)
     monkeypatch.setenv("DECISIO_MLX_VISION_DIR", str(tmp_path / "m"))
     d = vision_dir(tmp_path, vision=False)
-    got, facts = mlx_vision.prepare(d, family_with(sha(b"vision weights")))
+    got, facts = mlx_vision.prepare(d, family_with(file_sha(addon.parent)))
     assert (
         asked == [(GEMMA4.vision_addon_repo, "vision.safetensors")] and facts["repository"] == GEMMA4.vision_addon_repo
     )
@@ -531,8 +535,9 @@ def test_m6_the_mac_takes_the_same_budget_check_as_vllm(tmp_path):
     assert sv.resolve_images(args) == 560
 
 
+@pytest.mark.parametrize("indexed", [False, True])
 @pytest.mark.parametrize("kind", ["unified", "tower"])
-def test_v10_the_add_on_merges_into_the_model_mlx_vlm_loads(tmp_path, mlx_stack, kind):
+def test_v10_the_add_on_merges_into_the_model_mlx_vlm_loads(tmp_path, mlx_stack, kind, indexed):
     """A text-only conversion (every tensor but the vision ones) plus the add-on (the vision ones, named as Google's
     checkpoint names them, with the leading `model.`) loads as the whole model: the names are the ones the architecture
     expects, so no renaming is needed."""
@@ -550,6 +555,9 @@ def test_v10_the_add_on_merges_into_the_model_mlx_vlm_loads(tmp_path, mlx_stack,
     conv = tmp_path / "conv"
     conv.mkdir()
     mlx_stack.save_safetensors(str(conv / "model.safetensors"), {k: v for k, v in params.items() if not is_vision(k)})
+    if indexed:  # a conversion with an index: mlx-vlm reads the files the index names and no other
+        names = {k: "model.safetensors" for k in params if not is_vision(k)}
+        (conv / "model.safetensors.index.json").write_text(json.dumps({"metadata": {}, "weight_map": names}))
     text_cfg = {k: v for k, v in cfg.items() if k != "vision_config"}
     (conv / "config.json").write_text(json.dumps(text_cfg))
     addon = tmp_path / "addon"
@@ -557,9 +565,7 @@ def test_v10_the_add_on_merges_into_the_model_mlx_vlm_loads(tmp_path, mlx_stack,
     mlx_stack.save_safetensors(
         str(addon / "vision.safetensors"), {"model." + k: v for k, v in params.items() if is_vision(k)}
     )
-    fam = family_with(
-        sha((addon / "vision.safetensors").read_bytes()), key="gemma-4-12b" if kind == "unified" else "gemma-4-31b"
-    )
+    fam = family_with(file_sha(addon), key="gemma-4-12b" if kind == "unified" else "gemma-4-31b")
     out = mlx_vision.merged_dir(
         conv, fam, addon / "vision.safetensors", {"vision_config": cfg["vision_config"]}, tmp_path / "m"
     )
