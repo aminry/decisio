@@ -363,3 +363,37 @@ def test_copy_cache_of_the_image_models_entries_leaves_the_original_alone(engine
     after = [(np.array(c.keys), c.offset) for c in cache]
     assert all(np.array_equal(a[0], b[0]) and a[1] == b[1] for a, b in zip(before, after))
     assert all(type(a) is type(b) for a, b in zip(cache, twin))
+
+
+def test_m2_the_overlay_respects_the_sliding_window(tmp_path_factory, mlx_stack):
+    """A picture block of 80 tokens on a window of 64: a key is seen when it is within the window AND (causal OR in the
+    same block), on the sliding layers; the full-attention layers stay causal. Checked against the rule written out."""
+    mx = mlx_stack
+    e = make(tmp_path_factory, mx, budget=70)
+    window = e.model.language_model.config.sliding_window
+    assert window == 64
+    block = np.array([-1] * 5 + [0] * 80 + [-1] * 3 + [1] * 10, dtype=np.int32)
+    n = len(block)
+    for offset in (0, 7):
+        cache = e.model.make_cache()
+        if offset:
+            e._feed(list(range(10, 10 + offset)), cache)
+        layers = e.model.language_model.config.layer_types
+        with e._vision_masks(cache, block):
+            for c, kind in zip(cache, layers):
+                m = np.array(
+                    c.make_mask(n, return_array=True, window_size=window if kind == "sliding_attention" else None)
+                )
+                k = m.shape[-1]
+                i = np.arange(n)[:, None] + offset  # absolute query position
+                j = np.arange(k)[None, :] + (offset + n - k)  # absolute key position of the column
+                causal = j <= i
+                if kind == "sliding_attention":
+                    jb = np.full(k, -2)
+                    jb[k - n :] = block
+                    same = (block[:, None] == jb[None, :]) & (block[:, None] >= 0)
+                    want = ((i - j) < window) & (causal | same)
+                else:
+                    want = causal
+                assert np.array_equal(m.reshape(n, k), want), (offset, kind)
+        assert not any("make_mask" in vars(c) for c in cache)  # the entries are the library's again

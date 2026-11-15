@@ -240,22 +240,28 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
     def _vision_masks(self, cache, block):
         """For one call: every cache entry makes its attention mask with the image blocks of the call's own tokens
         attending to each other (`block`: one id per token, the image's number or -1). The entries' `make_mask` is the
-        library's; the overlay is or-ed onto the mask it makes (key columns: the cache's kept keys, then the call's
-        own tokens, so the block's columns are the last N)."""
+        library's; on a sliding-window layer (the call gives a `window_size`) the overlay is the reference's rule,
+        window AND (causal OR same block): a block's tokens see each other in both directions but never further back
+        than the window, so a block longer than the window is not bidirectional beyond it (transformers' gemma4_unified;
+        vLLM clamps the image range to the window as well). A full-attention layer stays causal. The key columns are the
+        cache's kept keys, then the call's own tokens, so the block's columns are the last N."""
         import mlx.core as mx
 
         b = mx.array(block)
-        same = (b[:, None] == b[None, :]) & (b[:, None] >= 0)
         n = len(block)
+        same = (b[:, None] == b[None, :]) & (b[:, None] >= 0)
+        behind = mx.arange(n)[:, None] - mx.arange(n)[None, :]  # how far back the key is (negative: ahead)
 
         def overlaying(make):
             def make_mask(N, *args, **kw):
                 kw["return_array"] = True
                 m = make(N, *args, **kw)
-                if m is None or N != n:
+                window = kw.get("window_size")
+                if m is None or N != n or not window:
                     return m
+                extra = same & (behind < window)
                 k = m.shape[-1]
-                return m | mx.pad(same.astype(mx.uint8), [(0, 0), (k - n, 0)]).astype(mx.bool_)
+                return m | mx.pad(extra.astype(mx.uint8), [(0, 0), (k - n, 0)]).astype(mx.bool_)
 
             return make_mask
 
