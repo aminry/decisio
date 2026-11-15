@@ -680,11 +680,11 @@ def test_b10_one_engine_images_and_text_on_a_batched_server():
     calls = []
     score = eng.score_prompts
 
-    def slowed(rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
-        if not mm:  # a text call: long enough for requests to queue behind it
+    def slowed(rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, row_mm=None, row_mm_uuids=None):
+        if not mm and row_mm is None:  # a text call: long enough for requests to queue behind it
             calls.append(len(rows))
             time.sleep(0.03)
-        return score(rows, adapter, warm, skip_cache, mm, mm_uuids)
+        return score(rows, adapter, warm, skip_cache, mm, mm_uuids, row_mm, row_mm_uuids)
 
     eng.score_prompts = slowed
     eng.concurrency = "batched"
