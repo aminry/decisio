@@ -169,7 +169,7 @@ The differences below are what each states or does, on TypeSafe's documentation 
 | Scope of a question's picture | a picture in a question's instructions or options belongs to that question only | the same (a live probe: the other question did not see it) |
 | The images header | `TypeSafe-Danger-Zone-Images` accepted, never required | required, else 400 |
 | Box on a request with no image | refused (400): a Box needs an image | answered with a box at low confidence (a live check of 2026-11-14 on `jev-1.14.0`: 200, a near-full-image box, left 0.02, top 0.03, right 0.98, bottom 0.96, at confidence 0.05) |
-| Box on a target that is absent | a box, with a `confidence` that falls (a presence read of the target is part of it); the documentation advises a companion noul | a box, with a confidence; the documentation advises pairing a Box with a noul |
+| Box on a target that is absent | a box, with a `confidence` that falls (a presence read of the target is part of it); a target the model answers with `null` gets the whole image at confidence 0; the documentation advises a companion noul | a box, with a confidence; the documentation advises pairing a Box with a noul |
 | What `confidence` means | the probability that the target is in the picture times how sure the model is of the edges, mapped to the observed rate of IoU >= 0.5 once a calibration is loaded (`docs/box.md`) | "Higher means the model is more sure of its answer"; no definition and no recommended threshold |
 | Repeating a Box | the same answer, every time (greedy reply, expected value over its digits) | a repeat can differ |
 | Box edges | fractions of the image, two decimals, left < right and top < bottom | the same |
@@ -193,6 +193,7 @@ It is a reference, on that many items: a single run, so the intervals are wide, 
 | R Box, mean IoU | {{FIG:ts.n.R.box}} | {{FIG:ts.R.box.mean_iou}} | {{FIG:tsc.b12.R.box.mean_iou}} | {{FIG:tsc.b31.R.box.mean_iou}} |
 | R Box, IoU >= 0.5 | {{FIG:ts.n.R.box}} | {{FIG:ts.R.box.iou50}} | {{FIG:tsc.b12.R.box.iou50}} | {{FIG:tsc.b31.R.box.iou50}} |
 
+A Box row counts every item, those whose target is absent included; its IoU figures are over the items whose target is in the picture.
 decisio's columns are the models scored on exactly those items at budget {{FIG:decision.default_budget}}; the paired differences with intervals are in `EVAL_CARD.md` section 10.
 TypeSafe's hosted service changes between releases and its documentation calls images and Box not yet ready for production, so its figures describe 2026-11-14 only.
 

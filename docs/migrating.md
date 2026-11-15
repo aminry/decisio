@@ -79,8 +79,8 @@ What works unchanged:
 - A picture in a question's instructions or options belongs to that question only, as there.
 
 What differs:
-- Start the server with `--images on` (and `--image-budget`, which sets how many tokens each picture costs: [api.md](api.md#images-on-gemma-4---images-on)); a server without it answers 400 and says how to start one.
-- Box needs a Gemma base on vLLM; it is not served with `--image-model`, on the MLX backend, with a task, or under the header layout (`docs/box.md`).
+- Start the server with `--images on` (and `--image-budget`, which sets how many tokens each picture costs: [api.md](api.md#images-on-gemma-4---images-on)); a server without it answers 400 and says how to start one; the 12B refuses budget 1,120 and the 31B takes every budget (`EVAL_CARD.md` section 10.5).
+- Box needs a Gemma base on vLLM; it is not served with `--image-model`, on the MLX backend or with a task (`docs/box.md`); a Box question is read under the plain layout on any server.
 - A Box question needs an image in the request: without one the answer is 400.
 - `confidence` is calibrated to the observed rate of IoU >= 0.5 once a calibration is loaded, and a repeated Box gives the same answer.
 - The limits are decisio's own: WebP is read, there is no side-length window, and a picture costs a fixed number of tokens per budget instead of growing with its area ([comparison.md](comparison.md#31-images-and-box-set-beside-typesafes)).
