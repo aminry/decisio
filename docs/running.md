@@ -612,7 +612,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --mo
 - Memory: the bf16 checkpoint takes about 24 GB of weights, so a Mac with 48 GB or more; the server sizes MLX's memory limit from the weights, a working set of 7.5 GB with images, the cache limit and the prefix cache, and refuses to start, with the numbers, when they do not fit.
   The engine clears MLX's buffer cache after every request with pictures.
 - Box is not served on a Mac yet: a request for it is refused with a 400 that says so.
-- Not measured: the Mac figures are from one Apple silicon Mac with 64 GB (below once measured), and no other Mac.
+- The memory figures are estimates from one Apple silicon Mac with 64 GB; no smaller Mac has been tried.
 
 The Gemma 31B base (`--base gemma-4-31b`):
 - The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the default, on a 64 GB Mac. The 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` (group size 32, 19.2 GB of weights) is for Macs with 48 GB of memory; its figures are below. `--revision v0.15.0` names the repository's tag of the build that was measured, so a later change to its main does not change what you serve (decisio 0.15.1 or later; before it, `--revision` was ignored for the download). The 8-bit one is not measured.
