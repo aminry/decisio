@@ -131,7 +131,7 @@ def test_i2_an_image_stands_where_its_reference_stands(served, picture):
     rows, p_sent, p_exp, state_found, row_found, counts, end = image._prepare_images(state, [picture], qs, TAG)
     ids = rows[0][0]
     at = ids.index(image.image_token_id)
-    before = image.tok.decode(ids[:at])
+    before = image.tok.decode(ids[: at - 1])  # up to the start-of-vision token that opens the placeholder
     after = image.tok.decode(ids[at + 2 : at + 9])  # past the pad token and the end-of-vision token
     assert before.rstrip().endswith("item") and after.lstrip().startswith("Title")  # inside the state
     assert state_found == [1] and row_found == [[1], [1]]
