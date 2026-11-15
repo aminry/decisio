@@ -477,7 +477,7 @@ Total distinct slots: 435.
 ## Open questions
 
 - Is the eval set itself published (items, scorer, checksums)? 10.1 says every file is in the run's record and its sha256 list, and does not offer the items; if they should be published, say where.
-- The TypeSafe row "Box on a request with no image": TypeSafe's documentation says a Box needs an image; its behaviour without one was not probed. Probe once before merging, or keep the wording.
+- Publishing the eval set: Amin's decision.
 - `docs/comparison.md` is dated 2026-10-05 throughout; section 3.1 is dated 2026-11-14. The snapshot file `snapshots/typesafe_docs.json` has no image pages of 2026-11-14; add them to the run if the docs are to quote them.
 - Which budget the TypeSafe comparison table uses for decisio's columns (`decision.default_budget`) until the default is decided.
 - Section 10.4 reports the tuned 12B only; add a 31B minus 12B table if wanted.

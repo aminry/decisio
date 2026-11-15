@@ -168,7 +168,7 @@ The differences below are what each states or does, on TypeSafe's documentation 
 | Image tokens | fixed per budget whatever the size: about 256 at the default budget of 280, 529 at 560 | grow with the area: a 280 by 280 image cost 487 input tokens and a 1,568 by 1,568 image 6,559 |
 | Scope of a question's picture | a picture in a question's instructions or options belongs to that question only | the same (a live probe: the other question did not see it) |
 | The images header | `TypeSafe-Danger-Zone-Images` accepted, never required | required, else 400 |
-| Box on a request with no image | 400, saying so | not stated in the documentation, which says a Box question needs an image |
+| Box on a request with no image | refused (400): a Box needs an image | answered with a box at low confidence (a live check of 2026-11-14 on `jev-1.14.0`: 200, a near-full-image box, left 0.02, top 0.03, right 0.98, bottom 0.96, at confidence 0.05) |
 | Box on a target that is absent | a box, with a `confidence` that falls (a presence read of the target is part of it); the documentation advises a companion noul | a box, with a confidence; the documentation advises pairing a Box with a noul |
 | What `confidence` means | the probability that the target is in the picture times how sure the model is of the edges, mapped to the observed rate of IoU >= 0.5 once a calibration is loaded (`docs/box.md`) | "Higher means the model is more sure of its answer"; no definition and no recommended threshold |
 | Repeating a Box | the same answer, every time (greedy reply, expected value over its digits) | a repeat can differ |
