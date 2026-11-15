@@ -40,7 +40,6 @@ on the image prompt that returns the top-k log-probabilities at every step.
 from __future__ import annotations
 
 import contextlib
-import json
 import time
 from pathlib import Path
 
@@ -48,81 +47,42 @@ import numpy as np
 
 from decisio.readout.letters import allowed_ids, is_grouped, label_log_softmax
 from decisio.serve import image_marks as marks
+from decisio.serve import mlx_vision
 from decisio.serve.engine_health import guarded
 from decisio.serve.gemma_images import DEFAULT_MAX_IMAGES, GemmaImageRequests
 from decisio.serve.mlx_engine import MLXLettersEngine, _cache_arrays, copy_cache
-from decisio.serve.mlx_memory import MemoryRefused
+from decisio.serve.mlx_vision import ImagesRefused  # noqa: F401  (the refusal, re-exported)
 
 BEGIN_IMAGE, END_IMAGE = "<|image>", "<image|>"
-# the keys of the vision embedder's weights in a checkpoint: the embedder and the projection into the text model
-VISION_KEYS = ("vision_embedder", "embed_vision")
 BOX_REFUSED = (
     "Box is not served with --backend mlx yet: the Mac reads images for noul, choice and score questions only. "
     "Serve the base with the vLLM server for Box"
 )
 
 
-class ImagesRefused(MemoryRefused):
-    """The conversion cannot read images (the server refuses to start, with the reason, as it does for memory)."""
-
-
-def weight_names(model_dir) -> set[str]:
-    """The tensor names of a conversion: its index file's, or the header of its safetensors file."""
-    d = Path(model_dir)
-    index = d / "model.safetensors.index.json"
-    if index.exists():
-        return set(json.loads(index.read_text())["weight_map"])
-    names = set()
-    for f in sorted(d.glob("*.safetensors")):
-        with open(f, "rb") as fh:
-            n = int.from_bytes(fh.read(8), "little")
-            names |= {k for k in json.loads(fh.read(n)) if k != "__metadata__"}
-    return names
-
-
-def vision_refusal(model_dir) -> str | None:
-    """Why `--images on` cannot serve the conversion in `model_dir`, or None when it can: it must be the 12B's
-    architecture (`gemma4_unified`) and carry the vision embedder and its projection."""
-    d = Path(model_dir)
-    config = json.loads((d / "config.json").read_text()) if (d / "config.json").exists() else {}
-    kind = config.get("model_type")
-    names = weight_names(d)
-    have = {k: any(k in n for n in names) for k in VISION_KEYS}
-    missing = [k for k, ok in have.items() if not ok]
-    if kind != "gemma4_unified":
-        if kind == "gemma4":
-            if missing or not config.get("vision_config"):
-                return (
-                    f"--images on: this conversion ({d.name}) is the 31B's architecture without its vision tower "
-                    "(no vision tensors in it, no vision_config), which an MLX conversion made for text drops. "
-                    "A Mac reads images with a conversion that keeps the tower; none is published yet"
-                )
-            return "--images on on a Mac serves the 12B (gemma4_unified) only: the 31B's vision tower is not served yet"
-        return f"--images on is for the Gemma 4 bases, and this conversion's model_type is {kind!r}"
-    if missing or not config.get("vision_config"):
-        what = ", ".join(missing) if missing else "vision_config in its config.json"
-        return (
-            f"--images on: this conversion ({d.name}) has no vision weights (missing: {what}); a conversion made for "
-            "text drops the 12B's vision embedder. Serve google/gemma-4-12B-it (bf16) or an MLX conversion that keeps "
-            "vision_embedder and embed_vision, such as mlx-community/gemma-4-12B-it-6bit"
-        )
-    return None
-
-
 class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
-    """The MLX letters engine of the Gemma 4 12B with image input on.
+    """The MLX letters engine of a Gemma 4 base with image input on.
 
-    `model`: a directory or Hub repository of a conversion with the vision weights (`vision_refusal`). `random`: a
-    small config (`{"text": {...}, "vision": {...}}`) to build a model of the same architecture with random weights
-    instead of loading `model`, for the tests (no download of weights)."""
+    `model`: a directory or Hub repository of an MLX conversion. It carries the vision weights, or the base's vision
+    add-on supplies them (`decisio.serve.mlx_vision`; `vision_weights`: the add-on's file or folder, else the Hugging
+    Face cache). `random`: a small config (`{"kind": "unified" or "tower", "text": {...}, "vision": {...}}`) to build a
+    model of the same architecture with random weights instead of loading `model`, for the tests (no weights)."""
 
     score_takes_prefix = True
     box_enabled = False  # Box is not served on a Mac yet (`box_blocked`)
 
-    def __init__(self, model, image_budget=marks.DEFAULT_BUDGET, max_images=DEFAULT_MAX_IMAGES, random=None, **kw):
+    def __init__(
+        self,
+        model,
+        image_budget=marks.DEFAULT_BUDGET,
+        max_images=DEFAULT_MAX_IMAGES,
+        random=None,
+        vision_weights=None,
+        **kw,
+    ):
         if image_budget not in marks.BUDGETS:
             raise ValueError(f"--image-budget: one of {', '.join(map(str, marks.BUDGETS))}, not {image_budget}")
-        self._random = random
+        self._random, self._vision_weights, self.vision = random, vision_weights, {"source": "random"}
         MLXLettersEngine.__init__(self, model, **kw)
         self._image_setup(image_budget, max_images)
         self.boi = self.tok.convert_tokens_to_ids(BEGIN_IMAGE)
@@ -131,18 +91,31 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
         # ends inside an image block is padded to a block boundary) has nothing to do here
         self.match_unit = 1
         self._processor = None
+        # the 12B reads pixels with an encoder-free embedder (gemma4_unified), the 31B with a vision tower (gemma4)
+        self.unified = "gemma4_unified" in type(self.model).__module__
         lm = self.model.language_model.model
         if getattr(lm, "hidden_size_per_layer_input", 0):
             raise ValueError("--images on: a checkpoint with per-layer inputs (the small Gemma 4 models) is not served")
         self._embed = lm.embed_tokens
+        self._hidden = self.model.config.text_config.hidden_size
+        # only the encoder-free 12B is limited to budgets whose image block fits the sliding window (image_marks)
+        self.image_window = marks.image_window_limit(
+            {"text_config": {"sliding_window": self.model.config.text_config.sliding_window}}
+            if self.unified
+            else {"vision_config": {"num_hidden_layers": 1}}
+        )
+        if self._random is None:  # a tiny test model has a window of its own
+            marks.check_budget_fits_window(image_budget, self.image_window)
         self._embed_scale = lm.embed_scale
         self.warm_images(rounds=1)  # the first picture compiles the vision path: before the first request
 
     # ---- loading -------------------------------------------------------------------------------
 
     def _check_model_dir(self, model_dir):
-        if self._random is None and (why := vision_refusal(model_dir)):
-            raise ImagesRefused(why)
+        if self._random is not None:
+            return None
+        model_dir, self.vision = mlx_vision.prepare(model_dir, self.family, self._vision_weights)
+        return model_dir
 
     def _working_gb(self):
         return getattr(self.family, "mlx_working_images_gb", 0) or None
@@ -150,16 +123,23 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
     def _load_model(self, model_dir):
         if self._random is not None:
             return self._random_model(self._random)
-        from mlx_vlm import load
 
-        return load(str(model_dir))[0]
+        from mlx_vlm.utils import load_model
+
+        return load_model(Path(model_dir))  # the model alone: the engine builds its own prompts and pictures
 
     @staticmethod
-    def _random_model(config):
-        """A model of the 12B's architecture, small, with random weights."""
+    def _random_model(config, random_config=None):
+        """A small model, random weights, of the 12B's architecture (`"kind": "unified"`) or the 31B's (`"tower"`)."""
         import mlx.core as mx
         from mlx.utils import tree_map
-        from mlx_vlm.models.gemma4_unified import Model, ModelConfig
+
+        random_config = {} if random_config is None else random_config
+        tower = config.get("kind") == "tower"
+        if tower:
+            from mlx_vlm.models.gemma4 import Model, ModelConfig
+        else:
+            from mlx_vlm.models.gemma4_unified import Model, ModelConfig
 
         text = {
             "model_type": "gemma4_text",
@@ -190,15 +170,39 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
             "pooling_kernel_size": 3,
             **config.get("vision", {}),
         }
+        if tower:
+            vision = {
+                "model_type": "gemma4_vision",
+                "hidden_size": 24,
+                "intermediate_size": 48,
+                "num_hidden_layers": 2,
+                "num_attention_heads": 2,
+                "num_key_value_heads": 2,
+                "head_dim": 12,
+                "global_head_dim": 12,
+                "patch_size": 16,
+                "pooling_kernel_size": 3,
+                "position_embedding_size": 64,
+                "standardize": True,
+                **config.get("vision", {}),
+            }
         cfg = ModelConfig.from_dict(
             {
-                "model_type": "gemma4_unified",
+                "model_type": "gemma4" if tower else "gemma4_unified",
                 "text_config": text,
                 "vision_config": vision,
                 "image_token_id": 258880,
                 "boi_token_id": 255999,
                 "eoi_token_id": 258882,
             }
+        )
+        if tower:  # as mlx-vlm's loader does: the sub-configs are the architecture's own classes
+            from mlx_vlm.models.gemma4 import TextConfig, VisionConfig
+
+            cfg.text_config = TextConfig.from_dict(text)
+            cfg.vision_config = VisionConfig.from_dict(vision)
+        random_config.update(
+            {"model_type": cfg.model_type, "text_config": text, "vision_config": vision, "image_token_id": 258880}
         )
         mx.random.seed(int(config.get("seed", 0)))
         model = Model(cfg)
@@ -209,15 +213,25 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
 
     def _image_processor(self):
         if self._processor is None:
-            from transformers.models.gemma4_unified.image_processing_gemma4_unified import Gemma4UnifiedImageProcessor
+            if self.unified:
+                from transformers.models.gemma4_unified.image_processing_gemma4_unified import (
+                    Gemma4UnifiedImageProcessor as Processor,
+                )
+            else:
+                from transformers.models.gemma4.image_processing_gemma4 import Gemma4ImageProcessor as Processor
 
-            self._processor = Gemma4UnifiedImageProcessor()
+            self._processor = Processor()
         return self._processor
+
+    def _image_features(self, px, pos, n):
+        """The `n` soft tokens' embeddings of one picture: the embedder (12B) or the vision tower (31B), then the
+        projection into the text model."""
+        return self.model.encode_image(px, pos).reshape(-1, self._hidden)[:n]
 
     def facts(self):
         from importlib.metadata import version
 
-        return {**super().facts(), "mlx_vlm": version("mlx-vlm"), "images": self.image_facts()}
+        return {**super().facts(), "mlx_vlm": version("mlx-vlm"), "images": self.image_facts(), "vision": self.vision}
 
     def box_blocked(self):
         return BOX_REFUSED
@@ -311,7 +325,7 @@ class MLXGemmaImageLettersEngine(GemmaImageRequests, MLXLettersEngine):
                         f"the processor made {n} tokens for an image the prompt has {j - i} for: the image token "
                         "counts do not match this checkpoint's processor"
                     )
-                feats = self.model.get_image_features(px, pos).astype(emb.dtype)
+                feats = self._image_features(px, pos, n).astype(emb.dtype)
                 pieces += [emb[:, at:i], feats[None]]
                 block[i:j] = r
                 at = j

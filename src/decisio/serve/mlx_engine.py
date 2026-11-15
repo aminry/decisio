@@ -279,7 +279,7 @@ class MLXLettersEngine(LettersEngine):
         from decisio.serve import mlx_memory
 
         model_dir = fetch_model(model, revision)
-        self._check_model_dir(model_dir)
+        model_dir = self._check_model_dir(model_dir) or model_dir
         self.memory = mlx_memory.setup(
             mx,
             model_dir,
@@ -312,7 +312,9 @@ class MLXLettersEngine(LettersEngine):
     # ---- what a subclass changes: the checkpoint's checks, its working set and its loader --------
 
     def _check_model_dir(self, model_dir):
-        """Refuse a conversion this engine cannot serve before anything is loaded (nothing for the text route)."""
+        """Refuse a conversion this engine cannot serve before anything is loaded (nothing for the text route); the
+        directory to load and size the memory limit from, when it is another than `model_dir` (the image route's, with
+        the vision weights merged in)."""
 
     def _working_gb(self):
         """The base's working set above its weights in GB for the memory limit (None: the base's measured one)."""

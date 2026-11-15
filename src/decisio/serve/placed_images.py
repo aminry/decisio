@@ -195,7 +195,15 @@ class PlacedImageRequests:
             ]  # the prompt the engine builds from each row: every placeholder expanded
             prep_ms = (time.perf_counter() - t0) * 1000
             probs, info = self.score_prompts(
-                rows, adapter, warm, mm=state_mm, mm_uuids=state_ids, row_mm=row_mm, row_mm_uuids=row_ids
+                rows,
+                adapter,
+                warm,
+                mm=state_mm,
+                mm_uuids=state_ids,
+                row_mm=row_mm,
+                row_mm_uuids=row_ids,
+                # an engine with its own prefix cache (the Mac's) is told where the shared prefix ends
+                **({"prefix": p_sent} if getattr(self, "score_takes_prefix", False) else {}),
             )
             seen = info.get("engine_prompt_tokens")
             if seen and list(seen) != expected:

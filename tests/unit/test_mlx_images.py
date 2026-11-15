@@ -50,52 +50,161 @@ def vision_dir(tmp_path, model_type="gemma4_unified", vision=True, index=True, n
     names = ["language_model.model.embed_tokens.weight"]
     if vision:
         names += ["vision_embedder.patch_dense.weight", "embed_vision.embedding_projection.weight"]
-    cfg = {"model_type": model_type, **({"vision_config": {"model_type": "x"}} if vision else {})}
+    cfg = {"model_type": model_type, "text_config": {"sliding_window": 1024}}
+    if vision:
+        cfg["vision_config"] = {"model_type": "x"}
     (d / "config.json").write_text(json.dumps(cfg))
+    (d / "tokenizer.json").write_text("{}")
+    header = json.dumps({n: {"dtype": "BF16", "shape": [1], "data_offsets": [0, 0]} for n in names}).encode()
+    (d / "model-00001-of-00001.safetensors").write_bytes(len(header).to_bytes(8, "little") + header)
     if index:
-        (d / "model.safetensors.index.json").write_text(json.dumps({"weight_map": {n: "m.safetensors" for n in names}}))
-    else:
-        header = json.dumps({n: {"dtype": "BF16", "shape": [1], "data_offsets": [0, 0]} for n in names}).encode()
-        (d / "model.safetensors").write_bytes(len(header).to_bytes(8, "little") + header)
+        (d / "model.safetensors.index.json").write_text(
+            json.dumps({"weight_map": {n: "model-00001-of-00001.safetensors" for n in names}})
+        )
     return d
 
 
-# ---- M6 (no MLX needed) ----------------------------------------------------------------------------------------------
+def addon_file(tmp_path, name="addon", payload=b"vision weights"):
+    d = tmp_path / name
+    d.mkdir()
+    (d / "vision.safetensors").write_bytes(payload)
+    return d
 
 
-def test_m6_a_conversion_without_vision_weights_is_refused_naming_what_is_missing(tmp_path):
-    from decisio.serve.mlx_images import vision_refusal
+def family_with(sha, key="gemma-4-12b"):
+    import dataclasses
 
-    d = vision_dir(tmp_path, vision=False)
-    why = vision_refusal(d)
-    assert "no vision weights" in why and "vision_embedder, embed_vision" in why
-    assert "mlx-community/gemma-4-12B-it-6bit" in why
+    return dataclasses.replace(GEMMA4, key=key, vision_addon_sha256=sha)
+
+
+def sha(payload):
+    import hashlib
+
+    return hashlib.sha256(payload).hexdigest()
+
+
+BASE_CONFIG = {"vision_config": {"model_type": "gemma4_unified_vision", "mm_embed_dim": 3840}, "audio_config": {"x": 1}}
+
+
+# ---- the vision weights (no MLX needed) ------------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("index", [True, False])
-def test_m6_a_conversion_with_the_weights_is_accepted(tmp_path, index):
-    from decisio.serve.mlx_images import vision_refusal
+def test_v1_a_conversion_with_the_weights_is_loaded_as_it_is(tmp_path, index):
+    from decisio.serve import mlx_vision
 
-    assert vision_refusal(vision_dir(tmp_path, index=index)) is None  # by the index file or the safetensors header
-
-
-def test_m6_the_31b_without_a_tower_is_refused(tmp_path):
-    from decisio.serve.mlx_images import vision_refusal
-
-    why = vision_refusal(vision_dir(tmp_path, model_type="gemma4", vision=False))
-    assert "31B" in why and "without its vision tower" in why
+    d = vision_dir(tmp_path, index=index)
+    assert mlx_vision.has_vision(d)  # by the index file or the safetensors header
+    got, facts = mlx_vision.prepare(d, GEMMA4)
+    assert got == d and facts == {"source": "conversion"}
+    with pytest.raises(mlx_vision.ImagesRefused, match="already has the vision weights"):
+        mlx_vision.prepare(d, GEMMA4, vision_weights=str(tmp_path))
 
 
-def test_m6_the_31b_with_a_tower_is_not_served_yet(tmp_path):
-    from decisio.serve.mlx_images import vision_refusal
+def test_v2_a_conversion_without_them_takes_the_add_on_from_vision_weights(tmp_path):
+    from decisio.serve import mlx_vision
 
-    assert "serves the 12B" in vision_refusal(vision_dir(tmp_path, model_type="gemma4"))
+    d = vision_dir(tmp_path, vision=False)
+    assert not mlx_vision.has_vision(d)
+    addon = addon_file(tmp_path)
+    fam = family_with(sha(b"vision weights"))
+    for given in (addon, addon / "vision.safetensors"):  # a folder or the file
+        out, facts = (
+            mlx_vision.merged_dir(
+                d, fam, given / "vision.safetensors" if given.is_dir() else given, BASE_CONFIG, tmp_path / "m"
+            ),
+            None,
+        )
+        cfg = json.loads((out / "config.json").read_text())
+        assert cfg["vision_config"] == BASE_CONFIG["vision_config"] and cfg["audio_config"] is None
+        assert cfg["model_type"] == "gemma4_unified" and "quantization" not in cfg
+        assert (out / "vision.safetensors").resolve() == (addon / "vision.safetensors").resolve()
+        assert (out / "model-00001-of-00001.safetensors").is_symlink() and (out / "tokenizer.json").is_symlink()
+        assert mlx_vision.weight_names(out) >= {"language_model.model.embed_tokens.weight"}
+        assert (
+            mlx_vision.has_vision(out) is False
+        )  # the index lists the conversion's own tensors; the file is the add-on
+    got, facts = mlx_vision.prepare(d, fam, vision_weights=str(addon))
+    assert facts["source"] == "add-on" and facts["sha256"] == sha(b"vision weights")
+    assert got != d and (got / "vision.safetensors").exists()
 
 
-def test_m6_another_architecture_is_refused(tmp_path):
-    from decisio.serve.mlx_images import vision_refusal
+def test_v3_a_file_that_is_not_the_pinned_one_is_refused_with_both_hashes(tmp_path):
+    from decisio.serve import mlx_vision
 
-    assert "Gemma 4 bases" in vision_refusal(vision_dir(tmp_path, model_type="qwen3_5_moe", vision=False))
+    d = vision_dir(tmp_path, vision=False)
+    addon = addon_file(tmp_path, payload=b"another file")
+    fam = family_with(sha(b"vision weights"))
+    with pytest.raises(mlx_vision.ImagesRefused) as e:
+        mlx_vision.prepare(d, fam, vision_weights=str(addon))
+    assert sha(b"another file") in str(e.value) and sha(b"vision weights") in str(e.value)
+
+
+def test_v4_a_folder_without_the_file_is_refused(tmp_path):
+    from decisio.serve import mlx_vision
+
+    d = vision_dir(tmp_path, vision=False)
+    (tmp_path / "empty").mkdir()
+    with pytest.raises(mlx_vision.ImagesRefused, match="no vision.safetensors there"):
+        mlx_vision.prepare(d, family_with(sha(b"x")), vision_weights=str(tmp_path / "empty"))
+
+
+def test_v5_offline_with_no_cache_says_to_give_vision_weights(tmp_path, monkeypatch):
+    import huggingface_hub
+
+    from decisio.serve import mlx_vision
+
+    def offline(*a, **k):
+        raise OSError("offline")
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", offline)
+    d = vision_dir(tmp_path, vision=False)
+    with pytest.raises(mlx_vision.ImagesRefused) as e:
+        mlx_vision.prepare(d, GEMMA4)
+    assert "--vision-weights PATH" in str(e.value) and GEMMA4.vision_addon_repo in str(e.value)
+
+
+def test_v6_the_add_on_comes_from_the_families_repository_once_cached(tmp_path, monkeypatch):
+    import huggingface_hub
+
+    from decisio.serve import mlx_vision
+
+    addon = addon_file(tmp_path) / "vision.safetensors"
+    asked = []
+
+    def cached(repo, filename, **k):
+        asked.append((repo, filename))
+        return str(addon)
+
+    monkeypatch.setattr(huggingface_hub, "hf_hub_download", cached)
+    monkeypatch.setattr("decisio.families.read_config", lambda *a, **k: BASE_CONFIG)
+    monkeypatch.setenv("DECISIO_MLX_VISION_DIR", str(tmp_path / "m"))
+    d = vision_dir(tmp_path, vision=False)
+    got, facts = mlx_vision.prepare(d, family_with(sha(b"vision weights")))
+    assert (
+        asked == [(GEMMA4.vision_addon_repo, "vision.safetensors")] and facts["repository"] == GEMMA4.vision_addon_repo
+    )
+    assert (got / "vision.safetensors").exists()
+
+
+def test_v7_the_wrong_architecture_is_refused(tmp_path):
+    from decisio.serve import mlx_vision
+
+    d = vision_dir(tmp_path, model_type="qwen3_5_moe", vision=False)
+    with pytest.raises(mlx_vision.ImagesRefused, match="model_type"):
+        mlx_vision.prepare(d, GEMMA4)
+    with pytest.raises(mlx_vision.ImagesRefused, match="Gemma 4 bases"):
+        import dataclasses
+
+        mlx_vision.prepare(d, dataclasses.replace(GEMMA4, key="qwen3.6-35b-a3b"))
+
+
+def test_v8_both_bases_carry_a_pinned_add_on():
+    from decisio.families import GEMMA4_31B
+
+    assert GEMMA4.vision_addon_repo == "tachara-ai/decisio-gemma-4-12b-vision"
+    assert GEMMA4_31B.vision_addon_repo == "tachara-ai/decisio-gemma-4-31b-vision"
+    assert GEMMA4.vision_addon_sha256.startswith("112725a2") and len(GEMMA4_31B.vision_addon_sha256) == 64
 
 
 def _main(monkeypatch, *argv):
@@ -107,27 +216,45 @@ def _main(monkeypatch, *argv):
     return e.value.code
 
 
-def test_m6_the_31b_refuses_images_on_a_mac(monkeypatch, capsys):
-    assert _main(monkeypatch, "--backend", "mlx", "--base", "gemma-4-31b", "--model", "m", "--images", "on") == 2
-    err = capsys.readouterr().err
-    assert "serves the 12B" in err and "no vision tensors" in err
+def test_v9_vision_weights_is_for_the_mac_with_images_on():
+    from decisio.serve import vllm_engine as sv
+
+    ap = sv.build_parser()
+    args = ap.parse_args(["--model", "x", "--vision-weights", "/p", "--images", "on"])
+    args.family = GEMMA4
+    with pytest.raises(ValueError, match="--vision-weights is for --backend mlx"):
+        sv.resolve_images(args)
+    args = ap.parse_args(["--model", "x", "--backend", "mlx", "--vision-weights", "/p"])
+    args.family = GEMMA4
+    with pytest.raises(ValueError, match="--vision-weights is for --backend mlx"):
+        sv.resolve_images(args)
+    args = ap.parse_args(["--model", "x", "--backend", "mlx", "--vision-weights", "/p", "--images", "on"])
+    args.family = GEMMA4
+    assert sv.resolve_images(args) == 560  # the 12B's default budget
 
 
-def test_m6_the_qwen_base_refuses_images_on_a_mac(monkeypatch, capsys):
+def test_v9_the_31b_is_taken_on_a_mac_and_the_qwen_base_is_not(monkeypatch, capsys):
+    from decisio.families import GEMMA4_31B
+    from decisio.serve import vllm_engine as sv
+
+    ap = sv.build_parser()
+    args = ap.parse_args(["--model", "x", "--backend", "mlx", "--images", "on"])
+    args.family = GEMMA4_31B
+    assert sv.resolve_images(args) == 280
     assert _main(monkeypatch, "--backend", "mlx", "--base", "qwen3.6-35b-a3b", "--model", "m", "--images", "on") == 2
     assert "Gemma bases" in capsys.readouterr().err
 
 
-def test_m6_a_server_that_is_neither_vllm_nor_mlx_refuses_images(monkeypatch, capsys):
+def test_v9_a_server_that_is_neither_vllm_nor_mlx_refuses_images(monkeypatch, capsys):
     assert _main(monkeypatch, "--backend", "hf", "--base", "gemma-4-12b", "--model", "m", "--images", "on") == 2
     assert "vLLM server and --backend mlx" in capsys.readouterr().err
 
 
-def test_m6_the_12b_gets_its_own_working_set_for_images():
-    from decisio.families import GEMMA4, GEMMA4_31B
+def test_v9_the_bases_have_their_own_working_sets_for_images():
+    from decisio.families import GEMMA4_31B
 
     assert GEMMA4.mlx_working_images_gb > GEMMA4.mlx_working_gb > 0
-    assert GEMMA4_31B.mlx_working_images_gb == 0
+    assert GEMMA4_31B.mlx_working_images_gb > GEMMA4_31B.mlx_working_gb > 0
 
 
 # ---- the engine on a tiny random model -------------------------------------------------------------------------------
@@ -178,8 +305,8 @@ def reference_letters(e, ids_exp, images, labels, native=True):
             j = i
             while j < len(arr) and arr[j] == e.image_token_id:
                 j += 1
-            px, pos, _ = e._processed(images[k])
-            pieces += [emb[:, at:i], e.model.get_image_features(px, pos).astype(emb.dtype)[None]]
+            px, pos, n = e._processed(images[k])
+            pieces += [emb[:, at:i], e._image_features(px, pos, n).astype(emb.dtype)[None]]
             at, i, k = j, j, k + 1
         else:
             i += 1
@@ -320,14 +447,6 @@ def test_m6_the_engine_refuses_adapters_box_and_too_many_images(engine):
         make_budget("x", image_budget=100)
 
 
-def test_m6_the_engine_refuses_a_conversion_without_the_vision_weights(tmp_path, mlx_stack):
-    from decisio.serve.mlx_images import ImagesRefused, MLXGemmaImageLettersEngine
-
-    d = vision_dir(tmp_path, vision=False)
-    with pytest.raises(ImagesRefused, match="no vision weights"):
-        MLXGemmaImageLettersEngine(str(d), family=GEMMA4)
-
-
 def test_m7_generate_returns_the_top_k_log_probabilities_of_a_greedy_decode(engine):
     e = engine
     rows, p_sent, row_found, counts = one_row(e, STATE, QS[1], [picture()])
@@ -410,3 +529,73 @@ def test_m6_the_mac_takes_the_same_budget_check_as_vllm(tmp_path):
         sv.resolve_images(args)
     args.image_budget = 560
     assert sv.resolve_images(args) == 560
+
+
+@pytest.mark.parametrize("kind", ["unified", "tower"])
+def test_v10_the_add_on_merges_into_the_model_mlx_vlm_loads(tmp_path, mlx_stack, kind):
+    """A text-only conversion (every tensor but the vision ones) plus the add-on (the vision ones, named as Google's
+    checkpoint names them, with the leading `model.`) loads as the whole model: the names are the ones the architecture
+    expects, so no renaming is needed."""
+    from mlx.utils import tree_flatten
+    from mlx_vlm.utils import load_model
+
+    from decisio.serve import mlx_vision
+    from decisio.serve.mlx_images import MLXGemmaImageLettersEngine
+
+    config = {"seed": 3, "kind": kind}
+    cfg = {}
+    whole = MLXGemmaImageLettersEngine._random_model(config, cfg)
+    params = {k: v for k, v in tree_flatten(whole.parameters()) if "audio" not in k}  # audio is off
+    is_vision = lambda k: k.startswith(("vision_embedder.", "vision_tower.", "embed_vision."))  # noqa: E731
+    conv = tmp_path / "conv"
+    conv.mkdir()
+    mlx_stack.save_safetensors(str(conv / "model.safetensors"), {k: v for k, v in params.items() if not is_vision(k)})
+    text_cfg = {k: v for k, v in cfg.items() if k != "vision_config"}
+    (conv / "config.json").write_text(json.dumps(text_cfg))
+    addon = tmp_path / "addon"
+    addon.mkdir()
+    mlx_stack.save_safetensors(
+        str(addon / "vision.safetensors"), {"model." + k: v for k, v in params.items() if is_vision(k)}
+    )
+    fam = family_with(
+        sha((addon / "vision.safetensors").read_bytes()), key="gemma-4-12b" if kind == "unified" else "gemma-4-31b"
+    )
+    out = mlx_vision.merged_dir(
+        conv, fam, addon / "vision.safetensors", {"vision_config": cfg["vision_config"]}, tmp_path / "m"
+    )
+    loaded = load_model(out)
+    got = dict(tree_flatten(loaded.parameters()))
+    assert set(got) == set(params)
+    assert all(np.array_equal(np.array(got[k]), np.array(params[k])) for k in params)
+    assert any(is_vision(k) for k in got)
+
+
+def test_v11_the_tower_engine_reads_a_picture(tmp_path_factory, mlx_stack):
+    """The 31B's architecture (a vision tower, gemma4) on a tiny random model: the same request path, and a cached
+    read equals a cold read."""
+    from decisio.serve.mlx_images import MLXGemmaImageLettersEngine
+
+    d = tmp_path_factory.mktemp("tiny_tower")
+    e = MLXGemmaImageLettersEngine(
+        str(d),
+        image_budget=70,
+        max_images=2,
+        random={"kind": "tower"},
+        family=GEMMA4,
+        memory_limit_gb=0,
+        prefix_cache_mb=64,
+    )
+    e.fmt, e.family, e.pad_policy = FORMAT, GEMMA4, "none"
+    assert e.unified is False
+    img = picture()
+    first, i1 = e.answer(STATE, QS, images=[img], tag=TAG)
+    second, i2 = e.answer(STATE, QS, images=[img], tag=TAG)
+    assert not i1["prefix_cache_hit"] and i2["prefix_cache_hit"]
+    assert all(np.array_equal(a, b) for a, b in zip(first, second))
+    assert info_ok(i1)
+    other, _ = e.answer(STATE, QS, images=[picture(seed=9)], tag=TAG)
+    assert not np.allclose(other[0], first[0], atol=1e-6)
+
+
+def info_ok(info):
+    return info["engine_prompt_tokens"] == info["expected_prompt_tokens"]

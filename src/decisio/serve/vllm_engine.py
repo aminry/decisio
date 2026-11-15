@@ -2012,6 +2012,8 @@ def resolve_images(args) -> int | None:
 
     images = getattr(args, "images", "off")
     budget = getattr(args, "image_budget", None)
+    if getattr(args, "vision_weights", None) and not (images == "on" and args.backend == "mlx"):
+        raise ValueError("--vision-weights is for --backend mlx with --images on")
     if images != "on":
         if budget is not None:
             raise ValueError("--image-budget needs --images on")
@@ -2019,12 +2021,6 @@ def resolve_images(args) -> int | None:
     fam = args.family
     if args.backend not in ("vllm", "mlx"):
         raise ValueError(f"--images on is for the vLLM server and --backend mlx, not --backend {args.backend}")
-    if args.backend == "mlx" and fam.key != "gemma-4-12b":
-        if fam.key.startswith("gemma-4"):
-            raise ValueError(
-                f"--images on with --backend mlx serves the 12B ({fam.key} is not it): the 31B's MLX conversion has no "
-                "vision tensors, so a Mac reads images with the 12B, or with the 31B on the vLLM server"
-            )
     if not fam.key.startswith("gemma-4"):
         raise ValueError(
             f"--images on is for the Gemma bases (this is {fam.key}); the Qwen base reads images with --image-model"
@@ -2801,6 +2797,15 @@ def build_parser():
         "decisio.readout.box.ConfidenceMap), fitted for the served model; without it the confidence is the "
         "presence probability times the raw edge confidence, and says so (docs/box.md). A file named "
         "box_confidence.json in the model's folder is read when this is not given",
+    )
+    ap.add_argument(
+        "--vision-weights",
+        default=None,
+        metavar="PATH",
+        help="--backend mlx --images on: the base's vision add-on (its vision.safetensors, or a folder holding it), "
+        "for an MLX conversion that has no vision weights; without the flag the base's add-on repository is "
+        "downloaded once into the Hugging Face cache. Checked against the sha256 this release is pinned to "
+        "(docs/running.md, 'Images on a Mac')",
     )
     ap.add_argument(
         "--image-budget",
@@ -3586,6 +3591,7 @@ def main():
 
             make = functools.partial(
                 MLXGemmaImageLettersEngine,
+                vision_weights=args.vision_weights,
                 image_budget=args.image_budget,
                 max_images=args.max_images if args.max_images is not None else DEFAULT_MAX_IMAGES,
             )

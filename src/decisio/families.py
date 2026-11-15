@@ -84,6 +84,12 @@ class Family:
     # the soft-token budget an image is read at when `--image-budget` is not given (None: image_marks.DEFAULT_BUDGET,
     # 280, the model's own)
     image_budget: int | None = None
+    # --backend mlx --images on: the base's vision add-on, a small repository (one `vision.safetensors`) with the
+    # vision tensors an MLX conversion made for text dropped, copied bit for bit from the base's own checkpoint and
+    # shared by the base and its tuned models. The pin is the file's sha256 (the content is the integrity anchor; the
+    # repository's revision is pinned once it is published). Empty: the base has no add-on (decisio.serve.mlx_vision)
+    vision_addon_repo: str = ""
+    vision_addon_sha256: str = ""
     # beyond those two: a temperature for yes/no ("noul") and for score questions of their own (the global one when
     # absent), and a choice temperature per band of option count ("lo-hi": T, 2 to 255, not overlapping). Both are
     # the profile's last word: a flag, a temperatures file and a tuned repository's defaults come first, and the bands
@@ -208,6 +214,9 @@ GEMMA4 = Family(
     mlx_prefix_cache_mb=7400,
     mlx_working_gb=6,
     mlx_working_images_gb=7.5,
+    vision_addon_repo="tachara-ai/decisio-gemma-4-12b-vision",
+    # google/gemma-4-12B-it at 707f0a3b: 10 tensors, 99,845,840 bytes, bf16
+    vision_addon_sha256="112725a204111dfdc5d29d2c4456818e4b6de33109991edfaa7120c731fb06a8",
     precision="bf16",
 )
 
@@ -240,6 +249,10 @@ GEMMA4_31B = Family(
     # fitted on images that softens the probabilities served at the text temperatures by a further factor of
     # 1.3761675778532716, fitted at budget 280 on 377 calibration items (held-out log loss 0.362 before, 0.333 after)
     image_temperature_scale=1.376,
+    vision_addon_repo="tachara-ai/decisio-gemma-4-31b-vision",
+    # google/gemma-4-31B-it at 842da379: 356 tensors (the vision tower and its projection), 1,151,536,584 bytes, bf16
+    vision_addon_sha256="f2265e6a0456cea6587d3d214ce48447e6390f5a4e2749c45143aede4ee6c3fc",
+    mlx_working_images_gb=10.5,
     # 210,000 to 215,376: the 12B's 170,000 would put a label form (174,960) inside 5,376 dimensions
     hidden_start=210_000,
     temperature=5.252,
