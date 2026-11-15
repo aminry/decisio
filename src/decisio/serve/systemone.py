@@ -4156,7 +4156,7 @@ def add_routes(app, systemone: SystemOne):
             return payload, blobs, False, legends, True, tag
         lead = len(blobs)  # images that came as a list or as parts: a literal "[image N]" names the place, else none
         opening = list(range(1, lead + 1))
-        if placed and lead:
+        if placed and lead and systemone.image_engine is not None:  # the Qwen route only; Gemma opens the state
             payload, opening = place_listed_images(payload, lead, tag)
         if payload.get("state") is not None:
             original = payload["state"]
@@ -4396,7 +4396,7 @@ def add_routes(app, systemone: SystemOne):
                     blobs = [decode_data_url(u) for u in imgs]
                 lead = len(blobs) if "assets" not in ex.get("request", {}) else 0
                 opening = list(range(1, lead + 1))
-                if placed and lead:
+                if placed and lead and systemone.image_engine is not None:  # the Qwen route only
                     payload, opening = place_listed_images(payload, lead, tag)
                 if "assets" not in ex.get("request", {}) and payload.get("state") is not None:
                     original = payload["state"]

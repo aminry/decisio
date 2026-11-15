@@ -81,8 +81,10 @@ class ImageRequests(PlacedImageRequests):
         from transformers import AutoProcessor
 
         self.processor = AutoProcessor.from_pretrained(model, revision=revision)
-        ids = self.tok.convert_tokens_to_ids(["<|vision_start|>", "<|image_pad|>", "<|vision_end|>"])
-        self.vision_start_id, self.image_token_id, self.vision_end_id = ids
+        to_id = self.tok.convert_tokens_to_ids
+        self.vision_start_id, self.image_token_id, self.vision_end_id = (
+            to_id(t) for t in ("<|vision_start|>", "<|image_pad|>", "<|vision_end|>")
+        )
         self.image_pad_id = self.image_token_id
         self.merge = self.processor.image_processor.merge_size
 
@@ -95,10 +97,10 @@ class ImageRequests(PlacedImageRequests):
 
     image_id = staticmethod(image_id)
 
-    def image_tokens(self, img) -> int:
-        """The engine's expansion of one image: its processor's resize (`smart_resize`, the processor's own function
-        and pixel bounds) in merged patches, without running the processor (tests/unit/test_image_route.py, I1, checks
-        the two agree). This is what a picture adds to `usage.input_tokens`."""
+    def pad_tokens(self, img) -> int:
+        """The pad tokens the engine expands one image to: its processor's resize (`smart_resize`, the processor's own
+        function and pixel bounds) in merged patches, without running the processor (tests/unit/test_image_route.py,
+        I1, checks the two agree)."""
         from transformers.models.qwen2_vl.image_processing_qwen2_vl import smart_resize
 
         ip = self.processor.image_processor
@@ -108,10 +110,15 @@ class ImageRequests(PlacedImageRequests):
         )
         return (h // unit) * (w // unit)
 
+    def image_tokens(self, img) -> int:
+        """What one image adds to `usage.input_tokens`: its pad tokens and the two vision delimiter tokens around them,
+        what the engine receives (the Gemma bases count their begin and end tokens the same way)."""
+        return self.pad_tokens(img) + 2
+
     def expanded_tokens(self, img) -> int:
         """One placeholder (`<|vision_start|><|image_pad|><|vision_end|>`) becomes the pad token repeated for the
         image's tokens, with the two vision tokens around them."""
-        return self.image_tokens(img) + 2
+        return self.image_tokens(img)
 
     def image_fmt(self):
         """The image route writes its prompts in the default format (it has no layout, and `--prompt-tail` is not
@@ -153,7 +160,7 @@ class ImageRequests(PlacedImageRequests):
         for ids, _ in rows:
             if ids[:n] != prefix:
                 raise ValueError("a question's text merges with the state's last token")
-        counts = [self.image_tokens(img) for img in images]
+        counts = [self.pad_tokens(img) for img in images]  # the deprecated layout counted the pad tokens only
         if prefix.count(self.image_pad_id) != len(images):
             raise ValueError("the image placeholders are not all in the cached prefix")
         extra = sum(c - 1 for c in counts)  # what the engine's expansion adds to the prefix

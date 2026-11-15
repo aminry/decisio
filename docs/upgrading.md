@@ -19,6 +19,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
   It stays for a notice period as `--image-prompt legacy` and is removed in a later release.
   With it every image response carries `Deprecation: true` and a `Warning: 299 - "..."` header naming the flag, and the server logs a warning at start and once for every 1,000 such requests.
 - The `images` field, `data:image` URIs, `assets` and imajev's multipart fields keep working; a `box` question is still refused with 400 on this route.
+- Qwen image requests report 2 more `usage.input_tokens` per image: the two vision delimiter tokens the engine receives, counted as the Gemma bases count their begin and end tokens.
 - The route's measured figures (ImajevBench, the image temperature of 1.0) were taken on the earlier layout.
   They are not measured on the new one yet; a re-measurement follows.
 

@@ -118,7 +118,8 @@ def test_i1_token_count_matches_processor(served):
     for w, h in [(1536, 1024), (1264, 848), (33, 17), (4000, 5000), (10, 10), (8192, 300), (1000, 999)]:
         img = Image.new("RGB", (w, h))
         g = image.processor.image_processor(images=[img], return_tensors="pt")["image_grid_thw"][0].tolist()
-        assert image.image_tokens(img) == g[0] * g[1] * g[2] // image.merge**2, (w, h)
+        assert image.pad_tokens(img) == g[0] * g[1] * g[2] // image.merge**2, (w, h)
+        assert image.image_tokens(img) == image.pad_tokens(img) + 2  # the two vision delimiter tokens are billed too
 
 
 def test_i2_an_image_stands_where_its_reference_stands(served, picture):
