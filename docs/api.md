@@ -145,8 +145,9 @@ An image's own tokens attend to each other in both directions on the model's sli
 **What an image costs.**
 The picture is scaled, keeping its proportions and enlarging it if need be, so that its area fills the server's budget, then each side is cut down to a multiple of 48 pixels; each 48 by 48 block is one token, and a begin and an end token wrap them.
 `--image-budget` sets the budget: 70, 140, 280 (the model's own default), 560 or 1120 soft tokens.
-A budget whose largest image block (its soft tokens plus the begin and end tokens) is longer than the base's sliding window is refused at start.
-On the Gemma 4 bases the window is 1,024 tokens, so 1120 (blocks of up to 1,122 tokens) is not allowed: the later tokens of such an image could not see its top rows.
+On a base without a vision encoder, a budget whose largest image block (its soft tokens plus the begin and end tokens) is longer than the base's sliding window is refused at start.
+On Gemma 4 12B the window is 1,024 tokens, so 1120 (blocks of up to 1,122 tokens) is not allowed there: the later tokens of such an image could not see its top rows.
+Gemma 4 31B reads pictures through its own vision encoder, so it takes every budget, 1120 included.
 `/health` reports the budget in use and the budgets the base allows.
 The default budget is still under measurement.
 `usage.input_tokens` counts the text and every image's tokens, begin and end included: an image of the state once, an image of a question once for the question that carries it.

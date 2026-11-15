@@ -730,15 +730,20 @@ def test_the_vllm_image_engine_warms_its_pictures_at_start(monkeypatch):
 # ---- budget against the sliding window ------------------------------------------------------------------------------
 
 
-def _window(monkeypatch, window):
+def _window(monkeypatch, window, encoder_layers=None):
+    """The checkpoint config the server reads: a sliding window, and a vision encoder of `encoder_layers` layers (the
+    31B's tower has 27) or none (the 12B's encoder-free model declares no layers)."""
     import decisio.families as fam
 
     cfg = {"text_config": {"sliding_window": window}} if window else {}
+    cfg["vision_config"] = {"num_hidden_layers": encoder_layers} if encoder_layers else {"model_patch_size": 48}
     monkeypatch.setattr(fam, "read_config", lambda model, revision=None: cfg)
 
 
-@pytest.mark.parametrize("family", [GEMMA4, GEMMA4_31B])
-def test_budget_longer_than_the_window_is_refused(monkeypatch, family):
+def test_budget_longer_than_the_window_is_refused_on_an_encoder_free_model(monkeypatch):
+    """The 12B embeds patches straight into the language model, so a block longer than its window loses the top rows
+    (measured: at 1,120 it read top-corner squares as bottom)."""
+    family = GEMMA4
     _window(monkeypatch, 1024)
     for budget in ("280", "560"):
         a = parsed("--images", "on", "--image-budget", budget)
@@ -752,6 +757,17 @@ def test_budget_longer_than_the_window_is_refused(monkeypatch, family):
         "--image-budget 1120 makes an image of up to 1,122 tokens, longer than this model's 1,024-token sliding "
         "window, so the image's later tokens could not see its top rows; use 560 or lower"
     )
+
+
+@pytest.mark.parametrize("budget", ["280", "560", "1120"])
+def test_a_model_with_a_vision_encoder_takes_every_budget(monkeypatch, budget):
+    """The 31B reads pictures through its own 27-layer encoder, so each image token carries the whole picture and the
+    language model's window does not limit the block: 1,120 is allowed (measured: the corner probe reads every corner
+    at 1,120 on the 31B)."""
+    _window(monkeypatch, 1024, encoder_layers=27)
+    a = parsed("--images", "on", "--image-budget", budget)
+    a.family = GEMMA4_31B
+    assert sv.resolve_images(a) == int(budget)
 
 
 def test_a_longer_window_allows_1120(monkeypatch):
@@ -772,3 +788,7 @@ def test_block_length_against_the_processor_formula():
     assert marks.allowed_budgets(None) == marks.BUDGETS
     assert marks.sliding_window_of({"text_config": {"sliding_window": 1024}}) == 1024
     assert marks.sliding_window_of({}) is None
+    encoder_free = {"text_config": {"sliding_window": 1024}, "vision_config": {"model_patch_size": 48}}
+    with_tower = {"text_config": {"sliding_window": 1024}, "vision_config": {"num_hidden_layers": 27}}
+    assert marks.has_vision_encoder(with_tower) and not marks.has_vision_encoder(encoder_free)
+    assert marks.image_window_limit(encoder_free) == 1024 and marks.image_window_limit(with_tower) is None

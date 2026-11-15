@@ -2023,7 +2023,7 @@ def resolve_images(args) -> int | None:
         raise ValueError(f"--image-budget {budget}: one of {', '.join(map(str, image_marks.BUDGETS))}")
     image_marks.check_budget_fits_window(
         budget,
-        image_marks.sliding_window_of(
+        image_marks.image_window_limit(
             read_config(args.model, getattr(args, "revision", None)) if getattr(args, "model", None) else {}
         ),
     )
@@ -2765,8 +2765,8 @@ def build_parser():
         default=None,
         help="with --images on, the soft tokens one image may take: 70, 140, 280, 560 or 1120 (default 280, the "
         "model's own default); an image is scaled to fill the budget, so a request pays about this many tokens per "
-        "image (docs/api.md has the table); a budget whose largest image block is longer than the base's sliding "
-        "window is refused at start (1120 on the Gemma 4 bases, whose window is 1,024 tokens)",
+        "image (docs/api.md has the table); on a base without a vision encoder, a budget whose largest image block is "
+        "longer than its sliding window is refused at start (1120 on Gemma 4 12B, whose window is 1,024 tokens)",
     )
     ap.add_argument(
         "--hide-index-keys",
