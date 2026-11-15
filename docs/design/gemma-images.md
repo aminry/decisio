@@ -69,7 +69,9 @@ The instruction asks for one box as JSON in Gemma's documented format, `[y_min, 
 Forcing the start means the first tokens are the digits of `y_min`, and a reply cannot be anything but one box.
 At most 32 tokens are generated, at temperature 0, with the top 20 log-probabilities of each step.
 The Boxes of a request are one batch, and their prefix is the one the request's yes/no reads use, so it is read once.
-Under the header layout the prefix carries a list of the request's questions, which a generation does not want, so a Box is refused there.
+Under the header layout the prefix carries a list of the request's questions, which a generation does not want, so every Box and its presence read is read under the plain layout, whatever the server's default.
+A request that asks for `"layout": "header"` together with a Box is refused.
+A mixed request on a header-layout server reads the state twice, once for the other questions under the header layout and once for the Box and its presence read under the plain one; the prefix cache keeps each read to its own prefix.
 
 **The expected value.**
 Gemma writes each digit as its own token.

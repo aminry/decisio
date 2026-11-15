@@ -323,10 +323,62 @@ def test_x5_two_orders_a_task_id_and_abstention(engine):
         so.answer(req, None, [Image.new("RGB", (96, 96))], imajev_ext=True, image_tag=tag)
 
 
-def test_x5_the_header_layout_is_refused(engine):
+def header_text():
+    from decisio.readout.letters import QUESTIONS_HEAD
+
+    return QUESTIONS_HEAD
+
+
+def test_x5_a_header_default_server_answers_a_box_without_layout(engine):
+    engine.fmt = HEADER
+    client, so = make_client(engine)
+    assert so.layout == "header"
+    only_box = body()
+    del only_box["questions"]["colour"]
+    r = client.post("/v1/systemone", json=only_box)
+    assert r.status_code == 200, r.text
+    assert r.json()["answers"]["where"]["type"] == "box"
+    assert r.headers["x-decisio-prompt"].startswith("layout=plain;")
+    (call,) = engine.box_calls
+    assert header_text() not in text_of(engine, call["rows"][0])
+    assert engine.scored_rows and all(header_text() not in text_of(engine, ids) for ids, _ in engine.scored_rows)
+
+
+def test_x5_a_mixed_request_on_a_header_server_reads_each_under_its_layout(engine):
     engine.fmt = HEADER
     client, _ = make_client(engine)
-    refused(client, body(), "plain layout")
+    r = client.post("/v1/systemone", json=body())
+    assert r.status_code == 200, r.text
+    ans = r.json()["answers"]
+    assert list(ans) == ["where", "colour"] and ans["where"]["type"] == "box"
+    assert r.headers["x-decisio-prompt"].startswith("layout=header;")  # the decisions' layout
+    rows = [text_of(engine, ids) for ids, _ in engine.scored_rows]
+    choice = [t for t in rows if "Which colour is the mug?" in t and "Is this in the picture" not in t]
+    presence = [t for t in rows if "Is this in the picture: the mug" in t]
+    assert choice and all(header_text() in t for t in choice)
+    assert presence and all(header_text() not in t for t in presence)
+    (call,) = engine.box_calls
+    assert header_text() not in text_of(engine, call["rows"][0])
+    assert r.json()["usage"]["input_tokens"] > 0
+
+
+def test_x5_an_explicit_header_layout_with_a_box_is_refused(engine):
+    engine.fmt = HEADER
+    client, _ = make_client(engine)
+    refused(client, body(layout="header"), 'send the request with "layout": "plain" or without "layout"')
+    engine.fmt = PLAIN
+    refused(client, body(layout="header"), "read under the plain layout")
+    assert not engine.box_calls
+
+
+def test_x5_an_explicit_plain_layout_still_works(engine):
+    engine.fmt = HEADER
+    client, _ = make_client(engine)
+    r = client.post("/v1/systemone", json=body(layout="plain"))
+    assert r.status_code == 200, r.text
+    assert r.headers["x-decisio-prompt"].startswith("layout=plain;")
+    assert all(header_text() not in text_of(engine, ids) for ids, _ in engine.scored_rows)
+    assert header_text() not in text_of(engine, engine.box_calls[0]["rows"][0])
 
 
 def test_x5_servers_that_cannot_answer_a_box(engine):
