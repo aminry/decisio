@@ -68,6 +68,8 @@ TEMPLATE_KEY = f"tokenizer.chat_template.{TEMPLATE_NAME}"
 TEMPLATE_NAMES = "tokenizer.chat_templates"  # the names of a GGUF's named chat templates
 # llama.cpp's option-count buckets for a choice temperature (server-decision.cpp, get_temperature), smallest and largest
 BUCKETS = {"2": (2, 2), "3_5": (3, 5), "6_10": (6, 10), "11": (11, 255)}
+# the escapes of llama.cpp's Jinja lexer since the systemone route (b11521, Ollama 0.40.4's); \x came later (b11803)
+LEXER_ESCAPES = frozenset("ntrbfv\\'\"")
 MARK = "\ue000"  # stands for the user turn while the chat template's wrapper is cut out
 
 
@@ -169,12 +171,11 @@ def _lit(text: str) -> str:
 
 
 def _q(text: str) -> str:
-    """A double-quoted Jinja string literal with the escapes both jinja2 and llama.cpp's lexer read (\\n, \\t, \\r,
-    \\b, \\f, \\xNN, \\\\, \\"); other characters, non-ASCII ones included, are written as they are."""
+    """A double-quoted Jinja string literal. The only escapes are the ones every llama.cpp lexer with the systemone
+    route reads (LEXER_ESCAPES; Ollama 0.40.4's has no \\x), and jinja2 reads them the same way: \\\\, \\" and the
+    named control characters; every other character, a control character or a non-ASCII one, is written as it is."""
     named = {"\\": "\\\\", '"': '\\"', "\n": "\\n", "\t": "\\t", "\r": "\\r", "\b": "\\b", "\f": "\\f"}
-    return (
-        '"' + "".join(named.get(c) or (f"\\x{ord(c):02x}" if ord(c) < 32 or ord(c) == 127 else c) for c in text) + '"'
-    )
+    return '"' + "".join(named.get(c, c) for c in text) + '"'
 
 
 def _replace_chain(var: str, pairs) -> str:
