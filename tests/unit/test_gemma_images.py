@@ -428,6 +428,13 @@ def test_g8_every_image_is_its_own_block(engine):
 # ---- G9 --------------------------------------------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def _no_hub_config(monkeypatch):
+    import decisio.families as fam
+
+    monkeypatch.setattr(fam, "read_config", lambda model, revision=None: {"text_config": {"sliding_window": 1024}})
+
+
 def parsed(*argv):
     ap = sv.build_parser()
     args = ap.parse_args(["--model", "x", *argv])
@@ -438,7 +445,7 @@ def parsed(*argv):
 def test_g9_the_flags_resolve():
     assert sv.resolve_images(parsed()) is None
     assert sv.resolve_images(parsed("--images", "on")) == 280
-    assert sv.resolve_images(parsed("--images", "on", "--image-budget", "1120")) == 1120
+    assert sv.resolve_images(parsed("--images", "on", "--image-budget", "560")) == 560
     for flags, why in [
         (["--image-budget", "280"], "needs --images on"),
         (["--images", "on", "--image-budget", "300"], "one of 70, 140, 280, 560, 1120"),
@@ -718,3 +725,50 @@ def test_the_vllm_image_engine_warms_its_pictures_at_start(monkeypatch):
     monkeypatch.setattr(gemma_images.GemmaImageRequests, "warm_images", lambda self, rounds=2: calls.append("warm"))
     gemma_images.GemmaImageLettersEngine(GEMMA4.model, family=GEMMA4)
     assert calls == ["engine", "setup", "warm"]
+
+
+# ---- budget against the sliding window ------------------------------------------------------------------------------
+
+
+def _window(monkeypatch, window):
+    import decisio.families as fam
+
+    cfg = {"text_config": {"sliding_window": window}} if window else {}
+    monkeypatch.setattr(fam, "read_config", lambda model, revision=None: cfg)
+
+
+@pytest.mark.parametrize("family", [GEMMA4, GEMMA4_31B])
+def test_budget_longer_than_the_window_is_refused(monkeypatch, family):
+    _window(monkeypatch, 1024)
+    for budget in ("280", "560"):
+        a = parsed("--images", "on", "--image-budget", budget)
+        a.family = family
+        assert sv.resolve_images(a) == int(budget)
+    a = parsed("--images", "on", "--image-budget", "1120")
+    a.family = family
+    with pytest.raises(ValueError) as e:
+        sv.resolve_images(a)
+    assert str(e.value) == (
+        "--image-budget 1120 makes an image of up to 1,122 tokens, longer than this model's 1,024-token sliding "
+        "window, so the image's later tokens could not see its top rows; use 560 or lower"
+    )
+
+
+def test_a_longer_window_allows_1120(monkeypatch):
+    _window(monkeypatch, 2048)
+    assert sv.resolve_images(parsed("--images", "on", "--image-budget", "1120")) == 1120
+
+
+def test_block_length_against_the_processor_formula():
+    for budget in marks.BUDGETS:
+        assert marks.block_tokens(budget) == budget + 2
+        biggest = max(marks.image_tokens(h, w, budget) for h, w in [(768, 768), (512, 512), (480, 480), (2000, 2000)])
+        assert biggest <= marks.block_tokens(budget)
+        assert marks.image_tokens(1536, 1536, budget) == marks.block_tokens(budget) - (
+            budget - marks.soft_tokens(1536, 1536, budget)
+        )
+    assert marks.allowed_budgets(1024) == (70, 140, 280, 560)
+    assert marks.allowed_budgets(1122) == marks.BUDGETS
+    assert marks.allowed_budgets(None) == marks.BUDGETS
+    assert marks.sliding_window_of({"text_config": {"sliding_window": 1024}}) == 1024
+    assert marks.sliding_window_of({}) is None

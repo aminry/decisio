@@ -1992,6 +1992,7 @@ def resolve_images(args) -> int | None:
     ValueError for a server that cannot read images. Images are for the Gemma bases on the vLLM server, read by the
     engine that reads text: the Qwen base keeps `--image-model`, the Mac keeps text only, and a head-capable class of
     the 31B has no multimodal form yet."""
+    from decisio.families import read_config
     from decisio.serve import image_marks
 
     images = getattr(args, "images", "off")
@@ -2020,6 +2021,12 @@ def resolve_images(args) -> int | None:
         budget = image_marks.DEFAULT_BUDGET
     if budget not in image_marks.BUDGETS:
         raise ValueError(f"--image-budget {budget}: one of {', '.join(map(str, image_marks.BUDGETS))}")
+    image_marks.check_budget_fits_window(
+        budget,
+        image_marks.sliding_window_of(
+            read_config(args.model, getattr(args, "revision", None)) if getattr(args, "model", None) else {}
+        ),
+    )
     if fam.classes.get("hidden-readout") == "DecisioGemma4HiddenReadout":
         # the 31B's head-capable class is text-only (no vision tower): an explicit request for it is refused, and
         # with no --model-class the server takes the checkpoint's own multimodal class instead of that default
@@ -2758,7 +2765,8 @@ def build_parser():
         default=None,
         help="with --images on, the soft tokens one image may take: 70, 140, 280, 560 or 1120 (default 280, the "
         "model's own default); an image is scaled to fill the budget, so a request pays about this many tokens per "
-        "image (docs/api.md has the table)",
+        "image (docs/api.md has the table); a budget whose largest image block is longer than the base's sliding "
+        "window is refused at start (1120 on the Gemma 4 bases, whose window is 1,024 tokens)",
     )
     ap.add_argument(
         "--hide-index-keys",

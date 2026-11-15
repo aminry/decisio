@@ -76,7 +76,11 @@ class GemmaImageRequests:
             raise ValueError(f"the tokenizer has no {IMAGE_TOKEN}: this checkpoint reads no images")
 
     def image_facts(self) -> dict:
-        return {"enabled": True, "budget": self.image_budget, "max_images": self.max_images, "route": "same engine"}
+        facts = {"enabled": True, "budget": self.image_budget, "max_images": self.max_images, "route": "same engine"}
+        window = getattr(self, "image_window", None)
+        if window is not None:  # the budgets whose largest image block fits the base's sliding window
+            facts["allowed_budgets"] = list(marks.allowed_budgets(window))
+        return facts
 
     def image_tokens(self, img) -> int:
         """What one image adds to a prompt on this engine: its soft tokens at the server's budget, plus the begin and
@@ -401,7 +405,11 @@ class GemmaImageLettersEngine(GemmaImageRequests, LettersEngine):
 
         if image_budget not in marks.BUDGETS:
             raise ValueError(f"--image-budget: one of {', '.join(map(str, marks.BUDGETS))}, not {image_budget}")
+        from decisio.families import read_config
+
         family = kw.get("family") or family_of(model, kw.get("revision"))
+        self.image_window = marks.sliding_window_of(read_config(model, kw.get("revision")))
+        marks.check_budget_fits_window(image_budget, self.image_window)
         # video and audio stay off; the image limit is the one place a request's pictures are bounded in memory
         engine_kw = {
             "limit_mm_per_prompt": {**family.limit_mm, "image": int(max_images)},
