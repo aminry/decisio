@@ -110,13 +110,15 @@ None is a board score.
 | GPQA Diamond, accuracy | 0.510 | 0.378 | 0.520 |
 | MMLU-Pro, accuracy | 0.613 | 0.549 | 0.694 |
 | Intent heads, BANKING77 / CLINC150 | 0.840 / 0.912 | 0.832 / 0.908 | 0.844 / 0.970 |
-| Image input, ImajevBench | 0.791 | n/m | n/m |
+| Image input, ImajevBench v2.0-lite, accuracy on the 230 answerable of 254 items | 0.791 | n/m | n/m |
 | New 300-token state | 49.9 ms | 53.6 ms | 80.7 ms |
 | 1,000-token state, cached | 20.2 ms | 24.8 ms | 31.7 ms |
 
 The JevBench row is the 231 published items.
 Intent heads use labelled examples, so they are not comparable with zero-shot systems.
 n/m is not measured.
+The image row is the Qwen base's accuracy on the 230 answerable items of the 254 development items, from an earlier run.
+The Gemma bases' image figures are on another item set (the reporting half of a larger image set, 124 ImajevBench items, by answer type), so they are not put in this row: they are in `EVAL_CARD.md` section 10.
 Latency is server time on decisio 0.8.1's served defaults, at a 585 W power limit (default 600 W), so a card at 600 W may read new states faster (`runs/2026-10-06_latency-585w/`, `docs/running.md`).
 
 [`docs/comparison.md`](docs/comparison.md) sets all three bases beside Jev and three open entries on every benchmark, with values and intervals (the board's figures and their date are in `EVAL_CARD.md` section 8.1).
@@ -446,7 +448,7 @@ On the Gemma 4 31B base, decisio scored 57.58 on the Decision Index 0.2.1 at a m
 | Probabilities | a distribution per question, tempered by fitted temperatures, with per-task calibration from labelled examples |
 | Task registration | `POST /v1/tasks` learns one recurring question from labelled examples: a calibration and, for long option lists, an intent head; with a `certify` block it also certifies answers against your labels (`docs/tasks.md`, "Certified answers") |
 | Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
-| Image input | photos in the state, served by a second engine on the same card (`--image-model`) |
+| Image input and Box | pictures in the state, in a question's instructions and in its options, read by Gemma 4 12B and 31B on the same engine (`--images on`, [api.md](docs/api.md#images-on-gemma-4---images-on)) or by the Qwen base through a second engine (`--image-model`); Box questions answer where something is in a picture, with four edges and a confidence ([box.md](docs/box.md)); measured figures are in `EVAL_CARD.md` section 10 |
 
 ## Watch it play
 

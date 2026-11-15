@@ -388,7 +388,8 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
 - `--images on` (default `off`, which loads the text path alone, as before) is for the vLLM server and the Gemma bases.
   The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
   The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
-  A request without images then runs under that class too, so the 31B's text answers under `--images on` are to be checked against the text-only server before the flag is relied on (not measured yet).
+  A request without images then runs under that class too, so the 31B's text answers under `--images on` differ from the text-only server's: at budget 280 BANKING77 moved from 73 to 69 right answers of 100 (`EVAL_CARD.md` section 10.6).
+  A deployment that serves mostly text on the 31B can keep images off, or serve images from a separate server.
 - `--image-budget` is the soft tokens an image may take: 70, 140, 280, 560 or 1120; 1120 is not allowed on Gemma 4 12B.
   The default depends on the base: 560 on Gemma 4 12B (bf16, FP8 and a tuned repository on it), 280 (the model's own) on Gemma 4 31B.
   On the 12B, which has no vision encoder, an image's block (its soft tokens plus the begin and end tokens) must fit the sliding window, 1,024 tokens, and 1120 makes blocks of up to 1,122.
@@ -408,7 +409,7 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   An adapter's own temperatures win.
   The Qwen `--image-model` route reads images at temperature 1.0, so its scale, 0.80, is the temperature itself (placed layout only; `--image-prompt legacy` keeps 1.0).
 
-Not measured yet, and to be read from a card before the flag's default changes: the memory the start-up profile takes at each budget and limit, the text latency and answers of the 31B under the multimodal class, the cost of an image's first read and of a cached one, and prefix-cache hits that begin inside an image of a question's own text.
+Memory at start-up, the 31B's text answers under the multimodal class, and the cost of an image's first read and of a cached one are measured in `EVAL_CARD.md` section 10 (10.6 and 10.7).
 The design is in `docs/design/gemma-images.md`.
 
 ## Flavors
