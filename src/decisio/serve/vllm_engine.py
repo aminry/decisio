@@ -2008,7 +2008,6 @@ def resolve_images(args) -> int | None:
     text: on the vLLM server, and on a Mac (`--backend mlx`) for the 12B (decisio.serve.mlx_images). The Qwen base
     keeps `--image-model`, and a head-capable class of the 31B has no multimodal form yet."""
     from decisio.families import read_config
-
     from decisio.serve import image_marks
 
     images = getattr(args, "images", "off")
