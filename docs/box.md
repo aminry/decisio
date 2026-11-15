@@ -70,4 +70,4 @@ A higher `--image-budget` (560) spends more tokens per image and helps in the sa
 - A request that mixes a Box with other questions on a server whose layout is the header one reads the state twice: once for the other questions under the header layout, and once for the Box questions and their presence reads under the plain layout.
   The `x-decisio-prompt` header reports the layout of the other questions, and `timing.box.layout` says `plain`.
 - A Box question writes up to 32 tokens, so it costs more than a noul or choice question; several Box questions of one request run as one batch on the cached prefix of the state.
-- How accurate the boxes are, how well the confidence tracks them and what a Box costs in time are not measured yet; this page will carry the figures when they are.
+- How accurate the boxes are, how well the confidence tracks them and what a Box costs in time are measured in `EVAL_CARD.md` section 10 (10.3 and 10.7); the confidence is uncalibrated until a calibration is loaded, as above.
