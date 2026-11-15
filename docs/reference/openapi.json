@@ -167,6 +167,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-box": {
+                "description": "`calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`).",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-wait-behind": {
                 "description": "`registration` when a boundary registration was running when the request arrived.",
                 "schema": {
@@ -900,6 +906,31 @@
         "title": "Asset",
         "type": "object"
       },
+      "BoxQuestion": {
+        "description": "Where one target is in an image. No criteria; extra fields are ignored like the other question types.\n\nServed on the Gemma image route only (`--images on`); a request with a Box and no image is refused.",
+        "properties": {
+          "type": {
+            "const": "box",
+            "title": "Type",
+            "type": "string"
+          },
+          "instructions": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instructions"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "BoxQuestion",
+        "type": "object"
+      },
       "ChoiceQuestion": {
         "properties": {
           "type": {
@@ -1066,6 +1097,7 @@
             "additionalProperties": {
               "discriminator": {
                 "mapping": {
+                  "box": "#/components/schemas/BoxQuestion",
                   "choice": "#/components/schemas/ChoiceQuestion",
                   "noul": "#/components/schemas/NoulQuestion",
                   "score": "#/components/schemas/ScoreQuestion"
@@ -1081,6 +1113,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ScoreQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/BoxQuestion"
                 }
               ]
             },
@@ -1110,6 +1145,175 @@
           "questions"
         ],
         "title": "SystemOneRequest",
+        "type": "object"
+      },
+      "BoxAnswer": {
+        "additionalProperties": true,
+        "properties": {
+          "certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Present when a registered certified task applies: whether this answer carries the promise.",
+            "title": "Certified"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The certificate's id, with `certified`.",
+            "title": "Certificate"
+          },
+          "certificate_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gold",
+                  "agreement"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `certified`: `gold` for a certificate made on labelled examples (at most alpha of the certified answers are wrong), `agreement` for a fast table learned from traffic (at most alpha of its answers differ from decisio's).",
+            "title": "Certificate Kind"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "table",
+                  "decisio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "For a task with a fast table: whether the table or decisio's model answered.",
+            "title": "Answered By"
+          },
+          "certified_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "below_threshold",
+                  "nothing_certified",
+                  "serving_stack_changed",
+                  "traffic_changed",
+                  "state_truncated",
+                  "header_limited",
+                  "orders_changed",
+                  "think_mode_changed",
+                  "concurrency_changed",
+                  "layout_mismatch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Why `certified` is false.",
+            "title": "Certified Reason"
+          },
+          "unknown_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension (its encodings only): the probability of an unknown outcome.",
+            "title": "Unknown Probability"
+          },
+          "abstained": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension, and abstention tasks: whether the server abstained.",
+            "title": "Abstained"
+          },
+          "type": {
+            "const": "box",
+            "title": "Type",
+            "type": "string"
+          },
+          "box": {
+            "$ref": "#/components/schemas/BoxAnswerEdges",
+            "description": "The one box the model reads for the question, in the image's own fractions."
+          },
+          "confidence": {
+            "description": "How much to trust the box, from 0 to 1: the probability the target is in the picture times how sure the edges are. Not calibrated until a calibration for the served model is loaded (`--box-confidence`).",
+            "title": "Confidence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "box",
+          "confidence"
+        ],
+        "title": "BoxAnswer",
+        "type": "object"
+      },
+      "BoxAnswerEdges": {
+        "properties": {
+          "top": {
+            "description": "The box's top edge, a fraction of the image's height from the top, two decimals.",
+            "title": "Top",
+            "type": "number"
+          },
+          "bottom": {
+            "description": "The bottom edge, a fraction of the height; larger than `top`.",
+            "title": "Bottom",
+            "type": "number"
+          },
+          "left": {
+            "description": "The left edge, a fraction of the image's width from the left.",
+            "title": "Left",
+            "type": "number"
+          },
+          "right": {
+            "description": "The right edge, a fraction of the width; larger than `left`.",
+            "title": "Right",
+            "type": "number"
+          }
+        },
+        "required": [
+          "top",
+          "bottom",
+          "left",
+          "right"
+        ],
+        "title": "BoxAnswerEdges",
         "type": "object"
       },
       "ChoiceAnswer": {
@@ -1553,7 +1757,7 @@
             "type": "integer"
           },
           "output_tokens": {
-            "description": "One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`).",
+            "description": "One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`); a Box question counts the tokens it wrote.",
             "title": "Output Tokens",
             "type": "integer"
           },
@@ -1589,6 +1793,7 @@
             "additionalProperties": {
               "discriminator": {
                 "mapping": {
+                  "box": "#/components/schemas/BoxAnswer",
                   "choice": "#/components/schemas/ChoiceAnswer",
                   "noul": "#/components/schemas/NoulAnswer",
                   "score": "#/components/schemas/ScoreAnswer"
@@ -1604,6 +1809,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ScoreAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/BoxAnswer"
                 }
               ]
             },

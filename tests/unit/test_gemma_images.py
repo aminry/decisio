@@ -631,14 +631,15 @@ def test_g12_health_reports_the_image_settings():
     e = make_engine(budget=560, max_images=7)
     client, _ = make_client(e)
     h = client.get("/health").json()
-    assert h["images"] == {"enabled": True, "budget": 560, "max_images": 7, "route": "same engine"}
+    assert h["images"] == {"enabled": True, "budget": 560, "max_images": 7, "route": "same engine", "box": True}
     off = plain_engine(e)
     client, _ = make_client(off)
-    assert client.get("/health").json()["images"] == {"enabled": False}
+    assert client.get("/health").json()["images"] == {"enabled": False, "box": False}
     assert sv.images_facts(off, types.SimpleNamespace(max_images=9)) == {
         "enabled": True,
         "route": "second engine (--image-model)",
         "max_images": 9,
+        "box": False,
     }
 
 

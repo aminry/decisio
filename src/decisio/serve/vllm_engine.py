@@ -1186,6 +1186,59 @@ class LettersEngine:
             **({"label_token_logprobs": token_lps} if token_lps else {}),
         }
 
+    def generate_rows(self, rows, adapter=None, row_mm=None, row_mm_uuids=None, max_tokens=32, top=20):
+        """Greedy text for each token row (`rows`: lists of ids; `row_mm`, `row_mm_uuids` as `score_prompts` takes
+        them): at most `max_tokens` new tokens, temperature 0, with the `top` highest log-probabilities at every
+        step. Returns (per row [(chosen token, [(token, logprob), ...]), ...] with the tokens as the tokenizer
+        writes them, and the call's figures: tokens per row, milliseconds, cached tokens). One call for all rows."""
+        from vllm import SamplingParams
+        from vllm.inputs import TokensPrompt
+
+        from decisio.vllm_plugin import hidden
+
+        if self.health is not None:
+            self.health.check()
+        reason = self.think_blocked()
+        if reason is not None:
+            raise ValueError(f"writing text: {reason}")
+        lora = self.adapters[adapter] if adapter else None
+        sp = SamplingParams(max_tokens=max_tokens, temperature=0.0, logprobs=top, detokenize=False)
+
+        def prompt(i, ids):
+            mm = None if row_mm is None else row_mm[i]
+            mm_uuids = row_mm_uuids[i] if row_mm_uuids else None
+            return TokensPrompt(
+                prompt_token_ids=ids,
+                **({"multi_modal_data": mm, **({"multi_modal_uuids": mm_uuids} if mm_uuids else {})} if mm else {}),
+            )
+
+        t = time.perf_counter()
+        with hidden.columns_off():  # the reserved columns hold the hidden state: greedy writing must not sample them
+            outs = guarded(
+                self,
+                self.llm.generate,
+                [prompt(i, ids) for i, ids in enumerate(rows)],
+                sp,
+                lora_request=lora,
+                use_tqdm=False,
+            )
+        generate_ms = (time.perf_counter() - t) * 1000
+        name = lambda i: self.tok.convert_ids_to_tokens(int(i))  # noqa: E731
+        gens = []
+        for o in outs:
+            c = o.outputs[0]
+            steps = []
+            for tid, lps in zip(c.token_ids, c.logprobs or []):
+                ranked = sorted(lps.items(), key=lambda kv: -kv[1].logprob)[:top]
+                steps.append((name(tid), [(name(k), float(v.logprob)) for k, v in ranked]))
+            gens.append(steps)
+        return gens, {
+            "generate_ms": generate_ms,
+            "generated_tokens": [len(g) for g in gens],
+            "cached_tokens": [o.num_cached_tokens or 0 for o in outs],
+            "engine_prompt_tokens": [len(o.prompt_token_ids or []) for o in outs],
+        }
+
     def can_think(self) -> bool:
         """Whether this engine can write reasoning (decisio.serve.think): the vLLM engine, not the MLX build."""
         return self.think_blocked() is None
@@ -1650,6 +1703,7 @@ def make_app(engine, systemone=None, health=None):
                     "abstain_option": systemone.abstain_option,
                     "tasks": systemone.tasks_enabled,
                     "debug_readout": systemone.debug_readout,
+                    **({"debug_box_tree": True} if systemone.debug_box_tree else {}),
                     "temperature": systemone.temperature,
                     "temperatures": systemone.temperatures,
                     "choice_bands": systemone.choice_bands,
@@ -1714,7 +1768,7 @@ def make_app(engine, systemone=None, health=None):
             # question type gets, and the prompt (decisio.families)
             **({"profile": served_profile(engine, systemone)} if systemone is not None else {}),
             **({"image_engine": image.facts()} if image is not None else {}),
-            "images": images_facts(engine, image),
+            "images": images_facts(engine, image, systemone),
             **so,
         }
 
@@ -2059,19 +2113,22 @@ RESERVED_MIN = 8  # reserved ids a question's reasoning must hold, and be half o
 HIDDEN_SIZE_MAX = 8192  # wider than any served base's hidden size: the tripwire's window above `hidden_start`
 
 
-def images_facts(engine, image_engine=None) -> dict:
-    """What /health says of image input: on or off, and how. On a Gemma base with `--images on` the engine that reads
-    text reads the pictures (its budget and the most images a request may carry); with `--image-model` a second
-    engine does."""
+def images_facts(engine, image_engine=None, systemone=None) -> dict:
+    """What /health says of image input: on or off, and how; `box`, whether this server answers a Box question
+    (`"type": "box"`): true only on a Gemma base with `--images on` (the vLLM server), serving no second image
+    engine. On a Gemma base with `--images on` the engine that reads text reads the pictures too (its budget and
+    the most images a request may carry); with `--image-model` a second engine does, and `box` is false."""
+    box = bool(systemone is not None and systemone.reads_images_itself() and getattr(engine, "images_enabled", False))
     if getattr(engine, "images_enabled", False):
-        return engine.image_facts()
+        return {**engine.image_facts(), "box": box}
     if image_engine is not None:
         return {
             "enabled": True,
             "route": "second engine (--image-model)",
             "max_images": getattr(image_engine, "max_images", None),
+            "box": False,
         }
-    return {"enabled": False}
+    return {"enabled": False, "box": False}
 
 
 def served_profile(engine, systemone) -> dict:
@@ -2360,6 +2417,20 @@ def apply_temperatures_file(args, given: dict) -> None:
         "applied": applied,
         **({"layout": doc["layout"]} if doc.get("layout") else {}),
     }
+
+
+def _box_confidence(args):
+    """The Box confidence map the server loads: `--box-confidence`, else `box_confidence.json` in the model's folder,
+    else the identity (the confidence then says it is not calibrated)."""
+    from decisio.readout.box import load_confidence_map
+
+    path = getattr(args, "box_confidence", None)
+    if path and not Path(path).is_file():
+        raise SystemExit(f"--box-confidence: {path} is not a file")
+    try:
+        return load_confidence_map(path or (args.model if Path(str(args.model)).is_dir() else None))
+    except (ValueError, KeyError) as e:
+        raise SystemExit(f"--box-confidence: {e}")
 
 
 def apply_repository_defaults(args, repo) -> None:
@@ -2664,6 +2735,15 @@ def build_parser():
         "place in the state or in one question's text (docs/api.md, 'Images on Gemma 4'); off (the default, as before) "
         "loads the text path alone. The 12B raises its image limit; the 31B loads its vision tower. Not measured yet: "
         "memory at start-up and text latency",
+    )
+    ap.add_argument(
+        "--box-confidence",
+        default=None,
+        metavar="FILE",
+        help="with --images on: the calibration of a Box question's confidence (a JSON file of knots, "
+        "decisio.readout.box.ConfidenceMap), fitted for the served model; without it the confidence is the "
+        "presence probability times the raw edge confidence, and says so (docs/box.md). A file named "
+        "box_confidence.json in the model's folder is read when this is not given",
     )
     ap.add_argument(
         "--image-budget",
@@ -3023,6 +3103,14 @@ def build_parser():
         action="store_true",
         help="honour the x-decisio-debug header (the raw readout in the response; for reads and diagnostics, not for "
         "latency measurement or production: about 130 ms more per single-question request on a 12B)",
+    )
+    ap.add_argument(
+        "--debug-box-tree",
+        action="store_true",
+        help="honour x-decisio-debug: box_tree on a Box question (--images on): each answer's debug readout then "
+        "carries, per edge, the exact expected value from a real recursive expansion of the digit tree, the served "
+        "branch-expanded estimator's own value, the plain greedy value and the tree mass covered; one card session's "
+        "own check, costly (a real decode per node visited), never on without this flag and the header",
     )
     ap.add_argument(
         "--one-engine",
@@ -3596,6 +3684,7 @@ def main():
         branch_log=args.branch_log,
         image_engine=image_engine,
         image_temperature=args.family.image_temperature,
+        box_confidence=_box_confidence(args),
         abstain_option=args.abstain_option,
         hide_index_keys=args.hide_index_keys,
         describe_options=args.describe_options,
@@ -3616,6 +3705,7 @@ def main():
         task_store=store,
         hidden_engine=hidden_engine,
         debug_readout=args.debug_readout,
+        debug_box_tree=args.debug_box_tree,
         temperature=args.temperature,
         temperatures={
             "choice": args.temperature_choice,

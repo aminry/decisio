@@ -4,10 +4,11 @@
 decisio server, checked in the source (no vLLM, no model):
 
 X1  every `SamplingParams(...)` sets `max_tokens=1` and none sets `min_tokens` (GHSA-4xqp-c3mv-qff7), except `think`
-    (think when unsure), whose `max_tokens` is its `budget` argument, a server setting validated to 16..4096 and never
-    a request field
-X2  every sampling call sets `allowed_token_ids` except the warm-up (`_prefill`), the health probe and `think`
-    (free text), the requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
+    (think when unsure) and `generate_rows` (a Box question's forced reply and its branch decodes), whose
+    `max_tokens` is a named argument (`budget`, `max_tokens`) that is always a server-side constant or another
+    validated server setting, never a request field
+X2  every sampling call sets `allowed_token_ids` except the warm-up (`_prefill`), the health probe, `think` and
+    `generate_rows` (free text), the requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
 X3  no source names `mm_processor_kwargs`, `trust_remote_code`, `min_tokens` or vLLM's entrypoints, and decisio never
     starts `vllm serve` (GHSA-h3rc-6mm3-gc2m, GHSA-4xqp-c3mv-qff7)
 X4  the multimodal ids sent to vLLM are the ones the image engine computes from the decoded pixels, not a request
@@ -19,9 +20,12 @@ import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "decisio"
-# the warm-up (`send_warm`, whose engine call is `_prefill`), the probe, and thinking
-UNCONSTRAINED = {"_prefill", "probe", "think"}
-FREE_LENGTH = {"think"}  # the one call that writes text; its length is `budget`, a validated server setting
+# the warm-up (`send_warm`, whose engine call is `_prefill`), the probe, and the two writers of free text
+UNCONSTRAINED = {"_prefill", "probe", "think", "generate_rows"}
+# the writers of free text, and the name their own `max_tokens` argument is passed under: `think`'s is its own
+# `budget` argument; `generate_rows`'s is its own `max_tokens` argument, which every caller passes a module
+# constant for (`decisio.serve.gemma_images.BOX_MAX_TOKENS`, `BOX_BRANCH_MAX_TOKENS`) or the literal 1
+FREE_LENGTH = {"think": "budget", "generate_rows": "max_tokens"}
 
 
 def sampling_calls():
@@ -60,7 +64,7 @@ def test_X1_max_tokens_is_one_and_min_tokens_is_never_set():
         where = f"{path.name}:{call.lineno} ({name})"
         assert "min_tokens" not in kw, where
         if name in FREE_LENGTH:
-            assert isinstance(kw.get("max_tokens"), ast.Name) and kw["max_tokens"].id == "budget", where
+            assert isinstance(kw.get("max_tokens"), ast.Name) and kw["max_tokens"].id == FREE_LENGTH[name], where
         else:
             assert isinstance(kw.get("max_tokens"), ast.Constant) and kw["max_tokens"].value == 1, where
 
