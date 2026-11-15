@@ -3367,10 +3367,6 @@ def main():
         args.family, fmt = resolve_base(args)
     except ValueError as e:
         ap.error(str(e))
-    try:  # the image model's revision and config, before the text engine is built
-        args.image_revision = resolve_image_model(args) if args.backend != "mlx" else None
-    except ValueError as e:
-        ap.error(str(e))
     tuned = bool((args.repository or {}).get("tuned"))
     print(base_line(args.family, args.model, args.backend, tuned), flush=True)
     if args.temperature <= 0:
@@ -3499,6 +3495,10 @@ def main():
         )
     args.multi_question = resolve_multi_question(args.family, args.multi_question, args.engine_process, args.backend)
     print(f"ENGINE PROCESS {args.engine_process} ({why}); multi-question {args.multi_question}", flush=True)
+    try:  # the image model's revision and config, before the text engine is built
+        args.image_revision = resolve_image_model(args) if args.backend != "mlx" else None
+    except ValueError as e:
+        ap.error(str(e))
     from decisio.serve.tasks import TaskStore
 
     # what the stores hold decides the layout (a base with plain-fitted tasks loaded stays on plain), and the layout is
