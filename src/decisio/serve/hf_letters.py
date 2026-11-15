@@ -122,7 +122,8 @@ class HFLettersEngine(LettersEngine):
 
 class HFImageLettersEngine:
     """The CPU stand-in's image engine: a small checkpoint of the same family under its multimodal class
-    (transformers AutoModelForImageTextToText), the same image request path as vLLM's (decisio.serve.image_engine).
+    (transformers AutoModelForImageTextToText), the same image request path as vLLM's (decisio.serve.image_engine,
+    decisio.serve.placed_images).
     The engine's own expansion of each `<|image_pad|>` is done here, before the forward pass. Not for measurement."""
 
     def __new__(cls, *args, **kwargs):
@@ -130,10 +131,19 @@ class HFImageLettersEngine:
 
         class _Engine(ImageRequests, HFLettersEngine):
             def __init__(
-                self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64, revision=None
+                self,
+                model,
+                pad_to=None,
+                pad_token=PAD_TOKEN,
+                pad_where="front",
+                block_size=64,
+                revision=None,
+                image_prompt="placed",
             ):
                 import torch
                 from transformers import AutoModelForImageTextToText, AutoTokenizer
+
+                self.image_prompt = image_prompt
 
                 self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
                 self.adapters = {}
@@ -152,18 +162,28 @@ class HFImageLettersEngine:
             def facts(self):
                 return {**HFLettersEngine.facts(self), "class": "multimodal (CPU stand-in)"}
 
-            def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
+            def score_prompts(
+                self,
+                rows,
+                adapter=None,
+                warm=(),
+                skip_cache=False,
+                mm=None,
+                mm_uuids=None,
+                row_mm=None,
+                row_mm_uuids=None,
+            ):
                 import torch
 
-                if not mm:
+                if not mm and row_mm is None:
                     return HFLettersEngine.score_prompts(self, rows, adapter, warm, skip_cache)
-                images = mm["image"]
-                enc = self.processor.image_processor(images=images, return_tensors="pt")
-                counts = [int(g.prod()) // (self.merge**2) for g in enc["image_grid_thw"]]
                 t0 = time.perf_counter()
                 probs, lens = [], []
                 with torch.no_grad():
-                    for ids, lab in rows:
+                    for i, (ids, lab) in enumerate(rows):
+                        pics = list(((row_mm[i] if row_mm is not None else mm) or {}).get("image") or [])
+                        enc = self.processor.image_processor(images=pics, return_tensors="pt") if pics else None
+                        counts = [int(g.prod()) // (self.merge**2) for g in enc["image_grid_thw"]] if pics else []
                         exp, k = [], 0
                         for t in ids:
                             if t == self.image_pad_id:
@@ -171,17 +191,23 @@ class HFImageLettersEngine:
                                 k += 1
                             else:
                                 exp.append(t)
+                        if k != len(pics):
+                            raise ValueError("a row's placeholders and its images differ")
                         self.scored_rows.append((list(ids), list(lab)))
                         # 1 on image tokens, 0 elsewhere: what the processor returns beside input_ids (M-RoPE needs it)
                         types = torch.tensor([[int(t == self.image_pad_id) for t in exp]])
+                        kw = (
+                            {"pixel_values": enc["pixel_values"], "image_grid_thw": enc["image_grid_thw"]}
+                            if pics
+                            else {}
+                        )
                         out = guarded(
                             self,
                             self.model,
                             input_ids=torch.tensor([exp]),
                             attention_mask=torch.ones(1, len(exp), dtype=torch.long),
                             mm_token_type_ids=types,
-                            pixel_values=enc["pixel_values"],
-                            image_grid_thw=enc["image_grid_thw"],
+                            **kw,
                         )
                         z = out.logits[0, -1].double()[list(lab)].numpy()
                         e = np.exp(z - z.max())

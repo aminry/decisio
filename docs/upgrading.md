@@ -8,6 +8,31 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the Qwen image route reads images at their places, and the old layout is deprecated
+
+### What changed
+
+- **The Qwen image route (`--image-model`) now writes each image where its reference stands**, and a question's own image is read by that question alone, the rules the Gemma bases follow (`docs/api.md`, "Where an image stands, and who reads it").
+  An `assets` placeholder, a `data:image` URI in the state, and a literal `[image N]` in the text of a request that sends the `images` list all name the image's place; an image no text names opens the state.
+  Before, every image was put at the start of the turn and every question read every image.
+- **The earlier layout is deprecated.**
+  It stays for a notice period as `--image-prompt legacy` and is removed in a later release.
+  With it every image response carries `Deprecation: true` and a `Warning: 299 - "..."` header naming the flag, and the server logs a warning at start and once for every 1,000 such requests.
+- The `images` field, `data:image` URIs, `assets` and imajev's multipart fields keep working; a `box` question is still refused with 400 on this route.
+- The route's measured figures (ImajevBench, the image temperature of 1.0) were taken on the earlier layout.
+  They are not measured on the new one yet; a re-measurement follows.
+
+### Who is affected
+
+| | Before | Now | To keep the old behaviour |
+| --- | --- | --- | --- |
+| A request with images on `--image-model`, answers | every image at the start of the turn, read by every question | each image at its place; a question's own image in that question only | start the server with `--image-prompt legacy` |
+| `usage.input_tokens` of a request whose questions carry their own images | each image counted once | the state's images once, a question's own image once for its question | `--image-prompt legacy` |
+| Response headers | none for images | none, unless `--image-prompt legacy`: then `Deprecation` and `Warning` | |
+
+Answers of the Qwen image route can differ after the upgrade, because the prompt differs.
+If you rely on the earlier answers, start with `--image-prompt legacy` for now, and plan to move to the default before the flag is removed.
+
 ## 0.46.0: a prompt over the window is refused on the MLX and HF builds, and a context is checked with its examples
 
 ### What changed

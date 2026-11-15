@@ -656,6 +656,7 @@ def test_g12_health_reports_the_image_settings():
         "enabled": True,
         "route": "second engine (--image-model)",
         "max_images": 9,
+        "prompt": "placed",
         "box": False,
     }
 
