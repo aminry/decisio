@@ -397,8 +397,8 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   Gemma 4 31B reads pictures through its own vision encoder, so every budget fits it, 1120 included.
   An image is scaled to fill the budget, so the budget is also what a request pays per image (`docs/api.md` has the table); `/health` reports it.
 - `--max-images` is the most images one request may carry (16 here unless set).
-  vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers; at 560 and a large limit it may not fit a card.
-  The profile's cost is not measured yet: start with a small limit.
+  vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers.
+  On one 96 GB card, 128 images at 1120 added at most 0.8 GB of GPU memory and 40 s of start-up against images off (`EVAL_CARD.md` 10.7); a smaller card is not measured, so start there with a small limit.
 - `--images on` does not combine with `--image-model` (that is the Qwen base's second engine, which keeps working unchanged), `--one-engine` or `--mode packed`.
   It is refused at start with the CPU stand-in and with a base that is not Gemma.
   The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet: with `--images on` and no `--model-class`, the 31B serves the checkpoint's multimodal class without the head (registered tasks get calibration only), and an explicit `--model-class hidden-readout` is refused.
