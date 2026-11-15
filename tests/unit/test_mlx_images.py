@@ -21,6 +21,7 @@ installed; the refusals that need no MLX run everywhere.
 
 import json
 import sys
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -185,9 +186,20 @@ def test_v5_a_family_with_no_pinned_revision_refuses_a_download(tmp_path, monkey
 
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", never)
     d = vision_dir(tmp_path, vision=False)
+    unpinned = replace(GEMMA4, vision_addon_revision="")  # an add-on whose repository has no pinned revision
     with pytest.raises(mlx_vision.ImagesRefused) as e:
-        mlx_vision.prepare(d, GEMMA4)  # the family's revision is empty until the repository is published
+        mlx_vision.prepare(d, unpinned)
     assert "is not published yet" in str(e.value) and "--vision-weights PATH" in str(e.value)
+
+
+def test_v5b_the_gemma_bases_pin_their_published_add_on():
+    """Both Gemma bases read their add-on at a pinned commit (40 hex characters), beside the files' sha256 pins."""
+    from decisio.families import GEMMA4_31B
+
+    for fam in (GEMMA4, GEMMA4_31B):
+        assert fam.vision_addon_repo and len(fam.vision_addon_revision) == 40
+        assert int(fam.vision_addon_revision, 16) >= 0
+        assert len(fam.vision_addon_sha256) == 64 and len(fam.vision_addon_config_sha256) == 64
 
 
 def test_v6_a_pinned_revision_is_passed_to_the_hub(tmp_path, monkeypatch):

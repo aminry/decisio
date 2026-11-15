@@ -220,6 +220,7 @@ GEMMA4 = Family(
     mlx_working_gb=6,
     mlx_working_images_gb=7.5,
     vision_addon_repo="tachara-ai/decisio-gemma-4-12b-vision",
+    vision_addon_revision="d70d5e5cd76c115adbdde282d8958fbdeb73046d",  # the published commit of the add-on repository
     # google/gemma-4-12B-it at 707f0a3b: 10 tensors, 99,845,840 bytes, bf16
     vision_addon_sha256="112725a204111dfdc5d29d2c4456818e4b6de33109991edfaa7120c731fb06a8",
     vision_addon_config_sha256="77f6b61591676bd7440bcd5633a8dbce3e87bd952c348ece524004d8e2a994cb",
@@ -256,6 +257,7 @@ GEMMA4_31B = Family(
     # 1.3761675778532716, fitted at budget 280 on 377 calibration items (held-out log loss 0.362 before, 0.333 after)
     image_temperature_scale=1.376,
     vision_addon_repo="tachara-ai/decisio-gemma-4-31b-vision",
+    vision_addon_revision="1bea5641eb206dce72ee514c0e56f0e54c9dc025",  # the published commit of the add-on repository
     # google/gemma-4-31B-it at 842da379: 356 tensors (the vision tower and its projection), 1,151,536,584 bytes, bf16
     vision_addon_sha256="f2265e6a0456cea6587d3d214ce48447e6390f5a4e2749c45143aede4ee6c3fc",
     vision_addon_config_sha256="6c8343fd04ef9f9eceb2f45fd43a351a7ba2302beedfb50deb4e238ae047930f",

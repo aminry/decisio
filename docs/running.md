@@ -597,7 +597,7 @@ A Gemma 4 base reads pictures on a Mac with the same engine that reads its text,
 uv sync --extra mlx-images
 # the base, from Google's bf16 checkpoint (it has the vision weights)
 uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model google/gemma-4-12B-it --images on
-# a tuned model's MLX conversion: the base's vision add-on supplies the vision weights, found in the Hugging Face cache
+# a tuned model's MLX conversion: the base's vision add-on supplies the vision weights, downloaded once at its pinned revision
 uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on
 # the add-on's folder (both files), which also works offline
 uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on --vision-weights ./gemma-4-12b-vision
@@ -609,7 +609,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decis
   An MLX conversion made for text drops the vision tensors, so it cannot read pictures by itself.
   The conversion needs them, or the base's **vision add-on** supplies them: a small versioned repository per base with two files, `vision.safetensors` (the vision tensors, copied bit for bit from the base's own checkpoint) and `vision_config.json` (the base's vision settings, so no copy of the base's checkpoint is needed).
   It is shared by the base and every model tuned from it.
-  The 12B's is `tachara-ai/decisio-gemma-4-12b-vision` (10 tensors, 100 MB) and the 31B's `tachara-ai/decisio-gemma-4-31b-vision` (356 tensors, 1.15 GB); a release reads them at the revision it pins, and until a release pins one, pass `--vision-weights`.
+  The 12B's is `tachara-ai/decisio-gemma-4-12b-vision` (10 tensors, 100 MB) and the 31B's `tachara-ai/decisio-gemma-4-31b-vision` (356 tensors, 1.15 GB), both public; decisio reads each at the revision it pins and checks both files' sha256 before use.
   - Where the server finds it: `--vision-weights PATH` (a folder holding both files, or the weights file with `vision_config.json` beside it; this works offline), otherwise the base's repository at the pinned revision, downloaded once into the Hugging Face cache.
     A repository whose revision is not pinned in the release is never read: the server refuses to start and says to pass `--vision-weights`.
   - How it is checked: decisio is pinned to the sha256 of both files, which is verified on every start; a file that differs is refused with both hashes.
