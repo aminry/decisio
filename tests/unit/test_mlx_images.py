@@ -397,3 +397,16 @@ def test_m2_the_overlay_respects_the_sliding_window(tmp_path_factory, mlx_stack)
                     want = causal
                 assert np.array_equal(m.reshape(n, k), want), (offset, kind)
         assert not any("make_mask" in vars(c) for c in cache)  # the entries are the library's again
+
+
+def test_m6_the_mac_takes_the_same_budget_check_as_vllm(tmp_path):
+    from decisio.serve import vllm_engine as sv
+
+    (tmp_path / "config.json").write_text(json.dumps({"text_config": {"sliding_window": 1024}}))
+    ap = sv.build_parser()
+    args = ap.parse_args(["--backend", "mlx", "--model", str(tmp_path), "--images", "on", "--image-budget", "1120"])
+    args.family = GEMMA4
+    with pytest.raises(ValueError, match="sliding window"):
+        sv.resolve_images(args)
+    args.image_budget = 560
+    assert sv.resolve_images(args) == 560

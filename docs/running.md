@@ -402,6 +402,7 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
 - `--images on` does not combine with `--image-model` (that is the Qwen base's second engine, which keeps working unchanged), `--one-engine` or `--mode packed`.
   It is refused at start with the CPU stand-in and with a base that is not Gemma.
   The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet: with `--images on` and no `--model-class`, the 31B serves the checkpoint's multimodal class without the head (registered tasks get calibration only), and an explicit `--model-class hidden-readout` is refused.
+- An adapter (`--adapter`) serves images: vLLM applies it to the language model only, which is what the tuned adapters are.
   Whether a tuned model reads pictures as well as its base is not measured.
 - A base's temperatures were fitted on text.
   A request with images is served at the text temperatures times the base's `image_temperature_scale` (`decisio.families`), which Gemma 4 31B has (1.376, fitted on images at budget 280) and Gemma 4 12B does not.
