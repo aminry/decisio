@@ -1859,7 +1859,7 @@ class SystemOne:
                     p = apply_temperature(p, t_q)
                     if debug:
                         dbg[name].update(path="temperature", temperature=t_q, adapter=adapter)
-                elif use_image and (t_img := self.qwen_image_temperature()) != 1.0:
+                elif not corrected and use_image and (t_img := self.qwen_image_temperature()) != 1.0:
                     p = apply_temperature(p, t_img)
                     if debug:
                         dbg[name].update(path="temperature", temperature=t_img, adapter=adapter)

@@ -555,3 +555,28 @@ def test_i14_the_qwen_image_scale_is_the_temperature_itself_on_the_placed_layout
     legacy_so = SystemOne(text, "decisio-test", image_engine=legacy_engine, image_temperature_scale=0.80)
     assert legacy_so.qwen_image_temperature() == 1.0  # the fit was for the placed layout
     assert SystemOne(text, "decisio-test", image_engine=placed).qwen_image_temperature() == 1.0  # no scale
+
+
+def test_i15_a_task_correction_replaces_the_qwen_image_temperature(served, monkeypatch):
+    """A question whose registered task applies its own calibration is served at that correction exactly: the image
+    temperature is not applied on top of it (a task's correction replaces the global temperature, as on text)."""
+    from fastapi.testclient import TestClient
+
+    from decisio.readout.calibration import apply_task_prior
+    from decisio.readout.debias import log_probs
+    from decisio.serve.systemone import SystemOne
+    from decisio.serve.vllm_engine import make_app
+
+    _, text, placed = served
+    req = {"state": STATE, "questions": QUESTIONS, "images": [data_url(picture_of(300, 200))]}
+    so = SystemOne(text, "decisio-test", image_engine=placed, image_temperature_scale=0.80, debug_readout=True)
+    k = len(QUESTIONS["colour"]["criteria"])
+    task = {"id": "cal", "calibration": {"applied": True, "bias": [0.4] + [-0.1] * (k - 1)}, "head": {"applied": False}}
+    monkeypatch.setattr(SystemOne, "readout_task", lambda self, q, selected=None: task)
+    client = TestClient(make_app(text, so), headers={"x-decisio-client": "test"})
+    r = client.post("/v1/systemone", json=req, headers={"x-decisio-debug": "readout"})
+    assert r.status_code == 200, r.text
+    d = r.json()["decisio_debug"]["colour"]
+    assert d["path"] == "calibration"
+    want = apply_task_prior(log_probs(np.asarray(d["p"], dtype=np.float64)), task["calibration"])
+    assert list(r.json()["answers"]["colour"]["probabilities"].values()) == want.tolist()
