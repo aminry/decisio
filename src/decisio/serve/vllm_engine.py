@@ -2020,10 +2020,17 @@ def resolve_images(args) -> int | None:
         budget = image_marks.DEFAULT_BUDGET
     if budget not in image_marks.BUDGETS:
         raise ValueError(f"--image-budget {budget}: one of {', '.join(map(str, image_marks.BUDGETS))}")
-    if args.model_class == "hidden-readout" and fam.classes.get("hidden-readout") == "DecisioGemma4HiddenReadout":
-        raise ValueError(
-            "--images on: the 31B's head-capable class has no image form yet; serve images without the head"
-        )
+    if fam.classes.get("hidden-readout") == "DecisioGemma4HiddenReadout":
+        # the 31B's head-capable class is text-only (no vision tower): an explicit request for it is refused, and
+        # with no --model-class the server takes the checkpoint's own multimodal class instead of that default
+        # (engine_kwargs, text-only with images on), so --images on starts as documented, without the head
+        if args.model_class == "hidden-readout":
+            raise ValueError(
+                "--images on: the 31B's head-capable class has no image form yet; serve images without the head "
+                "(leave out --model-class, or give --model-class text-only)"
+            )
+        if args.model_class is None:
+            args.model_class = "text-only"
     return budget
 
 

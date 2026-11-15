@@ -385,7 +385,7 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   The profile's cost is not measured yet: start with a small limit.
 - `--images on` does not combine with `--image-model` (that is the Qwen base's second engine, which keeps working unchanged), `--one-engine` or `--mode packed`.
   It is refused at start with `--backend mlx` (images on a Mac come later), with the CPU stand-in and with a base that is not Gemma.
-  The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet and is refused with `--images on`.
+  The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet: with `--images on` and no `--model-class`, the 31B serves the checkpoint's multimodal class without the head (registered tasks get calibration only), and an explicit `--model-class hidden-readout` is refused.
 - An adapter (`--adapter`) serves images: vLLM applies it to the language model only, which is what the tuned adapters are.
   Whether a tuned model reads pictures as well as its base is not measured.
 - A base's temperatures were fitted on text.
@@ -508,7 +508,7 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 - The image is vLLM's 0.31.0 release image, pinned by digest, plus the decisio wheel with its `serve` extra; the build argument `APPLY_PATCHES=1` adds the patch series (off by default).
 - The first start downloads the checkpoint into the `decisio-data` volume, mounted at `/data`; it is never part of the image.
 - The container runs as a non-root user, and compose publishes the port on 127.0.0.1 only.
-- The entrypoint starts the server with `--base "${DECISIO_BASE:-gemma-4-31b}"` and `--model-class hidden-readout`, listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
+- The entrypoint starts the server with `--base "${DECISIO_BASE:-gemma-4-31b}"` and the server's default model class (the head-capable class; with `--images on` on the 31B, the checkpoint's multimodal class), listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
   `DECISIO_BASE` names another base (`qwen3.6-35b-a3b`, `gemma-4-12b`, `gemma-4-12b-fp8`) or a decisio repository, and `DECISIO_MODEL` names a checkpoint instead: alone it brings the base its `config.json` declares, so a container configured with `DECISIO_MODEL=Qwen/Qwen3.6-35B-A3B-FP8` keeps serving the Qwen base.
 - It checks for an NVIDIA GPU first and exits with an explanation when the container cannot see one.
 - Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes; to run one instead of building, replace `build:` in `compose.yaml` with `image: ghcr.io/aminry/decisio@sha256:<digest>`.

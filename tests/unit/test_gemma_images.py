@@ -458,6 +458,16 @@ def test_g9_the_flags_resolve():
         sv.resolve_images(big)
     ok = parsed("--images", "on", "--model-class", "hidden-readout")
     assert sv.resolve_images(ok) == 280  # the 12B's class is multimodal already
+    # the 31B with no --model-class: its default (head-capable) class is text-only, so images on takes the
+    # checkpoint's multimodal class instead, and the head mode that follows is "no head", not the hidden readout
+    plain31 = parsed("--images", "on")
+    plain31.family = GEMMA4_31B
+    assert sv.resolve_images(plain31) == 280 and plain31.model_class == "text-only"
+    assert sv.resolve_head_mode(plain31.model_class, None) == ("text-only", None)
+    # the 12B keeps its default: its head-capable class reads images
+    plain12 = parsed("--images", "on")
+    assert sv.resolve_images(plain12) == 280 and plain12.model_class is None
+    assert sv.resolve_head_mode(plain12.model_class, None) == ("hidden-readout", "single-engine")
 
 
 def test_g9_images_on_is_refused_on_the_mac_at_start(monkeypatch, capsys):
