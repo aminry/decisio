@@ -190,9 +190,10 @@ An adapter keeps its own temperatures.
 **What stays different from System One.**
 - `layout` works with images here (it does not on the `--image-model` route).
 - No registered task (calibration, intent head, certificate, abstention threshold, fast table) is applied to a request with images; `task` is refused there; thinking when unsure is not served with images, and neither is a state cut with `over_limit: "truncate"`.
-- The server needs `--images on`, on the vLLM server and a Gemma base; a server without it answers 400 and says how to start one.
+- The server needs `--images on`, on the vLLM server with a Gemma base, or on a Mac (`--backend mlx`) with a conversion that keeps the vision weights or the base's vision add-on; a server without it answers 400 and says how to start one.
+- On a Mac both Gemma bases read noul, choice and score questions about images as above; a conversion made for text, without the vision weights, takes the base's vision add-on, and Box is not served there yet (`images.box` is false in `/health`), and an adapter is refused as it is for text ([Images on a Mac](running.md#images-on-a-mac)).
 - Image sizes are not limited to System One's window; the scaling above applies to any size, up to the 20 MB and 20 megapixel limits.
-- Memory at start-up, text latency, first-read latency and how well each base reads images are measured in `EVAL_CARD.md` section 10; `/health` reports `images` (`enabled`, `budget`, `max_images`, and `box`: true when this server answers Box questions).
+- Memory at start-up, text latency, first-read latency and how well each base reads images are measured in `EVAL_CARD.md` section 10; `/health` reports `images` (`enabled`, `budget`, `max_images`, and `box`: true when this server answers Box questions, false on a Mac).
 
 ### Box questions
 

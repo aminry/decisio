@@ -2004,23 +2004,24 @@ def resolve_pad_policy(backend, pad_policy=None):
 
 def resolve_images(args) -> int | None:
     """`--images` and `--image-budget`: the soft-token budget the engine reads images at (None with images off), or
-    ValueError for a server that cannot read images. Images are for the Gemma bases on the vLLM server, read by the
-    engine that reads text: the Qwen base keeps `--image-model`, the Mac keeps text only, and a head-capable class of
-    the 31B has no multimodal form yet."""
+    ValueError for a server that cannot read images. Images are for the Gemma bases, read by the engine that reads
+    text: on the vLLM server, and on a Mac (`--backend mlx`, decisio.serve.mlx_images) for either Gemma base, from a
+    conversion that keeps the vision weights or with the base's vision add-on. The Qwen base keeps `--image-model`,
+    and a head-capable class of the 31B has no multimodal form yet on vLLM."""
     from decisio.families import read_config
     from decisio.serve import image_marks
 
     images = getattr(args, "images", "off")
     budget = getattr(args, "image_budget", None)
+    if getattr(args, "vision_weights", None) and not (images == "on" and args.backend == "mlx"):
+        raise ValueError("--vision-weights is for --backend mlx with --images on")
     if images != "on":
         if budget is not None:
             raise ValueError("--image-budget needs --images on")
         return None
     fam = args.family
-    if args.backend != "vllm":
-        raise ValueError(
-            f"--images on is for the vLLM server, not --backend {args.backend}: images on a Mac come later"
-        )
+    if args.backend not in ("vllm", "mlx"):
+        raise ValueError(f"--images on is for the vLLM server and --backend mlx, not --backend {args.backend}")
     if not fam.key.startswith("gemma-4"):
         raise ValueError(
             f"--images on is for the Gemma bases (this is {fam.key}); the Qwen base reads images with --image-model"
@@ -2144,10 +2145,15 @@ HIDDEN_SIZE_MAX = 8192  # wider than any served base's hidden size: the tripwire
 
 def images_facts(engine, image_engine=None, systemone=None) -> dict:
     """What /health says of image input: on or off, and how; `box`, whether this server answers a Box question
-    (`"type": "box"`): true only on a Gemma base with `--images on` (the vLLM server), serving no second image
-    engine. On a Gemma base with `--images on` the engine that reads text reads the pictures too (its budget and
-    the most images a request may carry); with `--image-model` a second engine does, and `box` is false."""
-    box = bool(systemone is not None and systemone.reads_images_itself() and getattr(engine, "images_enabled", False))
+    (`"type": "box"`): true only on a Gemma base with `--images on` on the vLLM server (false on a Mac), serving no
+    second image engine. On a Gemma base with `--images on` the engine that reads text reads the pictures too (its
+    budget and the most images a request may carry); with `--image-model` a second engine does, and `box` is false."""
+    box = bool(
+        systemone is not None
+        and systemone.reads_images_itself()
+        and getattr(engine, "images_enabled", False)
+        and getattr(engine, "box_enabled", True)
+    )
     if getattr(engine, "images_enabled", False):
         return {**engine.image_facts(), "box": box}
     if image_engine is not None:
@@ -2771,16 +2777,20 @@ def build_parser():
         help="the most images one request may carry: on the --image-model engine (default 128: 128 images of 512 by "
         "512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal "
         "profiling memory at start-up, raise it for smaller images), and with --images on (default 16; vLLM sizes its "
-        "start-up profile of the image path from it and from --image-budget, a cost not measured yet)",
+        "start-up profile of the image path from it and from --image-budget: on one 96 GB card, 128 images at 1120 "
+        "added at most 0.8 GB of GPU memory and 40 s of start-up against images off, EVAL_CARD.md 10.7; on a Mac it "
+        "only bounds a request)",
     )
     ap.add_argument(
         "--images",
         choices=("off", "on"),
         default="off",
-        help="images on a Gemma base (the vLLM server): the engine that reads text reads the pictures too, each at its "
-        "place in the state or in one question's text (docs/api.md, 'Images on Gemma 4'); off (the default, as before) "
-        "loads the text path alone. The 12B raises its image limit; the 31B loads its vision tower. Not measured yet: "
-        "memory at start-up and text latency",
+        help="images on a Gemma base (the vLLM server, or --backend mlx on a Mac): the engine that reads text "
+        "reads the pictures too, each at its place in the state or in one question's text (docs/api.md, "
+        "'Images on Gemma 4'); off (the default, as before) loads the text path alone. On vLLM the 12B raises "
+        "its image limit and the 31B loads its vision tower. On a Mac either base reads pictures from a "
+        "conversion that keeps the vision weights, or with the base's vision add-on for one that dropped them "
+        "(--vision-weights; docs/running.md, 'Images on a Mac')",
     )
     ap.add_argument(
         "--box-confidence",
@@ -2790,6 +2800,16 @@ def build_parser():
         "decisio.readout.box.ConfidenceMap), fitted for the served model; without it the confidence is the "
         "presence probability times the raw edge confidence, and says so (docs/box.md). A file named "
         "box_confidence.json in the model's folder is read when this is not given",
+    )
+    ap.add_argument(
+        "--vision-weights",
+        default=None,
+        metavar="PATH",
+        help="--backend mlx --images on: the base's vision add-on (a folder holding its vision.safetensors and "
+        "vision_config.json, or the weights file with the config beside it) for an MLX conversion that has no vision "
+        "weights. Without the flag the add-on is downloaded once from the base's repository at the revision this "
+        "release pins, and until that repository is published the flag is needed. Both files are checked against the "
+        "sha256 this release is pinned to (docs/running.md, 'Images on a Mac')",
     )
     ap.add_argument(
         "--image-budget",
@@ -3403,7 +3423,6 @@ def main():
             flag
             for flag, given in (
                 ("--image-model", args.image_model),
-                ("--images on", args.images == "on"),
                 ("--one-engine", args.one_engine),
                 ("--head-engine", args.head_engine),
                 ("--adapter", args.adapter),
@@ -3569,7 +3588,18 @@ def main():
     elif args.backend == "mlx":
         from decisio.serve.mlx_engine import MLXLettersEngine
 
-        engine = MLXLettersEngine(
+        make = MLXLettersEngine
+        if args.images == "on":
+            from decisio.serve.gemma_images import DEFAULT_MAX_IMAGES
+            from decisio.serve.mlx_images import MLXGemmaImageLettersEngine
+
+            make = functools.partial(
+                MLXGemmaImageLettersEngine,
+                vision_weights=args.vision_weights,
+                image_budget=args.image_budget,
+                max_images=args.max_images if args.max_images is not None else DEFAULT_MAX_IMAGES,
+            )
+        engine = make(
             args.model,
             tokenizer=args.tokenizer,
             family=args.family,

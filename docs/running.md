@@ -385,7 +385,7 @@ python -m decisio.serve.vllm_engine --base gemma-4-12b --images on
 python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budget 560 --max-images 8
 ```
 
-- `--images on` (default `off`, which loads the text path alone, as before) is for the vLLM server and the Gemma bases.
+- `--images on` (default `off`, which loads the text path alone, as before) is for the Gemma bases, on the vLLM server and on a Mac ([Images on a Mac](#images-on-a-mac)).
   The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
   The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
   A request without images then runs under that class too, so the 31B's text answers under `--images on` differ from the text-only server's: at budget 280 BANKING77 moved from 73 to 69 right answers of 100 (`EVAL_CARD.md` section 10.6).
@@ -397,10 +397,10 @@ python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budge
   Gemma 4 31B reads pictures through its own vision encoder, so every budget fits it, 1120 included.
   An image is scaled to fill the budget, so the budget is also what a request pays per image (`docs/api.md` has the table); `/health` reports it.
 - `--max-images` is the most images one request may carry (16 here unless set).
-  vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers; at 560 and a large limit it may not fit a card.
-  The profile's cost is not measured yet: start with a small limit.
+  vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers.
+  On one 96 GB card, 128 images at 1120 added at most 0.8 GB of GPU memory and 40 s of start-up against images off (`EVAL_CARD.md` 10.7); a smaller card is not measured, so start there with a small limit.
 - `--images on` does not combine with `--image-model` (that is the Qwen base's second engine, which keeps working unchanged), `--one-engine` or `--mode packed`.
-  It is refused at start with `--backend mlx` (images on a Mac come later), with the CPU stand-in and with a base that is not Gemma.
+  It is refused at start with the CPU stand-in and with a base that is not Gemma.
   The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet: with `--images on` and no `--model-class`, the 31B serves the checkpoint's multimodal class without the head (registered tasks get calibration only), and an explicit `--model-class hidden-readout` is refused.
 - An adapter (`--adapter`) serves images: vLLM applies it to the language model only, which is what the tuned adapters are.
   Whether a tuned model reads pictures as well as its base is not measured.
@@ -566,7 +566,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
-- It refuses the image route, packed mode, LoRA adapters and the second-engine head.
+- It refuses the Qwen base's second image engine (`--image-model`), packed mode, LoRA adapters and the second-engine head; both Gemma bases read images with `--images on` ([Images on a Mac](#images-on-a-mac)).
 - **A tuned model can be an MLX repository.** `python -m decisio.hub tuned-config --mlx-conversion mlx-lm@0.32.0 --mlx-bits 6 --mlx-group-size 64 ...` writes the `decision_config.json` of a directory that holds an MLX conversion of a tuned model's merged weights (`--merge-report` is the merge report of the bf16 model it was converted from; `--weights-dir` is the conversion, whose own `config.json` must declare the same affine quantization). The file says the weights are `mlx_affine` and records the conversion in `tuned.conversion`; the rest is the tuned repository of [Shipping a tuned model](#shipping-a-tuned-model): the temperatures, the layout and the flavor. `--backend mlx --base owner/name[@revision]` then serves it with those defaults, loading the weights at that revision. A server for vLLM refuses such a repository, and `--backend mlx` refuses a repository whose weights are FP8.
 - It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `tachara-ai/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
 
@@ -588,6 +588,68 @@ The Gemma base (`--base gemma-4-12b`):
 - The prompts are built with the base's own tokenizer and chat template, `google/gemma-4-12B-it` at its pinned revision, not the conversion's, whose chat template is older.
 - At 6 bits it passes every gate against the base's vLLM bf16 record: suite accuracy and ECE, the intent heads over six draws, conformance, and answers bit for bit on a fresh server (`runs/2026-10-05_mlx-gemma/summary.md`).
 - It reads a new state more slowly than the Qwen base on the same Mac: one question on a new 1,000-token state takes 1,312 ms, against 515 ms for the Qwen base (server medians on an Apple M5 Pro with no other job running; `runs/2026-10-07_mlx-quiet-latency/`).
+
+### Images on a Mac
+
+A Gemma 4 base reads pictures on a Mac with the same engine that reads its text, through the same request path as the vLLM server ([Images on Gemma 4](api.md#images-on-gemma-4---images-on)).
+
+```bash
+uv sync --extra mlx-images
+# the base, from Google's bf16 checkpoint (it has the vision weights)
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model google/gemma-4-12B-it --images on
+# a tuned model's MLX conversion: the base's vision add-on supplies the vision weights, downloaded once at its pinned revision
+uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on
+# the add-on's folder (both files), which also works offline
+uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on --vision-weights ./gemma-4-12b-vision
+```
+
+- The extra `mlx-images` adds mlx-vlm (0.7.12, pinned).
+  Text requests are answered as before; a request with pictures puts each at its place in the state or in one question's text, a question's own picture is read by that question alone, and `--image-budget` and `--max-images` are as on vLLM (`--max-images` only bounds a request on a Mac).
+- **The vision weights.**
+  An MLX conversion made for text drops the vision tensors, so it cannot read pictures by itself.
+  The conversion needs them, or the base's **vision add-on** supplies them: a small versioned repository per base with two files, `vision.safetensors` (the vision tensors, copied bit for bit from the base's own checkpoint) and `vision_config.json` (the base's vision settings, so no copy of the base's checkpoint is needed).
+  It is shared by the base and every model tuned from it.
+  The 12B's is `tachara-ai/decisio-gemma-4-12b-vision` (10 tensors, 100 MB) and the 31B's `tachara-ai/decisio-gemma-4-31b-vision` (356 tensors, 1.15 GB), both public; decisio reads each at the revision it pins and checks both files' sha256 before use.
+  - Where the server finds it: `--vision-weights PATH` (a folder holding both files, or the weights file with `vision_config.json` beside it; this works offline), otherwise the base's repository at the pinned revision, downloaded once into the Hugging Face cache.
+    A repository whose revision is not pinned in the release is never read: the server refuses to start and says to pass `--vision-weights`.
+  - How it is checked: decisio is pinned to the sha256 of both files, which is verified on every start; a file that differs is refused with both hashes.
+  - Offline with nothing cached, the server refuses to start and names `--vision-weights`.
+  - A conversion that already has the tensors (`google/gemma-4-12B-it`, `mlx-community/gemma-4-12B-it-6bit`) needs no add-on, and `--vision-weights` with one is refused.
+  - Nothing is added to a model repository's `decision_config.json`: the pin is in decisio.
+  - The merge copies no weight: the server builds a small directory of links to the conversion's files and the add-on and loads that.
+    The language weights stay as they are (quantised or not) and the vision tensors stay bf16.
+- Which repositories have the vision weights: `google/gemma-4-12B-it` and `mlx-community/gemma-4-12B-it-6bit` do; `tachara-ai/Decisio-12b-tuned-mlx-commit` and `-mlx8-commit` and `tachara-ai/decisio-gemma-4-31b-mlx-4bit` do not, and use the add-on.
+- Pictures are read with the model's bidirectional image blocks: the tokens of one picture see each other on the sliding-window layers, within the window, as the model was trained.
+  mlx-vlm's own call does not do this, so the engine calls the language model itself ([design/mlx-backend.md](design/mlx-backend.md#images)).
+  For the 12B, an image whose block is longer than the sliding window is refused at start (`--image-budget 1120`), as on vLLM; the 12B's default budget is 560.
+- The prefix cache keeps a state together with its pictures, so a later request with the same state and pictures reads from it.
+- The server sizes MLX's memory limit from the weights, the base's working set with images, the cache limit and the prefix cache, and refuses to start, with the numbers, when they do not fit.
+  The engine clears MLX's buffer cache after every request with pictures.
+- Box is not served on a Mac yet: a request for it is refused with a 400 that says so, and `/health` reports `images.box` as false.
+- The figures below are from one Apple silicon Mac with 64 GB, measured through the Mac server; no other Mac has been tried.
+
+Measured through the Mac server on one Apple silicon Mac with 64 GB, at budget 280 unless said:
+
+| | 12B, Google's bf16 checkpoint | tuned 12B, 6-bit MLX conversion with the add-on | 31B, 4-bit MLX build with the add-on |
+| --- | --- | --- | --- |
+| A square in each corner placed right (8 questions), at 280 and at 560 | 8 of 8 | 8 of 8 | 8 of 8 |
+| One picture and a short state at 560, median of 10 | 1.0 s (0.9 s of it the prefix, 653 tokens) | 1.1 s | 3.4 s (3.0 s the prefix) |
+| Process memory at 560 (MLX's peak), flat over the requests | 24.2 GB (23.0 GB) | 11.1 GB (9.9 GB) | 20.7 GB (20.3 GB) |
+
+- Without the image blocks' bidirectional attention a square in a top corner is read as "bottom".
+- **Against decisio on vLLM**, same prompt and request path, on noul and choice items with one picture:
+  - The 12B base, bf16 on both sides, 20 items: the probabilities differ by at most 0.024 (0.004 on average) and no answer changes.
+  - The two Mac builds above are other weights than the vLLM runs they were compared with, so they differ more, and the figures are as measured, on 60 held-out items:
+
+    | | |P(a) on Mac - P(a) on vLLM|: max, mean, median | answers flipped | right on the Mac and on vLLM |
+    | --- | --- | --- | --- |
+    | 31B, 4-bit MLX against the FP8 build served with vLLM | 0.23, 0.060, 0.041 | 0 | 55 and 55 |
+    | tuned 12B, 6-bit MLX against its bf16 merge | 0.060, 0.016, 0.010 (48 items; the 12 whose vLLM answer was committed are compared by side) | 0 | 57 and 57 |
+
+  - So an answer the Mac reads for the 31B differs from the FP8 build's by 0.06 on average, because it is the 4-bit build and not the FP8 weights, and the tuned 12B's by 0.02, because it is the 6-bit conversion and not bf16.
+    Where a probability is near a half, a quantised build can land on the other side: one item of the tuned 12B read 0.44 on the Mac and 0.5 to 0.8 on vLLM.
+  - A tuned repository's yes/no commit rule (`--noul-commit`) reports a probability between 0.20 and 0.80 as exactly 0.80 or 0.20 by its side of a half, which turns that kind of near-tie into a 0.6 gap; the tuned figures above were read with the rule off on the Mac.
+- The process's memory stays flat over the requests (the first and the last request differ by under 0.2 GB).
 
 The Gemma 31B base (`--base gemma-4-31b`):
 - The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the default, on a 64 GB Mac. The 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` (group size 32, 19.2 GB of weights) is for Macs with 48 GB of memory; its figures are below. `--revision v0.15.0` names the repository's tag of the build that was measured, so a later change to its main does not change what you serve (decisio 0.15.1 or later; before it, `--revision` was ignored for the download). The 8-bit one is not measured.
