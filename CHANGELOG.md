@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.48.0](https://github.com/aminry/decisio/compare/v0.47.0...v0.48.0) (2026-11-15)
+
+
+### Features
+
+* **hub:** GGUF files for llama.cpp's and Ollama's decision route (python -m decisio.hub_gguf) ([#461](https://github.com/aminry/decisio/issues/461)) ([9185ff4](https://github.com/aminry/decisio/commit/9185ff42982ee509d67d7645440b1d3359589ec7))
+* **serve:** images on a Mac (--backend mlx --images on) ([#450](https://github.com/aminry/decisio/issues/450)) ([6ced186](https://github.com/aminry/decisio/commit/6ced186d0ed04c55a19316781120262c06192746))
+
+
+### Bug Fixes
+
+* **hub:** write the systemone template without \x escapes, so Ollama 0.40.4's llama.cpp loads it ([#463](https://github.com/aminry/decisio/issues/463)) ([0b8680f](https://github.com/aminry/decisio/commit/0b8680fa1c4be5eea1cf323c8aa013c07b56312d))
+
 ## [0.47.0](https://github.com/aminry/decisio/compare/v0.46.0...v0.47.0) (2026-11-15)
 
 
