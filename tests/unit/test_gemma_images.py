@@ -687,3 +687,24 @@ def test_g13_a_square_in_each_corner_is_placed():
             if probs[1][["left", "right"].index(horizontal)] < 0.5:
                 wrong.append((vertical, horizontal, "horizontal", probs[1].tolist()))
     assert not wrong, wrong
+
+
+@pytest.mark.parametrize("kind", ["unified", "tower"])
+def test_warm_images_reads_a_picture_through_the_served_path(kind):
+    """The warm-up a server runs at start goes through the same request path as a served picture (a fresh tag, a mark,
+    the image at its place): it reads without error on both Gemma layouts."""
+    engine = make_engine(kind=kind)
+    engine.warm_images(rounds=1)
+
+
+def test_the_vllm_image_engine_warms_its_pictures_at_start(monkeypatch):
+    """The vLLM engine's start calls the shared warm-up (the one the stand-in test runs), after its image setup."""
+    from decisio.serve import gemma_images
+    from decisio.serve.vllm_engine import LettersEngine
+
+    calls = []
+    monkeypatch.setattr(LettersEngine, "__init__", lambda self, model, engine_kw=None, **kw: calls.append("engine"))
+    monkeypatch.setattr(gemma_images.GemmaImageRequests, "_image_setup", lambda self, b, m: calls.append("setup"))
+    monkeypatch.setattr(gemma_images.GemmaImageRequests, "warm_images", lambda self, rounds=2: calls.append("warm"))
+    gemma_images.GemmaImageLettersEngine(GEMMA4.model, family=GEMMA4)
+    assert calls == ["engine", "setup", "warm"]

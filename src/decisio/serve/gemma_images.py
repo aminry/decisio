@@ -161,6 +161,21 @@ class GemmaImageRequests:
                 rows = [(pad_prompt(ids, n, k, nl[0], "between", head), lab) for ids, lab in rows]
         return rows, n + k, n_exp + k, state_found, row_found, counts, end
 
+    def warm_images(self, rounds: int = 2):
+        """Read one blank picture `rounds` times, through the same request path as a served one (a fresh tag, a mark,
+        the image at its place), so the multimodal path is compiled before the first request arrives."""
+        from PIL import Image
+
+        blank = Image.new("RGB", (512, 512), (128, 128, 128))
+        tag = marks.new_tag()
+        for _ in range(rounds):
+            self.answer(
+                f"{marks.mark(1, tag)} Warm-up.",
+                [{"kind": "noul", "instructions": "Is this a warm-up request?"}],
+                images=[blank],
+                tag=tag,
+            )
+
     def answer(self, state, questions, adapter=None, images=None, tag=None):
         if not images:
             return super().answer(state, questions, adapter)
@@ -395,15 +410,7 @@ class GemmaImageLettersEngine(GemmaImageRequests, LettersEngine):
         LettersEngine.__init__(self, model, engine_kw=engine_kw, **kw)
         self._image_setup(image_budget, max_images)
         # the multimodal path compiles on its first picture: warm it as the text path is
-        from PIL import Image
-
-        blank = Image.new("RGB", (512, 512), (128, 128, 128))
-        for _ in range(2):
-            self.answer(
-                f"{marks.mark(1)} Warm-up.",
-                [{"kind": "noul", "instructions": "Is this a warm-up request?"}],
-                images=[blank],
-            )
+        self.warm_images()
 
     def facts(self):
         return {**super().facts(), "images": self.image_facts()}
