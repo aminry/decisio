@@ -10,7 +10,9 @@ G2  under nimble the header lists every question of the request, as decisio's do
 G3  past 68 options the prompt differs only in its label codes (llama.cpp's own, read consistently)
 G4  the keys: type, template and temperatures for a base; a tuned repository's temperatures and choice bands, mapped
     to llama.cpp's buckets with a note where two bands share one; the commit rule, thinking and the Qwen prompt refused
-G5  write_gguf adds the keys to a copy whose tensors are byte for byte the source's, and check reads them back
+G5  write_gguf adds the keys to a copy whose tensors are byte for byte the source's, keeps the source's other named
+    chat templates and their list (adding systemone), and check reads them back; it refuses to write over its input
+    (the same path, a symlink or a hard link) and values that are neither str nor float
 
   uv run pytest -q tests/unit/test_hub_gguf.py      (downloads the Gemma tokenizer once)
 """
@@ -229,27 +231,77 @@ def test_g4_refuses_the_qwen_prompt(gemma):
         hg.systemone_template(gemma, hg.settings_of_base(QWEN))
 
 
-def test_g5_write_and_check_round_trip(tmp_path, gemma, settings):
-    gguf = pytest.importorskip("gguf")
-    src, dst = tmp_path / "src.gguf", tmp_path / "dst.gguf"
-    w = gguf.GGUFWriter(str(src), arch="gemma4")
+def tiny_gguf(gguf, path, templates=True):
+    """A small GGUF with a decision key to replace and, optionally, a named chat template (tool_use) of its own."""
+    w = gguf.GGUFWriter(str(path), arch="gemma4")
     w.add_string("general.name", "tiny")
     w.add_uint32("gemma4.context_length", 8192)
     w.add_string("gemma4.decision.type", "nimble")  # replaced, not kept twice
+    if templates:
+        w.add_string("tokenizer.chat_template", "{{ default }}")
+        w.add_string("tokenizer.chat_template.tool_use", "{{ tools }}")
+        w.add_array("tokenizer.chat_templates", ["tool_use"])
     weights = np.arange(12, dtype=np.float32).reshape(3, 4)
     w.add_tensor("token_embd.weight", weights)
     w.write_header_to_file()
     w.write_kv_data_to_file()
     w.write_tensors_to_file()
     w.close()
+    return weights
+
+
+def test_g5_write_and_check_round_trip(tmp_path, gemma, settings):
+    gguf = pytest.importorskip("gguf")
+    src, dst = tmp_path / "src.gguf", tmp_path / "dst.gguf"
+    weights = tiny_gguf(gguf, src)
     keys, _ = hg.decision_keys(gemma, settings)
     hg.write_gguf(str(src), str(dst), keys)
     arch, got = hg.read_keys(str(dst))
     assert arch == "gemma4" and not hg.compare_keys(got, keys)
     r = gguf.GGUFReader(str(dst))
+    names = [f.name for f in r.fields.values()]
     assert r.fields["general.name"].contents() == "tiny"
     assert r.fields["gemma4.context_length"].contents() == 8192
-    assert [f.name for f in r.fields.values()].count("gemma4.decision.type") == 1
+    assert names.count("gemma4.decision.type") == 1
     assert np.array_equal(np.asarray(r.tensors[0].data), weights)
+    # the source's other chat templates stay, and the list of names gains systemone once
+    assert r.fields["tokenizer.chat_template"].contents() == "{{ default }}"
+    assert r.fields["tokenizer.chat_template.tool_use"].contents() == "{{ tools }}"
+    assert r.fields["tokenizer.chat_templates"].contents() == ["tool_use", "systemone"]
+    again = tmp_path / "again.gguf"
+    hg.write_gguf(str(dst), str(again), keys)
+    assert gguf.GGUFReader(str(again)).fields["tokenizer.chat_templates"].contents() == ["tool_use", "systemone"]
+    # a source without named templates gets the list ["systemone"]
+    bare, out = tmp_path / "bare.gguf", tmp_path / "bare_out.gguf"
+    tiny_gguf(gguf, bare, templates=False)
+    hg.write_gguf(str(bare), str(out), keys)
+    assert gguf.GGUFReader(str(out)).fields["tokenizer.chat_templates"].contents() == ["systemone"]
     with pytest.raises(ValueError, match="every key"):
         hg.write_gguf(str(src), str(tmp_path / "x.gguf"), {"general.name": "other"})
+
+
+def test_g5_refuses_writing_in_place(tmp_path, gemma, settings):
+    gguf = pytest.importorskip("gguf")
+    src = tmp_path / "src.gguf"
+    tiny_gguf(gguf, src)
+    before = src.read_bytes()
+    keys, _ = hg.decision_keys(gemma, settings)
+    link = tmp_path / "link.gguf"
+    link.symlink_to(src)
+    for dst in (src, tmp_path / "." / "src.gguf", link):
+        with pytest.raises(ValueError, match="is the input file"):
+            hg.write_gguf(str(src), str(dst), keys)
+    hard = tmp_path / "hard.gguf"
+    hard.hardlink_to(src)
+    with pytest.raises(ValueError, match="is the input file"):
+        hg.write_gguf(str(src), str(hard), keys)
+    assert src.read_bytes() == before
+
+
+@pytest.mark.parametrize("value", [3, True, ["A", "B"], None])
+def test_g5_refuses_values_of_other_types(tmp_path, value):
+    gguf = pytest.importorskip("gguf")
+    src = tmp_path / "src.gguf"
+    tiny_gguf(gguf, src)
+    with pytest.raises(TypeError, match="str or a float"):
+        hg.write_gguf(str(src), str(tmp_path / "dst.gguf"), {"gemma4.decision.labels": value})

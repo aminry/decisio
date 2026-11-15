@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import string
 import sys
 from dataclasses import dataclass, field, replace
@@ -62,7 +63,9 @@ from decisio.serve.systemone import DEFAULT_INSTRUCTIONS
 
 TYPES = ("pplx-decider", "nimble")
 DEFAULT_TYPE = "pplx-decider"
-TEMPLATE_KEY = "tokenizer.chat_template.systemone"
+TEMPLATE_NAME = "systemone"
+TEMPLATE_KEY = f"tokenizer.chat_template.{TEMPLATE_NAME}"
+TEMPLATE_NAMES = "tokenizer.chat_templates"  # the names of a GGUF's named chat templates
 # llama.cpp's option-count buckets for a choice temperature (server-decision.cpp, get_temperature), smallest and largest
 BUCKETS = {"2": (2, 2), "3_5": (3, 5), "6_10": (6, 10), "11": (11, 255)}
 MARK = "\ue000"  # stands for the user turn while the chat template's wrapper is cut out
@@ -380,26 +383,41 @@ def _gguf():
 
 
 def write_gguf(src: str, dst: str, keys: dict) -> None:
-    """Copy `src` to `dst` with `keys` added; an existing decision key or systemone template is replaced."""
+    """Copy `src` to `dst` with `keys` added; an existing decision key or systemone template is replaced.
+
+    Every other key is kept, the other named chat templates (`tokenizer.chat_template.<name>`) among them, and the list
+    of names (`tokenizer.chat_templates`) keeps its names and gains "systemone". A value is a str (a GGUF string) or a
+    float (a GGUF float32); any other type is refused, so a key cannot be written in a type its reader does not expect.
+    `dst` must not be `src`: the reader maps `src` into memory while the writer truncates `dst`."""
     gguf = _gguf()
+    if os.path.realpath(src) == os.path.realpath(dst) or (os.path.exists(dst) and os.path.samefile(src, dst)):
+        raise ValueError(f"the output {dst} is the input file; write the copy to another path")
+    for k, v in keys.items():
+        if not isinstance(v, (str, float)):
+            raise TypeError(f"{k}: a value must be a str or a float, not {type(v).__name__}")
     r = gguf.GGUFReader(src)
     arch = r.fields["general.architecture"].contents()
     prefix = f"{arch}.decision."
     if any(not k.startswith(prefix) and k != TEMPLATE_KEY for k in keys):
         raise ValueError(f"every key must be {prefix}* or {TEMPLATE_KEY}")
+    names = list(r.fields[TEMPLATE_NAMES].contents()) if TEMPLATE_NAMES in r.fields else []
+    if TEMPLATE_KEY in keys and TEMPLATE_NAME not in names:
+        names.append(TEMPLATE_NAME)
     w = gguf.GGUFWriter(dst, arch=arch, endianess=r.endianess)
     for f in r.fields.values():
         if f.name == "general.architecture" or f.name.startswith("GGUF."):
             continue
-        if f.name.startswith(prefix) or f.name == TEMPLATE_KEY or f.name == "tokenizer.chat_templates":
+        if f.name.startswith(prefix) or f.name == TEMPLATE_KEY or f.name == TEMPLATE_NAMES:
             continue
         vt = f.types[0]
         w.add_key_value(f.name, f.contents(), vt, sub_type=f.types[-1] if vt == gguf.GGUFValueType.ARRAY else None)
+    if names:
+        w.add_array(TEMPLATE_NAMES, names)
     for k, v in keys.items():
         if isinstance(v, str):
             w.add_string(k, v)
         else:
-            w.add_float32(k, float(v))
+            w.add_float32(k, v)
     for t in r.tensors:
         w.add_tensor_info(t.name, t.data.shape, t.data.dtype, t.data.nbytes, t.tensor_type)
     w.write_header_to_file()
