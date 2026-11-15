@@ -2777,7 +2777,8 @@ def build_parser():
         help="the most images one request may carry: on the --image-model engine (default 128: 128 images of 512 by "
         "512 pixels fill the context, so for photos the context ends a request; lower it to save the multimodal "
         "profiling memory at start-up, raise it for smaller images), and with --images on (default 16; vLLM sizes its "
-        "start-up profile of the image path from it and from --image-budget, a cost not measured yet; on a Mac it "
+        "start-up profile of the image path from it and from --image-budget: on one 96 GB card, 128 images at 1120 "
+        "added at most 0.8 GB of GPU memory and 40 s of start-up against images off, EVAL_CARD.md 10.7; on a Mac it "
         "only bounds a request)",
     )
     ap.add_argument(
