@@ -176,25 +176,25 @@ The differences below are what each states or does, on TypeSafe's documentation 
 | A model that reads it | Gemma 4 12B, the tuned 12B and Gemma 4 31B, on your card | Jev 1.14 only; Box is refused on `jev-1.13.0` (400) |
 
 **Figures on the same items.**
-TypeSafe's Jev 1.14 answered {{FIG:ts.n}} requests drawn from the reporting half of the eval set of `EVAL_CARD.md` section 10, on 2026-11-14.
+TypeSafe's Jev 1.14 answered 150 requests drawn from the reporting half of the eval set of `EVAL_CARD.md` section 10, on 2026-11-14.
 It is a reference, on that many items: a single run, so the intervals are wide, and it was not retuned or repeated.
 
 | On the same items | n | TypeSafe Jev 1.14 | decisio, Gemma 4 12B | decisio, Gemma 4 31B |
 | --- | ---: | ---: | ---: | ---: |
-| S noul, accuracy | {{FIG:ts.n.S.noul}} | {{FIG:ts.S.noul.accuracy}} | {{FIG:tsc.b12.S.noul.accuracy}} | {{FIG:tsc.b31.S.noul.accuracy}} |
-| S choice, accuracy | {{FIG:ts.n.S.choice}} | {{FIG:ts.S.choice.accuracy}} | {{FIG:tsc.b12.S.choice.accuracy}} | {{FIG:tsc.b31.S.choice.accuracy}} |
-| S score, accuracy | {{FIG:ts.n.S.score}} | {{FIG:ts.S.score.accuracy}} | {{FIG:tsc.b12.S.score.accuracy}} | {{FIG:tsc.b31.S.score.accuracy}} |
-| R noul, accuracy | {{FIG:ts.n.R.noul}} | {{FIG:ts.R.noul.accuracy}} | {{FIG:tsc.b12.R.noul.accuracy}} | {{FIG:tsc.b31.R.noul.accuracy}} |
-| R choice, accuracy | {{FIG:ts.n.R.choice}} | {{FIG:ts.R.choice.accuracy}} | {{FIG:tsc.b12.R.choice.accuracy}} | {{FIG:tsc.b31.R.choice.accuracy}} |
-| S Box, mean IoU | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.mean_iou}} | {{FIG:tsc.b12.S.box.mean_iou}} | {{FIG:tsc.b31.S.box.mean_iou}} |
-| S Box, IoU >= 0.5 | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.iou50}} | {{FIG:tsc.b12.S.box.iou50}} | {{FIG:tsc.b31.S.box.iou50}} |
-| S Box, confidence ECE | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.conf_ece}} | {{FIG:tsc.b12.S.box.conf_ece}} | {{FIG:tsc.b31.S.box.conf_ece}} |
-| S Box, absent-target AUROC of `confidence` | {{FIG:ts.n.S.box}} | {{FIG:ts.S.box.absent_auroc}} | {{FIG:tsc.b12.S.box.absent_auroc}} | {{FIG:tsc.b31.S.box.absent_auroc}} |
-| R Box, mean IoU | {{FIG:ts.n.R.box}} | {{FIG:ts.R.box.mean_iou}} | {{FIG:tsc.b12.R.box.mean_iou}} | {{FIG:tsc.b31.R.box.mean_iou}} |
-| R Box, IoU >= 0.5 | {{FIG:ts.n.R.box}} | {{FIG:ts.R.box.iou50}} | {{FIG:tsc.b12.R.box.iou50}} | {{FIG:tsc.b31.R.box.iou50}} |
+| S noul, accuracy | 8 | 1.000 | 1.000 | 1.000 |
+| S choice, accuracy | 8 | 1.000 | 1.000 | 1.000 |
+| S score, accuracy | 7 | 1.000 | 0.857 | 1.000 |
+| R noul, accuracy | 15 | 0.867 | 0.800 | 0.867 |
+| R choice, accuracy | 15 | 0.867 | 0.800 | 0.800 |
+| S Box, mean IoU | 45 | 0.721 | 0.858 | 0.888 |
+| S Box, IoU >= 0.5 | 45 | 0.846 | 0.923 | 1.000 |
+| S Box, confidence ECE | 45 | 0.232 | 0.099 | 0.013 |
+| S Box, absent-target AUROC of `confidence` | 45 | 0.709 | 0.976 | 1.000 |
+| R Box, mean IoU | 45 | 0.768 | 0.814 | 0.804 |
+| R Box, IoU >= 0.5 | 45 | 0.844 | 0.867 | 0.844 |
 
 A Box row counts every item, those whose target is absent included; its IoU figures are over the items whose target is in the picture.
-decisio's columns are the models scored on exactly those items at budget {{FIG:decision.default_budget}}; the paired differences with intervals are in `EVAL_CARD.md` section 10.
+decisio's columns are the models scored on exactly those items at budget 280; the paired differences with intervals are in `EVAL_CARD.md` section 10.
 TypeSafe's hosted service changes between releases and its documentation calls images and Box not yet ready for production, so its figures describe 2026-11-14 only.
 
 ## 4. Summary
