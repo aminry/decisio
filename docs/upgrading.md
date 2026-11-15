@@ -8,7 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: the Qwen image route reads images at their places, and the old layout is deprecated
+## 0.47.0: the Qwen image route reads images at their places, and the old layout is deprecated
 
 ### What changed
 
@@ -34,7 +34,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 Answers of the Qwen image route can differ after the upgrade, because the prompt differs.
 If you rely on the earlier answers, start with `--image-prompt legacy` for now, and plan to move to the default before the flag is removed.
 
-## Unreleased: the 12B reads images at 560 soft tokens by default, and the 31B's image answers use a fitted temperature
+## 0.47.0: the 12B reads images at 560 soft tokens by default, and the 31B's image answers use a fitted temperature
 
 With `--images on` and no `--image-budget`, Gemma 4 12B (bf16, FP8 and any tuned 12B repository) now reads images at 560 soft tokens, where every base read them at 280.
 An image request costs about 1.8 times the tokens per image, and reads Boxes better.
