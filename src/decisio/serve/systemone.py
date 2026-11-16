@@ -35,6 +35,7 @@ import random
 import re
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -229,6 +230,14 @@ class SystemOneRequest(BaseModel):
     # would find by themselves, so that two tasks of one question with different contexts can both be served)
 
 
+# the note on every text request read under the header layout (x-decisio-note): its questions come before the state,
+# so a later request with other questions about the same state shares no cached prefix with it and reads it again
+HEADER_NOTE = (
+    "header layout: the questions are read before the state, so a later request with other questions about this "
+    'state reads the whole state again; send all questions about a state in one request, or "layout": "plain"'
+)
+# the states a header-layout counter remembers (state digest -> header digest), least recently seen out first
+HEADER_SEEN_MAX = 4096
 # the warning of a request whose state already starts with its task's context (x-decisio-warning)
 CONTEXT_TWICE = "state starts with the task's context; send only the varying part"
 # the refusal (422) of a request whose question has no task under its layout but a task with a context under the
@@ -941,6 +950,12 @@ class SystemOne:
         if task_store is not None:
             task_store.backend = task_backend
         self.task_report = task_report or {}
+        # header-layout reads (`note_header_read`): how many, and how many read a state again that an earlier request
+        # had read under another header (its cache could not serve it); /health systemone.header_layout
+        self._header_lock = threading.Lock()
+        self._header_seen: OrderedDict = OrderedDict()
+        self.header_reads = 0
+        self.header_rereads = 0
         if task_backend is not None and hasattr(task_backend, "applier"):
             task_backend.applier = TaskApplier(self)  # a shared store applies other replicas' tasks through this
         # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): registered by
@@ -1706,6 +1721,9 @@ class SystemOne:
             self.refuse_over_context(read, qs, engine, context)
         header_lines = hp["listed"] if hp is not None and hp["limited"] else None
         hl = hp["report"] if hp is not None and hp["limited"] else None
+        header_note = None
+        if not use_image and self.request_layout == "header" and (hl is None or hl["listed"] > 0):
+            header_note = HEADER_NOTE
         # a question of a certified task is scored by the function its certificate was made with (`served_rows`): one
         # question at a time, in request order, never batched with the request's other questions (docs/tasks.md)
         own = [
@@ -1757,6 +1775,8 @@ class SystemOne:
                     req.state, engine_qs, adapter, images=images, **({"tag": image_tag} if tagged else {})
                 )
             else:
+                if header_note:  # the header this engine call lists: its own questions, up to the header limit
+                    self.note_header_read(read, [q["instructions"] for q in engine_qs][:header_lines])
                 probs, info = engine.answer(read, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)
@@ -1976,6 +1996,7 @@ class SystemOne:
                 "layout": "plain" if hl is not None and hl["listed"] == 0 else self.request_layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
                 **({"warning": warning} if warning else {}),
+                **({"note": header_note} if header_note else {}),
                 # the mean prompt the engine computed or read per question, and how much of it the cache served, for the
                 # x-decisio-prompt header: over the request's engine call and a certified task's own reads
                 **prompt_figures([info, *task_reads]),
@@ -4017,6 +4038,32 @@ class SystemOne:
         """The layout of the user turn this server serves when a request names none (decisio.serve.layout)."""
         return getattr(lay.server_fmt(self.engine), "layout", "plain")
 
+    def note_header_read(self, state, lines) -> None:
+        """Count a text request read under the header layout, and whether its state was read before under another
+        header (an earlier request with other questions about it), which the prefix cache cannot serve. Answers do not
+        depend on it: a count for /health only."""
+        key = hashlib.blake2b(fmt_state(state).encode("utf-8"), digest_size=16).digest()
+        head = hashlib.blake2b("\n".join(str(x) for x in lines).encode("utf-8"), digest_size=16).digest()
+        with self._header_lock:
+            self.header_reads += 1
+            prev = self._header_seen.get(key)
+            if prev is not None and prev != head:
+                self.header_rereads += 1
+            self._header_seen[key] = head
+            self._header_seen.move_to_end(key)
+            while len(self._header_seen) > HEADER_SEEN_MAX:
+                self._header_seen.popitem(last=False)
+
+    def header_layout_facts(self) -> dict:
+        """/health systemone.header_layout."""
+        with self._header_lock:
+            return {
+                "reads": self.header_reads,
+                "state_rereads": self.header_rereads,
+                "states_remembered": len(self._header_seen),
+                "window": HEADER_SEEN_MAX,
+            }
+
     @property
     def request_layout(self) -> str:
         """The layout in effect: the one the request (or the registration) being served asked for, else the server's."""
@@ -4277,6 +4324,8 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if timing.get("warning"):  # the request was served as sent; something in it is likely a mistake
             headers[header("warning")] = timing["warning"]
+        if timing.get("note"):  # how the request was read, where that has a cost the client can avoid
+            headers[header("note")] = timing["note"]
         if images and systemone.legacy_images():  # the old layout: served as asked, and said to be going away
             headers["Deprecation"] = "true"
             headers["Warning"] = f'299 - "{systemone.LEGACY_WARNING}"'

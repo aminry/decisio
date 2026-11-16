@@ -8,6 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the header layout says when a later request reads a state again
+
+### What changed
+
+- **Every text request read under the header layout carries a new response header, `x-decisio-note`.**
+  Under the header layout the questions come before the state, so a later request with other questions about the same state reads the whole state again: the prefix cache cannot serve it.
+  The note says so, and names the two ways out: all the questions about a state in one request, or `"layout": "plain"`.
+- **`/health` has a new `systemone.header_layout`**: `reads`, `state_rereads`, `states_remembered` and `window`.
+  `state_rereads` counts the engine calls under the header layout whose state an earlier call had read under another header.
+- Answers, prompts, usage and certificates are unchanged.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| Clients that ask about one state one question at a time, under the header layout | each request read the whole state, with nothing said | the same, and every response carries `x-decisio-note` | send all the questions about a state in one request, or `"layout": "plain"` on those requests (`docs/running.md`, "A layout per request") |
+| Clients that read response headers or `/health` exactly | | `x-decisio-note` and `systemone.header_layout` are new | allow them |
+
 ## 0.47.0: the Qwen image route reads images at their places, and the old layout is deprecated
 
 ### What changed
