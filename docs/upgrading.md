@@ -275,8 +275,8 @@ How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
 | You run | What happens | What to do |
 | --- | --- | --- |
 | The 12B (bf16, FP8, a tuned repository, an adapter) with no `--batch-invariant` flag | The server starts with the mode off: answers shift once (last digits, and an occasional near-tie), long reads are faster, and `/health` says `batch_invariant` off | Nothing, or `--batch-invariant on` to keep 0.39.0 to 0.44.0's behaviour |
-| Certificates made on such a server with the mode on | The serving-stack fingerprint holds the mode only when on, so they are suspended (`serving_stack_changed`) | Certify them again, or start with `--batch-invariant on` |
-| Recorded answers (goldens, reference reads) made with the mode on | They will not match bit for bit | Record them again, or pin `--batch-invariant on` |
+| Certificates made on such a server with the mode on | The serving-stack fingerprint holds the mode only when on, so they are suspended (`serving_stack_changed`) | Certify them again |
+| Recorded answers (goldens, reference reads) made with the mode on | They will not match bit for bit | Record them again |
 | `--batch-invariant on`, or a repository with `defaults.batch_invariant: true` | Unchanged | Nothing |
 | The 31B, the Qwen base, the image route, packed mode | Unchanged (it was off) | Nothing |
 
