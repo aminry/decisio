@@ -46,7 +46,7 @@ from pydantic_core import PydanticCustomError
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.readout import box as boxmod
-from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state
+from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state, header_instructions
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
@@ -235,7 +235,13 @@ class SystemOneRequest(BaseModel):
 # so a later request with other questions about the same state shares no cached prefix with it and reads it again
 HEADER_NOTE = (
     "header layout: the questions are read before the state, so a later request with other questions about this "
-    'state reads the whole state again; send all questions about a state in one request, or "layout": "plain"'
+    "state reads the whole state again; send all questions about a state in one request, the same "
+    '"header_questions" on every request about it, or "layout": "plain"'
+)
+# the note on a request that declared its header (`"header_questions"`): the cache is shared, the accuracy unmeasured
+HEADER_DECLARED_NOTE = (
+    'header layout with "header_questions": every request about this state that sends the same list shares its '
+    "cached prefix; the accuracy of a header that lists questions the request does not ask is not measured yet"
 )
 # the states a header-layout counter remembers (state digest -> header digest), least recently seen out first
 HEADER_SEEN_MAX = 4096
@@ -1744,7 +1750,7 @@ class SystemOne:
         hl = hp["report"] if hp is not None and hp["limited"] else None
         header_note = None
         if not use_image and self.request_layout == "header" and (hl is None or hl["listed"] > 0):
-            header_note = HEADER_NOTE
+            header_note = HEADER_NOTE if declared is None else HEADER_DECLARED_NOTE
         # a question of a certified task is scored by the function its certificate was made with (`served_rows`): one
         # question at a time, in request order, never batched with the request's other questions (docs/tasks.md)
         own = [
@@ -1797,8 +1803,8 @@ class SystemOne:
                     req.state, engine_qs, adapter, images=images, **({"tag": image_tag} if tagged else {})
                 )
             else:
-                if header_note:  # the header this engine call lists: its own questions, up to the header limit
-                    self.note_header_read(read, [q["instructions"] for q in engine_qs][:header_lines])
+                if header_note:  # the header this engine call lists: its own or declared lines, up to the header limit
+                    self.note_header_read(read, header_instructions(engine_qs)[:header_lines])
                 probs, info = engine.answer(read, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)

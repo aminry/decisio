@@ -32,7 +32,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 - **Every text request read under the header layout carries a new response header, `x-decisio-note`.**
   Under the header layout the questions come before the state, so a later request with other questions about the same state reads the whole state again: the prefix cache cannot serve it.
-  The note says so, and names the two ways out: all the questions about a state in one request, or `"layout": "plain"`.
+  The note says so, and names the ways out: all the questions about a state in one request, the same `header_questions` on every request about it (above), or `"layout": "plain"`.
+  A request that sends `header_questions` gets another note: the cache is shared, and the accuracy of a header that lists questions the request does not ask is not measured yet.
 - **`/health` has a new `systemone.header_layout`**: `reads`, `state_rereads`, `states_remembered` and `window`.
   `state_rereads` counts the engine calls under the header layout whose state an earlier call had read under another header.
 - Answers, prompts, usage and certificates are unchanged.

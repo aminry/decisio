@@ -132,7 +132,7 @@
                 }
               },
               "x-decisio-note": {
-                "description": "How the request was read, where that has a cost a client can avoid. On every text request read under the header layout: a later request with other questions about the same state reads the whole state again, so send all the questions about a state in one request, or `\"layout\": \"plain\"`.",
+                "description": "How the request was read, where that has a cost a client can avoid or a limit to know. On every text request read under the header layout: a later request with other questions about the same state reads the whole state again, so send all the questions about a state in one request, the same `header_questions` on every request about it, or `\"layout\": \"plain\"`. With `header_questions`: the cache is shared, and the accuracy of a header that lists questions the request does not ask is not measured yet.",
                 "schema": {
                   "type": "string"
                 }

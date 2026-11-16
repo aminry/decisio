@@ -62,7 +62,7 @@ A request of either layout is built token for token as a server started with tha
   A server in `--mode packed` reads the plain layout only, so `"header"` is 422 there.
 - The two layouts share no cached prefix for a state: a client that alternates them reads the state again on each change ([running.md](running.md#the-header-layout---layout)).
 - **Under the header layout, a separate request about a state that an earlier request already read reads the whole state again** when it asks other questions, because the questions come before the state.
-  Send all the questions about a state in one request, or `"layout": "plain"` on requests that ask about one state one question at a time.
+  Send all the questions about a state in one request, the same `header_questions` on every request about it (below), or `"layout": "plain"` on requests that ask about one state one question at a time.
   Every text request read under the header layout carries `x-decisio-note` saying so, and `/health` counts such re-reads (`systemone.header_layout`, below).
 
 `POST /v1/answer` takes `layout` too, and reports the layout its rows were built under in `timing.layout`.
@@ -292,7 +292,9 @@ Response headers:
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
 - `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part` ([tasks.md](tasks.md#task-context)); absent otherwise.
-- `x-decisio-note`: how the request was read, where that has a cost a client can avoid. On every text request read under the header layout it is `header layout: the questions are read before the state, so a later request with other questions about this state reads the whole state again; send all questions about a state in one request, or "layout": "plain"` ([running.md](running.md#the-header-layout---layout)); absent otherwise. It never changes the answers.
+- `x-decisio-note`: how the request was read, where that has a cost a client can avoid or a limit to know; absent otherwise. It never changes the answers.
+  - On a text request read under the header layout: `header layout: the questions are read before the state, so a later request with other questions about this state reads the whole state again; send all questions about a state in one request, the same "header_questions" on every request about it, or "layout": "plain"` ([running.md](running.md#the-header-layout---layout)).
+  - On one that sends `header_questions`: `header layout with "header_questions": every request about this state that sends the same list shares its cached prefix; the accuracy of a header that lists questions the request does not ask is not measured yet` ([running.md](running.md#a-question-list-for-the-header-header_questions)).
 - `x-decisio-adapter`: the adapter that answered, when one did.
 - `x-decisio-think-ms`, `x-decisio-think-tokens`: the milliseconds spent on reasoning and the second reads, and the reasoning tokens generated, when thinking was on for the request.
 - `x-decisio-state-truncated`: `kept=N; of=M; part=start`, when the state was cut (`over_limit`, above); absent otherwise.
