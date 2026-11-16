@@ -50,6 +50,7 @@ from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
+from decisio.serve import header_questions as hq
 from decisio.serve import image_marks as marks
 from decisio.serve import layout as lay
 from decisio.serve import over_limit as over
@@ -1341,7 +1342,7 @@ class SystemOne:
         engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
         decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves. A task's
         `context` is never cut: it counts with the question, and the state takes what both leave."""
-        from decisio.readout.letters import DEFAULT_FORMAT, layout_header
+        from decisio.readout.letters import DEFAULT_FORMAT, header_instructions, layout_header
         from decisio.serve.vllm_engine import question_text, user_turn
 
         limit = getattr(engine, "prompt_limit", lambda: None)()
@@ -1358,7 +1359,7 @@ class SystemOne:
         # (with the header limit on, the header gives way before the state does: the state is cut for the plain row)
         limited = hasattr(engine, "header_plan") and getattr(engine, "header_limit_setting", ("auto", None))[0] != "off"
         keep_header = fmt.layout == "header" and not limited
-        head = layout_header([q["instructions"] for q in qs]) if keep_header else ""
+        head = layout_header(header_instructions(qs)) if keep_header else ""
         head += f"{context}{CONTEXT_SEP}" if context else ""
         overhead = max(len(enc(user_turn(tok, f"{head}\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
         try:
@@ -1403,6 +1404,12 @@ class SystemOne:
             raise lay.LayoutRefused(
                 "the image route builds its own prompt (the images, then the state and the question) and has no "
                 'layout: send the request without "layout"'
+            )
+        declared = hq.parse((req.model_extra or {}).get(hq.FIELD))
+        if declared is not None and (images or route == "image"):
+            raise lay.LayoutRefused(
+                "a request with images names each question's image in its own part of the prompt and lists no "
+                f'declared header: send the request without "{hq.FIELD}"'
             )
         with lay.using(layout if layout is not None else self.request_layout):
             return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag)
@@ -1670,6 +1677,20 @@ class SystemOne:
                 raise ValueError("the abstain option is served with one order only")
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
+        # a declared question list (decisio.serve.header_questions): every question of the request is in it; under the
+        # header layout the engine's header lists it, whole, in place of the request's own lines
+        declared = hq.parse((req.model_extra or {}).get(hq.FIELD))
+        if declared is not None:
+            hq.check(
+                declared,
+                [
+                    (n, [render_text(w.instructions).strip() or DEFAULT_INSTRUCTIONS[w.type], q["instructions"]])
+                    for n, w, q in zip(names, wire, qs)
+                ],
+            )
+            if self.request_layout != "header":
+                declared = None  # the plain layout lists no questions: no effect
+        qs = hq.stamp(qs, declared)
         task_id = (req.model_extra or {}).get("task")
         if task_id is not None and no_tasks:
             raise TaskSelectionError('"task": a request with images applies no registered task')
@@ -1768,6 +1789,7 @@ class SystemOne:
                 q2, perm = second_order(names[i], *mapped[i])
                 plan[i] = (len(engine_qs), perm)
                 engine_qs.append(q2)
+        engine_qs = hq.stamp(engine_qs, declared)
         probs, info = [], {}
         if engine_qs:
             if images:
@@ -4586,7 +4608,14 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, str(e))
 
     def example_layout(payload, where: str, task_layout: str) -> None:
-        """An example's request may carry a `layout`, as a served request does: it must be the task's."""
+        """An example's request may carry a `layout`, as a served request does: it must be the task's. It may not carry
+        a `header_questions`: a task is fitted on the example's own one-question header."""
+        if payload.get(hq.FIELD) is not None:
+            raise HTTPException(
+                422,
+                f'{where}: "{hq.FIELD}" is not read in a registration example: a task is fitted on one question at a '
+                "time, with its own header",
+            )
         try:
             given = lay.request_value(payload.get("layout"), f'{where}: "layout"')
         except lay.LayoutRefused as e:

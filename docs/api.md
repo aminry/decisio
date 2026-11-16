@@ -67,6 +67,26 @@ A request of either layout is built token for token as a server started with tha
 
 `POST /v1/answer` takes `layout` too, and reports the layout its rows were built under in `timing.layout`.
 
+**`header_questions` (optional, decisio's extension).** A list of strings: every question the client will ask about this state, each as its instructions as it sends them.
+Use it when the client asks one question at a time about one state, in separate requests, under the header layout ([running.md](running.md#a-question-list-for-the-header-header_questions)).
+Without it each request lists only its own questions in the header, so a second request about the state has another header, shares no cached prefix and reads the whole state again.
+With it every request that sends the same list has the same header, the same prefix, and the cache serves the state after the first request.
+The question asked is still read after the state, as ever.
+- **Under the header layout** the header lists exactly the declared lines, in the declared order, on every row of the request, in place of the request's own questions.
+  The same request gives the same rows whatever was asked before it.
+- **Under the plain layout** the field is checked and has no effect, so one client request works under both layouts.
+- **The rules, each a 422 that names the line:** the list is not empty; every item is a string with some text in it; no line repeats (compared with the spaces at its ends removed, which is also how a line is listed); every question of the request has its instructions in the list.
+  A question's line is its `instructions` as sent, or, for a yes/no question with `criteria`, the instructions followed by the lines for the criteria, as the header lists them.
+  An absent `instructions` is listed as the server's default line for the question type.
+- **A declared header is never cut.** If the header the list makes does not fit the server's prompt limit beside the state and the question (or is over a `--header-limit TOKENS` cap), the request is 422 and says so; the header limit drops lines of a header the request did not declare, which would give two requests of one list different headers.
+  Declare fewer or shorter lines, or send the requests without the field.
+- **A registered task** is fitted on one question at a time, with a header of that one question; a request with a declared list reads a longer header than the one the task was fitted on, the same as a request with several questions does ([running.md](running.md#the-header-layout---layout)).
+  A question of a certified task is still scored by the certificate's own read, which lists its own question only.
+- **A registration example** (`POST /v1/tasks`, `POST /v1/abstention/tasks`) refuses the field with 422.
+- **A request with images** refuses the field with 422.
+- `usage.input_tokens` counts the declared header.
+- `POST /v1/answer` takes `header_questions` too, with the same rules (its questions' `instructions` are the lines).
+
 **A header over the context.** Under the header layout a request whose rows would be over the context because the header lists many long instructions is answered with a header that lists only the first questions that fit (none: the plain layout's row), unless the server was started with `--header-limit off` (then it is a 422 that says where the tokens are). The response then carries `"header_limited": {"layout": "header" | "plain", "listed": K, "of": N, "header_tokens": T, "of_header_tokens": W, "row_limit": L, "allowed_tokens": A, "reason": "context" | "cap"}` and the header `x-decisio-layout`; both are absent when the whole header was listed. A question of a certified task in such a request carries `certified: false` with `certified_reason: "header_limited"` ([running.md](running.md#a-header-over-the-context---header-limit)).
 
 **`over_limit` (optional, decisio's extension).** What to do with a state that makes a row longer than the engine's prompt ceiling (the served context less the one generated token): `"refuse"` or `"truncate"`; absent or `null`, the server's setting (`--over-limit`, or a tuned repository's `defaults.over_limit`; refuse unless one of them says otherwise). A refused request is answered 422, as the engine says. With `"truncate"` the state, never a question, is cut once to its start, so that the longest question of the request still fits, and the request is answered from what was kept. The response then carries `"state_truncated": {"kept_tokens": N, "of_tokens": M, "part": "start", "limit": L}` (the state's tokens kept and in all, and the ceiling) and the header `x-decisio-state-truncated`; both are absent when the whole state was read. **No answer of a truncated state is certified**: a question of a certified task carries `certified: false` with `certified_reason: "state_truncated"`, and the traffic monitor does not count it. A request whose questions alone are over the ceiling is answered 422 whatever the setting; a value other than the two is 422. The MLX and HF builds answer within `--max-model-len` (32,768 unless set), less the one generated token; `--over-limit-tokens` moves the ceiling. Image requests are not cut.

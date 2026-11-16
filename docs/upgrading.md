@@ -8,6 +8,23 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: `header_questions` keeps the header's cache across requests
+
+### What changed
+
+- **A request may declare every question the client will ask about its state** (`"header_questions": ["<instructions>", ...]` on `/v1/systemone` and `/v1/answer`).
+  Under the header layout the header then lists exactly the declared lines, in the declared order, on every row of the request.
+  A client that asks one question at a time about one state, in separate requests, and sends the same list each time, gets the same header and the same prefix on every request, so the cache serves the state after the first one.
+  Before, each request listed only its own question, and every request after the first read the whole state again (on the 12B on a Mac, 3,470 to 3,752 ms for a follow-up, against 195 ms under the plain layout).
+- Under the plain layout the field is checked and has no effect.
+- A list that is empty, has a non-string, an empty line or a repeated line, leaves out a question of the request, or makes a header that does not fit the context is 422 naming the line; a declared header is never cut by the header limit.
+  A registration example and a request with images refuse the field.
+
+### What to do
+
+- Nothing, for a deployment whose clients do not send the field: a request without it is built exactly as before.
+- A client that asks questions one at a time about one state under the header layout can declare them (`docs/running.md`, "A question list for the header") instead of switching to `"layout": "plain"`, and keep the header's gain.
+
 ## Unreleased: the header layout says when a later request reads a state again
 
 ### What changed

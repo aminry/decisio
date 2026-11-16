@@ -2707,6 +2707,18 @@
               }
             ],
             "title": "Task"
+          },
+          "header_questions": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header Questions"
           }
         },
         "type": "object",

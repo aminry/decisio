@@ -62,6 +62,7 @@ import numpy as np
 
 from decisio.readout.letters import (  # noqa: E402
     CONTEXT_SEP,
+    DECLARED_KEY,
     DEFAULT_FORMAT,
     LETTERS_INSTRUCTION,
     QUESTIONS_HEAD,
@@ -70,6 +71,7 @@ from decisio.readout.letters import (  # noqa: E402
     allowed_ids,
     chat_turn,
     fmt_state,
+    header_instructions,
     is_grouped,
     label_groups,
     label_logprobs,
@@ -94,6 +96,7 @@ from decisio.serve import (  # noqa: E402
     compile_pin,
     engine_stream,
     header_limit,
+    header_questions,
     layout,
     precision_casts,
     task_backends,
@@ -314,7 +317,7 @@ def counted_tokens(tok, fmt, state, questions, header_lines=None) -> dict:
     enc = lambda text: len(tok.encode(text, add_special_tokens=False))  # noqa: E731
     head = 0
     if fmt.layout == "header" and header_lines != 0:
-        head = enc(layout_header([q["instructions"] for q in questions][:header_lines]))
+        head = enc(layout_header(header_instructions(questions)[:header_lines]))
     state_n = enc(fmt_state(state))
     asked = [enc(question_text(tok, q, fmt)[0]) for q in questions]
     return {"header": head, "state": state_n, "asked": asked, "total": head + state_n + sum(asked)}
@@ -857,7 +860,7 @@ class LettersEngine:
         listed = hp["listed"] if hp and hp["limited"] else None
         header = ""
         if self.fmt.layout == "header" and listed != 0:
-            header = layout_header([q["instructions"] for q in questions][:listed])
+            header = layout_header(header_instructions(questions)[:listed])
         head = LettersEngine._template_head(self) + header + context
         ids = LettersEngine._prefix_ids(self, head + CONTEXT_SEP)
         if len(ids) > n or rows[0][0][: len(ids)] != ids:
@@ -932,6 +935,21 @@ class LettersEngine:
         return rows, n, plan
 
     def header_plan(self, state, questions) -> dict | None:
+        """`_header_plan` for the request; a request that declared its header (`"header_questions"`) is never given a
+        cut one: the header it declared is read whole or the request is refused (an `OverLimit`, a 422), because every
+        request about the state must read the same header for the cache to serve the state."""
+        hp = LettersEngine._header_plan(self, state, questions)
+        if hp is not None and hp["limited"] and any(q.get(DECLARED_KEY) is not None for q in questions):
+            what = f"{hp['of']} lines and {hp['pieces']['header']:,} tokens"
+            raise over.OverLimit(
+                f'"header_questions": the declared header ({what}) does not fit the {hp["limit"]:,} tokens the server '
+                f"answers beside this state and question ({hp['report']['reason']}); a declared header is never cut. "
+                "Declare fewer or shorter lines, send a shorter state, or send the requests without "
+                '"header_questions"'
+            )
+        return hp
+
+    def _header_plan(self, state, questions) -> dict | None:
         """What the header limit does to this request, or None where it does not apply (not the header layout, the
         limit off with nothing over, an engine with no prompt ceiling): {"limited": bool, "listed": k lines of the
         questions' instructions, "of": n, "report": the header_limit report (None unless limited), "fits": whether the
@@ -943,7 +961,7 @@ class LettersEngine:
         if fmt.layout != "header" or limit is None:
             return None
         mode, cap = getattr(self, "header_limit_setting", (header_limit.AUTO, None))
-        instructions = [q["instructions"] for q in questions]
+        instructions = header_instructions(questions)
         body = fmt_state(state)
         texts = [question_text(self.tok, q, fmt)[0] for q in questions]
         reserve = int(getattr(self, "pad_unit", 0) or 0)
@@ -1043,7 +1061,7 @@ class LettersEngine:
         enc = lambda s: self.tok.encode(s, add_special_tokens=False)  # noqa: E731
         body = fmt_state(state)
         if self.fmt.layout == "header" and header_lines != 0:
-            body = layout_header([q["instructions"] for q in questions][:header_lines]) + body
+            body = layout_header(header_instructions(questions)[:header_lines]) + body
         tail = self._template_tail()
         texts = [question_text(self.tok, q, self.fmt) for q in questions]
         suffixes = [enc(text + tail) for text, _, _ in texts]
@@ -1637,6 +1655,9 @@ def make_app(engine, systemone=None, health=None):
         layout: Literal["plain", "header"] | None = None
         # refused when given: this route reads the engine's own rows and applies no registered task (/v1/systemone does)
         task: str | None = None
+        # the questions the client will ask about this state, listed whole in the header under the header layout
+        # (decisio.serve.header_questions); no effect under the plain layout
+        header_questions: list | None = None
 
     app = FastAPI(title="letters readout")
     from decisio.serve.body_limit import BodyLimit
@@ -1787,8 +1808,15 @@ def make_app(engine, systemone=None, health=None):
         if req.adapter and req.adapter not in engine.adapters:
             raise HTTPException(404, f"unknown adapter {req.adapter!r}; loaded: {sorted(engine.adapters)}")
         try:
+            declared = header_questions.parse(req.header_questions)
+            questions = req.questions
+            if declared is not None:
+                asked = [(f"questions[{i}]", [str(q["instructions"]).strip()]) for i, q in enumerate(questions)]
+                header_questions.check(declared, asked)
             with layout.using(req.layout):
-                probs, info = engine.answer(req.state, req.questions, req.adapter)
+                if declared is not None and getattr(engine, "fmt", DEFAULT_FORMAT).layout == "header":
+                    questions = header_questions.stamp(questions, declared)
+                probs, info = engine.answer(req.state, questions, req.adapter)
                 used = getattr(engine, "fmt", DEFAULT_FORMAT).layout
         except (layout.LayoutRefused, over.OverLimit) as e:
             raise HTTPException(422, str(e))
