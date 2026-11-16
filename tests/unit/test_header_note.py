@@ -6,6 +6,8 @@ N1  a text request read under the header layout carries x-decisio-note; its answ
 N2  a request read as plain carries no note and is not counted: the plain layout, "layout": "plain", a header of 0 lines
 N3  /health systemone.header_layout counts the reads and the reads of a state an earlier request read under another
     header; the same header again (the same questions, or one request with all of them) is not a re-read
+N5  a request that declares its header (`header_questions`): its own note, and other questions under one list are not
+    re-reads
 N4  the counter remembers a bounded number of states, the least recently seen out first; it never changes an answer
 
   uv run pytest -q tests/unit/test_header_note.py
@@ -17,7 +19,7 @@ from test_header_limit import HeaderEngine, post_many
 from test_over_limit import plain_rows  # noqa: F401  (the fixture applies to this module)
 
 from decisio.serve import systemone as so_mod
-from decisio.serve.systemone import HEADER_NOTE, SystemOne
+from decisio.serve.systemone import HEADER_DECLARED_NOTE, HEADER_NOTE, SystemOne
 from decisio.serve.tasks import TaskStore
 from decisio.serve.vllm_engine import make_app
 
@@ -137,3 +139,26 @@ def test_n4_the_window_is_bounded_least_recently_seen_out_first(monkeypatch):
     assert so.header_layout_facts()["state_rereads"] == 0
     so.note_header_read(states[2], ["Is it urgent?"])  # still remembered
     assert so.header_layout_facts()["state_rereads"] == 1
+
+
+# ---- N5 -------------------------------------------------------------------------------------------------------------
+
+
+def test_n5_a_declared_header_has_its_own_note_and_no_rereads():
+    client, _, _ = make()
+    lines = ["Which queue?", "Is it urgent?", "Which team?"]
+    r = ask(client, "Which queue?", header_questions=lines)
+    assert r.status_code == 200, r.text
+    assert r.headers[NOTE] == HEADER_DECLARED_NOTE and "not measured yet" in HEADER_DECLARED_NOTE
+    assert '"header_questions"' in HEADER_NOTE
+    ask(client, "Is it urgent?", header_questions=lines)
+    ask(client, "Which team?", header_questions=lines)
+    assert facts(client)["reads"] == 3 and facts(client)["state_rereads"] == 0
+    ask(client, "Which team?")  # without the list: another header
+    assert facts(client)["state_rereads"] == 1
+
+
+def test_n5_plain_with_a_declared_list_has_no_note():
+    client, _, _ = make()
+    r = ask(client, "Which queue?", layout="plain", header_questions=["Which queue?"])
+    assert r.status_code == 200 and NOTE not in r.headers and facts(client)["reads"] == 0

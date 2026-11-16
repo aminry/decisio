@@ -336,9 +336,11 @@ RESPONSE_HEADERS = {
     "x-decisio-route": "The route that served it: `text` or `image`.",
     "x-decisio-tasks": "The registered tasks applied, when any were.",
     "x-decisio-warning": "Something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part`.",
-    "x-decisio-note": "How the request was read, where that has a cost a client can avoid. On every text request read "
-    "under the header layout: a later request with other questions about the same state reads the whole state again, "
-    'so send all the questions about a state in one request, or `"layout": "plain"`.',
+    "x-decisio-note": "How the request was read, where that has a cost a client can avoid or a limit to know. On every "
+    "text request read under the header layout: a later request with other questions about the same state reads the "
+    "whole state again, so send all the questions about a state in one request, the same `header_questions` on every "
+    'request about it, or `"layout": "plain"`. With `header_questions`: the cache is shared, and the accuracy of a '
+    "header that lists questions the request does not ask is not measured yet.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
     "x-decisio-think-ms": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
     "x-decisio-think-tokens": "The reasoning tokens generated, when thinking was on for the request.",

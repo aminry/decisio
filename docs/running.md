@@ -251,14 +251,14 @@ uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-d
 3. Otherwise the base's default: header for the Gemma bases, plain for Qwen.
 4. **A default of header is held at plain while tasks fitted under plain apply to the server**: calibration or head tasks (their fingerprint equals this server's with the plain layout) or abstention tasks (a record with no `layout` was fitted under plain), from a directory, a shared store or a file. A task applies to the requests of the layout it was fitted under, and with the header as the default the requests that name no layout would stop being answered by it, which changes their answers. The start says `LAYOUT plain (held at plain; this base's default is header): ...`. Requests may ask for the header meanwhile (`"layout": "header"`). To make the header the default, register the tasks again under it (`"layout": "header"` in the registration; export them first if you want the records) and start with `--layout header`; to pin the old behaviour, `--layout plain`. A bare base, a new deployment or a board run, with nothing stored, gets the header.
 
-- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A client that sends one state with a series of different questions (an agent, a game, a teach-it loop) pays for it: on the 31B a later question about a 3,000-token state costs 485 ms instead of 41 ms, at 16,000 tokens 3,370 ms instead of 94 (the table under "First-question latency by state length"). **Such a client wants the plain layout**: `"layout": "plain"` on its requests ([below](#a-layout-per-request-layout)), or `--layout plain` for the whole server. A workload that asks the same questions of many states, or one question per state, loses nothing. Every response says what its prompt cost: `x-decisio-prompt: layout=header; tokens=<mean prompt tokens per question>; cached=<mean tokens the cache served>`. `usage.input_tokens` counts the header too (what is read).
+- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A client that sends one state with a series of different questions (an agent, a game, a teach-it loop) pays for it: on the 31B a later question about a 3,000-token state costs 485 ms instead of 41 ms, at 16,000 tokens 3,370 ms instead of 94 (the table under "First-question latency by state length"). **Such a client wants the plain layout**: `"layout": "plain"` on its requests ([below](#a-layout-per-request-layout)), or `--layout plain` for the whole server; or, to keep the header in its prompt, to declare the questions it will ask on every request about the state (the accuracy of such a header is not measured yet) (`header_questions`, [below](#a-question-list-for-the-header-header_questions)). A workload that asks the same questions of many states, or one question per state, loses nothing. Every response says what its prompt cost: `x-decisio-prompt: layout=header; tokens=<mean prompt tokens per question>; cached=<mean tokens the cache served>`. `usage.input_tokens` counts the header too (what is read).
 - **A separate request about a state that was already read reads it again.**
   Under the header layout, a request that asks other questions about a state an earlier request read is read from the start of its header, the whole state included.
-  Send all the questions about a state in one request, which reads the state once and the later questions from the cache, or send `"layout": "plain"` on requests that ask about one state one question at a time.
-  Every text request read under the header layout carries the response header `x-decisio-note` saying so; it never changes the answers.
+  Send all the questions about a state in one request, which reads the state once and the later questions from the cache, declare the same question list on every request about the state (`header_questions`, [below](#a-question-list-for-the-header-header_questions)), or send `"layout": "plain"` on requests that ask about one state one question at a time.
+  Every text request read under the header layout carries the response header `x-decisio-note` saying so (with `header_questions`, a note that its accuracy is not measured yet); it never changes the answers.
   `/health` counts it in `systemone.header_layout`: `reads` (engine calls read under the header layout) and `state_rereads` (those whose state an earlier call had read under another header), over the last 4,096 states seen (`states_remembered`, `window`).
   The count depends on the requests that came before; nothing that answers does.
-- **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
+- **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions, or one that declares a question list ([below](#a-question-list-for-the-header-header_questions)), reads a longer header than the one the task was fitted on.
 - **A task's context** goes after the header and before the state: the header, the context, a blank line, the state and the question; under the plain layout the context, a blank line, the state and the question ([tasks.md](tasks.md#task-context)).
 - **Tasks and certificates are per layout.** The layout enters the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name it: a task registered, and a certificate made, under one layout applies only to the requests of that layout (the same rule as `--prompt-tail`, per request). A server holds and applies tasks of both layouts. A plain server's facts, fingerprints and records are what they were.
 - It applies to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was measured with it.
@@ -302,6 +302,31 @@ One server then serves both kinds of client:
 - **The two layouts share no cached prefix for a state.**
   The header comes before the state, so a state read under one layout is read again under the other, and a client that alternates layouts about one state pays a first read on each change.
   What is cached under the plain layout is what a plain server caches, and the same for the header.
+
+### A question list for the header (`header_questions`)
+
+**The cliff.** Under the header layout a separate request about an already-read state re-reads the whole state, unless every request about the state declares the same list.
+The header lists the request's own questions, so a client that asks one question at a time sends a different header each time, and the cache shares nothing past the header's first difference.
+Measured on the 12B on a Mac, a follow-up about a state already read took 3,470 to 3,752 ms under the header layout and 195 ms under the plain one.
+The header's gain is measured (on the 31B +4.38 on H776 and +7.44 on hard390, the tables above), so the answer to the cliff is not always the plain layout.
+
+**The fix: declare the list.** A client that knows the questions it will ask about a state sends them all, as `"header_questions": ["<instructions>", ...]`, on every request about that state, whichever of them the request asks:
+
+```json
+{"state": "...", "questions": {"angry": {"type": "noul", "instructions": "Is the customer angry?"}},
+ "header_questions": ["Which queue should this go to?", "Is the customer angry?", "Does the message ask for a refund?"]}
+```
+
+- The header then lists exactly those lines, in that order, on every row of every such request.
+  The requests share the header and the state, so the first one reads the state and the others read it from the cache (vLLM and MLX), so a follow-up costs what it does under the plain layout instead of seconds, and the model still reads the state with the questions in view.
+- **Not measured yet:** the header's gains above were measured with the header listing the questions the request asks.
+  A one-question request whose header lists other questions too, as a declared list makes it, has not been measured; measure on your own traffic before relying on the gain.
+- Send the same list, in the same order, every time: another list or another order is another header and a new read of the state.
+- Every question of the request must be in the list (422 otherwise), and a list that does not fit the context is 422, never cut ([api.md](api.md#post-v1systemone)).
+- Under the plain layout the field has no effect, so a client may send it to servers of either layout.
+- A request that does not send it is built exactly as before.
+- A task's context still comes after the header: the header, the context, a blank line, the state and the question, with the declared header, so the context is read from the cache on every request of the task that sends the same list.
+- A registered task is fitted with a one-question header, so a request that declares a list reads a longer header than the task was fitted on, as a request with several questions does today; a certified task's question is still scored by its own one-question read.
 
 What a request's layout changes, and what it does not:
 - **The prompt:** a request's rows are built token for token as a server started with `--layout` of that value builds them, by the row builder every text engine shares (vLLM, MLX and the CPU stand-in).

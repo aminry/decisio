@@ -224,6 +224,21 @@ QUESTIONS_HEAD = "Questions that will be asked about the context:\n"
 READ_AGAIN = "\n\nRead the same input again before answering:\n"
 
 
+# a request's declared question list (`"header_questions"`): carried on each engine question under this key, it replaces
+# the request's own instruction lines in the header (decisio.serve.header_questions)
+DECLARED_KEY = "header_questions"
+
+
+def header_instructions(questions) -> list[str]:
+    """The instruction lines the header of a request lists, before any header limit: the list the request declared
+    (the same on every question of it) where it declared one, else each question's own instructions in order."""
+    for q in questions:
+        declared = q.get(DECLARED_KEY)
+        if declared is not None:
+            return list(declared)
+    return [q["instructions"] for q in questions]
+
+
 def layout_header(instructions) -> str:
     """The questions of a request listed before its state (`--layout header`): a heading, one "- <instructions>" line
     per question in the request's order, and a blank line. The state follows it in the same user turn."""
