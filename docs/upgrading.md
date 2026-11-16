@@ -23,7 +23,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 ### What to do
 
 - Nothing, for a deployment whose clients do not send the field: a request without it is built exactly as before.
-- A client that asks questions one at a time about one state under the header layout can declare them (`docs/running.md`, "A question list for the header") instead of switching to `"layout": "plain"`, and keep the header's gain.
+- A client that asks questions one at a time about one state under the header layout can declare them (`docs/running.md`, "A question list for the header") instead of switching to `"layout": "plain"`.
+  The header's measured gains were taken with the header listing the questions asked; a declared list that lists other questions too is not measured yet.
 
 ## Unreleased: the header layout says when a later request reads a state again
 

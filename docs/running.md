@@ -308,7 +308,7 @@ One server then serves both kinds of client:
 **The cliff.** Under the header layout a separate request about an already-read state re-reads the whole state, unless every request about the state declares the same list.
 The header lists the request's own questions, so a client that asks one question at a time sends a different header each time, and the cache shares nothing past the header's first difference.
 Measured on the 12B on a Mac, a follow-up about a state already read took 3,470 to 3,752 ms under the header layout and 195 ms under the plain one.
-The header's gain is real (+4.4 to +7.4 points on the 31B), so the answer to the cliff is not always the plain layout.
+The header's gain is measured (on the 31B +4.38 on H776 and +7.44 on hard390, the tables above), so the answer to the cliff is not always the plain layout.
 
 **The fix: declare the list.** A client that knows the questions it will ask about a state sends them all, as `"header_questions": ["<instructions>", ...]`, on every request about that state, whichever of them the request asks:
 
@@ -318,7 +318,9 @@ The header's gain is real (+4.4 to +7.4 points on the 31B), so the answer to the
 ```
 
 - The header then lists exactly those lines, in that order, on every row of every such request.
-  The requests share the header and the state, so the first one reads the state and the others read it from the cache (vLLM and MLX), so a follow-up costs what it does under the plain layout instead of seconds, with the header's gain kept.
+  The requests share the header and the state, so the first one reads the state and the others read it from the cache (vLLM and MLX), so a follow-up costs what it does under the plain layout instead of seconds, and the model still reads the state with the questions in view.
+- **Not measured yet:** the header's gains above were measured with the header listing the questions the request asks.
+  A one-question request whose header lists other questions too, as a declared list makes it, has not been measured; measure on your own traffic before relying on the gain.
 - Send the same list, in the same order, every time: another list or another order is another header and a new read of the state.
 - Every question of the request must be in the list (422 otherwise), and a list that does not fit the context is 422, never cut ([api.md](api.md#post-v1systemone)).
 - Under the plain layout the field has no effect, so a client may send it to servers of either layout.

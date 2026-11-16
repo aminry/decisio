@@ -4,7 +4,7 @@
 layout").
 
 Q1  the prefix: two requests about one state with different single questions and one declared list build rows that
-    share the header and the state (and, on the MLX prefix cache, the second is a hit); without it they share neither
+    share the header and the state; without it they share neither (the MLX prefix cache: test_header_questions_mlx.py)
 Q2  no list: the rows are the ones the request's own questions make; a list equal to them makes the same rows
 Q3  the rules: a question not in the list, an empty list, a duplicate, a non-string, an empty line: a 422
 Q4  the plain layout: the field is checked and has no effect, the rows are the same with and without it
@@ -332,26 +332,3 @@ def test_q8_the_image_route_refuses_the_field():
     _, so, _ = make()
     with pytest.raises(lay.LayoutRefused, match="header"):
         so.answer(SystemOneRequest.model_validate(body([0], LINES)), None, None, False, "image")
-
-
-# ---- Q1, on the MLX prefix cache ------------------------------------------------------------------------------------
-
-from test_mlx_engine import tiny  # noqa: E402,F401,F811  (the tiny model of the MLX engine's tests)
-
-
-def test_q1_mlx_the_second_request_about_the_state_is_a_cache_hit(tiny):  # noqa: F811
-    from decisio.serve import layout as lay
-
-    state = " ".join(f"word{i}" for i in range(300))
-    with lay.using("header"):
-        for declared in (None, tuple(LINES)):
-            tiny.prefix_cache.entries.clear()
-            hits = []
-            for i in (0, 1):
-                qs = hq.stamp([engine_q(i)], declared)
-                _, info = tiny.answer(state, qs)
-                hits.append(info["prefix_cache_hits"])
-            if declared is None:
-                assert hits == [0, 0]  # the old behaviour: another question, another header, the state read again
-            else:
-                assert hits == [0, 1]
