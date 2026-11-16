@@ -131,6 +131,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-note": {
+                "description": "How the request was read, where that has a cost a client can avoid. On every text request read under the header layout: a later request with other questions about the same state reads the whole state again, so send all the questions about a state in one request, or `\"layout\": \"plain\"`.",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-adapter": {
                 "description": "The adapter that answered, when one did.",
                 "schema": {

@@ -1715,6 +1715,11 @@ def make_app(engine, systemone=None, health=None):
                     **({"think_temperatures": systemone.think_temperatures} if systemone.think_temperatures else {}),
                     "repository_defaults": getattr(engine, "repository_defaults", None),
                     **({"layout": engine.layout_decision} if getattr(engine, "layout_decision", None) else {}),
+                    **(
+                        {"header_layout": systemone.header_layout_facts()}
+                        if hasattr(systemone, "header_layout_facts")
+                        else {}
+                    ),
                     **({"flavor": systemone.flavor} if systemone.flavor else {}),
                     **({"default_adapter": systemone.default_adapter} if systemone.default_adapter else {}),
                     **({"batch_invariant": systemone.batch_invariant} if systemone.batch_invariant else {}),
