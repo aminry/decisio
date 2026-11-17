@@ -82,6 +82,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers -m 'not gpu and not slow and not mlx_model'"
+# a test still running after 4 minutes prints every thread's stack to the log (the fast tier's slowest test takes about
+# a minute), so a hang names the test and where it waits; the test is not stopped
+faulthandler_timeout = 240
 # a deprecation in the web framework fails the suite, so the server is never left on an API that is going away
 filterwarnings = ["error::starlette.exceptions.StarletteDeprecationWarning"]
 markers = [
