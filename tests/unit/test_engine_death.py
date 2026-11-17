@@ -283,6 +283,11 @@ def call(url, path, body=None, timeout=60.0):
         return None, None, time.perf_counter() - t0
 
 
+# how long the stand-in server may take to answer /health after it is started: seconds from a local copy (CI's
+# DECISIO_STAND_IN_MODEL); a hub id may download the model inside the first start
+START_S = 180.0 if Path(MODEL).is_dir() else 900.0
+
+
 class DyingServer:
     """tests/unit/dying_engine.py in a child process: the real server, whose engine dies when the test says."""
 
@@ -302,7 +307,9 @@ class DyingServer:
             env={**os.environ, "DYING_ENGINE_LAG": lag} if lag else None,
         )
         self.core_pid = None
-        deadline = time.time() + 900
+        # a start takes seconds (the stand-in model on the CPU); a start that hangs fails here with the server's output,
+        # well inside the CI step's time limit, instead of holding the suite for 15 minutes (it was 900 s everywhere)
+        deadline = time.time() + START_S
         while time.time() < deadline:
             if self.proc.poll() is not None:
                 raise AssertionError(f"the stand-in server exited:\n{self.output()}")
@@ -313,8 +320,9 @@ class DyingServer:
                 pass
             time.sleep(0.5)
         else:
+            out = self.output()
             self.stop()
-            raise AssertionError("the stand-in server did not come up")
+            raise AssertionError(f"the stand-in server did not come up in {START_S:.0f} s:\n{out}")
         if arrangement == "separate":
             self.core_pid = int(re.search(r"ENGINE CORE PID (\d+)", self.output()).group(1))
 
@@ -339,11 +347,20 @@ class DyingServer:
     def stop(self):
         """By the server's own process group (it started its own session), so its engine core goes too."""
         if self.proc.poll() is None:
-            os.killpg(self.proc.pid, 9)
+            try:
+                os.killpg(self.proc.pid, 9)
+            except ProcessLookupError:  # the group ended between the poll and the kill
+                pass
             self.proc.wait(timeout=30)
-        if self.core_pid is not None and psutil.pid_exists(self.core_pid):
-            os.kill(self.core_pid, 9)
-        self.log.close()
+        # the engine core is in the server's group and usually went with it; it can end between a check and a kill, so
+        # a pid already gone is not an error (ProcessLookupError on a loaded runner, #443's run)
+        if self.core_pid is not None:
+            try:
+                os.kill(self.core_pid, 9)
+            except ProcessLookupError:
+                pass
+        if not self.log.closed:
+            self.log.close()
 
 
 @pytest.fixture
