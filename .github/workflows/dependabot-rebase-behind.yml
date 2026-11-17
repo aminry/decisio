@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # Keeps auto-merging Dependabot pull requests moving while main requires branches to be up to date: after a push to
-# main, the oldest open Dependabot pull request that has auto-merge on and is behind main gets one `@dependabot rebase` comment, from the repository's GitHub App, so Dependabot rebases it,
-# its checks run on top of main, and auto-merge merges it. One pull request at a time: its own merge is the next push.
-# Never GitHub's "Update branch": a commit that is not Dependabot's stops Dependabot from rebasing the pull request
-# again and dependabot/fetch-metadata from reading it.
-# workflow_dispatch with `pr` comments on that pull request only (the test that Dependabot obeys the App).
+# main, the oldest open Dependabot pull request that has auto-merge on and is behind main is brought up to date with
+# GitHub's "Update branch" (main merged into it), as the repository's GitHub App, so its checks run on top of main and
+# auto-merge merges it. One pull request at a time: its own merge is the next push.
+# Not `@dependabot rebase`: Dependabot obeys that comment only from a user with push access, never from an App, and
+# refused it silently from this workflow ("only users with push access can use that command").
+# The cost of "Update branch": a commit that is not Dependabot's, so Dependabot stops rebasing or recreating that pull
+# request (its auto-merge stays on, and this workflow keeps it up to date). The auto-merge workflow skips the App's
+# update (its sender is not Dependabot), so it does not read Dependabot's metadata from a commit that is not Dependabot's.
+# A refused or failed update fails the run.
+# workflow_dispatch with `pr` updates that pull request only.
 name: dependabot rebase behind
 
 on:
@@ -14,7 +19,7 @@ on:
   workflow_dispatch:
     inputs:
       pr:
-        description: "a Dependabot pull request number to ask for a rebase (empty: the oldest behind one)"
+        description: "a Dependabot pull request number to bring up to date (empty: the oldest behind one)"
         required: false
 
 permissions: {}
@@ -25,7 +30,7 @@ concurrency:
 
 jobs:
   rebase:
-    name: ask Dependabot to rebase the oldest behind pull request
+    name: bring the oldest behind Dependabot pull request up to date
     if: github.repository == 'aminry/decisio'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -41,10 +46,12 @@ jobs:
         with:
           client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID || secrets.AUTOMERGE_APP_ID }}
           private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          # updating a branch writes a merge commit to it, and main's changes may touch workflows
           permission-pull-requests: write
-          permission-contents: read
+          permission-contents: write
+          permission-workflows: write
 
-      - name: Pick and ask
+      - name: Pick and update
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPO: ${{ github.repository }}
@@ -66,12 +73,23 @@ jobs:
             head=$(jq -r .head.sha <<< "$pr")
             behind=$(gh api "repos/$REPO/compare/$head...main" --jq .ahead_by)
             [ "$behind" -gt 0 ] || { echo "#$n is up to date"; continue; }
-            # one request per head: a rebase asked for since the head was pushed is still in progress
-            pushed=$(gh api "repos/$REPO/commits/$head" --jq .commit.committer.date)
-            asked=$(gh api "repos/$REPO/issues/$n/comments" --paginate \
-              --jq ".[] | select(.body == \"@dependabot rebase\" and .created_at > \"$pushed\") | .id" | wc -l)
-            if [ "$asked" -gt 0 ]; then echo "#$n: a rebase was already asked for since $pushed"; break; fi
-            gh pr comment "$n" --repo "$REPO" --body "@dependabot rebase"
-            echo "#$n is $behind behind main: asked Dependabot to rebase it"
+            # a conflict is Dependabot's to resolve (it rebases a conflicting pull request by itself while no other
+            # commit is on it); "Update branch" cannot merge it
+            if [ "$(jq -r .mergeable_state <<< "$pr")" = "dirty" ]; then
+              echo "::warning::#$n conflicts with main: left to Dependabot"
+              continue
+            fi
+            # GitHub answers 202 and merges main into the branch; a 422 (a conflict, or a head that moved) fails the run
+            gh api -X PUT "repos/$REPO/pulls/$n/update-branch" -f expected_head_sha="$head" > /dev/null
+            for _ in $(seq 1 30); do
+              now=$(gh api "repos/$REPO/pulls/$n" --jq .head.sha)
+              [ "$now" != "$head" ] && break
+              sleep 4
+            done
+            if [ "$now" = "$head" ]; then
+              echo "::error::#$n: update-branch was accepted but the head did not move in 2 minutes"
+              exit 1
+            fi
+            echo "#$n was $behind behind main: updated, head ${head:0:7} -> ${now:0:7}"
             break
           done
