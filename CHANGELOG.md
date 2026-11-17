@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.49.0](https://github.com/aminry/decisio/compare/v0.48.0...v0.49.0) (2026-11-17)
+
+
+### Features
+
+* **serve:** header_questions, a client-declared question list for the header layout ([#470](https://github.com/aminry/decisio/issues/470)) ([a41e907](https://github.com/aminry/decisio/commit/a41e90763733c541a4e3115c9d69ee6ecc77670e))
+* **serve:** say when the header layout reads a state again ([#469](https://github.com/aminry/decisio/issues/469)) ([d3dfd3f](https://github.com/aminry/decisio/commit/d3dfd3f03e25953af3ac35cbe1e2cebb0475ffd6))
+
 ## [0.48.0](https://github.com/aminry/decisio/compare/v0.47.0...v0.48.0) (2026-11-15)
 
 
