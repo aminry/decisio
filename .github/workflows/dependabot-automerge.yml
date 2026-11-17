@@ -20,7 +20,11 @@ permissions: {}
 jobs:
   automerge:
     name: auto-merge patch and minor updates
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'aminry/decisio'
+    # a push to the pull request by anyone but Dependabot (the rebase workflow's "Update branch") is skipped: auto-merge is
+    # already on, and Dependabot's metadata is not read from a commit that is not Dependabot's
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'aminry/decisio'
+      && (github.event.action != 'synchronize' || github.event.sender.login == 'dependabot[bot]')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -28,7 +32,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Harden the runner
-        uses: step-security/harden-runner@46b06cea07f9e64621fdf066ba77ac6915163d43 # v2.22.3
+        uses: step-security/harden-runner@1d88384fd173af6ecb012dfd0264a306b711241a # v2.22.4
         with:
           egress-policy: audit
 

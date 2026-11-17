@@ -223,12 +223,15 @@ def facts(mx, plan: Plan) -> dict:
     }
 
 
-def setup(mx, model_dir, family, prefix_cache_mb: int, prefix_explicit: bool, memory_limit_gb, cache_limit_gb) -> Plan:
-    """Plan the limits for the conversion in `model_dir` and set them, before the model is loaded."""
+def setup(
+    mx, model_dir, family, prefix_cache_mb: int, prefix_explicit: bool, memory_limit_gb, cache_limit_gb, working_gb=None
+) -> Plan:
+    """Plan the limits for the conversion in `model_dir` and set them, before the model is loaded. `working_gb`: the
+    working set above the weights in GB where it is not the base's text one (the image route's)."""
     plan = make_plan(
         machine_bytes=machine_memory_bytes(),
         weights_bytes=weights_bytes(model_dir),
-        working_bytes=int(getattr(family, "mlx_working_gb", 0) * 1e9) or DEFAULT_WORKING_BYTES,
+        working_bytes=int((working_gb or getattr(family, "mlx_working_gb", 0)) * 1e9) or DEFAULT_WORKING_BYTES,
         prefix_cache_mb=prefix_cache_mb,
         prefix_explicit=prefix_explicit,
         memory_limit_gb=memory_limit_gb,

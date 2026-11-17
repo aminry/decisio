@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "decisio",
-    "version": "0.46.0",
+    "version": "0.48.0",
     "description": "The HTTP API of a decisio server: TypeSafe's System One wire on `POST /v1/systemone`, with routes for tasks, abstention, health and metrics. Generated from the server's code; `docs/api.md` is the prose.",
     "license": {
       "name": "Apache-2.0",
@@ -131,6 +131,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-note": {
+                "description": "How the request was read, where that has a cost a client can avoid or a limit to know. On every text request read under the header layout: a later request with other questions about the same state reads the whole state again, so send all the questions about a state in one request, the same `header_questions` on every request about it, or `\"layout\": \"plain\"`. With `header_questions`: the cache is shared, and the accuracy of a header that lists questions the request does not ask is not measured yet.",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-adapter": {
                 "description": "The adapter that answered, when one did.",
                 "schema": {
@@ -163,6 +169,12 @@
               },
               "x-decisio-stages": {
                 "description": "Where the engine's time went, e.g. `prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6`: `engine` is the request's own engine call (`prepare` to `readout` are its parts), `context` a task context's warm-up or prefix when the request was read with one, summed over the reads that read it (within `engine`, `task` or `head`), `task` the questions of a certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the reasoning pass, `wait` the time spent waiting for the engine.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "x-decisio-box": {
+                "description": "`calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`).",
                 "schema": {
                   "type": "string"
                 }
@@ -202,8 +214,18 @@
               }
             }
           },
+          "413": {
+            "description": "A request body over 32 MiB, refused before it is parsed, or a placeholder name over 1,024 bytes of UTF-8 (65,536 bytes for all of them): `api_usage_error`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageError"
+                }
+              }
+            }
+          },
           "415": {
-            "description": "A POST that is not JSON (or a multipart request without `x-decisio-client`)."
+            "description": "A POST that is not JSON (or a multipart request with none of `x-decisio-client`, `x-typesafe-sdk` and `typesafe-danger-zone-images`)."
           },
           "422": {
             "description": "A request that does not validate (for example a choice with more than 255 options), or whose task cannot be found as asked (`task`).",
@@ -271,7 +293,16 @@
             "schema": {
               "type": "string"
             },
-            "description": "Required, with any value, on a `multipart/form-data` request (a request a browser can send without a preflight is refused with 415)."
+            "description": "On a `multipart/form-data` request, one of this header, `x-typesafe-sdk` or `typesafe-danger-zone-images` is required, with any value (a request a browser can send without a preflight is refused with 415)."
+          },
+          {
+            "name": "typesafe-danger-zone-images",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "System One's images header: accepted with any value and never required. On a `multipart/form-data` request it also lets the request through."
           }
         ],
         "requestBody": {
@@ -881,6 +912,31 @@
         "title": "Asset",
         "type": "object"
       },
+      "BoxQuestion": {
+        "description": "Where one target is in an image. No criteria; extra fields are ignored like the other question types.\n\nServed on the Gemma image route only (`--images on`); a request with a Box and no image is refused.",
+        "properties": {
+          "type": {
+            "const": "box",
+            "title": "Type",
+            "type": "string"
+          },
+          "instructions": {
+            "anyOf": [
+              {},
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Instructions"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "BoxQuestion",
+        "type": "object"
+      },
       "ChoiceQuestion": {
         "properties": {
           "type": {
@@ -1047,6 +1103,7 @@
             "additionalProperties": {
               "discriminator": {
                 "mapping": {
+                  "box": "#/components/schemas/BoxQuestion",
                   "choice": "#/components/schemas/ChoiceQuestion",
                   "noul": "#/components/schemas/NoulQuestion",
                   "score": "#/components/schemas/ScoreQuestion"
@@ -1062,6 +1119,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ScoreQuestion"
+                },
+                {
+                  "$ref": "#/components/schemas/BoxQuestion"
                 }
               ]
             },
@@ -1091,6 +1151,175 @@
           "questions"
         ],
         "title": "SystemOneRequest",
+        "type": "object"
+      },
+      "BoxAnswer": {
+        "additionalProperties": true,
+        "properties": {
+          "certified": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Present when a registered certified task applies: whether this answer carries the promise.",
+            "title": "Certified"
+          },
+          "certificate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "The certificate's id, with `certified`.",
+            "title": "Certificate"
+          },
+          "certificate_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "gold",
+                  "agreement"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "With `certified`: `gold` for a certificate made on labelled examples (at most alpha of the certified answers are wrong), `agreement` for a fast table learned from traffic (at most alpha of its answers differ from decisio's).",
+            "title": "Certificate Kind"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "enum": [
+                  "table",
+                  "decisio"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "For a task with a fast table: whether the table or decisio's model answered.",
+            "title": "Answered By"
+          },
+          "certified_reason": {
+            "anyOf": [
+              {
+                "enum": [
+                  "below_threshold",
+                  "nothing_certified",
+                  "serving_stack_changed",
+                  "traffic_changed",
+                  "state_truncated",
+                  "header_limited",
+                  "orders_changed",
+                  "think_mode_changed",
+                  "concurrency_changed",
+                  "layout_mismatch"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Why `certified` is false.",
+            "title": "Certified Reason"
+          },
+          "unknown_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension (its encodings only): the probability of an unknown outcome.",
+            "title": "Unknown Probability"
+          },
+          "abstained": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "imajev's extension, and abstention tasks: whether the server abstained.",
+            "title": "Abstained"
+          },
+          "type": {
+            "const": "box",
+            "title": "Type",
+            "type": "string"
+          },
+          "box": {
+            "$ref": "#/components/schemas/BoxAnswerEdges",
+            "description": "The one box the model reads for the question, in the image's own fractions."
+          },
+          "confidence": {
+            "description": "How much to trust the box, from 0 to 1: the probability the target is in the picture times how sure the edges are. Not calibrated until a calibration for the served model is loaded (`--box-confidence`).",
+            "title": "Confidence",
+            "type": "number"
+          }
+        },
+        "required": [
+          "type",
+          "box",
+          "confidence"
+        ],
+        "title": "BoxAnswer",
+        "type": "object"
+      },
+      "BoxAnswerEdges": {
+        "properties": {
+          "top": {
+            "description": "The box's top edge, a fraction of the image's height from the top, two decimals.",
+            "title": "Top",
+            "type": "number"
+          },
+          "bottom": {
+            "description": "The bottom edge, a fraction of the height; larger than `top`.",
+            "title": "Bottom",
+            "type": "number"
+          },
+          "left": {
+            "description": "The left edge, a fraction of the image's width from the left.",
+            "title": "Left",
+            "type": "number"
+          },
+          "right": {
+            "description": "The right edge, a fraction of the width; larger than `left`.",
+            "title": "Right",
+            "type": "number"
+          }
+        },
+        "required": [
+          "top",
+          "bottom",
+          "left",
+          "right"
+        ],
+        "title": "BoxAnswerEdges",
         "type": "object"
       },
       "ChoiceAnswer": {
@@ -1534,7 +1763,7 @@
             "type": "integer"
           },
           "output_tokens": {
-            "description": "One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`).",
+            "description": "One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`); a Box question counts the tokens it wrote.",
             "title": "Output Tokens",
             "type": "integer"
           },
@@ -1570,6 +1799,7 @@
             "additionalProperties": {
               "discriminator": {
                 "mapping": {
+                  "box": "#/components/schemas/BoxAnswer",
                   "choice": "#/components/schemas/ChoiceAnswer",
                   "noul": "#/components/schemas/NoulAnswer",
                   "score": "#/components/schemas/ScoreAnswer"
@@ -1585,6 +1815,9 @@
                 },
                 {
                   "$ref": "#/components/schemas/ScoreAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/BoxAnswer"
                 }
               ]
             },
@@ -2474,6 +2707,18 @@
               }
             ],
             "title": "Task"
+          },
+          "header_questions": {
+            "anyOf": [
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Header Questions"
           }
         },
         "type": "object",

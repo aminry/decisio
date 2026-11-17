@@ -178,7 +178,7 @@ def run_entrypoint(tmp_path, env=None, *extra):
 
 
 def test_d4_the_container_serves_the_default_unless_told_otherwise(tmp_path):
-    tail = ["--model-class", "hidden-readout", "--host", "0.0.0.0", "--port", "8000"]
+    tail = ["--host", "0.0.0.0", "--port", "8000"]
     assert run_entrypoint(tmp_path) == ["-m", "decisio.serve.vllm_engine", "--base", "gemma-4-31b", *tail]
     other = run_entrypoint(tmp_path, {"DECISIO_BASE": "qwen3.6-35b-a3b"})
     assert other[2:4] == ["--base", "qwen3.6-35b-a3b"] and "--model" not in other

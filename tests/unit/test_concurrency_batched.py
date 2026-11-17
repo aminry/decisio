@@ -680,11 +680,11 @@ def test_b10_one_engine_images_and_text_on_a_batched_server():
     calls = []
     score = eng.score_prompts
 
-    def slowed(rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
-        if not mm:  # a text call: long enough for requests to queue behind it
+    def slowed(rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, row_mm=None, row_mm_uuids=None):
+        if not mm and row_mm is None:  # a text call: long enough for requests to queue behind it
             calls.append(len(rows))
             time.sleep(0.03)
-        return score(rows, adapter, warm, skip_cache, mm, mm_uuids)
+        return score(rows, adapter, warm, skip_cache, mm, mm_uuids, row_mm, row_mm_uuids)
 
     eng.score_prompts = slowed
     eng.concurrency = "batched"
@@ -697,20 +697,23 @@ def test_b10_one_engine_images_and_text_on_a_batched_server():
             if [x.tobytes() for x in p] != [x.tobytes() for x in serial_text[s]]:
                 bad.append(s)
 
-    clients = [threading.Thread(target=client, args=(s,)) for s in states]
-    for c in clients:
-        c.start()
-    deadline = time.monotonic() + 30
-    while len(calls) < 10 and time.monotonic() < deadline:
-        time.sleep(0.005)
-    before = len(calls)
-    image = eng.answer("A photo from a listing.", iq, images=[picture])[0]
-    meanwhile = len(calls) - before
-    served_after = len(got)
-    time.sleep(0.2)  # the text clients go on after the image request
-    stop.set()
-    for c in clients:
-        c.join(30)
+    # daemon clients, stopped in a finally: a failure while they run must not leave them looping, or pytest never exits
+    clients = [threading.Thread(target=client, args=(s,), daemon=True) for s in states]
+    try:
+        for c in clients:
+            c.start()
+        deadline = time.monotonic() + 30
+        while len(calls) < 10 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        before = len(calls)
+        image = eng.answer("A photo from a listing.", iq, images=[picture])[0]
+        meanwhile = len(calls) - before
+        served_after = len(got)
+        time.sleep(0.2)  # the text clients go on after the image request
+    finally:
+        stop.set()
+        for c in clients:
+            c.join(30)
     assert [x.tobytes() for x in image] == [x.tobytes() for x in serial_image]
     assert meanwhile <= 2  # the call in progress and at most one queued before it
     assert not bad and len(got) > served_after  # text answers unchanged, and still served after the image

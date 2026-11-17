@@ -15,7 +15,7 @@ Requirements: Linux, one NVIDIA card (measured on an RTX PRO 6000 Blackwell with
 
 <!-- x-release-please-start-version -->
 ```bash
-git clone --branch v0.46.0 https://github.com/aminry/decisio
+git clone --branch v0.48.0 https://github.com/aminry/decisio
 cd decisio
 uv sync --extra serve --frozen
 uv run python -m decisio.serve.vllm_engine
@@ -36,7 +36,18 @@ uv run python -m decisio.serve.vllm_engine
 - `patches/` holds an optional latency patch series, off by default and not needed for correct answers (`patches/README.md`).
 - The server refuses to start when `VLLM_USE_DEEP_GEMM` is set to anything other than `0`, unless `--allow-deep-gemm` is given.
 - It listens on `127.0.0.1:8000` (`--host`, `--port`); put a reverse proxy in front of it to expose it.
+- `--image-prompt placed|legacy` (with `--image-model`, `placed` by default) chooses how the Qwen image route writes images into the prompt.
+  `placed` puts each image where its reference stands and shows a question's own image to that question only, as the Gemma bases do (`docs/api.md`); the vision tokens, the Qwen processor's token counts, M-RoPE, the separate engine and the 1,056-token block padding are unchanged.
+  `legacy` is the earlier layout, every image at the start of the turn and visible to every question; it is deprecated and removed in a later release.
+  With it every image response carries `Deprecation` and `Warning` headers and the server logs a warning at start and once for every 1,000 such requests.
+  The Qwen route's measured figures were taken on the legacy layout and are not yet measured on the placed one.
+  Box questions need a Gemma base: on the Qwen base they are refused with 400.
 - `--image-model` adds a second engine on the same card for requests that carry images. The two engines default to the shares they were measured with, 0.47 for the text engine and 0.49 for the image engine (`EVAL_CARD.md` section 1); a pair that cannot fit, such as the text engine given at 0.90 beside the image engine's default, is refused at start, before either is loaded; the start prints the shares it uses (`ENGINE SHARES`). `--one-engine` serves both routes from the image engine alone, at `--gpu-memory-utilization`.
+- The image engine loads its checkpoint at a pinned revision, as the text engine does.
+  `--image-model-revision` gives it; without it, an image model that is a base's own checkpoint (such as `Qwen/Qwen3.6-35B-A3B-FP8`) takes that base's pinned revision, and any other checkpoint is read at its hub head.
+  The revision is used for the config, the tokenizer, the processor and the weights.
+  Before any engine is built the start reads the image model's `config.json` at that revision and resolves its base; a checkpoint that cannot be read (offline, with that revision not in the cache) or that no base serves stops the start at once, with the message naming it, instead of after the text engine's compile.
+  An offline start (`HF_HUB_OFFLINE=1`) needs the pinned revision in the cache, which a download of the pinned revision provides.
 - vLLM's engine runs in the server's process by default; with a second engine (`--image-model`, `--head-engine`, `--one-engine`) it runs in a process of its own (`--engine-process`, `docs/cli.md`).
 - A later, different question about a state read before, sent in its own request, reads the state from the prefix cache; on the Gemma bases that needs the state's boundary registered, and `--register-boundary` sets when (below).
 - vLLM's `prefix_cache_retention_interval` would also keep the boundary, but it keeps every sliding-window block of each state, and with the cache filled to 1.3 times its pool the earliest states lost even their repeated question, where the default (0) kept them at twice the pool; it stays at the default. The Qwen base needs neither: its state is padded to end on its 1,056-token block, the latest checkpoint of a request with one question. `/health` reports `cache_hit_unit`, `hash_unit`, `registers_state_boundary` and `register_boundary`.
@@ -240,8 +251,14 @@ uv run python -m decisio.hub check <merged dir>/decision_config.json --weights-d
 3. Otherwise the base's default: header for the Gemma bases, plain for Qwen.
 4. **A default of header is held at plain while tasks fitted under plain apply to the server**: calibration or head tasks (their fingerprint equals this server's with the plain layout) or abstention tasks (a record with no `layout` was fitted under plain), from a directory, a shared store or a file. A task applies to the requests of the layout it was fitted under, and with the header as the default the requests that name no layout would stop being answered by it, which changes their answers. The start says `LAYOUT plain (held at plain; this base's default is header): ...`. Requests may ask for the header meanwhile (`"layout": "header"`). To make the header the default, register the tasks again under it (`"layout": "header"` in the registration; export them first if you want the records) and start with `--layout header`; to pin the old behaviour, `--layout plain`. A bare base, a new deployment or a board run, with nothing stored, gets the header.
 
-- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A client that sends one state with a series of different questions (an agent, a game, a teach-it loop) pays for it: on the 31B a later question about a 3,000-token state costs 485 ms instead of 41 ms, at 16,000 tokens 3,370 ms instead of 94 (the table under "First-question latency by state length"). **Such a client wants the plain layout**: `"layout": "plain"` on its requests ([below](#a-layout-per-request-layout)), or `--layout plain` for the whole server. A workload that asks the same questions of many states, or one question per state, loses nothing. Every response says what its prompt cost: `x-decisio-prompt: layout=header; tokens=<mean prompt tokens per question>; cached=<mean tokens the cache served>`. `usage.input_tokens` counts the header too (what is read).
-- **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions reads a longer header than the one the task was fitted on.
+- **The cost:** a state cached for one set of questions is not reused for another. Two requests about the same state with different questions (or the same questions in another order) share only the text before the header's first difference, so the second one computes the state again. A client that sends one state with a series of different questions (an agent, a game, a teach-it loop) pays for it: on the 31B a later question about a 3,000-token state costs 485 ms instead of 41 ms, at 16,000 tokens 3,370 ms instead of 94 (the table under "First-question latency by state length"). **Such a client wants the plain layout**: `"layout": "plain"` on its requests ([below](#a-layout-per-request-layout)), or `--layout plain` for the whole server; or, to keep the header in its prompt, to declare the questions it will ask on every request about the state (the accuracy of such a header is not measured yet) (`header_questions`, [below](#a-question-list-for-the-header-header_questions)). A workload that asks the same questions of many states, or one question per state, loses nothing. Every response says what its prompt cost: `x-decisio-prompt: layout=header; tokens=<mean prompt tokens per question>; cached=<mean tokens the cache served>`. `usage.input_tokens` counts the header too (what is read).
+- **A separate request about a state that was already read reads it again.**
+  Under the header layout, a request that asks other questions about a state an earlier request read is read from the start of its header, the whole state included.
+  Send all the questions about a state in one request, which reads the state once and the later questions from the cache, declare the same question list on every request about the state (`header_questions`, [below](#a-question-list-for-the-header-header_questions)), or send `"layout": "plain"` on requests that ask about one state one question at a time.
+  Every text request read under the header layout carries the response header `x-decisio-note` saying so (with `header_questions`, a note that its accuracy is not measured yet); it never changes the answers.
+  `/health` counts it in `systemone.header_layout`: `reads` (engine calls read under the header layout) and `state_rereads` (those whose state an earlier call had read under another header), over the last 4,096 states seen (`states_remembered`, `window`).
+  The count depends on the requests that came before; nothing that answers does.
+- **Registered tasks** are fitted on one question at a time (a registration example carries one question); a request with several questions, or one that declares a question list ([below](#a-question-list-for-the-header-header_questions)), reads a longer header than the one the task was fitted on.
 - **A task's context** goes after the header and before the state: the header, the context, a blank line, the state and the question; under the plain layout the context, a blank line, the state and the question ([tasks.md](tasks.md#task-context)).
 - **Tasks and certificates are per layout.** The layout enters the prompt format's facts, so the serving-stack fingerprint and the task fingerprint name it: a task registered, and a certificate made, under one layout applies only to the requests of that layout (the same rule as `--prompt-tail`, per request). A server holds and applies tasks of both layouts. A plain server's facts, fingerprints and records are what they were.
 - It applies to the text route (a request with images keeps the plain layout). The rows are built by the one function every text engine uses (vLLM, and the HF and MLX engines, which inherit it); only the vLLM path was measured with it.
@@ -285,6 +302,31 @@ One server then serves both kinds of client:
 - **The two layouts share no cached prefix for a state.**
   The header comes before the state, so a state read under one layout is read again under the other, and a client that alternates layouts about one state pays a first read on each change.
   What is cached under the plain layout is what a plain server caches, and the same for the header.
+
+### A question list for the header (`header_questions`)
+
+**The cliff.** Under the header layout a separate request about an already-read state re-reads the whole state, unless every request about the state declares the same list.
+The header lists the request's own questions, so a client that asks one question at a time sends a different header each time, and the cache shares nothing past the header's first difference.
+Measured on the 12B on a Mac, a follow-up about a state already read took 3,470 to 3,752 ms under the header layout and 195 ms under the plain one.
+The header's gain is measured (on the 31B +4.38 on H776 and +7.44 on hard390, the tables above), so the answer to the cliff is not always the plain layout.
+
+**The fix: declare the list.** A client that knows the questions it will ask about a state sends them all, as `"header_questions": ["<instructions>", ...]`, on every request about that state, whichever of them the request asks:
+
+```json
+{"state": "...", "questions": {"angry": {"type": "noul", "instructions": "Is the customer angry?"}},
+ "header_questions": ["Which queue should this go to?", "Is the customer angry?", "Does the message ask for a refund?"]}
+```
+
+- The header then lists exactly those lines, in that order, on every row of every such request.
+  The requests share the header and the state, so the first one reads the state and the others read it from the cache (vLLM and MLX), so a follow-up costs what it does under the plain layout instead of seconds, and the model still reads the state with the questions in view.
+- **Not measured yet:** the header's gains above were measured with the header listing the questions the request asks.
+  A one-question request whose header lists other questions too, as a declared list makes it, has not been measured; measure on your own traffic before relying on the gain.
+- Send the same list, in the same order, every time: another list or another order is another header and a new read of the state.
+- Every question of the request must be in the list (422 otherwise), and a list that does not fit the context is 422, never cut ([api.md](api.md#post-v1systemone)).
+- Under the plain layout the field has no effect, so a client may send it to servers of either layout.
+- A request that does not send it is built exactly as before.
+- A task's context still comes after the header: the header, the context, a blank line, the state and the question, with the declared header, so the context is read from the cache on every request of the task that sends the same list.
+- A registered task is fitted with a one-question header, so a request that declares a list reads a longer header than the task was fitted on, as a request with several questions does today; a certified task's question is still scored by its own one-question read.
 
 What a request's layout changes, and what it does not:
 - **The prompt:** a request's rows are built token for token as a server started with `--layout` of that value builds them, by the row builder every text engine shares (vLLM, MLX and the CPU stand-in).
@@ -364,6 +406,43 @@ A malformed profile is refused at start.
 When the profile contributes, the start prints a `BASE TEMPERATURES` line and `/health` carries the values in `systemone.temperatures` and `systemone.choice_bands`; they are in the serving-stack fingerprint like any other temperature.
 The exported hub profile does not carry them, so a repository file exported before this still agrees with the installed profile.
 No base sets them yet: every served temperature is what it was.
+
+## Images on Gemma 4 (`--images on`)
+
+A Gemma base reads pictures with the engine that reads its text.
+
+```bash
+python -m decisio.serve.vllm_engine --base gemma-4-12b --images on
+python -m decisio.serve.vllm_engine --base gemma-4-31b --images on --image-budget 560 --max-images 8
+```
+
+- `--images on` (default `off`, which loads the text path alone, as before) is for the Gemma bases, on the vLLM server and on a Mac ([Images on a Mac](#images-on-a-mac)).
+  The 12B has no vision tower (its image path is a small projection of raw pixel patches) and already runs under vLLM's multimodal class, so `--images on` raises its image limit from 0 to `--max-images` and passes the budget to the processor.
+  The 31B's text route runs under a text-only class that leaves its vision tower (about 1.1 GB at bf16) out of memory; `--images on` loads the checkpoint's own multimodal class with the tower, as the one engine for text and images.
+  A request without images then runs under that class too, so the 31B's text answers under `--images on` differ from the text-only server's: at budget 280 BANKING77 moved from 73 to 69 right answers of 100 (`EVAL_CARD.md` section 10.6).
+  A deployment that serves mostly text on the 31B can keep images off, or serve images from a separate server.
+- `--image-budget` is the soft tokens an image may take: 70, 140, 280, 560 or 1120; 1120 is not allowed on Gemma 4 12B.
+  The default depends on the base: 560 on Gemma 4 12B (bf16, FP8 and a tuned repository on it), 280 (the model's own) on Gemma 4 31B.
+  On the 12B, which has no vision encoder, an image's block (its soft tokens plus the begin and end tokens) must fit the sliding window, 1,024 tokens, and 1120 makes blocks of up to 1,122.
+  The server refuses it at start, with the budgets that fit, rather than lower it silently; a base with a longer window would allow it.
+  Gemma 4 31B reads pictures through its own vision encoder, so every budget fits it, 1120 included.
+  An image is scaled to fill the budget, so the budget is also what a request pays per image (`docs/api.md` has the table); `/health` reports it.
+- `--max-images` is the most images one request may carry (16 here unless set).
+  vLLM profiles the image path at start-up with that many images of the largest size the budget allows, so the memory the start takes grows with both numbers.
+  On one 96 GB card, 128 images at 1120 added at most 0.8 GB of GPU memory and 40 s of start-up against images off (`EVAL_CARD.md` 10.7); a smaller card is not measured, so start there with a small limit.
+- `--images on` does not combine with `--image-model` (that is the Qwen base's second engine, which keeps working unchanged), `--one-engine` or `--mode packed`.
+  It is refused at start with the CPU stand-in and with a base that is not Gemma.
+  The 31B's head-capable class (`--model-class hidden-readout`) has no image form yet: with `--images on` and no `--model-class`, the 31B serves the checkpoint's multimodal class without the head (registered tasks get calibration only), and an explicit `--model-class hidden-readout` is refused.
+- An adapter (`--adapter`) serves images: vLLM applies it to the language model only, which is what the tuned adapters are.
+  Whether a tuned model reads pictures as well as its base is not measured.
+- A base's temperatures were fitted on text.
+  A request with images is served at the text temperatures times the base's `image_temperature_scale` (`decisio.families`), which Gemma 4 31B has (1.376, fitted on images at budget 280) and Gemma 4 12B does not.
+  An adapter's own temperatures win.
+  The Qwen `--image-model` route reads images at temperature 1.0, so its scale, 0.80, is the temperature itself (placed layout only; `--image-prompt legacy` keeps 1.0).
+
+Memory at start-up, the 31B's text answers under the multimodal class, and the cost of an image's first read and of a cached one are measured in `EVAL_CARD.md` section 10 (10.6 and 10.7).
+Not measured yet: a prefix-cache hit that begins inside an image in a question's own text (section 10 measures a second question read from the cache on a state that holds the image).
+The design is in `docs/design/gemma-images.md`.
 
 ## Flavors
 
@@ -479,7 +558,7 @@ curl http://127.0.0.1:8000/health  # answers once the first start has fetched th
 - The image is vLLM's 0.31.0 release image, pinned by digest, plus the decisio wheel with its `serve` extra; the build argument `APPLY_PATCHES=1` adds the patch series (off by default).
 - The first start downloads the checkpoint into the `decisio-data` volume, mounted at `/data`; it is never part of the image.
 - The container runs as a non-root user, and compose publishes the port on 127.0.0.1 only.
-- The entrypoint starts the server with `--base "${DECISIO_BASE:-gemma-4-31b}"` and `--model-class hidden-readout`, listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
+- The entrypoint starts the server with `--base "${DECISIO_BASE:-gemma-4-31b}"` and the server's default model class (the head-capable class; with `--images on` on the 31B, the checkpoint's multimodal class), listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
   `DECISIO_BASE` names another base (`qwen3.6-35b-a3b`, `gemma-4-12b`, `gemma-4-12b-fp8`) or a decisio repository, and `DECISIO_MODEL` names a checkpoint instead: alone it brings the base its `config.json` declares, so a container configured with `DECISIO_MODEL=Qwen/Qwen3.6-35B-A3B-FP8` keeps serving the Qwen base.
 - It checks for an NVIDIA GPU first and exits with an explanation when the container cannot see one.
 - Release images go to `ghcr.io/aminry/decisio`, with their digest in the release notes; to run one instead of building, replace `build:` in `compose.yaml` with `image: ghcr.io/aminry/decisio@sha256:<digest>`.
@@ -518,7 +597,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
-- It refuses the image route, packed mode, LoRA adapters and the second-engine head.
+- It refuses the Qwen base's second image engine (`--image-model`), packed mode, LoRA adapters and the second-engine head; both Gemma bases read images with `--images on` ([Images on a Mac](#images-on-a-mac)).
 - **A tuned model can be an MLX repository.** `python -m decisio.hub tuned-config --mlx-conversion mlx-lm@0.32.0 --mlx-bits 6 --mlx-group-size 64 ...` writes the `decision_config.json` of a directory that holds an MLX conversion of a tuned model's merged weights (`--merge-report` is the merge report of the bf16 model it was converted from; `--weights-dir` is the conversion, whose own `config.json` must declare the same affine quantization). The file says the weights are `mlx_affine` and records the conversion in `tuned.conversion`; the rest is the tuned repository of [Shipping a tuned model](#shipping-a-tuned-model): the temperatures, the layout and the flavor. `--backend mlx --base owner/name[@revision]` then serves it with those defaults, loading the weights at that revision. A server for vLLM refuses such a repository, and `--backend mlx` refuses a repository whose weights are FP8.
 - It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `tachara-ai/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
 
@@ -540,6 +619,68 @@ The Gemma base (`--base gemma-4-12b`):
 - The prompts are built with the base's own tokenizer and chat template, `google/gemma-4-12B-it` at its pinned revision, not the conversion's, whose chat template is older.
 - At 6 bits it passes every gate against the base's vLLM bf16 record: suite accuracy and ECE, the intent heads over six draws, conformance, and answers bit for bit on a fresh server (`runs/2026-10-05_mlx-gemma/summary.md`).
 - It reads a new state more slowly than the Qwen base on the same Mac: one question on a new 1,000-token state takes 1,312 ms, against 515 ms for the Qwen base (server medians on an Apple M5 Pro with no other job running; `runs/2026-10-07_mlx-quiet-latency/`).
+
+### Images on a Mac
+
+A Gemma 4 base reads pictures on a Mac with the same engine that reads its text, through the same request path as the vLLM server ([Images on Gemma 4](api.md#images-on-gemma-4---images-on)).
+
+```bash
+uv sync --extra mlx-images
+# the base, from Google's bf16 checkpoint (it has the vision weights)
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model google/gemma-4-12B-it --images on
+# a tuned model's MLX conversion: the base's vision add-on supplies the vision weights, downloaded once at its pinned revision
+uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on
+# the add-on's folder (both files), which also works offline
+uv run python -m decisio.serve.vllm_engine --backend mlx --base tachara-ai/Decisio-12b-tuned-mlx-commit --images on --vision-weights ./gemma-4-12b-vision
+```
+
+- The extra `mlx-images` adds mlx-vlm (0.7.12, pinned).
+  Text requests are answered as before; a request with pictures puts each at its place in the state or in one question's text, a question's own picture is read by that question alone, and `--image-budget` and `--max-images` are as on vLLM (`--max-images` only bounds a request on a Mac).
+- **The vision weights.**
+  An MLX conversion made for text drops the vision tensors, so it cannot read pictures by itself.
+  The conversion needs them, or the base's **vision add-on** supplies them: a small versioned repository per base with two files, `vision.safetensors` (the vision tensors, copied bit for bit from the base's own checkpoint) and `vision_config.json` (the base's vision settings, so no copy of the base's checkpoint is needed).
+  It is shared by the base and every model tuned from it.
+  The 12B's is `tachara-ai/decisio-gemma-4-12b-vision` (10 tensors, 100 MB) and the 31B's `tachara-ai/decisio-gemma-4-31b-vision` (356 tensors, 1.15 GB), both public; decisio reads each at the revision it pins and checks both files' sha256 before use.
+  - Where the server finds it: `--vision-weights PATH` (a folder holding both files, or the weights file with `vision_config.json` beside it; this works offline), otherwise the base's repository at the pinned revision, downloaded once into the Hugging Face cache.
+    A repository whose revision is not pinned in the release is never read: the server refuses to start and says to pass `--vision-weights`.
+  - How it is checked: decisio is pinned to the sha256 of both files, which is verified on every start; a file that differs is refused with both hashes.
+  - Offline with nothing cached, the server refuses to start and names `--vision-weights`.
+  - A conversion that already has the tensors (`google/gemma-4-12B-it`, `mlx-community/gemma-4-12B-it-6bit`) needs no add-on, and `--vision-weights` with one is refused.
+  - Nothing is added to a model repository's `decision_config.json`: the pin is in decisio.
+  - The merge copies no weight: the server builds a small directory of links to the conversion's files and the add-on and loads that.
+    The language weights stay as they are (quantised or not) and the vision tensors stay bf16.
+- Which repositories have the vision weights: `google/gemma-4-12B-it` and `mlx-community/gemma-4-12B-it-6bit` do; `tachara-ai/Decisio-12b-tuned-mlx-commit` and `-mlx8-commit` and `tachara-ai/decisio-gemma-4-31b-mlx-4bit` do not, and use the add-on.
+- Pictures are read with the model's bidirectional image blocks: the tokens of one picture see each other on the sliding-window layers, within the window, as the model was trained.
+  mlx-vlm's own call does not do this, so the engine calls the language model itself ([design/mlx-backend.md](design/mlx-backend.md#images)).
+  For the 12B, an image whose block is longer than the sliding window is refused at start (`--image-budget 1120`), as on vLLM; the 12B's default budget is 560.
+- The prefix cache keeps a state together with its pictures, so a later request with the same state and pictures reads from it.
+- The server sizes MLX's memory limit from the weights, the base's working set with images, the cache limit and the prefix cache, and refuses to start, with the numbers, when they do not fit.
+  The engine clears MLX's buffer cache after every request with pictures.
+- Box is not served on a Mac yet: a request for it is refused with a 400 that says so, and `/health` reports `images.box` as false.
+- The figures below are from one Apple silicon Mac with 64 GB, measured through the Mac server; no other Mac has been tried.
+
+Measured through the Mac server on one Apple silicon Mac with 64 GB, at budget 280 unless said:
+
+| | 12B, Google's bf16 checkpoint | tuned 12B, 6-bit MLX conversion with the add-on | 31B, 4-bit MLX build with the add-on |
+| --- | --- | --- | --- |
+| A square in each corner placed right (8 questions), at 280 and at 560 | 8 of 8 | 8 of 8 | 8 of 8 |
+| One picture and a short state at 560, median of 10 | 1.0 s (0.9 s of it the prefix, 653 tokens) | 1.1 s | 3.4 s (3.0 s the prefix) |
+| Process memory at 560 (MLX's peak), flat over the requests | 24.2 GB (23.0 GB) | 11.1 GB (9.9 GB) | 20.7 GB (20.3 GB) |
+
+- Without the image blocks' bidirectional attention a square in a top corner is read as "bottom".
+- **Against decisio on vLLM**, same prompt and request path, on noul and choice items with one picture:
+  - The 12B base, bf16 on both sides, 20 items: the probabilities differ by at most 0.024 (0.004 on average) and no answer changes.
+  - The two Mac builds above are other weights than the vLLM runs they were compared with, so they differ more, and the figures are as measured, on 60 held-out items:
+
+    | | |P(a) on Mac - P(a) on vLLM|: max, mean, median | answers flipped | right on the Mac and on vLLM |
+    | --- | --- | --- | --- |
+    | 31B, 4-bit MLX against the FP8 build served with vLLM | 0.23, 0.060, 0.041 | 0 | 55 and 55 |
+    | tuned 12B, 6-bit MLX against its bf16 merge | 0.060, 0.016, 0.010 (48 items; the 12 whose vLLM answer was committed are compared by side) | 0 | 57 and 57 |
+
+  - So an answer the Mac reads for the 31B differs from the FP8 build's by 0.06 on average, because it is the 4-bit build and not the FP8 weights, and the tuned 12B's by 0.02, because it is the 6-bit conversion and not bf16.
+    Where a probability is near a half, a quantised build can land on the other side: one item of the tuned 12B read 0.44 on the Mac and 0.5 to 0.8 on vLLM.
+  - A tuned repository's yes/no commit rule (`--noul-commit`) reports a probability between 0.20 and 0.80 as exactly 0.80 or 0.20 by its side of a half, which turns that kind of near-tie into a 0.6 gap; the tuned figures above were read with the rule off on the Mac.
+- The process's memory stays flat over the requests (the first and the last request differ by under 0.2 GB).
 
 The Gemma 31B base (`--base gemma-4-31b`):
 - The 6-bit conversion `mlx-community/gemma-4-31b-it-6bit` (26.1 GB to download, 24.9 GB of weights in memory) is the default, on a 64 GB Mac. The 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` (group size 32, 19.2 GB of weights) is for Macs with 48 GB of memory; its figures are below. `--revision v0.15.0` names the repository's tag of the build that was measured, so a later change to its main does not change what you serve (decisio 0.15.1 or later; before it, `--revision` was ignored for the download). The 8-bit one is not measured.
@@ -773,8 +914,8 @@ vLLM 0.31.0 has a mode, `VLLM_BATCH_INVARIANT=1`, in which every row is computed
 Without it a request's probabilities can differ in the last digits, and sometimes in more, with the traffic around it, with whether its state came from the prefix cache, and (for an adapter applied at run time) from one pass to the next.
 A board, or a user, runs only `--base <repository>` and sets no environment variable, so decisio can switch the mode itself:
 
-- **It is off by default (opt-in) since 0.45.0.** Turn it on with `--batch-invariant on`, or with a tuned repository's `defaults.batch_invariant: true`. From 0.39.0 to 0.44.0 it was on by default for the Gemma 4 12B (bf16, FP8, tuned repositories, adapters applied at run time); it was turned back off because its cost grows with the input (below).
-  **The trade.** With it on, a read gives the same bits whatever the server read before it: from the prefix cache or not, in any batch, after a restart (measured below). With it off, a request read twice can differ in the last digits, and a near-tie can change its top answer: on the 12B, two reads of 622 requests with the cache on (one taking each state from the cache, one mostly computed) differed on 145 by more than 0.01 and changed 4 top answers (0.6%). Turn it on where exact repeats matter (evaluation, certificates you check bit for bit); leave it off where latency on long inputs matters more.
+- **It is off by default since 0.45.0, and off is the recommended setting.** It is switched on only by `--batch-invariant on` or a tuned repository's `defaults.batch_invariant: true`, and none of the published repositories sets it. From 0.39.0 to 0.44.0 it was on by default for the Gemma 4 12B (bf16, FP8, tuned repositories, adapters applied at run time); it was turned back off because its cost grows with the input (below).
+  **The trade.** With it on, a read gives the same bits whatever the server read before it: from the prefix cache or not, in any batch, after a restart (measured below). With it off, a request read twice can differ in the last digits, and a near-tie can change its top answer: on the 12B, two reads of 622 requests with the cache on (one taking each state from the cache, one mostly computed) differed on 145 by more than 0.01 and changed 4 top answers (0.6%). We leave it off: its cost grows with the input, and the spread it removes is in the last digits and rare near-ties. To compare two setups, read both in one session on one server and take the spread between two reads as the noise floor, rather than turning the mode on.
 - **`--batch-invariant on|off`** is the server's setting, and `off` is the opt-out. Without it a tuned repository's `defaults.batch_invariant` (true or absent) decides, then `VLLM_BATCH_INVARIANT` in the environment (`0` is an opt-out too), then the base. The flag beats the repository.
 - **decisio sets no batch budget for it, and the budget is part of the arithmetic.** vLLM's own `max_num_batched_tokens` stands (8,192 on a card under 70 GB, 16,384 above; a value in `--engine` is yours), and the start line and `/health` report it when the mode is on. A prompt longer than the budget is prefilled in several engine steps. That is repeatable: on the merged tuned 12B with a budget of 256 tokens, reads split into steps were bit-identical to each other on 622 of 622, with the cache on and off and across two starts. It is other arithmetic than one step, though: the same reads differed from unsplit ones on all but one row (7 top answers changed; on the FP8 12B, 41). So with the mode on the serving-stack fingerprint carries the budget, and a certificate made under another budget is suspended. To read long prompts in one step, give a larger `"max_num_batched_tokens"` in `--engine`; it reserves more memory at start. A `--engine` JSON replaces decisio's own, so carry `"compilation_config": {"max_cudagraph_capture_size": 4096}` with it.
 - **It is set before the engine starts** (`VLLM_BATCH_INVARIANT=1` in the server's environment, which an engine process inherits). A variable already in the environment that says the opposite of the flag or the repository (`0` against `on`, `1` against `off`) is refused at start; a variable alone (`1`) turns the mode on and is recorded as the environment's. Only the vLLM server has the mode (`--backend mlx` and the CPU stand-in refuse `on`).
@@ -836,17 +977,69 @@ Leave it off on the 31B: in the card check its cold starts already agreed, and t
 ## Ollama
 
 ```bash
-ollama pull aminroudaki/decisio-gemma    # the Gemma 4 12B base, for 16 GB laptops
-ollama pull aminroudaki/decisio          # the Qwen base
+ollama pull aminroudaki/decisio-gemma          # the Gemma 4 12B base: q4_k_m (also latest) and q8_0
+ollama pull aminroudaki/decisio-gemma-tuned    # the tuned 12B (the calibrated flavor): q4_k_m (also latest) and q8_0
 ```
 
-Requires Ollama 0.35.1 through 0.40.3.
-These model files work on Ollama 0.35.1 through 0.40.3. Ollama 0.40.4 (2026-10-12) and later answer `/v1/systemone` for them with "was downloaded in a format that is no longer supported" (checked on 0.40.4, 0.40.7 and 0.40.9, and after a fresh `ollama pull`): their decision route takes only models whose GGUF carries Ollama's own decision head. On a newer Ollama, run decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
-The model pages, [decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma) and [decisio](https://ollama.com/aminroudaki/decisio), package laptop versions of the two bases for Ollama's decision route and list their tags and their sizes.
-- The Gemma listing is the path for 16 GB laptops: its `q4_k_m` tag (also `latest`) is a 7.7 GB download and takes 8.6 GB in Ollama at the listing's 8,192-token context; its `q8_0` tag takes 13.6 GB (Ollama 0.35.1 on an Apple M5 Pro, `runs/2026-10-07_ollama-gemma-memory/`).
-- The Qwen listing's smallest tag is a 23 GB download, so it needs a machine with more memory.
+Both listings answer Ollama's decision route, `/v1/systemone`, with decisio's own prompt and temperatures, and they read images.
+They were checked on Ollama 0.40.4, 0.40.9 and 0.40.16 (2026-11-15): each loads the files and answers text and image requests with the same top answer on every question tried; the probabilities differ by at most 0.001 on text and 0.05 on images between versions.
+On the questions measured, the `q8_0` tag of the base chooses the same answer as decisio's own server on the same Mac (MLX, 8-bit) for 98.3% of 300 questions, the tuned model's `q8_0` for 99.0%, and every tag matches decisio's image answers on 97% to 98% of 257 image questions (below).
 
-Ollama builds its own prompt and applies no calibration, so its numbers are the ones on those pages, not the ones in this repository.
+```bash
+curl http://localhost:11434/v1/systemone -d '{
+  "model": "aminroudaki/decisio-gemma",
+  "state": "The customer sent this photo of the parcel.",
+  "images": ["'"$(base64 < parcel.jpg | tr -d '\n')"'"],
+  "questions": {"damaged": {"type": "noul", "instructions": "Is the parcel damaged?"}}
+}'
+```
+
+### What the files carry
+
+- **The prompt.** A GGUF's `systemone` chat template is decisio's prompt for one question: the system turn, the questions header, the state, the question, the option letters and the answer line, with decisio's option rules (index keys hidden, snake_case labels shown with spaces, an option shown as its description).
+  For a request of one question with at most 68 options it is decisio's prompt byte for byte.
+- **The temperatures.** The base's 3.592 for every type; the tuned model's fitted ones (yes/no 3.314, score 2.1109, choice by number of options: 2.1317 up to 10, 1.8766 from 11).
+- **The weights.** The base is `bartowski/gemma-4-12B-it-GGUF` at revision `2ae7d41b` (Google's `gemma-4-12B-it` at `707f0a3b`), its tensors unchanged.
+  The tuned model is `tachara-ai/Decisio-12b-tuned-calibrated` at `baa731aa`, converted with llama.cpp and quantized with an importance matrix from the same calibration text as the base's files.
+  Both carry Gemma 4's vision projector (`mmproj-gemma-4-12B-it-f16.gguf`, 122 MB).
+- `python -m decisio.hub_gguf` writes and checks these keys for any Gemma 4 GGUF ([decisio.hub_gguf](../src/decisio/hub_gguf.py)).
+
+### Where it differs from decisio's own server
+
+- **Several questions in one request:** each question's prompt lists only its own question in the header, where decisio lists every question.
+  On 40 requests of three questions, the base's `q8_0` chose decisio's answer for 87.5% of the measured question.
+- **More than 68 options:** the option letters past the 68th are llama.cpp's codes, not decisio's; the readout stays consistent with what the prompt shows (30 questions of 77 options: the same answer as decisio for all of them at `q8_0`).
+- **Label forms:** decisio adds the probability of " A" to that of "A"; Ollama reads "A".
+- **Images:** a request's images go before the state, not at their places in it; an image is not limited to one question; there is no Box question.
+  Ollama reads an image near its own resolution, from about 80 tokens (a small image) to 487 (1,200 pixels and larger), where decisio's 12B reads every image at its budget of 560.
+- **What decisio does that Ollama does not:** the commit flavor, thinking, read twice, tasks, abstention and the fast table.
+
+### Measured (2026-11-15, Apple M5 Pro, Ollama 0.40.16)
+
+Answers to the same questions from a private decision suite (300 questions of at most 26 options, 30 of 77 options) and from an image set of synthetic scenes and real photos (257 questions, one image each), against decisio's own servers: MLX on the same Mac for text, and the bf16 model on vLLM for images (the 12B base at an image budget of 560, the tuned model at 280).
+
+| | Text: same answer as decisio | Text accuracy (choice / yes-no) | Images: same answer as decisio | Image accuracy (real-photo choice / yes-no) |
+| --- | --- | --- | --- | --- |
+| Base `q4_k_m` | 87.0% (MLX 4-bit) | 0.667 / 0.877 | 97.3% | 0.795 / 0.908 |
+| Base `q8_0` | 98.3% (MLX 8-bit) | 0.698 / 0.871 | 97.7% | 0.771 / 0.921 |
+| decisio, base (MLX 8-bit; bf16 for images) | | 0.674 / 0.877 | | 0.783 / 0.921 |
+| Tuned `q4_k_m` | 94.7% (MLX 8-bit) | 0.682 / 0.871 | 97.3% | 0.819 / 0.882 |
+| Tuned `q8_0` | 99.0% (MLX 8-bit) | 0.682 / 0.871 | 97.3% | 0.807 / 0.895 |
+| decisio, tuned (MLX 8-bit; bf16 for images) | | 0.698 / 0.865 | | 0.807 / 0.908 |
+
+- decisio's own MLX 4-bit and 8-bit conversions of the base choose the same answer for 86.3% of the text questions, so most of the `q4_k_m` row's difference is the 4-bit quantization, not the route.
+- No accuracy difference between an Ollama tag and decisio is outside its 95% interval (paired bootstrap).
+  Log loss differs in six places, all small: lower than decisio for the base `q8_0` on text choice (-0.017 [-0.030, -0.005]) and synthetic yes/no images (-0.017 [-0.039, -0.001]), and for the tuned `q8_0` on yes/no in requests of several questions (-0.021 [-0.038, -0.007]); higher for the tuned `q4_k_m` on text choice (+0.051 [+0.025, +0.077]) and for both tuned tags on synthetic yes/no images (+0.043 [+0.017, +0.075] and +0.049 [+0.023, +0.080]).
+- Calibration: on images the Ollama tags' calibration error is higher than decisio's on some kinds (the tuned `q4_k_m`: 0.112 against 0.052 on real-photo yes/no).
+- Memory at the listings' 8,192-token context, the runner's resident set while it answered text, an image and a 6,600-token text: 11.1 GB for the base's `q4_k_m` (10.8 GB for the tuned one) and 15.9 GB for either `q8_0`: the weights, mapped from the file, and about 3.5 GB of buffers.
+  Ollama's own `/api/ps` reports 4.2 GB for every tag, which leaves out the mapped weights.
+  A 16 GB machine was not tried.
+
+The Qwen listing, `aminroudaki/decisio`, needs Ollama 0.35.1 through 0.40.3: later versions refuse it on the decision route ("was downloaded in a format that is no longer supported"), and its readout cannot yet be carried in a GGUF.
+On a current Ollama use the Gemma listings above, or decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
+The files of the Gemma listing that worked on Ollama 0.35.1 through 0.40.3 stay under `q4_k_m-ollama0.40.3` and `q8_0-ollama0.40.3`.
+
+The record of these measurements is `runs/2026-11-15_ollama-route/`.
 
 ## CPU stand-in for development
 

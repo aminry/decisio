@@ -1,0 +1,1 @@
+2026-11-15, Apple M5 Pro (Mac17,9), 64 GB unified memory, macOS 26.6.2; Ollama 0.40.4, 0.40.9 and 0.40.16 (each from its release archive, its own model store and port); decisio MLX: mlx 0.32.4, mlx-lm 0.32.2

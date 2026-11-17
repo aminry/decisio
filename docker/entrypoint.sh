@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 # The image's entry point: check that a GPU is visible, then start the server with the served-default flags.
+# The model class is the server's own default (decisio's head-capable class; with --images on on the 31B, the
+# checkpoint's multimodal class), so --images on and --head-engine work here as on the command line.
 # Extra arguments are passed to the server after the defaults, so they win (argparse keeps the last value):
 #   docker run ... ghcr.io/aminry/decisio --image-model Qwen/Qwen3.6-35B-A3B-FP8
 # Environment: DECISIO_BASE (the base: gemma-4-31b by default, or qwen3.6-35b-a3b, gemma-4-12b, or a decisio repository),
@@ -51,7 +53,6 @@ if [ "${#selection[@]}" -eq 0 ]; then selection=(--base gemma-4-31b); fi
 
 exec python3 -m decisio.serve.vllm_engine \
   "${selection[@]}" \
-  --model-class hidden-readout \
   --host "${DECISIO_HOST:-0.0.0.0}" \
   --port "${DECISIO_PORT:-8000}" \
   "$@"

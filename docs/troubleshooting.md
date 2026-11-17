@@ -28,7 +28,7 @@ The container prints its own warning first, before it starts the server, when th
 **What to do.**
 1. Pick a base for the card: `--base gemma-4-12b` or `--base qwen3.6-35b-a3b` (each base's weights are in [Choosing a base](../README.md#choosing-a-base)).
 2. Or lower the context: `--max-model-len 16384` (any length from 1,024 up) fixes it; vLLM's own message suggests the same through `--engine`, which takes `LLM(...)` keyword arguments as JSON and **replaces the server's defaults as a whole**, so repeat the default `compilation_config`: `--engine '{"compilation_config": {"max_cudagraph_capture_size": 4096}, "max_model_len": 16384}'`. That is vLLM's own suggestion; it was not run on a smaller card for this page, and a state over the lowered context is answered with 422.
-3. Or leave the card for a Mac: [`running.md`](running.md#mac-with-mlx) (the 6-bit 12B needs 15.1 GB at the longest state) or Ollama (8.6 GB for the Gemma listing's smallest tag).
+3. Or leave the card for a Mac: [`running.md`](running.md#mac-with-mlx) (the 6-bit 12B needs 15.1 GB at the longest state) or Ollama 0.40.4 or later ([`running.md`](running.md#ollama): 11.1 GB for the Gemma listing's smallest tag).
 
 ## The driver does not support CUDA 13.0
 

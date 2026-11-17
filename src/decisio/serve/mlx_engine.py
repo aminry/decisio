@@ -105,25 +105,29 @@ def split_revision(tokenizer):
     return t, None
 
 
-def copy_cache(cache):
-    """A prompt cache that continues from `cache` without changing it (see the module docstring)."""
-    from mlx_lm.models.cache import ArraysCache, KVCache, RotatingKVCache
+def _is(c, name):
+    """Whether `c` is of the prompt-cache class `name` of mlx-lm or of mlx-vlm (its own, of the same layout)."""
+    return any(k.__name__ == name for k in type(c).__mro__)
 
+
+def copy_cache(cache):
+    """A prompt cache that continues from `cache` without changing it (see the module docstring). The entries are
+    those of mlx-lm or of mlx-vlm (the image route's model), copied into entries of their own class."""
     out = []
     for c in cache:
-        if isinstance(c, ArraysCache):
-            n = ArraysCache(len(c.cache))
+        if _is(c, "ArraysCache"):
+            n = type(c)(len(c.cache))
             n.cache = list(c.cache)
-        elif isinstance(c, RotatingKVCache):
+        elif _is(c, "RotatingKVCache"):
             # the ring buffer whole, with its write position: a one-token step writes into the copy's arrays in place
             # and a longer one concatenates; either way the copy's arrays are new objects, and a write into a slice of
             # an MLX array does not reach the array it was sliced from, so the original keeps its values
-            n = RotatingKVCache(max_size=c.max_size, keep=c.keep)
+            n = type(c)(max_size=c.max_size, keep=c.keep)
             if c.keys is not None:
                 n.keys, n.values = c.keys[...], c.values[...]
             n.offset, n._idx = c.offset, c._idx
-        elif isinstance(c, KVCache):
-            n = KVCache()
+        elif _is(c, "KVCache"):
+            n = type(c)()
             if c.keys is not None:
                 n.keys, n.values, n.offset = c.keys[..., : c.offset, :], c.values[..., : c.offset, :], c.offset
         else:
@@ -133,11 +137,9 @@ def copy_cache(cache):
 
 
 def _cache_arrays(cache):
-    from mlx_lm.models.cache import ArraysCache
-
     arrays = []
     for c in cache:
-        parts = c.cache if isinstance(c, ArraysCache) else (c.keys, c.values)
+        parts = c.cache if _is(c, "ArraysCache") else (c.keys, c.values)
         arrays += [a for a in parts if a is not None]
     return arrays
 
@@ -169,7 +171,8 @@ class PrefixCache:
     computed for, computed the same way (`split`: the tokens fed first, before the rest was fed into a copy, 0 for
     one feed from the start; a task context's prefix is fed first, `MLXLettersEngine._score`), and callers never write
     into it (`copy_cache`). The lookups of a context's own entry are counted apart (`context_hits`,
-    `context_misses`)."""
+    `context_misses`). `salt`: what the token ids do not say about the prefix (the content of the images the engine
+    expanded into it, `decisio.serve.mlx_images`); an entry is returned for the same ids and the same salt only."""
 
     def __init__(self, max_bytes):
         self.max_bytes, self.entries, self.bytes, self.hits, self.misses = int(max_bytes), OrderedDict(), 0, 0, 0
@@ -180,13 +183,14 @@ class PrefixCache:
         return hashlib.sha256(np.asarray(ids, dtype=np.int64).tobytes()).hexdigest()
 
     @classmethod
-    def _entry_key(cls, ids, split):
-        return cls._key(ids) if not split else f"{cls._key(ids)}@{int(split)}"
+    def _entry_key(cls, ids, split, salt=""):
+        key = cls._key(ids) if not split else f"{cls._key(ids)}@{int(split)}"
+        return key if not salt else f"{key}#{hashlib.sha256(salt.encode()).hexdigest()}"
 
-    def get(self, ids, split=0, context=False):
-        key = self._entry_key(ids, split)
+    def get(self, ids, split=0, context=False, salt=""):
+        key = self._entry_key(ids, split, salt)
         e = self.entries.get(key)
-        if e is None or not np.array_equal(e[0], np.asarray(ids, dtype=np.int64)) or e[3] != int(split):
+        if e is None or not np.array_equal(e[0], np.asarray(ids, dtype=np.int64)) or e[3] != int(split) or e[4] != salt:
             if context:
                 self.context_misses += 1
             else:
@@ -199,14 +203,14 @@ class PrefixCache:
             self.hits += 1
         return e[1]
 
-    def put(self, ids, cache, split=0, keep=None):
+    def put(self, ids, cache, split=0, keep=None, salt=""):
         """Keep `cache` for `ids`, least recently used out first. `keep`: the token ids of an entry that stays (a task
         context's own entry, which every request of the task starts from): where `cache` would not fit beside it, it
         is not stored, so one context entry is kept once and the entries of states read after it never push it out."""
         n = sum(a.nbytes for a in _cache_arrays(cache))
         if n > self.max_bytes:
             return
-        key = self._entry_key(ids, split)
+        key = self._entry_key(ids, split, salt)
         pinned = self._entry_key(keep, 0) if keep is not None else None
         held = self.entries.get(pinned) if pinned is not None and pinned != key else None
         if held is not None and held[2] + n > self.max_bytes:
@@ -218,7 +222,7 @@ class PrefixCache:
             if old is None:
                 break
             self.bytes -= self.entries.pop(old)[2]
-        self.entries[key] = (np.asarray(ids, dtype=np.int64), cache, n, int(split))
+        self.entries[key] = (np.asarray(ids, dtype=np.int64), cache, n, int(split), salt)
         self.bytes += n
 
     def facts(self):
@@ -255,7 +259,6 @@ class MLXLettersEngine(LettersEngine):
         revision=None,
     ):
         import mlx.core as mx
-        from mlx_lm import load
         from transformers import AutoTokenizer
 
         if pad_where not in PAD_PLACES:
@@ -276,12 +279,20 @@ class MLXLettersEngine(LettersEngine):
         from decisio.serve import mlx_memory
 
         model_dir = fetch_model(model, revision)
+        model_dir = self._check_model_dir(model_dir) or model_dir
         self.memory = mlx_memory.setup(
-            mx, model_dir, self.family, prefix_cache_mb, prefix_cache_explicit, memory_limit_gb, cache_limit_gb
+            mx,
+            model_dir,
+            self.family,
+            prefix_cache_mb,
+            prefix_cache_explicit,
+            memory_limit_gb,
+            cache_limit_gb,
+            working_gb=self._working_gb(),
         )
         prefix_cache_mb = self.memory.prefix_cache_mb  # the budget that fits under the limit
         print("MLX MEMORY", mlx_memory.describe(self.memory), flush=True)
-        self.model, _ = load(str(model_dir))  # its own tokenizer is not used (see the module docstring)
+        self.model = self._load_model(model_dir)
         mlx_memory.check_after_load(self.memory, mlx_memory.physical_footprint_bytes())
         lm = getattr(self.model, "language_model", self.model)
         self._backbone = lm.model  # returns the final-norm hidden states
@@ -297,6 +308,23 @@ class MLXLettersEngine(LettersEngine):
         self._mx = mx
         if warm_up:
             self._warm_up()
+
+    # ---- what a subclass changes: the checkpoint's checks, its working set and its loader --------
+
+    def _check_model_dir(self, model_dir):
+        """Refuse a conversion this engine cannot serve before anything is loaded (nothing for the text route); the
+        directory to load and size the memory limit from, when it is another than `model_dir` (the image route's, with
+        the vision weights merged in)."""
+
+    def _working_gb(self):
+        """The base's working set above its weights in GB for the memory limit (None: the base's measured one)."""
+        return None
+
+    def _load_model(self, model_dir):
+        """The loaded model; its own tokenizer is not used (see the module docstring)."""
+        from mlx_lm import load
+
+        return load(str(model_dir))[0]
 
     # ---- the forward pass ------------------------------------------------------------------------
 
