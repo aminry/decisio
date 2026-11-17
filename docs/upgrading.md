@@ -8,6 +8,84 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: `header_questions` keeps the header's cache across requests
+
+### What changed
+
+- **A request may declare every question the client will ask about its state** (`"header_questions": ["<instructions>", ...]` on `/v1/systemone` and `/v1/answer`).
+  Under the header layout the header then lists exactly the declared lines, in the declared order, on every row of the request.
+  A client that asks one question at a time about one state, in separate requests, and sends the same list each time, gets the same header and the same prefix on every request, so the cache serves the state after the first one.
+  Before, each request listed only its own question, and every request after the first read the whole state again (on the 12B on a Mac, 3,470 to 3,752 ms for a follow-up, against 195 ms under the plain layout).
+- Under the plain layout the field is checked and has no effect.
+- A list that is empty, has a non-string, an empty line or a repeated line, leaves out a question of the request, or makes a header that does not fit the context is 422 naming the line; a declared header is never cut by the header limit.
+  A registration example and a request with images refuse the field.
+
+### What to do
+
+- Nothing, for a deployment whose clients do not send the field: a request without it is built exactly as before.
+- A client that asks questions one at a time about one state under the header layout can declare them (`docs/running.md`, "A question list for the header") instead of switching to `"layout": "plain"`.
+  The header's measured gains were taken with the header listing the questions asked; a declared list that lists other questions too is not measured yet.
+
+## Unreleased: the header layout says when a later request reads a state again
+
+### What changed
+
+- **Every text request read under the header layout carries a new response header, `x-decisio-note`.**
+  Under the header layout the questions come before the state, so a later request with other questions about the same state reads the whole state again: the prefix cache cannot serve it.
+  The note says so, and names the ways out: all the questions about a state in one request, the same `header_questions` on every request about it (above), or `"layout": "plain"`.
+  A request that sends `header_questions` gets another note: the cache is shared, and the accuracy of a header that lists questions the request does not ask is not measured yet.
+- **`/health` has a new `systemone.header_layout`**: `reads`, `state_rereads`, `states_remembered` and `window`.
+  `state_rereads` counts the engine calls under the header layout whose state an earlier call had read under another header.
+- Answers, prompts, usage and certificates are unchanged.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| Clients that ask about one state one question at a time, under the header layout | each request read the whole state, with nothing said | the same, and every response carries `x-decisio-note` | send all the questions about a state in one request, or `"layout": "plain"` on those requests (`docs/running.md`, "A layout per request") |
+| Clients that read response headers or `/health` exactly | | `x-decisio-note` and `systemone.header_layout` are new | allow them |
+
+## 0.47.0: the Qwen image route reads images at their places, and the old layout is deprecated
+
+### What changed
+
+- **The Qwen image route (`--image-model`) now writes each image where its reference stands**, and a question's own image is read by that question alone, the rules the Gemma bases follow (`docs/api.md`, "Where an image stands, and who reads it").
+  An `assets` placeholder, a `data:image` URI in the state, and a literal `[image N]` in the text of a request that sends the `images` list all name the image's place; an image no text names opens the state.
+  Before, every image was put at the start of the turn and every question read every image.
+- **The earlier layout is deprecated.**
+  It stays for a notice period as `--image-prompt legacy` and is removed in a later release.
+  With it every image response carries `Deprecation: true` and a `Warning: 299 - "..."` header naming the flag, and the server logs a warning at start and once for every 1,000 such requests.
+- The `images` field, `data:image` URIs, `assets` and imajev's multipart fields keep working; a `box` question is still refused with 400 on this route.
+- Qwen image requests report 2 more `usage.input_tokens` per image: the two vision delimiter tokens the engine receives, counted as the Gemma bases count their begin and end tokens.
+- The route's measured figures (ImajevBench, the image temperature of 1.0) were taken on the earlier layout.
+  They are not measured on the new one yet; a re-measurement follows.
+
+### Who is affected
+
+| | Before | Now | To keep the old behaviour |
+| --- | --- | --- | --- |
+| A request with images on `--image-model`, answers | every image at the start of the turn, read by every question | each image at its place; a question's own image in that question only | start the server with `--image-prompt legacy` |
+| `usage.input_tokens` of a request whose questions carry their own images | each image counted once | the state's images once, a question's own image once for its question | `--image-prompt legacy` |
+| Response headers | none for images | none, unless `--image-prompt legacy`: then `Deprecation` and `Warning` | |
+
+Answers of the Qwen image route can differ after the upgrade, because the prompt differs.
+If you rely on the earlier answers, start with `--image-prompt legacy` for now, and plan to move to the default before the flag is removed.
+
+## 0.47.0: the 12B reads images at 560 soft tokens by default, and the 31B's image answers use a fitted temperature
+
+With `--images on` and no `--image-budget`, Gemma 4 12B (bf16, FP8 and any tuned 12B repository) now reads images at 560 soft tokens, where every base read them at 280.
+An image request costs about 1.8 times the tokens per image, and reads Boxes better.
+Pass `--image-budget 280` to keep the old cost.
+Gemma 4 31B keeps 280 by default, and 1120 stays an opt-in.
+`/health` reports the budget in use.
+
+Gemma 4 31B now serves a request with images at a temperature fitted on images: its text temperature for the question's type times 1.376 (`image_temperature_scale`), so its image probabilities are less sharp than before.
+Requests without images, an adapter's own temperatures and Gemma 4 12B are unchanged.
+
+The Qwen image route (`--image-model`) read images at temperature 1.0, and now reads them at 0.80, fitted on the placed layout.
+`--image-prompt legacy` keeps 1.0.
+Its image probabilities are therefore sharper than before.
+
 ## 0.46.0: a prompt over the window is refused on the MLX and HF builds, and a context is checked with its examples
 
 ### What changed
@@ -197,8 +275,8 @@ How they work: [tasks.md, "Yes/no questions"](tasks.md#yesno-questions).
 | You run | What happens | What to do |
 | --- | --- | --- |
 | The 12B (bf16, FP8, a tuned repository, an adapter) with no `--batch-invariant` flag | The server starts with the mode off: answers shift once (last digits, and an occasional near-tie), long reads are faster, and `/health` says `batch_invariant` off | Nothing, or `--batch-invariant on` to keep 0.39.0 to 0.44.0's behaviour |
-| Certificates made on such a server with the mode on | The serving-stack fingerprint holds the mode only when on, so they are suspended (`serving_stack_changed`) | Certify them again, or start with `--batch-invariant on` |
-| Recorded answers (goldens, reference reads) made with the mode on | They will not match bit for bit | Record them again, or pin `--batch-invariant on` |
+| Certificates made on such a server with the mode on | The serving-stack fingerprint holds the mode only when on, so they are suspended (`serving_stack_changed`) | Certify them again |
+| Recorded answers (goldens, reference reads) made with the mode on | They will not match bit for bit | Record them again |
 | `--batch-invariant on`, or a repository with `defaults.batch_invariant: true` | Unchanged | Nothing |
 | The 31B, the Qwen base, the image route, packed mode | Unchanged (it was off) | Nothing |
 

@@ -54,7 +54,7 @@ class Usage(BaseModel):
         description="The state and each question's own text in the served tokenizer, plus the image tokens."
     )
     output_tokens: int = Field(
-        description="One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`)."
+        description="One per question, plus the reasoning tokens of the questions that thought (`thinking_tokens`); a Box question counts the tokens it wrote."
     )
     thinking_tokens: int | None = Field(
         None, description="The reasoning tokens generated for the request; present when thinking was on for it."
@@ -119,7 +119,24 @@ class ScoreAnswer(_Answer):
     probabilities: dict[str, float] = Field(description="The distribution over the levels, by index.")
 
 
-Answer = Annotated[NoulAnswer | ChoiceAnswer | ScoreAnswer, Field(discriminator="type")]
+class BoxAnswerEdges(BaseModel):
+    top: float = Field(description="The box's top edge, a fraction of the image's height from the top, two decimals.")
+    bottom: float = Field(description="The bottom edge, a fraction of the height; larger than `top`.")
+    left: float = Field(description="The left edge, a fraction of the image's width from the left.")
+    right: float = Field(description="The right edge, a fraction of the width; larger than `left`.")
+
+
+class BoxAnswer(_Answer):
+    type: Literal["box"]
+    box: BoxAnswerEdges = Field(
+        description="The one box the model reads for the question, in the image's own fractions."
+    )
+    confidence: float = Field(
+        description="How much to trust the box, from 0 to 1: the probability the target is in the picture times how sure the edges are. Not calibrated until a calibration for the served model is loaded (`--box-confidence`)."
+    )
+
+
+Answer = Annotated[NoulAnswer | ChoiceAnswer | ScoreAnswer | BoxAnswer, Field(discriminator="type")]
 
 
 class SystemOneResponse(BaseModel):
@@ -307,7 +324,7 @@ class TaskRecord(BaseModel):
 
 
 MODELS = (
-    SystemOneRequest, SystemOneResponse, NoulAnswer, ChoiceAnswer, ScoreAnswer, Usage, ModelList, ModelEntry, HealthResponse,
+    SystemOneRequest, SystemOneResponse, NoulAnswer, ChoiceAnswer, ScoreAnswer, BoxAnswerEdges, BoxAnswer, Usage, ModelList, ModelEntry, HealthResponse,
     DeadEngine, ErrorDetail, ImageError, TaskExample, CertifyBlock, FastTableBlock, TaskRegistration, CertifyRequest,
     RollbackRequest, TaskImport, AbstentionRegistration, TaskRecord,
 )  # fmt: skip
@@ -319,6 +336,11 @@ RESPONSE_HEADERS = {
     "x-decisio-route": "The route that served it: `text` or `image`.",
     "x-decisio-tasks": "The registered tasks applied, when any were.",
     "x-decisio-warning": "Something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part`.",
+    "x-decisio-note": "How the request was read, where that has a cost a client can avoid or a limit to know. On every "
+    "text request read under the header layout: a later request with other questions about the same state reads the "
+    "whole state again, so send all the questions about a state in one request, the same `header_questions` on every "
+    'request about it, or `"layout": "plain"`. With `header_questions`: the cache is shared, and the accuracy of a '
+    "header that lists questions the request does not ask is not measured yet.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
     "x-decisio-think-ms": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
     "x-decisio-think-tokens": "The reasoning tokens generated, when thinking was on for the request.",
@@ -331,6 +353,7 @@ RESPONSE_HEADERS = {
     "or `head`), `task` the questions of a "
     "certified task, read one at a time or answered by its fast table, `head` the intent head's read, `think` the "
     "reasoning pass, `wait` the time spent waiting for the engine.",
+    "x-decisio-box": "`calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`).",
     "x-decisio-wait-behind": "`registration` when a boundary registration was running when the request arrived.",
 }
 
@@ -410,7 +433,9 @@ SYSTEMONE_PARAMETERS = [
     {"name": "x-decisio-debug", "in": "header", "required": False, "schema": {"type": "string", "enum": ["readout", "hidden"]},
      "description": "Add the raw readout to the response; only on a server started with `--debug-readout` (verification, never production)."},
     {"name": "x-decisio-client", "in": "header", "required": False, "schema": {"type": "string"},
-     "description": "Required, with any value, on a `multipart/form-data` request (a request a browser can send without a preflight is refused with 415)."},
+     "description": "On a `multipart/form-data` request, one of this header, `x-typesafe-sdk` or `typesafe-danger-zone-images` is required, with any value (a request a browser can send without a preflight is refused with 415)."},
+    {"name": "typesafe-danger-zone-images", "in": "header", "required": False, "schema": {"type": "string"},
+     "description": "System One's images header: accepted with any value and never required. On a `multipart/form-data` request it also lets the request through."},
 ]  # fmt: skip
 
 MULTIPART = {
@@ -480,7 +505,13 @@ def openapi() -> dict:
             "content": {"application/json": {"schema": {"oneOf": [_ref("ImageError"), _ref("ErrorDetail")]}}},
         },
         "404": _resp("An adapter that is not loaded.", "ErrorDetail"),
-        "415": _resp("A POST that is not JSON (or a multipart request without `x-decisio-client`)."),
+        "413": _resp(
+            "A request body over 32 MiB, refused before it is parsed, or a placeholder name over 1,024 bytes of UTF-8 (65,536 bytes for all of them): `api_usage_error`.",
+            "ImageError",
+        ),
+        "415": _resp(
+            "A POST that is not JSON (or a multipart request with none of `x-decisio-client`, `x-typesafe-sdk` and `typesafe-danger-zone-images`)."
+        ),
         "422": _resp(
             "A request that does not validate (for example a choice with more than 255 options), or whose task cannot be found as asked (`task`).",
             "HTTPValidationError",

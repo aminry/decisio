@@ -220,7 +220,10 @@ def profile_of(fam: Family) -> dict:
             "head_label_logprobs": fam.head_label_logprobs,
             "hidden_start": fam.hidden_start,
         },
-        "temperatures": {"global": fam.temperature, "choice": fam.choice_temperature},
+        "temperatures": {
+            "global": fam.temperature,
+            "choice": fam.choice_temperature,
+        },
         "serving": {
             "served_name": fam.served_name,
             "pad_to": fam.pad_to,

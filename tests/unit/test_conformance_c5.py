@@ -8,7 +8,7 @@ W2  a difference that is not documented fails C5 (System One's limit changes und
 W3  a documented difference that has gone away fails C5 (the docs would be stale)
 W4  a choice of 255 options is accepted and one of 256 is a 422 `too_long` with System One's message and location
 W5  the documented differences hold on the real route: score levels past 10 and a request without `model` are answered,
-    a `box` question is a 422
+    a `box` question is served (this stub has no image engine, so it is a 400 that says what to start)
 W6  a response with System One's fields has no response differences, and a missing field is named
 W7  the choice cap is the letter readout's cap
 
@@ -124,7 +124,8 @@ def test_w5_the_documented_differences_hold_on_the_route():
     no_model.pop("model")
     assert c.post("/v1/systemone", json=no_model).status_code == 200  # System One requires model
     box = {"state": "s", "model": "m", "questions": {"q": {"type": "box", "instructions": "where"}}}
-    assert c.post("/v1/systemone", json=box).status_code == 422
+    r = c.post("/v1/systemone", json=box)
+    assert r.status_code == 400 and "--images on" in r.json()["detail"]["message"]
     # `assets` is read now (tests/unit/test_assets.py): an asset no text uses is a 400, as on System One
     assets = {**choice(3), "assets": {"abc": {"type": "image", "format": "png", "data_base64": "AAAA"}}}
     assert c.post("/v1/systemone", json=assets).status_code == 400

@@ -1,0 +1,77 @@
+{
+ "base q4_k_m | Ollama 0.40.4 | text": {
+  "answered": 20,
+  "max_abs_difference_from_0.40.16": 0.000673
+ },
+ "base q4_k_m | Ollama 0.40.4 | images": {
+  "answered": 10,
+  "max_abs_difference_from_0.40.16": 0.018874,
+  "image_tokens": [
+   83,
+   124,
+   328,
+   339,
+   487
+  ]
+ },
+ "base q4_k_m | Ollama 0.40.9 | text": {
+  "answered": 20,
+  "max_abs_difference_from_0.40.16": 0.000673
+ },
+ "base q4_k_m | Ollama 0.40.9 | images": {
+  "answered": 10,
+  "max_abs_difference_from_0.40.16": 0.018874,
+  "image_tokens": [
+   83,
+   124,
+   328,
+   339,
+   487
+  ]
+ },
+ "base q4_k_m | Ollama 0.40.16 | text": {
+  "answered": 20,
+  "max_abs_difference_from_0.40.16": 0.0
+ },
+ "base q4_k_m | Ollama 0.40.16 | images": {
+  "answered": 10,
+  "max_abs_difference_from_0.40.16": 0.0,
+  "image_tokens": [
+   83,
+   124,
+   328,
+   339,
+   487
+  ]
+ },
+ "tuned q4_k_m | Ollama 0.40.4 | text": {
+  "answered": 20,
+  "max_abs_difference_from_0.40.16": 0.00064
+ },
+ "tuned q4_k_m | Ollama 0.40.4 | images": {
+  "answered": 10,
+  "max_abs_difference_from_0.40.16": 0.048306,
+  "image_tokens": [
+   83,
+   124,
+   328,
+   339,
+   487
+  ]
+ },
+ "tuned q4_k_m | Ollama 0.40.9 | text": {
+  "answered": 20,
+  "max_abs_difference_from_0.40.16": 0.00064
+ },
+ "tuned q4_k_m | Ollama 0.40.9 | images": {
+  "answered": 10,
+  "max_abs_difference_from_0.40.16": 0.048306,
+  "image_tokens": [
+   83,
+   124,
+   328,
+   339,
+   487
+  ]
+ }
+}

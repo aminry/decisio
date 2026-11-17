@@ -368,7 +368,6 @@ LIMIT_KEYS = ("minProperties", "maxProperties", "minItems", "maxItems")
 # What differs from System One's wire on purpose, in the words `c5_differences` uses; each is in docs/api.md.
 DOCUMENTED_DIFFERENCES = (
     "request field `model`: required by System One, optional here",
-    "question type `box`: not supported",
     "score criteria maxItems: System One 10, decisio none",
 )
 

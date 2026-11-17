@@ -76,6 +76,25 @@ class Family:
     # the served temperatures: global, and for choice questions (None: the global one)
     temperature: float = 1.0
     choice_temperature: float | None = None
+    # a factor on the temperature of a request with images (`--images on`, Gemma bases): a question with images is
+    # read at `image_temperature_scale` times the temperature its type has for text. None reads images at the text
+    # temperatures. The text temperatures were fitted on text; this is the correction fitted on images
+    # (docs/running.md, "Images on Gemma 4")
+    image_temperature_scale: float | None = None
+    # the soft-token budget an image is read at when `--image-budget` is not given (None: image_marks.DEFAULT_BUDGET,
+    # 280, the model's own)
+    image_budget: int | None = None
+    # --backend mlx --images on: the base's vision add-on, a small repository (one `vision.safetensors`) with the
+    # vision tensors an MLX conversion made for text dropped, copied bit for bit from the base's own checkpoint and
+    # shared by the base and its tuned models. The pin is the file's sha256 (the content is the integrity anchor; the
+    # repository's revision is pinned once it is published). Empty: the base has no add-on (decisio.serve.mlx_vision)
+    vision_addon_repo: str = ""
+    vision_addon_sha256: str = ""
+    # the sha256 of the add-on's `vision_config.json` (the base's vision settings, so a start needs no copy of the
+    # base's checkpoint) and the repository's revision, a commit sha: empty until the repository is published, and a
+    # download from the hub is refused while it is empty (an unpinned head is never read)
+    vision_addon_config_sha256: str = ""
+    vision_addon_revision: str = ""
     # beyond those two: a temperature for yes/no ("noul") and for score questions of their own (the global one when
     # absent), and a choice temperature per band of option count ("lo-hi": T, 2 to 255, not overlapping). Both are
     # the profile's last word: a flag, a temperatures file and a tuned repository's defaults come first, and the bands
@@ -113,6 +132,11 @@ class Family:
     # (docs/running.md: Qwen 4-bit 19.5 -> 22.7 GB, Gemma 4 12B 9.7 -> 15.1, Gemma 4 31B 24.9 -> 33.7), rounded up;
     # decisio.serve.mlx_memory sizes MLX's memory limit from it (0: the default, 6)
     mlx_working_gb: float = 0
+    # --backend mlx --images on: the same figure for a server that also reads images (0: the text figure). The 12B's is
+    # the text figure plus what the vision path adds at the largest budget (1,120), measured on one Apple M5 Pro with
+    # 64 GB: the MLX peak went from 23.3 to 24.6 GB between budgets 280 and 1,120 on a 1.4k-token prompt, so +1.3 GB,
+    # rounded up with the text figure's 6 GB (docs/running.md, "Images on a Mac")
+    mlx_working_images_gb: float = 0
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
@@ -143,6 +167,10 @@ QWEN = Family(
     },
     temperature=1.506,
     choice_temperature=1.370,
+    # the `--image-model` route reads images at temperature 1.0, not at the text temperatures above, so this is the
+    # image temperature itself: 0.80, fitted on the placed layout (held-out log loss 0.189 before, 0.173 after);
+    # the legacy layout keeps 1.0
+    image_temperature_scale=0.80,
     # not needed: the state is padded to end on the 1,056-token block, also the cache's hit unit, and a question is
     # shorter than a block, so the state's end is already the latest checkpoint of a request with one question
     register_state_boundary=False,
@@ -158,6 +186,9 @@ GEMMA4 = Family(
     pad_to="none",
     limit_mm={"image": 0, "video": 0, "audio": 0},
     context_ceiling=65536,
+    # images are read at 560 soft tokens unless --image-budget says otherwise: about 1.8 times the tokens of 280, and
+    # a Box read with a mean IoU of 0.925 against 0.862 at 280, with decisions within about 2 points
+    image_budget=560,
     # text-only is vLLM's own class with every multimodal input off: Gemma has no M-RoPE, so a text prompt gets the
     # language model's own positions
     classes={"text-only": None, "hidden-readout": "DecisioGemma4UnifiedHiddenReadout"},
@@ -187,6 +218,12 @@ GEMMA4 = Family(
     # 8,000: two thirds of a 32 GiB Mac (22.906 GB) less the 15.125 GB peak at 32k tokens leaves 7.781 GB = 7,421 MiB
     mlx_prefix_cache_mb=7400,
     mlx_working_gb=6,
+    mlx_working_images_gb=7.5,
+    vision_addon_repo="tachara-ai/decisio-gemma-4-12b-vision",
+    vision_addon_revision="d70d5e5cd76c115adbdde282d8958fbdeb73046d",  # the published commit of the add-on repository
+    # google/gemma-4-12B-it at 707f0a3b: 10 tensors, 99,845,840 bytes, bf16
+    vision_addon_sha256="112725a204111dfdc5d29d2c4456818e4b6de33109991edfaa7120c731fb06a8",
+    vision_addon_config_sha256="77f6b61591676bd7440bcd5633a8dbce3e87bd952c348ece524004d8e2a994cb",
     precision="bf16",
 )
 
@@ -215,6 +252,16 @@ GEMMA4_31B = Family(
     head_rows=GEMMA4.head_rows,
     softcap=30.0,
     head_label_logprobs="engine",
+    # images: read at 280 soft tokens (image_budget stays None: the model's own default). The scale is a temperature
+    # fitted on images that softens the probabilities served at the text temperatures by a further factor of
+    # 1.3761675778532716, fitted at budget 280 on 377 calibration items (held-out log loss 0.362 before, 0.333 after)
+    image_temperature_scale=1.376,
+    vision_addon_repo="tachara-ai/decisio-gemma-4-31b-vision",
+    vision_addon_revision="1bea5641eb206dce72ee514c0e56f0e54c9dc025",  # the published commit of the add-on repository
+    # google/gemma-4-31B-it at 842da379: 356 tensors (the vision tower and its projection), 1,151,536,584 bytes, bf16
+    vision_addon_sha256="f2265e6a0456cea6587d3d214ce48447e6390f5a4e2749c45143aede4ee6c3fc",
+    vision_addon_config_sha256="6c8343fd04ef9f9eceb2f45fd43a351a7ba2302beedfb50deb4e238ae047930f",
+    mlx_working_images_gb=10.5,
     # 210,000 to 215,376: the 12B's 170,000 would put a label form (174,960) inside 5,376 dimensions
     hidden_start=210_000,
     temperature=5.252,
@@ -364,6 +411,11 @@ def check_profile_temperatures(fam: Family) -> None:
             raise ValueError(f"{fam.key}: temperatures names {k!r}; only noul and score (choice has its own field)")
         if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
             raise ValueError(f"{fam.key}: the {k} temperature must be a positive number, got {v!r}")
+    it = fam.image_temperature_scale
+    if it is not None and (
+        isinstance(it, bool) or not isinstance(it, (int, float)) or not math.isfinite(it) or it <= 0
+    ):
+        raise ValueError(f"{fam.key}: the image temperature scale must be a positive number, got {it!r}")
     if fam.choice_bands:
         from decisio.serve.adapter_temperatures import AdapterFileError, validate_temperatures
 

@@ -4,10 +4,11 @@
 decisio server, checked in the source (no vLLM, no model):
 
 X1  every `SamplingParams(...)` sets `max_tokens=1` and none sets `min_tokens` (GHSA-4xqp-c3mv-qff7), except `think`
-    (think when unsure), whose `max_tokens` is its `budget` argument, a server setting validated to 16..4096 and never
-    a request field
-X2  every sampling call sets `allowed_token_ids` except the warm-up (`_prefill`), the health probe and `think`
-    (free text), the requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
+    (think when unsure) and `generate_rows` (a Box question's forced reply and its branch decodes), whose
+    `max_tokens` is a named argument (`budget`, `max_tokens`) that is always a server-side constant or another
+    validated server setting, never a request field
+X2  every sampling call sets `allowed_token_ids` except the warm-up (`_prefill`), the health probe, `think` and
+    `generate_rows` (free text), the requests the stale mask could land on (GHSA-6cxc-2vcg-w5qc)
 X3  no source names `mm_processor_kwargs`, `trust_remote_code`, `min_tokens` or vLLM's entrypoints, and decisio never
     starts `vllm serve` (GHSA-h3rc-6mm3-gc2m, GHSA-4xqp-c3mv-qff7)
 X4  the multimodal ids sent to vLLM are the ones the image engine computes from the decoded pixels, not a request
@@ -19,9 +20,12 @@ import re
 from pathlib import Path
 
 SRC = Path(__file__).resolve().parents[2] / "src" / "decisio"
-# the warm-up (`send_warm`, whose engine call is `_prefill`), the probe, and thinking
-UNCONSTRAINED = {"_prefill", "probe", "think"}
-FREE_LENGTH = {"think"}  # the one call that writes text; its length is `budget`, a validated server setting
+# the warm-up (`send_warm`, whose engine call is `_prefill`), the probe, and the two writers of free text
+UNCONSTRAINED = {"_prefill", "probe", "think", "generate_rows"}
+# the writers of free text, and the name their own `max_tokens` argument is passed under: `think`'s is its own
+# `budget` argument; `generate_rows`'s is its own `max_tokens` argument, which every caller passes a module
+# constant for (`decisio.serve.gemma_images.BOX_MAX_TOKENS`, `BOX_BRANCH_MAX_TOKENS`) or the literal 1
+FREE_LENGTH = {"think": "budget", "generate_rows": "max_tokens"}
 
 
 def sampling_calls():
@@ -60,7 +64,7 @@ def test_X1_max_tokens_is_one_and_min_tokens_is_never_set():
         where = f"{path.name}:{call.lineno} ({name})"
         assert "min_tokens" not in kw, where
         if name in FREE_LENGTH:
-            assert isinstance(kw.get("max_tokens"), ast.Name) and kw["max_tokens"].id == "budget", where
+            assert isinstance(kw.get("max_tokens"), ast.Name) and kw["max_tokens"].id == FREE_LENGTH[name], where
         else:
             assert isinstance(kw.get("max_tokens"), ast.Constant) and kw["max_tokens"].value == 1, where
 
@@ -104,16 +108,18 @@ def test_X3_no_request_controlled_engine_options_and_no_vllm_server():
         f"{p.relative_to(SRC)}:{i}"
         for p in sorted(SRC.rglob("*.py"))
         for i, line in enumerate(p.read_text().splitlines(), 1)
-        if pattern.search(line)
-    ]
+        if pattern.search(line) and not (p.name == "gemma_images.py" and "image_budget" in line)
+    ]  # gemma_images.py sets the soft-token budget from the server's own --image-budget flag, never from a request
     assert hits == [], hits
 
 
 def test_X4_multimodal_ids_come_from_the_decoded_pixels():
     src = (SRC / "serve" / "image_engine.py").read_text()
     assert 'mm_uuids={"image": ids}' in src and "ids = [self.image_id(img) for img in images]" in src
+    shared = (SRC / "serve" / "placed_images.py").read_text()  # the placed layout's ids come from the same function
+    assert "ident = [image_id(img) for img in images]" in shared
     body = ast.get_source_segment(
-        src, next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.FunctionDef) and n.name == "image_id")
+        shared, next(n for n in ast.walk(ast.parse(shared)) if isinstance(n, ast.FunctionDef) and n.name == "image_id")
     )
     assert "hashlib.sha256(img.tobytes())" in body
     # the only places that put multi_modal_uuids on a prompt take the argument the image engine passes

@@ -35,7 +35,7 @@ Check which server a client is pointed at before comparing confidences or sendin
 | `state` | string, object or array | the text the questions are about; an object is rendered as `key: value` lines |
 | `questions` | object, at least one entry | the questions, by name; the names are the keys of the response's `answers` |
 | `model` | string, optional | TypeSafe's API requires it; decisio accepts a request without it. The response's `model` is the name the request sent, or the served model's name when it sent none |
-| `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`) |
+| `images` | array of data URLs, optional | images for the image route (a server started with `--image-model`, or a Gemma base with `--images on`) |
 | `assets` | object, optional | System One's images: placeholder names mapped to images, each placeholder found in the state or a question's text is replaced by its image (below) |
 
 A prompt, the state with one question, can hold 32,768 tokens on the Qwen base. On a Gemma base it can hold the largest length that fits the card (at least 32,768, at most 98,304 on the 31B and 65,536 on the 12B), which the server chooses at start-up and `/health` reports as `max_model_len` with its reason, unless `--max-model-len` fixed it; with `--image-model` it is 32,768 ([`running.md`](running.md#the-context-length)). Every measured record in `EVAL_CARD.md` is at 32,768.
@@ -57,11 +57,35 @@ A request of either layout is built token for token as a server started with tha
 - The response says the layout it was read under in `x-decisio-prompt` (`layout=plain; ...`).
 - An adapter, a tuned repository, the temperatures file (`--temperatures-file`) or a flavor that recorded another layout than the request's still answers, as asked, and the response carries `"layout_note"`, for example `"the adapter n1 was trained, and its temperatures fitted, under the header layout"`.
   It is absent when nothing differs.
-- A request with images has no layout (the image route builds its own prompt): the field is 422 there.
+- A request with images has no layout on the `--image-model` route (it writes its prompts in the plain layout): the field is 422 there.
+  With `--images on` on a Gemma base the layout applies to images as to text.
   A server in `--mode packed` reads the plain layout only, so `"header"` is 422 there.
 - The two layouts share no cached prefix for a state: a client that alternates them reads the state again on each change ([running.md](running.md#the-header-layout---layout)).
+- **Under the header layout, a separate request about a state that an earlier request already read reads the whole state again** when it asks other questions, because the questions come before the state.
+  Send all the questions about a state in one request, the same `header_questions` on every request about it (below), or `"layout": "plain"` on requests that ask about one state one question at a time.
+  Every text request read under the header layout carries `x-decisio-note` saying so, and `/health` counts such re-reads (`systemone.header_layout`, below).
 
 `POST /v1/answer` takes `layout` too, and reports the layout its rows were built under in `timing.layout`.
+
+**`header_questions` (optional, decisio's extension).** A list of strings: every question the client will ask about this state, each as its instructions as it sends them.
+Use it when the client asks one question at a time about one state, in separate requests, under the header layout ([running.md](running.md#a-question-list-for-the-header-header_questions)).
+Without it each request lists only its own questions in the header, so a second request about the state has another header, shares no cached prefix and reads the whole state again.
+With it every request that sends the same list has the same header, the same prefix, and the cache serves the state after the first request.
+The question asked is still read after the state, as ever.
+- **Under the header layout** the header lists exactly the declared lines, in the declared order, on every row of the request, in place of the request's own questions.
+  The same request gives the same rows whatever was asked before it.
+- **Under the plain layout** the field is checked and has no effect, so one client request works under both layouts.
+- **The rules, each a 422 that names the line:** the list is not empty; every item is a string with some text in it; no line repeats (compared with the spaces at its ends removed, which is also how a line is listed); every question of the request has its instructions in the list.
+  A question's line is its `instructions` as sent, or, for a yes/no question with `criteria`, the instructions followed by the lines for the criteria, as the header lists them.
+  An absent `instructions` is listed as the server's default line for the question type.
+- **A declared header is never cut.** If the header the list makes does not fit the server's prompt limit beside the state and the question (or is over a `--header-limit TOKENS` cap), the request is 422 and says so; the header limit drops lines of a header the request did not declare, which would give two requests of one list different headers.
+  Declare fewer or shorter lines, or send the requests without the field.
+- **A registered task** is fitted on one question at a time, with a header of that one question; a request with a declared list reads a longer header than the one the task was fitted on, the same as a request with several questions does ([running.md](running.md#the-header-layout---layout)).
+  A question of a certified task is still scored by the certificate's own read, which lists its own question only.
+- **A registration example** (`POST /v1/tasks`, `POST /v1/abstention/tasks`) refuses the field with 422.
+- **A request with images** refuses the field with 422.
+- `usage.input_tokens` counts the declared header.
+- `POST /v1/answer` takes `header_questions` too, with the same rules (its questions' `instructions` are the lines).
 
 **A header over the context.** Under the header layout a request whose rows would be over the context because the header lists many long instructions is answered with a header that lists only the first questions that fit (none: the plain layout's row), unless the server was started with `--header-limit off` (then it is a 422 that says where the tokens are). The response then carries `"header_limited": {"layout": "header" | "plain", "listed": K, "of": N, "header_tokens": T, "of_header_tokens": W, "row_limit": L, "allowed_tokens": A, "reason": "context" | "cap"}` and the header `x-decisio-layout`; both are absent when the whole header was listed. A question of a certified task in such a request carries `certified: false` with `certified_reason: "header_limited"` ([running.md](running.md#a-header-over-the-context---header-limit)).
 
@@ -91,7 +115,9 @@ Each question:
 How a question is shown to the model (the layout, the yes/no rendering, which keys are shown) is set by the server's flags, listed in `docs/cli.md`, and a request may choose the layout (`layout`, above); the answer keys are always the request's own.
 
 Images: as many per request as the context holds (the image engine takes up to `--max-images`, 128 unless set), PNG, JPEG or WebP, up to 20 MB each; each costs tokens that count against the context (a 512 by 512 image 256 tokens on the Qwen base).
-They can be sent as data URLs in `images`, as `data:image/...` URIs anywhere inside the state, or as a `multipart/form-data` request whose `request` field holds the JSON body and whose `image`, `images` or `image[]` fields hold the files; a multipart request must carry an `X-Decisio-Client` header (any value, for example `X-Decisio-Client: my-app`), and is refused with 415 without one.
+They can be sent as data URLs in `images`, as `data:image/...` URIs anywhere inside the state, or as a `multipart/form-data` request whose `request` field holds the JSON body and whose `image`, `images` or `image[]` fields hold the files.
+A multipart request must carry one of the headers `X-Decisio-Client` (any value, for example `X-Decisio-Client: my-app`), `X-TypeSafe-SDK` (which TypeSafe's SDK sends on every request) or `TypeSafe-Danger-Zone-Images` (any value), and is refused with 415 without one.
+So TypeSafe's Python SDK sends images to this server as it does to System One, with nothing added: `Image(...)` anywhere text goes works.
 A request with images is served by the image engine; the text route is unchanged.
 Starting the server with `--image-model` makes vLLM's engine run in a process of its own (`--engine-process separate`), which turns off the 31B's in-process `--multi-question warm` default and keeps the context at 32,768 tokens (`docs/cli.md`); the image route is measured with the Qwen base only.
 
@@ -100,18 +126,136 @@ Starting the server with `--image-model` makes vLLM's engine run in a process of
 Every place a placeholder appears, as a string or inside one, in the state or in a question's instructions or criteria descriptions (option keys are not searched; the longest name wins when one contains another), becomes the marker `[image N]` and the asset's bytes become image N, in reading order; a placeholder used twice is two images.
 That is the same path as a `data:image` URI in the state: the image engine gets the same state text, the same questions and the same images, and gives the same probabilities as the other encodings (test I7), with System One's answer fields only (no `unknown_probability` or `abstained`).
 A placeholder name that matches no asset is plain text.
-A multipart request puts the `request` part first and every image in a part of its own, with a unique, non-empty name that exactly one asset uses; it needs the `X-Decisio-Client` header like any multipart request here.
-A problem with an asset (a name no text uses, an empty `assets`, a format that is not png, jpg or jpeg, bad base64, bytes that are not an image, an image part nothing uses or two assets share, `assets` together with `images`, more images than the engine's `--max-images`) is a 400 with `{"detail": {"error_type": "api_usage_error", "message": "..."}}`, System One's shape for image errors.
-System One's `TypeSafe-Danger-Zone-Images` header is not needed and is ignored.
+A multipart request puts the `request` part first and every image in a part of its own, with a unique, non-empty name that exactly one asset uses; it needs one of the three headers above like any multipart request here.
+The SDK names its parts `asset-0`, `asset-1` and so on and labels each with the image's content type.
+An image part's content type is `image/png`, `image/jpeg`, `image/jpg` or `application/octet-stream`, or it has none; any other is a 400.
+A problem with an asset (a name no text uses, an empty `assets`, a name that is empty or only whitespace, a format that is not png, jpg or jpeg, bad base64, bytes that are not an image, an animated image, an image part nothing uses, with another content type or shared by two assets, `assets` together with `images`, more images than the engine's `--max-images`) is a 400 with `{"detail": {"error_type": "api_usage_error", "message": "..."}}`, System One's shape for image errors.
+A placeholder name is at most 1,024 bytes of UTF-8 (bytes, not characters), and all the names of a request together are at most 65,536 bytes; a longer one is a 413 in the same shape.
+An animated image, a PNG or a WebP with more than one frame, is refused on every encoding (the 422 `bad image: ...` on the older ones); a still image is read as before.
+A request body over 32 MiB on this route (the JSON, any base64 text and the multipart framing together) is a 413 in the same shape, refused before the body is parsed: by its `Content-Length` when it has one, and otherwise as soon as the bytes read pass the limit.
+The route's own image limits (20 MB and 20 megapixels per image, the engine's `--max-images`) stay as they are, wider than System One's where they were.
+System One's `TypeSafe-Danger-Zone-Images` header (any value) is accepted and never required: a request without it is read the same way.
 A calibration or head task's examples (`POST /v1/tasks`) are text only and refuse `assets`; the examples of `POST /v1/abstention/tasks` may carry them.
+
+Where an image stands, and who reads it (the Qwen base, `--image-model`; the same rules as the Gemma bases below).
+An image is read at the place its reference stands: a placeholder of `assets`, a `data:image` URI in the state, or, for the `images` list and the multipart `image` parts, a literal `[image N]` in the state or in a question's instructions or criteria (the first occurrence of each is its place; a later one stays text).
+An image of the list that no `[image N]` names opens the state.
+Every encoding of one picture therefore reads the same.
+An image in the state is in the prompt every question shares, so it is read from the prefix cache after the first question.
+An image in a question's instructions or criteria is in that question's own part of the prompt only: no other question's prompt, tokens or `usage.input_tokens` carry it.
+The prefix is padded to the engine's block and ends after the state's last image, never inside it.
+`usage.input_tokens` is the request's text plus each image's tokens, the state's once and a question's own once.
+A `box` question is refused with 400 on this route ("Box questions are not answered on the --image-model route; serve a Gemma 4 base with --images on"); Box needs a Gemma base, and the Qwen base's grounding is not verified.
+
+Deprecated: the earlier layout of this route, every image at the start of the turn and so visible to every question, stays for a notice period as `--image-prompt legacy` and is removed in a later release (`docs/upgrading.md`).
+With it every response to a request with images carries `Deprecation: true` and `Warning: 299 - "..."` headers, and the server logs a warning when it starts and once for every 1,000 such requests.
+The figures this route has measured so far (ImajevBench, the image temperature of 1.0) were taken on that layout.
+They are not yet measured on the placed layout, and a new measurement follows; until then they describe the legacy layout only.
 
 What an image costs and where it is cut down (the image route runs on the Qwen base, `--image-model Qwen/Qwen3.6-35B-A3B-FP8`; the numbers are that model's processor settings and `smart_resize` from the pinned transformers, computed on 2026-10-14):
 - An image over 20 MiB, or over 20 megapixels (width times height), or in another format, is refused with 422 (`bad image: ...`) before it is read; a request with more images than `--max-images` (128 unless set) is a 400 `api_usage_error`, as the paragraph above says.
 - The processor then resizes the image, keeping its proportions and rounding both sides to multiples of 32, so that it has between 65,536 pixels (256 by 256) and 16,777,216 (4,096 by 4,096). An image of 200 by 200 is read as 256 by 256; one of 4,000 by 6,000 as 3,328 by 4,992.
-- Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context that a server with `--image-model` serves: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224).
-- The Ollama listings are not this route. `ollama show` (2026-10-14) lists the Qwen listing `aminroudaki/decisio` with the capabilities `decision` and `vision`, and the Gemma listing `aminroudaki/decisio-gemma` (every tag) with `decision` only. Whether the Qwen listing's image answers match this route's was not measured.
+- Each image costs one token for every 32 by 32 pixels of the resized image, and the tokens count in `usage.input_tokens` and against the 32,768-token context that a server with `--image-model` serves: 64 tokens at the least, 16,384 at the most (1,024 by 768: 768 tokens; 1,920 by 1,080, read as 1,920 by 1,088: 2,040; 4,000 by 6,000: 16,224), plus the two vision delimiter tokens around each image (`usage.input_tokens` counts them, as it counts the Gemma bases' begin and end tokens).
+- The Ollama listings are not this route: `aminroudaki/decisio-gemma` and `aminroudaki/decisio-gemma-tuned` read images through Ollama's own `images` field, placed before the state, near each image's own resolution ([running.md](running.md#ollama)).
 
-Every POST must have `Content-Type: application/json` (parameters such as `; charset=utf-8` are fine): any other type, or none, is refused with 415 and `accept-post: application/json` before the body is read (`SECURITY.md`, "Cross-site requests from a web page"). The one exception is `multipart/form-data` on this route, with an `X-Decisio-Client` header (any value): a web page cannot add a custom header to a cross-site request without a preflight, which the server refuses.
+### Images on Gemma 4 (`--images on`)
+
+A Gemma base started with `--images on` reads the pictures of a request with the same engine that reads its text.
+There is no second engine, no second copy of the weights and no route to choose: a request without images is answered exactly as before, and a request with images is the same request with the pictures in it.
+Every encoding above works (`assets`, data URLs in `images`, `data:image` URIs in the state, multipart parts).
+
+**Where an image stands.**
+An image is put in the prompt at the place its reference stands, inside the state's value or inside the question's sentence, and not all at the start.
+A frame history such as `{"frames": [{"at": "10:01", "view": "<photo>"}, {"at": "10:02", "view": "<photo>"}]}` is read as written, each photo after its own `"at"`.
+An image of a request that came as a list or as multipart parts, with no place of its own, opens the state.
+
+**Which questions see it.**
+An image in the state is part of what every question is asked about.
+It sits in the shared prefix, which the server computes once and every question of the request, and a later question about the same state, reads from its cache.
+An image in a question's `instructions` or `criteria` belongs to that question alone: no other question of the request sees it, and no other question's tokens count it.
+Under the header layout, which lists every question's instructions before the state, a question's image is named there as `[image N]` and appears as pixels only in that question's own part of the prompt.
+
+**What the prompt looks like.**
+The state and the questions are rendered exactly as for text: the same system prompt, layout, wording, answer slot and label forms, so that a request with images and the same request without them differ by the image tokens only.
+`--read-twice-under` is not served with images.
+An image's own tokens attend to each other in both directions on the model's sliding-window layers, as Gemma 4 was trained.
+
+**What an image costs.**
+The picture is scaled, keeping its proportions and enlarging it if need be, so that its area fills the server's budget, then each side is cut down to a multiple of 48 pixels; each 48 by 48 block is one token, and a begin and an end token wrap them.
+`--image-budget` sets the budget: 70, 140, 280 (the model's own default), 560 or 1120 soft tokens.
+Without the flag, Gemma 4 12B (bf16, FP8 and any tuned repository on that base) reads images at 560 and Gemma 4 31B at 280; the flag wins on either.
+At 560 an image costs about 1.8 times the tokens of 280 and Box answers read better.
+On a base without a vision encoder, a budget whose largest image block (its soft tokens plus the begin and end tokens) is longer than the base's sliding window is refused at start.
+On Gemma 4 12B the window is 1,024 tokens, so 1120 (blocks of up to 1,122 tokens) is not allowed there: the later tokens of such an image could not see its top rows.
+Gemma 4 31B reads pictures through its own vision encoder, so it takes every budget, 1120 included.
+`/health` reports the budget in use and the budgets the base allows.
+`usage.input_tokens` counts the text and every image's tokens, begin and end included: an image of the state once, an image of a question once for the question that carries it.
+
+| Image (height by width) | 70 | 140 | 280 | 560 | 1120 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 512 by 512 | 64 | 121 | 256 | 529 | 1,089 |
+| 768 by 1,024 | 63 | 130 | 266 | 540 | 1,064 |
+| 1,080 by 1,920 | 66 | 120 | 264 | 527 | 1,100 |
+
+Add two tokens to each figure for the begin and end tokens.
+The figures are the processor's arithmetic, which a test checks against the model's own processor at every budget.
+A request with more images than `--max-images` (16 here unless set) is refused; the images, more than their count, are what fills the context.
+
+**Adapters and temperature.**
+A request with images may name an adapter (`adapter`): the adapter's weights change the language model only, the image path is the base's.
+How well a tuned model reads pictures is not measured: it was trained on text.
+The probabilities are served at the base's text temperatures, which were fitted on text.
+For a request with images, a base may carry an `image_temperature_scale`, a factor on the temperature of each question's type: the question is read at the scale times its text temperature.
+Gemma 4 31B has one, 1.376, fitted on images at budget 280; Gemma 4 12B has none and reads images at its text temperatures.
+The Qwen `--image-model` route reads images at temperature 1.0 rather than at its text temperatures, so its scale, 0.80 (fitted on the placed layout), is the temperature itself; with `--image-prompt legacy` it stays 1.0.
+An adapter keeps its own temperatures.
+
+**What stays different from System One.**
+- `layout` works with images here (it does not on the `--image-model` route).
+- No registered task (calibration, intent head, certificate, abstention threshold, fast table) is applied to a request with images; `task` is refused there; thinking when unsure is not served with images, and neither is a state cut with `over_limit: "truncate"`.
+- The server needs `--images on`, on the vLLM server with a Gemma base, or on a Mac (`--backend mlx`) with a conversion that keeps the vision weights or the base's vision add-on; a server without it answers 400 and says how to start one.
+- On a Mac both Gemma bases read noul, choice and score questions about images as above; a conversion made for text, without the vision weights, takes the base's vision add-on, and Box is not served there yet (`images.box` is false in `/health`), and an adapter is refused as it is for text ([Images on a Mac](running.md#images-on-a-mac)).
+- Image sizes are not limited to System One's window; the scaling above applies to any size, up to the 20 MB and 20 megapixel limits.
+- Memory at start-up, text latency, first-read latency and how well each base reads images are measured in `EVAL_CARD.md` section 10; `/health` reports `images` (`enabled`, `budget`, `max_images`, and `box`: true when this server answers Box questions, false on a Mac).
+
+### Box questions
+
+A Box question asks where something is in an image.
+Its answer is one box, as fractions of the image, with a confidence.
+The page [box.md](box.md) says how to ask well and how to read the answer; this section is the wire.
+
+```json
+{"state": "The photo: PHOTO",
+ "questions": {"mug": {"type": "box", "instructions": "the blue mug"}},
+ "assets": {"PHOTO": {"type": "image", "format": "png", "data_base64": "..."}}}
+```
+
+```json
+{"answers": {"mug": {"type": "box", "box": {"top": 0.12, "bottom": 0.58, "left": 0.31, "right": 0.66}, "confidence": 0.93}}}
+```
+
+- `box`: `top` and `bottom` are fractions of the image's height from the top, `left` and `right` fractions of its width from the left, each rounded to two decimals, with `top < bottom` and `left < right`.
+- `confidence`: from 0 to 1, the probability that the target is in the picture times how sure the model is of the box's edges.
+  Until a calibration for the served model is loaded (`--box-confidence`), it is that product itself and not a measured rate; the response header `x-decisio-box` says `calibrated=false`.
+- `instructions` says what to find: a sentence, or an object or array (written out as compact JSON).
+  A target given as a picture is an asset placeholder in the instructions (`"the shape in REFERENCE that matches the shape in SCENE"`); the image of a question belongs to that question alone.
+- A request may mix Box questions with noul, choice and score questions, and carry several Box questions; each is one box.
+- `usage.output_tokens` counts the tokens a Box question wrote (at most 32), one per question for the others.
+
+Each Box question is one greedy generation after the state and the question's own text, in one batch with the request's other Box questions, on the cached prefix of the state.
+Beside it the server reads one yes/no question, "Is this in the picture: ...", on the same prefix, which is what makes the confidence fall when the target is absent.
+A Box question always has a box, even when the target is absent: read `confidence`, or ask a noul question beside it.
+When the model's reply says there is no box (`null` as the list or as its first coordinate), the answer is 200 with the whole image (`top` 0, `bottom` 1, `left` 0, `right` 1) and `confidence` 0.0, the header `x-decisio-box` ends with `absent=true`, and the question's entry in `timing.box.questions` has `"absent": true`.
+The presence read is unchanged.
+
+Refused with 400 and `{"detail": {"error_type": "api_usage_error", "message": ...}}`:
+- a request with a Box question and no image;
+- a server that cannot answer one: no `--images on` (text only), the `--image-model` route, or the MLX backend;
+- a Box question with `orders` 2, with the abstention extension, with a `task`, or under the header layout (`"layout": "header"`).
+
+The model's reply is read for four numbers; when it holds none, and it is not the `null` reply above, the answer is 502 `api_error` naming the question, never a made-up box.
+
+Every POST must have `Content-Type: application/json` (parameters such as `; charset=utf-8` are fine): any other type, or none, is refused with 415 and `accept-post: application/json` before the body is read (`SECURITY.md`, "Cross-site requests from a web page"). The one exception is `multipart/form-data` on this route, with an `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` header (any value): a web page cannot add a header outside the browser's short safelist to a cross-site request without a preflight, which the server refuses.
 
 Request headers:
 - `x-decisio-route: text` or `image` chooses the route explicitly.
@@ -137,6 +281,7 @@ Request headers:
 | `probabilities` | the distribution over the options (choice) or the levels by index (score) |
 | `confidence` | System One's confidence: for a choice, the top probability rescaled from uniform; for a score, the concentration at the mode |
 | `legend` | each level's index and description |
+| `box` | a Box question's box: `top`, `bottom`, `left`, `right`, fractions of the image |
 | `unknown_probability`, `abstained` | with the abstention extension of imajev (an open-source System One client and test harness, github.com/mohit67890/imajev; `--abstain-option`): the probability of the offered "can't tell" option and whether the server abstained |
 
 `model` echoes the name the request sent, so a client left on the SDK's default model name gets that name back unchanged; a request without one gets the served model's name (`--served-name`, or the base's).
@@ -147,6 +292,9 @@ Response headers:
 - `x-decisio-route`: the route that served it (`text` or `image`).
 - `x-decisio-tasks`: the registered tasks applied, when any were.
 - `x-decisio-warning`: something in the request is likely a mistake, though it was served as sent: `state starts with the task's context; send only the varying part` ([tasks.md](tasks.md#task-context)); absent otherwise.
+- `x-decisio-note`: how the request was read, where that has a cost a client can avoid or a limit to know; absent otherwise. It never changes the answers.
+  - On a text request read under the header layout: `header layout: the questions are read before the state, so a later request with other questions about this state reads the whole state again; send all questions about a state in one request, the same "header_questions" on every request about it, or "layout": "plain"` ([running.md](running.md#the-header-layout---layout)).
+  - On one that sends `header_questions`: `header layout with "header_questions": every request about this state that sends the same list shares its cached prefix; the accuracy of a header that lists questions the request does not ask is not measured yet` ([running.md](running.md#a-question-list-for-the-header-header_questions)).
 - `x-decisio-adapter`: the adapter that answered, when one did.
 - `x-decisio-think-ms`, `x-decisio-think-tokens`: the milliseconds spent on reasoning and the second reads, and the reasoning tokens generated, when thinking was on for the request.
 - `x-decisio-state-truncated`: `kept=N; of=M; part=start`, when the state was cut (`over_limit`, above); absent otherwise.
@@ -154,6 +302,7 @@ Response headers:
 - `x-decisio-prompt`: `layout=header; tokens=1523; cached=1440`: the layout of the user turn the request was read under (its `layout`, else the server's), the mean prompt tokens the engine read per question, and the mean of them the prefix cache served. Under the header layout a state cached for another set of questions shows as a low `cached`. Absent when the engine does not report prompt sizes.
 - `x-decisio-stages`: where the engine's time went, for example `prepare=...;warm=...;questions=...;readout=...;engine=...;wait=...`. `engine` is the request's own engine call; `wait` is the time before it, from the request reaching the engine until it took the engine's lock. A request read with a task's context has `context`: the context's warm-up sent in this request (vLLM) or the context's part of the prefix (MLX), summed over the reads that read the context, so within `engine`, `task` or `head` ([tasks.md](tasks.md#the-context-in-the-prefix-cache)). A certified task's questions, read one at a time by the certificate's function or answered by its fast table, are `task`; the intent head's read is `head`; the reasoning pass is `think`. So `engine + wait + task + head + think` is the server time within the request's own overhead (a few ms). The wait is 0 on an idle server. With `--concurrency batched`, a request that shared an engine call (`x-decisio-batch`) reports the whole call's `questions` and `engine` times.
 - `x-decisio-batch`: `requests=N; rows=M` when the server batches concurrent requests (`--concurrency batched`) and this request's questions were scored in one engine call with other requests' (N requests, M rows in all); absent when it was scored alone. On `POST /v1/answer` the same facts are `timing.batch`.
+- `x-decisio-box`: `calibrated=false; tokens=19; flags=none`, on a request with Box questions: whether their confidences went through a fitted calibration, the tokens they wrote, and the readout's flags (`clipped`, `swapped_x`, `swapped_y`, `degenerate_x`, `degenerate_y`); `; absent=true` is added when a Box reply said the target is not there.
 - `x-decisio-wait-behind`: `registration` when a boundary registration (`--register-boundary after`) was running when the request arrived, so the `wait` was behind it; absent otherwise. On `POST /v1/answer` the same facts are `timing.waited_ms` and `timing.waited_behind_registration`.
 
 ## `GET /v1/models`
@@ -165,8 +314,8 @@ The served model in System One's format; the name is the base's served name unle
 The conformance check compares the request and response fields with System One's published OpenAPI document (version 0.2.0) and fails on any difference that is not in this list:
 - **`model` is optional.** System One requires it and refuses a request without it with 422; here a request without it is answered and the response names the served model.
 - **A score may have more than 10 levels.** System One refuses more than 10 with 422 (`too_long`); decisio accepts more (up to the engine's 255 labels) and does not cap them.
-- **`box` questions are not supported.** A request with `"type": "box"` is refused with 422.
-- **Images (`assets`) are read, with these differences.** Images per request are limited by the context, as on System One (about 110 images of 320 by 320 pixels in System One's 32k tokens, more with its long-context header), up to the engine's `--max-images` (128 by default); no size window (System One takes sides of 280 to 1,568 pixels and refuses others with "Invalid image dimensions"; here the image is resized, up to 20 megapixels and 20 MB); WebP bytes are accepted besides PNG and JPEG (System One refuses them); a placeholder is replaced longest name first (System One replaces naively, so `PHOTO_1` inside `PHOTO_10` breaks it); an image costs the Qwen image engine's tokens, not System One's; a multipart request needs `X-Decisio-Client`; and the image route runs on a server started with `--image-model`, on the Qwen base.
+- **`box` questions are answered on a Gemma server started with `--images on`.** Elsewhere a request with `"type": "box"` is refused with 400 and the reason ([Box questions](#box-questions)).
+- **Images (`assets`) are read, with these differences.** Images per request are limited by the context, as on System One (about 110 images of 320 by 320 pixels in System One's 32k tokens, more with its long-context header), up to the engine's `--max-images` (128 by default); no size window (System One takes sides of 280 to 1,568 pixels and refuses others with "Invalid image dimensions"; here the image is resized, up to 20 megapixels and 20 MB per image); WebP bytes are accepted besides PNG and JPEG (System One refuses them); an animated image is refused, a body over 32 MiB is a 413, an image part's content type, a placeholder name's length (1,024 bytes, 65,536 in all) and an empty or whitespace-only name follow System One's rules, and the `TypeSafe-Danger-Zone-Images` header is accepted and never required; a placeholder is replaced longest name first (System One replaces naively, so `PHOTO_1` inside `PHOTO_10` breaks it); an image costs the Qwen image engine's tokens, not System One's; a multipart request needs `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` (TypeSafe's SDK sends the second); and the image route runs on a server started with `--image-model`, on the Qwen base.
 - **Unknown fields are accepted.** System One refuses a request with an unknown top-level field (400 `Invalid request.`), so its `images`-style extensions cannot be sent to it; decisio ignores unknown fields (imajev's `images` and `orders` are such extensions).
 - **`usage.output_tokens` is 1 per question**, not the tokens a generating model produced.
 - Probabilities and confidences are returned at full precision (System One rounds them to two decimals), the response has no `x-typesafe-request-id` header (see the `x-decisio-*` headers), and `model` is the name the request sent (the served model's name when it sent none), not the name of the model that answered.
@@ -184,7 +333,7 @@ Decisio sets no limit of its own on the size of a request body, on the number of
 The server sets no CORS headers and has no authentication on any route.
 A page on another origin therefore cannot read its answers, and cannot make it do work either:
 - A request with a JSON body makes the browser send a preflight `OPTIONS` first; the server answers 405 (`allow: POST`), so the browser never sends the `POST`. Checked on the CPU stand-in on 2026-10-14 with `curl -X OPTIONS -H 'Origin: http://example.com' -H 'Access-Control-Request-Method: POST'`: `405 Method Not Allowed`, no `access-control-*` header.
-- A request a browser sends **without** a preflight (a "simple" one: `text/plain`, `application/x-www-form-urlencoded` or `multipart/form-data`) is refused with `415` and `accept-post: application/json` before its body is read, on every route (`SECURITY.md`, "Cross-site requests from a web page"), because a simple request needs no preflight, so a page could otherwise make the server do the work, register or replace tasks, even though it cannot read the answer. The one exception is `multipart/form-data` on `/v1/systemone` (imajev's image clients), which is accepted when the request carries an `X-Decisio-Client` header (any value): a page cannot add a custom header without a preflight, which the server refuses.
+- A request a browser sends **without** a preflight (a "simple" one: `text/plain`, `application/x-www-form-urlencoded` or `multipart/form-data`) is refused with `415` and `accept-post: application/json` before its body is read, on every route (`SECURITY.md`, "Cross-site requests from a web page"), because a simple request needs no preflight, so a page could otherwise make the server do the work, register or replace tasks, even though it cannot read the answer. The one exception is `multipart/form-data` on `/v1/systemone` (the image clients), which is accepted when the request carries an `X-Decisio-Client`, `X-TypeSafe-SDK` or `TypeSafe-Danger-Zone-Images` header (any value): a page cannot add a header outside the browser's short safelist without a preflight, which the server refuses.
 
 Do not expose the port to browsers, and do not rely on CORS to protect it.
 To call it from a web page, call it from your own backend, or put a reverse proxy in front that authenticates the caller and adds the CORS headers your page needs (`Access-Control-Allow-Origin`, `Access-Control-Allow-Headers: content-type`, and an answer to `OPTIONS`).
@@ -285,6 +434,8 @@ What the server is serving, in one object a run record can quote:
   - `context`, only for a task with a context: `sha256`, `chars` and `tokens`, never its text.
 
   It holds nothing else: the certificate, the monitor's status, the fast table and the layout are in `GET /v1/tasks/{id}` and `GET /v1/tasks`.
+- `systemone.header_layout`: `reads`, the engine calls read under the header layout, and `state_rereads`, those whose state an earlier call had read under another header, which the prefix cache could not serve; `states_remembered` and `window` (4,096), how many recent states the count looks back over ([running.md](running.md#the-header-layout---layout)).
+  A high `state_rereads` means clients ask about one state in several requests: they want all their questions in one request, or `"layout": "plain"`.
 - `head_engine`, the intent head's hidden-state reader (the serving engine by default, a second engine with `--head-engine`), and `image_engine` when one is running.
 
 Once the engine has died, `/health` answers 503 with `{"ok": false, "engine": "dead", "reason": "...", "exit_code": 70}`, every other route answers 503 with the reason, and the server exits with code 70 (`docs/running.md`, "When the engine dies").

@@ -35,6 +35,7 @@ import random
 import re
 import threading
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -44,10 +45,13 @@ from pydantic_core import PydanticCustomError
 
 from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
-from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state
+from decisio.readout import box as boxmod
+from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state, header_instructions
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
+from decisio.serve import header_questions as hq
+from decisio.serve import image_marks as marks
 from decisio.serve import layout as lay
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
@@ -124,7 +128,37 @@ class ScoreQuestion(BaseModel):
     criteria: list[JSONContent] = Field(..., min_length=1)
 
 
-Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion, Field(discriminator="type")]
+class BoxQuestion(BaseModel):
+    """Where one target is in an image. No criteria; extra fields are ignored like the other question types.
+
+    Served on the Gemma image route only (`--images on`); a request with a Box and no image is refused.
+    """
+
+    type: Literal["box"]
+    instructions: JSONContent | None = None
+
+
+class BoxEdges(BaseModel):
+    """The four edges of a box, as fractions of the image's height (top, bottom) and width (left, right)."""
+
+    top: float
+    bottom: float
+    left: float
+    right: float
+
+    @field_validator("top", "bottom", "left", "right")
+    @classmethod
+    def _two_decimals(cls, v: float) -> float:
+        return round(v, 2)
+
+
+class BoxAnswer(BaseModel):
+    type: Literal["box"] = "box"
+    box: BoxEdges
+    confidence: float
+
+
+Question = Annotated[NoulQuestion | ChoiceQuestion | ScoreQuestion | BoxQuestion, Field(discriminator="type")]
 
 
 class Asset(BaseModel):
@@ -197,6 +231,20 @@ class SystemOneRequest(BaseModel):
     # would find by themselves, so that two tasks of one question with different contexts can both be served)
 
 
+# the note on every text request read under the header layout (x-decisio-note): its questions come before the state,
+# so a later request with other questions about the same state shares no cached prefix with it and reads it again
+HEADER_NOTE = (
+    "header layout: the questions are read before the state, so a later request with other questions about this "
+    "state reads the whole state again; send all questions about a state in one request, the same "
+    '"header_questions" on every request about it, or "layout": "plain"'
+)
+# the note on a request that declared its header (`"header_questions"`): the cache is shared, the accuracy unmeasured
+HEADER_DECLARED_NOTE = (
+    'header layout with "header_questions": every request about this state that sends the same list shares its '
+    "cached prefix; the accuracy of a header that lists questions the request does not ask is not measured yet"
+)
+# the states a header-layout counter remembers (state digest -> header digest), least recently seen out first
+HEADER_SEEN_MAX = 4096
 # the warning of a request whose state already starts with its task's context (x-decisio-warning)
 CONTEXT_TWICE = "state starts with the task's context; send only the varying part"
 # the refusal (422) of a request whose question has no task under its layout but a task with a context under the
@@ -536,17 +584,20 @@ def decode_data_url(value: str) -> bytes:
     return base64.b64decode(m.group(1), validate=False)
 
 
-def extract_state_images(state):
-    """imajev's rule: data:image URIs anywhere in the state become images, in reading order, replaced by "[image N]"."""
+def extract_state_images(state, placed: bool = False, first: int = 1, tag: str | None = None):
+    """imajev's rule: data:image URIs anywhere in the state become images, in reading order, replaced by "[image N]".
+    `placed` (the Gemma image route): each is replaced by its mark (`decisio.serve.image_marks`) instead, numbered from
+    `first`, carrying `tag` (the request's, a fresh one when not given)."""
     found = []
+    tag = tag or marks.new_tag()
+
+    def one(m):
+        found.append(m.group(0))
+        return marks.mark(first + len(found) - 1, tag) if placed else f"[image {len(found)}]"
 
     def walk(node):
         if isinstance(node, str):
-            return (
-                IMAGE_DATA_URL.sub(lambda m: (found.append(m.group(0)), f"[image {len(found)}]")[1], node)
-                if "data:image/" in node
-                else node
-            )
+            return IMAGE_DATA_URL.sub(one, node) if "data:image/" in node else node
         if isinstance(node, list):
             return [walk(x) for x in node]
         if isinstance(node, dict):
@@ -561,7 +612,90 @@ class ImageRequestError(ValueError):
     `{"detail": {"error_type": "api_usage_error", "message": ...}}` (the route's handler does the same)."""
 
 
-def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
+class BoxRequestError(ImageRequestError):
+    """A Box question this request or this server cannot answer: 400 `api_usage_error`, with what to change."""
+
+
+class BoxReadError(RuntimeError):
+    """The model's reply to a Box question had no readable box: 502, naming the question. No box is ever made up."""
+
+
+class ImageRequestTooLarge(ImageRequestError):
+    """An image reference over System One's size limits: 413 in the same error shape."""
+
+
+MAX_REFERENCE_BYTES = 1024  # one placeholder name, in UTF-8 (System One's limit)
+MAX_REFERENCES_BYTES = 65536  # all the names of a request together
+IMAGE_PART_TYPES = ("image/png", "image/jpeg", "image/jpg", "application/octet-stream")
+
+
+def check_image_part_type(name: str, content_type: str | None) -> None:
+    """System One's rule for a multipart image part: `image/png`, `image/jpeg`, `image/jpg`, `application/octet-stream`
+    or no content type; any other is a 400. Parameters and case do not matter."""
+    if not content_type:
+        return
+    kind = content_type.split(";")[0].strip().lower()
+    if kind not in IMAGE_PART_TYPES:
+        raise ImageRequestError(
+            f'Part "{name}" has content type "{kind}": an image part is image/png, image/jpeg, image/jpg or '
+            "application/octet-stream, or has no content type."
+        )
+
+
+def place_listed_images(payload: dict, count: int, tag: str):
+    """Images that came as a list (imajev's `images`, multipart parts) carry no place of their own, but the text may
+    name it: a literal "[image N]" in the state or in a question's instructions or criteria is image N's reference
+    position (the first occurrence in reading order: the state, then each question's instructions, then its criteria;
+    a later one stays text, as one image has one place). That occurrence becomes the image's mark, exactly as an asset's
+    placeholder or a data:image URI in the same place does, so every encoding of a picture reads the same. Returns the
+    payload and the numbers of the images with no marker in the text, which open the state."""
+    found: set[int] = set()
+    literal = re.compile(r"\[image (\d+)\]")
+
+    def sub(text: str) -> str:
+        def one(m):
+            n = int(m.group(1))
+            if 1 <= n <= count and n not in found:
+                found.add(n)
+                return marks.mark(n, tag)
+            return m.group(0)
+
+        return literal.sub(one, text) if "[image " in text else text
+
+    def walk(node):
+        if isinstance(node, str):
+            return sub(node)
+        if isinstance(node, list):
+            return [walk(x) for x in node]
+        if isinstance(node, dict):
+            return {k: walk(v) for k, v in node.items()}
+        return node
+
+    out = dict(payload)
+    if "state" in out:
+        out["state"] = walk(out["state"])
+    if isinstance(out.get("questions"), dict):
+        qs = {}
+        for qname, q in out["questions"].items():
+            if isinstance(q, dict):
+                q = dict(q)
+                if "instructions" in q:
+                    q["instructions"] = walk(q["instructions"])
+                if isinstance(q.get("criteria"), (dict, list)):
+                    c = q["criteria"]
+                    q["criteria"] = {k: walk(v) for k, v in c.items()} if isinstance(c, dict) else walk(c)
+            qs[qname] = q
+        out["questions"] = qs
+    return out, [i for i in range(1, count + 1) if i not in found]
+
+
+def bind_assets(
+    payload: dict,
+    parts: dict[str, bytes] | None = None,
+    placed: bool = False,
+    scopes: list | None = None,
+    tag: str | None = None,
+):
     """System One's `assets`: every placeholder (an asset's name, found as or inside a string of the state, a question's
     instructions or its criteria's descriptions, longest name first) becomes the marker "[image N]", N counting the
     occurrences in reading order (the state, then each question: instructions, then criteria), and the asset's bytes
@@ -569,17 +703,28 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
     keys are not searched. Returns (the payload without `assets`, the images' bytes in order, the score questions'
     original levels by name, so the legend can show the text the caller wrote). `parts`: a multipart request's image
     parts by name. Raises ImageRequestError for an asset that is not usable or never used, an image part that no asset
-    uses or two assets share."""
+    uses or two assets share.
+
+    `placed` (the Gemma image route): each occurrence becomes a mark (`decisio.serve.image_marks`) that the engine
+    turns into the image at that place, in the state's text or in one question's own text; the marks carry `tag`, the
+    request's own (a fresh one when not given), so text that merely looks like a mark stays text.
+    `scopes`, a list the call fills, gets one entry per image in order: None for an image in the
+    state, the question's name for an image in its instructions or criteria."""
     assets = payload.pop("assets", None)
     if assets is None:
         return payload, [], {}
     if not isinstance(assets, dict) or not assets:
         raise ImageRequestError("assets must be a non-empty object of placeholder names to images.")
+    sizes = [len(n.encode()) for n in assets if isinstance(n, str)]
+    if any(n > MAX_REFERENCE_BYTES for n in sizes):
+        raise ImageRequestTooLarge(f"An asset's placeholder name is over {MAX_REFERENCE_BYTES} bytes of UTF-8.")
+    if sum(sizes) > MAX_REFERENCES_BYTES:
+        raise ImageRequestTooLarge(f"The assets' placeholder names are over {MAX_REFERENCES_BYTES} bytes in total.")
     data: dict[str, bytes] = {}
     used_parts: set[str] = set()
     for name, raw in assets.items():
-        if not isinstance(name, str) or not name:
-            raise ImageRequestError("Each asset needs a nonempty placeholder name.")
+        if not isinstance(name, str) or not name.strip():
+            raise ImageRequestError("Each asset needs a placeholder name that is not empty or only whitespace.")
         try:
             asset = Asset.model_validate(raw)
         except ValidationError:
@@ -608,12 +753,16 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
     pattern = re.compile("|".join(re.escape(n) for n in sorted(data, key=len, reverse=True)))
     blobs: list[bytes] = []
     used: set[str] = set()
+    tag = tag or marks.new_tag()
+    scope: list = [None]  # where the text being searched stands: None for the state, else a question's name
 
     def sub(text: str) -> str:
         def one(m):
             blobs.append(data[m.group(0)])
             used.add(m.group(0))
-            return f"[image {len(blobs)}]"
+            if scopes is not None:
+                scopes.append(scope[0])
+            return marks.mark(len(blobs), tag) if placed else f"[image {len(blobs)}]"
 
         return pattern.sub(one, text)
 
@@ -636,6 +785,7 @@ def bind_assets(payload: dict, parts: dict[str, bytes] | None = None):
             if not isinstance(q, dict):
                 qs[qname] = q
                 continue
+            scope[0] = qname
             q = dict(q)
             if "instructions" in q:
                 q["instructions"] = walk(q["instructions"])
@@ -715,6 +865,7 @@ class SystemOne:
         release_date: str = "2026-09-27",
         description: str = "",
         image_engine=None,
+        image_temperature_scale: float | None = None,
         abstain_option: str | None = None,
         hide_index_keys: bool = True,
         desnake_labels: bool = True,
@@ -729,6 +880,7 @@ class SystemOne:
         task_store=None,
         hidden_engine=None,
         debug_readout: bool = False,
+        debug_box_tree: bool = False,
         temperature: float = 1.0,
         temperatures: dict | None = None,
         adapter_temperatures: dict | None = None,
@@ -745,7 +897,11 @@ class SystemOne:
         precision_casts: dict | None = None,
         compile_pin: dict | None = None,
         layout_records: dict | None = None,
+        box_confidence=None,
     ):
+        # the map from presence times raw edge confidence to the confidence a Box answer carries (decisio.readout.box);
+        # the identity until a card read has fitted one for the served model
+        self.box_confidence = box_confidence or boxmod.ConfidenceMap()
         self.engine, self.image_engine, self.name, self.orders = engine, image_engine, served_name, orders
         # the layouts what answers was trained or fitted under (decisio.serve.layout.notes): a response served under
         # another layout says so (`layout_note`); empty for a server that records none
@@ -801,6 +957,12 @@ class SystemOne:
         if task_store is not None:
             task_store.backend = task_backend
         self.task_report = task_report or {}
+        # header-layout reads (`note_header_read`): how many, and how many read a state again that an earlier request
+        # had read under another header (its cache could not serve it); /health systemone.header_layout
+        self._header_lock = threading.Lock()
+        self._header_seen: OrderedDict = OrderedDict()
+        self.header_reads = 0
+        self.header_rereads = 0
         if task_backend is not None and hasattr(task_backend, "applier"):
             task_backend.applier = TaskApplier(self)  # a shared store applies other replicas' tasks through this
         # per-task calibration and the intent head (decisio.serve.tasks; docs/handoffs/tasks.md): registered by
@@ -808,9 +970,15 @@ class SystemOne:
         # engine (decisio.serve.hidden_engine); `debug_readout` lets a request ask for its raw readout (verification)
         self.tasks_enabled, self.task_store, self.hidden_engine = tasks_enabled, task_store, hidden_engine
         self.debug_readout = debug_readout
+        self.debug_box_tree = debug_box_tree
         # the global temperature on the text route's plain readout (decisio.serve.temperature); 1.0 is off, bit for bit;
         # a registered task's own correction replaces it
         self.temperature = float(temperature)
+        # the factor on the temperature of a request with images on a Gemma base (`--images on`); None reads images at
+        # the text route's own temperatures (decisio.families, `image_temperature_scale`)
+        self.image_temperature_scale = None if image_temperature_scale is None else float(image_temperature_scale)
+        # --image-prompt legacy (deprecated): requests served on the old layout, for the notice's log line
+        self.legacy_image_requests = 0
         # per question type ("choice", "noul", "score"), a temperature replacing the global one; unset types keep it
         self.temperatures = {k: float(v) for k, v in (temperatures or {}).items() if v is not None}
         # the choice temperature by the question's number of options, {"lo-hi": temperature}, replacing the choice
@@ -1180,7 +1348,7 @@ class SystemOne:
         engine's prompt ceiling, and what was cut; the request itself and None where the whole state fits.
         decisio.serve.over_limit says how the cut is made: once, to what the longest question leaves. A task's
         `context` is never cut: it counts with the question, and the state takes what both leave."""
-        from decisio.readout.letters import DEFAULT_FORMAT, layout_header
+        from decisio.readout.letters import DEFAULT_FORMAT, header_instructions, layout_header
         from decisio.serve.vllm_engine import question_text, user_turn
 
         limit = getattr(engine, "prompt_limit", lambda: None)()
@@ -1197,7 +1365,7 @@ class SystemOne:
         # (with the header limit on, the header gives way before the state does: the state is cut for the plain row)
         limited = hasattr(engine, "header_plan") and getattr(engine, "header_limit_setting", ("auto", None))[0] != "off"
         keep_header = fmt.layout == "header" and not limited
-        head = layout_header([q["instructions"] for q in qs]) if keep_header else ""
+        head = layout_header(header_instructions(qs)) if keep_header else ""
         head += f"{context}{CONTEXT_SEP}" if context else ""
         overhead = max(len(enc(user_turn(tok, f"{head}\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
         try:
@@ -1226,19 +1394,223 @@ class SystemOne:
         over_limit=None,
         think=None,
         layout=None,
+        image_tag=None,
     ) -> dict:
         """The response to a request (`_answer`), served under `layout`: the layout of the user turn this request asked
         for ("plain" or "header"; None: the one in effect, else the server's). A request of the other layout than the
         server's is built, looked up among the tasks and certified exactly as a server of that layout would; the image
         route builds its own prompt and refuses the field (LayoutRefused)."""
         layout = lay.request_value(layout)
-        if layout is not None and (images or route == "image"):
+        if layout == "header" and any(q.type == "box" for q in req.questions.values()):
+            raise BoxRequestError(
+                'a Box question is read under the plain layout: send the request with "layout": "plain" '
+                'or without "layout"'
+            )
+        if layout is not None and (images or route == "image") and not self.reads_images_itself():
             raise lay.LayoutRefused(
                 "the image route builds its own prompt (the images, then the state and the question) and has no "
                 'layout: send the request without "layout"'
             )
+        declared = hq.parse((req.model_extra or {}).get(hq.FIELD))
+        if declared is not None and (images or route == "image"):
+            raise lay.LayoutRefused(
+                "a request with images names each question's image in its own part of the prompt and lists no "
+                f'declared header: send the request without "{hq.FIELD}"'
+            )
         with lay.using(layout if layout is not None else self.request_layout):
-            return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think)
+            return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag)
+
+    # ---- Box -------------------------------------------------------------------------------------------------------
+
+    PRESENCE_PREFIX = "__box_presence__"
+
+    def check_box_request(self, req, images, imajev_ext) -> None:
+        """The rules of a request with a Box question; each is a 400 `api_usage_error` that says what to change."""
+        if self.image_engine is not None:
+            raise BoxRequestError(
+                "Box questions are not answered on the --image-model route; serve a Gemma 4 base with --images on"
+            )
+        if not getattr(self.engine, "images_enabled", False):
+            raise BoxRequestError(
+                "this server does not answer Box questions: start the vLLM server on a Gemma 4 base with --images on"
+            )
+        if not hasattr(self.engine, "box"):
+            raise BoxRequestError(
+                "this server's engine does not answer Box questions (the vLLM engine on Gemma 4 does)"
+            )
+        extra = req.model_extra or {}
+        if int(extra.get("orders") or self.orders) != 1:
+            raise BoxRequestError("a Box question is read in one order: send the request without orders 2")
+        if self.abstain_option and imajev_ext:
+            raise BoxRequestError("a Box question is not served with abstention")
+        if extra.get("task") is not None:
+            raise BoxRequestError('a Box question applies no registered task: send the request without "task"')
+        if not images:
+            raise BoxRequestError(
+                "a Box question needs an image: put one in the state or in the question's instructions"
+            )
+        reason = self.engine.box_blocked()
+        if reason:
+            raise BoxRequestError(reason)
+
+    def _answer_with_box(self, req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag, t0):
+        """A request with Box questions: the other questions are answered as ever, together with one presence read per
+        Box (a yes/no question on the same prefix, "Is this in the picture: ..."); then every Box is one greedy
+        generation, in one batch. The answers come back in the request's order."""
+        self.check_box_request(req, images, imajev_ext)
+        names = list(req.questions)
+        box_names = [n for n in names if req.questions[n].type == "box"]
+        rest = {n: q for n, q in req.questions.items() if q.type != "box"}
+        pres = {}
+        for n in box_names:
+            key = f"{self.PRESENCE_PREFIX}{n}"
+            while key in rest or key in req.questions:
+                key += "_"
+            pres[n] = key
+            rest[key] = NoulQuestion(
+                type="noul", instructions=boxmod.presence_instructions(req.questions[n].instructions)
+            )
+        # every Box and its presence read is read under the plain layout, whatever the server's default (the header
+        # layout would list the request's questions in the prefix they share); the other questions keep the
+        # request's layout, so a mixed request on a header layout reads the state twice
+        decisions = {n: q for n, q in rest.items() if n not in pres.values()}
+        presence = {k: rest[k] for k in pres.values()}
+        shared = not decisions or self.request_layout == "plain"
+
+        def read(questions):
+            return self._answer(
+                req.model_copy(update={"questions": questions}),
+                adapter,
+                images,
+                imajev_ext,
+                route,
+                debug,
+                over_limit,
+                think,
+                image_tag,
+            )
+
+        if shared:
+            with lay.using("plain"):
+                out = read(rest)
+        else:
+            out = read(decisions)
+            with lay.using("plain"):
+                pout = read(presence)
+            out["answers"].update(pout["answers"])
+            for k in ("input_tokens", "output_tokens"):
+                out["usage"][k] += pout["usage"][k]
+            stages = out["_timing"]["stages"]
+            for k, v in pout["_timing"]["stages"].items():
+                stages[k] = stages.get(k, 0.0) + v
+        p_yes = {n: float(out["answers"].pop(k)["noul"]) for n, k in pres.items()}
+        exact_tree = debug == "box_tree"
+        results, info = self.engine.box(
+            req.state,
+            [{"kind": "box", "instructions": req.questions[n].instructions} for n in box_names],
+            adapter,
+            images=images,
+            tag=image_tag,
+            presence=[{"kind": "noul", "instructions": rest[pres[n]].instructions} for n in box_names],
+            exact_tree=exact_tree,
+        )
+        boxes, details, trees = {}, {}, {}
+        for i, (n, toks, res) in enumerate(zip(box_names, info["generated_tokens"], results)):
+            if isinstance(res, boxmod.BoxParseError):
+                raise BoxReadError(f'Box question "{n}": the model wrote no readable box ({res.reason})') from res
+            if isinstance(res, boxmod.BoxAbsent):
+                # TypeSafe's Box answer always carries a box: the model says the target is not there, so the whole
+                # image at confidence 0 (the presence read is still read, and still in the debug readout)
+                whole = {"top": 0.0, "bottom": 1.0, "left": 0.0, "right": 1.0}
+                boxes[n] = BoxAnswer(box=BoxEdges(**whole), confidence=0.0).model_dump()
+                details[n] = {
+                    "tokens": toks,
+                    "flags": [],
+                    "absent": True,
+                    "branches_decoded": 0,
+                    **({"presence": p_yes[n]} if debug else {}),
+                }
+                if exact_tree:
+                    trees[n] = {"absent": True}  # no digit tree to read: the model wrote null
+                continue
+            rd = res
+            conf, calibrated = boxmod.box_confidence(p_yes[n], rd.raw_confidence, self.box_confidence)
+            boxes[n] = BoxAnswer(box=BoxEdges(**boxmod.wire_box(rd.box)), confidence=conf).model_dump()
+            br = info["branches"][i]
+            details[n] = {
+                "tokens": toks,
+                "flags": list(rd.flags),
+                "calibrated": calibrated,
+                "branches_decoded": br["decoded"],
+                **({"branches_capped": True} if br["capped"] else {}),
+                **({"presence": p_yes[n], "raw_confidence": rd.raw_confidence, "edges": rd.summary()} if debug else {}),
+            }
+            if exact_tree and info.get("tree") and info["tree"][i] is not None:
+                trees[n] = dict(zip(boxmod.EDGE_NAMES, info["tree"][i], strict=True))
+        out["answers"] = {n: boxes[n] if n in boxes else out["answers"][n] for n in names}
+        out["usage"]["output_tokens"] += (
+            sum(info["generated_tokens"]) - len(box_names) + info["branch_tokens"]
+        )  # the presence reads were counted; the branch decodes are extra generation, as the main reply is
+        out["usage"]["input_tokens"] += sum(info["box_input_tokens"])
+        timing = out["_timing"]
+        timing["box"] = {"generate_ms": info["generate_ms"], "layout": "plain", "questions": details}
+        timing["stages"]["box"] = info["generate_ms"]
+        timing["server_ms"] = (time.perf_counter() - t0) * 1000
+        if debug and self.debug_readout:
+            out.setdefault(DEBUG_KEY, {}).update({n: {"box": d} for n, d in details.items()})
+        if trees:
+            for n, tree in trees.items():
+                out.setdefault(DEBUG_KEY, {}).setdefault(n, {})["box_tree"] = tree
+        return out
+
+    def reads_images_itself(self) -> bool:
+        """Whether the server's own engine reads images (`--images on` on a Gemma base,
+        decisio.serve.gemma_images), so that a request with images is read by the engine that reads text, under the
+        text route's prompt, tasks aside."""
+        return self.image_engine is None and getattr(self.engine, "images_enabled", False)
+
+    def images_placed(self) -> bool:
+        """Whether the engine that reads a request's images writes each at its place in the text (a mark,
+        decisio.serve.image_marks): the Gemma engine with `--images on`, and the `--image-model` engine unless it is
+        started with `--image-prompt legacy`."""
+        return bool(getattr(self.image_engine or self.engine, "images_placed", False)) and (
+            self.image_engine is not None or self.reads_images_itself()
+        )
+
+    def legacy_images(self) -> bool:
+        """Whether the `--image-model` engine writes images in the deprecated layout (`--image-prompt legacy`)."""
+        return self.image_engine is not None and getattr(self.image_engine, "image_prompt", "placed") == "legacy"
+
+    LEGACY_NOTICE_EVERY = 1000  # the deprecation log line: the first legacy request and every this many after it
+    LEGACY_WARNING = (
+        "--image-prompt legacy is deprecated: images at the start of the turn, visible to every question, "
+        "are removed in a later release; drop the flag to read each image at its place (docs/upgrading.md)"
+    )
+
+    def note_legacy_request(self) -> None:
+        """Counts a request answered on the legacy image layout and logs the deprecation on the first and then once per
+        `LEGACY_NOTICE_EVERY` requests, never once per request."""
+        self.legacy_image_requests += 1
+        n = self.legacy_image_requests
+        if n == 1 or n % self.LEGACY_NOTICE_EVERY == 0:
+            logger.warning("%s (%d request%s so far)", self.LEGACY_WARNING, n, "" if n == 1 else "s")
+
+    def qwen_image_temperature(self) -> float:
+        """The temperature of a question read by the `--image-model` route: that route reads images at 1.0, not at the
+        text temperatures, so `image_temperature_scale` is the temperature itself, and only on the placed layout (the
+        scale was fitted there; `--image-prompt legacy` keeps 1.0)."""
+        if self.image_temperature_scale is None or not getattr(self.image_engine, "images_placed", False):
+            return 1.0
+        return self.image_temperature_scale
+
+    def image_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
+        """The temperature a question of a request with images is served at: the named adapter's own (an adapter's
+        temperatures are fitted on its own reads), else the text route's (`temperature_of`) times
+        `image_temperature_scale` where the base has one."""
+        t = self.temperature_of(qtype, adapter, options)
+        if adapter is None and self.image_temperature_scale is not None:
+            return t * self.image_temperature_scale
+        return t
 
     def _answer(
         self,
@@ -1250,6 +1622,7 @@ class SystemOne:
         debug=None,
         over_limit=None,
         think=None,
+        image_tag=None,
     ) -> dict:
         """`images`: decoded PIL images (the request is then served by the image engine); `imajev_ext`: the request used
         imajev's `images` extension, so every answer also carries `unknown_probability` and `abstained` (0.0 and false:
@@ -1263,9 +1636,19 @@ class SystemOne:
         and the response's `thinking` says which questions did and what it cost."""
         t0 = time.perf_counter()  # the whole answer: mapping, plans and every read (the route adds its own parsing)
         images = list(images or [])
-        use_image = bool(images) or route == "image"
+        if any(q.type == "box" for q in req.questions.values()):
+            return self._answer_with_box(
+                req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag, t0
+            )
+        # the server's own engine reads images (Gemma, `--images on`): the request is read as text is, with the images
+        # at their places; the other route is a second engine (`--image-model`)
+        own = self.reads_images_itself()
+        with_images = own and bool(images)
+        use_image = (bool(images) or route == "image") and not own
+        tagged = bool(images) and (with_images or (use_image and self.images_placed()))  # the images have marks
         if use_image and self.image_engine is None:
-            raise ValueError("this server has no image engine (start it with --image-model)")
+            raise ValueError("this server has no image engine (start it with --images on, or --image-model)")
+        no_tasks = use_image or with_images  # no registered task was fitted on pictures
         adapter = adapter or None
         if adapter is not None:
             if use_image:
@@ -1300,9 +1683,23 @@ class SystemOne:
                 raise ValueError("the abstain option is served with one order only")
             mapped = [m if pl and pl[2] else with_abstain(*m, self.abstain_option) for m, pl in zip(mapped, plans)]
         qs = [m[0] for m in mapped]
+        # a declared question list (decisio.serve.header_questions): every question of the request is in it; under the
+        # header layout the engine's header lists it, whole, in place of the request's own lines
+        declared = hq.parse((req.model_extra or {}).get(hq.FIELD))
+        if declared is not None:
+            hq.check(
+                declared,
+                [
+                    (n, [render_text(w.instructions).strip() or DEFAULT_INSTRUCTIONS[w.type], q["instructions"]])
+                    for n, w, q in zip(names, wire, qs)
+                ],
+            )
+            if self.request_layout != "header":
+                declared = None  # the plain layout lists no questions: no effect
+        qs = hq.stamp(qs, declared)
         task_id = (req.model_extra or {}).get("task")
-        if task_id is not None and use_image:
-            raise TaskSelectionError('"task": the image route applies no registered task')
+        if task_id is not None and no_tasks:
+            raise TaskSelectionError('"task": a request with images applies no registered task')
         selected = self.selected_task(task_id)
         if adapter is not None:
             # a task (calibration, intent head, certificate, abstention threshold) was fitted on the base's readout and
@@ -1321,7 +1718,7 @@ class SystemOne:
         # its threshold was fitted on the state read alone, so it is never read with a context (docs/tasks.md)
         rts = [
             None
-            if use_image or (plans[i] and plans[i][2]) or abstain
+            if no_tasks or (plans[i] and plans[i][2]) or abstain
             else self.abstention_readout_task(q, selected, imajev_ext)
             if plans[i]
             else self.readout_task(q, selected)
@@ -1334,23 +1731,26 @@ class SystemOne:
             )
         # a task's context is read before the state (docs/tasks.md, "Task context"): `read` is the state as the engine
         # reads it; the fast table, the learned rows and the truncation see the request's own state
-        context = None if use_image else self.request_context(names, rts)
+        context = None if no_tasks else self.request_context(names, rts)
         warning = None
         if context is not None:
             warning = self.context_twice(next(t for t in rts if t is not None), req.state, context)
-        elif not use_image:
+        elif not no_tasks:
             # a question answered through an abstention task reads no context, whatever tasks ask it
             self.refuse_context_elsewhere(wire, rts, skip={i for i, pl in enumerate(plans) if pl or abstain})
         cut = None
-        truncate = (over_limit or self.over_limit) == "truncate" and not use_image
+        truncate = (over_limit or self.over_limit) == "truncate" and not no_tasks
         if truncate:
             req, cut = self.truncated_request(req, qs, engine, context)
         read = context_state(context, req.state)
-        hp = None if use_image else self.header_plan(read, qs, engine, context)
+        hp = None if no_tasks else self.header_plan(read, qs, engine, context)
         if context is not None and not truncate and getattr(getattr(engine, "fmt", None), "layout", "plain") == "plain":
             self.refuse_over_context(read, qs, engine, context)
         header_lines = hp["listed"] if hp is not None and hp["limited"] else None
         hl = hp["report"] if hp is not None and hp["limited"] else None
+        header_note = None
+        if not use_image and self.request_layout == "header" and (hl is None or hl["listed"] > 0):
+            header_note = HEADER_NOTE if declared is None else HEADER_DECLARED_NOTE
         # a question of a certified task is scored by the function its certificate was made with (`served_rows`): one
         # question at a time, in request order, never batched with the request's other questions (docs/tasks.md)
         own = [
@@ -1361,7 +1761,7 @@ class SystemOne:
             and wire[i].type != "score"
             and orders == CERTIFIED_ORDERS
             and not abstain
-            and not use_image
+            and not no_tasks
         ]
         # before[i]: a yes/no answer's distribution before --noul-commit moved it, which the confidence monitor reads
         served, via, learned, before = {}, {}, {}, {}
@@ -1395,15 +1795,22 @@ class SystemOne:
                 q2, perm = second_order(names[i], *mapped[i])
                 plan[i] = (len(engine_qs), perm)
                 engine_qs.append(q2)
+        engine_qs = hq.stamp(engine_qs, declared)
         probs, info = [], {}
         if engine_qs:
             if images:
-                probs, info = engine.answer(req.state, engine_qs, adapter, images=images)
+                probs, info = engine.answer(
+                    req.state, engine_qs, adapter, images=images, **({"tag": image_tag} if tagged else {})
+                )
             else:
+                if header_note:  # the header this engine call lists: its own or declared lines, up to the header limit
+                    self.note_header_read(read, header_instructions(engine_qs)[:header_lines])
                 probs, info = engine.answer(read, engine_qs, adapter)
         at = {i: n for n, i in enumerate(gen)}
         effective_think = self.think if think is None else bool(think)
         second, think_report, think_ms = {}, None, 0.0
+        if effective_think and with_images:
+            effective_think = False  # thinking is not served on a request with images
         if effective_think and cut is not None:
             # a state cut to the ceiling is answered by the single pass: a thinking read on a state that long can take
             # longer than a caller waits, and thinking was not measured there (counted, so a server shows it)
@@ -1489,11 +1896,21 @@ class SystemOne:
                     p = (p + p2) / 2
                 # the global temperature, where no task correction applied; after two-order averaging, so the most
                 # probable option is the same with and without it
-                t_q = (self.think_temperature_of if i in second else self.temperature_of)(q.type, adapter, len(p))
+                t_q = (
+                    self.image_temperature_of
+                    if with_images
+                    else self.think_temperature_of
+                    if i in second
+                    else self.temperature_of
+                )(q.type, adapter, len(p))
                 if not corrected and t_q != 1.0 and not use_image:
                     p = apply_temperature(p, t_q)
                     if debug:
                         dbg[name].update(path="temperature", temperature=t_q, adapter=adapter)
+                elif not corrected and use_image and (t_img := self.qwen_image_temperature()) != 1.0:
+                    p = apply_temperature(p, t_img)
+                    if debug:
+                        dbg[name].update(path="temperature", temperature=t_img, adapter=adapter)
             if plans[i]:
                 answers[name] = self.abstention_answer(q, keys, p, plans[i], imajev_ext)
                 continue
@@ -1546,7 +1963,7 @@ class SystemOne:
                 answers[name].update(
                     self.certified_fields(t, q, keys, p, top_index(keys, p), shared, via.get(i), before=before.get(i))
                 )
-            elif t is None and not use_image and adapter is None and q.type != "score":
+            elif t is None and not no_tasks and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
                 if stale is not None:  # fitted under another model, rendering or layout: not applied, not certified
                     answers[name].update(
@@ -1584,7 +2001,14 @@ class SystemOne:
         context_ms = sum(context_ms) if context_ms else None
         usage = {
             # what is read: the header, a task's context, the state and each question's text
-            "input_tokens": self.usage_tokens(read, qs, header_lines) + sum(info.get("image_tokens") or []),
+            "input_tokens": (
+                self.usage_tokens(
+                    marks.without_marks(read, image_tag), marks.without_marks(qs, image_tag), header_lines
+                )
+                if tagged
+                else self.usage_tokens(read, qs, header_lines)
+            )
+            + sum(info.get("image_tokens") or []),
             "output_tokens": len(names),
         }
         if think_report is not None:  # the generated tokens are output tokens, and said so
@@ -1596,10 +2020,11 @@ class SystemOne:
             "usage": usage,
             "_timing": {
                 "server_ms": (time.perf_counter() - t0) * 1000,
-                "route": "image" if use_image else "text",
+                "route": "image" if use_image or with_images else "text",
                 "layout": "plain" if hl is not None and hl["listed"] == 0 else self.request_layout,
                 "tasks": sorted({t["id"] for t in rts if t is not None}),
                 **({"warning": warning} if warning else {}),
+                **({"note": header_note} if header_note else {}),
                 # the mean prompt the engine computed or read per question, and how much of it the cache served, for the
                 # x-decisio-prompt header: over the request's engine call and a certified task's own reads
                 **prompt_figures([info, *task_reads]),
@@ -3503,13 +3928,15 @@ class SystemOne:
             out.update(unknown_probability=float(p[idx]), abstained=bool(abstain))
         return out
 
-    def score_example(self, req: SystemOneRequest, images, option: dict, imajev_ext: bool):
+    def score_example(self, req: SystemOneRequest, images, option: dict, imajev_ext: bool, tag: str | None = None):
         """One labelled example of a task, scored exactly as served: (p with the abstain option, its index, keys with
         it, the plain behaviour's distribution and keys). Declared option: one scoring, plain is the argmax over the
         customer's options. Appended option: scored with and without it (plain is the question without it)."""
         if len(req.questions) != 1:
             raise ValueError("an abstention example carries exactly one question")
         ((name, q),) = req.questions.items()
+        if images and self.image_engine is None:
+            raise ValueError("an abstention example with images needs the --image-model engine")
         ctx = [] if images else self.context_tasks_of(q)
         if ctx:
             raise ValueError(
@@ -3520,7 +3947,7 @@ class SystemOne:
         eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
         engine = self.image_engine if images else self.engine
         run = (
-            (lambda qs: engine.answer(req.state, qs, None, images=images))
+            (lambda qs: engine.answer(req.state, qs, None, images=images, **({"tag": tag} if tag else {})))
             if images
             else (lambda qs: engine.answer(req.state, qs, None))
         )
@@ -3540,7 +3967,7 @@ class SystemOne:
     @_in_layout
     @_serial
     def register_task(self, task_id: str, option: dict, match: str, examples: list[tuple]) -> dict:
-        """Fit and store a task from labelled examples [(request, images, imajev_ext, gold)], gold None for
+        """Fit and store a task from labelled examples [(request, images, imajev_ext, gold, tag)], gold None for
         unanswerable (decisio.serve.abstention.fit, its acceptance rule)."""
         from decisio.serve.abstention import decide, fit
 
@@ -3552,8 +3979,8 @@ class SystemOne:
         if option.get("append") and match != "imajev_extension" and not all(e[2] for e in examples):
             raise ValueError("an appended abstain option is answered only through imajev's extension")
         p_abs, unans, ok, plain_right, plain_false, fps, kps = [], [], [], [], [], set(), set()
-        for req, images, ext, gold in examples:
-            q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext)
+        for req, images, ext, gold, tag in examples:
+            q, p, idx, keys, p0, keys0 = self.score_example(req, images, option, ext, tag)
             fps.add(option_set(q, self.described(q)))
             kps.add(option_keys(q))
             gold_key = gold_key_of(q, gold)
@@ -3639,6 +4066,32 @@ class SystemOne:
         """The layout of the user turn this server serves when a request names none (decisio.serve.layout)."""
         return getattr(lay.server_fmt(self.engine), "layout", "plain")
 
+    def note_header_read(self, state, lines) -> None:
+        """Count a text request read under the header layout, and whether its state was read before under another
+        header (an earlier request with other questions about it), which the prefix cache cannot serve. Answers do not
+        depend on it: a count for /health only."""
+        key = hashlib.blake2b(fmt_state(state).encode("utf-8"), digest_size=16).digest()
+        head = hashlib.blake2b("\n".join(str(x) for x in lines).encode("utf-8"), digest_size=16).digest()
+        with self._header_lock:
+            self.header_reads += 1
+            prev = self._header_seen.get(key)
+            if prev is not None and prev != head:
+                self.header_rereads += 1
+            self._header_seen[key] = head
+            self._header_seen.move_to_end(key)
+            while len(self._header_seen) > HEADER_SEEN_MAX:
+                self._header_seen.popitem(last=False)
+
+    def header_layout_facts(self) -> dict:
+        """/health systemone.header_layout."""
+        with self._header_lock:
+            return {
+                "reads": self.header_reads,
+                "state_rereads": self.header_rereads,
+                "states_remembered": len(self._header_seen),
+                "window": HEADER_SEEN_MAX,
+            }
+
     @property
     def request_layout(self) -> str:
         """The layout in effect: the one the request (or the registration) being served asked for, else the server's."""
@@ -3705,6 +4158,10 @@ def add_routes(app, systemone: SystemOne):
     def image_request_error(request, exc):
         return JSONResponse({"detail": {"error_type": "api_usage_error", "message": str(exc)}}, status_code=400)
 
+    @app.exception_handler(ImageRequestTooLarge)
+    def image_request_too_large(request, exc):
+        return JSONResponse({"detail": {"error_type": "api_usage_error", "message": str(exc)}}, status_code=413)
+
     @app.exception_handler(NonFiniteReadout)
     async def non_finite_readout(request, exc):
         facts = systemone.engine.facts()
@@ -3752,6 +4209,7 @@ def add_routes(app, systemone: SystemOne):
                         raise ImageRequestError("Each part needs a unique, nonempty name.")
                     if isinstance(f, str):
                         raise ImageRequestError(f'Part "{key}" must be an uploaded image.')
+                    check_image_part_type(key, f.content_type)
                     parts[key] = await f.read()
             else:
                 for key in ("image", "images", "image[]"):
@@ -3777,18 +4235,33 @@ def add_routes(app, systemone: SystemOne):
                 blobs += [decode_data_url(u) for u in imgs]
             except (ValueError, TypeError) as e:
                 raise HTTPException(422, str(e))
+        # a server that reads images puts each at its place in the text (a mark, image_marks); only the deprecated
+        # `--image-prompt legacy` layout of the second engine writes "[image N]" and puts the images first
+        placed = systemone.images_placed()
+        tag = marks.new_tag()  # this request's marks carry it; no text of the request can contain it
         if "assets" in payload:  # System One's images; the imajev encodings are not read beside them
-            payload, blobs, legends = bind_assets(payload, parts)
-            return payload, blobs, False, legends, True
+            payload, blobs, legends = bind_assets(payload, parts, placed=placed, tag=tag)
+            return payload, blobs, False, legends, True, tag
+        lead = len(blobs)  # images that came as a list or as parts: a literal "[image N]" names the place, else none
+        opening = list(range(1, lead + 1))
+        if placed and lead and systemone.image_engine is not None:  # the Qwen route only; Gemma opens the state
+            payload, opening = place_listed_images(payload, lead, tag)
         if payload.get("state") is not None:
-            payload["state"], found = extract_state_images(payload["state"])
+            original = payload["state"]
+            payload["state"], found = extract_state_images(original)
             if found:
                 ext = True
+                if placed:  # the same extraction, each image a mark numbered after the leading ones
+                    payload["state"], _ = extract_state_images(original, True, lead + 1, tag)
                 try:
                     blobs += [decode_data_url(u) for u in found]
                 except (ValueError, TypeError) as e:
                     raise HTTPException(422, f"image in the state: {e}")
-        return payload, blobs, ext, {}, False
+        if placed and opening and payload.get("state") is not None:
+            # the listed images that no text places open the state
+            head = "".join(marks.mark(i, tag) for i in opening)
+            payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
+        return payload, blobs, ext, {}, False, tag
 
     async def system_one(request: Request):
         from decisio.serve.image_engine import DEFAULT_MAX_IMAGES, load_image
@@ -3796,7 +4269,7 @@ def add_routes(app, systemone: SystemOne):
         # x-decisio-server-ms: from here, before the body is read, to the response: reading and validating the body,
         # loading its images, the whole answer (every question's read, a certified task's and the head's included)
         t_request = time.perf_counter()
-        payload, blobs, ext, legends, from_assets = await read(request)
+        payload, blobs, ext, legends, from_assets, tag = await read(request)
         try:
             req = SystemOneRequest.model_validate(payload)
         except ValidationError as e:
@@ -3805,7 +4278,7 @@ def add_routes(app, systemone: SystemOne):
                 for err in e.errors(include_url=False)
             ]
             return JSONResponse({"detail": json.loads(json.dumps(detail, default=str))}, status_code=422)
-        limit = getattr(systemone.image_engine, "max_images", DEFAULT_MAX_IMAGES)
+        limit = getattr(systemone.image_engine or systemone.engine, "max_images", DEFAULT_MAX_IMAGES)
         if len(blobs) > limit:
             if from_assets:
                 raise ImageRequestError(f"at most {limit} images per request; the placeholders make {len(blobs)}.")
@@ -3850,13 +4323,17 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, '"task" must be the id of a registered task, or null')
         try:
             out = await run_in_threadpool(
-                functools.partial(systemone.answer, layout=layout),
+                functools.partial(systemone.answer, layout=layout, image_tag=tag),
                 req, adapter, images, ext, route, debug, over_limit, think,
             )  # fmt: skip
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
         except (over.OverLimit, thinking.ThinkUnavailable, lay.LayoutRefused, TaskSelectionError) as e:
             raise HTTPException(422, str(e))
+        except ImageRequestError:
+            raise  # the app's handlers: 400 or 413 in System One's error shape
+        except BoxReadError as e:
+            raise HTTPException(502, {"error_type": "api_error", "message": str(e)})
         except (KeyError, ValueError, AssertionError) as e:
             raise HTTPException(400, str(e))
         except Exception as e:
@@ -3875,6 +4352,12 @@ def add_routes(app, systemone: SystemOne):
             headers[header("tasks")] = ",".join(timing["tasks"])
         if timing.get("warning"):  # the request was served as sent; something in it is likely a mistake
             headers[header("warning")] = timing["warning"]
+        if timing.get("note"):  # how the request was read, where that has a cost the client can avoid
+            headers[header("note")] = timing["note"]
+        if images and systemone.legacy_images():  # the old layout: served as asked, and said to be going away
+            headers["Deprecation"] = "true"
+            headers["Warning"] = f'299 - "{systemone.LEGACY_WARNING}"'
+            systemone.note_legacy_request()
         if out.get("adapter"):
             headers[header("adapter")] = out["adapter"]
         # what the prompt cost: the layout, the mean prompt tokens per question and how many of them the cache served
@@ -3895,6 +4378,15 @@ def add_routes(app, systemone: SystemOne):
         # where the engine's time went, e.g. "prepare=1.2;warm=0.0;questions=52.1;readout=0.1;engine=53.6"
         if timing.get("stages"):
             headers[header("stages")] = ";".join(f"{k}={v:.1f}" for k, v in timing["stages"].items())
+        if timing.get("box"):  # the Box questions: whether their confidence was calibrated, their tokens and flags
+            qs = timing["box"]["questions"]
+            cal = [d["calibrated"] for d in qs.values() if not d.get("absent")]  # an absent answer has no confidence
+            headers[header("box")] = (
+                f"calibrated={'true' if cal and all(cal) else 'false'}; "
+                f"tokens={sum(d['tokens'] for d in qs.values())}; "
+                f"flags={','.join(sorted({f for d in qs.values() for f in d['flags']})) or 'none'}"
+                + ("; absent=true" if any(d.get("absent") for d in qs.values()) else "")
+            )
         if timing.get("waited_behind_registration"):  # the wait in `stages` was behind a boundary registration (#132)
             headers[header("wait-behind")] = "registration"
         if timing.get("batch"):  # --concurrency batched: the engine call this request shared with others
@@ -3904,14 +4396,20 @@ def add_routes(app, systemone: SystemOne):
 
     def debug_of(request):
         """`x-decisio-debug: readout` (the served readout before any task, the path taken) or `hidden` (also the hidden
-        readout of every question); only on a server started with --debug-readout (verification, never production)."""
+        readout of every question), only on a server started with --debug-readout; `box_tree` (a Box answer's exact
+        digit-tree readout beside the served estimator's and the plain greedy value), only on a server started with
+        --debug-box-tree. Verification and one card session's own check, never production."""
         debug = request_header(request.headers, "debug")
         if debug is None:
             return None
+        if debug == "box_tree":
+            if not systemone.debug_box_tree:
+                raise HTTPException(422, "x-decisio-debug: box_tree needs a server started with --debug-box-tree")
+            return debug
         if not systemone.debug_readout:
             raise HTTPException(422, "x-decisio-debug needs a server started with --debug-readout")
         if debug not in ("readout", "hidden"):
-            raise HTTPException(422, "x-decisio-debug must be 'readout' or 'hidden'")
+            raise HTTPException(422, "x-decisio-debug must be 'readout', 'hidden' or 'box_tree'")
         return debug
 
     # this module has `from __future__ import annotations`: give FastAPI the Request class itself, or it reads the
@@ -3976,18 +4474,30 @@ def add_routes(app, systemone: SystemOne):
             example_layout(payload, f"example {n}", layout or systemone.layout)
             ext = "images" in payload
             imgs = payload.pop("images", None) or []
+            placed = systemone.images_placed()  # an example is read as a request is: each image at its place
+            tag = marks.new_tag()
             try:
                 if "assets" in payload:
                     if imgs:
                         raise ValueError('a request carries its images in "assets" or in "images", not both')
-                    payload, blobs, _ = bind_assets(payload)
+                    payload, blobs, _ = bind_assets(payload, placed=placed, tag=tag)
                     ext = False
                 else:
                     blobs = [decode_data_url(u) for u in imgs]
+                lead = len(blobs) if "assets" not in ex.get("request", {}) else 0
+                opening = list(range(1, lead + 1))
+                if placed and lead and systemone.image_engine is not None:  # the Qwen route only
+                    payload, opening = place_listed_images(payload, lead, tag)
                 if "assets" not in ex.get("request", {}) and payload.get("state") is not None:
-                    payload["state"], found = extract_state_images(payload["state"])
+                    original = payload["state"]
+                    payload["state"], found = extract_state_images(original)
+                    if found and placed:
+                        payload["state"], _ = extract_state_images(original, True, lead + 1, tag)
                     ext = ext or bool(found)
                     blobs += [decode_data_url(u) for u in found]
+                if placed and opening and payload.get("state") is not None:
+                    head = "".join(marks.mark(i, tag) for i in opening)
+                    payload["state"] = f"{head}\n{fmt_state(payload['state'])}"
                 limit = getattr(systemone.image_engine, "max_images", DEFAULT_MAX_IMAGES)
                 if len(blobs) > limit:
                     raise ValueError(f"at most {limit} images per request")
@@ -4001,7 +4511,7 @@ def add_routes(app, systemone: SystemOne):
                     f"example {n}: an image example is read by the image route, which has no layout: register the "
                     'task without "layout"',
                 )
-            examples.append((req, images, ext, ex.get("answer")))
+            examples.append((req, images, ext, ex.get("answer"), tag if placed else None))
         try:
             task = await run_in_threadpool(
                 functools.partial(systemone.register_task, layout=layout),
@@ -4104,7 +4614,14 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, str(e))
 
     def example_layout(payload, where: str, task_layout: str) -> None:
-        """An example's request may carry a `layout`, as a served request does: it must be the task's."""
+        """An example's request may carry a `layout`, as a served request does: it must be the task's. It may not carry
+        a `header_questions`: a task is fitted on the example's own one-question header."""
+        if payload.get(hq.FIELD) is not None:
+            raise HTTPException(
+                422,
+                f'{where}: "{hq.FIELD}" is not read in a registration example: a task is fitted on one question at a '
+                "time, with its own header",
+            )
         try:
             given = lay.request_value(payload.get("layout"), f'{where}: "layout"')
         except lay.LayoutRefused as e:

@@ -1,0 +1,30 @@
+{
+ "b12_q4_k_m": {
+  "rss_loaded_gb": 11.12,
+  "rss_peak_gb": 11.25,
+  "footprint_peak_gb": 3.48,
+  "api_ps_size_gb": 4.24,
+  "context": 8192
+ },
+ "b12_q8_0": {
+  "rss_loaded_gb": 15.93,
+  "rss_peak_gb": 16.06,
+  "footprint_peak_gb": 3.47,
+  "api_ps_size_gb": 4.24,
+  "context": 8192
+ },
+ "m16_q4_k_m": {
+  "rss_loaded_gb": 10.83,
+  "rss_peak_gb": 10.96,
+  "footprint_peak_gb": 3.47,
+  "api_ps_size_gb": 4.24,
+  "context": 8192
+ },
+ "m16_q8_0": {
+  "rss_loaded_gb": 15.93,
+  "rss_peak_gb": 16.06,
+  "footprint_peak_gb": 3.47,
+  "api_ps_size_gb": 4.24,
+  "context": 8192
+ }
+}
