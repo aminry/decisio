@@ -87,6 +87,9 @@ jobs:
         run: uv run hf download Qwen/Qwen3-0.6B-Base --revision "$STAND_IN_REVISION" --local-dir "${{ runner.temp }}/decisio-standin/qwen3-0.6b-base"
 
       - name: Unit tests (fast tier)
+        # inside the job's 30 minutes, so a hung test fails this step with its log (and faulthandler_timeout's stacks,
+        # pyproject.toml) kept; a cancelled job's log is never uploaded
+        timeout-minutes: 24
         env:
           DECISIO_STAND_IN_MODEL: ${{ runner.temp }}/decisio-standin/qwen3-0.6b-base
         run: uv run pytest -q --durations=10
