@@ -512,3 +512,27 @@ def test_model_wrapper_reads_with_a_tiny_local_model(tmp_path):
     assert isinstance(via, (Annotation, Abstain)) and via.path
     long = HFTagger(tagger.model, tagger.tokenizer, dict(tagger.meta, max_length=8))
     assert long.predict(STATE).note == "too-long"
+
+
+# ---- rule forms the calculator cannot express veto the block --------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("sentence", "code"),
+    [
+        ("The total time is rounded once, UP to the next 60-minute step.", "rounding-direction"),
+        ("Time is rounded down to the nearest quarter hour.", "rounding-direction"),
+        ("Any part hour counts as a full hour.", "rounding-direction"),
+        ("A minimum charge of $50 applies.", "limit-rule"),
+        ("The fee is $20 or 5% of the order, whichever is greater.", "limit-rule"),
+        ("Round only the final money figure to the cent, half a cent going up.", ""),
+        ("Each entry is rounded to the nearest 6 minutes, then they are added.", ""),
+        ("Tax of 10% is added to everything except the handling fees.", ""),
+    ],
+)
+def test_rule_forms_gate(sentence, code):
+    from decisio.calculator.cascade import gates
+
+    check = gates.rule_forms(f"Order 12 for a client.\n{sentence}\n- Goods: 2 x $3.00")
+    assert check.code == code and check.ok == (code == "")
+    assert gates.rule_forms("Goods: 2 x $3.00", context=sentence).code == code  # the context is read too

@@ -150,7 +150,12 @@ def read(
         return rules_only("assemble", "internal-error", type(e).__name__)
 
     checks = []
-    for check in (gates.provenance(asm), gates.numbers(tags, text, context), gates.units(asm)):
+    for check in (
+        gates.provenance(asm),
+        gates.numbers(tags, text, context),
+        gates.units(asm),
+        gates.rule_forms(text, context),
+    ):
         checks.append(check)
         if not check.ok:
             return rules_only(check.gate, check.code, check.detail, checks)

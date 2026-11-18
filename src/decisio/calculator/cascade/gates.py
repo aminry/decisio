@@ -15,6 +15,9 @@ A block is shown only when every required gate passes:
                   from its own line, a price per a unit matches the quantity's unit
   stated figures  every total, subtotal or tax the text states equals a figure of the case to the cent; a mismatch
                   vetoes the block whatever else passes (never auto-corrected)
+  rule forms      no sentence states a rule the calculator cannot express, whatever the tagger made of it: rounding
+                  with a direction (up, down, a ceiling or a floor; a tie-break such as "half a cent up" is not one),
+                  a minimum or maximum charge, a cap, or "whichever is greater"
 
 and then one of the acceptance rules:
 
@@ -38,6 +41,23 @@ from fractions import Fraction
 from decisio.calculator import normalize as N
 from decisio.calculator.cascade import assembler as A
 from decisio.calculator.cascade.tags import Tags
+
+# rules the calculator's format cannot express: a tagger may read such a sentence as one it can (rounding up as
+# rounding to the nearest step), so the text itself vetoes the block (`rule_forms`)
+_TIE = re.compile(r"\bhal(?:f|ves)\b[^.\n]{0,40}?\b(?:up|down|upward|downward)\b", re.I)
+_DIRECTION = re.compile(
+    r"\bround(?:s|ed|ing)?\b[^.\n]{0,80}?\b(?:up|down|upward|upwards|downward|downwards)\b"
+    r"|\b(?:up|down) to the (?:next|nearest|previous|following)\b|\bceil(?:ing)?\b|\bfloor(?:ed)?\b"
+    r"|\b(?:part|partial|started) (?:hour|day|unit|metre|meter|week)s? "
+    r"(?:count|counts|is|are) (?:charged )?as (?:a )?full\b",
+    re.I,
+)
+_LIMITS = re.compile(
+    r"\b(?:minimum|maximum) (?:charge|fee|amount|of|billing|hire)\b"
+    r"|\bwhichever is (?:greater|higher|larger|lower|smaller|less)\b"
+    r"|\bcapped at\b|\bup to a (?:maximum|limit) of\b|\bno (?:more|less) than\b",
+    re.I,
+)
 
 
 @dataclass(frozen=True)
@@ -365,3 +385,15 @@ def confidence(tags: Tags, th: Thresholds) -> Check:
             continue
         return _fail(gate, "below-threshold", f"{kind} {key}")
     return _fail(gate, "margin-band") if band else _pass(gate)
+
+
+def rule_forms(text: str, context: str | None = None) -> Check:
+    """A sentence of the state or the context that states a rule the calculator cannot express (a rounding direction,
+    a minimum, maximum or cap) refuses the block: `rounding-direction` or `limit-rule`."""
+    for source in (context or "", text):
+        for sentence in re.split(r"(?<=[.!?])\s+|\n+", source):
+            if _DIRECTION.search(_TIE.sub(" ", sentence)):
+                return _fail("rule_forms", "rounding-direction")
+            if _LIMITS.search(sentence):
+                return _fail("rule_forms", "limit-rule")
+    return _pass("rule_forms")
