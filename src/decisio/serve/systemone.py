@@ -47,6 +47,7 @@ from decisio import flavors
 from decisio.names import DEBUG_KEY, check_format, header, request_header, same_fingerprint
 from decisio.readout import box as boxmod
 from decisio.readout.letters import CONTEXT_SEP, context_state, fmt_state, header_instructions
+from decisio.serve import calculator_serving as calcs
 from decisio.serve import dynamic, header_limit
 from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
@@ -898,6 +899,7 @@ class SystemOne:
         compile_pin: dict | None = None,
         layout_records: dict | None = None,
         box_confidence=None,
+        calculator: str | None = None,
     ):
         # the map from presence times raw edge confidence to the confidence a Box answer carries (decisio.readout.box);
         # the identity until a card read has fitted one for the served model
@@ -906,6 +908,10 @@ class SystemOne:
         # the layouts what answers was trained or fitted under (decisio.serve.layout.notes): a response served under
         # another layout says so (`layout_note`); empty for a server that records none
         self.layout_records = dict(layout_records or {})
+        # the calculator block format this server shows (decisio.calculator; None: none), only ever the one its model
+        # records (`--calculator auto` and a repository's defaults.calculator), and what it did (/health)
+        self.calculator = calculator
+        self.calc_counts = calcs.Counts(calculator)
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
         # flavor, which is then exactly what it was (the model it echoes, the fingerprint, the headers)
         self.flavor = dict(flavor) if flavor else None
@@ -1417,8 +1423,66 @@ class SystemOne:
                 "a request with images names each question's image in its own part of the prompt and lists no "
                 f'declared header: send the request without "{hq.FIELD}"'
             )
-        with lay.using(layout if layout is not None else self.request_layout):
-            return self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag)
+        extras = req.model_extra or {}
+        decision = calcs.decide(
+            self.calculator,
+            calcs.request_value(extras.get("calculator")),
+            extras.get("calculator_input"),
+            images=bool(images) or route == "image",
+            packed=getattr(self.engine, "mode", None) == "packed",
+        )
+        with lay.using(layout if layout is not None else self.request_layout), calcs.deciding(decision):
+            out = self._answer(req, adapter, images, imajev_ext, route, debug, over_limit, think, image_tag)
+        self.calc_counts.note(decision)
+        timing = out.get("_timing")
+        if timing is not None:
+            if decision.warning:
+                timing["warning"] = "; ".join(w for w in (timing.get("warning"), decision.warning) if w)
+            if decision.header_value():
+                timing["calculator"] = decision.header_value()
+        return out
+
+    def read_state(self, context, state):
+        """The state as every read sees it (decisio.readout.letters.context_state): the task's context, a blank line,
+        the rendered state, and the calculator block after it where one is shown (docs/calculator.md). Within a
+        request, the block decided for the request's state; outside one (a task's registration or certification), the
+        server's setting for each example's state."""
+        from decisio.calculator import Annotation, annotate, attach
+
+        decision = calcs.current()
+        if decision is not None:
+            ann = decision.annotation if (decision.state is state or decision.state == state) else None
+        elif self.calculator is not None:
+            ann = annotate(state, context, self.calculator)
+        else:
+            ann = None
+        if isinstance(ann, Annotation):
+            return context_state(context, attach(fmt_state(state), ann))
+        return context_state(context, state)
+
+    def decide_block(self, decision, req, qs, engine, context, truncate: bool):
+        """The request's block (`decision.annotation`), once its context is known: the request's own amounts, else what
+        the calculator reads from the state with the context. Never a block that would not fit: a state the block would
+        push over the engine's prompt ceiling is read without it (`reason`: over-limit), so the block never causes a
+        refusal or a cut the request would not otherwise get."""
+        from decisio.calculator import Abstain, Annotation, annotate, attach
+
+        if decision is None or not decision.on:
+            return
+        ann = decision.given if decision.given is not None else annotate(req.state, context, decision.version)
+        if isinstance(ann, Annotation):
+            limit = getattr(engine, "prompt_limit", lambda: None)()
+            if limit is not None and hasattr(engine, "tok"):
+                probe = req.model_copy(update={"state": attach(fmt_state(req.state), ann)})
+                try:
+                    _, cut = self.truncated_request(probe, qs, engine, context)
+                except over.OverLimit:
+                    cut = True
+                if cut is not None:
+                    ann = Abstain("over-limit")
+        decision.annotation, decision.state = ann, req.state
+        if isinstance(ann, Abstain):
+            decision.reason = ann.reason
 
     # ---- Box -------------------------------------------------------------------------------------------------------
 
@@ -1648,7 +1712,14 @@ class SystemOne:
         tagged = bool(images) and (with_images or (use_image and self.images_placed()))  # the images have marks
         if use_image and self.image_engine is None:
             raise ValueError("this server has no image engine (start it with --images on, or --image-model)")
-        no_tasks = use_image or with_images  # no registered task was fitted on pictures
+        pictures = use_image or with_images
+        no_tasks = pictures  # no registered task was fitted on pictures
+        decision = calcs.current()
+        # "calculator": false on a server that shows the block: the tasks were fitted on reads with it, so none applies
+        calc_off = decision is not None and self.calculator is not None and decision.reason == "off-by-request"
+        if calc_off and (req.model_extra or {}).get("task") is not None:
+            raise TaskSelectionError(calcs.TASKS_OFF)
+        no_tasks = no_tasks or calc_off
         adapter = adapter or None
         if adapter is not None:
             if use_image:
@@ -1739,11 +1810,13 @@ class SystemOne:
             # a question answered through an abstention task reads no context, whatever tasks ask it
             self.refuse_context_elsewhere(wire, rts, skip={i for i, pl in enumerate(plans) if pl or abstain})
         cut = None
-        truncate = (over_limit or self.over_limit) == "truncate" and not no_tasks
+        truncate = (over_limit or self.over_limit) == "truncate" and not pictures
+        # the calculator block for this request's state (docs/calculator.md), read with the context, before any cut
+        self.decide_block(decision, req, qs, engine, context, truncate)
         if truncate:
             req, cut = self.truncated_request(req, qs, engine, context)
-        read = context_state(context, req.state)
-        hp = None if no_tasks else self.header_plan(read, qs, engine, context)
+        read = self.read_state(context, req.state)
+        hp = None if pictures else self.header_plan(read, qs, engine, context)
         if context is not None and not truncate and getattr(getattr(engine, "fmt", None), "layout", "plain") == "plain":
             self.refuse_over_context(read, qs, engine, context)
         header_lines = hp["listed"] if hp is not None and hp["limited"] else None
@@ -2355,7 +2428,7 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _, swapped = self.engine_question(q)
-                probs, _ = self.engine.answer(context_state(context, state), [eq])
+                probs, _ = self.engine.answer(self.read_state(context, state), [eq])
                 require_finite(probs[0], "a registration example's probability")
                 out.append(probs[0][::-1] if swapped else probs[0])
             return out
@@ -2364,7 +2437,7 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                lp, h = self.hidden_engine.readout(context_state(context, state), [eq])[0]
+                lp, h = self.hidden_engine.readout(self.read_state(context, state), [eq])[0]
                 require_finite(lp, "a registration example's label log-probability")
                 require_finite(h, "a registration example's hidden state")
                 out.append((lp, h))
@@ -2581,7 +2654,7 @@ class SystemOne:
             out = []
             for q, state, gold in ex:
                 eq, _, swapped = self.engine_question(q)
-                probs, _ = self.engine.answer(context_state(context, state), [eq])
+                probs, _ = self.engine.answer(self.read_state(context, state), [eq])
                 p = np.asarray(probs[0], dtype=np.float64)
                 require_finite(p, "a registration example's probability")
                 out.append(self.dynamic_example(state, q, p[::-1].copy() if swapped else p, gold, none_key))
@@ -3190,7 +3263,7 @@ class SystemOne:
         with_head = t["head"].get("applied") and self.hidden_engine is not None
         context = context_text(t)  # read before each state; the states themselves are the requests'
         for state, q in pairs:
-            state = context_state(context, state)
+            state = self.read_state(context, state)
             if with_head:
                 # the head's answer comes from the hidden-state read alone, as serving always read it. Registration
                 # used to make a plain read first and discard it, but that read ran before the hidden-state one, and on
@@ -3228,7 +3301,7 @@ class SystemOne:
         out = []
         for state, q in pairs:
             eq, _, swapped = self.engine_question(q)
-            probs, info = self.engine.answer(context_state(context_text(t), state), [eq])
+            probs, info = self.engine.answer(self.read_state(context_text(t), state), [eq])
             self.collect_read(info)
             p = np.asarray(probs[0], dtype=np.float64)
             require_finite(p, "a dynamic task's probability")
@@ -3298,6 +3371,9 @@ class SystemOne:
                 # the default adapter, only when one is set: a certificate made when requests were answered by the base
                 # (or by another adapter) is suspended
                 **({"default_adapter": self.default_adapter} if self.default_adapter else {}),
+                # the calculator block format shown, only when on: a certificate made on reads with the block is
+                # suspended by a server that shows none, and the other way round
+                **({"calculator": self.calculator} if self.calculator else {}),
                 # batch-invariant kernels, only when on: other kernels, so other numerics; a certificate made without
                 # them is suspended
                 **({"batch_invariant": True} if self.batch_invariant else {}),
@@ -4322,13 +4398,25 @@ def add_routes(app, systemone: SystemOne):
         if task is not None and not isinstance(task, str):
             raise HTTPException(422, '"task" must be the id of a registered task, or null')
         try:
+            calcs.request_value((req.model_extra or {}).get("calculator"))
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        from decisio.calculator import CalculatorInputError
+
+        try:
             out = await run_in_threadpool(
                 functools.partial(systemone.answer, layout=layout, image_tag=tag),
                 req, adapter, images, ext, route, debug, over_limit, think,
             )  # fmt: skip
         except UnknownAdapter as e:
             raise HTTPException(404, str(e))
-        except (over.OverLimit, thinking.ThinkUnavailable, lay.LayoutRefused, TaskSelectionError) as e:
+        except (
+            over.OverLimit,
+            thinking.ThinkUnavailable,
+            lay.LayoutRefused,
+            TaskSelectionError,
+            CalculatorInputError,
+        ) as e:
             raise HTTPException(422, str(e))
         except ImageRequestError:
             raise  # the app's handlers: 400 or 413 in System One's error shape
@@ -4354,6 +4442,8 @@ def add_routes(app, systemone: SystemOne):
             headers[header("warning")] = timing["warning"]
         if timing.get("note"):  # how the request was read, where that has a cost the client can avoid
             headers[header("note")] = timing["note"]
+        if timing.get("calculator"):  # the calculator block: shown (its lines and version), or why there is none
+            headers[header("calculator")] = timing["calculator"]
         if images and systemone.legacy_images():  # the old layout: served as asked, and said to be going away
             headers["Deprecation"] = "true"
             headers["Warning"] = f'299 - "{systemone.LEGACY_WARNING}"'

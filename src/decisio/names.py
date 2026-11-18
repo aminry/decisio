@@ -77,6 +77,7 @@ def task_fingerprint(
     pad_policy="always",
     prompt_format=None,
     base=None,
+    calculator=None,
 ) -> str:
     """The task store's fingerprint: a registered task is valid only for the model and the rendering it was fitted
     under. `model` is the checkpoint's name (its source's, when a decisio repository serves a copy of it: decisio.hub).
@@ -95,6 +96,9 @@ def task_fingerprint(
             **({"pad_policy": pad_policy} if pad_policy != "always" else {}),
             **({"prompt_format": prompt_format} if prompt_format else {}),
             **({"base": base} if base else {}),
+            # the calculator block format a server shows (decisio.calculator), only when on: a task fitted on reads
+            # with the block applies only where the block is shown, and every other fingerprint is what it was
+            **({"calculator": calculator} if calculator else {}),
         },
         sort_keys=True,
     )

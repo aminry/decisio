@@ -1741,6 +1741,7 @@ def make_app(engine, systemone=None, health=None):
                         if hasattr(systemone, "header_layout_facts")
                         else {}
                     ),
+                    **({"calculator": systemone.calc_counts.facts()} if getattr(systemone, "calculator", None) else {}),
                     **({"flavor": systemone.flavor} if systemone.flavor else {}),
                     **({"default_adapter": systemone.default_adapter} if systemone.default_adapter else {}),
                     **({"batch_invariant": systemone.batch_invariant} if systemone.batch_invariant else {}),
@@ -2566,7 +2567,16 @@ def apply_repository_defaults(args, repo) -> None:
                 args.think_budget = defaults["think"]["budget"]
             if getattr(args, "think_types", None) is None and "types" in defaults["think"]:
                 args.think_types = defaults["think"]["types"]
+        if "calculator" in defaults:  # the block format the model was trained with; --calculator off turns it off
+            if getattr(args, "calculator", "auto") == "off":
+                applied["calculator_set_by"] = "--calculator off"
+            else:
+                applied["calculator"] = defaults["calculator"]
         args.repository_defaults = applied
+    # the calculator format this server shows: only what the model records (never a format it was not trained with)
+    args.calculator_version = (
+        defaults.get("calculator") if defaults is not None and getattr(args, "calculator", "auto") != "off" else None
+    )
     if getattr(args, "noul_commit", None) is None:
         args.noul_commit = False
     if getattr(args, "over_limit", None) is None:
@@ -3062,6 +3072,15 @@ def build_parser():
         "kernels",
     )
     ap.add_argument(
+        "--calculator",
+        choices=("auto", "off"),
+        default="auto",
+        help="exact arithmetic support (decisio.calculator): the server computes the line values a state states and "
+        "shows them to the model in a fixed block after the state, never a total or a verdict. auto (the default): "
+        "on only for a model whose repository records the block format it was trained with (defaults.calculator); "
+        "off: never. A model that records none never sees the block, whatever a request asks",
+    )
+    ap.add_argument(
         "--emulate-precision-casts",
         choices=precision_casts.CHOICES,
         default=None,
@@ -3350,6 +3369,7 @@ def task_store_fingerprint(args, fmt) -> str:
         prompt_format=None if fmt.is_default() else fmt.facts(),
         # a base other than Qwen (whose fingerprints predate bases)
         base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
+        calculator=getattr(args, "calculator_version", None),
     )
 
 
@@ -3438,6 +3458,12 @@ def main():
         ap.error("--temperature must be positive (1 is off)")
     if args.repository_defaults:
         print(f"REPOSITORY DEFAULTS {json.dumps(args.repository_defaults, sort_keys=True)}", flush=True)
+    if getattr(args, "calculator_version", None):
+        print(
+            f"CALCULATOR {args.calculator_version} (the repository's defaults): exact line values shown after a state "
+            "the calculator reads with certainty; none otherwise",
+            flush=True,
+        )
     if getattr(args, "temperatures_file_facts", None):
         print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
     if args.flavor_report:
@@ -3861,6 +3887,7 @@ def main():
             "score": args.think_temperature_score,
         },
         layout_records=layout_records(args, adapters, adapter_temps),
+        calculator=getattr(args, "calculator_version", None),
     )
     if backend is not None and hasattr(backend, "sync_once"):
         from decisio.serve.task_store_shared import TaskSync

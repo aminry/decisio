@@ -612,6 +612,7 @@ def check_defaults(defaults) -> None:
         "read_twice_under",
         "read_twice_max_questions",
         "batch_invariant",
+        "calculator",
     }
     unknown = sorted(set(defaults) - allowed)
     if unknown:
@@ -648,6 +649,14 @@ def check_defaults(defaults) -> None:
         raise ValueError("defaults.noul_commit_basis must say why the commit setting is on (with the figures)")
     if "batch_invariant" in defaults and defaults["batch_invariant"] is not True:
         raise ValueError("defaults.batch_invariant must be true (leave it out for the server's own setting)")
+    if "calculator" in defaults:
+        from decisio.calculator import VERSIONS
+
+        if defaults["calculator"] not in VERSIONS:
+            raise ValueError(
+                f"defaults.calculator must be the calculator block format the model was trained with, one of "
+                f"{list(VERSIONS)}, not {defaults['calculator']!r} (leave it out for a model trained without it)"
+            )
     for key in ("read_twice_under", "read_twice_max_questions"):
         v = defaults.get(key)
         if key in defaults and (isinstance(v, bool) or not isinstance(v, int) or v < 0):
@@ -908,6 +917,7 @@ def tuned_config(
     read_twice_max_questions: int | None = None,
     batch_invariant: bool = False,
     conversion: dict | None = None,
+    calculator: str | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
@@ -938,6 +948,7 @@ def tuned_config(
         **({"read_twice_under": read_twice_under} if read_twice_under else {}),
         **({"read_twice_max_questions": read_twice_max_questions} if read_twice_max_questions else {}),
         **({"batch_invariant": True} if batch_invariant else {}),
+        **({"calculator": calculator} if calculator else {}),
     }
     if flavor is not None:
         config["flavor"] = flavor
@@ -1058,6 +1069,12 @@ def main(argv=None) -> int:
         choices=("plain", "header"),
         help="the prompt layout the model was trained and measured on, recorded in the file; a server serves it "
         "(none recorded: plain, what every tuned model before this was trained on)",
+    )
+    tc.add_argument(
+        "--calculator",
+        default=None,
+        help="the calculator block format the model was trained with (decisio.calculator, e.g. calc-v1), recorded as "
+        "defaults.calculator: a server shows the block to this model, and only to a model that records it",
     )
     tc.add_argument(
         "--flavor",
@@ -1205,6 +1222,7 @@ def main(argv=None) -> int:
                 read_twice_under=a.read_twice_under,
                 read_twice_max_questions=a.read_twice_max_questions,
                 batch_invariant=a.batch_invariant,
+                calculator=a.calculator,
                 think=(
                     {
                         "factor": a.think_factor,
