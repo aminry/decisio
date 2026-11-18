@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.1](https://github.com/aminry/decisio/compare/v0.50.0...v0.50.1) (2026-11-18)
+
+
+### Bug Fixes
+
+* **hub:** a defaults key this decisio does not know is ignored with a warning, not refused ([#485](https://github.com/aminry/decisio/issues/485)) ([4d7865e](https://github.com/aminry/decisio/commit/4d7865ec0542711559afcf9f04979785ee725c9e))
+
 ## [0.50.0](https://github.com/aminry/decisio/compare/v0.49.0...v0.50.0) (2026-11-18)
 
 
