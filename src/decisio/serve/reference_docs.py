@@ -341,6 +341,8 @@ RESPONSE_HEADERS = {
     "whole state again, so send all the questions about a state in one request, the same `header_questions` on every "
     'request about it, or `"layout": "plain"`. With `header_questions`: the cache is shared, and the accuracy of a '
     "header that lists questions the request does not ask is not measured yet.",
+    "x-decisio-calculator": "The calculator block (docs/calculator.md): `shown; lines=N; version=V`, or `none; "
+    "reason=R` (why there is none); absent when the server shows no block and the request asked for none.",
     "x-decisio-adapter": "The adapter that answered, when one did.",
     "x-decisio-think-ms": "The milliseconds spent on reasoning and the second reads, when thinking was on for the request.",
     "x-decisio-think-tokens": "The reasoning tokens generated, when thinking was on for the request.",

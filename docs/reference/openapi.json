@@ -137,6 +137,12 @@
                   "type": "string"
                 }
               },
+              "x-decisio-calculator": {
+                "description": "The calculator block (docs/calculator.md): `shown; lines=N; version=V`, or `none; reason=R` (why there is none); absent when the server shows no block and the request asked for none.",
+                "schema": {
+                  "type": "string"
+                }
+              },
               "x-decisio-adapter": {
                 "description": "The adapter that answered, when one did.",
                 "schema": {

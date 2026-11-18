@@ -908,6 +908,13 @@ The serving-stack fingerprint of [a certificate](tasks.md#where-it-stops) holds 
 A server with no adapter has none of these keys, and its certificates are unchanged.
 A request that names an adapter is never certified, and a question that a registered task matches is refused with an adapter, as [api.md](api.md) says.
 
+## Exact arithmetic support (`--calculator`)
+
+A model trained with decisio's calculator block reads the line values of a state's arithmetic (items, rates, conversions, adjustments, fees, credits, the taxed base and the tax), computed exactly, in a fixed block after the state, in the same single read; it never sees a total or a verdict.
+The server shows the block only to a model whose repository records the format it was trained with (`defaults.calculator`), with `--calculator auto`, the default; `--calculator off` turns it off.
+A state the calculator does not read with certainty gets no block at all.
+What it reads, the block's format, the request fields and the rendering of training rows: [calculator.md](calculator.md).
+
 ## Batch invariance (`--batch-invariant`)
 
 vLLM 0.31.0 has a mode, `VLLM_BATCH_INVARIANT=1`, in which every row is computed with kernels whose result does not depend on what else is in the batch.
