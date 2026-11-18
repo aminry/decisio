@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.0](https://github.com/aminry/decisio/compare/v0.49.0...v0.50.0) (2026-11-18)
+
+
+### Features
+
+* **calculator:** exact arithmetic support for decisions over numbers (opt-in per model) ([#480](https://github.com/aminry/decisio/issues/480)) ([8b1a8e3](https://github.com/aminry/decisio/commit/8b1a8e33afbbcac2cbdc5f6867f1667a479a1667))
+
 ## [0.49.0](https://github.com/aminry/decisio/compare/v0.48.0...v0.49.0) (2026-11-17)
 
 
