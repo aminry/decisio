@@ -479,7 +479,7 @@ wheels = [
 
 [[package]]
 name = "decisio"
-version = "0.50.1"
+version = "0.50.2"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
