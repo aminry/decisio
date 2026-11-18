@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: exact arithmetic support (the calculator block)
+
+### What changed
+
+- **A new opt-in feature: the calculator** ([calculator.md](calculator.md)). For a model trained with it, decisio computes the line values a state states (items, rates, conversions, adjustments, fees, credits, the taxed base and the tax) exactly and shows them after the state in a fixed block (`calc-v1`), never a total or a verdict. A state it does not read with certainty gets no block.
+- A tuned repository records the format its model was trained with (`defaults.calculator`, `hub tuned-config --calculator`); the new server flag `--calculator auto|off` (default `auto`) shows the block only to such a model.
+- New request fields `calculator` and `calculator_input`, the response header `x-decisio-calculator`, `/health` `systemone.calculator`, and `python -m decisio.calculator render` for training rows.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| Every model whose repository records no `defaults.calculator` (every base and every model published before this) | | unchanged: no block, the same prompts, fingerprints and answers | nothing |
+| Clients that send `"calculator"` or `"calculator_input"` to such a model | the fields were ignored | answered without the block, with `x-decisio-warning`; an invalid `calculator_input` is a 422 | send them only to a model trained with the block |
+| A model trained with the block | | the block is shown with `--calculator auto` | record `defaults.calculator` in its repository |
+
 ## 0.49.0: `header_questions` keeps the header's cache across requests
 
 ### What changed
