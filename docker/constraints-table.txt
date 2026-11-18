@@ -5,5 +5,5 @@
 scikit-learn==1.9.1
 joblib==1.6.0
 threadpoolctl==3.8.0
-onnxruntime==1.31.1
+onnxruntime==1.32.0
 flatbuffers==25.12.19
