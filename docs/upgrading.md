@@ -22,7 +22,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | A model shown the calculator block, on states with such counts or factors | a block with a wrong line | no block | nothing |
 | Every other state | | the same block, byte for byte | nothing |
 
-## Unreleased: a model field this decisio does not know is ignored, not refused
+## 0.50.1: a model field this decisio does not know is ignored, not refused
 
 ### What changed
 
