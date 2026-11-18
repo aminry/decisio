@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.50.2](https://github.com/aminry/decisio/compare/v0.50.1...v0.50.2) (2026-11-18)
+
+
+### Bug Fixes
+
+* **calculator:** no block for counts with a multiplier or a number word, or for a unit factor across kinds of unit ([#487](https://github.com/aminry/decisio/issues/487)) ([9b213e7](https://github.com/aminry/decisio/commit/9b213e7bb4d48be49b6f2df2bea3d0cc9d48aa55))
+
 ## [0.50.1](https://github.com/aminry/decisio/compare/v0.50.0...v0.50.1) (2026-11-18)
 
 
