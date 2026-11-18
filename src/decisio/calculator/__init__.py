@@ -8,14 +8,14 @@ reads the arithmetic a state states, computes every line value exactly (`fractio
 end) and appends a fixed-format block after the state, which the model reads in the same forward pass:
 
   Calculator (exact values, shown to six decimals):
-  - Loading time: 89 min x $41.00/h = $60.816666
+  - Loading time: 89 min x $41.00/h = $60.816667
   - Cargo weight: 980 lb = 444.528 kg; 444.528 x $0.35 = $155.5848
   - Haul distance: 212 mi = 341.1716 km; 341.1716 x $1.10 = $375.28876
   - Cold storage: 2 x $14.25 x 7 days = $199.50
   - Missed slot: $40.00 x 2 days = $80.00 (taken off)
   - Handling fee: 2 x $8.50 = $17.00
   - Claims credit: $25.00 (taken off)
-  - Taxed base: $703.190226
+  - Taxed base: $703.190227
   - Tax charged: $105.478534
 
 It never writes the final total, a verdict, a comparison with a claim or an option. It is all or nothing: if any part

@@ -175,3 +175,42 @@ def test_not_an_object():
 def test_unknown_version():
     with pytest.raises(ValueError, match="calc-v2"):
         from_input(FREIGHT_INPUT, version="calc-v2")
+
+
+# ---- unhashable kinds and hard bounds --------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("kind", [["count"], {"k": 1}, 3, None, True])
+def test_a_kind_of_any_type_is_a_named_error(kind):
+    data = copy.deepcopy(FREIGHT_INPUT)
+    data["items"][0]["kind"] = kind
+    with pytest.raises(CalculatorInputError, match=r"calculator_input\.items\[0\]\.kind"):
+        from_input(data)
+
+
+@pytest.mark.parametrize(
+    ("path", "edit"),
+    [
+        ("items", lambda d: d.__setitem__("items", [dict(d["items"][3], label=f"I{i}") for i in range(65)])),
+        ("fees", lambda d: d.__setitem__("fees", [{"label": f"F{i}", "price": "1"} for i in range(33)])),
+        ("credits", lambda d: d.__setitem__("credits", [{"label": f"C{i}", "amount": "1"} for i in range(33)])),
+        ("items[0].minutes", lambda d: d["items"][0].__setitem__("minutes", [1] * 65)),
+        ("items[3].price", lambda d: d["items"][3].__setitem__("price", "1" * 5000)),
+        ("items[3].price", lambda d: d["items"][3].__setitem__("price", "1" * 15)),
+        ("items[3].price", lambda d: d["items"][3].__setitem__("price", "1.1234567")),
+        ("items[3].quantity", lambda d: d["items"][3].__setitem__("quantity", 10**14)),
+        ("items[3].days", lambda d: d["items"][3].__setitem__("days", 10**9)),
+    ],
+)
+def test_bounds_are_named_errors(path, edit):
+    data = copy.deepcopy(FREIGHT_INPUT)
+    edit(data)
+    with pytest.raises(CalculatorInputError) as e:
+        from_input(data)
+    assert f"calculator_input.{path}" in str(e.value)
+
+
+def test_the_largest_accepted_numbers_still_render():
+    data = copy.deepcopy(FREIGHT_INPUT)
+    data["items"][3].update(quantity="9" * 14 + ".999999", price="9" * 14 + ".999999", days=3660)
+    assert isinstance(from_input(data), Annotation)

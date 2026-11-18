@@ -79,6 +79,7 @@ A client that already holds structured amounts can send them, and gets the same 
 - Item kinds: `count`, `days`, `time` (minutes, a rate per `h` or `min`, optional rounding to a step per entry or on the sum), `length`, `convert` (with the stated factor) and `daycredit`.
 - `adjustments`: a percentage of one item, added or taken off before tax. `tax.outside` lists the fees and credits applied after tax; everything else is inside the taxed base.
 - Numbers are JSON integers or decimal strings; a JSON float is refused, since it is not exact. Unknown fields are refused. Labels must be unique.
+- Bounds: at most 64 items, 32 adjustments, fees, credits or `tax.outside` labels, and 64 minutes or lengths in one item; a number has at most 14 digits before the point and 6 after; a day count is 1 to 3,660.
 - Validation is strict and all or nothing: an invalid or inconsistent field is a 422 naming its path (`calculator_input.items[2].price: ...`), on any server.
 - The full schema is in the docstring of `decisio.calculator.inputs`.
 

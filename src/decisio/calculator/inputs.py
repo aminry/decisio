@@ -8,6 +8,9 @@ field raises `CalculatorInputError` with the field's path (`items[2].price`), an
 Numbers are JSON integers or decimal strings (`"299.46"`, `"12.5"`); a JSON float is refused, since it is not exact.
 Unknown fields are refused. Labels are the client's own words, written as they should appear (1 to 80 characters, no
 colon, no line break, unique ignoring case; `Taxed base`, `Tax charged` and `Tax withheld` are reserved).
+Bounds (each a CalculatorInputError naming the field): at most 64 items, 32 adjustments, 32 fees, 32 credits and 32
+labels in tax.outside; at most 64 minutes or lengths in one item; a number has at most 14 digits before the point and
+6 after (a JSON integer is under 10^14); a day count is 1 to 3,660.
 
   {
     "currency": "$",                    a symbol ($ € £ ¥) or a three-letter code ("EUR"), written before amounts
@@ -49,7 +52,14 @@ from fractions import Fraction
 
 from decisio.calculator.compute import Adjustment, Case, Credit, Fee, Item, Tax
 
-_DEC = re.compile(r"-?\d+(?:\.\d+)?")
+_DEC = re.compile(r"-?(\d+)(?:\.(\d+))?")
+# hard bounds, so that every accepted input is computed and written in bounded time and size: list lengths, and the
+# digits a number may have (an amount up to 10^14 with six decimals; a JSON integer under 10^14)
+MAX_ITEMS = 64
+MAX_LIST = 32  # adjustments, fees, credits, tax.outside
+MAX_ENTRIES = 64  # minutes or lengths of one item
+MAX_INT_DIGITS, MAX_DEC_DIGITS = 14, 6
+MAX_DAYS = 3660
 _RESERVED = {"taxed base", "tax charged", "tax withheld"}
 _ITEM_FIELDS = {
     "count": ({"kind", "label", "quantity", "price"}, set()),
@@ -83,8 +93,18 @@ class _Reader:
     def num(self, x, path: str, *, min_: Fraction | None = Fraction(0), positive: bool = False) -> Fraction:
         if isinstance(x, bool) or not isinstance(x, (int, str)):
             self.fail(path, "must be an integer or a decimal string (a float is not exact)")
-        if isinstance(x, str) and not _DEC.fullmatch(x):
-            self.fail(path, f"{x!r} is not a decimal number")
+        if isinstance(x, int) and abs(x) >= 10**MAX_INT_DIGITS:
+            self.fail(path, f"must be under 10^{MAX_INT_DIGITS}")
+        if isinstance(x, str):
+            m = _DEC.fullmatch(x) if len(x) <= MAX_INT_DIGITS + MAX_DEC_DIGITS + 2 else None
+            if not m:
+                self.fail(
+                    path, f"is not a decimal number of at most {MAX_INT_DIGITS} digits and {MAX_DEC_DIGITS} decimals"
+                )
+            if len(m.group(1)) > MAX_INT_DIGITS or len(m.group(2) or "") > MAX_DEC_DIGITS:
+                self.fail(
+                    path, f"must have at most {MAX_INT_DIGITS} digits before the point and {MAX_DEC_DIGITS} after"
+                )
         v = Fraction(x)
         if positive and v <= 0:
             self.fail(path, "must be greater than 0")
@@ -92,9 +112,9 @@ class _Reader:
             self.fail(path, f"must be at least {min_}")
         return v
 
-    def whole(self, x, path: str, min_: int = 0) -> int:
-        if isinstance(x, bool) or not isinstance(x, int) or x < min_:
-            self.fail(path, f"must be a whole number, at least {min_}")
+    def whole(self, x, path: str, min_: int = 0, max_: int = MAX_DAYS) -> int:
+        if isinstance(x, bool) or not isinstance(x, int) or not min_ <= x <= max_:
+            self.fail(path, f"must be a whole number from {min_} to {max_}")
         return x
 
     def text(self, x, path: str) -> str:
@@ -119,9 +139,11 @@ class _Reader:
             self.fail(path, "a unit is 1 to 12 letters")
         return u
 
-    def seq(self, x, path: str, *, nonempty: bool = False) -> list:
+    def seq(self, x, path: str, *, nonempty: bool = False, most: int = MAX_LIST) -> list:
         if not isinstance(x, list) or (nonempty and not x):
             self.fail(path, "must be a non-empty list" if nonempty else "must be a list")
+        if len(x) > most:
+            self.fail(path, f"has {len(x)} entries; at most {most}")
         return x
 
 
@@ -148,7 +170,7 @@ def _item(rd: _Reader, x, path: str) -> Item:
     if not isinstance(x, dict):
         rd.fail(path, "must be an object")
     kind = x.get("kind")
-    if kind not in _ITEM_FIELDS:
+    if not isinstance(kind, str) or kind not in _ITEM_FIELDS:
         rd.fail(f"{path}.kind", f"must be one of {', '.join(_ITEM_FIELDS)}")
     required, optional = _ITEM_FIELDS[kind]
     rd.obj(x, path, required, optional)
@@ -168,7 +190,7 @@ def _item(rd: _Reader, x, path: str) -> Item:
     if kind == "time":
         mins = [
             rd.num(v, f"{path}.minutes[{i}]")
-            for i, v in enumerate(rd.seq(x["minutes"], f"{path}.minutes", nonempty=True))
+            for i, v in enumerate(rd.seq(x["minutes"], f"{path}.minutes", nonempty=True, most=MAX_ENTRIES))
         ]
         if x["per"] not in ("h", "min"):
             rd.fail(f"{path}.per", 'must be "h" or "min"')
@@ -177,7 +199,7 @@ def _item(rd: _Reader, x, path: str) -> Item:
     if kind == "length":
         lens = [
             rd.num(v, f"{path}.lengths[{i}]")
-            for i, v in enumerate(rd.seq(x["lengths"], f"{path}.lengths", nonempty=True))
+            for i, v in enumerate(rd.seq(x["lengths"], f"{path}.lengths", nonempty=True, most=MAX_ENTRIES))
         ]
         unit = rd.unit(x["unit"], f"{path}.unit")
         total = _rounded(rd, lens, x.get("round"), f"{path}.round")
@@ -205,7 +227,9 @@ def case_from_input(data, err) -> Case:
     cur = data["currency"]
     if not isinstance(cur, str) or not (cur in ("$", "€", "£", "¥") or re.fullmatch(r"[A-Z]{3}", cur)):
         rd.fail("currency", 'must be "$", "€", "£", "¥" or a three-letter code')
-    items = [_item(rd, x, f"items[{i}]") for i, x in enumerate(rd.seq(data["items"], "items", nonempty=True))]
+    items = [
+        _item(rd, x, f"items[{i}]") for i, x in enumerate(rd.seq(data["items"], "items", nonempty=True, most=MAX_ITEMS))
+    ]
     priced = {i.label: i for i in items if i.kind != "daycredit"}
 
     adjustments = []

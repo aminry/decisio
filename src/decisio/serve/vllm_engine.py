@@ -2573,10 +2573,15 @@ def apply_repository_defaults(args, repo) -> None:
             else:
                 applied["calculator"] = defaults["calculator"]
         args.repository_defaults = applied
-    # the calculator format this server shows: only what the model records (never a format it was not trained with)
+    # the calculator format this server shows: only what the model records (never a format it was not trained with),
+    # and never in packed mode, which reads no block (requests, registrations and fingerprints then all go without it)
     args.calculator_version = (
         defaults.get("calculator") if defaults is not None and getattr(args, "calculator", "auto") != "off" else None
     )
+    if args.calculator_version and getattr(args, "mode", "separate") == "packed":
+        applied.pop("calculator", None)
+        applied["calculator_set_by"] = "--mode packed (it reads no calculator block)"
+        args.calculator_version = None
     if getattr(args, "noul_commit", None) is None:
         args.noul_commit = False
     if getattr(args, "over_limit", None) is None:

@@ -910,8 +910,9 @@ class SystemOne:
         self.layout_records = dict(layout_records or {})
         # the calculator block format this server shows (decisio.calculator; None: none), only ever the one its model
         # records (`--calculator auto` and a repository's defaults.calculator), and what it did (/health)
-        self.calculator = calculator
-        self.calc_counts = calcs.Counts(calculator)
+        # (never in packed mode, which reads no block: its requests, registrations and fingerprints all go without it)
+        self.calculator = None if getattr(engine, "mode", None) == "packed" else calculator
+        self.calc_counts = calcs.Counts(self.calculator)
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
         # flavor, which is then exactly what it was (the model it echoes, the fingerprint, the headers)
         self.flavor = dict(flavor) if flavor else None
@@ -1442,17 +1443,18 @@ class SystemOne:
                 timing["calculator"] = decision.header_value()
         return out
 
-    def read_state(self, context, state):
+    def read_state(self, context, state, examples: bool = False):
         """The state as every read sees it (decisio.readout.letters.context_state): the task's context, a blank line,
         the rendered state, and the calculator block after it where one is shown (docs/calculator.md). Within a
-        request, the block decided for the request's state; outside one (a task's registration or certification), the
-        server's setting for each example's state."""
+        request, the block decided for the request's state. Outside one, no block, unless the caller reads a task's
+        examples (`examples`: registration, certification, a table's refit), which are read as this server reads
+        requests: with the block where the server shows it."""
         from decisio.calculator import Annotation, annotate, attach
 
         decision = calcs.current()
         if decision is not None:
             ann = decision.annotation if (decision.state is state or decision.state == state) else None
-        elif self.calculator is not None:
+        elif examples and self.calculator is not None:
             ann = annotate(state, context, self.calculator)
         else:
             ann = None
@@ -2428,7 +2430,7 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _, swapped = self.engine_question(q)
-                probs, _ = self.engine.answer(self.read_state(context, state), [eq])
+                probs, _ = self.engine.answer(self.read_state(context, state, examples=True), [eq])
                 require_finite(probs[0], "a registration example's probability")
                 out.append(probs[0][::-1] if swapped else probs[0])
             return out
@@ -2437,7 +2439,7 @@ class SystemOne:
             out = []
             for state, q in pairs:
                 eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                lp, h = self.hidden_engine.readout(self.read_state(context, state), [eq])[0]
+                lp, h = self.hidden_engine.readout(self.read_state(context, state, examples=True), [eq])[0]
                 require_finite(lp, "a registration example's label log-probability")
                 require_finite(h, "a registration example's hidden state")
                 out.append((lp, h))
@@ -2654,7 +2656,7 @@ class SystemOne:
             out = []
             for q, state, gold in ex:
                 eq, _, swapped = self.engine_question(q)
-                probs, _ = self.engine.answer(self.read_state(context, state), [eq])
+                probs, _ = self.engine.answer(self.read_state(context, state, examples=True), [eq])
                 p = np.asarray(probs[0], dtype=np.float64)
                 require_finite(p, "a registration example's probability")
                 out.append(self.dynamic_example(state, q, p[::-1].copy() if swapped else p, gold, none_key))
@@ -3263,7 +3265,7 @@ class SystemOne:
         with_head = t["head"].get("applied") and self.hidden_engine is not None
         context = context_text(t)  # read before each state; the states themselves are the requests'
         for state, q in pairs:
-            state = self.read_state(context, state)
+            state = self.read_state(context, state, examples=True)
             if with_head:
                 # the head's answer comes from the hidden-state read alone, as serving always read it. Registration
                 # used to make a plain read first and discard it, but that read ran before the hidden-state one, and on
@@ -3301,7 +3303,7 @@ class SystemOne:
         out = []
         for state, q in pairs:
             eq, _, swapped = self.engine_question(q)
-            probs, info = self.engine.answer(self.read_state(context_text(t), state), [eq])
+            probs, info = self.engine.answer(self.read_state(context_text(t), state, examples=True), [eq])
             self.collect_read(info)
             p = np.asarray(probs[0], dtype=np.float64)
             require_finite(p, "a dynamic task's probability")
