@@ -88,11 +88,38 @@ jobs:
 
       - name: Unit tests (fast tier)
         # inside the job's 30 minutes, so a hung test fails this step with its log (and faulthandler_timeout's stacks,
-        # pyproject.toml) kept; a cancelled job's log is never uploaded
+        # pyproject.toml) kept; a cancelled job's log is never uploaded.
+        # Some runs ended with no log even past this step's limit, as when the runner itself runs out of memory and is
+        # lost. So the test names are printed as each test starts (-v), the memory is logged every minute, and when
+        # less than 1.5 GB is left the largest processes are printed and the largest python one is stopped: a test
+        # fails with the log kept instead of the runner being lost.
         timeout-minutes: 24
         env:
           DECISIO_STAND_IN_MODEL: ${{ runner.temp }}/decisio-standin/qwen3-0.6b-base
-        run: uv run pytest -q --durations=10
+        run: |
+          (
+            n=0
+            while sleep 5; do
+              avail=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+              n=$((n + 1))
+              [ $((n % 12)) -eq 0 ] && echo "memory: $((avail / 1024)) MB available"
+              if [ "$avail" -lt 1500000 ]; then
+                echo "::error::memory: only $((avail / 1024)) MB available; the largest processes:"
+                ps -eo pid,ppid,rss,etime,args --sort=-rss | head -12 | cut -c1-200
+                # the largest python process (the tests, a server a test started), never the runner's own agent
+                top=$(ps -eo pid,rss,comm --sort=-rss --no-headers | awk '$3 ~ /^python/ {print $1; exit}')
+                if [ -n "$top" ]; then
+                  echo "::error::stopping PID $top to keep the runner"
+                  kill -9 "$top"
+                fi
+              fi
+            done
+          ) &
+          watch=$!
+          rc=0
+          uv run pytest -v --durations=10 || rc=$?
+          kill "$watch"
+          exit "$rc"
 
       - name: Build the package
         run: uv build
