@@ -201,8 +201,9 @@ def test_s8_the_repository_records_a_known_format():
 
     base = {"temperatures": {"choice": 1.0}, "noul_commit": False, "fit": {"method": "log loss"}}
     check_defaults({**base, "calculator": "calc-v1"})
-    with pytest.raises(ValueError, match="defaults.calculator must be"):
-        check_defaults({**base, "calculator": "calc-v9"})
+    check_defaults({**base, "calculator": "calc-v9"})  # a newer format: a warning, and served without the block
+    with pytest.raises(ValueError, match="defaults.calculator must be the name"):
+        check_defaults({**base, "calculator": 9})
 
 
 # ---- S9 review: packed mode, input bounds, a real tie, every read of a request, concurrency --------------------------
