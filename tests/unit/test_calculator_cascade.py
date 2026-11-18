@@ -415,6 +415,18 @@ def test_decode_bio():
     ]
 
 
+def test_decode_bio_joins_one_word():
+    text = "at $45.44 each, 4 crates"
+    labels = ["O", "B-price", "I-price", "B-quantity"]
+    offsets = [(0, 2), (2, 6), (6, 7), (7, 9), (9, 10), (15, 17)]  # "at" " $45" "." "44" "," " 4" (leading spaces)
+    ids = [0, 1, 1, 1, 0, 3]
+    probs = [1, 0.9, 0.6, 0.8, 1, 0.7]
+    assert decode_bio(offsets, ids, probs, labels, text) == [(2, 9, "price", 0.6), (15, 17, "quantity", 0.7)]
+    assert len(decode_bio(offsets, ids, probs, labels)) == 4  # without the text, each B- starts a span
+    two = "4 5"
+    assert decode_bio([(0, 1), (1, 3)], [3, 3], [1, 1], labels, two) == [(0, 1, "quantity", 1), (1, 3, "quantity", 1)]
+
+
 def test_weights_are_pinned(tmp_path):
     with pytest.raises(ValueError):
         resolve("someone/tagger")  # a Hub repository without a commit hash

@@ -251,7 +251,29 @@ def encode_row(row: dict, tokenizer, max_length: int) -> dict | None:
 
 def loss(model: CascadeTagger, ex: dict, device: str = "cpu") -> tuple[torch.Tensor, dict]:
     ids = torch.tensor([ex["input_ids"]], device=device)
-    hidden = model.hidden(ids, torch.ones_like(ids))
+    return head_loss(model, ex, model.hidden(ids, torch.ones_like(ids)), device)
+
+
+def batch_loss(model: CascadeTagger, batch: list[dict], pad_id: int, device: str = "cpu") -> tuple[torch.Tensor, dict]:
+    """One encoder pass over a padded batch, then each example's heads on its own tokens; the mean loss."""
+    n = max(len(ex["input_ids"]) for ex in batch)
+    ids = torch.full((len(batch), n), pad_id, dtype=torch.long, device=device)
+    mask = torch.zeros((len(batch), n), dtype=torch.long, device=device)
+    for i, ex in enumerate(batch):
+        ids[i, : len(ex["input_ids"])] = torch.tensor(ex["input_ids"], device=device)
+        mask[i, : len(ex["input_ids"])] = 1
+    hidden = model.encoder(input_ids=ids, attention_mask=mask).last_hidden_state
+    total, parts = 0, {}
+    for i, ex in enumerate(batch):
+        t, p = head_loss(model, ex, hidden[i, : len(ex["input_ids"])], device)
+        total = total + t
+        for k, v in p.items():
+            parts[k] = parts.get(k, 0.0) + v / len(batch)
+    return total / len(batch), parts
+
+
+def head_loss(model: CascadeTagger, ex: dict, hidden, device: str = "cpu") -> tuple[torch.Tensor, dict]:
+    """The heads' losses for one example, from its encoder states (tokens x hidden)."""
     ce = nn.functional.cross_entropy
     parts = {"tokens": ce(model.tokens(hidden), torch.tensor(ex["labels"], device=device), ignore_index=-100)}
     spans = model.spans(hidden, ex["ranges"])
@@ -315,7 +337,7 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     probs = model.tokens(hidden).float().softmax(-1)
     top_p, top = probs.max(-1)
     offsets = [tuple(o) for o in enc["offset_mapping"]]
-    raw = decode_bio(offsets, top.tolist(), top_p.tolist(), LABELS)
+    raw = decode_bio(offsets, top.tolist(), top_p.tolist(), LABELS, text)
 
     found = []  # (start, end, kinded, p, token range)
     for s, e, k, p in raw:

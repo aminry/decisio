@@ -50,11 +50,13 @@ class StubTagger:
         return self.answers.get(state) or Tags(spans=(), note="unknown-text")
 
 
-def decode_bio(offsets, label_ids, probs, labels) -> list[tuple[int, int, str, float]]:
+def decode_bio(offsets, label_ids, probs, labels, text: str | None = None) -> list[tuple[int, int, str, float]]:
     """Character spans from token labels. `offsets` are (start, end) per token ((0, 0) for special tokens),
     `label_ids` the chosen label per token, `probs` its probability, `labels` the names (`O`, `B-role`, `I-role`).
-    An `I-` token continues the open span of the same role, else starts one; a span's probability is the lowest of its
-    tokens'. Leading and trailing whitespace inside a token's offsets is not part of the span (the caller trims)."""
+    An `I-` token continues the open span of the same role, else starts one; with `text`, a `B-` token of the open
+    span's role that continues the same word (it starts where the span ends, on a character that is not a space:
+    `$45` `.` `44`) continues it too, since one word is one value. A span's probability is the lowest of its tokens'.
+    Leading and trailing whitespace inside a token's offsets is not part of the span (the caller trims)."""
     spans: list[list] = []
     open_role = None
     for (s, e), lid, p in zip(offsets, label_ids, probs):
@@ -66,7 +68,8 @@ def decode_bio(offsets, label_ids, probs, labels) -> list[tuple[int, int, str, f
             open_role = None
             continue
         tag, role = name.split("-", 1)
-        if tag == "I" and open_role == role:
+        same_word = text is not None and spans and spans[-1][1] == s and not text[s].isspace()
+        if open_role == role and (tag == "I" or same_word):
             spans[-1][1] = e
             spans[-1][3] = min(spans[-1][3], p)
         else:
