@@ -25,7 +25,11 @@ of the arithmetic is not understood with certainty, there is no block at all, an
   annotate(state, context=None, version="calc-v1") -> Annotation | Abstain
       read the rendered state (`decisio.readout.letters.fmt_state`), with the task's context before it if there is
       one: rules may sit in the context and amounts in the state; `normalized=True` (keyword) reads the text through
-      `decisio.calculator.normalize` first (decimal commas, marks after amounts, numbers in words; off by default)
+      `decisio.calculator.normalize` first (decimal commas, marks after amounts, numbers in words; off by default);
+      `reader="cascade"` (keyword, with `tagger=` a loaded tagger or a model directory, loaded once, and
+      `thresholds=`) reads through `decisio.calculator.cascade` instead: the same block bytes, with the path it took
+      in `.path` (`rules_agree`, `stated_figures`, `threshold`, `rules_only`, `abstain`), which takes no part in
+      equality; its abstain reasons may be `cascade-<code>`. The default reader is `rules`, unchanged.
   from_input(data, version="calc-v1") -> Annotation
       the same block from structured amounts a client already has; raises CalculatorInputError naming the field
       (the schema is in `decisio.calculator.inputs`)
@@ -57,7 +61,7 @@ prints the counts per reason.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from decisio.calculator import compute, parse, render
 from decisio.calculator.parse import REASONS, Unsure
@@ -83,11 +87,13 @@ class Annotation:
     version: str
     text: str  # the block: the heading line, then the "- " lines, joined by "\n"; no leading or trailing newline
     lines: int  # the number of "- " lines
+    path: str = field(default="", compare=False)  # the cascade reader's path; "" from the rule reader and from_input
 
 
 @dataclass(frozen=True)
 class Abstain:
-    reason: str  # one of REASONS
+    reason: str  # one of REASONS (the cascade reader: also `cascade-<code>`)
+    path: str = field(default="", compare=False)
 
 
 class CalculatorInputError(ValueError):
@@ -105,10 +111,39 @@ def _annotation(case: compute.Case, version: str) -> Annotation:
 
 
 def annotate(
-    state, context: str | None = None, version: str = "calc-v1", *, normalized: bool | None = None
+    state,
+    context: str | None = None,
+    version: str = "calc-v1",
+    *,
+    normalized: bool | None = None,
+    reader: str = "rules",
+    tagger=None,
+    thresholds=None,
 ) -> Annotation | Abstain:
     """The block for a state (text or a dict, rendered as the prompt renders it), or why there is none. `normalized`
-    reads the text through `decisio.calculator.normalize` first (default: `parse.NORMALIZED`, off)."""
+    reads the text through `decisio.calculator.normalize` first (default: `parse.NORMALIZED`, off). `reader="cascade"`
+    reads through the cascade (`decisio.calculator.cascade.read`) with `tagger` (a `Tagger`, or a model directory or
+    pinned Hub id, loaded once and cached) and `thresholds` (a `cascade.Thresholds`, a dict of its fields, or None:
+    the threshold rule off); the result carries its path in `.path`."""
+    if reader not in ("rules", "cascade"):
+        raise ValueError(f"unknown calculator reader {reader!r}; use 'rules' or 'cascade'")
+    rules = _rules(state, context, version, normalized)
+    if reader == "rules":
+        return rules
+    from decisio.calculator import cascade
+
+    tg = cascade.tagger_for(tagger)
+    th = cascade.thresholds_for(thresholds)
+    try:
+        out = cascade.read(state, context, rules_case=rules, tagger=tg, thresholds=th, version=version)
+    except Exception:  # never a partial or a guessed block, and never a failed request
+        return Abstain("internal-error", path="abstain")
+    if isinstance(out, Annotation):
+        return Annotation(out.version, out.text, out.lines, path=out.path)
+    return Abstain(out.reason, path=out.path)
+
+
+def _rules(state, context: str | None, version: str, normalized: bool | None) -> Annotation | Abstain:
     _check_version(version)
     from decisio.readout.letters import fmt_state
 

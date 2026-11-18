@@ -19,7 +19,7 @@ import hashlib
 
 import pytest
 
-from decisio.calculator import Abstain, Annotation, from_input
+from decisio.calculator import Abstain, Annotation, annotate, from_input
 from decisio.calculator.cascade import (
     Refused,
     Shown,
@@ -30,6 +30,7 @@ from decisio.calculator.cascade import (
     assemble,
     gates,
     read,
+    tagger_for,
 )
 from decisio.calculator.cascade.assembler import Refusal
 from decisio.calculator.cascade.tagger import check_sums, decode_bio, resolve
@@ -390,6 +391,25 @@ def test_read_tagger_abstains_and_failures():
     assert isinstance(out, Refused) and (out.gate, out.reason) == ("numbers", "cascade-untagged-digits")
 
 
+def test_annotate_reads_through_the_cascade_on_request():
+    block = from_input(EXPECTED)
+    th = {"role": 0.9, "link": 0.9, "flag": 0.9, "band": 0.02}
+    out = annotate(STATE, reader="cascade", tagger=StubTagger({STATE: tags_for()}), thresholds=th)
+    assert type(out) is Annotation and out == block and out.text == block.text  # the path takes no part in equality
+    assert out.path == "threshold" and block.path == ""
+    off = annotate(STATE, reader="cascade", tagger=StubTagger({STATE: tags_for()}))
+    assert type(off) is Abstain and (off.reason, off.path) == ("cascade-no-thresholds", "abstain")
+    assert off == Abstain("cascade-no-thresholds")
+    default = annotate(STATE)  # the rule reader, unchanged: this wording is beyond it
+    assert type(default) is Abstain and default.path == "" and default.reason != "cascade-no-thresholds"
+    with pytest.raises(ValueError):
+        annotate(STATE, reader="cascade")
+    with pytest.raises(ValueError):
+        annotate(STATE, reader="model")
+    with pytest.raises(TypeError):
+        annotate(STATE, reader="cascade", tagger=object())
+
+
 def test_context_spans():
     context = "Tax of 8% is charged on every bill."
     state = STATE.replace("\nTax of 8% is charged on the bill.", "")
@@ -487,5 +507,8 @@ def test_model_wrapper_reads_with_a_tiny_local_model(tmp_path):
     assert all(s.text == STATE[s.start : s.end] for s in first.spans)
     out = read(STATE, tagger=tagger, thresholds=TH)
     assert isinstance(out, (Shown, Refused))  # an untrained model: anything but a crash
+    assert tagger_for(str(tmp_path)) is tagger_for(str(tmp_path))  # a model directory is loaded once
+    via = annotate(STATE, reader="cascade", tagger=str(tmp_path), thresholds=TH)
+    assert isinstance(via, (Annotation, Abstain)) and via.path
     long = HFTagger(tagger.model, tagger.tokenizer, dict(tagger.meta, max_length=8))
     assert long.predict(STATE).note == "too-long"

@@ -25,7 +25,9 @@ is loaded; the stub tagger, the assembler and the gates need nothing beyond the 
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
 
 from decisio.calculator import Abstain, Annotation
 from decisio.calculator.cascade import gates
@@ -49,6 +51,8 @@ __all__ = [
     "Thresholds",
     "assemble",
     "read",
+    "tagger_for",
+    "thresholds_for",
 ]
 
 PATHS = ("rules_agree", "stated_figures", "threshold", "rules_only", "abstain")
@@ -56,17 +60,43 @@ PATHS = ("rules_agree", "stated_figures", "threshold", "rules_only", "abstain")
 
 @dataclass(frozen=True)
 class Shown(Annotation):
-    path: str = ""
     checks: tuple[Check, ...] = ()
 
 
 @dataclass(frozen=True)
 class Refused(Abstain):
-    path: str = "abstain"
+    path: str = field(default="abstain", compare=False)
     gate: str = ""  # the gate or step that refused: tagger, assemble, provenance, numbers, units, stated_figures,
     # readers, accept
     detail: str = ""
     checks: tuple[Check, ...] = ()
+
+
+@lru_cache(maxsize=4)
+def _loaded(path: str, revision: str | None):
+    from decisio.calculator.cascade.tagger import HFTagger
+
+    return HFTagger.load(path, revision)
+
+
+def tagger_for(tagger, revision: str | None = None) -> Tagger:
+    """A tagger as given, or the model at a directory (or a Hub id at a pinned `revision`), loaded once per process."""
+    if tagger is None:
+        raise ValueError("the cascade reader needs a tagger: a Tagger, or a model directory")
+    if isinstance(tagger, (str, Path)):
+        return _loaded(str(tagger), revision)
+    if not isinstance(tagger, Tagger):
+        raise TypeError("tagger must have predict(state, context) -> Tags, or be a model directory")
+    return tagger
+
+
+def thresholds_for(thresholds) -> Thresholds:
+    """Thresholds as given, from a dict of their fields, or None: the threshold rule off."""
+    if thresholds is None:
+        return Thresholds()
+    if isinstance(thresholds, Thresholds):
+        return thresholds
+    return Thresholds(**{k: thresholds[k] for k in ("role", "link", "flag", "band") if k in thresholds})
 
 
 def _rules_block(state, context, rules_case, version):
