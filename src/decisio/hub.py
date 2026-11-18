@@ -78,6 +78,7 @@ import argparse
 import dataclasses
 import hashlib
 import json
+import logging
 import os
 import re
 import sys
@@ -86,6 +87,8 @@ from pathlib import Path
 from decisio.families import BASES, Family
 from decisio.names import task_fingerprint
 from decisio.readout.letters import PromptFormat
+
+logger = logging.getLogger(__name__)
 
 SCHEMA = "decisio.decision_config/1"  # a base's repository: the profile, unchanged
 SCHEMA_TUNED = "decisio.decision_config/2"  # a tuned model's: the profile plus `tuned` and `defaults`
@@ -594,11 +597,10 @@ def check_tuned(tuned, base_key: str | None = None) -> None:
         _sha(sha, f"tuned.files[{name!r}]")
 
 
-def check_defaults(defaults) -> None:
-    from decisio.serve.adapter_temperatures import validate_temperatures
-
-    _need(defaults, "defaults")
-    allowed = {
+# the keys of a tuned repository's `defaults` this decisio knows; a key it does not know (a newer decisio's) is
+# ignored with a warning, so a field added for newer clients never stops an older one from loading the model
+DEFAULTS_KEYS = frozenset(
+    {
         "temperatures",
         "choice_bands",
         "noul_commit",
@@ -614,9 +616,23 @@ def check_defaults(defaults) -> None:
         "batch_invariant",
         "calculator",
     }
-    unknown = sorted(set(defaults) - allowed)
-    if unknown:
-        raise ValueError(f"defaults has unknown keys {unknown}")
+)
+
+
+def unknown_defaults(defaults) -> list[str]:
+    """The keys of `defaults` this decisio does not know, and so ignores."""
+    return sorted(set(defaults or {}) - DEFAULTS_KEYS)
+
+
+def check_defaults(defaults) -> None:
+    from decisio.serve.adapter_temperatures import validate_temperatures
+
+    _need(defaults, "defaults")
+    for key in unknown_defaults(defaults):
+        logger.warning(
+            "the repository's defaults has a key this decisio does not know, %r: ignored (a newer decisio may use it)",
+            key,
+        )
     validate_temperatures(defaults.get("temperatures"), defaults.get("choice_bands"), "defaults")
     if not isinstance(defaults.get("noul_commit"), bool):
         raise ValueError("defaults.noul_commit must be true or false, stated (a tuned repository always says which)")
@@ -652,10 +668,17 @@ def check_defaults(defaults) -> None:
     if "calculator" in defaults:
         from decisio.calculator import VERSIONS
 
-        if defaults["calculator"] not in VERSIONS:
+        if not isinstance(defaults["calculator"], str) or not defaults["calculator"]:
             raise ValueError(
-                f"defaults.calculator must be the calculator block format the model was trained with, one of "
-                f"{list(VERSIONS)}, not {defaults['calculator']!r} (leave it out for a model trained without it)"
+                "defaults.calculator must be the name of the calculator block format the model was trained with "
+                f"(one of {list(VERSIONS)} for this decisio), not {defaults['calculator']!r}"
+            )
+        if defaults["calculator"] not in VERSIONS:  # a newer decisio's format: served without the block
+            logger.warning(
+                "the repository's defaults.calculator is %r, a format this decisio does not know (it knows %s): the "
+                "calculator is off; a newer decisio shows the block",
+                defaults["calculator"],
+                list(VERSIONS),
             )
     for key in ("read_twice_under", "read_twice_max_questions"):
         v = defaults.get(key)

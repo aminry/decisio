@@ -2572,12 +2572,24 @@ def apply_repository_defaults(args, repo) -> None:
                 applied["calculator_set_by"] = "--calculator off"
             else:
                 applied["calculator"] = defaults["calculator"]
+        from decisio.hub import unknown_defaults
+
+        ignored = unknown_defaults(defaults)
+        if ignored:  # a newer decisio's fields: ignored, so the model still loads (hub.check_defaults warns too)
+            applied["ignored_keys"] = ignored
         args.repository_defaults = applied
     # the calculator format this server shows: only what the model records (never a format it was not trained with),
     # and never in packed mode, which reads no block (requests, registrations and fingerprints then all go without it)
     args.calculator_version = (
         defaults.get("calculator") if defaults is not None and getattr(args, "calculator", "auto") != "off" else None
     )
+    if args.calculator_version:
+        from decisio.calculator import VERSIONS
+
+        if args.calculator_version not in VERSIONS:  # a newer decisio's format: never a block it cannot write
+            applied.pop("calculator", None)
+            applied["calculator_unknown"] = args.calculator_version
+            args.calculator_version = None
     if args.calculator_version and getattr(args, "mode", "separate") == "packed":
         applied.pop("calculator", None)
         applied["calculator_set_by"] = "--mode packed (it reads no calculator block)"

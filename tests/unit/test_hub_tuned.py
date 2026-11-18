@@ -108,7 +108,6 @@ def test_a2_an_older_decisio_and_a_mislabelled_file_are_refused(tmp_path):
         (lambda c: c["defaults"].update(noul_commit="yes"), "noul_commit must be true or false"),
         (lambda c: c["defaults"].pop("noul_commit"), "noul_commit must be true or false"),
         (lambda c: c["defaults"].pop("noul_commit_basis"), "noul_commit_basis must say why"),
-        (lambda c: c["defaults"].update(extra=1), "unknown keys"),
         (lambda c: c["defaults"]["fit"].pop("method"), "defaults.fit.method"),
         (lambda c: c["tuned"]["adapter"].update(weights_sha256="abc"), "tuned.adapter.weights_sha256 must be a sha256"),
         (lambda c: c["tuned"]["adapter"].pop("revision"), "tuned.adapter.revision"),
@@ -226,3 +225,43 @@ def test_a7_the_command_without_an_adapter_repository_writes_a_file_without_the_
     (adapter / "adapter_model.safetensors").write_bytes(b"adapter weights")
     assert "repository" not in hub.adapter_facts(adapter, None, "abc")
     assert hub.adapter_facts(adapter, "tachara-ai/adapter", "abc")["repository"] == "tachara-ai/adapter"
+
+
+def test_t_unknown_defaults_keys_are_ignored_with_a_warning(caplog):
+    """A key of `defaults` this decisio does not know (a newer decisio's field) does not stop the model from loading:
+    it is ignored, with a warning, and the start-up reports it."""
+    import logging
+    import types
+
+    from decisio.serve.vllm_engine import apply_repository_defaults
+
+    config = build()
+    config["defaults"]["future_field"] = {"anything": 1}
+    with caplog.at_level(logging.WARNING, logger="decisio.hub"):
+        hub.check_sections(config)
+    assert "future_field" in caplog.text and "ignored" in caplog.text
+    assert hub.unknown_defaults(config["defaults"]) == ["future_field"]
+    repo = types.SimpleNamespace(defaults=config["defaults"], name="r", revision="abc", defaults_sha256="d")
+    args = types.SimpleNamespace(mode="separate", calculator="auto")
+    apply_repository_defaults(args, repo)
+    assert args.repository_defaults["ignored_keys"] == ["future_field"]
+
+
+def test_t_an_unknown_calculator_format_is_off_with_a_warning(caplog):
+    import logging
+    import types
+
+    from decisio.serve.vllm_engine import apply_repository_defaults
+
+    config = build()
+    config["defaults"]["calculator"] = "calc-v99"
+    with caplog.at_level(logging.WARNING, logger="decisio.hub"):
+        hub.check_sections(config)
+    assert "calc-v99" in caplog.text and "calculator is off" in caplog.text
+    repo = types.SimpleNamespace(defaults=config["defaults"], name="r", revision="abc", defaults_sha256="d")
+    args = types.SimpleNamespace(mode="separate", calculator="auto")
+    apply_repository_defaults(args, repo)
+    assert args.calculator_version is None and args.repository_defaults["calculator_unknown"] == "calc-v99"
+    config["defaults"]["calculator"] = 7
+    with pytest.raises(ValueError, match="defaults.calculator must be the name"):
+        hub.check_sections(config)

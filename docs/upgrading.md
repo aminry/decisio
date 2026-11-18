@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a model field this decisio does not know is ignored, not refused
+
+### What changed
+
+- **A key of a repository's `defaults` (in `decision_config.json`) that this decisio does not know is ignored, with a warning naming it**, and the model loads. Before, the server refused the whole file, so a field added for newer clients stopped older ones from loading the model. The keys it knows are validated as strictly as before. The start-up line lists the ignored keys (`ignored_keys` in `REPOSITORY DEFAULTS`).
+- **A `defaults.calculator` format this decisio does not know** (a newer one) is ignored the same way: the server shows no block and says so (`calculator_unknown`). A value that is not a format name is still refused.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A repository whose `defaults` carry a key newer than this decisio | the server refused to start | it starts, ignoring the key, with a warning | upgrade decisio to use the new field |
+| Every other repository | | unchanged | nothing |
+
 ## 0.50.0: exact arithmetic support (the calculator block)
 
 ### What changed
