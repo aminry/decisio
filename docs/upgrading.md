@@ -8,7 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: `header_questions` keeps the header's cache across requests
+## 0.49.0: `header_questions` keeps the header's cache across requests
 
 ### What changed
 
@@ -26,7 +26,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - A client that asks questions one at a time about one state under the header layout can declare them (`docs/running.md`, "A question list for the header") instead of switching to `"layout": "plain"`.
   The header's measured gains were taken with the header listing the questions asked; a declared list that lists other questions too is not measured yet.
 
-## Unreleased: the header layout says when a later request reads a state again
+## 0.49.0: the header layout says when a later request reads a state again
 
 ### What changed
 
