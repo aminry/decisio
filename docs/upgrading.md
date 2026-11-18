@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the calculator gives no block for counts with a multiplier and for a factor across kinds of unit
+
+### What changed
+
+- **0.50.0's calculator read `2 dozen eggs at $3.00 each` as 2 x $3.00**, and the same for other multiplier words (gross, pair, hundred, ...) and counts like `2 packs of six`. Such items now give no block. A multiplier priced per that same word (`2 dozen at $3.00 a dozen`) is read.
+- **A unit factor that joins two kinds of unit** (`1 lb = 0.4536 m`) now gives no block (`conflicting-rules`).
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A model shown the calculator block, on states with such counts or factors | a block with a wrong line | no block | nothing |
+| Every other state | | the same block, byte for byte | nothing |
+
 ## Unreleased: a model field this decisio does not know is ignored, not refused
 
 ### What changed
