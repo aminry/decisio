@@ -16,6 +16,9 @@ Items (the detail after the label):
   `31 Jan to 4 Feb; credit $54.35 a day`, `7 Aug to 12 Aug; loses a $129.81 attendance bonus each day`
   `$58.31 a week, 4 weeks`, `$235.29 per visit` (counted from the list item of that name), `$65.37`  (amounts whose
       sign a rule gives: added as a fee or taken off as a credit)
+  Not read: a count followed by a word that stands for a number of things or by a number in words (`2 dozen eggs at
+      $3.00 each`, `1 gross of pens at $20.00`, `2 packs of six at $3.00 each`), unless the price is per that same word
+      (`2 dozen at $3.00 a dozen`); a unit factor between two dimensions (`1 lb = 0.4536 m`).
 
 Rule sentences: a definition of the figure asked about, the final rounding to the cent (read, not applied), unit
 factors, whether a date range counts its last day, time or length rounding to a stated step (per entry or once on
@@ -38,7 +41,8 @@ REASONS = {
     "no-arithmetic": "the text states no money amount, or no priced item",
     "not-english": "the text is not in English (v1 reads English only)",
     "mixed-currency": "more than one currency",
-    "unparsed-item": "an item line with an amount does not parse completely",
+    "unparsed-item": "an item line with an amount does not parse completely, or its count is not certain (a word "
+    "such as dozen, pair or hundred, or a number in words, between the count and the price)",
     "unparsed-rule": "a sentence with a number, an amount or a rule word matches no rule kind",
     "unsupported-rule": "a rule v1 recognises but does not compute (an adjustment after tax, rounding money before "
     "the final figure, rounding up or down, quantities priced as printed with no conversion, an adjustment on a fee "
@@ -47,7 +51,8 @@ REASONS = {
     "ambiguous-label": "a rule names something that matches more than one item, or two lines share a name",
     "ambiguous-rule": "a rule's meaning is not certain (its sign, its place before or after tax, whether tax is "
     "charged or withheld, or a rounding that falls exactly half way)",
-    "conflicting-rules": "two rules disagree, or the same thing is placed twice",
+    "conflicting-rules": "two rules disagree, the same thing is placed twice, or a unit factor joins units of "
+    "different dimensions (1 lb = 0.4536 m)",
     "missing-rule": "an item needs a rule the text does not give (a unit factor, a day-count rule, a credit's place)",
     "unaccounted-amount": "an amount no rule places: added or taken off is not stated",
     "ambiguous-date": "a date or a date range cannot be read with certainty",
@@ -122,8 +127,25 @@ _UNIT_NAMES = {
     "gal": ("gal", "gallon", "gallons"),
 }
 _UNIT = {name: unit for unit, names in _UNIT_NAMES.items() for name in names}
+# the dimension of each measure unit: a unit factor has to join two units of one dimension
+_DIMENSION = {
+    **dict.fromkeys(("h", "min"), "time"),
+    **dict.fromkeys(("m", "cm", "km", "mi", "ft", "yd"), "length"),
+    **dict.fromkeys(("kg", "g", "lb", "oz", "t"), "mass"),
+    **dict.fromkeys(("L", "ml", "gal"), "volume"),
+}
 _LENGTH_UNITS = {"m", "cm", "km", "mi", "ft", "yd"}
 _PERIODS = {"day", "days", "week", "weeks", "month", "months", "night", "nights", "year", "years"}
+# words that stand for a number of things (2 dozen eggs are 24 eggs, 2 packs of six are 12 cans): after an item's
+# count, they leave what the count and the price are counted in uncertain
+_MULTIPLIERS = set(
+    """dozen dozens doz gross score scores pair pairs brace couple couples hundred hundreds thousand thousands
+    million millions half halves third thirds quarter quarters""".split()
+)
+_NUMBER_WORDS = set(
+    """zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen
+    eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety""".split()
+)
 
 # words that change what an amount means; a line or sentence carrying one is not read as a plain form
 _RISKY = set(
@@ -356,6 +378,18 @@ def _entries(s: str) -> tuple[str, tuple[Fraction, ...], str] | None:
     return "length", tuple(vals), units.pop()
 
 
+def _count_unsure(words: str | None, per: str | None) -> bool:
+    """The words between an item's count and its price hold a multiplier (`2 dozen eggs`, `1 gross of pens`) or a
+    number in words (`2 packs of six`): what the count means is not certain. One multiplier priced per that same
+    multiplier (`2 dozen at $3.00 a dozen`) is certain."""
+    if not words:
+        return False
+    toks = [w.lower() for w in words.split()]
+    if len(toks) == 1 and toks[0] in _MULTIPLIERS and per is not None and _sing(per) == _sing(toks[0]):
+        return False
+    return any(t in _MULTIPLIERS or all(p in _NUMBER_WORDS for p in t.split("-")) for t in toks)
+
+
 def _same_noun(a: str, b: str) -> bool:
     ua, ub = _UNIT.get(a), _UNIT.get(b)
     if ua or ub:
@@ -365,6 +399,8 @@ def _same_noun(a: str, b: str) -> bool:
 
 def _quantity_price(label, order, q, u, price, pu, each) -> _Raw | None:
     """`q u at price per pu`: a count, or a conversion when both are measure units that differ."""
+    if _count_unsure(u, None if each else pu):
+        return None
     if each or pu is None:
         if u is not None and _UNIT.get(u.split()[-1]) is not None and len(u.split()) == 1 and not each:
             return None  # `5 kg at $3` names no price unit
@@ -407,7 +443,7 @@ def _item(text: _Text, label: str, detail: str, order: int) -> _Raw | None:
 
     tail = rf"(?: for (?P<n>\d+) days?|, {_RANGE})"
     if m := re.fullmatch(rf"(?P<q>{_NUM}) (?P<u>{_WORDS}) at {M('p')} (?:each )?(?:a|per) day{tail}", d):
-        if _risky(m.group("u")) or _UNIT.get(m.group("u")) is not None:
+        if _risky(m.group("u")) or _UNIT.get(m.group("u")) is not None or _count_unsure(m.group("u"), None):
             return None
         return _days(label, order, m, unit=m.group("u"))
     if m := re.fullmatch(rf"(?P<q>{_NUM}) (?P<u>{_WORD}) a day at {M('p')} (?:a|an|per) (?P<pu>{_WORD}){tail}", d):
@@ -635,6 +671,8 @@ def _classify(sentence: str, rules: _Rules, text: _Text) -> None:
             a, ua, b, ub = _fr(fm.group(1)), _UNIT[fm.group(2)], _fr(fm.group(3)), _UNIT[fm.group(4)]
             if a == 0 or b == 0 or ua == ub:
                 raise Unsure("unparsed-rule", "unit factor")
+            if _DIMENSION[ua] != _DIMENSION[ub]:
+                raise Unsure("conflicting-rules", f"a factor from {ua} ({_DIMENSION[ua]}) to {ub} ({_DIMENSION[ub]})")
             f = b / a
             if rules.factors.get((ua, ub), f) != f:
                 raise Unsure("conflicting-rules", f"two factors for {ua} to {ub}")

@@ -369,6 +369,105 @@ def test_a_claimed_amount_in_the_state_abstains():
     assert reason(state) == "unparsed-rule"
 
 
+# a count followed by a word that stands for a number of things, or by a number in words: what is counted is not
+# certain (2 dozen eggs are 24 eggs), so no block; one such word priced per that same word is certain
+
+SUPPLY = """The amount due is what the buyer pays once the rules below are applied.
+Tax of 8% is added to the whole bill.
+Supply order SO-41 for Wren Tallis:
+- Notebooks: 5 notebooks at $2.40 each
+- {label}: {detail}"""
+
+
+@pytest.mark.parametrize(
+    "detail",
+    [
+        "2 dozen eggs at $3.00 each",
+        "2 dozen at $3.00 each",
+        "2 dozen eggs at $0.25 per egg",
+        "1.5 dozen rolls at $0.40 per roll",
+        "2 doz eggs at $3.00 each",
+        "1 gross of pens at $20.00",
+        "2 gross pens at $0.10 each",
+        "2 hundred bolts at $0.10 each",
+        "3 thousand sheets at $0.01 each",
+        "2 score nails at $0.05 each",
+        "3 pairs of gloves at $4.00 each",
+        "3 pairs at $4.00 each",
+        "2 brace of birds at $9.00 each",
+        "2 couple of chairs at $9.00 each",
+        "2 quarters at $500.00 each",
+        "2 packs of six at $3.00 each",
+        "2 boxes of ten at $5.00 each",
+        "3 cases of twenty-four at $20.00 each",
+        "2 sets of three at $5.00 each",
+        "2 dozen, $0.25/egg",
+        "2 dozen eggs at $3.00 a day for 3 days",
+        "2 pairs of skis at $15.00 each a day for 3 days",
+        # forms the reader already left alone; kept here so that they stay so
+        "2 x 3 boxes at $5.00 each",
+        "2 packs of 6 at $3.00 each",
+        "3-5 boxes at $4.00 each",
+        "3 to 5 boxes at $4.00 each",
+        "2 or 3 boxes at $4.00 each",
+        "1/2 kg at $3.00 per kg",
+    ],
+)
+def test_a_count_that_is_not_certain_abstains(detail):
+    assert reason(SUPPLY.format(label="Goods", detail=detail)) == "unparsed-item"
+
+
+@pytest.mark.parametrize(
+    "detail, line",
+    [
+        ("2 dozen at $3.00 a dozen", "2 x $3.00 = $6.00"),
+        ("3 pairs at $4.00 a pair", "3 x $4.00 = $12.00"),
+        ("2 dozen, $3.00/dozen", "2 x $3.00 = $6.00"),
+        ("3 six-packs at $9.00 each", "3 x $9.00 = $27.00"),
+        ("2 half-pallets at $40.00 each", "2 x $40.00 = $80.00"),
+        ("4 reams at $5.00 each", "4 x $5.00 = $20.00"),
+    ],
+)
+def test_a_count_in_the_unit_it_is_priced_in_reads(detail, line):
+    assert f"- Goods: {line}" in block(SUPPLY.format(label="Goods", detail=detail)).split("\n")
+
+
+# a unit factor has to join two units of one dimension
+
+CARRIAGE = """By total charge we mean what the sender owes under these rules.
+Prices are per kilogram (1 lb = 0.4536 kg).
+Add 12% tax to the whole charge.
+Consignment CN-9 for Odile Brask:
+- Parcel weight: 50 lb at $1.20 per kg"""
+
+
+def test_a_unit_factor_within_one_dimension_reads():
+    assert block(CARRIAGE).split("\n")[1] == "- Parcel weight: 50 lb = 22.68 kg; 22.68 x $1.20 = $27.216"
+
+
+@pytest.mark.parametrize(
+    "rule, item",
+    [
+        ("Prices are per metre (1 lb = 0.4536 m).", "50 lb at $1.20 per m"),
+        ("Prices are per litre (1 kg = 1.25 L).", "50 kg at $1.20 per L"),
+        ("Prices are per hour (1 km = 0.75 h).", "50 km at $1.20 per h"),
+    ],
+)
+def test_a_unit_factor_across_dimensions_abstains(rule, item):
+    state = CARRIAGE.replace("Prices are per kilogram (1 lb = 0.4536 kg).", rule).replace("50 lb at $1.20 per kg", item)
+    assert reason(state) == "conflicting-rules"
+
+
+def test_a_unit_factor_across_dimensions_abstains_even_unused():
+    state = CARRIAGE.replace("(1 lb = 0.4536 kg)", "(1 lb = 0.4536 kg; 1 mi = 2.2 kg)")
+    assert reason(state) == "conflicting-rules"
+
+
+def test_a_unit_factor_with_a_unit_the_reader_does_not_know_is_unchanged():
+    state = CARRIAGE.replace("(1 lb = 0.4536 kg)", "(1 lb = 0.4536 kg; 1 stone = 6.35 kg)")
+    assert reason(state) == "unparsed-rule"
+
+
 @pytest.mark.parametrize("state", [HIRE, json.dumps(PAYSLIP), FREIGHT])
 def test_never_the_final_total(state):
     from decisio.calculator import compute

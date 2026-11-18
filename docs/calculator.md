@@ -42,6 +42,7 @@ The calculator reads structure, not item names: lines such as `Label: 4 items at
 - **One currency, one record, English (v1).**
 
 **All or nothing.** Every line with a number has to be understood. If anything is uncertain (a sentence with a number or a rule word that matches no rule kind, a label that matches no item or two, a rule whose meaning is not certain, an amount nothing places, two currencies, two records, a date range with no day-count rule), there is no block at all and the response says why.
+Counts that carry a multiplier or a number word (`2 dozen eggs at $3.00 each`, `2 packs of six`), and a unit factor that joins two kinds of unit (`1 lb = 0.4536 m`), give no block too (from 0.50.2); a multiplier priced per that same word (`2 dozen at $3.00 a dozen`) is read.
 A missing block is the safe failure; a wrong number is the one failure the calculator is built never to make.
 
 ## Turning it on
