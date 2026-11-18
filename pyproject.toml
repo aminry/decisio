@@ -46,6 +46,9 @@ task-store = ["obstore>=0.12"]
 # the opt-in fast table for a fixed-option task (`"fast_table": true`): a sentence encoder (the model's published ONNX
 # export, run by ONNX Runtime) and a small classifier on the host CPU (decisio.serve.fast_table)
 table = ["onnxruntime>=1.20", "scikit-learn>=1.5"]
+# the calculator's unit check against pint (decisio.calculator.normalize.pint_check); the calculator itself reads with
+# its own exact unit table and needs nothing beyond the standard library
+calculator = ["pint>=0.24"]
 # httpx2: the client Starlette's TestClient runs on (with httpx alone it warns that httpx is deprecated there)
 dev = ["gguf>=0.19", "httpx>=0.28", "httpx2>=2.13", "obstore>=0.12", "pytest==9.2.0", "ruff==0.17.5", "scikit-learn>=1.5", "onnxruntime>=1.20"]
 # GGUF files for llama.cpp's and Ollama's decision route (`python -m decisio.hub_gguf write`, decisio.hub_gguf):
