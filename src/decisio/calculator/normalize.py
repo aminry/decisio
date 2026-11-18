@@ -62,6 +62,7 @@ compares it with `pint` when `pint` is installed (the `calculator` extra) and re
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import re
 from dataclasses import dataclass, field
 from fractions import Fraction
@@ -739,7 +740,8 @@ def _part_unit(m: re.Match) -> Value:
     return Quantity(size, _sing(word), "count", span)
 
 
-def _claimed(text: str) -> tuple[list[Value], list[Span]]:
+@functools.lru_cache(maxsize=4096)  # pure in the text; a reader asks for the same parts several times
+def _claimed(text: str) -> tuple[tuple[Value, ...], tuple[Span, ...]]:
     """Identifiers, dates, date ranges, clock times, number ranges and part units (`half an hour`): found before any
     number, so that their digits and words are not read again as numbers."""
     vals: list[Value] = []
@@ -770,7 +772,7 @@ def _claimed(text: str) -> tuple[list[Value], list[Span]]:
     scan(_SLASH, lambda m: _slash(text, m))
     scan(_NUM_RANGE, lambda m: Ambiguous(m.span(), "a range or a difference of numbers"))
     scan(_PART_UNIT, _part_unit)
-    return vals, taken
+    return tuple(vals), tuple(taken)
 
 
 def _day_range(m: re.Match) -> Value:
@@ -853,6 +855,7 @@ _CURRENCY_SEEN = re.compile(
 )
 
 
+@functools.lru_cache(maxsize=1024)
 def document(text: str) -> Context:
     """What a whole document settles for its parts: the decimal convention and the currencies next to numbers."""
     _, taken = _claimed(text)
@@ -868,15 +871,20 @@ def decimal_convention(text: str) -> str | None:
     return document(text).convention
 
 
-def _atoms(text: str) -> tuple[list[Value], list[_Atom]]:
+@functools.lru_cache(maxsize=4096)
+def _atoms(text: str) -> tuple[tuple[Value, ...], tuple[_Atom, ...]]:
     claimed, taken = _claimed(text)
-    return claimed, sorted(_digit_atoms(text, taken) + _word_atoms(text, taken), key=lambda a: a.start)
+    return claimed, tuple(sorted(_digit_atoms(text, taken) + _word_atoms(text, taken), key=lambda a: a.start))
 
 
 def normalize(text: str, doc: Context | None = None) -> Normalized:
     """Every value recognised in `text`, in text order. `doc` is what the whole document settles (`document`), for a
     caller that reads a document part by part; by default the text is its own document."""
-    doc = document(text) if doc is None else doc
+    return _normalize(text, document(text) if doc is None else doc)
+
+
+@functools.lru_cache(maxsize=4096)  # a pure function of the text and the document's context, both immutable
+def _normalize(text: str, doc: Context) -> Normalized:
     convention = doc.convention
     claimed, atoms = _atoms(text)
     claimed_spans = [v.span for v in claimed]
