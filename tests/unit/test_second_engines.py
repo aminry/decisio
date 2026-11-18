@@ -10,8 +10,9 @@ S3  --one-engine --image-model: the image engine alone, serving both routes
 The server's start-up runs for real (both engines load and build their prompts) up to the point where it would listen.
 A change of the served prompt layout broke S2 silently from 0.3.0 to 0.6.0, so each configuration is started here.
 Each engine also answers its probe (decisio.serve.engine_health), which tells a failed request from a dead engine.
-Each configuration starts in a child process: two stand-in engines held by the test process took the runner down to
-about 2.4 GB of memory, and a process's exit returns all of it, whatever still refers to the engines.
+They load stand-in models on the CPU (the `slow` tier, one process per file): an --image-model start peaks at about
+10.5 GB, which beside the fast tier's own process left a 16 GB runner without memory. Each configuration also starts in
+a child process, whose exit returns all its memory before the next one starts.
 The stand-in is the image route's (`DECISIO_IMAGE_TEST_MODEL`, a small checkpoint of the served model's family).
 
   uv run pytest -q tests/unit/test_second_engines.py
@@ -20,6 +21,10 @@ The stand-in is the image route's (`DECISIO_IMAGE_TEST_MODEL`, a small checkpoin
 import os
 import subprocess
 import sys
+
+import pytest
+
+pytestmark = pytest.mark.slow
 
 MODEL = os.environ.get("DECISIO_IMAGE_TEST_MODEL", "Qwen/Qwen3.5-0.8B-Base")
 

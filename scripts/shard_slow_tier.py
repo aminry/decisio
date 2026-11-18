@@ -24,6 +24,7 @@ SECONDS = {
     "tests/unit/test_image_route.py": 52,
     "tests/unit/test_names.py": 5,
     "tests/unit/test_reference.py": 110,
+    "tests/unit/test_second_engines.py": 150,  # its own estimate (the three starts in the fast tier took about 2 min)
     "tests/unit/test_tasks.py": 160,
     "tests/unit/test_tasks_walkthrough.py": 246,
     "tests/unit/test_temperature.py": 52,
