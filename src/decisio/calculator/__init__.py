@@ -24,7 +24,8 @@ of the arithmetic is not understood with certainty, there is no block at all, an
 
   annotate(state, context=None, version="calc-v1") -> Annotation | Abstain
       read the rendered state (`decisio.readout.letters.fmt_state`), with the task's context before it if there is
-      one: rules may sit in the context and amounts in the state
+      one: rules may sit in the context and amounts in the state; `normalized=True` (keyword) reads the text through
+      `decisio.calculator.normalize` first (decimal commas, marks after amounts, numbers in words; off by default)
   from_input(data, version="calc-v1") -> Annotation
       the same block from structured amounts a client already has; raises CalculatorInputError naming the field
       (the schema is in `decisio.calculator.inputs`)
@@ -103,14 +104,18 @@ def _annotation(case: compute.Case, version: str) -> Annotation:
     return Annotation(version=version, text=render.block(lines), lines=len(lines))
 
 
-def annotate(state, context: str | None = None, version: str = "calc-v1") -> Annotation | Abstain:
-    """The block for a state (text or a dict, rendered as the prompt renders it), or why there is none."""
+def annotate(
+    state, context: str | None = None, version: str = "calc-v1", *, normalized: bool | None = None
+) -> Annotation | Abstain:
+    """The block for a state (text or a dict, rendered as the prompt renders it), or why there is none. `normalized`
+    reads the text through `decisio.calculator.normalize` first (default: `parse.NORMALIZED`, off)."""
     _check_version(version)
     from decisio.readout.letters import fmt_state
 
     parts = ([context] if context else []) + [fmt_state(state)]
     try:
-        return _annotation(parse.parse(parts), version)
+        case = parse.parse(parts) if normalized is None else parse.parse(parts, normalized=normalized)
+        return _annotation(case, version)
     except Unsure as e:
         return Abstain(e.reason)
     except Exception:  # never a partial or a guessed block, and never a failed request

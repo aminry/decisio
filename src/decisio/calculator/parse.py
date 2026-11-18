@@ -24,6 +24,13 @@ Rule sentences: a definition of the figure asked about, the final rounding to th
 factors, whether a date range counts its last day, time or length rounding to a stated step (per entry or once on
 the sum), a percentage of one named item added or taken off before tax, the tax rule (its rate, charged or withheld,
 and which fees and credits are added or taken off before or after it), and when a credit comes off.
+
+Normalized reading (`parse(parts, normalized=True)`, or the module switch `NORMALIZED`; off by default): before the
+lines are read, every value outside a label is spelled as above by `decisio.calculator.normalize.canonical`: decimal
+commas (`1.234,56 €`), currency marks after the amount (`12.50 EUR`), `20 percent`, and whole numbers in words in an
+item's detail (`seven bins at $95.40 each`). A form the normalizer reads two ways gives no case (a separator with no
+number in the text to settle it, a day and month that could swap, `1:30`, a dozen priced each), and a unit factor
+across dimensions (`1 kg = 2.2 m`) is not read. Everything else is read exactly as without it.
 """
 
 from __future__ import annotations
@@ -34,6 +41,7 @@ import re
 from dataclasses import dataclass, field
 from fractions import Fraction
 
+from decisio.calculator import normalize
 from decisio.calculator.compute import Adjustment, Case, Credit, Fee, Item, Tax
 
 # every reason the calculator gives no block, in the order the checks run
@@ -60,6 +68,10 @@ REASONS = {
     "no-tax-rule": "no tax rule, so the taxed base and the tax line are not defined",
     "internal-error": "the calculator failed on this input; no block (a bug to report)",
 }
+
+
+# read the text through `decisio.calculator.normalize` first (module docstring); off by default
+NORMALIZED = False
 
 
 class Unsure(Exception):
@@ -257,6 +269,7 @@ class _Text:
         self.currencies = found
         self.currency = next(iter(found)) if len(found) == 1 else ""
         self.mark = re.escape(self.currency) + " ?"
+        self.normalized = False
 
     def money(self, name: str) -> str:
         return rf"{self.mark}(?P<{name}>{_AMT})"
@@ -892,15 +905,23 @@ _NOT_A_CHARGE = {
 }
 
 
-def parse(parts: list[str]) -> Case:
-    """The case a text states (the task's context, if any, then the rendered state), or `Unsure`."""
+def parse(parts: list[str], normalized: bool | None = None) -> Case:
+    """The case a text states (the task's context, if any, then the rendered state), or `Unsure`. `normalized`
+    (default: the module switch `NORMALIZED`) reads the text through the normalizer first."""
+    on = NORMALIZED if normalized is None else normalized
+    unsure = None
+    if on:
+        parts, unsure = _normalized(parts)
     text = _Text(parts)
+    text.normalized = on
     if not _ANY_MONEY.search(text.full):
         raise Unsure("no-arithmetic")
     if not _english(text.full):
         raise Unsure("not-english")
     if len(text.currencies) > 1:
         raise Unsure("mixed-currency", ", ".join(sorted(text.currencies)))
+    if unsure is not None:  # after the three checks above, so that their reasons come first as without it
+        raise unsure
 
     raws: list[_Raw] = []
     rules = _Rules()
@@ -926,6 +947,89 @@ def parse(parts: list[str]) -> Case:
                     raise Unsure("unparsed-item", line.label) from None
                 raise
     return _resolve(text, raws, rules)
+
+
+# --- normalized reading -----------------------------------------------------------------------------------------
+
+_BULLET = re.compile(r"^\s*(?:[-*•]|\d+[.)])\s+")
+
+
+def _normalized(parts: list[str]) -> tuple[list[str], Unsure | None]:
+    """The parts with every value outside a label spelled as the rules above read it (`normalize.canonical`), and the
+    `Unsure` for the first value the normalizer reads two ways, if any. Lines are split as `_text_lines` splits them."""
+    doc = normalize.document("\n".join(parts))
+    found: list[Unsure] = []
+    out = [_normalized_part(p, doc, found) for p in parts]
+    return out, (found[0] if found else None)
+
+
+def _normalized_part(part: str, doc: normalize.Context, found: list[Unsure]) -> str:
+    def canon(segment: str, detail: bool) -> str:
+        try:
+            return _canon(segment, doc, detail)
+        except Unsure as e:
+            found.append(e)
+            return segment
+
+    s = part.strip()
+    if s.startswith("{"):
+        try:
+            obj = json.loads(s)
+        except ValueError:
+            obj = None
+        if isinstance(obj, dict):
+            out = {}
+            for key, val in obj.items():
+                if isinstance(val, str):
+                    out[key] = canon(val, True)
+                elif isinstance(val, list) and all(isinstance(x, str) for x in val):
+                    out[key] = [canon(x, False) for x in val]
+                elif isinstance(val, dict):
+                    out[key] = {k: canon(v, True) if isinstance(v, str) else v for k, v in val.items()}
+                else:
+                    out[key] = val
+            return part if out == obj else json.dumps(out, ensure_ascii=False)
+    lines = []
+    for ln in part.split("\n"):
+        t = ln.strip()
+        if t.startswith("|"):
+            cells = ln.split("|")
+            first = next(i for i, c in enumerate(cells) if c.strip() or i > 0)  # the label cell
+            filled = [c for c in cells if c.strip()]
+            detail = len(filled) == 2
+            ln = "|".join(c if i <= first else canon(c, detail) for i, c in enumerate(cells))
+        else:
+            b = _BULLET.match(ln)
+            head, rest = (ln[: b.end()], ln[b.end() :]) if b else ("", ln)
+            if ": " in rest:
+                label, detail = rest.split(": ", 1)
+                ln = f"{head}{label}: {canon(detail, True)}"
+            elif not rest.rstrip().endswith(":"):
+                ln = head + canon(rest, False)
+        lines.append(ln)
+    return "\n".join(lines)
+
+
+def _canon(segment: str, doc: normalize.Context, detail: bool) -> str:
+    """One segment outside the labels; whole numbers in words become digits only in an item's detail (a detail with
+    an amount)."""
+    if not segment.strip():
+        return segment
+    found = normalize.normalize(segment, doc)
+    money = any(
+        isinstance(v, normalize.Money) or any(isinstance(r, normalize.Money) for r in getattr(v, "readings", ()))
+        for v in found.values
+    )
+    item = detail and money
+    out, unsure = normalize.canonical(segment, doc, words=item)
+    if unsure:
+        dated = any(isinstance(r, (normalize.Date, normalize.DateRange)) for a in unsure for r in a.readings)
+        if dated or any("date" in a.why for a in unsure):
+            raise Unsure("ambiguous-date", unsure[0].why)
+        raise Unsure("unparsed-item" if item else "unparsed-rule", unsure[0].why)
+    if item and re.search(r"\bdozen\b", segment, re.I) and re.search(r"\beach\b", segment, re.I):
+        raise Unsure("unparsed-item", "a dozen priced each: per piece or per dozen")
+    return out
 
 
 def _resolve(text: _Text, raws: list[_Raw], rules: _Rules) -> Case:
