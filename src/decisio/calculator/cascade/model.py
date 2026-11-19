@@ -26,6 +26,7 @@ import json
 import os
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn
 
@@ -61,6 +62,7 @@ KINDED = (
     "per_unit",
 )
 LABELS = ("O",) + tuple(f"{t}-{r}" for r in KINDED for t in "BI")
+LABEL_INDEX = {name: i for i, name in enumerate(LABELS)}
 ATTRS = {
     "after_tax": ("before", "after"),
     "round_mode": ("each", "total"),
@@ -417,6 +419,27 @@ CROSS_LINK = float(os.environ.get("DECISIO_CASCADE_CROSS_LINK", "0.95"))
 _BASE = {k: unkinded(k)[0] for k in KINDED}
 
 
+# measured before it becomes the default: the heads (tokens, spans, links, targets, attributes, globals) read on the CPU
+# from one copy of the encoder's hidden states, when the encoder runs on a GPU
+HEADS_CPU = os.environ.get("DECISIO_CASCADE_HEADS_CPU") == "1"
+
+
+def cpu_heads(model):
+    """A float32 CPU copy of the tagger's heads (the encoder left out), made once per model."""
+    import copy
+
+    heads = getattr(model, "_cpu_heads_copy", None)
+    if heads is None:
+        encoder = model.encoder
+        model.encoder = None
+        try:
+            heads = copy.deepcopy(model).to(device="cpu", dtype=torch.float32).eval()
+        finally:
+            model.encoder = encoder
+        object.__setattr__(model, "_cpu_heads_copy", heads)
+    return heads
+
+
 def vote_spans(probs, offsets, text):
     """Each token's best label, then one line family per span: contiguous tokens of one base role (a begin and its
     insides, or pieces of one word) take the family with the most probability summed over them, so a phrase or a value
@@ -424,6 +447,7 @@ def vote_spans(probs, offsets, text):
     becomes at most the span's mean probability of that family. Returns (top_p, top) as lists."""
     top_p, top = probs.max(-1)
     top_p, top = top_p.tolist(), top.tolist()
+    pn = probs.detach().cpu().numpy()
     runs, cur, prev_end = [], None, None
     for t, (a, b) in enumerate(offsets):
         name = LABELS[top[t]]
@@ -442,13 +466,16 @@ def vote_spans(probs, offsets, text):
         fams = [k for k in KINDED if _BASE[k] == role]
         if len(toks) < 2 or len(fams) < 2:
             continue
-        score = {
-            k: float(sum(probs[t, LABELS.index("B-" + k)] + probs[t, LABELS.index("I-" + k)] for t in toks))
-            for k in fams
-        }
+        score = {}
+        for k in fams:
+            b, i = LABEL_INDEX["B-" + k], LABEL_INDEX["I-" + k]
+            acc = 0
+            for t in toks:  # float32 sums in token order, as the tensor arithmetic did
+                acc = acc + (pn[t, b] + pn[t, i])
+            score[k] = float(acc)
         best = max(fams, key=lambda k: score[k])
         for n, t in enumerate(toks):
-            top[t] = LABELS.index(("B-" if n == 0 else "I-") + best)
+            top[t] = LABEL_INDEX[("B-" if n == 0 else "I-") + best]
             top_p[t] = min(top_p[t], score[best] / len(toks))
     return top_p, top
 
@@ -521,6 +548,9 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     hidden = windowed_hidden(model, enc["input_ids"], meta["max_length"], device)
     if hidden is None:
         return Tags(spans=(), note="too-long")
+    if HEADS_CPU and hidden.device.type != "cpu":  # the small heads on the CPU: one copy instead of many small syncs
+        hidden = hidden.float().cpu()
+        model = cpu_heads(model)
     probs = model.tokens(hidden).float().softmax(-1)
     offsets = [tuple(o) for o in enc["offset_mapping"]]
     top_p, top = vote_spans(probs, offsets, text)
@@ -528,9 +558,12 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
 
     found = []  # (start, end, kinded, p, token range)
     values = value_bounds(state, context, shift)
+    starts = np.fromiter((a for a, _ in offsets), dtype=np.int64, count=len(offsets))
+    ends = np.fromiter((b for _, b in offsets), dtype=np.int64, count=len(offsets))
+    real = starts != ends
     for s, e, k, p in likelier_per_value(snap_values(raw, values, text, shift)):
-        toks = [t for t, (a, b) in enumerate(offsets) if a < e and b > s and a != b]
-        found.append((s, e, k, p, (toks[0], toks[-1] + 1)))
+        toks = np.flatnonzero((starts < e) & (ends > s) & real)
+        found.append((s, e, k, p, (int(toks[0]), int(toks[-1]) + 1)))
     vec = model.spans(hidden, [f[4] for f in found])
     if GROUP_VOTE and found:
         found = vote_groups(model, probs, vec, found)
@@ -538,17 +571,26 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     item = [None] * len(found)
     conf: dict[str, float] = {}
 
-    def key(i: int) -> str:
-        s, e = found[i][0], found[i][1]
-        return f"state:{s - shift}-{e - shift}" if s >= shift else f"context:{s}-{e}"
+    keys = [f"state:{f[0] - shift}-{f[1] - shift}" if f[0] >= shift else f"context:{f[0]}-{f[1]}" for f in found]
 
+    def key(i: int) -> str:
+        return keys[i]
+
+    # the heads in a few batched calls, each copied off the device once (a decode of many small calls and syncs was
+    # most of the tagger's time on a GPU)
+    line_idx = [i for i, f in enumerate(fams) if f in GROUPED]
+    link_all = None
+    if line_idx:
+        sub = vec[line_idx]
+        lp = model.pair(model.link, sub, sub).sigmoid()
+        link_all = ((lp + lp.T) / 2).float().cpu().numpy()
+    pos = {i: n for n, i in enumerate(line_idx)}
     for fam in GROUPED:
         idx = [i for i, f in enumerate(fams) if f == fam]
         if not idx:
             continue
-        sub = vec[idx]
-        p = model.pair(model.link, sub, sub).sigmoid()
-        p = ((p + p.T) / 2).tolist()
+        rows_ = [pos[i] for i in idx]
+        p = link_all[np.ix_(rows_, rows_)].tolist()
         roots, pc = _groups(len(idx), p)
         order = []
         for n, r in enumerate(roots):
@@ -575,13 +617,17 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
 
     targets: dict[int, str] = {}
     label_idx = [i for i, f in enumerate(found) if f[2] == "item_label"]
+    pct_idx = [i for i, f in enumerate(found) if f[2] == "percent"]
+    target_p = None
+    if pct_idx and label_idx:
+        target_p = model.pair(model.target, vec[pct_idx], vec[label_idx]).softmax(-1).float().cpu().numpy()
     for i, f in enumerate(found):
         if f[2] != "percent":
             continue
         if not label_idx:
             conf[f"link:target:{key(i)}"] = 0.0
             continue
-        logit = model.pair(model.target, vec[i : i + 1], vec[label_idx])[0].softmax(0).tolist()
+        logit = target_p[pct_idx.index(i)].tolist()
         by: dict[str, float] = {}
         for n, j in enumerate(label_idx):
             by[item[j]] = by.get(item[j], 0.0) + logit[n]
@@ -596,8 +642,10 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     conf["flag:tax_kind"] = gp["tax_kind"][tk]
     abstain_p = gp["outcome"][1]
 
+    attr_p = {name: model.attrs[name](vec).softmax(-1).float().cpu().numpy() for name in ATTRS} if found else {}
+
     def attr(name: str, members: list[int]) -> tuple[int, float]:
-        p = model.attrs[name](vec[members]).softmax(-1).mean(0).tolist()
+        p = attr_p[name][members].mean(0).tolist()
         n = max(range(len(p)), key=lambda x: p[x])
         return n, p[n]
 
