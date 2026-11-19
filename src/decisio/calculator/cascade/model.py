@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -542,12 +543,28 @@ def vote_groups(model, probs, vec, found):
 
 
 @torch.inference_mode()
-def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: str | None, device: str = "cpu") -> Tags:
+def predict(
+    model: CascadeTagger,
+    tokenizer,
+    meta: dict,
+    state: str,
+    context: str | None,
+    device: str = "cpu",
+    during: Callable[[], object] | None = None,
+) -> Tags:
+    """The tagger's tags for a state. On a GPU the encoder runs while the CPU reads the text's numbers (the
+    normalizer) and runs `during` (the caller's own CPU work, such as the rule reader): its kernels are queued and
+    nothing waits on them until the heads read their output, so the order changes the time, never a value."""
     text, shift = join(state, context)
     enc = tokenizer(text, return_offsets_mapping=True, add_special_tokens=True)
     hidden = windowed_hidden(model, enc["input_ids"], meta["max_length"], device)
     if hidden is None:
+        if during is not None:
+            during()
         return Tags(spans=(), note="too-long")
+    values = value_bounds(state, context, shift)  # CPU work while the encoder runs
+    if during is not None:
+        during()
     if HEADS_CPU and hidden.device.type != "cpu":  # the small heads on the CPU: one copy instead of many small syncs
         hidden = hidden.float().cpu()
         model = cpu_heads(model)
@@ -557,7 +574,6 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     raw = decode_bio(offsets, top, top_p, LABELS, text)
 
     found = []  # (start, end, kinded, p, token range)
-    values = value_bounds(state, context, shift)
     starts = np.fromiter((a for a, _ in offsets), dtype=np.int64, count=len(offsets))
     ends = np.fromiter((b for _, b in offsets), dtype=np.int64, count=len(offsets))
     real = starts != ends

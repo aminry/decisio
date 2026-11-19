@@ -138,10 +138,13 @@ class HFTagger:
         model, tokenizer, meta = M.load(directory, device, dtype)
         return cls(model, tokenizer, meta, device)
 
-    def predict(self, state: str, context: str | None = None) -> Tags:
+    # read() hands its own CPU work to `during`, run while the encoder computes on a GPU
+    overlaps = True
+
+    def predict(self, state: str, context: str | None = None, during=None) -> Tags:
         from decisio.calculator.cascade import model as M
 
-        return M.predict(self.model, self.tokenizer, self.meta, state, context, self.device)
+        return M.predict(self.model, self.tokenizer, self.meta, state, context, self.device, during)
 
 
 def read_meta(directory: Path) -> dict:
