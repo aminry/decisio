@@ -630,7 +630,10 @@ def wording(asm: A.Assembly) -> Check:
     of the others: "Total time 268 min" after its entries), `adjustment-target` (the percent's sentence does not name
     the adjustment's target, or names another line), `tax-side` (the text places a fee or credit on the other side of
     the tax), `tax-side-unstated` (the text never states a fee's or credit's side), `fee-unstated` (a fee the text only
-    shows beside its amount, never saying it is charged)."""
+    shows beside its amount, never saying it is charged), `adjustment-direction-unstated` (no verb near the
+    adjustment's name, nor its name's own word, gives the case's direction), `label-direction` (a name that states both
+    directions: "Rush surcharge deduction"), `tax-side-ambiguous` (wording that leaves a side of the tax open: "handled
+    together with the tax"), `unaccounted-line` (a fee or credit the text names that is no line of the case)."""
     gate = "wording"
     texts = dict(asm.texts)
     for s in asm.spans:
@@ -650,6 +653,9 @@ def wording(asm: A.Assembly) -> Check:
             return _fail(gate, "label-cut", s.key)
         m = _HEADING_REST.match(src[s.end :])
         if m and not _continues_label(src, s.end, m.group(0), asm):
+            return _fail(gate, "label-cut", s.key)
+        m = None if "label-cut-cell" in DISABLED else _CELL_REST.match(src[s.end :])
+        if m and _starts_cell(src, s.start) and not _continues_label(src, s.end, m.group(0), asm):
             return _fail(gate, "label-cut", s.key)
         line_start = src.rfind("\n", 0, s.start) + 1
         if "label-cut-heading-line" not in DISABLED and _HEADING_LINE.match(src[line_start : s.start]):
@@ -687,6 +693,15 @@ def wording(asm: A.Assembly) -> Check:
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
     sides = _stated_sides(asm)
+    if "tax-side-ambiguous" not in DISABLED:
+        for _, text in asm.texts:
+            for a, b in _sentences(text):
+                if _TAX_AMBIGUOUS.search(_flat(text[a:b])):
+                    return _fail(gate, "tax-side-ambiguous")
+    if "unaccounted-line" not in DISABLED:
+        extra = _unaccounted(asm)
+        if extra:
+            return _fail(gate, "unaccounted-line", extra)
     for g in asm.groups:
         off = g.kind in ("credit", "daycredit") or (g.kind == "adjustment" and A.norm_label(g.label) in deducted)
         named = list(_naming(asm, g.label))
@@ -699,6 +714,14 @@ def wording(asm: A.Assembly) -> Check:
             same, other = (_TAKES, _ADDS) if deduct else (_ADDS, _TAKES)
             if any(other.search(t) for t in named) and not any(same.search(t) for t in named):
                 return _fail(gate, "adjustment-direction", g.id)
+            # the direction is read from words of the text for this line ("added", "deducts", "plus the ..."), never
+            # from the tagger alone: "Rush surcharge: 8% of the Pallet handling charge only" states none
+            if "adjustment-direction-unstated" not in DISABLED:
+                said = _stated_direction(g.label, named)
+                if said != ("deduct" if deduct else "add"):
+                    return _fail(gate, "adjustment-direction-unstated", g.id)
+        if "label-direction" not in DISABLED and _label_contradicts(g, A.norm_label(g.label) in deducted):
+            return _fail(gate, "label-direction", g.id)
         if g.kind == "fee" and "fee-unstated" not in DISABLED and not any(_CHARGED.search(t) for t in named):
             # an amount the text only shows ("Parking reimbursement | - | $35.00"), never saying it is charged
             return _fail(gate, "fee-unstated", g.id)
@@ -707,6 +730,109 @@ def wording(asm: A.Assembly) -> Check:
             if code:
                 return _fail(gate, code, g.id)
     return _pass(gate)
+
+
+# a table cell's label that stops one or two words before the cell ends (the column's padding or a tab before the next
+# cell): "Standing charge" out of "Standing charge days   18   £193.89 each"
+_CELL_REST = re.compile(r"^[ \t][A-Za-z][\w'()-]*(?:[ \t][A-Za-z][\w'()-]*)?(?=[ \t]{2,}\S|\t)")
+
+
+def _starts_cell(src: str, at: int) -> bool:
+    """The label opens its line's first cell (only spaces before it on the line) or a cell after a column gap."""
+    line = src[src.rfind("\n", 0, at) + 1 : at]
+    return not line.strip() or bool(re.search(r"(?:[ \t]{2,}|\t|\|)[ \t]*$", line))
+
+
+# words in a label that name a direction: a line added to the bill is not called a deduction, nor a line taken off a
+# surcharge ("Rush surcharge deduction" on an added line, "Rush surcharge" read as deducted)
+_ADD_WORDS = re.compile(r"\b(?:surcharges?|premiums?|supplements?|uplifts?|mark-?ups?|levy|levies)\b", re.I)
+_OFF_WORDS = re.compile(
+    r"\b(?:discounts?|deductions?|rebates?|reductions?|refunds?|credits?|vouchers?|deposits?|prepayments?|"
+    r"retainers?)\b",
+    re.I,
+)
+
+
+# the verbs that state an adjustment's direction ("added", "deducts", "plus the Rush surcharge", "minus the ...")
+_ADD_VERB = re.compile(_ADDS.pattern + r"|\badd(?:s|ed|ing)?\b|\bon top\b|\bincreas(?:es|ed|ing)\b", re.I)
+_OFF_VERB = re.compile(_TAKES.pattern + r"|\bdeduct(?:s|ed|ing)?\b|\bsubtract(?:s|ed|ing)?\b|\btaken? off\b", re.I)
+# "plus" and "minus" belong to the name after them ("..., plus the Rush surcharge, minus the Account credit")
+_PRE_ADD = re.compile(r"\bplus (?:the |a |an )?$", re.I)
+_PRE_OFF = re.compile(r"\b(?:minus|less) (?:the |a |an )?$", re.I)
+
+
+def _stated_direction(label: str, named: list[str]) -> str | None:
+    """The direction the text states for an adjustment: the verb nearest a mention of its name, over the passages
+    that name it ("The taxed amount is the Pallet handling charge, plus the Rush surcharge, minus the Account credit":
+    add); with no verb, the name's own word if it has one direction ("Volume discount": deduct); else None."""
+    key = A.norm_label(label)
+    best = None  # (distance, direction)
+    for t in named:
+        low = t.casefold()
+        at = [i for i in range(len(low)) if low.startswith(key, i)]
+        if not at:
+            continue
+        spans = [(i, i + len(key)) for i in at]
+        for i in at:
+            for rx, d in ((_PRE_ADD, "add"), (_PRE_OFF, "deduct")):
+                if rx.search(t[max(0, i - 12) : i]):
+                    best = (0, d) if best is None or best[0] > 0 else best
+        for rx, d in ((_ADD_VERB, "add"), (_OFF_VERB, "deduct")):
+            for m in rx.finditer(t):
+                if any(a <= m.start() < b for a, b in spans):
+                    continue  # a word of the name itself
+                dist = min(abs(m.start() - b) if m.start() >= b else abs(a - m.end()) for a, b in spans)
+                if best is None or dist < best[0]:
+                    best = (dist, d)
+    if best is not None:
+        return best[1]
+    add, off = bool(_ADD_WORDS.search(label)), bool(_OFF_WORDS.search(label))
+    return "add" if add and not off else "deduct" if off and not add else None
+
+
+def _label_contradicts(g: A.Group, deducted: bool) -> bool:
+    """A name that states both directions ("Rush surcharge deduction"): a name cut together with a word of its
+    sentence, or a line whose direction its own name leaves open. (A name against the line's direction alone, such
+    as a "Volume discount" the text adds, is the text's own wording and is read from its verbs.)"""
+    return g.kind == "adjustment" and bool(_ADD_WORDS.search(g.label) and _OFF_WORDS.search(g.label))
+
+
+# wording that leaves an amount's side of the tax open ("handled together with the tax", "applied in line with the tax
+# step", "when the invoice is finalised")
+_TAX_AMBIGUOUS = re.compile(
+    r"\b(?:together|along|alongside|in line|in step|at the same time|in parallel)\b[^.]{0,20}\b(?:with )?the tax\b"
+    r"|\bwith the tax step\b|\bwhen the (?:invoice|bill) is finali[sz]ed\b",
+    re.I,
+)
+
+# a fee, credit or adjustment the text names that is no line of the case ("Any loyalty credit that is confirmed later"):
+# its amount or side is not known, so no block
+_KIND_NOUN = (
+    r"(?:credits?|fees?|discounts?|deposits?|vouchers?|surcharges?|rebates?|refunds?|deductions?|premiums?|"
+    r"supplements?|prepayments?|retainers?)"
+)
+_NAMED_KIND = re.compile(rf"\b([A-Za-z][\w-]*)\s+{_KIND_NOUN}\b")
+_GENERIC = frozenset(
+    "a an the any each every all no other this that these those its their one some such further extra additional "
+    "listed above below and or of per flat fixed one-time single second first same your our is are be".split()
+)
+
+
+def _unaccounted(asm: A.Assembly) -> str:
+    labels = [A.norm_label(g.label) for g in asm.groups]
+    for _, text in asm.texts:
+        for a, b in _sentences(text):
+            t = _flat(text[a:b])
+            if re.search(r"\bno (?:other|further|additional)\b", t, re.I):
+                continue
+            low = t.casefold()
+            for m in _NAMED_KIND.finditer(t):
+                if m.group(1).casefold() in _GENERIC:
+                    continue
+                phrase = A.norm_label(m.group(0))
+                if not any(phrase in lab or lab in low[max(0, m.start() - 40) : m.end() + 5] for lab in labels):
+                    return phrase
+    return ""
 
 
 def _hyphen_cut(src: str, start: int, end: int) -> bool:

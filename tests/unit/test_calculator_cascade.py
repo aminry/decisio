@@ -702,7 +702,7 @@ def test_wording_refuses_an_adjustment_the_text_turns_the_other_way():
     check = _wording(state)
     assert (check.ok, check.code, check.detail) == (False, "adjustment-direction", "a1")
     flags = dict(FLAGS, adjustment_direction={"Rush supplement": "deduct"})
-    assert _wording(state, SPANS, flags).ok  # read the way the text says
+    assert _wording(state, SPANS, flags).ok  # read the way the text says, whatever the name suggests
     state = STATE.replace(
         "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, is ADDED to the bill."
     )
@@ -956,3 +956,48 @@ def test_wording_refuses_a_fee_the_text_never_says_is_charged():
     spans = [("Parking reimbursement",) + s[1:] if s[0] == "Handling fee" else s for s in SPANS]
     flags = dict(FLAGS, tax_after=[])
     assert _wording(state, spans, flags).code == "fee-unstated"
+
+
+@pytest.mark.parametrize(
+    ("line", "direction", "code"),
+    [
+        ("Rush supplement: 10% of Crate packing, added.", "add", ""),
+        ("Rush supplement: 10% of Crate packing only.", "deduct", "no-subtract-word"),  # no verb: refused earlier
+        ("Rush supplement: 10% of Crate packing only.", "add", ""),  # the name's own word: a supplement is added
+        (
+            "Rush supplement: 10% of Crate packing. The base is Cable, plus the Rush supplement, minus nothing.",
+            "deduct",
+            "adjustment-direction-unstated",
+        ),  # "plus" belongs to the name after it
+    ],
+)
+def test_wording_reads_an_adjustments_direction_from_the_text(line, direction, code):
+    state = STATE.replace("Rush supplement: 10% of Crate packing, added.", line)
+    flags = dict(FLAGS, adjustment_direction={"Rush supplement": direction})
+    assert _wording(state, SPANS, flags).code == code
+
+
+def test_wording_refuses_a_name_that_states_both_directions():
+    old = "Rush supplement: 10% of Crate packing, added."
+    state = STATE.replace(old, "Rush supplement deduction: 10% of Crate packing, deducted.")
+    spans = [("Rush supplement deduction",) + s[1:] if s[0] == "Rush supplement" else s for s in SPANS]
+    flags = dict(FLAGS, adjustment_direction={"Rush supplement deduction": "deduct"})
+    assert _wording(state, spans, flags).code == "label-direction"
+
+
+def test_wording_refuses_a_side_of_the_tax_left_open():
+    state = STATE.replace("on the bill.", "on the bill. Any voucher confirmed later is handled together with the tax.")
+    assert _wording(state).code in ("tax-side-ambiguous", "unaccounted-line")
+
+
+def test_wording_refuses_a_fee_or_credit_that_is_no_line():
+    state = STATE.replace("on the bill.", "on the bill. A parking reimbursement may follow.")
+    assert _wording(state).ok  # no fee or credit noun: not read
+    state = STATE.replace("on the bill.", "on the bill. A booking deposit may follow next month.")
+    assert _wording(state).code == "unaccounted-line"
+
+
+def test_wording_refuses_a_label_short_of_its_table_cell():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing days   4 crates at $12.50 each.")
+    spans = [("Crate packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    assert _wording(state, spans).code == "label-cut"
