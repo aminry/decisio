@@ -808,6 +808,9 @@ _HOURS = re.compile(r" ?(?:hours|hour|hrs|hr|h)(?![\w])")
 _MINS = re.compile(r" ?(?:minutes|minute|mins|min|m)(?![\w])")
 _MINS_ALONE = re.compile(r" ?(?:minutes|minute|mins|min)(?![\w])")  # a bare `m` is a metre unless hours came first
 _SECS = re.compile(r" ?(?:seconds|second|secs|sec|s)(?![\w])")
+# padding (aligned columns) between a number and a time unit written out in full: "nearest 15    minutes"; never a
+# bare h, m or s, and never across a line or a column border
+_PADDED_TIME = re.compile(r"[ \t]{2,8}(?:hours|hour|hrs|minutes|minute|mins|seconds|second|secs)(?![\w])")
 _JOIN = re.compile(r",? (?:and )?")
 _UNIT_AFTER = re.compile(r" ?(?P<u>fl oz|[A-Za-z]+[23²³]?)(?![\w])")
 _NOUN_AFTER = re.compile(r" (?P<w>[a-z][a-z'-]*)(?![\w])")
@@ -968,7 +971,7 @@ def _type(text: str, atom: _Atom, by_start: dict[int, _Atom], doc: Context) -> V
         return _one((s, pm.end()), rs, why, lambda r, sp: Percent(r, sp))
 
     # a duration: hours, then minutes and seconds; minutes, then seconds; seconds
-    first = _HOURS.match(text, e) or _MINS_ALONE.match(text, e) or _SECS.match(text, e)
+    first = _HOURS.match(text, e) or _MINS_ALONE.match(text, e) or _SECS.match(text, e) or _PADDED_TIME.match(text, e)
     if first:
         unit = " " + first.group(0).strip()
         base = 60 if _HOURS.fullmatch(unit) else 1 if _MINS.fullmatch(unit) else Fraction(1, 60)

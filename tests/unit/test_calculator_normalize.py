@@ -614,3 +614,14 @@ def test_on_rejects_a_factor_across_dimensions():
 def test_on_is_deterministic():
     a = [annotate(EURO, normalized=True) for _ in range(3)]
     assert a[0] == a[1] == a[2]
+
+
+def test_padding_before_a_time_unit_written_out_is_read_as_one_duration():
+    from decisio.calculator import normalize as N
+
+    vals = N.normalize("rounded to the nearest 15    minutes", N.document("x")).values
+    assert [(v.kind, v.value) for v in vals] == [("duration", 15)]
+    vals = N.normalize(
+        "Rate per h:   45    m", N.document("x")
+    ).values  # a bare unit letter is not reached over padding
+    assert all(v.kind != "duration" for v in vals)
