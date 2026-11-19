@@ -110,9 +110,10 @@ _LABEL_BEFORE_OK = frozenset(
     "plus is are was were has have its their one any no called named labelled marked item line".split()
 )
 _WORD_BEFORE = re.compile(r"([A-Za-z][\w'-]*)[ \t]+$")
-# ... nor stops short of the end of a heading or a quoted name: "Fuel levy" out of "Fuel levy units: 44 at ..." or of
-# '"Standing charge days"' (one or two more words, then the colon or the closing quote)
-_HEADING_REST = re.compile(r"^[ \t]+[A-Za-z][\w'-]*(?:[ \t]+[A-Za-z][\w'-]*)?[ \t]*(?::|[\"\u201d'](?![A-Za-z]))")
+# ... nor stops short of the end of a heading, a table cell or a quoted name: "Fuel levy" out of "Fuel levy units: 44
+# at ...", of "| Standing charge days |" or of '"Standing charge days"' (one or two more words, then the colon, the
+# cell's border or the closing quote)
+_HEADING_REST = re.compile(r"^[ \t]+[A-Za-z][\w'-]*(?:[ \t]+[A-Za-z][\w'-]*)?[ \t]*(?::|\||[\"\u201d'](?![A-Za-z]))")
 
 
 @dataclass(frozen=True)

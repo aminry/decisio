@@ -677,6 +677,7 @@ def test_wording_does_not_read_a_percentage_taken_from_a_charge_as_the_line_comi
     [
         ("Crate packing units: 4 crates at $12.50 each.", "Crate packing"),
         ('The "Crate packing units" line: 4 crates at $12.50 each.', "Crate packing"),
+        ("| Crate packing units | 4 crates | $12.50 each |", "Crate packing"),
     ],
 )
 def test_wording_refuses_a_label_that_stops_short_of_its_heading(line, label):
