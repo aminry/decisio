@@ -16,6 +16,7 @@ K7  the model wrapper (when torch and transformers are installed) loads a tiny r
 
 import dataclasses
 import hashlib
+from fractions import Fraction
 
 import pytest
 
@@ -544,6 +545,11 @@ def test_windows_cover_every_token_with_overlap(n, size):
         ("Round only the final money figure to the cent, half a cent going up.", ""),
         ("Each entry is rounded to the nearest 6 minutes, then they are added.", ""),
         ("Tax of 10% is added to everything except the handling fees.", ""),
+        ("Each entry is rounded to a step of 5 minutes, then the rounded entries are added up.", ""),
+        ("Each length is rounded on its own to 0.5 m, and the rounded lengths are summed up at the rate.", ""),
+        ("Each entry is rounded to 15 minutes; together these make up the time charged.", ""),
+        ("Each entry is rounded up to 15 minutes, then the entries are added up.", "rounding-direction"),
+        ("The total is rounded down after the entries are added up.", "rounding-direction"),
     ],
 )
 def test_rule_forms_gate(sentence, code):
@@ -592,6 +598,8 @@ def test_wording_refuses_a_line_taken_off_with_no_word_that_says_so():
         "Loyalty credit: $5.00, taken off once the tax has been worked out.",
         "Loyalty credit: $5.00, taken off; it is not part of the amount the tax is charged on.",
         "Loyalty credit: $5.00, taken off after tax.",
+        "Loyalty credit: $5.00 is taken off. It comes off once the tax has been worked out.",
+        "Loyalty credit: $5.00, taken off. The credit is not part of the amount the tax is charged on.",
     ],
 )
 def test_wording_refuses_a_credit_on_the_other_side_of_the_tax(sentence):
@@ -629,3 +637,154 @@ def test_decoded_spans_snap_to_the_value_they_cut():
         ("Design hours", "item_label", 0.99),
         ("3 x $5.00", "price", 0.6),
     ]
+
+
+def test_wording_reads_on_only_within_the_line_and_after_a_pronoun():
+    # the next line's "It" is about something else: not read as the credit's side
+    old = "Loyalty credit: $5.00, taken off before tax."
+    state = STATE.replace(old, old + "\nIt is all due after tax.")
+    assert _wording(state).ok
+    # a sentence that does not go on about the line (no pronoun) is not read either
+    state = STATE.replace(old, old + " Payment is due after tax day.")
+    assert _wording(state).ok
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Crate packing: 4 crates at $12.50 each, a credit that comes off the bill.",
+        "Crate packing: 4 crates at $12.50 each. It is a credit of $20.00 to the client.",
+    ],
+)
+def test_wording_refuses_an_added_line_the_text_takes_off_the_bill(sentence):
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", sentence)
+    check = _wording(state)
+    assert (check.ok, check.code, check.detail) == (False, "comes-off-word", "i1")
+
+
+def test_wording_does_not_read_a_percentage_taken_from_a_charge_as_the_line_coming_off():
+    state = STATE.replace(
+        "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, added."
+    )
+    assert _wording(state).ok
+    state = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "Crate packing: 4 crates at $12.50 each, nothing taken off."
+    )
+    assert _wording(state).ok
+
+
+@pytest.mark.parametrize(
+    ("line", "label"),
+    [
+        ("Crate packing units: 4 crates at $12.50 each.", "Crate packing"),
+        ('The "Crate packing units" line: 4 crates at $12.50 each.', "Crate packing"),
+        ("| Crate packing units | 4 crates | $12.50 each |", "Crate packing"),
+    ],
+)
+def test_wording_refuses_a_label_that_stops_short_of_its_heading(line, label):
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", line)
+    spans = [(label, 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    check = _wording(state, spans)
+    assert (check.ok, check.code) == (False, "label-cut")
+
+
+def test_wording_keeps_a_label_followed_by_words_of_its_sentence():
+    state = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "The Crate packing line holds 4 crates at $12.50 each."
+    )
+    assert _wording(state).ok
+
+
+def test_wording_refuses_an_adjustment_the_text_turns_the_other_way():
+    state = STATE.replace(
+        "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, deducted."
+    )
+    check = _wording(state)
+    assert (check.ok, check.code, check.detail) == (False, "adjustment-direction", "a1")
+    flags = dict(FLAGS, adjustment_direction={"Rush supplement": "deduct"})
+    assert _wording(state, SPANS, flags).ok  # read the way the text says
+    state = STATE.replace(
+        "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, is ADDED to the bill."
+    )
+    assert _wording(state, SPANS, flags).code in ("adjustment-direction", "no-subtract-word")  # refused either way
+
+
+def test_decode_votes_one_family_per_span_and_keeps_the_likelier_span_per_value():
+    torch = pytest.importorskip("torch")
+    from decisio.calculator.cascade.model import LABELS, likelier_per_value, vote_spans
+
+    text = "Breakdown allowance $88.56"
+    offsets = [(0, 5), (5, 9), (10, 19), (20, 21), (21, 26)]  # "Break" "down" "allowance" "$" "88.56"
+    probs = torch.full((5, len(LABELS)), 1e-4)
+
+    def put(t, label, p):
+        probs[t, LABELS.index(label)] = p
+
+    put(0, "B-credit_label", 0.6), put(0, "B-item_label", 0.3)
+    put(1, "I-adj_label", 0.5), put(1, "I-credit_label", 0.45)  # one word split across families token by token
+    put(2, "I-credit_label", 0.9)
+    put(3, "B-price", 0.5), put(3, "B-credit_amount", 0.4)
+    put(4, "I-credit_amount", 0.9)
+    top_p, top = vote_spans(probs, offsets, text)
+    assert [LABELS[i] for i in top] == [
+        "B-credit_label",
+        "I-credit_label",
+        "I-credit_label",
+        "B-credit_amount",
+        "I-credit_amount",
+    ]
+    assert all(p <= 0.9 for p in top_p)
+    spans = [(20, 26, "credit_amount", 0.8), (20, 26, "price", 0.6), (0, 19, "credit_label", 0.7)]
+    assert likelier_per_value(spans) == [(20, 26, "credit_amount", 0.8), (0, 19, "credit_label", 0.7)]
+
+
+def test_a_number_in_words_restated_in_digits_is_one_value():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing: four (4) crates at $12.50 each.")
+    spans = [("four (4) crates", 0, "quantity", "i1", None) if s[0] == "4 crates" else s for s in SPANS]
+    asm = assemble(tags_for(state, spans), state)
+    assert asm.input["items"][0]["quantity"] == "4"
+    from decisio.calculator.cascade import gates
+
+    assert gates.provenance(asm).ok
+    bad = state.replace("four (4) crates", "four (5) crates")  # the two disagree: two values, refused
+    spans_bad = [("four (5) crates", 0, "quantity", "i1", None) if s[0] == "4 crates" else s for s in SPANS]
+    assert refusal(tags_for(bad, spans_bad), bad) == "span-value"
+
+
+def test_a_signed_credit_amount_is_read_by_its_magnitude():
+    state = STATE.replace(
+        "Loyalty credit: $5.00, taken off before tax.",
+        "Loyalty credit: -$5.00, a credit of $5.00 taken off before tax.",
+    )
+    spans = [s for s in SPANS if s[:4] != ("$5.00", 0, "price", "c1")] + [
+        ("-$5.00", 0, "price", "c1", None),
+        ("$5.00", 1, "price", "c1", None),
+    ]
+    asm = assemble(tags_for(state, spans), state)
+    assert Fraction(asm.input["credits"][0]["amount"]) == 5
+    from decisio.calculator.cascade import gates
+
+    assert gates.provenance(asm).ok
+    other = state.replace("a credit of $5.00", "a credit of $6.00")
+    spans2 = [s for s in spans if s[0] != "$5.00"] + [("$6.00", 0, "price", "c1", None)]
+    assert refusal(tags_for(other, spans2), other) == "conflicting-values"
+
+
+def test_a_lone_range_end_on_its_own_line_prices_nothing():
+    state = "Date issued: 14 March 2025\n" + STATE
+    spans = SPANS + [("14 March 2025", 0, "range_end", "i1", None)]
+    asm = assemble(tags_for(state, spans), state)
+    got, want = asm.input["items"][0], EXPECTED["items"][0]
+    assert (
+        got["label"] == want["label"] and Fraction(got["quantity"]) == 4 and Fraction(got["price"]) == Fraction("12.50")
+    )
+    # on the line of the priced item, it is not left out
+    state2 = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "Crate packing: 4 crates at $12.50 each, until 14 March 2025."
+    )
+    assert refusal(tags_for(state2, spans), state2) in ("range", "item-roles", "span-value")
+
+
+def test_a_generic_continuation_before_the_heading_colon_is_not_a_cut():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing entries: 4 crates at $12.50 each.")
+    assert _wording(state).ok

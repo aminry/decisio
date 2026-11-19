@@ -18,10 +18,14 @@ A block is shown only when every required gate passes:
   rule forms      no sentence states a rule the calculator cannot express, whatever the tagger made of it: rounding
                   with a direction (up, down, a ceiling or a floor; a tie-break such as "half a cent up" is not one),
                   a minimum or maximum charge, a cap, or "whichever is greater"
-  wording         the text's own words agree with the case: no line label is cut out of a longer phrase (such as
-                  "days" out of "Daily rate days"); every line taken off (a credit, a day credit, a
-                  deducted adjustment) is named in a sentence that says something comes off; and no sentence naming
-                  a fee or credit puts it on the other side of the tax from the case
+  wording         the text's own words agree with the case: no line label is cut out of a longer phrase ("days"
+                  out of "Daily rate days", or "Fuel levy" out of the heading "Fuel levy units:"); every line taken
+                  off (a credit, a day credit, a deducted adjustment) is named in a sentence that says something
+                  comes off; no line the case adds is named with words that say it comes off the bill ("is a credit
+                  of", "comes off the bill"); no adjustment is named as added when the case takes it off, or the
+                  other way round; and no sentence naming a fee or credit (with the sentences after it on
+                  its line that go on about it: "It is added once the tax has been worked out") puts it on the
+                  other side of the tax from the case
 
 and then one of the acceptance rules:
 
@@ -49,6 +53,14 @@ from decisio.calculator.cascade.tags import Tags
 # rules the calculator's format cannot express: a tagger may read such a sentence as one it can (rounding up as
 # rounding to the nearest step), so the text itself vetoes the block (`rule_forms`)
 _TIE = re.compile(r"\bhal(?:f|ves)\b[^.\n]{0,40}?\b(?:up|down|upward|downward)\b", re.I)
+# "up" and "down" in phrasal verbs that say nothing about rounding ("the rounded entries are added up", "these make up
+# the taxed amount"): removed before the direction is looked for
+_PHRASAL = re.compile(
+    r"\b(?:add(?:ed|s|ing)?|sum(?:med|s|ming)?|total(?:l?ed|s|l?ing)?|make[s]?|made|making|set[s]?|pick(?:ed|s)?|"
+    r"back(?:ed|s)?|end(?:ed|s)?|line[sd]?|pa(?:y|ys|id)|top(?:ped|s)?|break[s]?|broken|broke|write[s]?|written|"
+    r"wrote|mark(?:ed|s)?|scale[sd]?|count(?:ed|s)?|bring[s]?|brought|go(?:es)?|went|come[s]?|came) (?:up|down)\b",
+    re.I,
+)
 _DIRECTION = re.compile(
     r"\bround(?:s|ed|ing)?\b[^.\n]{0,80}?\b(?:up|down|upward|upwards|downward|downwards)\b"
     r"|\b(?:up|down) to the (?:next|nearest|previous|following)\b|\bceil(?:ing)?\b|\bfloor(?:ed)?\b"
@@ -68,6 +80,18 @@ _SUBTRACT = re.compile(
     r"\b(?:taken off|takes? off|deduct\w*|credit\w*|discount\w*|allowances?|less|minus|refund\w*|rebate\w*|"
     r"vouchers?|deposits?|prepa(?:id|y\w*)|reduc\w*|subtract\w*|waive\w*|removed|comes? off|"
     r"off the (?:bill|total|invoice|amount))\b",
+    re.I,
+)
+# an adjustment's direction in the text: added to the bill or a charge, or taken off it (`adjustment-direction`)
+_ADDS = re.compile(r"\b(?:is|are|gets?|being|then) added\b|\badded (?:to|on|before|after)\b|\bon top of\b", re.I)
+_TAKES = re.compile(
+    r"\b(?:deduct(?:ed|s)?|subtract(?:ed|s)?|taken off|takes? off|comes? off|knocked off|reduc(?:es|ed|ing))\b", re.I
+)
+# words that say a line comes off the bill itself (not a percentage taken from one charge): a line the case adds,
+# named with them, is refused (`comes-off-word`)
+_COMES_OFF = re.compile(
+    r"\b(?:comes?|taken|takes?|knocked) off (?:the |your )?(?:bill|total|invoice|amount due|balance)\b"
+    r"|\bis an? (?:credit|refund|rebate) (?:of|to|for)\b|\bas an? (?:credit|refund)\b|\bcredited (?:to|back)\b",
     re.I,
 )
 _NOT = r"(?<!not )(?<!n't )(?<!never )"
@@ -92,6 +116,10 @@ _LABEL_BEFORE_OK = frozenset(
     "plus is are was were has have its their one any no called named labelled marked item line".split()
 )
 _WORD_BEFORE = re.compile(r"([A-Za-z][\w'-]*)[ \t]+$")
+# ... nor stops short of the end of a heading, a table cell or a quoted name: "Fuel levy" out of "Fuel levy units: 44
+# at ...", of "| Standing charge days |" or of '"Standing charge days"' (one or two more words, then the colon, the
+# cell's border or the closing quote)
+_HEADING_REST = re.compile(r"^[ \t]+[A-Za-z][\w'-]*(?:[ \t]+[A-Za-z][\w'-]*)?[ \t]*(?::|\||[\"\u201d'](?![A-Za-z]))")
 
 
 @dataclass(frozen=True)
@@ -150,6 +178,7 @@ def provenance(asm: A.Assembly) -> Check:
             if src[s.start : s.end] != s.text:
                 return _fail(gate, "not-verbatim", f"{op.path} at {s.key}")
             inside = [v for v in values.get(s.where, ()) if v.span[0] < s.end and v.span[1] > s.start]
+            inside = A.one_restated(inside, src)
             if len(inside) != 1:
                 return _fail(gate, "not-one-value", f"{op.path} at {s.key}")
             read.append(inside[0])
@@ -164,6 +193,8 @@ def provenance(asm: A.Assembly) -> Check:
             if v.kind in ("date", "date-range", "time-of-day", "ambiguous"):
                 return _fail(gate, "derivation", f"{op.path}: a {v.kind}")
             x = Fraction(v.value)
+            if op.how == "magnitude":
+                x = abs(x)
             if op.how == "unit-factor":
                 f = N.factor(v.unit, _length_unit(asm, op.path))
                 x = None if f is None else x * f
@@ -426,7 +457,7 @@ def rule_forms(text: str, context: str | None = None) -> Check:
     a minimum, maximum or cap) refuses the block: `rounding-direction` or `limit-rule`."""
     for source in (context or "", text):
         for sentence in re.split(r"(?<=[.!?])\s+|\n+", source):
-            if _DIRECTION.search(_TIE.sub(" ", sentence)):
+            if _DIRECTION.search(_PHRASAL.sub(" ", _TIE.sub(" ", sentence))):
                 return _fail("rule_forms", "rounding-direction")
             if _LIMITS.search(sentence):
                 return _fail("rule_forms", "limit-rule")
@@ -442,18 +473,55 @@ def _sentences(text: str):
     yield start, len(text)
 
 
+# a sentence that goes on about the line the previous sentence named ("Booking fee: EUR 38.81 is charged once. It is
+# added once the tax has been worked out")
+_CONTINUES = re.compile(
+    r"\s*(?:it|this|that|they|these|those|its|their|the (?:same )?"
+    r"(?:fee|fees|credit|credits|charge|charges|amount|deposit|voucher|discount|allowance|payment))\b",
+    re.I,
+)
+
+
 def _naming(asm: A.Assembly, label: str):
-    """The sentences (of the state and the context) that name a label (case and spacing ignored)."""
+    """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
+    names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
+    "the fee", "the credit" ...)."""
     key = A.norm_label(label)
     for _, text in asm.texts:
-        for a, b in _sentences(text):
-            if key in A.norm_label(text[a:b]):
-                yield text[a:b]
+        sents = list(_sentences(text))
+        for j, (a, b) in enumerate(sents):
+            if key not in A.norm_label(text[a:b]):
+                continue
+            end, k = b, j + 1
+            while (
+                k < len(sents)
+                and "\n" not in text[end : sents[k][0]]
+                and _CONTINUES.match(text[sents[k][0] : sents[k][1]])
+            ):
+                end, k = sents[k][1], k + 1
+            yield text[a:end]
+
+
+# words that may stand between a label and its heading's colon without cutting it ("Gardener time entries:",
+# "Excavator hire charge only:"), and "and" before another line's label ("Theatre time and Consultation:")
+_CONTINUATIONS = frozenset({"charge", "charges", "only", "entries", "entry", "applies", "apply"})
+
+
+def _continues_label(src: str, end: int, rest: str, asm: A.Assembly) -> bool:
+    words = re.findall(r"[A-Za-z][\w'-]*", rest)
+    if words and all(w.casefold() in _CONTINUATIONS for w in words):
+        return True
+    if len(words) == 2 and words[0].casefold() == "and":
+        at = end + rest.index(words[1], rest.casefold().index("and") + 3)
+        return any(x.role == "item_label" and x.start == at for x in asm.spans)
+    return False
 
 
 def wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
-    (a line the case takes off is named in no sentence that says something comes off), `tax-side` (a sentence naming a
+    (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
+    case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
+    takes it off, or the other way, with no word for the case's direction), `tax-side` (a sentence naming a
     fee or credit places it on the other side of the tax)."""
     gate = "wording"
     texts = dict(asm.texts)
@@ -464,6 +532,9 @@ def wording(asm: A.Assembly) -> Check:
         before = _WORD_BEFORE.search(src[: s.start])
         if s.text[:1].islower() and before and before.group(1).casefold() not in _LABEL_BEFORE_OK:
             return _fail(gate, "label-cut", s.key)
+        m = _HEADING_REST.match(src[s.end :])
+        if m and not _continues_label(src, s.end, m.group(0), asm):
+            return _fail(gate, "label-cut", s.key)
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
     for g in asm.groups:
@@ -471,6 +542,13 @@ def wording(asm: A.Assembly) -> Check:
         named = list(_naming(asm, g.label))
         if off and not any(_SUBTRACT.search(t) for t in named):
             return _fail(gate, "no-subtract-word", g.id)
+        if not off and g.kind != "adjustment" and any(_COMES_OFF.search(t) for t in named):
+            return _fail(gate, "comes-off-word", g.id)
+        if g.kind == "adjustment":
+            deduct = A.norm_label(g.label) in deducted
+            same, other = (_TAKES, _ADDS) if deduct else (_ADDS, _TAKES)
+            if any(other.search(t) for t in named) and not any(same.search(t) for t in named):
+                return _fail(gate, "adjustment-direction", g.id)
         if g.kind in ("fee", "credit", "daycredit"):
             is_after = A.norm_label(g.label) in outside
             for t in named:
