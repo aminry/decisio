@@ -544,6 +544,11 @@ def test_windows_cover_every_token_with_overlap(n, size):
         ("Round only the final money figure to the cent, half a cent going up.", ""),
         ("Each entry is rounded to the nearest 6 minutes, then they are added.", ""),
         ("Tax of 10% is added to everything except the handling fees.", ""),
+        ("Each entry is rounded to a step of 5 minutes, then the rounded entries are added up.", ""),
+        ("Each length is rounded on its own to 0.5 m, and the rounded lengths are summed up at the rate.", ""),
+        ("Each entry is rounded to 15 minutes; together these make up the time charged.", ""),
+        ("Each entry is rounded up to 15 minutes, then the entries are added up.", "rounding-direction"),
+        ("The total is rounded down after the entries are added up.", "rounding-direction"),
     ],
 )
 def test_rule_forms_gate(sentence, code):

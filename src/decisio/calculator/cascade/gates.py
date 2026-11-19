@@ -52,6 +52,14 @@ from decisio.calculator.cascade.tags import Tags
 # rules the calculator's format cannot express: a tagger may read such a sentence as one it can (rounding up as
 # rounding to the nearest step), so the text itself vetoes the block (`rule_forms`)
 _TIE = re.compile(r"\bhal(?:f|ves)\b[^.\n]{0,40}?\b(?:up|down|upward|downward)\b", re.I)
+# "up" and "down" in phrasal verbs that say nothing about rounding ("the rounded entries are added up", "these make up
+# the taxed amount"): removed before the direction is looked for
+_PHRASAL = re.compile(
+    r"\b(?:add(?:ed|s|ing)?|sum(?:med|s|ming)?|total(?:l?ed|s|l?ing)?|make[s]?|made|making|set[s]?|pick(?:ed|s)?|"
+    r"back(?:ed|s)?|end(?:ed|s)?|line[sd]?|pa(?:y|ys|id)|top(?:ped|s)?|break[s]?|broken|broke|write[s]?|written|"
+    r"wrote|mark(?:ed|s)?|scale[sd]?|count(?:ed|s)?|bring[s]?|brought|go(?:es)?|went|come[s]?|came) (?:up|down)\b",
+    re.I,
+)
 _DIRECTION = re.compile(
     r"\bround(?:s|ed|ing)?\b[^.\n]{0,80}?\b(?:up|down|upward|upwards|downward|downwards)\b"
     r"|\b(?:up|down) to the (?:next|nearest|previous|following)\b|\bceil(?:ing)?\b|\bfloor(?:ed)?\b"
@@ -439,7 +447,7 @@ def rule_forms(text: str, context: str | None = None) -> Check:
     a minimum, maximum or cap) refuses the block: `rounding-direction` or `limit-rule`."""
     for source in (context or "", text):
         for sentence in re.split(r"(?<=[.!?])\s+|\n+", source):
-            if _DIRECTION.search(_TIE.sub(" ", sentence)):
+            if _DIRECTION.search(_PHRASAL.sub(" ", _TIE.sub(" ", sentence))):
                 return _fail("rule_forms", "rounding-direction")
             if _LIMITS.search(sentence):
                 return _fail("rule_forms", "limit-rule")
