@@ -513,7 +513,7 @@ def _naming(asm: A.Assembly, label: str):
             ):
                 end, k = sents[k][1], k + 1
             start = a
-            if _ENUMERATES.match(text[a:b]):
+            if "enumeration" not in DISABLED and _ENUMERATES.match(text[a:b]):
                 k = j - 1
                 while (
                     k >= 0
@@ -530,8 +530,9 @@ def _naming(asm: A.Assembly, label: str):
             yield text[start:end]
 
 
-# a label alone on a heading line ("CHARGE: Site visits"): stopping one or two words before the line ends is a cut
-_HEADING_LINE = re.compile(r"^[ \t]*(?:[A-Z][A-Z ]{1,20}:[ \t]*)?$")
+# a label after a heading keyword on its line ("CHARGE: Site visits"): stopping one or two words before the line ends
+# is a cut (a line with no keyword, such as a shop's title, is not read)
+_HEADING_LINE = re.compile(r"^[ \t]*[A-Z][A-Z ]{1,20}:[ \t]*$")
 _LINE_REST = re.compile(r"^[ \t]+[A-Za-z][\w'-]*(?:[ \t]+[A-Za-z][\w'-]*)?[ \t]*(?=\n|$)")
 # words that may stand between a label and its heading's colon without cutting it ("Gardener time entries:",
 # "Excavator hire charge only:"), and "and" before another line's label ("Theatre time and Consultation:")
@@ -548,13 +549,33 @@ def _continues_label(src: str, end: int, rest: str, asm: A.Assembly) -> bool:
     return False
 
 
+# a line priced by the day says so where its price is stated ("per unit per day", "a day", "daily"); "$388.10 each ...
+# for each of the 17 days" is a count of days, not a day count beside a quantity
+_PER_DAY = re.compile(
+    r"\bper (?:unit )?(?:per )?(?:day|night|week)\b|\b(?:a|each|every) (?:day|night)\b|\bdaily\b|/ ?day\b", re.I
+)
+
+
+def _whole_sentence(text: str, at: int) -> str:
+    """The sentence around a position, over line wraps: from the last sentence end or blank line before it to the
+    next one after it."""
+    a = max(text.rfind(". ", 0, at), text.rfind("\n\n", 0, at), text.rfind(".\n", 0, at))
+    a = 0 if a < 0 else a + 1
+    ends = [i for i in (text.find(". ", at), text.find("\n\n", at), text.find(".\n", at)) if i >= 0]
+    return text[a : min(ends) if ends else len(text)]
+
+
+# checks switched off by name, for audits that measure what each one blocks; empty in serving
+DISABLED: set[str] = set()
+
+
 def wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
     (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
     case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
     takes it off, or the other way, with no word for the case's direction), `rounding-without-rule` (a rounding step
-    whose sentence does not speak of rounding), `count-as-days` (a day-priced line whose count and day count are the
-    same number: "for each of the 17 days" read twice), `tax-side` (a sentence naming a
+    whose sentence does not speak of rounding), `count-as-days` (a line priced by the day whose price is nowhere stated
+    per day: "$388.10 each ... for each of the 17 days"), `tax-side` (a sentence naming a
     fee or credit places it on the other side of the tax)."""
     gate = "wording"
     texts = dict(asm.texts)
@@ -566,29 +587,28 @@ def wording(asm: A.Assembly) -> Check:
         if s.text[:1].islower() and before and before.group(1).casefold() not in _LABEL_BEFORE_OK:
             return _fail(gate, "label-cut", s.key)
         # a label that starts or ends inside a word ("haul" out of "Linehaul")
-        if (s.start > 0 and src[s.start - 1].isalnum() and s.text[:1].isalnum()) or (
+        in_word = (s.start > 0 and src[s.start - 1].isalnum() and s.text[:1].isalnum()) or (
             s.end < len(src) and src[s.end].isalnum() and s.text[-1:].isalnum()
-        ):
+        )
+        if "label-cut-in-word" not in DISABLED and in_word:
             return _fail(gate, "label-cut", s.key)
         m = _HEADING_REST.match(src[s.end :])
         if m and not _continues_label(src, s.end, m.group(0), asm):
             return _fail(gate, "label-cut", s.key)
         line_start = src.rfind("\n", 0, s.start) + 1
-        if _HEADING_LINE.match(src[line_start : s.start]):
+        if "label-cut-heading-line" not in DISABLED and _HEADING_LINE.match(src[line_start : s.start]):
             m = _LINE_REST.match(src[s.end :])
             if m and not _continues_label(src, s.end, m.group(0), asm):
                 return _fail(gate, "label-cut", s.key)
     for x in asm.spans:
         if x.role == "rounding_step":
             src = texts.get(x.where, "")
-            sent = next((src[a:b] for a, b in _sentences(src) if a <= x.start < b), "")
-            if not _ROUNDING.search(sent):
+            if "rounding-without-rule" not in DISABLED and not _ROUNDING.search(_whole_sentence(src, x.start)):
                 return _fail(gate, "rounding-without-rule", x.key)
     for g in asm.groups:
-        if g.kind == "days":
-            q = {Fraction(v.value) for r, _, v in g.values if r == "quantity" and v is not None}
-            d = {Fraction(v.value) for r, _, v in g.values if r == "day_count" and v is not None}
-            if q and q == d:
+        if g.kind in ("days", "daycredit") and "count-as-days" not in DISABLED:
+            prices = [x for r, x, _ in g.values if r == "price"]
+            if prices and not any(_PER_DAY.search(_whole_sentence(texts.get(x.where, ""), x.start)) for x in prices):
                 return _fail(gate, "count-as-days", g.id)
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}

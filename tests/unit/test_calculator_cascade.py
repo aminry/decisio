@@ -827,3 +827,16 @@ def test_wording_refuses_a_label_cut_inside_a_word():
     spans = [("packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
     state = STATE.replace("Crate packing: 4 crates", "Cratepacking: 4 crates")
     assert _wording(state, spans).code == "label-cut"
+
+
+def test_wording_heading_line_cut_needs_a_heading_keyword():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing units\n4 crates at $12.50 each.")
+    spans = [("Crate packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    assert _wording(state, spans).ok  # a line with no heading keyword (a title) is not read
+
+
+def test_wording_rounding_words_are_read_over_a_line_wrap():
+    state = STATE.replace(
+        "the total is rounded once to the nearest 15 minutes.", "the total is rounded once to the\n nearest 15 minutes."
+    )
+    assert _wording(state).ok
