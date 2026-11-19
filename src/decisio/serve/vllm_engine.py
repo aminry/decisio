@@ -101,6 +101,7 @@ from decisio.serve import (  # noqa: E402
     precision_casts,
     task_backends,
 )
+from decisio.serve import calculator_serving as calcs  # noqa: E402
 from decisio.serve import over_limit as over  # noqa: E402
 from decisio.serve.adapters import identity as adapter_identity  # noqa: E402
 from decisio.serve.adapters import prepare as prepare_adapters  # noqa: E402
@@ -3098,6 +3099,42 @@ def build_parser():
         "off: never. A model that records none never sees the block, whatever a request asks",
     )
     ap.add_argument(
+        "--calculator-reader",
+        choices=("rules", "cascade"),
+        default="rules",
+        help="how the calculator reads a state (docs/calculator.md): rules (the default), the rule reader; cascade (a "
+        "preview, not the default): a role tagger, the rule reader and precision gates, which may show a block for "
+        "states the rule reader does not read. Needs --calculator-tagger; applies only where the block is shown. In "
+        "/health and, with cascade, the serving-stack fingerprint",
+    )
+    ap.add_argument(
+        "--calculator-tagger",
+        default=None,
+        help="the cascade reader's tagger: a local directory (its SHA256SUMS is checked) or owner/name@<full commit "
+        "hash> on the Hugging Face Hub; loaded once at start. Required with --calculator-reader cascade",
+    )
+    ap.add_argument(
+        "--calculator-thresholds",
+        default=None,
+        help="the cascade reader's thresholds: a JSON file with role, link and flag (and band); without it the "
+        "threshold rule is off, so a block is shown only where the rule reader agrees or the state's own stated "
+        "figures reproduce",
+    )
+    ap.add_argument(
+        "--calculator-device",
+        choices=("auto", "cpu", "cuda", "mps"),
+        default="auto",
+        help="where the cascade reader's tagger runs: auto (the default) is the serving card for the vLLM backend on "
+        "CUDA, else the CPU",
+    )
+    ap.add_argument(
+        "--calculator-dtype",
+        choices=("float32", "float16", "bfloat16"),
+        default="float32",
+        help="the cascade reader's tagger precision: float32 (the default, what its thresholds were fitted on); "
+        "float16 or bfloat16 halve its memory and time on a GPU, and may move a probability inside the margin band",
+    )
+    ap.add_argument(
         "--emulate-precision-casts",
         choices=precision_casts.CHOICES,
         default=None,
@@ -3386,7 +3423,11 @@ def task_store_fingerprint(args, fmt) -> str:
         prompt_format=None if fmt.is_default() else fmt.facts(),
         # a base other than Qwen (whose fingerprints predate bases)
         base=None if args.family.key == "qwen3.6-35b-a3b" else args.family.key,
-        calculator=getattr(args, "calculator_version", None),
+        calculator=(
+            f"{args.calculator_version}|{args.calculator_reader_id}"
+            if getattr(args, "calculator_reader_id", None)
+            else getattr(args, "calculator_version", None)
+        ),
     )
 
 
@@ -3481,6 +3522,23 @@ def main():
             "the calculator reads with certainty; none otherwise",
             flush=True,
         )
+    if why := calcs.check_flags(
+        args.calculator_reader,
+        args.calculator_tagger,
+        args.calculator_thresholds,
+        args.calculator_device,
+    ):
+        ap.error(why)
+    if getattr(args, "calculator_dtype", "float32") != "float32" and args.calculator_reader != "cascade":
+        ap.error("--calculator-dtype is the cascade reader's tagger precision: it needs --calculator-reader cascade")
+    if note := calcs.not_used_note(args.calculator_reader, getattr(args, "calculator_version", None)):
+        print(note, flush=True)
+    # the cascade reader names its tagger and thresholds in the task fingerprint, where the calculator is on
+    args.calculator_reader_id = (
+        calcs.reader_identity(args.calculator_reader, args.calculator_tagger, args.calculator_thresholds)
+        if getattr(args, "calculator_version", None)
+        else None
+    )
     if getattr(args, "temperatures_file_facts", None):
         print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
     if args.flavor_report:
@@ -3853,6 +3911,22 @@ def main():
         if hidden_engine._prepare_separate(*probe) != engine._prepare_separate(*probe):
             raise SystemExit("--head-engine: the hidden-state engine builds different token rows than the text engine")
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
+    # the calculator's reader, loaded once, after the engine: on CUDA the tagger takes its memory from the headroom vLLM
+    # leaves under --gpu-memory-utilization (about 0.5 GB for a base-size encoder), so it never shrinks the KV cache
+    calc_reader = None
+    if args.calculator_reader == "cascade" and getattr(args, "calculator_version", None):
+        try:
+            calc_reader = calcs.load_reader(
+                args.calculator_reader,
+                args.calculator_tagger,
+                args.calculator_thresholds,
+                args.calculator_device,
+                args.backend,
+                dtype=args.calculator_dtype,
+            )
+        except (ValueError, OSError, ImportError) as e:
+            raise SystemExit(f"--calculator-tagger: {e}") from e
+        print(calc_reader.start_line(), flush=True)
     import uvicorn
 
     from decisio.serve.systemone import SystemOne
@@ -3905,6 +3979,7 @@ def main():
         },
         layout_records=layout_records(args, adapters, adapter_temps),
         calculator=getattr(args, "calculator_version", None),
+        calculator_reader=calc_reader,
     )
     if backend is not None and hasattr(backend, "sync_once"):
         from decisio.serve.task_store_shared import TaskSync
