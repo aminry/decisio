@@ -536,3 +536,57 @@ def test_rule_forms_gate(sentence, code):
     check = gates.rule_forms(f"Order 12 for a client.\n{sentence}\n- Goods: 2 x $3.00")
     assert check.code == code and check.ok == (code == "")
     assert gates.rule_forms("Goods: 2 x $3.00", context=sentence).code == code  # the context is read too
+
+
+# ---- the text's own words agree with the case (`wording`) -----------------------------------------------------------
+
+
+def _wording(state, spans=SPANS, flags=FLAGS):
+    from decisio.calculator.cascade import gates
+
+    return gates.wording(assemble(tags_for(state, spans, flags), state))
+
+
+def test_wording_passes_the_reference_case():
+    assert _wording(STATE).ok
+
+
+def test_wording_refuses_a_label_cut_out_of_a_phrase():
+    spans = [("packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    check = _wording(STATE, spans)
+    assert (check.ok, check.code) == (False, "label-cut")
+
+
+def test_wording_does_not_read_the_word_after_a_label():
+    state = STATE.replace("Crate packing: 4 crates", "The Crate packing line holds 4 crates")
+    assert _wording(state).ok
+
+
+def test_wording_refuses_a_line_taken_off_with_no_word_that_says_so():
+    state = STATE.replace("Loyalty credit: $5.00, taken off before tax.", "Loyalty bonus: $5.00, before tax.")
+    spans = [("Loyalty bonus",) + s[1:] if s[0] == "Loyalty credit" else s for s in SPANS]
+    flags = dict(FLAGS, credit_position={"Loyalty bonus": "before_tax"})
+    check = _wording(state, spans, flags)
+    assert (check.ok, check.code, check.detail) == (False, "no-subtract-word", "c1")
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Loyalty credit: $5.00, taken off once the tax has been worked out.",
+        "Loyalty credit: $5.00, taken off; it is not part of the amount the tax is charged on.",
+        "Loyalty credit: $5.00, taken off after tax.",
+    ],
+)
+def test_wording_refuses_a_credit_on_the_other_side_of_the_tax(sentence):
+    state = STATE.replace("Loyalty credit: $5.00, taken off before tax.", sentence)
+    check = _wording(state)
+    assert (check.ok, check.code, check.detail) == (False, "tax-side", "c1")
+    flags = dict(FLAGS, tax_after=["Handling fee", "Loyalty credit"], credit_position={"Loyalty credit": "after_tax"})
+    assert _wording(state, SPANS, flags).ok  # read on the side the text says
+
+
+def test_wording_refuses_a_fee_the_text_puts_before_tax():
+    state = STATE.replace("Handling fee: $7.25, added after tax.", "Handling fee: $7.25, inside the taxed amount.")
+    check = _wording(state)
+    assert (check.ok, check.code, check.detail) == (False, "tax-side", "f1")

@@ -155,6 +155,7 @@ def read(
         gates.numbers(tags, text, context),
         gates.units(asm),
         gates.rule_forms(text, context),
+        gates.wording(asm),
     ):
         checks.append(check)
         if not check.ok:

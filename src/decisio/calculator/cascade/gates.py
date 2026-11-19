@@ -18,6 +18,10 @@ A block is shown only when every required gate passes:
   rule forms      no sentence states a rule the calculator cannot express, whatever the tagger made of it: rounding
                   with a direction (up, down, a ceiling or a floor; a tie-break such as "half a cent up" is not one),
                   a minimum or maximum charge, a cap, or "whichever is greater"
+  wording         the text's own words agree with the case: no line label is cut out of a longer phrase (such as
+                  "days" out of "Daily rate days"); every line taken off (a credit, a day credit, a
+                  deducted adjustment) is named in a sentence that says something comes off; and no sentence naming
+                  a fee or credit puts it on the other side of the tax from the case
 
 and then one of the acceptance rules:
 
@@ -58,6 +62,36 @@ _LIMITS = re.compile(
     r"|\bcapped at\b|\bup to a (?:maximum|limit) of\b|\bno (?:more|less) than\b",
     re.I,
 )
+
+# `wording`: words that say an amount comes off the bill, and that place an amount before or after the tax
+_SUBTRACT = re.compile(
+    r"\b(?:taken off|takes? off|deduct\w*|credit\w*|discount\w*|allowances?|less|minus|refund\w*|rebate\w*|"
+    r"vouchers?|deposits?|prepa(?:id|y\w*)|reduc\w*|subtract\w*|waive\w*|removed|comes? off|"
+    r"off the (?:bill|total|invoice|amount))\b",
+    re.I,
+)
+_NOT = r"(?<!not )(?<!n't )(?<!never )"
+_AFTER_TAX = re.compile(
+    r"\bafter (?:the )?(?:tax|vat|gst)\b|\bonce (?:the )?(?:tax|vat|gst)\b|\bpost-tax\b"
+    r"|\b(?:tax|vat|gst) has been (?:worked out|added|charged|applied|calculated)\b"
+    r"|\b(?:not|never) (?:be )?(?:part of|counted in|included in|inside|in|within) (?:the )?(?:amount|taxed|tax|base)"
+    r"|\boutside (?:the )?(?:tax|taxed)|\bexcluded from (?:the )?(?:tax|taxed)",
+    re.I,
+)
+_BEFORE_TAX = re.compile(
+    r"\bbefore (?:the )?(?:tax|vat|gst)\b|\bpre-tax\b"
+    rf"|{_NOT}\b(?:inside|included in|counted in|part of|within) "
+    r"(?:the )?(?:amount the tax|taxed|tax base|amount taxed)",
+    re.I,
+)
+# a label is not cut out of a longer phrase: a label that starts with a small letter follows a function word,
+# punctuation or the start of its line ("days" out of "Daily rate days" is refused). The words after a label are not
+# read: a head noun ("the Wiper blades line", "the Goods weight charge") is written either way.
+_LABEL_BEFORE_OK = frozenset(
+    "the a an under for of and or your our this that these those each every per to in on at with by as from also "
+    "plus is are was were has have its their one any no called named labelled marked item line".split()
+)
+_WORD_BEFORE = re.compile(r"([A-Za-z][\w'-]*)[ \t]+$")
 
 
 @dataclass(frozen=True)
@@ -397,3 +431,50 @@ def rule_forms(text: str, context: str | None = None) -> Check:
             if _LIMITS.search(sentence):
                 return _fail("rule_forms", "limit-rule")
     return _pass("rule_forms")
+
+
+def _sentences(text: str):
+    """(start, end) of each sentence of the text: split after . ! ? and a space, and at line breaks."""
+    start = 0
+    for m in re.finditer(r"(?<=[.!?])\s+|\n+", text):
+        yield start, m.start()
+        start = m.end()
+    yield start, len(text)
+
+
+def _naming(asm: A.Assembly, label: str):
+    """The sentences (of the state and the context) that name a label (case and spacing ignored)."""
+    key = A.norm_label(label)
+    for _, text in asm.texts:
+        for a, b in _sentences(text):
+            if key in A.norm_label(text[a:b]):
+                yield text[a:b]
+
+
+def wording(asm: A.Assembly) -> Check:
+    """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
+    (a line the case takes off is named in no sentence that says something comes off), `tax-side` (a sentence naming a
+    fee or credit places it on the other side of the tax)."""
+    gate = "wording"
+    texts = dict(asm.texts)
+    for s in asm.spans:
+        if s.role != "item_label":
+            continue
+        src = texts.get(s.where, "")
+        before = _WORD_BEFORE.search(src[: s.start])
+        if s.text[:1].islower() and before and before.group(1).casefold() not in _LABEL_BEFORE_OK:
+            return _fail(gate, "label-cut", s.key)
+    deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
+    outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
+    for g in asm.groups:
+        off = g.kind in ("credit", "daycredit") or (g.kind == "adjustment" and A.norm_label(g.label) in deducted)
+        named = list(_naming(asm, g.label))
+        if off and not any(_SUBTRACT.search(t) for t in named):
+            return _fail(gate, "no-subtract-word", g.id)
+        if g.kind in ("fee", "credit", "daycredit"):
+            is_after = A.norm_label(g.label) in outside
+            for t in named:
+                said = "after" if _AFTER_TAX.search(t) else "before" if _BEFORE_TAX.search(t) else None
+                if said is not None and (said == "after") != is_after:
+                    return _fail(gate, "tax-side", g.id)
+    return _pass(gate)
