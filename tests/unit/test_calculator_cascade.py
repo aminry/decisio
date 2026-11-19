@@ -788,3 +788,36 @@ def test_a_lone_range_end_on_its_own_line_prices_nothing():
 def test_a_generic_continuation_before_the_heading_colon_is_not_a_cut():
     state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing entries: 4 crates at $12.50 each.")
     assert _wording(state).ok
+
+
+def test_wording_refuses_a_rounding_step_whose_sentence_does_not_round():
+    state = STATE.replace(
+        "the total is rounded once to the nearest 15 minutes.", "the total is converted at 15 minutes per quarter hour."
+    )
+    flags = dict(FLAGS)
+    check = _wording(state, SPANS, flags)
+    assert (check.ok, check.code) == (False, "rounding-without-rule")
+
+
+def test_wording_reads_an_imperative_add_as_the_adjustment_direction():
+    state = STATE.replace("Rush supplement: 10% of Crate packing, added.", "Rush supplement: add 10% of Crate packing.")
+    flags = dict(FLAGS, adjustment_direction={"Rush supplement": "deduct"})
+    assert _wording(state, SPANS, flags).code in ("adjustment-direction", "no-subtract-word")
+    assert _wording(state).ok  # read as added: right
+
+
+def test_wording_refuses_a_label_short_of_its_heading_line():
+    state = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "CHARGE: Crate packing units\n4 crates at $12.50 each."
+    )
+    spans = [("Crate packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    assert _wording(state, spans).code == "label-cut"
+
+
+def test_wording_reads_the_sentence_that_introduces_an_enumeration():
+    state = STATE.replace(
+        "Loyalty credit: $5.00, taken off before tax.",
+        "Two further items are applied after the tax. First, nothing. Second, the Loyalty credit is $5.00, taken off.",
+    )
+    check = _wording(state)  # the credit read before the tax, against the introducing sentence
+    assert (check.ok, check.code) == (False, "tax-side")

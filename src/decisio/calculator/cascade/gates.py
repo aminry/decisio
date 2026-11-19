@@ -83,7 +83,14 @@ _SUBTRACT = re.compile(
     re.I,
 )
 # an adjustment's direction in the text: added to the bill or a charge, or taken off it (`adjustment-direction`)
-_ADDS = re.compile(r"\b(?:is|are|gets?|being|then) added\b|\badded (?:to|on|before|after)\b|\bon top of\b", re.I)
+_ADDS = re.compile(
+    r"\b(?:is|are|gets?|being|then) added\b|\badded (?:to|on|before|after)\b|\bon top of\b"
+    r"|\badds? (?:an? |the )?(?:extra |further )?\d[\d.,]*\s?%",
+    re.I,
+)
+# a rounding step is read only where its sentence speaks of rounding ("converted to hours at 60 minutes per hour"
+# is no step)
+_ROUNDING = re.compile(r"\bround|\bnearest\b|\bstep\b|\bwhole (?:hour|minute|metre|meter|unit)s?\b", re.I)
 _TAKES = re.compile(
     r"\b(?:deduct(?:ed|s)?|subtract(?:ed|s)?|taken off|takes? off|comes? off|knocked off|reduc(?:es|ed|ing))\b", re.I
 )
@@ -482,6 +489,12 @@ _CONTINUES = re.compile(
 )
 
 
+# an enumeration of lines after a sentence that introduces them: "Two further items are applied after the tax ...
+# First, a Damage waiver fee ... Second, a Breakdown allowance ..."
+_ENUMERATES = re.compile(r"\s*(?:first|second|third|fourth|fifth|next|then|finally|lastly|also)\b", re.I)
+_INTRODUCES = re.compile(r"\b(?:items|charges|lines|fees|credits|amounts|two|three|four|both)\b", re.I)
+
+
 def _naming(asm: A.Assembly, label: str):
     """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
     names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
@@ -499,9 +512,27 @@ def _naming(asm: A.Assembly, label: str):
                 and _CONTINUES.match(text[sents[k][0] : sents[k][1]])
             ):
                 end, k = sents[k][1], k + 1
-            yield text[a:end]
+            start = a
+            if _ENUMERATES.match(text[a:b]):
+                k = j - 1
+                while (
+                    k >= 0
+                    and "\n\n" not in text[sents[k][1] : start]
+                    and _ENUMERATES.match(text[sents[k][0] : sents[k][1]])
+                ):
+                    k -= 1
+                if (
+                    k >= 0
+                    and "\n\n" not in text[sents[k][1] : start]
+                    and _INTRODUCES.search(text[sents[k][0] : sents[k][1]])
+                ):
+                    start = sents[k][0]
+            yield text[start:end]
 
 
+# a label alone on a heading line ("CHARGE: Site visits"): stopping one or two words before the line ends is a cut
+_HEADING_LINE = re.compile(r"^[ \t]*(?:[A-Z][A-Z ]{1,20}:[ \t]*)?$")
+_LINE_REST = re.compile(r"^[ \t]+[A-Za-z][\w'-]*(?:[ \t]+[A-Za-z][\w'-]*)?[ \t]*(?=\n|$)")
 # words that may stand between a label and its heading's colon without cutting it ("Gardener time entries:",
 # "Excavator hire charge only:"), and "and" before another line's label ("Theatre time and Consultation:")
 _CONTINUATIONS = frozenset({"charge", "charges", "only", "entries", "entry", "applies", "apply"})
@@ -521,7 +552,9 @@ def wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
     (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
     case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
-    takes it off, or the other way, with no word for the case's direction), `tax-side` (a sentence naming a
+    takes it off, or the other way, with no word for the case's direction), `rounding-without-rule` (a rounding step
+    whose sentence does not speak of rounding), `count-as-days` (a day-priced line whose count and day count are the
+    same number: "for each of the 17 days" read twice), `tax-side` (a sentence naming a
     fee or credit places it on the other side of the tax)."""
     gate = "wording"
     texts = dict(asm.texts)
@@ -535,6 +568,23 @@ def wording(asm: A.Assembly) -> Check:
         m = _HEADING_REST.match(src[s.end :])
         if m and not _continues_label(src, s.end, m.group(0), asm):
             return _fail(gate, "label-cut", s.key)
+        line_start = src.rfind("\n", 0, s.start) + 1
+        if _HEADING_LINE.match(src[line_start : s.start]):
+            m = _LINE_REST.match(src[s.end :])
+            if m and not _continues_label(src, s.end, m.group(0), asm):
+                return _fail(gate, "label-cut", s.key)
+    for x in asm.spans:
+        if x.role == "rounding_step":
+            src = texts.get(x.where, "")
+            sent = next((src[a:b] for a, b in _sentences(src) if a <= x.start < b), "")
+            if not _ROUNDING.search(sent):
+                return _fail(gate, "rounding-without-rule", x.key)
+    for g in asm.groups:
+        if g.kind == "days":
+            q = {Fraction(v.value) for r, _, v in g.values if r == "quantity" and v is not None}
+            d = {Fraction(v.value) for r, _, v in g.values if r == "day_count" and v is not None}
+            if q and q == d:
+                return _fail(gate, "count-as-days", g.id)
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
     for g in asm.groups:
