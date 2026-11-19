@@ -16,6 +16,7 @@ K7  the model wrapper (when torch and transformers are installed) loads a tiny r
 
 import dataclasses
 import hashlib
+from fractions import Fraction
 
 import pytest
 
@@ -735,3 +736,55 @@ def test_decode_votes_one_family_per_span_and_keeps_the_likelier_span_per_value(
     assert all(p <= 0.9 for p in top_p)
     spans = [(20, 26, "credit_amount", 0.8), (20, 26, "price", 0.6), (0, 19, "credit_label", 0.7)]
     assert likelier_per_value(spans) == [(20, 26, "credit_amount", 0.8), (0, 19, "credit_label", 0.7)]
+
+
+def test_a_number_in_words_restated_in_digits_is_one_value():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing: four (4) crates at $12.50 each.")
+    spans = [("four (4) crates", 0, "quantity", "i1", None) if s[0] == "4 crates" else s for s in SPANS]
+    asm = assemble(tags_for(state, spans), state)
+    assert asm.input["items"][0]["quantity"] == "4"
+    from decisio.calculator.cascade import gates
+
+    assert gates.provenance(asm).ok
+    bad = state.replace("four (4) crates", "four (5) crates")  # the two disagree: two values, refused
+    spans_bad = [("four (5) crates", 0, "quantity", "i1", None) if s[0] == "4 crates" else s for s in SPANS]
+    assert refusal(tags_for(bad, spans_bad), bad) == "span-value"
+
+
+def test_a_signed_credit_amount_is_read_by_its_magnitude():
+    state = STATE.replace(
+        "Loyalty credit: $5.00, taken off before tax.",
+        "Loyalty credit: -$5.00, a credit of $5.00 taken off before tax.",
+    )
+    spans = [s for s in SPANS if s[:4] != ("$5.00", 0, "price", "c1")] + [
+        ("-$5.00", 0, "price", "c1", None),
+        ("$5.00", 1, "price", "c1", None),
+    ]
+    asm = assemble(tags_for(state, spans), state)
+    assert Fraction(asm.input["credits"][0]["amount"]) == 5
+    from decisio.calculator.cascade import gates
+
+    assert gates.provenance(asm).ok
+    other = state.replace("a credit of $5.00", "a credit of $6.00")
+    spans2 = [s for s in spans if s[0] != "$5.00"] + [("$6.00", 0, "price", "c1", None)]
+    assert refusal(tags_for(other, spans2), other) == "conflicting-values"
+
+
+def test_a_lone_range_end_on_its_own_line_prices_nothing():
+    state = "Date issued: 14 March 2025\n" + STATE
+    spans = SPANS + [("14 March 2025", 0, "range_end", "i1", None)]
+    asm = assemble(tags_for(state, spans), state)
+    got, want = asm.input["items"][0], EXPECTED["items"][0]
+    assert (
+        got["label"] == want["label"] and Fraction(got["quantity"]) == 4 and Fraction(got["price"]) == Fraction("12.50")
+    )
+    # on the line of the priced item, it is not left out
+    state2 = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "Crate packing: 4 crates at $12.50 each, until 14 March 2025."
+    )
+    assert refusal(tags_for(state2, spans), state2) in ("range", "item-roles", "span-value")
+
+
+def test_a_generic_continuation_before_the_heading_colon_is_not_a_cut():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing entries: 4 crates at $12.50 each.")
+    assert _wording(state).ok

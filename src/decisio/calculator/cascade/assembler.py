@@ -73,7 +73,7 @@ class Refusal(Exception):
 class Operand:
     """One number of the input, with the spans it was read from and how (`same`: the value read in the span;
     `minutes`: a duration in minutes; `range-days`: the days of a date range; `unit-factor`: a step converted with an
-    exact definitional factor)."""
+    exact definitional factor; `magnitude`: a credit's amount, a minus sign on a mention being its direction)."""
 
     path: str
     value: Fraction
@@ -222,12 +222,31 @@ class _Reader:
             if s < span.start or e > span.end:
                 raise Refusal("span-value", f"{span.role} at {span.key}: a value crosses the span's end")
             inside.append(v)
+        inside = one_restated(inside, self.texts[span.where])
         if len(inside) != 1:
             raise Refusal("span-value", f"{span.role} at {span.key}: {len(inside)} values")
         v = inside[0]
         if v.kind == "ambiguous":
             raise Refusal("ambiguous-value", f"{span.role} at {span.key}: {v.why}")
         return v
+
+
+def one_restated(values: list, text: str) -> list:
+    """A number in words restated in digits right after it, in parentheses ("thirty-nine (39)"), is one value when the
+    two agree; any other pair stays two values."""
+    if len(values) == 2:
+        a, b = sorted(values, key=lambda v: v.span[0])
+        between = text[a.span[1] : b.span[0]]
+        after = text[b.span[1] : b.span[1] + 1]
+        if (
+            a.kind == b.kind == "number"
+            and Fraction(a.value) == Fraction(b.value)
+            and re.fullmatch(r"\s*\(\s*", between)
+            and after == ")"
+            and not any(ch.isdigit() for ch in text[a.span[0] : a.span[1]])
+        ):
+            return [a]
+    return values
 
 
 _ACCEPTS = {
@@ -304,6 +323,7 @@ def assemble(tags: Tags, state: str, context: str | None = None) -> Assembly:
         if a.where == b.where and b.start < a.end:
             raise Refusal("span-overlap", f"{a.key} and {b.key}")
 
+    spans = _without_lone_range_ends(spans, rd)
     by_group: dict[str, list[tuple[str, TagSpan, object]]] = {}
     stated: list[tuple[TagSpan, Fraction]] = []
     money_marks: set[str] = set()
@@ -450,6 +470,43 @@ def assemble(tags: Tags, state: str, context: str | None = None) -> Assembly:
     return asm
 
 
+_PER_DAY = re.compile(r"\b(?:per|a|each) day\b|\bdaily\b|\bper (?:night|week)\b", re.I)
+
+
+def _line_of(text: str, start: int) -> tuple[int, int]:
+    a = text.rfind("\n", 0, start) + 1
+    b = text.find("\n", start)
+    return a, len(text) if b < 0 else b
+
+
+def _without_lone_range_ends(spans, rd):
+    """A range start or end with no partner in its line, on a text line of its own (a header's "Date issued: 14 March
+    2025"), where no line of the group's other spans prices by the day, prices nothing: it is left out before any value
+    is read (its digits stay covered by the span for the numbers gate, which reads the tags). Anything else is kept,
+    and refused later if it does not make a range."""
+    groups: dict[str, list[TagSpan]] = {}
+    for x in spans:
+        if x.item:
+            groups.setdefault(x.item, []).append(x)
+    drop = set()
+    for members in groups.values():
+        ends = [x for x in members if x.role in ("range_start", "range_end")]
+        rest = [x for x in members if x.role not in ("range_start", "range_end")]
+        if len(ends) != 1 or not rest:
+            continue
+        lone = ends[0]
+        own = _line_of(rd.texts[lone.where], lone.start)
+        keep = False
+        for x in rest:
+            line = _line_of(rd.texts[x.where], x.start)
+            if (x.where == lone.where and line == own) or _PER_DAY.search(rd.texts[x.where][line[0] : line[1]]):
+                keep = True
+                break
+        if not keep:
+            drop.add(id(lone))
+    return [x for x in spans if id(x) not in drop]
+
+
 def _first(vals) -> tuple:
     s = min((sp for _, sp, _ in vals), key=lambda sp: (0 if sp.where == "context" else 1, sp.start))
     return (0 if s.where == "context" else 1, s.start)
@@ -502,6 +559,20 @@ def _one(g: Group, role: str):
         raise Refusal("conflicting-values", f"{g.id} {role}: {len(values)} values, {len(units)} units")
     best = next((v for _, v in got if v.kind == "quantity" and v.dimension != "count"), got[0][1])
     return best, tuple(s for s, _ in got)
+
+
+def _magnitude(g: Group):
+    """A credit's amount: every mention must read the same magnitude; a minus sign on one of them is the direction the
+    line already has (taken off), so the amount is the magnitude (`magnitude`, re-read so by the provenance gate)."""
+    got = [(s, v) for r, s, v in g.values if r == "price"]
+    if not got:
+        return None, (), "same"
+    mags = {abs(Fraction(v.value)) for _, v in got}
+    if len(mags) != 1:
+        raise Refusal("conflicting-values", f"{g.id} price: {len(mags)} values")
+    signed = any(Fraction(v.value) < 0 for _, v in got)
+    best = next((v for _, v in got if Fraction(v.value) > 0), got[0][1])
+    return best, tuple(s for s, _ in got), "magnitude" if signed else "same"
 
 
 def _entries(g: Group, role: str):
@@ -618,8 +689,9 @@ def _line(g: Group, flags: dict, rd: _Reader, operands: list[Operand]):
         if c is not None:
             entry["count"] = _dec(add("count", c, cs), f"{g.id}.count")
     elif k == "credit":
-        p, ps = _one(g, "price")
-        entry["amount"] = _dec(add("amount", p, ps), f"{g.id}.amount")
+        p, ps, how = _magnitude(g)
+        mag = None if p is None or Fraction(p.value) > 0 else abs(Fraction(p.value))  # the positive mention as written
+        entry["amount"] = _dec(add("amount", p, ps, how=how, value=mag), f"{g.id}.amount")
     elif k == "adjustment":
         p, ps = _one(g, "percent")
         entry["percent"] = _dec(add("percent", p, ps), f"{g.id}.percent")

@@ -178,6 +178,7 @@ def provenance(asm: A.Assembly) -> Check:
             if src[s.start : s.end] != s.text:
                 return _fail(gate, "not-verbatim", f"{op.path} at {s.key}")
             inside = [v for v in values.get(s.where, ()) if v.span[0] < s.end and v.span[1] > s.start]
+            inside = A.one_restated(inside, src)
             if len(inside) != 1:
                 return _fail(gate, "not-one-value", f"{op.path} at {s.key}")
             read.append(inside[0])
@@ -192,6 +193,8 @@ def provenance(asm: A.Assembly) -> Check:
             if v.kind in ("date", "date-range", "time-of-day", "ambiguous"):
                 return _fail(gate, "derivation", f"{op.path}: a {v.kind}")
             x = Fraction(v.value)
+            if op.how == "magnitude":
+                x = abs(x)
             if op.how == "unit-factor":
                 f = N.factor(v.unit, _length_unit(asm, op.path))
                 x = None if f is None else x * f
@@ -499,6 +502,21 @@ def _naming(asm: A.Assembly, label: str):
             yield text[a:end]
 
 
+# words that may stand between a label and its heading's colon without cutting it ("Gardener time entries:",
+# "Excavator hire charge only:"), and "and" before another line's label ("Theatre time and Consultation:")
+_CONTINUATIONS = frozenset({"charge", "charges", "only", "entries", "entry", "applies", "apply"})
+
+
+def _continues_label(src: str, end: int, rest: str, asm: A.Assembly) -> bool:
+    words = re.findall(r"[A-Za-z][\w'-]*", rest)
+    if words and all(w.casefold() in _CONTINUATIONS for w in words):
+        return True
+    if len(words) == 2 and words[0].casefold() == "and":
+        at = end + rest.index(words[1], rest.casefold().index("and") + 3)
+        return any(x.role == "item_label" and x.start == at for x in asm.spans)
+    return False
+
+
 def wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
     (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
@@ -514,7 +532,8 @@ def wording(asm: A.Assembly) -> Check:
         before = _WORD_BEFORE.search(src[: s.start])
         if s.text[:1].islower() and before and before.group(1).casefold() not in _LABEL_BEFORE_OK:
             return _fail(gate, "label-cut", s.key)
-        if _HEADING_REST.match(src[s.end :]):
+        m = _HEADING_REST.match(src[s.end :])
+        if m and not _continues_label(src, s.end, m.group(0), asm):
             return _fail(gate, "label-cut", s.key)
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
