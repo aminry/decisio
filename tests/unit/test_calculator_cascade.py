@@ -606,3 +606,26 @@ def test_wording_refuses_a_fee_the_text_puts_before_tax():
     state = STATE.replace("Handling fee: $7.25, added after tax.", "Handling fee: $7.25, inside the taxed amount.")
     check = _wording(state)
     assert (check.ok, check.code, check.detail) == (False, "tax-side", "f1")
+
+
+def test_decoded_spans_snap_to_the_value_they_cut():
+    pytest.importorskip("torch")
+    from decisio.calculator.cascade.model import snap_values, value_bounds
+
+    text = "Design hours: 1 h 41 min at $22.66 per hour, 3 x $5.00."
+    values = value_bounds(text, None, 0)
+    at = lambda t: (text.index(t), text.index(t) + len(t))  # noqa: E731
+    raw = [
+        (*at("h 41 min"), "duration", 0.9),  # cut out of "1 h 41 min"
+        (*at("$22"), "rate", 0.8),  # "$22" and ".66" decoded apart: one span, the lower p
+        (text.index(".66"), text.index(".66") + 3, "rate", 0.7),
+        (*at("Design hours"), "item_label", 0.99),  # words are never snapped
+        (*at("3 x $5.00"), "price", 0.6),  # over two values: left for the assembler to refuse
+    ]
+    got = snap_values(raw, values, text, 0)
+    assert [(text[s:e], k, p) for s, e, k, p in got] == [
+        ("1 h 41 min", "duration", 0.9),
+        ("$22.66", "rate", 0.7),
+        ("Design hours", "item_label", 0.99),
+        ("3 x $5.00", "price", 0.6),
+    ]
