@@ -46,6 +46,7 @@ different blocks.
 
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 from fractions import Fraction
@@ -495,7 +496,17 @@ def _wraps(line: str, nxt: str) -> bool:
 
 def _sentences(text: str):
     """(start, end) of each sentence of the text: split after . ! ? and a space, at blank lines, and at line breaks
-    that are not wrapped lines (a sentence wrapped over lines is one sentence)."""
+    that are not wrapped lines (a sentence wrapped over lines is one sentence). Cached per text (every check reads the
+    same sentences), so a read splits each text once."""
+    return _sentences_of(text, "wrapped-lines" in DISABLED)
+
+
+@functools.lru_cache(maxsize=64)
+def _sentences_of(text: str, no_wraps: bool) -> tuple[tuple[int, int], ...]:
+    return tuple(_split_sentences(text))
+
+
+def _split_sentences(text: str):
     breaks = []  # the line breaks that end a sentence
     lines = text.split("\n")
     at = 0
@@ -513,6 +524,7 @@ def _sentences(text: str):
     yield start, len(text)
 
 
+@functools.lru_cache(maxsize=4096)
 def _flat(text: str) -> str:
     """Text with its runs of spaces and line breaks read as one space (cues read over wrapped lines)."""
     return " ".join(text.split())

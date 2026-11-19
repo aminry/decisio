@@ -25,6 +25,7 @@ mentions them (the context before the state).
 
 from __future__ import annotations
 
+import functools
 import re
 from dataclasses import dataclass
 from fractions import Fraction
@@ -128,6 +129,7 @@ _BEFORE_PER = re.compile(
 )
 
 
+@functools.lru_cache(maxsize=8192)
 def norm_label(text: str) -> str:
     return " ".join(text.split()).casefold()
 
