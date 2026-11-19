@@ -23,9 +23,13 @@ A block is shown only when every required gate passes:
                   off (a credit, a day credit, a deducted adjustment) is named in a sentence that says something
                   comes off; no line the case adds is named with words that say it comes off the bill ("is a credit
                   of", "comes off the bill"); no adjustment is named as added when the case takes it off, or the
-                  other way round; and no sentence naming a fee or credit (with the sentences after it on
+                  other way round; no sentence naming a fee or credit (with the sentences after it on
                   its line that go on about it: "It is added once the tax has been worked out") puts it on the
-                  other side of the tax from the case
+                  other side of the tax from the case, and every fee and credit has its side stated (by name, in a
+                  list of what the tax is charged on, or in a sentence about every line); every fee is said to be
+                  charged; one count is not read as both a quantity and a day count; a restated total is not read
+                  as an entry; an adjustment's target is named where its percent is. Sentences are read over
+                  wrapped lines.
 
 and then one of the acceptance rules:
 
@@ -112,7 +116,7 @@ _AFTER_TAX = re.compile(
 _BEFORE_TAX = re.compile(
     r"\bbefore (?:the )?(?:tax|vat|gst)\b|\bpre-tax\b"
     rf"|{_NOT}\b(?:inside|included in|counted in|part of|within) "
-    r"(?:the )?(?:amount the tax|taxed|tax base|amount taxed)",
+    r"(?:the )?(?:amount the tax|taxed|tax base|amount taxed|amount (?:that is |being )?taxed)",
     re.I,
 )
 # a label is not cut out of a longer phrase: a label that starts with a small letter follows a function word,
@@ -463,7 +467,8 @@ def rule_forms(text: str, context: str | None = None) -> Check:
     """A sentence of the state or the context that states a rule the calculator cannot express (a rounding direction,
     a minimum, maximum or cap) refuses the block: `rounding-direction` or `limit-rule`."""
     for source in (context or "", text):
-        for sentence in re.split(r"(?<=[.!?])\s+|\n+", source):
+        for a, b in _sentences(source):
+            sentence = _flat(source[a:b])
             if _DIRECTION.search(_PHRASAL.sub(" ", _TIE.sub(" ", sentence))):
                 return _fail("rule_forms", "rounding-direction")
             if _LIMITS.search(sentence):
@@ -471,13 +476,46 @@ def rule_forms(text: str, context: str | None = None) -> Check:
     return _pass("rule_forms")
 
 
+# a line that starts something new rather than going on with the line before it: a list item, a bullet, a table row
+# or a "Label:" line
+_LINE_OPENS = re.compile(r"(?:\d{1,2}[.)]|[a-z][.)]|[-*\u2022]|[A-Za-z][\w '()&/-]{0,40}:(?!\S))(?:\s|$)|[|{}\[\]\"<=]")
+_COLUMNS = re.compile(r"\S[ \t]{3,}\S|\|")
+
+
+def _wraps(line: str, nxt: str) -> bool:
+    """A line break inside a sentence (a wrapped line): the line ends with no sentence or field end, and neither line
+    is a table row, a heading or the start of a list item."""
+    a, b = line.strip(), nxt.strip()
+    if "wrapped-lines" in DISABLED or not a or not b or a[-1] in ".!?:;|" or _COLUMNS.search(a) or _COLUMNS.search(b):
+        return False
+    if _LINE_OPENS.match(b) or (a.isupper() and len(a) > 3) or (b.isupper() and len(b) > 3):
+        return False
+    return True
+
+
 def _sentences(text: str):
-    """(start, end) of each sentence of the text: split after . ! ? and a space, and at line breaks."""
+    """(start, end) of each sentence of the text: split after . ! ? and a space, at blank lines, and at line breaks
+    that are not wrapped lines (a sentence wrapped over lines is one sentence)."""
+    breaks = []  # the line breaks that end a sentence
+    lines = text.split("\n")
+    at = 0
+    for i, line in enumerate(lines[:-1]):
+        at += len(line)
+        if not _wraps(line, lines[i + 1]):
+            breaks.append(at)
+        at += 1
     start = 0
     for m in re.finditer(r"(?<=[.!?])\s+|\n+", text):
+        if m.group() == "\n" and text[m.start() - 1 : m.start()] not in (".", "!", "?") and m.start() not in breaks:
+            continue  # a wrapped line
         yield start, m.start()
         start = m.end()
     yield start, len(text)
+
+
+def _flat(text: str) -> str:
+    """Text with its runs of spaces and line breaks read as one space (cues read over wrapped lines)."""
+    return " ".join(text.split())
 
 
 # a sentence that goes on about the line the previous sentence named ("Booking fee: EUR 38.81 is charged once. It is
@@ -495,6 +533,12 @@ _ENUMERATES = re.compile(r"\s*(?:first|second|third|fourth|fifth|next|then|final
 _INTRODUCES = re.compile(r"\b(?:items|charges|lines|fees|credits|amounts|two|three|four|both)\b", re.I)
 
 
+def _same_item(gap: str) -> bool:
+    """Two sentences are in one item: on one line, or the second on an indented line under the first (a wrapped list
+    item: "5. The Connection fee is applied AFTER tax.\n   It is outside the taxed amount")."""
+    return "\n" not in gap or ("wrapped-lines" not in DISABLED and bool(re.fullmatch(r"[ \t]*\n[ \t]+", gap)))
+
+
 def _naming(asm: A.Assembly, label: str):
     """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
     names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
@@ -508,7 +552,7 @@ def _naming(asm: A.Assembly, label: str):
             end, k = b, j + 1
             while (
                 k < len(sents)
-                and "\n" not in text[end : sents[k][0]]
+                and _same_item(text[end : sents[k][0]])
                 and _CONTINUES.match(text[sents[k][0] : sents[k][1]])
             ):
                 end, k = sents[k][1], k + 1
@@ -527,7 +571,7 @@ def _naming(asm: A.Assembly, label: str):
                     and _INTRODUCES.search(text[sents[k][0] : sents[k][1]])
                 ):
                     start = sents[k][0]
-            yield text[start:end]
+            yield _flat(text[start:end])
 
 
 # a label after a heading keyword on its line ("CHARGE: Site visits"): stopping one or two words before the line ends
@@ -554,6 +598,12 @@ def _continues_label(src: str, end: int, rest: str, asm: A.Assembly) -> bool:
 _PER_DAY = re.compile(
     r"\bper (?:unit )?(?:per )?(?:day|night|week)\b|\b(?:a|each|every) (?:day|night)\b|\bdaily\b|/ ?day\b", re.I
 )
+# ... and a line priced both per unit and per day says per unit ("$378.73 per unit per day", "each unit a day")
+_PER_UNIT = re.compile(
+    r"\bper (?:unit|item|piece|person|head|machine|vehicle)\b|\b(?:each|a|every) (?:unit|item|piece|machine|vehicle)\b"
+    r"|/ ?unit\b",
+    re.I,
+)
 
 
 def _whole_sentence(text: str, at: int) -> str:
@@ -575,8 +625,12 @@ def wording(asm: A.Assembly) -> Check:
     case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
     takes it off, or the other way, with no word for the case's direction), `rounding-without-rule` (a rounding step
     whose sentence does not speak of rounding), `count-as-days` (a line priced by the day whose price is nowhere stated
-    per day: "$388.10 each ... for each of the 17 days"), `tax-side` (a sentence naming a
-    fee or credit places it on the other side of the tax)."""
+    per day: "$388.10 each ... for each of the 17 days"), `count-is-days` (one count read as both the quantity and the
+    days: "34 at $96.35 each ... for each day, for 34 days"), `restated-total` (one of three or more entries is the sum
+    of the others: "Total time 268 min" after its entries), `adjustment-target` (the percent's sentence does not name
+    the adjustment's target, or names another line), `tax-side` (the text places a fee or credit on the other side of
+    the tax), `tax-side-unstated` (the text never states a fee's or credit's side), `fee-unstated` (a fee the text only
+    shows beside its amount, never saying it is charged)."""
     gate = "wording"
     texts = dict(asm.texts)
     for s in asm.spans:
@@ -591,6 +645,8 @@ def wording(asm: A.Assembly) -> Check:
             s.end < len(src) and src[s.end].isalnum() and s.text[-1:].isalnum()
         )
         if "label-cut-in-word" not in DISABLED and in_word:
+            return _fail(gate, "label-cut", s.key)
+        if "label-cut-hyphen" not in DISABLED and _hyphen_cut(src, s.start, s.end):
             return _fail(gate, "label-cut", s.key)
         m = _HEADING_REST.match(src[s.end :])
         if m and not _continues_label(src, s.end, m.group(0), asm):
@@ -610,8 +666,27 @@ def wording(asm: A.Assembly) -> Check:
             prices = [x for r, x, _ in g.values if r == "price"]
             if prices and not any(_PER_DAY.search(_whole_sentence(texts.get(x.where, ""), x.start)) for x in prices):
                 return _fail(gate, "count-as-days", g.id)
+        if g.kind == "days" and "count-is-days" not in DISABLED:
+            # "34 at $96.35 each ... $96.35 for each day, for 34 days": one count read as both the quantity and the
+            # days; a line priced per unit per day says so
+            q = {Fraction(v.value) for r, _, v in g.values if r == "quantity"}
+            d = {Fraction(v.value) for r, _, v in g.values if r == "day_count"}
+            near = [_flat(_whole_sentence(texts.get(x.where, ""), x.start)) for _, x, _ in g.values]
+            if q & d and not any(_PER_UNIT.search(t) for t in near):
+                return _fail(gate, "count-is-days", g.id)
+    if "restated-total" not in DISABLED:
+        for it in asm.input.get("items", ()):
+            entries = [Fraction(str(x)) for x in it.get("minutes") or it.get("lengths") or ()]
+            # "Entry 1 90 min, Entry 2 120 min, Entry 3 58 min, Total time 268 min": the total is no entry
+            if len(entries) >= 3 and any(2 * e == sum(entries) for e in entries):
+                return _fail(gate, "restated-total", A.norm_label(it["label"]))
+    if "adjustment-target" not in DISABLED:
+        bad = _adjustment_target(asm)
+        if bad:
+            return _fail(gate, "adjustment-target", bad)
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
+    sides = _stated_sides(asm)
     for g in asm.groups:
         off = g.kind in ("credit", "daycredit") or (g.kind == "adjustment" and A.norm_label(g.label) in deducted)
         named = list(_naming(asm, g.label))
@@ -624,10 +699,191 @@ def wording(asm: A.Assembly) -> Check:
             same, other = (_TAKES, _ADDS) if deduct else (_ADDS, _TAKES)
             if any(other.search(t) for t in named) and not any(same.search(t) for t in named):
                 return _fail(gate, "adjustment-direction", g.id)
+        if g.kind == "fee" and "fee-unstated" not in DISABLED and not any(_CHARGED.search(t) for t in named):
+            # an amount the text only shows ("Parking reimbursement | - | $35.00"), never saying it is charged
+            return _fail(gate, "fee-unstated", g.id)
         if g.kind in ("fee", "credit", "daycredit"):
-            is_after = A.norm_label(g.label) in outside
-            for t in named:
-                said = "after" if _AFTER_TAX.search(t) else "before" if _BEFORE_TAX.search(t) else None
-                if said is not None and (said == "after") != is_after:
-                    return _fail(gate, "tax-side", g.id)
+            code = _side_check(asm, g, named, A.norm_label(g.label) in outside, sides)
+            if code:
+                return _fail(gate, code, g.id)
     return _pass(gate)
+
+
+def _hyphen_cut(src: str, start: int, end: int) -> bool:
+    """A label cut at a hyphen inside a word: "-booking sur" or "booking" out of "Pre-booking", "Pre" out of
+    "Pre-booking"."""
+    if src[start:end][:1] == "-" and start > 0 and src[start - 1].isalnum():
+        return True
+    if src[start:end][-1:] == "-" and end < len(src) and src[end].isalnum():
+        return True
+    if start > 1 and src[start - 1] == "-" and src[start - 2].isalnum() and src[start : start + 1].isalnum():
+        return True
+    return end + 1 < len(src) and src[end] == "-" and src[end + 1].isalnum() and src[end - 1 : end].isalnum()
+
+
+_PRICED = ("count", "days", "time", "length", "convert")
+
+
+def _adjustment_target(asm: A.Assembly) -> str:
+    """An adjustment whose percent is stated in a sentence that does not name its target: the target must be named
+    where the percent is ("It deducts 15% of the Night shifts charge only"), and a percent's sentence that names
+    another priced line but not the target refuses. Returns the adjustment's id, or ""."""
+    texts = dict(asm.texts)
+    priced = {A.norm_label(g.label) for g in asm.groups if g.kind in _PRICED}
+    targets = {A.norm_label(a["label"]): A.norm_label(a.get("of") or "") for a in asm.input.get("adjustments", ())}
+    for g in asm.groups:
+        if g.kind != "adjustment":
+            continue
+        target = targets.get(A.norm_label(g.label), "")
+        seen = False
+        for r, x, _ in g.values:
+            if r != "percent":
+                continue
+            src = texts.get(x.where, "")
+            sent = next((A.norm_label(src[a:b]) for a, b in _sentences(src) if a <= x.start < b), "")
+            if target and target in sent:
+                seen = True
+            elif any(lab in sent for lab in priced - {target} if not (target and lab in target)):
+                return g.id
+        if not seen:
+            return g.id
+    return ""
+
+
+# words that say a fee is charged: a fee the text names only beside its amount is not guessed (`fee-unstated`)
+_CHARGED = re.compile(
+    r"\b(?:charg\w*|fees?|add(?:s|ed|ing)?|appl(?:y|ies|ied)|payable|paid|pays?|plus|on top|surcharges?|levy|costs?|"
+    r"each|once|twice|times|per)\b",
+    re.I,
+)
+
+
+# --- the side of the tax a fee or credit is on, as the text states it ----------------------------------------------
+
+# a sentence that lists what the tax is charged on: "The taxed amount includes Meter reads, Gas used and Connection
+# fee", "The tax applies to the whole amount, which includes ...", "Tax ... is calculated on the Site attendance and
+# Disposal fee charges", "It applies to every charge and fee listed above, including the Delivery fee"
+_LISTS = re.compile(
+    r"\b(?:taxed (?:amount|base)|amount (?:that is |being )?taxed|tax base|amount the tax is (?:charged|calculated) on)"
+    r"\b,?(?: which)?(?: is)? (?:includes?|including|contains?|covers?|holds?|made up of|is|are)\b"
+    r"|\b(?:applies|apply|is charged|is calculated|is worked out)(?: only)? (?:to|on)\b(?! top\b)"
+    r"|\b(?:covers?|includes?|contains?)\b",
+    re.I,
+)
+_TAX_WORD = re.compile(r"\b(?:tax\w*|vat|gst)\b", re.I)
+_NOT_TAX = re.compile(r"\b(?:discount|adjustment|surcharge|premium|supplement|deducts?|reduction|rebate)\b", re.I)
+_EXCEPT = re.compile(r"\b(?:except|other than|apart from|but not|excluding|not including)\b", re.I)
+_NEGATED = re.compile(r"\b(?:not|never|no)\b|n't\b", re.I)
+# the list ends where a new clause starts; a name right before a verb is that clause's subject ("A and B, and the
+# Booking fee is added afterwards"), not one of the list's names
+_VERB = re.compile(
+    r"\b(?:is|are|was|were|be|been|has|have|had|added|applied|charged|taken|comes?|deducted|subtracted)\b", re.I
+)
+_JOIN = re.compile(r"\b(?:so|but|while|whereas|because|then)\b|;", re.I)
+_HEAD_NOUN = re.compile(r"[ \t]*(?:fee|credit|charge|amount|deduction|allowance)?s?[ \t]*$", re.I)
+# the list covers every line ("every charge", "all of the above", "everything")
+_ALL_LINES = re.compile(
+    r"\b(?:every|all|each)\b(?: \w+)? (?:lines?|charges?|items?|amounts?)\b"
+    r"|\b(?:all|everything)(?: of the| listed)? above\b|\beverything\b",
+    re.I,
+)
+# a sentence that says nothing is on the after-tax side
+_NOTHING_OUTSIDE = re.compile(
+    r"\bnothing (?:is |falls |sits |else is )?(?:applied |placed )?(?:outside|after (?:the )?tax)\b"
+    r"|\bno (?:fees?|credits?|lines?)(?: or (?:fees?|credits?))? (?:is|are|sits?|falls?|lies?) (?:applied )?"
+    r"(?:outside|after)",
+    re.I,
+)
+_EVERY = re.compile(r"\b(?:every|all|each|everything)\b", re.I)
+# a fee or a credit named by its kind: read as that line when the case has one line of the kind
+_KIND_NOUNS = {
+    "fee": re.compile(r"\b(?:the|this|every|each|all|and) (?:fees?)\b", re.I),
+    "credit": re.compile(r"\b(?:the|this|every|each|all|and) (?:credits?|reductions?|deductions?)\b", re.I),
+}
+
+
+@dataclass
+class _Sides:
+    named: dict  # a label (normalised) -> the sides the text puts it on by name ("after", "before")
+    kinds: dict  # "fee" / "credit" -> the sides stated for the kind ("the fee and the reduction are inside ...")
+    every: set  # the sides stated for every line
+
+
+def _lists(t: str, prev: str):
+    """The places a sentence lists what the tax is charged on. "applies to", "is charged on", "covers" make a list
+    only when the sentence speaks of the tax before them, or opens with "It" right after a sentence about the tax (not
+    a discount's "It does not apply to the meal allowances")."""
+    for m in _LISTS.finditer(t):
+        if m.group().casefold().startswith(("taxed", "amount", "tax base")):
+            yield m
+            continue
+        about_tax = _TAX_WORD.search(t[: m.start()]) and not _NOT_TAX.search(t[: m.start()])
+        it_tax = re.match(r"(?:it|this)\b", t, re.I) and _TAX_WORD.search(prev) and not _NOT_TAX.search(prev)
+        if about_tax or it_tax:
+            yield m
+
+
+def _stated_sides(asm: A.Assembly) -> _Sides:
+    movable = [g for g in asm.groups if g.kind in ("fee", "credit", "daycredit")]
+    labels = {A.norm_label(g.label) for g in movable}
+    out = _Sides({}, {}, set())
+    for _, text in asm.texts:
+        sents = [_flat(text[a:b]) for a, b in _sentences(text)]
+        for j, t in enumerate(sents):
+            low = A.norm_label(t)
+            nothing = bool(_NOTHING_OUTSIDE.search(t))
+            if nothing:
+                out.every.add("before")
+            for m in () if "tax-lists" in DISABLED else _lists(t, sents[j - 1] if j else ""):
+                negated = bool(_NEGATED.search(t[max(0, m.start() - 25) : m.start()]))  # "It does not apply to"
+                region = low[len(A.norm_label(t[: m.end()])) :]
+                j_end = _JOIN.search(region)
+                v_end = _VERB.search(region)
+                end = min(x.start() for x in (j_end, v_end, re.search(r"$", region)) if x)
+                subject = v_end is not None and v_end.start() == end
+                region = region[:end]
+                ex = _EXCEPT.search(region)
+                cut = ex.start() if ex else len(region)
+                for lab in labels:
+                    at = region.find(lab)
+                    if at < 0 or (subject and _HEAD_NOUN.fullmatch(region[at + len(lab) :])):
+                        continue
+                    side = "after" if negated or at >= cut else "before"
+                    out.named.setdefault(lab, set()).add(side)
+                incl = region[:cut]
+                if not negated and _ALL_LINES.search(incl):
+                    out.every.add("before")
+                for kind, noun in _KIND_NOUNS.items():
+                    if not negated and noun.search(incl):
+                        out.kinds.setdefault(kind, set()).add("before")
+            said = "after" if _AFTER_TAX.search(t) else "before" if _BEFORE_TAX.search(t) else None
+            if said is None or nothing:
+                continue
+            if _EVERY.search(t) and not re.search(r"\bno other\b", t, re.I):
+                out.every.add(said)
+            for kind, noun in _KIND_NOUNS.items():
+                if noun.search(t):
+                    out.kinds.setdefault(kind, set()).add(said)
+    return out
+
+
+def _side_check(asm: A.Assembly, g: A.Group, named: list[str], is_after: bool, sides: _Sides) -> str:
+    """ "" when the text states the line's side as the case has it; "tax-side" when the text puts it on the other side
+    by name; "tax-side-unstated" when the text never states its side."""
+    want = "after" if is_after else "before"
+    explicit = set()
+    for t in named:
+        said = "after" if _AFTER_TAX.search(t) else "before" if _BEFORE_TAX.search(t) else None
+        if said is not None:
+            explicit.add(said)
+    explicit |= sides.named.get(A.norm_label(g.label), set())
+    if explicit - {want}:
+        return "tax-side"
+    if explicit:
+        return ""
+    kind = "fee" if g.kind == "fee" else "credit"
+    one = sum(1 for x in asm.groups if x.kind in (("fee",) if kind == "fee" else ("credit", "daycredit")))
+    stated = (sides.kinds.get(kind, set()) if one == 1 else set()) | sides.every
+    if "tax-side-unstated" in DISABLED or want in stated:
+        return ""
+    return "tax-side-unstated"
