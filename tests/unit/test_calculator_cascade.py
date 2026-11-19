@@ -840,3 +840,119 @@ def test_wording_rounding_words_are_read_over_a_line_wrap():
         "the total is rounded once to the nearest 15 minutes.", "the total is rounded once to the\n nearest 15 minutes."
     )
     assert _wording(state).ok
+
+
+def _small(state, spans, flags=None):
+    flags = flags or {"tax_kind": "charged", "tax_after": []}
+    return _wording(state, spans, flags)
+
+
+def test_wording_refuses_one_count_read_as_both_the_quantity_and_the_days():
+    state = "Standing days: 4 at $12.50 each, charged for each day, for 4 days.\nTax of 8% is charged on the bill."
+    spans = [
+        ("Standing days", 0, "item_label", "i1", None),
+        ("4", 0, "quantity", "i1", None),
+        ("$12.50", 0, "price", "i1", None),
+        ("4 days", 0, "day_count", "i1", None),
+        ("8%", 0, "tax_rate", "tax", None),
+    ]
+    assert _small(state, spans).code == "count-is-days"
+    per_unit = state.replace("4 at $12.50 each, charged for each day", "4 units at $12.50 per unit per day")
+    spans[1] = ("4 units", 0, "quantity", "i1", None)
+    assert _small(per_unit, spans).ok  # priced per unit and per day: a quantity and a day count
+
+
+def test_wording_refuses_a_restated_total_read_as_an_entry():
+    state = (
+        "Design hours: entries of 90 min, 120 min and 58 min, total time 268 min, at $24.00 per hour.\n"
+        "Tax of 8% is charged on the bill."
+    )
+    spans = [
+        ("Design hours", 0, "item_label", "i1", None),
+        ("90 min", 0, "duration", "i1", None),
+        ("120 min", 0, "duration", "i1", None),
+        ("58 min", 0, "duration", "i1", None),
+        ("268 min", 0, "duration", "i1", None),
+        ("$24.00", 0, "rate", "i1", None),
+        ("8%", 0, "tax_rate", "tax", None),
+    ]
+    assert _small(state, spans).code == "restated-total"
+    three = [s for s in spans if s[0] != "268 min"] + [("268 min", 0, "distractor", None, None)]
+    assert _small(state, three).ok
+
+
+@pytest.mark.parametrize(
+    ("line", "code"),
+    [
+        ("Rush supplement: 10% of Crate packing, added.", ""),
+        ("Rush supplement: 10% of Forklift time only, added.", "adjustment-target"),  # names another line
+        ("Rush supplement: 10%, added.", "adjustment-target"),  # names no line where the percent is
+    ],
+)
+def test_wording_reads_the_adjustment_target_in_the_percent_sentence(line, code):
+    state = STATE.replace("Rush supplement: 10% of Crate packing, added.", line)
+    assert _wording(state).code == code
+
+
+def test_wording_reads_the_tax_side_over_a_wrapped_line():
+    old = "Loyalty credit: $5.00, taken off before tax."
+    after = STATE.replace(old, "Loyalty credit: $5.00 is not counted in the\n  amount the tax is charged on.")
+    assert _wording(after).code == "tax-side"  # the case puts it before the tax
+    before = STATE.replace(old, "Loyalty credit: $5.00 is taken off before\n  tax.")
+    assert _wording(before).ok
+
+
+def test_sentences_join_wrapped_lines_only():
+    from decisio.calculator.cascade import gates
+
+    def split(text):
+        return [" ".join(text[a:b].split()) for a, b in gates._sentences(text)]
+
+    assert split("2. Standing days are charged at $9\n   for each day, for 4 days.\n3. Next.") == [
+        "2.",
+        "Standing days are charged at $9 for each day, for 4 days.",
+        "3.",
+        "Next.",
+    ]  # a list item's number stays its own piece, as before
+    rows = "Gas used      14     $4.99\nConnection fee  1   $7.00"
+    assert split(rows) == ["Gas used 14 $4.99", "Connection fee 1 $7.00"]  # table rows
+    assert split("Gas used: 857 lb (1 lb = 0.4536 kg)\nCable laid: 4 m at $2 per m") == [
+        "Gas used: 857 lb (1 lb = 0.4536 kg)",
+        "Cable laid: 4 m at $2 per m",
+    ]  # "Label:" lines
+
+
+@pytest.mark.parametrize(
+    ("sentence", "code"),
+    [
+        ("", "tax-side-unstated"),
+        ("Every charge, fee and credit above is inside the taxed amount.", ""),
+        ("The taxed amount includes Crate packing, Forklift time, Cable and the Handling fee.", ""),
+        ("Tax applies to Crate packing and Cable, and the Handling fee is added afterwards.", "tax-side-unstated"),
+        ("The taxed amount holds every line above except the Handling fee.", "tax-side"),
+        ("No tax is charged on the Handling fee.", "tax-side"),
+        ("Nothing is applied after tax.", ""),
+        ("A discount applies to Cable. It does not apply to the Handling fee.", "tax-side-unstated"),
+    ],
+)
+def test_wording_needs_a_stated_tax_side_for_every_fee_and_credit(sentence, code):
+    state = STATE.replace("Handling fee: $7.25, added after tax.", "Handling fee: $7.25, added.")
+    state = state.replace("Tax of 8% is charged on the bill.", f"Tax of 8% is charged on the bill. {sentence}".strip())
+    flags = dict(FLAGS, tax_after=[])
+    assert _wording(state, SPANS, flags).code == code
+
+
+@pytest.mark.parametrize(("label", "line"), [("handling fee", "Pre-handling fee"), ("Pre", "Pre-handling fee")])
+def test_wording_refuses_a_label_cut_at_a_hyphen(label, line):
+    state = STATE.replace("Handling fee: $7.25", f"{line}: $7.25")
+    spans = [(label, 0, "item_label", "f1", None) if s[0] == "Handling fee" else s for s in SPANS]
+    flags = dict(FLAGS, tax_after=[label])
+    assert _wording(state, spans, flags).code == "label-cut"
+
+
+def test_wording_refuses_a_fee_the_text_never_says_is_charged():
+    state = STATE.replace("Handling fee: $7.25, added after tax.", "Parking reimbursement | $7.25")
+    state = state.replace("on the bill.", "on the bill. Nothing is outside it.")
+    spans = [("Parking reimbursement",) + s[1:] if s[0] == "Handling fee" else s for s in SPANS]
+    flags = dict(FLAGS, tax_after=[])
+    assert _wording(state, spans, flags).code == "fee-unstated"
