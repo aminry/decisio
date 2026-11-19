@@ -1001,3 +1001,23 @@ def test_wording_refuses_a_label_short_of_its_table_cell():
     state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "Crate packing days   4 crates at $12.50 each.")
     spans = [("Crate packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
     assert _wording(state, spans).code == "label-cut"
+
+
+def test_wording_refuses_a_credit_the_text_adds_by_name():
+    state = STATE.replace("on the bill.", "on the bill. The taxed amount is Crate packing plus the Loyalty credit.")
+    assert _wording(state).code in ("credit-direction", "tax-side")
+    state = STATE.replace("on the bill.", "on the bill. The base is Crate packing, minus the Loyalty credit.")
+    assert _wording(state).code != "credit-direction"
+
+
+def test_wording_refuses_a_number_that_names_rather_than_counts():
+    state = STATE.replace("Crate packing: 4 crates", "Crate packing (section 4): 4 crates")
+    spans = SPANS + [("4", 0, "quantity", "i1", None)]  # the section's number read as the count too
+    assert _wording(state, spans).code == "identifier-number"
+
+
+def test_wording_refuses_a_case_whose_taxed_base_is_negative():
+    old = "Loyalty credit: $5.00, taken off before tax."
+    state = STATE.replace(old, "Loyalty credit: $5000.00, taken off before tax.")
+    spans = [("$5000.00",) + s[1:] if s[0] == "$5.00" else s for s in SPANS]
+    assert _wording(state, spans).code == "negative-total"

@@ -633,7 +633,10 @@ def wording(asm: A.Assembly) -> Check:
     shows beside its amount, never saying it is charged), `adjustment-direction-unstated` (no verb near the
     adjustment's name, nor its name's own word, gives the case's direction), `label-direction` (a name that states both
     directions: "Rush surcharge deduction"), `tax-side-ambiguous` (wording that leaves a side of the tax open: "handled
-    together with the tax"), `unaccounted-line` (a fee or credit the text names that is no line of the case)."""
+    together with the tax"), `unaccounted-line` (a fee or credit the text names that is no line of the case),
+    `credit-direction` (a line taken off that the text adds by name: "plus the Standing charge days"),
+    `identifier-number` (a number that names something read as a count: "Length section 1"), `negative-total` (a case
+    whose taxed base or total is below zero)."""
     gate = "wording"
     texts = dict(asm.texts)
     for s in asm.spans:
@@ -692,6 +695,14 @@ def wording(asm: A.Assembly) -> Check:
             return _fail(gate, "adjustment-target", bad)
     deducted = {A.norm_label(a["label"]) for a in asm.input.get("adjustments", ()) if a.get("direction") == "deduct"}
     outside = {A.norm_label(x) for x in asm.input.get("tax", {}).get("outside", ())}
+    if "identifier-number" not in DISABLED:
+        for x in asm.spans:
+            if x.role in _COUNTED and _IDENTIFIER.search(texts.get(x.where, "")[max(0, x.start - 16) : x.start]):
+                return _fail(gate, "identifier-number", x.key)
+    if "negative-total" not in DISABLED:
+        bad = _negative_figure(asm)
+        if bad:
+            return _fail(gate, "negative-total", bad)
     sides = _stated_sides(asm)
     if "tax-side-ambiguous" not in DISABLED:
         for _, text in asm.texts:
@@ -720,6 +731,11 @@ def wording(asm: A.Assembly) -> Check:
                 said = _stated_direction(g.label, named)
                 if said != ("deduct" if deduct else "add"):
                     return _fail(gate, "adjustment-direction-unstated", g.id)
+        if g.kind in ("credit", "daycredit") and "credit-direction" not in DISABLED:
+            # a line taken off that the text adds by name ("The taxed amount is Gas used plus Standing charge days")
+            key = re.escape(A.norm_label(g.label))
+            if any(re.search(rf"\bplus (?:the |a |an )?{key}\b", t.casefold()) for t in named):
+                return _fail(gate, "credit-direction", g.id)
         if "label-direction" not in DISABLED and _label_contradicts(g, A.norm_label(g.label) in deducted):
             return _fail(gate, "label-direction", g.id)
         if g.kind == "fee" and "fee-unstated" not in DISABLED and not any(_CHARGED.search(t) for t in named):
@@ -832,6 +848,27 @@ def _unaccounted(asm: A.Assembly) -> str:
                 phrase = A.norm_label(m.group(0))
                 if not any(phrase in lab or lab in low[max(0, m.start() - 40) : m.end() + 5] for lab in labels):
                     return phrase
+    return ""
+
+
+# a number that names something rather than counts it ("Length section 1", "Entry 2", "No. 3", "#4"): never a
+# quantity, length, duration or day count
+_COUNTED = frozenset({"quantity", "duration", "day_count", "rounding_step", "factor_from", "factor_to"})
+_IDENTIFIER = re.compile(
+    r"(?:\b(?:section|entry|item|part|line|row|step|stage|page|ref|reference|order|invoice|account|no|number)\.?|#)"
+    r"[ \t]*$",
+    re.I,
+)
+
+
+def _negative_figure(asm: A.Assembly) -> str:
+    """A case whose taxed base or total comes out below zero is no bill the text describes: refused."""
+    try:
+        for name, x, _ in figures(asm):
+            if name in ("taxed-base", "total") and x < 0:
+                return name
+    except Exception:
+        return "figures"
     return ""
 
 
