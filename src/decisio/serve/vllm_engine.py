@@ -3128,6 +3128,13 @@ def build_parser():
         "CUDA, else the CPU",
     )
     ap.add_argument(
+        "--calculator-dtype",
+        choices=("float32", "float16", "bfloat16"),
+        default="float32",
+        help="the cascade reader's tagger precision: float32 (the default, what its thresholds were fitted on); "
+        "float16 or bfloat16 halve its memory and time on a GPU, and may move a probability inside the margin band",
+    )
+    ap.add_argument(
         "--emulate-precision-casts",
         choices=precision_casts.CHOICES,
         default=None,
@@ -3522,6 +3529,8 @@ def main():
         args.calculator_device,
     ):
         ap.error(why)
+    if getattr(args, "calculator_dtype", "float32") != "float32" and args.calculator_reader != "cascade":
+        ap.error("--calculator-dtype is the cascade reader's tagger precision: it needs --calculator-reader cascade")
     if note := calcs.not_used_note(args.calculator_reader, getattr(args, "calculator_version", None)):
         print(note, flush=True)
     # the cascade reader names its tagger and thresholds in the task fingerprint, where the calculator is on
@@ -3913,6 +3922,7 @@ def main():
                 args.calculator_thresholds,
                 args.calculator_device,
                 args.backend,
+                dtype=args.calculator_dtype,
             )
         except (ValueError, OSError, ImportError) as e:
             raise SystemExit(f"--calculator-tagger: {e}") from e

@@ -118,6 +118,7 @@ A small role tagger (a token-classification encoder) marks the role of each numb
 - The tagger is loaded once at start, and the start prints `CALCULATOR READER cascade: tagger <name>@<revision> on <device>, thresholds <file or off>`.
 - `--calculator-thresholds FILE`: a JSON object with `role`, `link` and `flag` (and `band`, the margin); without it the threshold rule is off, so only `rules_agree`, `stated_figures` and `rules_only` can show a block.
 - `--calculator-device auto|cpu|cuda|mps`: `auto` runs the tagger on the serving card for the vLLM backend on CUDA, in the memory vLLM leaves under `--gpu-memory-utilization`, and on the CPU otherwise. The tagger needs `torch` and `transformers`.
+- `--calculator-dtype float32|float16|bfloat16`: the tagger's precision; `float32`, the default, is what its thresholds are fitted on.
 - The cascade without a tagger, a tagger flag without `--calculator-reader cascade`, a Hub tagger without a full commit hash or an unusable thresholds file stops the start with a message. On a server that shows no block, the cascade is a start note and nothing is loaded.
 
 **What it adds** (none of it appears with the rule reader):

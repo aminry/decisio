@@ -211,7 +211,13 @@ class Reader:
         tagger's revision and the thresholds, which decide which blocks are shown."""
         if not self.cascade:
             return None
-        return {"reader": self.name, "tagger": self.tagger_facts.get("revision"), "thresholds": self.threshold_facts()}
+        return {
+            "reader": self.name,
+            "tagger": self.tagger_facts.get("revision"),
+            "thresholds": self.threshold_facts(),
+            # a precision other than float32 moves the tagger's probabilities: named only when set
+            **({"dtype": self.tagger_facts["dtype"]} if self.tagger_facts.get("dtype") else {}),
+        }
 
     def start_line(self) -> str:
         f = self.tagger_facts
@@ -364,7 +370,9 @@ def not_used_note(reader: str, calculator_version) -> str | None:
     return None
 
 
-def load_reader(reader: str, tagger, thresholds, device: str, backend: str, loader=None) -> Reader:
+def load_reader(
+    reader: str, tagger, thresholds, device: str, backend: str, loader=None, dtype: str = "float32"
+) -> Reader:
     """The server's reader, loaded once at start (after `check_flags`): the rule reader, or the cascade with its tagger
     on the resolved device. `loader(path, revision, device)` loads the tagger (default: `cascade.tagger.HFTagger.load`,
     which needs torch and transformers and checks a directory's SHA256SUMS)."""
@@ -374,8 +382,12 @@ def load_reader(reader: str, tagger, thresholds, device: str, backend: str, load
 
     name, revision = parse_tagger(tagger)
     dev = tagger_device(device, backend)
-    model = (loader or HFTagger.load)(name, revision, dev)
+    model = (
+        (loader or HFTagger.load)(name, revision, dev, dtype)
+        if dtype != "float32"
+        else (loader or HFTagger.load)(name, revision, dev)
+    )
     if revision is None:  # a local directory: its content; a Hub tagger: the commit hash
         revision = local_revision(name)
-    facts = {"name": name, "revision": revision, "device": dev}
+    facts = {"name": name, "revision": revision, "device": dev, **({"dtype": dtype} if dtype != "float32" else {})}
     return Reader("cascade", model, facts, load_thresholds(thresholds), thresholds)

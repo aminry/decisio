@@ -128,12 +128,12 @@ class HFTagger:
         self.model, self.tokenizer, self.meta, self.device = model, tokenizer, meta, device
 
     @classmethod
-    def load(cls, path: str, revision: str | None = None, device: str = "cpu") -> HFTagger:
+    def load(cls, path: str, revision: str | None = None, device: str = "cpu", dtype: str = "float32") -> HFTagger:
         from decisio.calculator.cascade import model as M
 
         directory = resolve(path, revision)
         check_sums(directory)
-        model, tokenizer, meta = M.load(directory, device)
+        model, tokenizer, meta = M.load(directory, device, dtype)
         return cls(model, tokenizer, meta, device)
 
     def predict(self, state: str, context: str | None = None) -> Tags:

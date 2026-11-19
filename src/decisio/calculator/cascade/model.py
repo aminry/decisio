@@ -493,7 +493,7 @@ def save(model: CascadeTagger, tokenizer, directory, meta: dict) -> None:
     (d / "SHA256SUMS").write_text("\n".join(lines) + "\n")
 
 
-def load(directory, device: str = "cpu"):
+def load(directory, device: str = "cpu", dtype: str = "float32"):
     from safetensors.torch import load_file
     from transformers import AutoConfig, AutoModel, AutoTokenizer
 
@@ -505,6 +505,10 @@ def load(directory, device: str = "cpu"):
     encoder = AutoModel.from_config(config, attn_implementation="sdpa")
     model = CascadeTagger(encoder)
     model.load_state_dict(load_file(d / "model.safetensors", device="cpu"))
-    model.to(device=device, dtype=torch.float32).eval()
+    # float32 by default: the thresholds are fitted on float32 tags; float16 or bfloat16 only where the determinism
+    # check has measured the drift against the margin band
+    if dtype not in ("float32", "float16", "bfloat16"):
+        raise ValueError(f"tagger dtype must be float32, float16 or bfloat16, not {dtype!r}")
+    model.to(device=device, dtype=getattr(torch, dtype)).eval()
     tokenizer = AutoTokenizer.from_pretrained(d)
     return model, tokenizer, meta

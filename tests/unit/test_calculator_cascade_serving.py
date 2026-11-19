@@ -323,3 +323,18 @@ def test_the_tagger_reads_one_request_at_a_time():
     for t in threads:
         t.join()
     assert peak[0] == 1
+
+
+def test_a_tagger_precision_other_than_float32_is_named(tmp_path):
+    from decisio.serve import calculator_serving as calcs
+
+    seen = {}
+
+    def loader(name, revision, device, dtype="float32"):
+        seen["dtype"] = dtype
+        return calcs._LockedTagger(type("T", (), {"predict": lambda self, s, c=None: None})())
+
+    plain = calcs.load_reader("cascade", "owner/tagger@" + "e" * 40, None, "cpu", "vllm", loader=loader)
+    assert seen["dtype"] == "float32" and "dtype" not in plain.fingerprint()
+    half = calcs.load_reader("cascade", "owner/tagger@" + "e" * 40, None, "cpu", "vllm", loader=loader, dtype="float16")
+    assert seen["dtype"] == "float16" and half.fingerprint()["dtype"] == "float16"
