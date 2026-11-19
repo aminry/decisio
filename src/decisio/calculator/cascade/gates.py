@@ -565,6 +565,11 @@ def wording(asm: A.Assembly) -> Check:
         before = _WORD_BEFORE.search(src[: s.start])
         if s.text[:1].islower() and before and before.group(1).casefold() not in _LABEL_BEFORE_OK:
             return _fail(gate, "label-cut", s.key)
+        # a label that starts or ends inside a word ("haul" out of "Linehaul")
+        if (s.start > 0 and src[s.start - 1].isalnum() and s.text[:1].isalnum()) or (
+            s.end < len(src) and src[s.end].isalnum() and s.text[-1:].isalnum()
+        ):
+            return _fail(gate, "label-cut", s.key)
         m = _HEADING_REST.match(src[s.end :])
         if m and not _continues_label(src, s.end, m.group(0), asm):
             return _fail(gate, "label-cut", s.key)

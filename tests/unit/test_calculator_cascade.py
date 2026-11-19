@@ -821,3 +821,9 @@ def test_wording_reads_the_sentence_that_introduces_an_enumeration():
     )
     check = _wording(state)  # the credit read before the tax, against the introducing sentence
     assert (check.ok, check.code) == (False, "tax-side")
+
+
+def test_wording_refuses_a_label_cut_inside_a_word():
+    spans = [("packing", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    state = STATE.replace("Crate packing: 4 crates", "Cratepacking: 4 crates")
+    assert _wording(state, spans).code == "label-cut"
