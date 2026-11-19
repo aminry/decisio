@@ -511,7 +511,23 @@ def test_model_wrapper_reads_with_a_tiny_local_model(tmp_path):
     via = annotate(STATE, reader="cascade", tagger=str(tmp_path), thresholds=TH)
     assert isinstance(via, (Annotation, Abstain)) and via.path
     long = HFTagger(tagger.model, tagger.tokenizer, dict(tagger.meta, max_length=8))
-    assert long.predict(STATE).note == "too-long"
+    assert long.predict(STATE).note == "too-long"  # more than MAX_WINDOWS windows
+    n = len(tagger.tokenizer(STATE)["input_ids"])
+    windowed = HFTagger(tagger.model, tagger.tokenizer, dict(tagger.meta, max_length=n // 3 + 2))
+    got = windowed.predict(STATE)
+    assert not got.note and got == windowed.predict(STATE)
+    assert all(s.text == STATE[s.start : s.end] for s in got.spans)
+
+
+@pytest.mark.parametrize(("n", "size"), [(5, 10), (10, 10), (11, 10), (40, 10), (1000, 510)])
+def test_windows_cover_every_token_with_overlap(n, size):
+    from decisio.calculator.cascade.model import windows
+
+    ws = windows(n, size)
+    assert ws[0][0] == 0 and ws[-1][1] == n and all(b - a <= size for a, b in ws)
+    assert all(a2 < b1 for (_, b1), (a2, _) in zip(ws, ws[1:]))  # neighbours overlap: no seam without context
+    if n > size:
+        assert all(b1 - a2 >= size // 4 for (_, b1), (a2, _) in zip(ws, ws[1:]))
 
 
 # ---- rule forms the calculator cannot express veto the block --------------------------------------------------------
