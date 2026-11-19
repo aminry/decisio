@@ -1,28 +1,26 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The time and unit calculator (format `time-v1`): exact facts about the dates, clock times and measured quantities a
-state states, written as a block the model reads with the state. Facts only, never an answer: what the text's own
-values come to, so that a model reading a rota, a warranty clause or a load sheet does not have to do the arithmetic.
+"""The date and time calculator (format `time-v1`): the deciding facts about the dates and clock times a state
+states, written as a block the model reads with the state. Facts only, never an answer: what the text's own values
+come to, so that a model reading a rota, a warranty clause or a travel log does not have to do the time arithmetic.
 
 Each line is derived from values written in the text, by fixed rules, with exact arithmetic:
 
-  zoned times     a clock time with an explicit zone abbreviation or UTC offset ("01:30 CEST", "18:30 UTC-4") is
-                  written in UTC, with the day it falls on when the text gives its date ("01:30 CEST, 4 Sep 2026 =
-                  23:30 UTC, 3 Sep 2026"), else as a day shift ("= 23:30 UTC the previous day")
-  elapsed time    between two zoned times with dates, in the order the text gives them: the real time between them
-  clock spans     "21:00 to 07:30" with no zone: the clock-time span, said to be by the clock (a clock change in
-                  between is not counted)
-  calendar        "N days / weeks after <date>": the date it comes to; "N months / years after <date>": the date, or,
-                  when that day does not exist, that it does not and how many days the month has (the text's own rule
-                  decides what happens then); the weekday of every full date, when the text speaks of weekdays
-  units           a quantity in a unit whose counterpart the text also uses (lb and kg, mi and km, ...): the quantity in
-                  the counterpart, by the definition's exact factor (1 lb = 0.45359237 kg)
+  zoned times     a clock time with an explicit zone ("01:30 CEST", "18:30 UTC-4", "13:00 Chicago time") is written
+                  in UTC, with the day it falls on when the text gives its date ("01:30 CEST, 4 Sep 2026 = 23:30 UTC,
+                  3 Sep 2026"); a time without a date gives no line
+  real time       between dated zoned times (every pair when there are at most five, else successive ones): the real
+                  time between them, across zones and clock changes ("13:00 Chicago time, 3 Sep 2026 to 01:30 CEST,
+                  4 Sep 2026: 5 h 30 min"; "minus" when the second is earlier)
+  calendar        "N days / weeks after <date>": the date it comes to ("23 Jan 2026 + 9 weeks: 27 Mar 2026");
+                  "N months / years after <date>": the date, or, when that day does not exist, that it does not
+                  and how many days the month has (the text's own rule decides what happens then)
 
-Zone abbreviations are fixed offsets (CEST is UTC+2 whatever the date); abbreviations with more than one meaning (CST,
-IST, AST, ...) are not read. A major city's time ("13:00 Chicago time") is read with its zone's rules on the stated date
+Zone abbreviations with one meaning are fixed offsets (CEST is UTC+2 whatever the date); abbreviations with more than
+one meaning (CST, IST, AST, ...) are not read. A major city's time is read with its zone's rules on the stated date
 (daylight saving included), only when the date is given and the time is not one a clock change skips or repeats. A
-value the rules cannot read in one way is left out:
-the block holds only what is certain. With no line, there is no block (`Abstain("no-time-facts")`).
+value the rules cannot read in one way is left out: the block holds only what is certain. With no line, there is no
+block (`Abstain("no-time-facts")`).
 """
 
 from __future__ import annotations
@@ -31,10 +29,9 @@ import calendar
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from fractions import Fraction
 
 VERSION = "time-v1"
-HEADING = "Calculator, times and units (exact):"
+HEADING = "Calculator, times (exact):"
 MAX_LINES = 24
 
 _MONTHS = {
@@ -93,10 +90,6 @@ _TIME = re.compile(
     rf"(?:\s*\(?(?P<z>{_ZONE_RX})\)?(?![A-Za-z])|\s+(?:[A-Za-z]+\s+){{0,4}}\(?(?P<city>{_CITY_RX})\s+time\b\)?)?",
     re.I,
 )
-_SPAN = re.compile(
-    r"(?<![\d:.,$\u20ac\u00a3])(?P<h1>[01]?\d|2[0-3]):(?P<m1>[0-5]\d)\s*(?:to|until|till|-|–)\s*"
-    r"(?P<h2>[01]?\d|2[0-4]):(?P<m2>[0-5]\d)(?![\d:])(?!\s?[ap]\.?m)"
-)
 _SHIFT = re.compile(
     rf"\b(?P<n>\d{{1,4}})\s+(?P<u>days?|weeks?|months?|years?)\s+(?P<dir>after|from|following|before|prior to)\s+"
     rf"(?:the\s+)?(?P<date>(?:{_WEEKDAY_RX},?\s+)?(?:\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{_MONTH_RX})\.?(?:,?\s+\d{{4}})?"
@@ -104,32 +97,8 @@ _SHIFT = re.compile(
     re.I,
 )
 
-# unit pairs: a quantity in one is also written in the other when the text uses both (exact definitional factors)
-_UNITS = {
-    "lb": ("kg", Fraction("0.45359237")),
-    "mi": ("km", Fraction("1.609344")),
-    "gal": ("L", Fraction("3.785411784")),
-}
-_UNIT_WORDS = {
-    "lb": r"lbs?|pounds?",
-    "kg": r"kg|kilograms?|kilos?",
-    "mi": r"mi|miles?",
-    "km": r"km|kilometres?|kilometers?",
-    "gal": r"gal|gallons?",
-    "L": r"L|litres?|liters?",
-}
-_NUM = r"(?<![\d.,])(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
-_QTY = {u: re.compile(rf"{_NUM}\s?(?:{w})(?![A-Za-z])") for u, w in _UNIT_WORDS.items()}
-
-# what a text needs before any rule runs: a month name or ISO date, a clock time, or a unit of both a pair
-_PREGATE = re.compile(
-    rf"\b(?:{_MONTH_RX})\b|\d{{4}}-\d{{2}}-\d{{2}}|\b\d{{1,2}}[:.][0-5]\d\b|\b(?:lbs?|mi|miles|gal|gallons)\b", re.I
-)
-
-
-_WEEKDAY_TALK = re.compile(
-    rf"\b(?:{_WEEKDAY_RX}|weekdays?|weekends?|business days?|working days?|calendar days?)(?![A-Za-z])", re.I
-)
+# what a text needs before any rule runs: a month name, an ISO date or a clock time
+_PREGATE = re.compile(rf"\b(?:{_MONTH_RX})\b|\d{{4}}-\d{{2}}-\d{{2}}|\b\d{{1,2}}[:.][0-5]\d\b", re.I)
 
 
 @dataclass(frozen=True)
@@ -243,19 +212,18 @@ def _hm(minutes: int) -> str:
 
 
 def _dur(minutes: int) -> str:
+    """A real duration, minutes always shown; "minus" when the second time is earlier than the first."""
     h, m = divmod(abs(minutes), 60)
-    s = f"{h} h {m} min" if m else f"{h} h"
-    return ("-" if minutes < 0 else "") + s
+    return ("minus " if minutes < 0 else "") + f"{h} h {m} min"
 
 
 def _day(d: date) -> str:
     return f"{d.day} {_MON3[d.month]} {d.year}"
 
 
-def _qty(x: Fraction) -> str:
-    from decisio.calculator.render import quantity
-
-    return quantity(x)
+def _stamp(s: Stamp) -> str:
+    """A dated zoned time as the block writes it: the time and zone as the text writes them, then its date."""
+    return f"{s.text}, {_day(s.day)}"
 
 
 def facts(state: str, context: str | None = None) -> list[str]:
@@ -273,16 +241,7 @@ def facts(state: str, context: str | None = None) -> list[str]:
         utc = s.minutes - s.offset
         if s.day is not None:
             when = datetime(s.day.year, s.day.month, s.day.day) + timedelta(minutes=utc)
-            if s.minutes == 24 * 60:
-                lines.append(f"{s.text}, {_day(s.day)} = {_hm(when.hour * 60 + when.minute)} UTC, {_day(when.date())}")
-            else:
-                lines.append(f"{s.text}, {_day(s.day)} = {_hm(when.hour * 60 + when.minute)} UTC, {_day(when.date())}")
-        elif s.offset != 0:
-            shift, rem = divmod(utc, 24 * 60)
-            tail = {0: "", 1: " the next day", -1: " the previous day"}.get(shift)
-            if tail is None:
-                continue
-            lines.append(f"{s.text} = {_hm(rem)} UTC{tail}")
+            lines.append(f"{_stamp(s)} = {_hm(when.hour * 60 + when.minute)} UTC, {_day(when.date())}")
     # elapsed time between successive zoned, dated times
     dated = [s for s in zoned if s.day is not None]
     # every pair when there are few (a dose and the next one may have other events between them), else successive ones
@@ -295,20 +254,7 @@ def facts(state: str, context: str | None = None) -> list[str]:
         ta = datetime(a.day.year, a.day.month, a.day.day) + timedelta(minutes=a.minutes - a.offset)
         tb = datetime(b.day.year, b.day.month, b.day.day) + timedelta(minutes=b.minutes - b.offset)
         mins = int((tb - ta).total_seconds() // 60)
-        lines.append(f"From {a.text}, {_day(a.day)} to {b.text}, {_day(b.day)}: {_dur(mins)} of real time")
-    # clock spans with no zone
-    for m in _SPAN.finditer(text):
-        tail = text[m.end() : m.end() + 12]
-        if re.match(rf"\s*\(?(?:{_ZONE_RX})", tail, re.I):
-            continue
-        s = int(m.group("h1")) * 60 + int(m.group("m1"))
-        e = int(m.group("h2")) * 60 + int(m.group("m2"))
-        if e > 24 * 60:
-            continue
-        span = (e - s) % (24 * 60) or (24 * 60 if e != s else 0)
-        if span:
-            nxt = " (into the next day)" if e <= s else ""
-            lines.append(f"{m.group(0).strip()}: {_dur(span)} by the clock{nxt}")
+        lines.append(f"{_stamp(a)} to {_stamp(b)}: {_dur(mins)}")
     # calendar shifts
     for m in _SHIFT.finditer(text):
         ds = _dates(m.group("date"), year)
@@ -319,7 +265,7 @@ def facts(state: str, context: str | None = None) -> list[str]:
         what = f"{_day(d0)} {'+' if sign > 0 else '-'} {n} {unit}{'s' if n != 1 else ''}"
         if unit in ("day", "week"):
             d1 = d0 + timedelta(days=sign * n * (7 if unit == "week" else 1))
-            lines.append(f"{what} = {_day(d1)} ({d1.strftime('%A')})")
+            lines.append(f"{what}: {_day(d1)}")
             continue
         months = sign * n * (12 if unit == "year" else 1)
         y, mo = divmod(d0.year * 12 + (d0.month - 1) + months, 12)
@@ -327,28 +273,11 @@ def facts(state: str, context: str | None = None) -> list[str]:
         last = calendar.monthrange(y, mo)[1]
         if d0.day <= last:
             d1 = date(y, mo, d0.day)
-            lines.append(f"{what} = {_day(d1)} ({d1.strftime('%A')})")
+            lines.append(f"{what}: {_day(d1)}")
         else:
             lines.append(
                 f"{what}: {d0.day} {_MON3[mo]} {y} does not exist; {calendar.month_name[mo]} {y} has {last} days"
             )
-    # weekdays of full dates (each once), when the text speaks of weekdays at all (a rota, business days, a weekend)
-    seen = set()
-    for _, _, d, raw in dates if _WEEKDAY_TALK.search(text) else ():
-        if d in seen:
-            continue
-        seen.add(d)
-        lines.append(f"{_day(d)} is a {d.strftime('%A')}")
-    # units
-    used = {u for u, rx in _QTY.items() if rx.search(text)}
-    for u, (v, f) in _UNITS.items():
-        if u in used and v in used:
-            for m in _QTY[u].finditer(text):
-                x = Fraction(m.group("num").replace(",", ""))
-                lines.append(f"{m.group(0).strip()} = {_qty(x * f)} {v}")
-            for m in _QTY[v].finditer(text):
-                x = Fraction(m.group("num").replace(",", ""))
-                lines.append(f"{m.group(0).strip()} = {_qty(x / f)} {u}")
     out, seen_lines = [], set()
     for ln in lines:
         if ln not in seen_lines:
