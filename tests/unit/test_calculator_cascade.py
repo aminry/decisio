@@ -706,3 +706,32 @@ def test_wording_refuses_an_adjustment_the_text_turns_the_other_way():
         "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, is ADDED to the bill."
     )
     assert _wording(state, SPANS, flags).code in ("adjustment-direction", "no-subtract-word")  # refused either way
+
+
+def test_decode_votes_one_family_per_span_and_keeps_the_likelier_span_per_value():
+    torch = pytest.importorskip("torch")
+    from decisio.calculator.cascade.model import LABELS, likelier_per_value, vote_spans
+
+    text = "Breakdown allowance $88.56"
+    offsets = [(0, 5), (5, 9), (10, 19), (20, 21), (21, 26)]  # "Break" "down" "allowance" "$" "88.56"
+    probs = torch.full((5, len(LABELS)), 1e-4)
+
+    def put(t, label, p):
+        probs[t, LABELS.index(label)] = p
+
+    put(0, "B-credit_label", 0.6), put(0, "B-item_label", 0.3)
+    put(1, "I-adj_label", 0.5), put(1, "I-credit_label", 0.45)  # one word split across families token by token
+    put(2, "I-credit_label", 0.9)
+    put(3, "B-price", 0.5), put(3, "B-credit_amount", 0.4)
+    put(4, "I-credit_amount", 0.9)
+    top_p, top = vote_spans(probs, offsets, text)
+    assert [LABELS[i] for i in top] == [
+        "B-credit_label",
+        "I-credit_label",
+        "I-credit_label",
+        "B-credit_amount",
+        "I-credit_amount",
+    ]
+    assert all(p <= 0.9 for p in top_p)
+    spans = [(20, 26, "credit_amount", 0.8), (20, 26, "price", 0.6), (0, 19, "credit_label", 0.7)]
+    assert likelier_per_value(spans) == [(20, 26, "credit_amount", 0.8), (0, 19, "credit_label", 0.7)]

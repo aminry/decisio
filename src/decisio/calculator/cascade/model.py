@@ -23,6 +23,7 @@ transitive join the model did not believe falls below any threshold.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 import torch
@@ -208,7 +209,9 @@ def encode_row(row: dict, tokenizer, max_length: int) -> dict | None:
     pairs, pair_y = [], []
     for i in range(len(spans)):
         for j in range(i + 1, len(spans)):
-            if fam[i] in GROUPED and fam[i] == fam[j]:
+            # pairs across two families too (always two lines in the labels), so the link head is trained on the
+            # pairs the group vote reads at decode (a phrase whose tokens flipped family)
+            if fam[i] in GROUPED and fam[j] in GROUPED:
                 pairs.append((i, j))
                 pair_y.append(float(spans[i].get("item") == spans[j].get("item")))
     label_idx = [i for i, s in enumerate(spans) if s["k"] == "item_label"]
@@ -408,6 +411,109 @@ def snap_values(raw, values, text: str, shift: int):
     return out
 
 
+# the group-level family vote (vote_groups) is measured before it becomes the default
+GROUP_VOTE = os.environ.get("DECISIO_CASCADE_GROUP_VOTE") == "1"
+CROSS_LINK = float(os.environ.get("DECISIO_CASCADE_CROSS_LINK", "0.95"))
+_BASE = {k: unkinded(k)[0] for k in KINDED}
+
+
+def vote_spans(probs, offsets, text):
+    """Each token's best label, then one line family per span: contiguous tokens of one base role (a begin and its
+    insides, or pieces of one word) take the family with the most probability summed over them, so a phrase or a value
+    no longer splits across families token by token ("Break|down allowance", "$" and "88.56"). A token's probability
+    becomes at most the span's mean probability of that family. Returns (top_p, top) as lists."""
+    top_p, top = probs.max(-1)
+    top_p, top = top_p.tolist(), top.tolist()
+    runs, cur, prev_end = [], None, None
+    for t, (a, b) in enumerate(offsets):
+        name = LABELS[top[t]]
+        if a == b or name == "O":
+            cur, prev_end = None, None
+            continue
+        tag, k = name.split("-", 1)
+        same_word = prev_end == a and not text[a : a + 1].isspace()
+        if cur is not None and _BASE[k] == cur[0] and (tag == "I" or same_word):
+            cur[1].append(t)
+        else:
+            cur = [_BASE[k], [t]]
+            runs.append(cur)
+        prev_end = b
+    for role, toks in runs:
+        fams = [k for k in KINDED if _BASE[k] == role]
+        if len(toks) < 2 or len(fams) < 2:
+            continue
+        score = {
+            k: float(sum(probs[t, LABELS.index("B-" + k)] + probs[t, LABELS.index("I-" + k)] for t in toks))
+            for k in fams
+        }
+        best = max(fams, key=lambda k: score[k])
+        for n, t in enumerate(toks):
+            top[t] = LABELS.index(("B-" if n == 0 else "I-") + best)
+            top_p[t] = min(top_p[t], score[best] / len(toks))
+    return top_p, top
+
+
+def likelier_per_value(spans):
+    """Spans that snapped onto the same value (the same offsets): the likelier one stays."""
+    best = {}
+    for x in spans:
+        if (x[0], x[1]) not in best or x[3] > best[(x[0], x[1])][3]:
+            best[(x[0], x[1])] = x
+    return [x for x in spans if best[(x[0], x[1])] is x]
+
+
+def _family_probs(probs, f) -> dict:
+    """A line span's probability of each family it can take (the mean over its tokens of its role's label in that
+    family); a role of one family only (a percent, a duration) gives that family alone."""
+    role = _BASE[f[2]]
+    a, b = f[4]
+    out = {}
+    for fam in GROUPED:
+        k = kinded(role, fam + "1")
+        if unkinded(k)[1] != fam:
+            continue
+        out[fam] = float((probs[a:b, LABELS.index("B-" + k)] + probs[a:b, LABELS.index("I-" + k)]).mean())
+    return out
+
+
+def vote_groups(model, probs, vec, found):
+    """One family per line: the line spans are linked together across families (the link head reads the two spans
+    alone, never their family), and each linked group takes the family with the most probability summed over its spans;
+    a span whose role cannot take that family keeps its own."""
+    idx = [i for i, f in enumerate(found) if unkinded(f[2])[1] in GROUPED]
+    if len(idx) < 2:
+        return found
+    sub = vec[idx]
+    p = model.pair(model.link, sub, sub).sigmoid()
+    p = ((p + p.T) / 2).tolist()
+    # across two families a link counts only when it is near certain and one of the two spans could take either
+    # family (a label, a price or a quantity): the link head was trained on pairs of one family
+    fam_of = [unkinded(found[i][2])[1] for i in idx]
+    ambiguous = [len(_family_probs(probs, found[i])) > 1 for i in idx]
+    for a in range(len(idx)):
+        for b in range(len(idx)):
+            if fam_of[a] != fam_of[b] and not (p[a][b] >= CROSS_LINK and (ambiguous[a] or ambiguous[b])):
+                p[a][b] = 0.0
+    roots, _ = _groups(len(idx), p)
+    out = list(found)
+    for r in set(roots):
+        members = [idx[n] for n, x in enumerate(roots) if x == r]
+        score: dict = {}
+        for i in members:
+            for fam, v in _family_probs(probs, found[i]).items():
+                score[fam] = score.get(fam, 0.0) + v
+        if not score:
+            continue
+        best = max(GROUPED, key=lambda fam: score.get(fam, -1.0))
+        for i in members:
+            s, e, k, pr, toks = found[i]
+            role = _BASE[k]
+            nk = kinded(role, best + "1")
+            if unkinded(nk)[1] == best and nk != k:
+                out[i] = (s, e, nk, pr, toks)
+    return out
+
+
 @torch.inference_mode()
 def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: str | None, device: str = "cpu") -> Tags:
     text, shift = join(state, context)
@@ -416,16 +522,18 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     if hidden is None:
         return Tags(spans=(), note="too-long")
     probs = model.tokens(hidden).float().softmax(-1)
-    top_p, top = probs.max(-1)
     offsets = [tuple(o) for o in enc["offset_mapping"]]
-    raw = decode_bio(offsets, top.tolist(), top_p.tolist(), LABELS, text)
+    top_p, top = vote_spans(probs, offsets, text)
+    raw = decode_bio(offsets, top, top_p, LABELS, text)
 
     found = []  # (start, end, kinded, p, token range)
     values = value_bounds(state, context, shift)
-    for s, e, k, p in snap_values(raw, values, text, shift):
+    for s, e, k, p in likelier_per_value(snap_values(raw, values, text, shift)):
         toks = [t for t, (a, b) in enumerate(offsets) if a < e and b > s and a != b]
         found.append((s, e, k, p, (toks[0], toks[-1] + 1)))
     vec = model.spans(hidden, [f[4] for f in found])
+    if GROUP_VOTE and found:
+        found = vote_groups(model, probs, vec, found)
     fams = [unkinded(f[2])[1] for f in found]
     item = [None] * len(found)
     conf: dict[str, float] = {}
