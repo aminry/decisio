@@ -173,7 +173,15 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
     assert sv.resolve_base(_args())[0].key == "gemma-4-31b"
     with pytest.raises(ValueError, match="--model or --base"):
         sv.resolve_base(_args(backend="hf"))
-    assert sorted(BASES) == ["gemma-4-12b", "gemma-4-12b-fp8", "gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b"]
+    assert sorted(BASES) == [
+        "gemma-4-12b",
+        "gemma-4-12b-fp8",
+        "gemma-4-31b",
+        "gemma-4-31b-bf16",
+        "gemma-4-e4b",
+        "qwen3.5-4b",
+        "qwen3.6-35b-a3b",
+    ]
 
 
 def _gemma4_checkpoint(tmp_path, name, moe):
@@ -286,14 +294,23 @@ def test_b8_every_family_pins_a_revision(fam, tmp_path, monkeypatch):
 
 
 def _config_reader(monkeypatch):
-    """read_config without the network: the model type each family's checkpoint declares; records what it was asked."""
+    """read_config without the network: the model type each family's checkpoint declares, with the fields that tell
+    bases of one model type apart (hidden size, per-layer input embeddings); records what it was asked."""
     calls = []
-    types_ = {f.model: f.model_types[0] for f in FAMILIES}
+    configs = {}
+    for f in FAMILIES:
+        text = {"enable_moe_block": False}
+        if f.hidden_size:
+            text["hidden_size"] = f.hidden_size
+        if f.per_layer_inputs:
+            text["hidden_size_per_layer_input"] = 256
+        configs.setdefault(f.model, {"model_type": f.model_types[0], "text_config": text})
 
     def read(model, revision=None):
         calls.append((model, revision))
-        mt = "qwen3" if Path(model).exists() else types_.get(model, "qwen3")  # a local one: unknown
-        return {"model_type": mt, "text_config": {"enable_moe_block": False}}
+        if Path(model).exists() or model not in configs:  # a local one, or another repository: unknown
+            return {"model_type": "qwen3", "text_config": {"enable_moe_block": False}}
+        return configs[model]
 
     monkeypatch.setattr("decisio.families.read_config", read)
     return calls

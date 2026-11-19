@@ -67,8 +67,12 @@ def _qwen3_5_module(vocab=64, hidden=8, zero_head=False):
             self.loaded = [name for name, _ in weights]
             return set(self.loaded)
 
+    class Qwen3_5ForCausalLM(Qwen3_5MoeForCausalLM):
+        """The dense text class (Qwen/Qwen3.5-4B): the same slice."""
+
     mod = types.ModuleType("vllm.model_executor.models.qwen3_5")
     mod.Qwen3_5MoeForCausalLM = Qwen3_5MoeForCausalLM
+    mod.Qwen3_5ForCausalLM = Qwen3_5ForCausalLM
     return mod
 
 
@@ -154,6 +158,7 @@ def stub_vllm(version="0.31.0", with_models=True, vocab=64, hidden=8, zero_head=
         if config_map is not None
         else {
             "Qwen3_5MoeForCausalLM": "Qwen3_5ForCausalLMConfig",
+            "Qwen3_5ForCausalLM": "Qwen3_5ForCausalLMConfig",
             "Qwen3ForCausalLM": "other",
             "Gemma4UnifiedForConditionalGeneration": "Gemma4Config",
             "Gemma4ForCausalLM": "Gemma4Config",

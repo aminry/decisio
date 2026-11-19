@@ -115,8 +115,8 @@ calls = []
 models = types.ModuleType("vllm.model_executor.models")
 models.ModelRegistry = types.SimpleNamespace(register_model=lambda a, c: calls.append((a, c)))
 config = types.ModuleType("vllm.model_executor.models.config")
-config.MODELS_CONFIG_MAP = {"Qwen3_5MoeForCausalLM": object, "Gemma4UnifiedForConditionalGeneration": object,
-                           "Gemma4ForCausalLM": object}
+config.MODELS_CONFIG_MAP = {"Qwen3_5MoeForCausalLM": object, "Qwen3_5ForCausalLM": object,
+                           "Gemma4UnifiedForConditionalGeneration": object, "Gemma4ForCausalLM": object}
 sys.modules.update({"vllm": vllm, "vllm.model_executor": types.ModuleType("vllm.model_executor"),
                     "vllm.model_executor.models": models, "vllm.model_executor.models.config": config})
 import decisio.vllm_plugin as p

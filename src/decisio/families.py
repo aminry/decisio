@@ -24,8 +24,17 @@
                    prompt (system turn, spaced layout at the template's answer slot, summed label forms, yes/no as
                    letters) with its own temperatures (EVAL_CARD.md).
 
+  qwen3.5-4b       Qwen/Qwen3.5-4B at a pinned revision: a small dense hybrid (Gated DeltaNet plus attention), read
+                   through a text-only class with the vision tower left out at load; the 12B's prompt (system turn,
+                   header layout, the model's own template with thinking off, every single-token label form summed,
+                   yes/no as letters). vLLM server only. Its temperatures are not fitted yet (1.0).
+  gemma-4-e4b      google/gemma-4-E4B-it at a pinned revision: the small Gemma 4 with per-layer input embeddings, read
+                   through the 31B's text class (vision and audio towers left out at load) in bf16, with the 12B's
+                   prompt and the model's own template. vLLM server only. Its temperatures are not fitted yet (1.0).
+
 Without `--base`, the base is detected from the checkpoint's config.json (`model_type`, and for `gemma4` checkpoints the
-mixture-of-experts flag: only the dense one is the 31B base); where two bases share a checkpoint in two precisions (the
+mixture-of-experts flag and the per-layer input embeddings: only the dense one without them is the 31B base, the one
+with them is the E4B); where two bases share a checkpoint in two precisions (the
 12B), the one whose precision the checkpoint declares: FP8 only for a checkpoint whose config.json declares FP8 weights,
 bf16 otherwise. Anything unknown is refused (the CPU stand-in keeps the Qwen base for its small models).
 
@@ -140,6 +149,12 @@ class Family:
     # detection without --base where two checkpoints share a model type: the config's mixture-of-experts flag must
     # equal this (None: either)
     moe: bool | None = None
+    # detection without --base where two checkpoints share a model type: whether the config declares per-layer input
+    # embeddings (`hidden_size_per_layer_input` above 0, the small Gemma 4 models) must equal this (None: either)
+    per_layer_inputs: bool | None = None
+    # detection without --base where one model type covers several sizes (Qwen3.5, the small Gemma 4 models): the
+    # config's hidden size must equal this (None: any), so another size is refused rather than read with this profile
+    hidden_size: int | None = None
     # where one checkpoint is served in two precisions (the 12B: "bf16" and "fp8"), which this base is; detection
     # without --base takes "fp8" only for a checkpoint that declares FP8 weights (declares_fp8), "bf16" otherwise.
     # None: the base's only precision (as `quantization` and the checkpoint say)
@@ -276,6 +291,8 @@ GEMMA4_31B = Family(
     # context; a pinned FP8 checkpoint replaces this when one exists
     quantization="fp8",
     moe=False,
+    # the small Gemma 4 checkpoints share the model type `gemma4`; they declare per-layer input embeddings, the 31B none
+    per_layer_inputs=False,
     # as the 12B (hit unit 32)
     register_state_boundary=True,
     # before: registering after the response cost the 31B 39% and 26% of its throughput at 32 and 64 clients on new
@@ -307,7 +324,66 @@ GEMMA4_31B_BF16 = replace(
     vllm_only=True,
 )
 
-FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B, GEMMA4_31B_BF16)
+# The small bases (served for a fast, cheap tier): each read with the 12B's prompt through its own chat template, in
+# the checkpoint's bf16, on the vLLM server only. Their temperatures are not fitted yet: 1.0 until a fit on their own
+# reads replaces it (another base's temperatures are never reused).
+QWEN35_4B = Family(
+    key="qwen3.5-4b",
+    model_types=("qwen3_5",),
+    model="Qwen/Qwen3.5-4B",
+    revision="851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a",
+    served_name="decisio-qwen3.5-4b-letters",
+    # no front padding: the prompt is the one the model is read with elsewhere, token for token
+    pad_to="none",
+    limit_mm={"image": 0, "video": 0},
+    # the text class of the checkpoint (plain RoPE; the multimodal class builds M-RoPE positions for every token), the
+    # vision tower left out at load, as the Qwen MoE base
+    classes={"text-only": "DecisioQwen3_5TextOnly", "hidden-readout": "DecisioQwen3_5HiddenReadout"},
+    # tied embeddings: the output layer's rows are the input embedding
+    head_rows=("lm_head.weight", "model.language_model.embed_tokens.weight", "model.embed_tokens.weight"),
+    temperature=1.0,
+    system_prompt=True,
+    prompt_tail="spaced",
+    answer_slot="template",
+    label_variants="summed",
+    noul_rendering="letters",
+    layout="header",
+    hidden_size=2560,
+    vllm_only=True,
+)
+
+GEMMA4_E4B = Family(
+    key="gemma-4-e4b",
+    model_types=("gemma4",),
+    model="google/gemma-4-E4B-it",
+    revision="4ecc2ba63bcac23ba4a767fc87025b1450f84c9c",
+    served_name="decisio-gemma-4-e4b-it-letters",
+    pad_to="none",
+    limit_mm={"image": 0, "video": 0, "audio": 0},
+    # vLLM's text class of the Gemma4ForConditionalGeneration checkpoint, as the 31B: it loads the language model
+    # (per-layer embeddings included) and leaves the vision and audio towers out at load
+    classes={"text-only": "DecisioGemma4TextOnly", "hidden-readout": "DecisioGemma4HiddenReadout"},
+    head_rows=GEMMA4.head_rows,
+    softcap=30.0,
+    head_label_logprobs="engine",
+    # 170,000 to 172,560 (hidden size 2,560), as the 12B's range: no label form in it
+    hidden_start=170_000,
+    temperature=1.0,
+    system_prompt=True,
+    prompt_tail="spaced",
+    answer_slot="template",
+    label_variants="summed",
+    noul_rendering="letters",
+    layout="header",
+    moe=False,
+    per_layer_inputs=True,
+    hidden_size=2560,
+    register_state_boundary=True,
+    register_boundary="before",
+    vllm_only=True,
+)
+
+FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B, GEMMA4_31B_BF16, QWEN35_4B, GEMMA4_E4B)
 BASES = {f.key: f for f in FAMILIES}
 # the base a vLLM server serves when neither --base nor --model is given (0.10.0; before, the server refused to start
 # and the container served the Qwen base); a --model alone still brings the base its checkpoint declares
@@ -357,6 +433,19 @@ def declares_fp8(config: dict) -> bool:
     return False
 
 
+def matches(fam: Family, config: dict) -> bool:
+    """Whether a checkpoint's config.json is of this base's kind: its model type, and where bases share one, the
+    mixture-of-experts flag, the per-layer input embeddings (the small Gemma 4 models against the 31B) and the hidden
+    size (one size of a model type served, the others refused)."""
+    text = config.get("text_config") or config
+    return (
+        config.get("model_type") in fam.model_types
+        and (fam.moe is None or fam.moe == bool(text.get("enable_moe_block")))
+        and (fam.per_layer_inputs is None or fam.per_layer_inputs == bool(text.get("hidden_size_per_layer_input")))
+        and (fam.hidden_size is None or fam.hidden_size == text.get("hidden_size"))
+    )
+
+
 def family_of(model: str | None, revision: str | None = None, lenient: bool = False) -> Family:
     """The base a checkpoint (a local directory or a hub id) belongs to. No checkpoint named is the default base
     (Qwen). A checkpoint whose config.json names a model type no base serves, or has no readable config.json, is
@@ -374,8 +463,7 @@ def family_of(model: str | None, revision: str | None = None, lenient: bool = Fa
         return QWEN
     cfg = read_config(model, revision)
     mt = cfg.get("model_type")
-    moe = bool((cfg.get("text_config") or cfg).get("enable_moe_block"))
-    found = [f for f in FAMILIES if f.detected and mt in f.model_types and (f.moe is None or f.moe == moe)]
+    found = [f for f in FAMILIES if f.detected and matches(f, cfg)]
     if len(found) > 1:  # one checkpoint in two precisions (the 12B): the one the checkpoint declares, bf16 unless FP8
         precision = "fp8" if declares_fp8(cfg) else "bf16"
         found = [f for f in found if f.precision == precision]
@@ -383,7 +471,12 @@ def family_of(model: str | None, revision: str | None = None, lenient: bool = Fa
     if found is None and lenient:
         return QWEN
     if found is None:
-        what = f"its config.json names the model type {mt!r}" if mt else "its config.json could not be read"
+        if not mt:
+            what = "its config.json could not be read"
+        elif any(mt in f.model_types for f in FAMILIES):  # a served model type in another size or variant
+            what = f"its config.json names the model type {mt!r} in a size or variant"
+        else:
+            what = f"its config.json names the model type {mt!r}"
         raise ValueError(
             f"--model {model}: {what}, which no supported base serves (the bases: {', '.join(sorted(BASES))}). "
             "Give --base <key> with --model to serve a checkpoint as that base's profile, if it is one."

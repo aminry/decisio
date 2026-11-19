@@ -51,6 +51,8 @@ def test_d1_the_gemma_bases_default_to_the_header_and_qwen_to_plain():
         "gemma-4-12b-fp8": "header",
         "gemma-4-31b": "header",
         "gemma-4-31b-bf16": "header",
+        "qwen3.5-4b": "header",
+        "gemma-4-e4b": "header",
     }
     d = decide()
     assert (d["value"], d["held_by"], d["notes"]) == ("header", [], [])

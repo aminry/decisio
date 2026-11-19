@@ -195,6 +195,22 @@ uv run python -m decisio.serve.vllm_engine --base gemma-4-31b-bf16 --gpu-memory-
 - **Not measured at bf16:** accuracy, calibration and latency. The FP8 31B's records do not carry over by assumption; compare before relying on one.
 - It is the vLLM server only (`--backend mlx` is refused).
 
+
+## The small bases
+
+`--base qwen3.5-4b` serves `Qwen/Qwen3.5-4B` and `--base gemma-4-e4b` serves `google/gemma-4-E4B-it`, each at its pinned revision, in bf16, on the vLLM server.
+
+```bash
+uv run python -m decisio.serve.vllm_engine --base qwen3.5-4b
+uv run python -m decisio.serve.vllm_engine --base gemma-4-e4b
+```
+
+- **The prompt is the 12B's:** the system turn, the header layout, each model's own chat template with thinking off (Qwen's ends with an empty think block; the E4B's template has no thought channel), the label read at the template's answer slot with every single-token form of a letter summed, and yes/no as letters.
+- **Text only.** Qwen is read through its text class with the vision tower left out at load; the E4B through the 31B's text class, which loads the per-layer embeddings and leaves the vision and audio towers out.
+- **Detection.** Without `--base`, a checkpoint is detected from its `config.json`: the E4B shares the model type `gemma4` with the 31B and is told apart by its per-layer input embeddings, and only these sizes are served (another size of either model type is refused).
+- **The temperatures are not fitted yet:** 1.0 for every question type until a fit on their own reads replaces it. Another base's temperatures are never reused.
+- **Not measured yet on this release:** accuracy, calibration and latency. MLX does not serve them.
+
 ## Shipping a tuned model
 
 A model made by merging a LoRA adapter into the Gemma 4 31B (stored in FP8) or the Gemma 4 12B (stored in bf16 as `gemma-4-12b`, or in FP8 as `gemma-4-12b-fp8`) is shipped as a repository of its own, with a `decision_config.json` of schema `decisio.decision_config/2`.
@@ -755,6 +771,8 @@ Without `--max-model-len`, the vLLM server on a Gemma base serves **the largest 
 | `gemma-4-12b-fp8` | the largest that fits the card, 32,768 to 65,536 (65,536 on a 32 GB card: below) | 65,536 |
 | `gemma-4-31b` | the largest that fits the card, 32,768 to 98,304 | 98,304 |
 | `gemma-4-31b-bf16` | the largest that fits the card, 32,768 to 65,536 (a 96 GB card did not start at the default share: [The 31B in bf16](#the-31b-in-bf16)) | 65,536 |
+| `qwen3.5-4b` | 32,768 | 32,768 |
+| `gemma-4-e4b` | 32,768 | 32,768 |
 
 **How the length is chosen.** At start-up the server asks vLLM for the longest single request that fits the card (`max_model_len=-1`: vLLM profiles the card, takes the KV cache memory it reports and searches the longest length that fits), then serves the largest multiple of 8,192 not above that and not above the ceiling. It is one start of the engine, not a trial. If even 32,768 does not fit, the start fails with a message that names the length that fits, as a fixed 32,768 failed before.
 `/health` reports the length in force as `max_model_len`, why as `max_model_len_source` (for example "auto: fits 81,920 of 98,304 on this card"), and the ceiling as `max_model_len_ceiling`; a prompt over it is answered 422 as before.
