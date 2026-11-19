@@ -171,13 +171,18 @@ def test_c5_the_fingerprint_carries_the_reader_only_with_the_cascade():
 
 
 def test_c6_the_flags_and_their_defaults():
+    from decisio.serve.vllm_engine import apply_repository_defaults
+
     args = build_parser().parse_args([])
+    # no reader flag is None, so a repository's reader can be told from a flag; with no repository it is the rule reader
     assert (args.calculator_reader, args.calculator_tagger, args.calculator_thresholds, args.calculator_device) == (
-        "rules",
+        None,
         None,
         None,
         "auto",
     )
+    apply_repository_defaults(args, None)
+    assert (args.calculator_reader, args.calculator_reader_source, args.calculator_version) == ("rules", None, None)
     with pytest.raises(SystemExit):
         build_parser().parse_args(["--calculator-reader", "model"])
 

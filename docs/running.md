@@ -933,6 +933,12 @@ The server shows the block only to a model whose repository records the format i
 A state the calculator does not read with certainty gets no block at all.
 What it reads, the block's format, the request fields and the rendering of training rows: [calculator.md](calculator.md).
 
+A tuned repository can also choose how the calculator reads a state.
+With `defaults.calculator_reader` set to the cascade reader (its tagger at a pinned commit and its four thresholds), `--base <owner>/<name>` alone serves the model with that reader on any backend, with no reader flags.
+A reader flag (`--calculator-reader`, `--calculator-tagger` or `--calculator-thresholds`) beats the repository, as every flag does.
+If the tagger cannot be loaded, the server still starts, reads with the rule reader, and says why in its start line and in `/health`.
+The record, its checks and `tuned-config`'s options: [calculator.md](calculator.md#from-the-models-repository).
+
 ## Batch invariance (`--batch-invariant`)
 
 vLLM 0.31.0 has a mode, `VLLM_BATCH_INVARIANT=1`, in which every row is computed with kernels whose result does not depend on what else is in the batch.

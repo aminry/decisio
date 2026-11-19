@@ -101,7 +101,7 @@ A client that already holds structured amounts can send them, and gets the same 
 
 ## The cascade reader (preview)
 
-The rule reader described above is the default, and it stays the default: nothing turns the cascade reader on unless a server flag asks for it.
+The rule reader described above is the default, and it stays the default: nothing turns the cascade reader on unless a server flag or the model's repository asks for it.
 The cascade reader is a preview that may show a block for states the rule reader does not read, such as wordings and layouts it has no rule for.
 A small role tagger (a token-classification encoder) marks the role of each number in the text, the marked spans are assembled into the same structured amounts as `calculator_input`, and the block is rendered by the same code, so its format and bytes do not change.
 
@@ -120,6 +120,34 @@ A small role tagger (a token-classification encoder) marks the role of each numb
 - `--calculator-device auto|cpu|cuda|mps`: `auto` runs the tagger on the serving card for the vLLM backend on CUDA, in the memory vLLM leaves under `--gpu-memory-utilization`, and on the CPU otherwise. The tagger needs `torch` and `transformers`.
 - `--calculator-dtype float32|float16|bfloat16`: the tagger's precision; `float32`, the default, is what its thresholds are fitted on.
 - The cascade without a tagger, a tagger flag without `--calculator-reader cascade`, a Hub tagger without a full commit hash or an unusable thresholds file stops the start with a message. On a server that shows no block, the cascade is a start note and nothing is loaded.
+- A tagger that cannot be loaded never stops the start: torch or transformers missing, a download refused, files that do not match their `SHA256SUMS`, or a device that is not there.
+  The server reads with the rule reader, prints `CALCULATOR READER rules (fallback): ...` with the reason, and `/health` `systemone.calculator` carries `reader: "rules"` and `fallback` (`wanted`, `tagger`, `reason`).
+  The serving-stack and task fingerprints are then the rule reader's.
+- It runs on every backend: on the vLLM backend on CUDA it shares the serving card, and on `--backend mlx` and the CPU stand-in it runs on the CPU (`--calculator-device mps` puts it on a Mac's GPU).
+  On a CPU it adds tens of milliseconds to each request whose state it reads, more for a long state.
+
+### From the model's repository
+
+A tuned model can turn the cascade reader on by itself, so a server started with only `--base <owner>/<name>` serves it with no reader flags.
+Its `decision_config.json` records the reader in `defaults.calculator_reader`:
+
+```json
+"calculator_reader": {
+  "reader": "cascade",
+  "tagger": "owner/tagger@0123456789abcdef0123456789abcdef01234567",
+  "thresholds": {"role": 0.9, "link": 0.6, "flag": 0.8, "band": 0.02}
+}
+```
+
+- `reader` is `cascade` or `rules`; `rules` takes no other field.
+- `tagger` is `owner/name@<full 40-character commit hash>` on the Hugging Face Hub, or for a repository used on one machine a local directory path (absolute, or starting with `./` or `../`).
+- `thresholds` holds all four values, each a number from 0 to 1 that the reader accepts (each threshold at least 0.5, with room for the band below 1).
+- It needs `defaults.calculator`: the reader applies only where the block is shown, so `--calculator off` or `--mode packed` leaves it unused.
+- A malformed record is refused when the repository is read, naming the field.
+- **A flag beats the repository.** Any of `--calculator-reader`, `--calculator-tagger` and `--calculator-thresholds` keeps the repository's reader out entirely, so a tagger is never paired with thresholds fitted for another; `--calculator-reader rules` turns it off. `--calculator-device` and `--calculator-dtype` apply to the repository's reader too.
+- The start prints the record under `REPOSITORY DEFAULTS` (`calculator_reader`, or `calculator_reader_set_by` when a flag beat it), then the reader's own line, which names the thresholds as the repository's.
+- `python -m decisio.hub tuned-config ... --calculator calc-v1 --calculator-reader cascade --calculator-tagger owner/name@<commit> --calculator-thresholds FILE.json` writes it; only the four values of the thresholds file are written.
+- An older decisio, which does not know the key, ignores it with a warning and serves the model with the rule reader.
 
 **What it adds** (none of it appears with the rule reader):
 

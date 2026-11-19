@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: a tuned repository can turn on the cascade reader
+
+### What changed
+
+- **A tuned repository can record the calculator's reader** ([calculator.md](calculator.md#from-the-models-repository)): `defaults.calculator_reader` names the cascade reader, its tagger at a pinned commit and its thresholds, and a server with no reader flags serves it.
+- **A tagger that cannot be loaded no longer stops the start.** Before, `--calculator-reader cascade` with a tagger that failed to load (torch or transformers missing, a download refused, files that do not match their `SHA256SUMS`) ended the start; now the server reads with the rule reader and says why in its start line and in `/health`. A malformed flag still stops the start.
+- `--calculator-reader` has no default of its own any more: without it, the repository's record decides, else `rules` as before.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A repository without `defaults.calculator_reader`, served without reader flags | rule reader | unchanged | nothing |
+| A repository with `defaults.calculator_reader`, served by an older decisio | | the key is ignored with a warning; the rule reader serves | nothing |
+| A server started with `--calculator-reader cascade` whose tagger fails to load | the start stopped | the server starts on the rule reader, with a `fallback` in `/health` | watch for `CALCULATOR READER rules (fallback)` at start if a stop was relied on |
+
 ## Unreleased: the cascade reader for the calculator (preview, off by default)
 
 ### What changed

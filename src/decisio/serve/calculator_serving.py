@@ -15,8 +15,11 @@ questions, a certified task's own read, thinking's second read) sees the same st
 
 `Reader` is the server's reader: `rules` (the default, the rule reader alone) or `cascade` (a preview: a role tagger
 loaded once at start, the rule reader and the acceptance gates; decisio.calculator.cascade), set with
-`--calculator-reader`, `--calculator-tagger`, `--calculator-thresholds` and `--calculator-device`. With the rule reader
-every response, /health and fingerprint is what it was before the cascade existed.
+`--calculator-reader`, `--calculator-tagger`, `--calculator-thresholds` and `--calculator-device`, or by a tuned
+repository's `defaults.calculator_reader` (`check_config`) where no reader flag is given. A tagger that cannot be
+loaded (`prepare_tagger` before the tasks, `load_reader` after the engine) never stops the start: the server reads
+with the rule reader and says why (`fallback_reader`). With the rule reader every response, /health and fingerprint is
+what it was before the cascade existed.
 """
 
 from __future__ import annotations
@@ -153,7 +156,11 @@ class Counts:
                 "shown": self.shown,
                 "from_input": self.from_input,
                 "none": dict(sorted(self.none.items())),
-                **({**self.reader.facts(), "paths": dict(sorted(self.paths.items()))} if self.reader.cascade else {}),
+                **(
+                    {**self.reader.facts(), "paths": dict(sorted(self.paths.items()))}
+                    if self.reader.cascade
+                    else self.reader.facts()  # {} for the rule reader, unless it stands in for a cascade
+                ),
             }
 
 
@@ -161,6 +168,9 @@ class Counts:
 
 READERS = ("rules", "cascade")
 DEVICES = ("auto", "cpu", "cuda", "mps")
+THRESHOLD_KEYS = ("role", "link", "flag", "band")
+# what the start line names as the thresholds' source when they come from a repository's defaults, not a file
+FROM_REPOSITORY = "from the repository's defaults.calculator_reader"
 _COMMIT = re.compile(r"[0-9a-f]{40}")
 
 
@@ -168,17 +178,23 @@ class Reader:
     """The server's calculator reader. `rules`: the rule reader alone (the default; nothing else is set). `cascade`:
     `tagger` (loaded once, a `decisio.calculator.cascade.Tagger`), `tagger_facts` (`name`, `revision`, `device`),
     `thresholds` (a `cascade.Thresholds`, or None: the threshold rule off, so only the rule reader's agreement and the
-    stated figures accept) and the file they came from."""
+    stated figures accept) and the file they came from. `fallback`: on a rule reader that stands in for a cascade whose
+    tagger could not be loaded, what was asked for and why it is not used (`fallback_reader`)."""
 
-    def __init__(self, name="rules", tagger=None, tagger_facts=None, thresholds=None, thresholds_file=None):
+    def __init__(
+        self, name="rules", tagger=None, tagger_facts=None, thresholds=None, thresholds_file=None, fallback=None
+    ):
         if name not in READERS:
             raise ValueError(f"unknown calculator reader {name!r}; use one of {', '.join(READERS)}")
         if name == "cascade" and tagger is None:
             raise ValueError("the cascade reader needs a tagger")
+        if fallback is not None and name != "rules":
+            raise ValueError("only the rule reader stands in for a reader that could not be loaded")
         if tagger is not None and not isinstance(tagger, _LockedTagger):
             tagger = _LockedTagger(tagger)
         self.name, self.tagger, self.thresholds, self.thresholds_file = name, tagger, thresholds, thresholds_file
         self.tagger_facts = dict(tagger_facts or {"name": "unnamed", "revision": "unknown", "device": "cpu"})
+        self.fallback = dict(fallback) if fallback else None
 
     @property
     def cascade(self) -> bool:
@@ -197,9 +213,10 @@ class Reader:
         return {"role": t.role, "link": t.link, "flag": t.flag, "band": t.band}
 
     def facts(self) -> dict:
-        """/health: the reader, its tagger (name, revision, device) and thresholds; nothing for the rule reader."""
+        """/health: the reader, its tagger (name, revision, device) and thresholds; nothing for the rule reader, unless
+        it stands in for a cascade that could not be loaded: then the reader in use and the fallback's reason."""
         if not self.cascade:
-            return {}
+            return {"reader": self.name, "fallback": dict(self.fallback)} if self.fallback else {}
         return {
             "reader": self.name,
             "tagger": {k: self.tagger_facts.get(k) for k in ("name", "revision", "device")},
@@ -220,6 +237,14 @@ class Reader:
         }
 
     def start_line(self) -> str:
+        if not self.cascade:
+            if self.fallback:
+                fb = self.fallback
+                return (
+                    f"CALCULATOR READER rules (fallback): the cascade reader's tagger {fb['tagger']} could not be "
+                    f"loaded ({fb['reason']}); this server reads states with the rule reader"
+                )
+            return "CALCULATOR READER rules"
         f = self.tagger_facts
         return (
             f"CALCULATOR READER cascade: tagger {f.get('name')}@{f.get('revision')} on {f.get('device')}, "
@@ -245,24 +270,92 @@ def parse_tagger(spec: str) -> tuple[str, str | None]:
     return name, revision
 
 
-def load_thresholds(path: str | None):
-    """`--calculator-thresholds`: a JSON object with `role`, `link` and `flag` (and `band`, 0 when absent; other keys
-    are ignored), checked as `cascade.Thresholds` checks them; None: the threshold rule off. ValueError: a bad file."""
-    if path is None:
+def load_thresholds(source):
+    """The cascade reader's thresholds: from `--calculator-thresholds` (a JSON file) or a repository's
+    `defaults.calculator_reader.thresholds` (a dict, already checked by `check_config`). An object with `role`, `link`
+    and `flag` (and `band`, 0 when absent; other keys are ignored), checked as `cascade.Thresholds` checks them; None:
+    the threshold rule off. ValueError: a bad file or object."""
+    if source is None:
         return None
     from decisio.calculator.cascade import Thresholds
 
-    try:
-        data = json.loads(Path(path).read_text())
-    except (OSError, ValueError) as e:
-        raise ValueError(f"--calculator-thresholds {path}: not a readable JSON file ({type(e).__name__})") from e
+    if isinstance(source, dict):
+        data, where = source, "defaults.calculator_reader.thresholds"
+    else:
+        where = f"--calculator-thresholds {source}"
+        try:
+            data = json.loads(Path(source).read_text())
+        except (OSError, ValueError) as e:
+            raise ValueError(f"{where}: not a readable JSON file ({type(e).__name__})") from e
     missing = [k for k in ("role", "link", "flag") if not isinstance(data, dict) or data.get(k) is None]
     if missing:
-        raise ValueError(f"--calculator-thresholds {path}: missing {', '.join(missing)} (a number each)")
+        raise ValueError(f"{where}: missing {', '.join(missing)} (a number each)")
     try:
-        return Thresholds(**{k: float(data[k]) for k in ("role", "link", "flag", "band") if k in data})
+        return Thresholds(**{k: float(data[k]) for k in THRESHOLD_KEYS if k in data})
     except (TypeError, ValueError) as e:
-        raise ValueError(f"--calculator-thresholds {path}: {e}") from e
+        raise ValueError(f"{where}: {e}") from e
+
+
+def thresholds_label(source) -> str | None:
+    """What the start line names as the thresholds' source: the file, the repository, or None (off)."""
+    if source is None:
+        return None
+    return FROM_REPOSITORY if isinstance(source, dict) else str(source)
+
+
+def _is_path(spec: str) -> bool:
+    """A tagger named as a local directory: an existing one, or a path that says it is one (absolute, ./ or ../), so a
+    repository's file can name a directory that is not on the machine that checks it."""
+    return Path(spec).is_dir() or spec.startswith(("/", "./", "../"))
+
+
+def check_config(value, where: str = "defaults.calculator_reader") -> list[str]:
+    """A tuned repository's `defaults.calculator_reader`, checked for its form only (nothing is loaded or downloaded):
+    `{"reader": "rules"}`, or `{"reader": "cascade", "tagger": ..., "thresholds": {...}}` with a tagger that is
+    `owner/name@<full 40-character commit hash>` on the Hub or a local directory path, and all four thresholds (`role`,
+    `link`, `flag`, `band`) as numbers from 0 to 1 that `cascade.Thresholds` accepts. ValueError names the field.
+    Returns the keys it does not know (a newer decisio's), which are ignored."""
+    if not isinstance(value, dict):
+        raise ValueError(f'{where} must be an object: {{"reader": "cascade", "tagger": ..., "thresholds": {{...}}}}')
+    reader = value.get("reader")
+    if reader not in READERS:
+        raise ValueError(f'{where}.reader must be "rules" or "cascade", not {reader!r}')
+    ignored = sorted(set(value) - {"reader", "tagger", "thresholds"})
+    if reader == "rules":
+        extra = [k for k in ("tagger", "thresholds") if k in value]
+        if extra:
+            raise ValueError(f"{where}: {' and '.join(extra)} belong to the cascade reader, and reader is rules")
+        return ignored
+    tagger = value.get("tagger")
+    if not isinstance(tagger, str) or not tagger.strip():
+        raise ValueError(
+            f"{where}.tagger must name the cascade reader's tagger: owner/name@<full commit hash> on the Hugging Face "
+            "Hub, or a local directory"
+        )
+    if not _is_path(tagger):
+        name, at, revision = tagger.rpartition("@")
+        if not at or not name or "/" not in name or not _COMMIT.fullmatch(revision):
+            raise ValueError(
+                f"{where}.tagger {tagger!r}: a tagger on the Hub is owner/name@<full 40-character commit hash>, so "
+                "the weights cannot change; a local tagger is a directory path (absolute, or starting with ./ or ../)"
+            )
+    thresholds = value.get("thresholds")
+    if not isinstance(thresholds, dict):
+        raise ValueError(f"{where}.thresholds must be an object with role, link, flag and band (numbers from 0 to 1)")
+    missing = [k for k in THRESHOLD_KEYS if k not in thresholds]
+    if missing:
+        raise ValueError(f"{where}.thresholds: missing {', '.join(missing)} (a number from 0 to 1 each)")
+    for k in THRESHOLD_KEYS:
+        v = thresholds[k]
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 1:
+            raise ValueError(f"{where}.thresholds.{k} must be a number from 0 to 1, not {v!r}")
+    from decisio.calculator.cascade import Thresholds
+
+    try:
+        Thresholds(**{k: float(thresholds[k]) for k in THRESHOLD_KEYS})
+    except ValueError as e:
+        raise ValueError(f"{where}.thresholds: {e}") from e
+    return ignored + [f"thresholds.{k}" for k in sorted(set(thresholds) - set(THRESHOLD_KEYS))]
 
 
 def _available(device: str) -> bool:
@@ -306,13 +399,17 @@ def local_revision(directory) -> str:
 
 def reader_identity(reader: str, tagger, thresholds) -> str | None:
     """What the task fingerprint names for the cascade reader (None for the rule reader): the tagger's revision (a Hub
-    commit, or a local directory's `local_revision`) and the thresholds file's SHA-256, so that a task fitted on reads
-    of one reader does not apply under another."""
+    commit, or a local directory's `local_revision`) and the thresholds' SHA-256 (the file's bytes, or the canonical
+    JSON of a repository's four values), so that a task fitted on reads of one reader does not apply under another."""
     if reader != "cascade" or not tagger:
         return None
     tag = str(tagger)
     rev = tag.rsplit("@", 1)[1] if "@" in tag and not Path(tag).is_dir() else local_revision(tag)
-    thr = "sha256:" + hashlib.sha256(Path(thresholds).read_bytes()).hexdigest()[:16] if thresholds else "off"
+    if isinstance(thresholds, dict):
+        raw = json.dumps({k: float(thresholds[k]) for k in THRESHOLD_KEYS if k in thresholds}, sort_keys=True).encode()
+    else:
+        raw = Path(thresholds).read_bytes() if thresholds else None
+    thr = "sha256:" + hashlib.sha256(raw).hexdigest()[:16] if raw is not None else "off"
     return f"cascade@{rev};thresholds={thr}"
 
 
@@ -370,24 +467,71 @@ def not_used_note(reader: str, calculator_version) -> str | None:
     return None
 
 
+def prepare_tagger(tagger, device: str, backend: str, resolve=None) -> Path:
+    """The tagger's files, made ready at start before the tasks are loaded, so that a tagger that cannot be used is
+    known while the task fingerprint can still name the reader in use: the spec's form, the device, torch and
+    transformers importable, the files on disk (a Hub tagger downloaded at its commit by `resolve`, default
+    `cascade.tagger.resolve`), their SHA256SUMS and the tagger's format. Returns the directory; raises otherwise (any
+    exception: the caller falls back to the rule reader)."""
+    from decisio.calculator.cascade import tagger as tagger_module
+
+    name, revision = parse_tagger(tagger)
+    tagger_device(device, backend)  # imports torch; a device that is not there is a ValueError
+    directory = Path((resolve or tagger_module.resolve)(name, revision))
+    tagger_module.check_sums(directory)
+    try:
+        meta = tagger_module.read_meta(directory)
+    except (OSError, ValueError) as e:
+        raise ValueError(f"tagger directory: no readable cascade_tagger.json ({type(e).__name__})") from e
+    from decisio.calculator.cascade.model import FORMAT, LABELS  # torch
+
+    if meta.get("format") != FORMAT or tuple(meta.get("labels", ())) != LABELS:
+        raise ValueError("tagger directory: an unknown format or label set")
+    import transformers  # noqa: F401  (the encoder's code: a missing install is known here, not after the engine)
+
+    return directory
+
+
+def fallback_reason(error: BaseException) -> str:
+    """One line on why a tagger could not be loaded, for the start line and /health."""
+    text = " ".join(str(error).split()) or "no message"
+    if isinstance(error, ImportError):
+        text = f"{text}; the cascade reader needs torch and transformers"
+    text = f"{type(error).__name__}: {text}"
+    return text if len(text) <= 300 else text[:297] + "..."
+
+
+def fallback_reader(tagger, error: BaseException) -> Reader:
+    """The rule reader, standing in for a cascade whose tagger could not be loaded: it serves as the default does, and
+    its start line and /health name the tagger and the reason."""
+    return Reader("rules", fallback={"wanted": "cascade", "tagger": str(tagger), "reason": fallback_reason(error)})
+
+
 def load_reader(
-    reader: str, tagger, thresholds, device: str, backend: str, loader=None, dtype: str = "float32"
+    reader: str,
+    tagger,
+    thresholds,
+    device: str,
+    backend: str,
+    loader=None,
+    dtype: str = "float32",
+    directory=None,
 ) -> Reader:
     """The server's reader, loaded once at start (after `check_flags`): the rule reader, or the cascade with its tagger
     on the resolved device. `loader(path, revision, device)` loads the tagger (default: `cascade.tagger.HFTagger.load`,
-    which needs torch and transformers and checks a directory's SHA256SUMS)."""
+    which needs torch and transformers and checks a directory's SHA256SUMS). `directory`: the files `prepare_tagger`
+    made ready, loaded from there (the tagger keeps its name and revision); `thresholds`: a file or a repository's
+    dict."""
     if reader == "rules":
         return Reader()
     from decisio.calculator.cascade.tagger import HFTagger
 
     name, revision = parse_tagger(tagger)
     dev = tagger_device(device, backend)
-    model = (
-        (loader or HFTagger.load)(name, revision, dev, dtype)
-        if dtype != "float32"
-        else (loader or HFTagger.load)(name, revision, dev)
-    )
+    path, at = (str(directory), None) if directory is not None else (name, revision)
+    load = loader or HFTagger.load
+    model = load(path, at, dev, dtype) if dtype != "float32" else load(path, at, dev)
     if revision is None:  # a local directory: its content; a Hub tagger: the commit hash
         revision = local_revision(name)
     facts = {"name": name, "revision": revision, "device": dev, **({"dtype": dtype} if dtype != "float32" else {})}
-    return Reader("cascade", model, facts, load_thresholds(thresholds), thresholds)
+    return Reader("cascade", model, facts, load_thresholds(thresholds), thresholds_label(thresholds))
