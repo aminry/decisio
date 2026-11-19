@@ -615,6 +615,7 @@ DEFAULTS_KEYS = frozenset(
         "read_twice_max_questions",
         "batch_invariant",
         "calculator",
+        "calculator_reader",
     }
 )
 
@@ -679,6 +680,19 @@ def check_defaults(defaults) -> None:
                 "calculator is off; a newer decisio shows the block",
                 defaults["calculator"],
                 list(VERSIONS),
+            )
+    if "calculator_reader" in defaults:  # how the calculator reads a state; a reader flag at start beats it
+        from decisio.serve.calculator_serving import check_config
+
+        if "calculator" not in defaults:
+            raise ValueError(
+                "defaults.calculator_reader needs defaults.calculator: the reader reads states only where the "
+                "calculator block is shown"
+            )
+        for key in check_config(defaults["calculator_reader"]):
+            logger.warning(
+                "the repository's defaults.calculator_reader has a key this decisio does not know, %r: ignored",
+                key,
             )
     for key in ("read_twice_under", "read_twice_max_questions"):
         v = defaults.get(key)
@@ -941,6 +955,7 @@ def tuned_config(
     batch_invariant: bool = False,
     conversion: dict | None = None,
     calculator: str | None = None,
+    calculator_reader: dict | None = None,
 ) -> dict:
     """The `/2` file of a tuned model: the base's profile, the weights section of a merge, `tuned` and `defaults`.
     Validated before it is returned."""
@@ -972,11 +987,36 @@ def tuned_config(
         **({"read_twice_max_questions": read_twice_max_questions} if read_twice_max_questions else {}),
         **({"batch_invariant": True} if batch_invariant else {}),
         **({"calculator": calculator} if calculator else {}),
+        **({"calculator_reader": calculator_reader} if calculator_reader else {}),
     }
     if flavor is not None:
         config["flavor"] = flavor
     check_sections(config)
     return config
+
+
+def reader_config(reader: str | None, tagger: str | None, thresholds_file: str | None) -> dict | None:
+    """`tuned-config --calculator-reader/--calculator-tagger/--calculator-thresholds`: the `defaults.calculator_reader`
+    object (None when no reader is given), with only the four threshold values of the file. ValueError: a tagger or
+    thresholds file without a reader, or a file that is not a JSON object; the object itself is checked with the rest
+    of the defaults."""
+    if reader is None:
+        given = [f for f, v in (("--calculator-tagger", tagger), ("--calculator-thresholds", thresholds_file)) if v]
+        if given:
+            raise ValueError(f"{' and '.join(given)} need --calculator-reader cascade")
+        return None
+    out: dict = {"reader": reader}
+    if tagger is not None:
+        out["tagger"] = tagger
+    if thresholds_file is not None:
+        try:
+            data = json.loads(Path(thresholds_file).read_text())
+        except (OSError, ValueError) as e:
+            raise ValueError(f"--calculator-thresholds {thresholds_file}: not a readable JSON file") from e
+        if not isinstance(data, dict):
+            raise ValueError(f"--calculator-thresholds {thresholds_file}: must be a JSON object")
+        out["thresholds"] = {k: data[k] for k in ("role", "link", "flag", "band") if k in data}
+    return out
 
 
 def is_repository(value: str) -> bool:
@@ -1100,6 +1140,28 @@ def main(argv=None) -> int:
         "defaults.calculator: a server shows the block to this model, and only to a model that records it",
     )
     tc.add_argument(
+        "--calculator-reader",
+        choices=("rules", "cascade"),
+        default=None,
+        help="how a server of this repository reads a state for the calculator block, recorded as "
+        "defaults.calculator_reader (needs --calculator): cascade, with --calculator-tagger and "
+        "--calculator-thresholds, turns the cascade reader on without server flags; a server's own reader flags beat "
+        "it",
+    )
+    tc.add_argument(
+        "--calculator-tagger",
+        default=None,
+        help="the cascade reader's tagger: owner/name@<full commit hash> on the Hugging Face Hub (or a local directory "
+        "path, for a repository used on one machine)",
+    )
+    tc.add_argument(
+        "--calculator-thresholds",
+        default=None,
+        metavar="FILE.json",
+        help="the cascade reader's thresholds: a JSON file with role, link, flag and band; only those four values are "
+        "written to the file",
+    )
+    tc.add_argument(
         "--flavor",
         choices=("calibrated", "commit", "read-enhanced", "commit-think"),
         help="which flavor of the model this repository is (decisio.flavors): written as the file's `flavor` block "
@@ -1211,6 +1273,11 @@ def main(argv=None) -> int:
         except AdapterFileError as e:
             print(f"refused: {e}")
             return 1
+        try:
+            calculator_reader = reader_config(a.calculator_reader, a.calculator_tagger, a.calculator_thresholds)
+        except ValueError as e:
+            print(f"refused: {e}")
+            return 1
         basis = a.noul_commit_basis
         if basis and os.path.isfile(basis):
             basis = json.loads(Path(basis).read_text())
@@ -1246,6 +1313,7 @@ def main(argv=None) -> int:
                 read_twice_max_questions=a.read_twice_max_questions,
                 batch_invariant=a.batch_invariant,
                 calculator=a.calculator,
+                calculator_reader=calculator_reader,
                 think=(
                     {
                         "factor": a.think_factor,

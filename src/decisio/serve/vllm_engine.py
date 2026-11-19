@@ -2512,7 +2512,7 @@ def apply_repository_defaults(args, repo) -> None:
     the command line gave none. Precedence: a flag, then the repository's `defaults`, then the base's profile. Sets
     `args.choice_bands` ({} when none), `args.noul_commit` (a bool) and `args.repository_defaults` (what was applied,
     for the start-up line and /health). `--temperature-choice X` is one number for every choice question, so it drops
-    the repository's bands."""
+    the repository's bands. The calculator's reader: `apply_calculator_reader`."""
     args.choice_bands = {}
     args.repository_defaults = None
     defaults = repo.defaults if repo is not None else None
@@ -2598,6 +2598,7 @@ def apply_repository_defaults(args, repo) -> None:
         applied.pop("calculator", None)
         applied["calculator_set_by"] = "--mode packed (it reads no calculator block)"
         args.calculator_version = None
+    apply_calculator_reader(args, defaults, applied)
     if getattr(args, "noul_commit", None) is None:
         args.noul_commit = False
     if getattr(args, "over_limit", None) is None:
@@ -2617,6 +2618,96 @@ def apply_repository_defaults(args, repo) -> None:
             )
         except ValueError as e:
             raise SystemExit(str(e)) from e
+
+
+def prepare_calculator_reader(args):
+    """The calculator reader's first step at start, before the tasks are loaded: a cascade's tagger files are made
+    ready (`calcs.prepare_tagger`), so a tagger that cannot be used (torch or transformers missing, a download refused,
+    files that do not match their SHA256SUMS, no such device) is known while the task fingerprint can still name the
+    reader in use. Such a tagger never stops the start: the server reads with the rule reader, says so, and the
+    fallback reader is returned (None otherwise). Sets `args.calculator_tagger_dir` and `args.calculator_reader_id`."""
+    args.calculator_tagger_dir, fallback = None, None
+    if args.calculator_reader == "cascade" and getattr(args, "calculator_version", None):
+        try:
+            args.calculator_tagger_dir = calcs.prepare_tagger(
+                args.calculator_tagger, getattr(args, "calculator_device", "auto"), args.backend
+            )
+        except Exception as e:  # noqa: BLE001  (whatever stops the tagger, the server serves with the rule reader)
+            fallback = calcs.fallback_reader(args.calculator_tagger, e)
+            args.calculator_reader = "rules"
+            print(fallback.start_line(), flush=True)
+    # the cascade reader names its tagger and thresholds in the task fingerprint, where the calculator is on
+    args.calculator_reader_id = (
+        calcs.reader_identity(args.calculator_reader, args.calculator_tagger, args.calculator_thresholds)
+        if getattr(args, "calculator_version", None)
+        else None
+    )
+    return fallback
+
+
+def load_calculator_reader(args, fallback, store=None, fmt=None, loader=None):
+    """The calculator reader's second step, after the engine (on CUDA the tagger then takes its memory from the
+    headroom vLLM leaves): the cascade loaded from the files `prepare_calculator_reader` made ready, else `fallback`
+    (None: the rule reader). A tagger that fails to load here too leaves the server on the rule reader, and the task
+    `store` is matched under the rule reader's fingerprint from then on. Prints the reader's start line (a fallback of
+    the first step was printed there)."""
+    reader = fallback
+    if args.calculator_reader == "cascade" and getattr(args, "calculator_version", None):
+        try:
+            reader = calcs.load_reader(
+                args.calculator_reader,
+                args.calculator_tagger,
+                args.calculator_thresholds,
+                getattr(args, "calculator_device", "auto"),
+                args.backend,
+                loader=loader,
+                dtype=getattr(args, "calculator_dtype", "float32"),
+                directory=args.calculator_tagger_dir,
+            )
+        except Exception as e:  # noqa: BLE001  (a tagger that fails to load leaves the server on the rule reader)
+            reader = calcs.fallback_reader(args.calculator_tagger, e)
+            args.calculator_reader, args.calculator_reader_id = "rules", None
+            if store is not None:  # tasks were matched under the cascade's fingerprint: now under the rule reader's
+                from dataclasses import replace
+
+                store.fingerprint = task_store_fingerprint(args, fmt)
+                store.layouts = {v: task_store_fingerprint(args, replace(fmt, layout=v)) for v in layout.LAYOUT_VALUES}
+    if reader is not None and reader is not fallback:  # the first step printed its own fallback already
+        print(reader.start_line(), flush=True)
+    return reader
+
+
+READER_FLAGS = (
+    ("--calculator-reader", "calculator_reader"),
+    ("--calculator-tagger", "calculator_tagger"),
+    ("--calculator-thresholds", "calculator_thresholds"),
+)
+
+
+def apply_calculator_reader(args, defaults, applied: dict) -> None:
+    """The calculator's reader (after `args.calculator_version` is set): the reader flags, else a tuned repository's
+    `defaults.calculator_reader` where the calculator block is shown, else the rule reader. The flags are taken
+    together: any of --calculator-reader, --calculator-tagger and --calculator-thresholds keeps the repository's reader
+    out entirely, so a tagger is never paired with thresholds fitted for another. Sets `args.calculator_reader`,
+    `args.calculator_tagger`, `args.calculator_thresholds` (a dict from the repository) and
+    `args.calculator_reader_source` ("flags", "repository" or None), and records the outcome in `applied`."""
+    given = [flag for flag, attr in READER_FLAGS if getattr(args, attr, None) is not None]
+    args.calculator_reader_source = "flags" if given else None
+    config = (defaults or {}).get("calculator_reader")
+    if config is not None and getattr(args, "calculator_version", None):
+        if given:
+            applied["calculator_reader_set_by"] = ", ".join(given)
+        else:
+            args.calculator_reader = config["reader"]
+            args.calculator_tagger = config.get("tagger")
+            args.calculator_thresholds = dict(config["thresholds"]) if config.get("thresholds") else None
+            args.calculator_reader_source = "repository"
+            applied["calculator_reader"] = {k: config[k] for k in ("reader", "tagger", "thresholds") if k in config}
+    if getattr(args, "calculator_reader", None) is None:
+        args.calculator_reader = "rules"
+    for attr in ("calculator_tagger", "calculator_thresholds"):
+        if not hasattr(args, attr):
+            setattr(args, attr, None)
 
 
 def build_parser():
@@ -3104,11 +3195,12 @@ def build_parser():
     ap.add_argument(
         "--calculator-reader",
         choices=("rules", "cascade"),
-        default="rules",
+        default=None,
         help="how the calculator reads a state (docs/calculator.md): rules (the default), the rule reader; cascade (a "
         "preview, not the default): a role tagger, the rule reader and precision gates, which may show a block for "
-        "states the rule reader does not read. Needs --calculator-tagger; applies only where the block is shown. In "
-        "/health and, with cascade, the serving-stack fingerprint",
+        "states the rule reader does not read. Needs --calculator-tagger; applies only where the block is shown. "
+        "Without this flag, --calculator-tagger and --calculator-thresholds, a tuned repository's "
+        "defaults.calculator_reader decides, else rules. In /health and, with cascade, the serving-stack fingerprint",
     )
     ap.add_argument(
         "--calculator-tagger",
@@ -3525,23 +3617,22 @@ def main():
             "the calculator reads with certainty; none otherwise",
             flush=True,
         )
-    if why := calcs.check_flags(
-        args.calculator_reader,
-        args.calculator_tagger,
-        args.calculator_thresholds,
-        args.calculator_device,
+    if args.calculator_reader is None:  # resolved by apply_repository_defaults; the rule reader where nothing ran it
+        args.calculator_reader = "rules"
+    # a repository's reader was checked with its file (decisio.hub.check_defaults); a reader flag is checked here
+    if getattr(args, "calculator_reader_source", None) != "repository" and (
+        why := calcs.check_flags(
+            args.calculator_reader,
+            args.calculator_tagger,
+            args.calculator_thresholds,
+            args.calculator_device,
+        )
     ):
         ap.error(why)
     if getattr(args, "calculator_dtype", "float32") != "float32" and args.calculator_reader != "cascade":
         ap.error("--calculator-dtype is the cascade reader's tagger precision: it needs --calculator-reader cascade")
     if note := calcs.not_used_note(args.calculator_reader, getattr(args, "calculator_version", None)):
         print(note, flush=True)
-    # the cascade reader names its tagger and thresholds in the task fingerprint, where the calculator is on
-    args.calculator_reader_id = (
-        calcs.reader_identity(args.calculator_reader, args.calculator_tagger, args.calculator_thresholds)
-        if getattr(args, "calculator_version", None)
-        else None
-    )
     if getattr(args, "temperatures_file_facts", None):
         print(f"TEMPERATURES FILE {json.dumps(args.temperatures_file_facts, sort_keys=True)}", flush=True)
     if args.flavor_report:
@@ -3669,6 +3760,9 @@ def main():
         args.image_revision = resolve_image_model(args) if args.backend != "mlx" else None
     except ValueError as e:
         ap.error(str(e))
+    # the tagger's files: after the engine settings that must precede torch's import, before the layout and the tasks,
+    # whose fingerprints name the reader in use
+    calc_fallback = prepare_calculator_reader(args)
     from decisio.serve.tasks import TaskStore
 
     # what the stores hold decides the layout (a base with plain-fitted tasks loaded stays on plain), and the layout is
@@ -3916,20 +4010,7 @@ def main():
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
     # the calculator's reader, loaded once, after the engine: on CUDA the tagger takes its memory from the headroom vLLM
     # leaves under --gpu-memory-utilization (about 0.5 GB for a base-size encoder), so it never shrinks the KV cache
-    calc_reader = None
-    if args.calculator_reader == "cascade" and getattr(args, "calculator_version", None):
-        try:
-            calc_reader = calcs.load_reader(
-                args.calculator_reader,
-                args.calculator_tagger,
-                args.calculator_thresholds,
-                args.calculator_device,
-                args.backend,
-                dtype=args.calculator_dtype,
-            )
-        except (ValueError, OSError, ImportError) as e:
-            raise SystemExit(f"--calculator-tagger: {e}") from e
-        print(calc_reader.start_line(), flush=True)
+    calc_reader = load_calculator_reader(args, calc_fallback, store, fmt)
     import uvicorn
 
     from decisio.serve.systemone import SystemOne
