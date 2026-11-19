@@ -334,6 +334,11 @@ def _groups(n: int, prob) -> tuple[list[int], dict[tuple[int, int], float]]:
 MAX_WINDOWS = 8  # a longer text is refused as too long
 
 
+# measured before it is used: pad a single-window text to a multiple of this many tokens (with the attention mask),
+# so the encoder sees a few fixed shapes (0: no padding)
+PAD_BUCKET = int(os.environ.get("DECISIO_CASCADE_PAD_BUCKET", "0") or 0)
+
+
 def windows(n: int, size: int) -> list[tuple[int, int]]:
     """Overlapping [a, b) windows over the n inner tokens (the special tokens at both ends excluded), each at most
     `size` tokens, a quarter of a window apart from full overlap; one window when the text fits."""
@@ -354,6 +359,13 @@ def windowed_hidden(model: CascadeTagger, ids: list[int], max_length: int, devic
     `max_length` is read in overlapping windows, each with the two special tokens, and every token takes its state
     from the window in which it lies farthest from an edge; None when it needs more than `MAX_WINDOWS` windows."""
     if len(ids) <= max_length:
+        if PAD_BUCKET:  # fixed lengths (padded, masked) so a compiled encoder can replay a CUDA graph per bucket
+            n = len(ids)
+            size = min(max_length, -(-n // PAD_BUCKET) * PAD_BUCKET)
+            pad = getattr(getattr(model.encoder, "config", None), "pad_token_id", 0) or 0
+            t = torch.tensor([ids + [pad] * (size - n)], device=device)
+            mask = torch.tensor([[1] * n + [0] * (size - n)], device=device)
+            return model.hidden(t, mask)[:n]
         t = torch.tensor([ids], device=device)
         return model.hidden(t, torch.ones_like(t))
     first, inner, last = ids[0], ids[1:-1], ids[-1]
