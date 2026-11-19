@@ -22,7 +22,8 @@ A block is shown only when every required gate passes:
                   out of "Daily rate days", or "Fuel levy" out of the heading "Fuel levy units:"); every line taken
                   off (a credit, a day credit, a deducted adjustment) is named in a sentence that says something
                   comes off; no line the case adds is named with words that say it comes off the bill ("is a credit
-                  of", "comes off the bill"); and no sentence naming a fee or credit (with the sentences after it on
+                  of", "comes off the bill"); no adjustment is named as added when the case takes it off, or the
+                  other way round; and no sentence naming a fee or credit (with the sentences after it on
                   its line that go on about it: "It is added once the tax has been worked out") puts it on the
                   other side of the tax from the case
 
@@ -80,6 +81,11 @@ _SUBTRACT = re.compile(
     r"vouchers?|deposits?|prepa(?:id|y\w*)|reduc\w*|subtract\w*|waive\w*|removed|comes? off|"
     r"off the (?:bill|total|invoice|amount))\b",
     re.I,
+)
+# an adjustment's direction in the text: added to the bill or a charge, or taken off it (`adjustment-direction`)
+_ADDS = re.compile(r"\b(?:is|are|gets?|being|then) added\b|\badded (?:to|on|before|after)\b|\bon top of\b", re.I)
+_TAKES = re.compile(
+    r"\b(?:deduct(?:ed|s)?|subtract(?:ed|s)?|taken off|takes? off|comes? off|knocked off|reduc(?:es|ed|ing))\b", re.I
 )
 # words that say a line comes off the bill itself (not a percentage taken from one charge): a line the case adds,
 # named with them, is refused (`comes-off-word`)
@@ -496,7 +502,8 @@ def _naming(asm: A.Assembly, label: str):
 def wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
     (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
-    case adds is named as coming off the bill), `tax-side` (a sentence naming a
+    case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
+    takes it off, or the other way, with no word for the case's direction), `tax-side` (a sentence naming a
     fee or credit places it on the other side of the tax)."""
     gate = "wording"
     texts = dict(asm.texts)
@@ -518,6 +525,11 @@ def wording(asm: A.Assembly) -> Check:
             return _fail(gate, "no-subtract-word", g.id)
         if not off and g.kind != "adjustment" and any(_COMES_OFF.search(t) for t in named):
             return _fail(gate, "comes-off-word", g.id)
+        if g.kind == "adjustment":
+            deduct = A.norm_label(g.label) in deducted
+            same, other = (_TAKES, _ADDS) if deduct else (_ADDS, _TAKES)
+            if any(other.search(t) for t in named) and not any(same.search(t) for t in named):
+                return _fail(gate, "adjustment-direction", g.id)
         if g.kind in ("fee", "credit", "daycredit"):
             is_after = A.norm_label(g.label) in outside
             for t in named:

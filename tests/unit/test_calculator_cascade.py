@@ -692,3 +692,17 @@ def test_wording_keeps_a_label_followed_by_words_of_its_sentence():
         "Crate packing: 4 crates at $12.50 each.", "The Crate packing line holds 4 crates at $12.50 each."
     )
     assert _wording(state).ok
+
+
+def test_wording_refuses_an_adjustment_the_text_turns_the_other_way():
+    state = STATE.replace(
+        "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, deducted."
+    )
+    check = _wording(state)
+    assert (check.ok, check.code, check.detail) == (False, "adjustment-direction", "a1")
+    flags = dict(FLAGS, adjustment_direction={"Rush supplement": "deduct"})
+    assert _wording(state, SPANS, flags).ok  # read the way the text says
+    state = STATE.replace(
+        "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, is ADDED to the bill."
+    )
+    assert _wording(state, SPANS, flags).code in ("adjustment-direction", "no-subtract-word")  # refused either way
