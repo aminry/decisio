@@ -641,3 +641,48 @@ def test_wording_reads_on_only_within_the_line_and_after_a_pronoun():
     # a sentence that does not go on about the line (no pronoun) is not read either
     state = STATE.replace(old, old + " Payment is due after tax day.")
     assert _wording(state).ok
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "Crate packing: 4 crates at $12.50 each, a credit that comes off the bill.",
+        "Crate packing: 4 crates at $12.50 each. It is a credit of $20.00 to the client.",
+    ],
+)
+def test_wording_refuses_an_added_line_the_text_takes_off_the_bill(sentence):
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", sentence)
+    check = _wording(state)
+    assert (check.ok, check.code, check.detail) == (False, "comes-off-word", "i1")
+
+
+def test_wording_does_not_read_a_percentage_taken_from_a_charge_as_the_line_coming_off():
+    state = STATE.replace(
+        "Rush supplement: 10% of Crate packing, added.", "Rush supplement: 10% of Crate packing, added."
+    )
+    assert _wording(state).ok
+    state = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "Crate packing: 4 crates at $12.50 each, nothing taken off."
+    )
+    assert _wording(state).ok
+
+
+@pytest.mark.parametrize(
+    ("line", "label"),
+    [
+        ("Crate packing units: 4 crates at $12.50 each.", "Crate packing"),
+        ('The "Crate packing units" line: 4 crates at $12.50 each.', "Crate packing"),
+    ],
+)
+def test_wording_refuses_a_label_that_stops_short_of_its_heading(line, label):
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", line)
+    spans = [(label, 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    check = _wording(state, spans)
+    assert (check.ok, check.code) == (False, "label-cut")
+
+
+def test_wording_keeps_a_label_followed_by_words_of_its_sentence():
+    state = STATE.replace(
+        "Crate packing: 4 crates at $12.50 each.", "The Crate packing line holds 4 crates at $12.50 each."
+    )
+    assert _wording(state).ok
