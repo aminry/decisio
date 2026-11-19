@@ -326,14 +326,55 @@ def _groups(n: int, prob) -> tuple[list[int], dict[tuple[int, int], float]]:
     return roots, conf
 
 
+MAX_WINDOWS = 8  # a longer text is refused as too long
+
+
+def windows(n: int, size: int) -> list[tuple[int, int]]:
+    """Overlapping [a, b) windows over the n inner tokens (the special tokens at both ends excluded), each at most
+    `size` tokens, a quarter of a window apart from full overlap; one window when the text fits."""
+    if n <= size:
+        return [(0, n)]
+    step = max(1, size - size // 4 * 2)  # half a window of overlap: a quarter on each side of every seam
+    out, a = [], 0
+    while True:
+        b = min(a + size, n)
+        out.append((b - size, b) if b == n else (a, b))
+        if b == n:
+            return out
+        a += step
+
+
+def windowed_hidden(model: CascadeTagger, ids: list[int], max_length: int, device: str = "cpu"):
+    """The encoder's hidden states for every token of `ids` (special tokens at both ends). A text longer than
+    `max_length` is read in overlapping windows, each with the two special tokens, and every token takes its state
+    from the window in which it lies farthest from an edge; None when it needs more than `MAX_WINDOWS` windows."""
+    if len(ids) <= max_length:
+        t = torch.tensor([ids], device=device)
+        return model.hidden(t, torch.ones_like(t))
+    first, inner, last = ids[0], ids[1:-1], ids[-1]
+    spans = windows(len(inner), max_length - 2)
+    if len(spans) > MAX_WINDOWS:
+        return None
+    best: list[tuple[int, int, int]] = [(-1, 0, 0)] * len(inner)  # (distance to an edge, window, position in it)
+    states = []
+    for w, (a, b) in enumerate(spans):
+        t = torch.tensor([[first] + inner[a:b] + [last]], device=device)
+        states.append(model.hidden(t, torch.ones_like(t)))
+        for i in range(a, b):
+            d = min(i - a, b - 1 - i)
+            if d > best[i][0]:
+                best[i] = (d, w, i - a + 1)
+    rows = [states[0][0]] + [states[w][j] for _, w, j in best] + [states[-1][-1]]
+    return torch.stack(rows)
+
+
 @torch.inference_mode()
 def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: str | None, device: str = "cpu") -> Tags:
     text, shift = join(state, context)
     enc = tokenizer(text, return_offsets_mapping=True, add_special_tokens=True)
-    if len(enc["input_ids"]) > meta["max_length"]:
+    hidden = windowed_hidden(model, enc["input_ids"], meta["max_length"], device)
+    if hidden is None:
         return Tags(spans=(), note="too-long")
-    ids = torch.tensor([enc["input_ids"]], device=device)
-    hidden = model.hidden(ids, torch.ones_like(ids))
     probs = model.tokens(hidden).float().softmax(-1)
     top_p, top = probs.max(-1)
     offsets = [tuple(o) for o in enc["offset_mapping"]]
