@@ -145,7 +145,7 @@ def test_c4_health_counts_per_path():
     assert health["thresholds"] == {"role": 0.9, "link": 0.9, "flag": 0.9, "band": 0.02}
     assert health["paths"] == {"abstain": 1, "rules_only": 1, "threshold": 1}
     assert (health["requests"], health["shown"]) == (3, 2)
-    assert health["none"] == {"cascade-unknown-text": 1, "off-by-request": 1}
+    assert health["none"] == {"cascade-no-amount-or-rate": 1, "off-by-request": 1}  # the pre-gate: no money, no tagger
     assert STATE not in json.dumps(health)
 
 

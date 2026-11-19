@@ -385,7 +385,7 @@ def test_read_tagger_abstains_and_failures():
 
     out = read(STATE, tagger=StubTagger(boom), thresholds=TH)
     assert isinstance(out, Refused) and out.reason == "cascade-tagger-error"
-    out = read("Unknown text with $5.00.", tagger=StubTagger({}), thresholds=TH)
+    out = read("Unknown text with $5.00 and 8% tax.", tagger=StubTagger({}), thresholds=TH)
     assert isinstance(out, Refused) and out.reason == "cascade-unknown-text"
     missing = with_spans(drop={"WO-5531"})
     out = read(STATE, tagger=StubTagger({STATE: missing}), thresholds=TH)
@@ -1021,3 +1021,70 @@ def test_wording_refuses_a_case_whose_taxed_base_is_negative():
     state = STATE.replace(old, "Loyalty credit: $5000.00, taken off before tax.")
     spans = [("$5000.00",) + s[1:] if s[0] == "$5.00" else s for s in SPANS]
     assert _wording(state, spans).code == "negative-total"
+
+
+@pytest.mark.parametrize(
+    ("text", "runs"),
+    [
+        ("Which of these is a mammal? A whale or a trout.", False),  # no number at all
+        ("Order 4 crates at $12.50 each.", False),  # money, no rate: no case has no tax rate
+        ("Tax of 8% applies to 4 crates.", False),  # a rate, no money
+        (STATE, True),
+        ("Twelve euros a unit, VAT twenty per cent.", True),  # marks in words
+        ("usd 40 per unit, 5 percent tax", True),  # case-blind: wider than the normalizer
+    ],
+)
+def test_pregate_runs_the_tagger_only_where_a_block_is_possible(text, runs):
+    from decisio.calculator import cascade as C
+
+    assert C.may_hold_case(text) is runs
+
+
+def test_pregate_skips_the_tagger_and_keeps_the_rule_readers_block():
+    from decisio.calculator import cascade as C
+
+    calls = []
+
+    class Counting:
+        def predict(self, state, context=None):
+            calls.append(state)
+            return tags_for()
+
+    out = C.read("Which of these is a mammal? A whale or a trout.", tagger=Counting(), thresholds=Thresholds())
+    assert calls == [] and out.reason == "cascade-no-amount-or-rate"
+    C.read(STATE, tagger=Counting(), thresholds=Thresholds())
+    assert len(calls) == 1
+
+
+def test_a_tagger_that_overlaps_runs_the_rule_reader_while_it_reads():
+    from decisio.calculator import cascade as C
+
+    order = []
+
+    class Overlapping:
+        overlaps = True
+
+        def predict(self, state, context=None, during=None):
+            order.append("encoder queued")
+            during()
+            order.append("heads")
+            return tags_for()
+
+    plain = C.read(STATE, tagger=StubTagger({STATE: tags_for()}), thresholds=Thresholds())
+    over = C.read(STATE, tagger=Overlapping(), thresholds=Thresholds())
+    assert order == ["encoder queued", "heads"]
+    same = (type(plain), getattr(plain, "text", None), plain.path)
+    assert (type(over), getattr(over, "text", None), over.path) == same
+
+
+def test_a_tagger_error_before_its_overlap_still_serves_the_rule_readers_block():
+    from decisio.calculator import cascade as C
+
+    class Failing:
+        overlaps = True
+
+        def predict(self, state, context=None, during=None):
+            raise RuntimeError("no device")
+
+    out = C.read(STATE, tagger=Failing(), thresholds=Thresholds())
+    assert out.path in ("rules_only", "abstain") and getattr(out, "gate", "tagger") in ("tagger", None)

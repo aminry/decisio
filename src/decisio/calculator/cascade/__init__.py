@@ -25,11 +25,13 @@ is loaded; the stub tagger, the assembler and the gates need nothing beyond the 
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 
 from decisio.calculator import Abstain, Annotation
+from decisio.calculator import normalize as N
 from decisio.calculator.cascade import gates
 from decisio.calculator.cascade.assembler import REFUSALS, Assembly, Refusal, assemble
 from decisio.calculator.cascade.gates import Check, Thresholds
@@ -99,6 +101,27 @@ def thresholds_for(thresholds) -> Thresholds:
     return Thresholds(**{k: thresholds[k] for k in ("role", "link", "flag", "band") if k in thresholds})
 
 
+# what every block the cascade shows needs in its text: an amount of money (a price or rate is read only from a value
+# with a currency mark: `$`, `€`, `£`, `¥`, a currency code, or dollars, euros, pounds) and a tax rate (a percentage:
+# `%`, percent, per cent); the assembler refuses a case without either. A wider, case-blind match of the normalizer's
+# own marks, so the pre-gate skips only texts on which the tagger could not lead to a block.
+_MONEY_MARK = re.compile(r"[$€£¥]|\b(?:" + "|".join(N.CODES) + r")\b|\b(?:dollars?|euros?|pounds?)\b", re.I)
+_RATE_MARK = re.compile(r"%|\bper ?cent\b", re.I)
+
+
+def may_hold_case(text: str, context: str | None = None) -> bool:
+    """False when the text (with its context) has no currency mark or no percentage: no cascade block is possible, so
+    the tagger is not run."""
+    if "pregate" in _DISABLED:
+        return True
+    whole = (context or "") + "\n" + text
+    return bool(_MONEY_MARK.search(whole)) and bool(_RATE_MARK.search(whole))
+
+
+# switched off by name for audits ("pregate": the tagger runs on every text); empty in serving
+_DISABLED: set[str] = set()
+
+
 def _rules_block(state, context, rules_case, version):
     from decisio.calculator import annotate, compute, render
 
@@ -126,17 +149,37 @@ def read(
     from decisio.readout.letters import fmt_state
 
     text = fmt_state(state)
-    rules = _rules_block(state, context, rules_case, version)
+    got: dict = {}
+
+    def run_rules():  # the rule reader, on the CPU while a GPU tagger's encoder runs
+        got["rules"] = _rules_block(state, context, rules_case, version)
+
+    if not may_hold_case(text, context):  # no block can come from the tagger: it is not run (about 0 ms)
+        run_rules()
+        rules = got["rules"]
+        if rules is not None:
+            return Shown(rules.version, rules.text, rules.lines, path="rules_only")
+        return Refused("cascade-no-amount-or-rate", gate="pregate")
+    tags, error = None, None
+    try:
+        if getattr(tagger, "overlaps", False):
+            tags = tagger.predict(text, context, during=run_rules)
+        else:
+            run_rules()
+            tags = tagger.predict(text, context)
+    except Exception as e:  # a tagger failure is no block from the tagger, never a failed request
+        error = e
+    if "rules" not in got:
+        run_rules()
+    rules = got["rules"]
 
     def rules_only(gate: str, code: str, detail: str = "", checks=()) -> Shown | Refused:
         if rules is not None:
             return Shown(rules.version, rules.text, rules.lines, path="rules_only", checks=tuple(checks))
         return Refused(f"cascade-{code}", gate=gate, detail=detail, checks=tuple(checks))
 
-    try:
-        tags = tagger.predict(text, context)
-    except Exception as e:  # a tagger failure is no block from the tagger, never a failed request
-        return rules_only("tagger", "tagger-error", type(e).__name__)
+    if error is not None:
+        return rules_only("tagger", "tagger-error", type(error).__name__)
     if tags.note:
         return rules_only("tagger", tags.note)
     if tags.abstain_p >= 0.5:
