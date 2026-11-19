@@ -368,6 +368,46 @@ def windowed_hidden(model: CascadeTagger, ids: list[int], max_length: int, devic
     return torch.stack(rows)
 
 
+# roles whose span holds one value the normalizer reads (not words, not a date range, not a distractor)
+_SNAPPED = frozenset(A._ACCEPTS) - {"range_start", "range_end"}
+
+
+def value_bounds(state: str, context: str | None, shift: int) -> list[tuple[int, int]]:
+    """Where the normalizer's values lie in the joined text (each part read with the decimal convention of both, as the
+    assembler reads them)."""
+    from decisio.calculator import normalize as N
+
+    doc = N.document(((context + "\n") if context else "") + state)
+    out = [(a + shift, b + shift) for a, b in (v.span for v in N.normalize(state, doc).values)]
+    if context:
+        out += [v.span for v in N.normalize(context, doc).values]
+    return sorted(out)
+
+
+def snap_values(raw, values, text: str, shift: int):
+    """Decoded spans with a value role, widened to the one value they overlap when they cut it ("$22" of "$22.66",
+    "h 41 min" of "1 h 41 min"); spans of one role that land on the same value become one (the lowest probability).
+    A span over two values, or over none, is left as decoded (the assembler refuses it)."""
+    out: list[tuple[int, int, str, float]] = []
+    seen: dict[tuple[int, int, str], int] = {}
+    for s, e, k, p in raw:
+        s, e = trim(text, s, e)
+        if s >= e or (shift and s < shift <= e):
+            continue
+        if unkinded(k)[0] in _SNAPPED:
+            hit = [(a, b) for a, b in values if a < e and b > s]
+            if len(hit) == 1:
+                s, e = min(s, hit[0][0]), max(e, hit[0][1])
+        key = (s, e, k)
+        if key in seen:
+            i = seen[key]
+            out[i] = (s, e, k, min(out[i][3], p))
+            continue
+        seen[key] = len(out)
+        out.append((s, e, k, p))
+    return out
+
+
 @torch.inference_mode()
 def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: str | None, device: str = "cpu") -> Tags:
     text, shift = join(state, context)
@@ -381,10 +421,8 @@ def predict(model: CascadeTagger, tokenizer, meta: dict, state: str, context: st
     raw = decode_bio(offsets, top.tolist(), top_p.tolist(), LABELS, text)
 
     found = []  # (start, end, kinded, p, token range)
-    for s, e, k, p in raw:
-        s, e = trim(text, s, e)
-        if s >= e or (shift and s < shift <= e):
-            continue
+    values = value_bounds(state, context, shift)
+    for s, e, k, p in snap_values(raw, values, text, shift):
         toks = [t for t, (a, b) in enumerate(offsets) if a < e and b > s and a != b]
         found.append((s, e, k, p, (toks[0], toks[-1] + 1)))
     vec = model.spans(hidden, [f[4] for f in found])
