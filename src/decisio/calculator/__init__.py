@@ -66,7 +66,9 @@ from dataclasses import dataclass, field
 from decisio.calculator import compute, parse, render
 from decisio.calculator.parse import REASONS, Unsure
 
-VERSIONS = ("calc-v1",)
+VERSIONS = ("calc-v1", "time-v1", "calc-v1+time-v1")
+# `time-v1`: the time and unit calculator alone (decisio.calculator.temporal); `calc-v1+time-v1`: both blocks, each
+# where it has lines (the billing block first)
 HEADING = render.HEADING
 
 __all__ = [
@@ -127,6 +129,22 @@ def annotate(
     the threshold rule off); the result carries its path in `.path`."""
     if reader not in ("rules", "cascade"):
         raise ValueError(f"unknown calculator reader {reader!r}; use 'rules' or 'cascade'")
+    _check_version(version)
+    if version == "time-v1":
+        return _time(state, context)
+    if version == "calc-v1+time-v1":
+        kw = dict(normalized=normalized, reader=reader, tagger=tagger, thresholds=thresholds)
+        calc = annotate(state, context, "calc-v1", **kw)
+        time = _time(state, context)
+        parts = [a for a in (calc, time) if isinstance(a, Annotation)]
+        if not parts:
+            return calc
+        return Annotation(
+            version=version,
+            text="\n".join(a.text for a in parts),
+            lines=sum(a.lines for a in parts),
+            path=calc.path if isinstance(calc, Annotation) else "",
+        )
     rules = _rules(state, context, version, normalized)
     if reader == "rules":
         return rules
@@ -141,6 +159,19 @@ def annotate(
     if isinstance(out, Annotation):
         return Annotation(out.version, out.text, out.lines, path=out.path)
     return Abstain(out.reason, path=out.path)
+
+
+def _time(state, context: str | None) -> Annotation | Abstain:
+    from decisio.calculator import temporal
+    from decisio.readout.letters import fmt_state
+
+    try:
+        lines = temporal.facts(fmt_state(state), context)
+    except Exception:  # never a partial or a guessed block, and never a failed request
+        return Abstain("internal-error")
+    if not lines:
+        return Abstain("no-time-facts")
+    return Annotation(version="time-v1", text=temporal.block(lines), lines=len(lines))
 
 
 def _rules(state, context: str | None, version: str, normalized: bool | None) -> Annotation | Abstain:
