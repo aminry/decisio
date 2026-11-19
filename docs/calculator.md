@@ -99,6 +99,37 @@ A client that already holds structured amounts can send them, and gets the same 
 - **Tasks and certificates:** the serving-stack and task fingerprints carry the format when the block is on, so a task registered or a certificate made on reads with the block applies only where the block is shown. A task's registration examples are read with the block on such a server.
 - **Not here:** requests with images, `--mode packed`, `POST /v1/answer`, and other runtimes (an Ollama listing does not run decisio's server).
 
+## The cascade reader (preview)
+
+The rule reader described above is the default, and it stays the default: nothing turns the cascade reader on unless a server flag asks for it.
+The cascade reader is a preview that may show a block for states the rule reader does not read, such as wordings and layouts it has no rule for.
+A small role tagger (a token-classification encoder) marks the role of each number in the text, the marked spans are assembled into the same structured amounts as `calculator_input`, and the block is rendered by the same code, so its format and bytes do not change.
+
+**Precision gates** decide whether a block is shown:
+
+- Every number in the text must be marked, every value must come from the text, the units must agree, and a rule the calculator cannot apply exactly (a rounding direction, a limit) gives no block.
+- Then one of these must hold, and the response names it as the path: the rule reader reads the state and gives the same block (`rules_agree`), the figures the state itself states are reproduced (`stated_figures`), or every decision of the tagger clears its threshold outside a margin (`threshold`).
+- Where the tagger gives no block but the rule reader reads the state, the rule reader's block stands (`rules_only`): the cascade never shows less than the rule reader.
+- Where the two give different blocks, there is no block; a tagger failure is no block too, never a failed request.
+
+**Turning it on** (only where the block is shown at all, that is for a model that records `defaults.calculator`):
+
+- `--calculator-reader cascade` with `--calculator-tagger`: a local directory (its `SHA256SUMS` is checked) or `owner/name@<full commit hash>` on the Hugging Face Hub.
+- The tagger is loaded once at start, and the start prints `CALCULATOR READER cascade: tagger <name>@<revision> on <device>, thresholds <file or off>`.
+- `--calculator-thresholds FILE`: a JSON object with `role`, `link` and `flag` (and `band`, the margin); without it the threshold rule is off, so only `rules_agree`, `stated_figures` and `rules_only` can show a block.
+- `--calculator-device auto|cpu|cuda|mps`: `auto` runs the tagger on the serving card for the vLLM backend on CUDA, in the memory vLLM leaves under `--gpu-memory-utilization`, and on the CPU otherwise. The tagger needs `torch` and `transformers`.
+- The cascade without a tagger, a tagger flag without `--calculator-reader cascade`, a Hub tagger without a full commit hash or an unusable thresholds file stops the start with a message. On a server that shows no block, the cascade is a start note and nothing is loaded.
+
+**What it adds** (none of it appears with the rule reader):
+
+- `x-decisio-calculator` names the path of a shown block: `shown; lines=9; version=calc-v1; path=threshold`.
+- `x-decisio-stages` carries `calculator=<ms>`, the time the reading took.
+- `/health` `systemone.calculator` adds `reader`, `tagger` (`name`, `revision`, `device`), `thresholds` (their values, or `off`) and `paths` (a count per path, `abstain` included).
+- The serving-stack fingerprint carries the reader, the tagger's revision and the thresholds, so a certificate made with one reader is suspended under the other (`serving_stack_changed`).
+- A request's own `calculator_input` is used as it is, with no reading; a task's registration examples are read with the same reader as requests.
+
+It is a preview: the tagger, its flags and what it reports may change before it can become the default.
+
 ## Training rows
 
 The rows a model is trained on must carry the block exactly as serving writes it.

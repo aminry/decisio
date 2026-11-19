@@ -8,6 +8,21 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the cascade reader for the calculator (preview, off by default)
+
+### What changed
+
+- **A new opt-in reader for the calculator** ([calculator.md](calculator.md#the-cascade-reader-preview)): `--calculator-reader cascade` with `--calculator-tagger`, `--calculator-thresholds` and `--calculator-device`.
+- It may show a block for states the rule reader does not read, behind precision gates, and says which path accepted each block (`x-decisio-calculator`, `/health`).
+- The default stays `--calculator-reader rules`: its responses, headers, `/health` and fingerprints are unchanged.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| Every server without `--calculator-reader cascade` | | unchanged | nothing |
+| A server started with `--calculator-reader cascade` on a model that records `defaults.calculator` | | blocks for more states, `path=` in `x-decisio-calculator`, `calculator=` in `x-decisio-stages`, new `/health` fields; certificates made with the rule reader are suspended | certify certified tasks again |
+
 ## Unreleased: the calculator gives no block for counts with a multiplier and for a factor across kinds of unit
 
 ### What changed

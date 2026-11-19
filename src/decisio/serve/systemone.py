@@ -900,6 +900,7 @@ class SystemOne:
         layout_records: dict | None = None,
         box_confidence=None,
         calculator: str | None = None,
+        calculator_reader: calcs.Reader | None = None,
     ):
         # the map from presence times raw edge confidence to the confidence a Box answer carries (decisio.readout.box);
         # the identity until a card read has fitted one for the served model
@@ -912,7 +913,10 @@ class SystemOne:
         # records (`--calculator auto` and a repository's defaults.calculator), and what it did (/health)
         # (never in packed mode, which reads no block: its requests, registrations and fingerprints all go without it)
         self.calculator = None if getattr(engine, "mode", None) == "packed" else calculator
-        self.calc_counts = calcs.Counts(self.calculator)
+        # how the calculator reads a state (calcs.Reader): the rule reader by default; the cascade (a preview, its
+        # tagger loaded once at start) only where a flag asks for it and the block is shown
+        self.calc_reader = calculator_reader if calculator_reader is not None and self.calculator else calcs.Reader()
+        self.calc_counts = calcs.Counts(self.calculator, self.calc_reader)
         # a named configuration (decisio.flavors): its name, overrides and pending values; None for a server with no
         # flavor, which is then exactly what it was (the model it echoes, the fingerprint, the headers)
         self.flavor = dict(flavor) if flavor else None
@@ -1441,6 +1445,8 @@ class SystemOne:
                 timing["warning"] = "; ".join(w for w in (timing.get("warning"), decision.warning) if w)
             if decision.header_value():
                 timing["calculator"] = decision.header_value()
+            if decision.ms is not None and isinstance(timing.get("stages"), dict):  # the cascade reader's time
+                timing["stages"]["calculator"] = decision.ms
         return out
 
     def read_state(self, context, state, examples: bool = False):
@@ -1455,7 +1461,7 @@ class SystemOne:
         if decision is not None:
             ann = decision.annotation if (decision.state is state or decision.state == state) else None
         elif examples and self.calculator is not None:
-            ann = annotate(state, context, self.calculator)
+            ann = annotate(state, context, self.calculator, **self.calc_reader.kwargs())
         else:
             ann = None
         if isinstance(ann, Annotation):
@@ -1471,7 +1477,15 @@ class SystemOne:
 
         if decision is None or not decision.on:
             return
-        ann = decision.given if decision.given is not None else annotate(req.state, context, decision.version)
+        if decision.given is not None:
+            ann = decision.given
+        elif self.calc_reader.cascade:  # timed (x-decisio-stages `calculator`), with the path it took (/health)
+            t0 = time.perf_counter()
+            ann = annotate(req.state, context, decision.version, **self.calc_reader.kwargs())
+            decision.ms = (decision.ms or 0.0) + (time.perf_counter() - t0) * 1000
+            decision.path = ann.path or None
+        else:
+            ann = annotate(req.state, context, decision.version)
         if isinstance(ann, Annotation):
             limit = getattr(engine, "prompt_limit", lambda: None)()
             if limit is not None and hasattr(engine, "tok"):
@@ -3376,6 +3390,9 @@ class SystemOne:
                 # the calculator block format shown, only when on: a certificate made on reads with the block is
                 # suspended by a server that shows none, and the other way round
                 **({"calculator": self.calculator} if self.calculator else {}),
+                # the cascade reader, only when on (its tagger's revision and thresholds): a certificate made on reads
+                # with the rule reader is suspended by a server that reads with the cascade, and the other way round
+                **({"calculator_reader": self.calc_reader.fingerprint()} if self.calc_reader.cascade else {}),
                 # batch-invariant kernels, only when on: other kernels, so other numerics; a certificate made without
                 # them is suspended
                 **({"batch_invariant": True} if self.batch_invariant else {}),
