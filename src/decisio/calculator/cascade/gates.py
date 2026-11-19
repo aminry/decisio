@@ -21,7 +21,8 @@ A block is shown only when every required gate passes:
   wording         the text's own words agree with the case: no line label is cut out of a longer phrase (such as
                   "days" out of "Daily rate days"); every line taken off (a credit, a day credit, a
                   deducted adjustment) is named in a sentence that says something comes off; and no sentence naming
-                  a fee or credit puts it on the other side of the tax from the case
+                  a fee or credit (with the sentences after it on its line that go on about it: "It is added once
+                  the tax has been worked out") puts it on the other side of the tax from the case
 
 and then one of the acceptance rules:
 
@@ -442,13 +443,33 @@ def _sentences(text: str):
     yield start, len(text)
 
 
+# a sentence that goes on about the line the previous sentence named ("Booking fee: EUR 38.81 is charged once. It is
+# added once the tax has been worked out")
+_CONTINUES = re.compile(
+    r"\s*(?:it|this|that|they|these|those|its|their|the (?:same )?"
+    r"(?:fee|fees|credit|credits|charge|charges|amount|deposit|voucher|discount|allowance|payment))\b",
+    re.I,
+)
+
+
 def _naming(asm: A.Assembly, label: str):
-    """The sentences (of the state and the context) that name a label (case and spacing ignored)."""
+    """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
+    names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
+    "the fee", "the credit" ...)."""
     key = A.norm_label(label)
     for _, text in asm.texts:
-        for a, b in _sentences(text):
-            if key in A.norm_label(text[a:b]):
-                yield text[a:b]
+        sents = list(_sentences(text))
+        for j, (a, b) in enumerate(sents):
+            if key not in A.norm_label(text[a:b]):
+                continue
+            end, k = b, j + 1
+            while (
+                k < len(sents)
+                and "\n" not in text[end : sents[k][0]]
+                and _CONTINUES.match(text[sents[k][0] : sents[k][1]])
+            ):
+                end, k = sents[k][1], k + 1
+            yield text[a:end]
 
 
 def wording(asm: A.Assembly) -> Check:

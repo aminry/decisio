@@ -592,6 +592,8 @@ def test_wording_refuses_a_line_taken_off_with_no_word_that_says_so():
         "Loyalty credit: $5.00, taken off once the tax has been worked out.",
         "Loyalty credit: $5.00, taken off; it is not part of the amount the tax is charged on.",
         "Loyalty credit: $5.00, taken off after tax.",
+        "Loyalty credit: $5.00 is taken off. It comes off once the tax has been worked out.",
+        "Loyalty credit: $5.00, taken off. The credit is not part of the amount the tax is charged on.",
     ],
 )
 def test_wording_refuses_a_credit_on_the_other_side_of_the_tax(sentence):
@@ -629,3 +631,13 @@ def test_decoded_spans_snap_to_the_value_they_cut():
         ("Design hours", "item_label", 0.99),
         ("3 x $5.00", "price", 0.6),
     ]
+
+
+def test_wording_reads_on_only_within_the_line_and_after_a_pronoun():
+    # the next line's "It" is about something else: not read as the credit's side
+    old = "Loyalty credit: $5.00, taken off before tax."
+    state = STATE.replace(old, old + "\nIt is all due after tax.")
+    assert _wording(state).ok
+    # a sentence that does not go on about the line (no pronoun) is not read either
+    state = STATE.replace(old, old + " Payment is due after tax day.")
+    assert _wording(state).ok
