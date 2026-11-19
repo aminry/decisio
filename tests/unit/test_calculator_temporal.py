@@ -111,3 +111,44 @@ def test_annotate_writes_the_time_block_and_both_blocks_together():
     assert out.text == "Calculator, times (exact):\n- 3 Sep 2026 + 30 days: 3 Oct 2026"
     both = annotate(text, version="calc-v1+time-v1")
     assert isinstance(both, Annotation) and both.text == out.text  # no billing case: the time block alone
+
+
+def test_a_zone_joined_to_another_is_not_read():
+    assert lines("The page fired at 19:45 BST/IST on 3 Sep 2026.") == []
+
+
+def test_a_table_rows_zone_cell_beside_its_time_cell():
+    text = (
+        "| Seq. | Event | Date | Local Time | Time Zone |\n|---|---|---|---|---|\n"
+        "| 1 | Picked up | 14 July 2026 | 08:00 | JST |\n| 2 | Departed hub | 14 July 2026 | 18:30 | UTC-3 |\n"
+        "| 3 | Scanned | 15 July 2026 | 19:45 | BST/IST |"
+    )
+    out = lines(text)
+    assert "08:00 JST, 14 Jul 2026 = 23:00 UTC, 13 Jul 2026" in out
+    assert "18:30 UTC-3, 14 Jul 2026 = 21:30 UTC, 14 Jul 2026" in out
+    assert "08:00 JST, 14 Jul 2026 to 18:30 UTC-3, 14 Jul 2026: 22 h 30 min" in out
+    assert not any("19:45" in x for x in out)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "| Start date | 8 December 2026 |\n| Review due | 1 week after the Start date |",
+        "Start date: 8 December 2026. The review is due 1 week after the Start date.",
+        "The review is due 1 week after the start date of 8 December 2026.",
+        'The "Review" date is 1 week after the "Start date". The recorded Start date is 2026-12-08.',
+        "The review is due 1 week after the employee's Start date. The Start date is 8 December 2026.",
+    ],
+)
+def test_a_base_given_by_its_label_elsewhere(text):
+    assert "8 Dec 2026 + 1 week: 15 Dec 2026" in lines(text)
+
+
+def test_a_label_given_two_dates_is_not_read():
+    text = "Start date: 8 December 2026. Start date: 9 December 2026. Due 1 week after the Start date."
+    assert lines(text) == []
+
+
+def test_a_stamp_drops_a_closing_parenthesis_it_does_not_open():
+    out = lines("(The call ended at 05:45 UTC+3) on 27 May 2026.")
+    assert out == ["05:45 UTC+3, 27 May 2026 = 02:45 UTC, 27 May 2026"]

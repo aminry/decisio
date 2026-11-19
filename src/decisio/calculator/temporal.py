@@ -87,7 +87,7 @@ CITIES = {
 _CITY_RX = "|".join(sorted((re.escape(c) for c in CITIES), key=len, reverse=True))
 _TIME = re.compile(
     r"(?<![\d:.,$\u20ac\u00a3])(?P<h>[01]?\d|2[0-4])(?P<sep>[:.])(?P<mi>[0-5]\d)(?![\d:])(?:\s?(?P<ap>[ap]\.?m\.?)(?![a-z]))?"
-    rf"(?:\s*\(?(?P<z>{_ZONE_RX})\)?(?![A-Za-z])|\s+(?:[A-Za-z]+\s+){{0,4}}\(?(?P<city>{_CITY_RX})\s+time\b\)?)?",
+    rf"(?:\s*\(?(?P<z>{_ZONE_RX})\)?(?![A-Za-z/])|\s+(?:[A-Za-z]+\s+){{0,4}}\(?(?P<city>{_CITY_RX})\s+time\b\)?)?",
     re.I,
 )
 _SHIFT = re.compile(
@@ -95,6 +95,22 @@ _SHIFT = re.compile(
     rf"(?:the\s+)?(?P<date>(?:{_WEEKDAY_RX},?\s+)?(?:\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{_MONTH_RX})\.?(?:,?\s+\d{{4}})?"
     rf"|(?:{_MONTH_RX})\.?\s+\d{{1,2}}(?:st|nd|rd|th)?(?:,?\s+\d{{4}})?|\d{{4}}-\d{{2}}-\d{{2}}))",
     re.I,
+)
+
+# "1 week after the Start date", the base given by its label elsewhere in the text
+_SHIFT_LABEL = re.compile(
+    r"\b(?P<n>\d{1,4})\s+(?P<u>days?|weeks?|months?|years?)\s+(?P<dir>after|from|following|before|prior to)\s+"
+    r"the\s+[\"\u201c*]*(?P<label>[A-Za-z][\w'-]*(?:\s+[A-Za-z][\w'-]*){0,4}?)[\"\u201d*]*"
+    r"(?=\s*(?:[.,;:|)]|$|\s+(?:listed|shown|given|above|below|in|on|of|and|for|under|as|unless)\b))",
+    re.I | re.M,
+)
+# what may stand between a label and its date: "Start date: ...", "| Start date | ...", "Start date is ...",
+# "Start date of ..."
+_LABEL_LINK = r"[\"\u201d*]*\s*(?:\||:|=|\bis\b|\bwas\b|\bof\b)?\s*[\"\u201c*|]*\s*"
+
+# a table row's time cell followed by a cell that holds one zone and nothing else: "| 08:00 | JST |"
+_CELL_ZONE = re.compile(
+    rf"\|\s*(?P<h>[01]?\d|2[0-4]):(?P<mi>[0-5]\d)\s*\|\s*(?P<z>{_ZONE_RX})\s*\|",
 )
 
 # what a text needs before any rule runs: a month name, an ISO date or a clock time
@@ -184,8 +200,25 @@ def _stamps(text: str, dates: list[tuple[int, int, date, str]]) -> list[Stamp]:
             off = _city_offset(CITIES[m.group("city").lower()], day, h * 60 + mi) if day else None
             if off is None:
                 continue  # a place's offset depends on the date (and a clock change hour is not read)
-        out.append(Stamp(m.group(0).strip(), m.start(), m.end(), h * 60 + mi, off, day))
+        out.append(Stamp(_balanced(m.group(0).strip()), m.start(), m.end(), h * 60 + mi, off, day))
+    for m in _CELL_ZONE.finditer(text):
+        h, mi = int(m.group("h")), int(m.group("mi"))
+        off = _offset(m.group("z"))
+        if off is None or (h == 24 and mi):
+            continue
+        a, b = _sentence_bounds(text, m.start())
+        near = [d for s, e, d, _ in dates if a <= s and e <= b]
+        day = near[0] if len(set(near)) == 1 else None
+        out.append(Stamp(f"{m.group('h')}:{m.group('mi')} {m.group('z')}", m.start(), m.end(), h * 60 + mi, off, day))
+    out.sort(key=lambda s: s.start)
     return out
+
+
+def _balanced(t: str) -> str:
+    """A stamp as written, without a closing parenthesis it does not open ("05:45 UTC+3)")."""
+    while t.endswith(")") and t.count(")") > t.count("("):
+        t = t[:-1].rstrip()
+    return t
 
 
 def _city_offset(zone: str, day: date, minutes: int) -> int | None:
@@ -204,6 +237,25 @@ def _city_offset(zone: str, day: date, minutes: int) -> int | None:
     if a.utcoffset() != b.utcoffset():
         return None  # repeated or skipped by a clock change
     return int(a.utcoffset().total_seconds() // 60)
+
+
+def _date_for_label(text: str, label: str, year: int | None) -> date | None:
+    """The one date the text gives a label: every mention of the label followed straight away (through ":", "|", "is",
+    "was", "of" only) by a date; None when no mention or two different dates. A possessive before the label ("the
+    employee's Start date") is dropped."""
+    words = label.split()
+    cands = [label] + ([" ".join(words[1:])] if len(words) > 1 and words[0].lower().endswith("'s") else [])
+    for cand in cands:
+        found = set()
+        for m in re.finditer(rf"(?<![\w-]){re.escape(cand)}(?![\w-]){_LABEL_LINK}", text, re.I):
+            ds = _dates(text[m.end() : m.end() + 40], year)
+            if ds and ds[0][0] == 0:
+                found.add(ds[0][2])
+        if len(found) == 1:
+            return found.pop()
+        if found:
+            return None
+    return None
 
 
 def _hm(minutes: int) -> str:
@@ -256,8 +308,13 @@ def facts(state: str, context: str | None = None) -> list[str]:
         mins = int((tb - ta).total_seconds() // 60)
         lines.append(f"{_stamp(a)} to {_stamp(b)}: {_dur(mins)}")
     # calendar shifts
-    for m in _SHIFT.finditer(text):
-        ds = _dates(m.group("date"), year)
+    shifts = [(m, _dates(m.group("date"), year)) for m in _SHIFT.finditer(text)]
+    for m in _SHIFT_LABEL.finditer(text):
+        d = _date_for_label(text, m.group("label"), year)
+        if d is not None:
+            shifts.append((m, [(0, 0, d, "")]))
+    shifts.sort(key=lambda x: x[0].start())
+    for m, ds in shifts:
         if len(ds) != 1:
             continue
         d0, n, unit = ds[0][2], int(m.group("n")), m.group("u").lower().rstrip("s")
