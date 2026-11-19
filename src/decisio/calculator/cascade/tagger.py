@@ -13,7 +13,9 @@
 
 Determinism: the wrapper reads one text at a time (batch size 1), in eval mode, in float32 on the CPU unless told
 otherwise, with fixed weights (a directory's `SHA256SUMS` is checked when present; a Hub repository needs a full commit
-hash). A text longer than the model's window gives `Tags(note="too-long")`, never a truncated read.
+hash). A text longer than the model's window is read in overlapping windows (every token takes its state from the
+window where it lies farthest from an edge); a text that needs more than `model.MAX_WINDOWS` windows gives
+`Tags(note="too-long")`, never a truncated read.
 """
 
 from __future__ import annotations

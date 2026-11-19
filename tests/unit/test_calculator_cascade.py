@@ -511,7 +511,23 @@ def test_model_wrapper_reads_with_a_tiny_local_model(tmp_path):
     via = annotate(STATE, reader="cascade", tagger=str(tmp_path), thresholds=TH)
     assert isinstance(via, (Annotation, Abstain)) and via.path
     long = HFTagger(tagger.model, tagger.tokenizer, dict(tagger.meta, max_length=8))
-    assert long.predict(STATE).note == "too-long"
+    assert long.predict(STATE).note == "too-long"  # more than MAX_WINDOWS windows
+    n = len(tagger.tokenizer(STATE)["input_ids"])
+    windowed = HFTagger(tagger.model, tagger.tokenizer, dict(tagger.meta, max_length=n // 3 + 2))
+    got = windowed.predict(STATE)
+    assert not got.note and got == windowed.predict(STATE)
+    assert all(s.text == STATE[s.start : s.end] for s in got.spans)
+
+
+@pytest.mark.parametrize(("n", "size"), [(5, 10), (10, 10), (11, 10), (40, 10), (1000, 510)])
+def test_windows_cover_every_token_with_overlap(n, size):
+    from decisio.calculator.cascade.model import windows
+
+    ws = windows(n, size)
+    assert ws[0][0] == 0 and ws[-1][1] == n and all(b - a <= size for a, b in ws)
+    assert all(a2 < b1 for (_, b1), (a2, _) in zip(ws, ws[1:]))  # neighbours overlap: no seam without context
+    if n > size:
+        assert all(b1 - a2 >= size // 4 for (_, b1), (a2, _) in zip(ws, ws[1:]))
 
 
 # ---- rule forms the calculator cannot express veto the block --------------------------------------------------------
@@ -590,3 +606,26 @@ def test_wording_refuses_a_fee_the_text_puts_before_tax():
     state = STATE.replace("Handling fee: $7.25, added after tax.", "Handling fee: $7.25, inside the taxed amount.")
     check = _wording(state)
     assert (check.ok, check.code, check.detail) == (False, "tax-side", "f1")
+
+
+def test_decoded_spans_snap_to_the_value_they_cut():
+    pytest.importorskip("torch")
+    from decisio.calculator.cascade.model import snap_values, value_bounds
+
+    text = "Design hours: 1 h 41 min at $22.66 per hour, 3 x $5.00."
+    values = value_bounds(text, None, 0)
+    at = lambda t: (text.index(t), text.index(t) + len(t))  # noqa: E731
+    raw = [
+        (*at("h 41 min"), "duration", 0.9),  # cut out of "1 h 41 min"
+        (*at("$22"), "rate", 0.8),  # "$22" and ".66" decoded apart: one span, the lower p
+        (text.index(".66"), text.index(".66") + 3, "rate", 0.7),
+        (*at("Design hours"), "item_label", 0.99),  # words are never snapped
+        (*at("3 x $5.00"), "price", 0.6),  # over two values: left for the assembler to refuse
+    ]
+    got = snap_values(raw, values, text, 0)
+    assert [(text[s:e], k, p) for s, e, k, p in got] == [
+        ("1 h 41 min", "duration", 0.9),
+        ("$22.66", "rate", 0.7),
+        ("Design hours", "item_label", 0.99),
+        ("3 x $5.00", "price", 0.6),
+    ]
