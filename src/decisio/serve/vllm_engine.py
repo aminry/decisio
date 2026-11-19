@@ -2263,6 +2263,7 @@ def resolve_base(args):
         as_loaded,
         declares_fp8,
         family_of,
+        matches,
         pinned_revision,
         read_config,
     )
@@ -2312,7 +2313,9 @@ def resolve_base(args):
             fp8_weights = fp8_weights or declares_fp8(cfg)
             mt = cfg.get("model_type")
             # the same checkpoint in another precision (the 12B's two) is not another base's
-            other = next((f for f in FAMILIES if mt in f.model_types and f.model != fam.model), None)
+            other = None
+            if not matches(fam, cfg):
+                other = next((f for f in FAMILIES if matches(f, cfg) and f.model != fam.model), None)
             if other is not None:
                 raise ValueError(f"--base {args.base}, but --model {args.model} is a {other.key} checkpoint ({mt})")
             fp8 = next((f for f in FAMILIES if f.model == fam.model and f.precision == "fp8"), None)

@@ -135,7 +135,7 @@ def test_m3_start_up_sets_the_limits_and_checks_the_footprint(tmp_path, monkeypa
 
 def test_m3_every_base_has_a_working_set():
     assert (QWEN.mlx_working_gb, GEMMA4.mlx_working_gb, GEMMA4_31B.mlx_working_gb) == (4, 6, 9)
-    assert all(b.mlx_working_gb > 0 for b in BASES.values())
+    assert all(b.mlx_working_gb > 0 for b in BASES.values() if not b.vllm_only)  # every base MLX serves
 
 
 @pytest.mark.skipif(sys.platform != "darwin", reason="macOS's proc_pid_rusage")

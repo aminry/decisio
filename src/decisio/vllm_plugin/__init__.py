@@ -25,12 +25,16 @@ HIDDEN_READOUT = "DecisioQwen3_5MoeHiddenReadout"
 GEMMA4_HIDDEN_READOUT = "DecisioGemma4UnifiedHiddenReadout"
 GEMMA4_MM_TEXT_ONLY = "DecisioGemma4TextOnly"
 GEMMA4_MM_HIDDEN_READOUT = "DecisioGemma4HiddenReadout"
+QWEN_DENSE_TEXT_ONLY = "DecisioQwen3_5TextOnly"
+QWEN_DENSE_HIDDEN_READOUT = "DecisioQwen3_5HiddenReadout"
 MODELS: dict[str, str] = {
     TEXT_ONLY: "decisio.vllm_plugin.models:DecisioQwen3_5MoeTextOnly",
     HIDDEN_READOUT: "decisio.vllm_plugin.models:DecisioQwen3_5MoeHiddenReadout",
     GEMMA4_HIDDEN_READOUT: "decisio.vllm_plugin.gemma:DecisioGemma4UnifiedHiddenReadout",
     GEMMA4_MM_TEXT_ONLY: "decisio.vllm_plugin.gemma:DecisioGemma4TextOnly",
     GEMMA4_MM_HIDDEN_READOUT: "decisio.vllm_plugin.gemma:DecisioGemma4HiddenReadout",
+    QWEN_DENSE_TEXT_ONLY: "decisio.vllm_plugin.models:DecisioQwen3_5TextOnly",
+    QWEN_DENSE_HIDDEN_READOUT: "decisio.vllm_plugin.models:DecisioQwen3_5HiddenReadout",
 }
 BASE_ARCH = "Qwen3_5MoeForCausalLM"  # vLLM's class the Qwen classes subclass; its config hook is reused
 # the vLLM architecture each class subclasses, whose config hook (vLLM's MODELS_CONFIG_MAP) it reuses
@@ -44,6 +48,9 @@ BASE_ARCHS: dict[str, str] = {
     # is the same Gemma4Config
     GEMMA4_MM_TEXT_ONLY: "Gemma4ForCausalLM",
     GEMMA4_MM_HIDDEN_READOUT: "Gemma4ForCausalLM",
+    # the dense Qwen3.5 text class (Qwen/Qwen3.5-4B), whose hook sets the recurrent-state cache dtype as the MoE one's
+    QWEN_DENSE_TEXT_ONLY: "Qwen3_5ForCausalLM",
+    QWEN_DENSE_HIDDEN_READOUT: "Qwen3_5ForCausalLM",
 }
 ENTRY_POINT_GROUP, ENTRY_POINT_NAME = "vllm.general_plugins", "decisio"
 
