@@ -41,6 +41,7 @@ Crate packing: 4 crates at $12.50 each.
 Forklift time: entries of 50 and 75 minutes, at $48.00 per hour; the total is rounded once to the nearest 15 minutes.
 Cable: 1605 lb, converted with 1 lb = 0.4536 kg, priced at $0.20 per kg.
 Rush supplement: 10% of Crate packing, added.
+The Rush supplement is inside the taxed amount.
 Handling fee: $7.25, added after tax.
 Loyalty credit: $5.00, taken off before tax.
 Tax of 8% is charged on the bill."""
@@ -896,7 +897,8 @@ def test_wording_reads_the_adjustment_target_in_the_percent_sentence(line, code)
 
 def test_wording_reads_the_tax_side_over_a_wrapped_line():
     old = "Loyalty credit: $5.00, taken off before tax."
-    after = STATE.replace(old, "Loyalty credit: $5.00 is not counted in the\n  amount the tax is charged on.")
+    new = "Loyalty credit: $5.00 is taken off and is not counted in the\n  amount the tax is charged on."
+    after = STATE.replace(old, new)
     assert _wording(after).code == "tax-side"  # the case puts it before the tax
     before = STATE.replace(old, "Loyalty credit: $5.00 is taken off before\n  tax.")
     assert _wording(before).ok
@@ -1088,3 +1090,34 @@ def test_a_tagger_error_before_its_overlap_still_serves_the_rule_readers_block()
 
     out = C.read(STATE, tagger=Failing(), thresholds=Thresholds())
     assert out.path in ("rules_only", "abstain") and getattr(out, "gate", "tagger") in ("tagger", None)
+
+
+def test_wording_needs_the_take_off_word_outside_the_lines_own_name():
+    state = STATE.replace("Loyalty credit: $5.00, taken off before tax.", "Loyalty credit: $5.00 before tax.")
+    assert _wording(state).code in ("subtract-word-outside-name", "no-subtract-word")
+
+
+def test_wording_reads_a_list_of_lines_as_a_list_not_every_line():
+    state = STATE.replace("Handling fee: $7.25, added after tax.", "Handling fee: $7.25, added.")
+    listed = "on the bill. Crate packing, Forklift time and Cable are all inside the taxed amount."
+    state = state.replace("on the bill.", listed)
+    assert _wording(state, SPANS, dict(FLAGS, tax_after=[])).code == "tax-side-unstated"
+
+
+@pytest.mark.parametrize(
+    ("line", "code"),
+    [
+        ("The Rush supplement is inside the taxed amount.", ""),
+        ("The Rush supplement is applied when the account is settled.", "adjustment-side-unstated"),
+        ("The order does not say whether the Rush supplement comes before or after tax.", "tax-side-ambiguous"),
+    ],
+)
+def test_wording_needs_an_adjustments_side_of_the_tax(line, code):
+    state = STATE.replace("The Rush supplement is inside the taxed amount.", line)
+    assert _wording(state).code == code
+
+
+def test_wording_refuses_a_target_named_after_a_negation():
+    old = "Rush supplement: 10% of Crate packing, added."
+    state = STATE.replace(old, "Rush supplement: 10% of Cable only (not the Crate packing charge), added.")
+    assert _wording(state).code == "adjustment-target"  # the tagger's target is the negated name
