@@ -360,7 +360,8 @@ def test_read_stated_figures_path_and_veto():
     wrong = STATE + "\nTotal due: $1.00."
     tags = with_spans(add=[("$1.00", 0, "stated_total", None, None)], state=wrong)
     out = read(wrong, tagger=StubTagger({wrong: tags}), thresholds=TH)
-    assert isinstance(out, Refused) and out.reason == "cascade-stated-mismatch"
+    # refused by the consistency check (from the text) or the stated-figures veto (from the tags), whichever runs first
+    assert isinstance(out, Refused) and out.reason in ("cascade-stated-figure-mismatch", "cascade-stated-mismatch")
 
 
 def test_read_with_the_rule_reader():
@@ -1156,3 +1157,38 @@ def test_wording_accepts_a_billing_time_when_another_sentence_states_the_side():
     new = "Handling fee: $7.25, added at the end of the bill. The Handling fee is outside the tax."
     state = STATE.replace(old, new)
     assert _wording(state).code != "tax-side-ambiguous"
+
+
+def _consistency(state, spans=SPANS, flags=FLAGS):
+    from decisio.calculator.cascade import gates
+
+    return gates.consistency(assemble(tags_for(state, spans, flags), state))
+
+
+def test_consistency_reconciles_stated_figures_read_from_the_text():
+    f = _figures(assemble(tags_for(), STATE))
+    good = STATE + f"\nTotal due: ${round(f['total'], 2):.2f}."
+    assert _consistency(good).ok  # the tagger need not tag it
+    assert _consistency(STATE + "\nTotal due: $1.00.").code == "stated-figure-mismatch"
+    assert _consistency(STATE + "\nPlease pay within 14 days.").ok  # nothing stated: nothing to reconcile
+
+
+def test_consistency_checks_a_stated_total_time_against_the_entries():
+    ok = STATE.replace(
+        "rounded once to the nearest 15 minutes.", "rounded once to the nearest 15 minutes. Total time: 125 min."
+    )
+    assert _consistency(ok).ok  # 50 + 75
+    rounded = ok.replace("Total time: 125 min.", "Total time: 135 min.")
+    assert _consistency(rounded).ok  # 125 rounded up to the 15-minute step
+    bad = ok.replace("Total time: 125 min.", "Total time: 200 min.")
+    assert _consistency(bad).code == "stated-total-entries"
+
+
+def test_consistency_can_be_switched_off(monkeypatch):
+    monkeypatch.setenv("DECISIO_CASCADE_CONSISTENCY", "0")
+    assert _consistency(STATE + "\nTotal due: $1.00.").ok
+
+
+def test_consistency_skips_a_figure_the_text_puts_outside_this_bill():
+    other = STATE + "\nFor reference only, last year's invoice total was $49.45, which is not part of this bill."
+    assert _consistency(other).ok

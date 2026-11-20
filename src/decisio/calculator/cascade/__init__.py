@@ -203,6 +203,10 @@ def read(
         checks.append(check)
         if not check.ok:
             return rules_only(check.gate, check.code, check.detail, checks)
+    consistent = gates.consistency(asm)
+    checks.append(consistent)
+    if not consistent.ok:
+        return rules_only(consistent.gate, consistent.code, consistent.detail, checks)
     stated = gates.stated_figures(asm)
     checks.append(stated)
     if stated.code in ("stated-mismatch",):
