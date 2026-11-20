@@ -47,6 +47,7 @@ different blocks.
 from __future__ import annotations
 
 import functools
+import os
 import re
 from dataclasses import dataclass
 from fractions import Fraction
@@ -428,6 +429,95 @@ def stated_figures(asm: A.Assembly) -> Check:
             covered |= cover
     if covered != lines:
         return _fail(gate, "partial", f"{len(lines - covered)} lines not covered")
+    return _pass(gate)
+
+
+# --- consistency ----------------------------------------------------------------------------------------------
+
+# a figure the text states for the bill, read from the text itself (not from the tagger): a total-like word, then at
+# most a few connecting characters ("Total due = ", "| Taxed amount | ", "The total comes to "), then the amount
+_TOTAL_WORD = re.compile(
+    r"\b(?:grand total|total(?: due| amount| payable| to pay| charges?| cost)?|sub-?total|gross|net(?: amount| total)?|"
+    r"amount (?:due|payable)|balance(?: due)?|taxed (?:amount|base)|tax (?:charged|withheld|amount|due)|"
+    r"(?:vat|gst) (?:charged|amount|due))\b",
+    re.I,
+)
+_LINK = re.compile(r"[\s*|:=]*(?:(?:is|was|comes? to|amounts? to|of|reads?|shows?)\b[\s*|:=]*)?$", re.I)
+# a figure the sentence puts outside this bill
+_OTHER_BILL = re.compile(
+    r"\b(?:last|previous|prior|earlier|next) (?:year|month|quarter|week|invoice|bill|statement|order)|"
+    r"\bnot (?:part|included) (?:of|in) this\b|\bfor reference(?: only)?\b|\bnot (?:due|payable) (?:now|on this)",
+    re.I,
+)
+_TIME_TOTAL = re.compile(r"\btotal(?: time| duration| hours| minutes| length| distance)?\b", re.I)
+
+
+def _stated_after(text: str, rx, doc):
+    """(value, word) for each normalizer value that a word of `rx` introduces straight away in the text."""
+    vals = N.normalize(text, doc).values
+    for m in rx.finditer(text):
+        for v in vals:
+            gap = text[m.end() : v.span[0]]
+            if 0 <= v.span[0] - m.end() <= 30 and "\n" not in gap and _LINK.match(gap):
+                yield v, m.group(0)
+                break
+
+
+def consistency(asm: A.Assembly) -> Check:
+    """The case against the figures the text states, read from the text itself: every money amount a total-like word
+    introduces ("Total due = $1,234.50", "| Taxed amount | ...") equals one of the case's figures to the cent (a line,
+    an adjustment, the subtotal, the taxed base, the tax or the total); a stated total time or length equals the sum
+    of the line's entries (raw or after its rounding). `stated-figure-mismatch` or `stated-total-entries`; with no
+    such figure in the text the check passes (nothing to reconcile)."""
+    gate = "consistency"
+    if "consistency" in DISABLED or os.environ.get("DECISIO_CASCADE_CONSISTENCY", "1") == "0":
+        return _pass(gate)  # off: for side-by-side measurement (DECISIO_CASCADE_CONSISTENCY=0)
+    texts = dict(asm.texts)
+    doc = N.document(((texts.get("context") or "") + "\n") + texts.get("state", ""))
+    try:
+        figs = [x for _, x, _ in figures(asm)]
+    except Exception:
+        return _fail(gate, "figures")
+    cents = set().union(*(_cents(x) for x in figs)) if figs else set()
+    items = asm.input.get("items", ())
+    sums = []
+    for it in items:
+        entries = [Fraction(str(x)) for x in (it.get("minutes") or it.get("lengths") or ())]
+        if entries:
+            total = sum(entries)
+            sums.append((it, total))
+            step = it.get("round", {}).get("step")
+            if step:
+                st = Fraction(str(step))
+                for f in (
+                    lambda t: (t / st).__floor__() * st,
+                    lambda t: -((-t / st).__floor__()) * st,
+                    lambda t: round(t / st) * st,
+                ):
+                    sums.append((it, f(total)))
+    for where, text in asm.texts:
+        if not text:
+            continue
+        sents = list(_sentences(text))
+        for v, word in _stated_after(text, _TOTAL_WORD, doc):
+            sent = next((_flat(text[a:b]) for a, b in sents if a <= v.span[0] < b), "")
+            if _OTHER_BILL.search(sent):
+                continue  # "last year's invoice total of $378.73 is not part of this bill": another bill's figure
+            if v.kind == "money" and abs(Fraction(v.value)) not in cents:
+                return _fail(gate, "stated-figure-mismatch", f"{where}:{v.span[0]} ({word})")
+        for v, word in _stated_after(text, _TIME_TOTAL, doc):
+            if v.kind not in ("duration", "quantity") or not sums:
+                continue
+            x = Fraction(v.value)
+            if v.kind == "quantity" and v.dimension == "time":
+                f = N.factor(v.unit, "min")
+                x = None if f is None else x * f
+            elif v.kind == "quantity":
+                unit = next((it.get("unit") for it, _ in sums if it.get("lengths")), None)
+                f = N.factor(v.unit, unit) if unit else None
+                x = None if f is None else x * f
+            if x is not None and all(x != t for _, t in sums):
+                return _fail(gate, "stated-total-entries", f"{where}:{v.span[0]} ({word})")
     return _pass(gate)
 
 
