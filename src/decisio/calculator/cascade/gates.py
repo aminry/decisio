@@ -740,7 +740,7 @@ def wording(asm: A.Assembly) -> Check:
     discount's side, not the allowance's). The block passes only when both reads pass, so the second read can only
     refuse (switch: continuation-subject)."""
     first = _wording(asm)
-    if not first.ok or "continuation-subject" in DISABLED:
+    if not first.ok or "continuation-subject" in DISABLED or not _pronoun_carries(asm):
         return first
     token = _SUBJECT_AWARE.set(True)
     try:
@@ -748,6 +748,18 @@ def wording(asm: A.Assembly) -> Check:
     finally:
         _SUBJECT_AWARE.reset(token)
     return first if second.ok else second
+
+
+def _pronoun_carries(asm: A.Assembly) -> bool:
+    """Whether some sentence that opens with a pronoun is followed, on the same item, by a sentence that goes on about
+    it: the only place the subject-aware read of `_naming` differs. Without one the second read is the first, so it is
+    skipped (the same decisions, without reading the wording twice)."""
+    for _, text in asm.texts:
+        sents = list(_sentences(text))
+        for (a, b), (c, d) in zip(sents, sents[1:]):
+            if _PRONOUN_OPENS.match(text[a:b]) and _same_item(text[b:c]) and _CONTINUES.match(text[c:d]):
+                return True
+    return False
 
 
 def _wording(asm: A.Assembly) -> Check:
