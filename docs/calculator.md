@@ -126,10 +126,10 @@ A client that already holds structured amounts can send them, and gets the same 
 - **Tasks and certificates:** the serving-stack and task fingerprints carry the format when the block is on, so a task registered or a certificate made on reads with the block applies only where the block is shown. A task's registration examples are read with the block on such a server.
 - **Not here:** requests with images, `--mode packed`, `POST /v1/answer`, and other runtimes (an Ollama listing does not run decisio's server).
 
-## The cascade reader (preview)
+## The cascade reader
 
-The rule reader described above is the default, and it stays the default: nothing turns the cascade reader on unless a server flag or the model's repository asks for it.
-The cascade reader is a preview that may show a block for states the rule reader does not read, such as wordings and layouts it has no rule for.
+The rule reader described above is the server's default: the cascade reader is on only where a server flag or the model's repository asks for it.
+The cascade reader may show a block for states the rule reader does not read, such as wordings and layouts it has no rule for.
 A small role tagger (a token-classification encoder) marks the role of each number in the text, the marked spans are assembled into the same structured amounts as `calculator_input`, and the block is rendered by the same code, so its format and bytes do not change.
 
 **Precision gates** decide whether a block is shown:
@@ -170,6 +170,7 @@ Its `decision_config.json` records the reader in `defaults.calculator_reader`:
 - `tagger` is `owner/name@<full 40-character commit hash>` on the Hugging Face Hub, or for a repository used on one machine a local directory path (absolute, or starting with `./` or `../`).
 - `thresholds` holds all four values, each a number from 0 to 1 that the reader accepts (each threshold at least 0.5, with room for the band below 1).
 - It needs `defaults.calculator`: the reader applies only where the block is shown, so `--calculator off` or `--mode packed` leaves it unused.
+- With `calc-v1+time-v1` the reader reads the billing block; the `time-v1` lines are the same with either reader.
 - A malformed record is refused when the repository is read, naming the field.
 - **A flag beats the repository.** Any of `--calculator-reader`, `--calculator-tagger` and `--calculator-thresholds` keeps the repository's reader out entirely, so a tagger is never paired with thresholds fitted for another; `--calculator-reader rules` turns it off. `--calculator-device` and `--calculator-dtype` apply to the repository's reader too.
 - The start prints the record under `REPOSITORY DEFAULTS` (`calculator_reader`, or `calculator_reader_set_by` when a flag beat it), then the reader's own line, which names the thresholds as the repository's.
@@ -184,7 +185,7 @@ Its `decision_config.json` records the reader in `defaults.calculator_reader`:
 - The serving-stack fingerprint carries the reader, the tagger's revision and the thresholds, so a certificate made with one reader is suspended under the other (`serving_stack_changed`).
 - A request's own `calculator_input` is used as it is, with no reading; a task's registration examples are read with the same reader as requests.
 
-It is a preview: the tagger, its flags and what it reports may change before it can become the default.
+The tagger is pinned by its commit and the thresholds are written in the repository, so a deployment that pins a repository revision keeps its reader; a new tagger or new thresholds come as a new revision.
 
 ## Training rows
 

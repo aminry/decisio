@@ -8,7 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: a tuned repository can turn on the cascade reader
+## 0.51.0: a date and time block, and two small bases
+
+### What changed
+
+- **A date and time block, `time-v1`** ([calculator.md](calculator.md#dates-and-times-time-v1)): a model trained with it records `time-v1`, or `calc-v1+time-v1` for both blocks, in `defaults.calculator`.
+- **Zone rules come from the `tzdata` package**, now a dependency, not from the host's zone files, so every host applies the same clock-change rules.
+- **Two small bases**, `qwen3.5-4b` and `gemma-4-e4b`, on the vLLM server ([running.md](running.md#the-small-bases)); the bases served before are detected as before.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A repository that records `calc-v1`, or no calculator | | unchanged | nothing |
+| A repository that records `time-v1` or `calc-v1+time-v1`, served by decisio 0.50.x | the calculator is off, with a warning naming the format | the block is shown | upgrade to 0.51.0 |
+
+## 0.51.0: a tuned repository can turn on the cascade reader
 
 ### What changed
 
@@ -24,11 +39,11 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | A repository with `defaults.calculator_reader`, served by an older decisio | | the key is ignored with a warning; the rule reader serves | nothing |
 | A server started with `--calculator-reader cascade` whose tagger fails to load | the start stopped | the server starts on the rule reader, with a `fallback` in `/health` | watch for `CALCULATOR READER rules (fallback)` at start if a stop was relied on |
 
-## Unreleased: the cascade reader for the calculator (preview, off by default)
+## 0.51.0: the cascade reader for the calculator (off unless a flag or the repository asks)
 
 ### What changed
 
-- **A new opt-in reader for the calculator** ([calculator.md](calculator.md#the-cascade-reader-preview)): `--calculator-reader cascade` with `--calculator-tagger`, `--calculator-thresholds` and `--calculator-device`.
+- **A new opt-in reader for the calculator** ([calculator.md](calculator.md#the-cascade-reader)): `--calculator-reader cascade` with `--calculator-tagger`, `--calculator-thresholds` and `--calculator-device`.
 - It may show a block for states the rule reader does not read, behind precision gates, and says which path accepted each block (`x-decisio-calculator`, `/health`).
 - The default stays `--calculator-reader rules`: its responses, headers, `/health` and fingerprints are unchanged.
 
@@ -39,7 +54,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | Every server without `--calculator-reader cascade` | | unchanged | nothing |
 | A server started with `--calculator-reader cascade` on a model that records `defaults.calculator` | | blocks for more states, `path=` in `x-decisio-calculator`, `calculator=` in `x-decisio-stages`, new `/health` fields; certificates made with the rule reader are suspended | certify certified tasks again |
 
-## Unreleased: the calculator gives no block for counts with a multiplier and for a factor across kinds of unit
+## 0.51.0: the calculator gives no block for counts with a multiplier and for a factor across kinds of unit
 
 ### What changed
 
