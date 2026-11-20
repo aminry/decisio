@@ -1149,3 +1149,10 @@ def test_wording_refuses_a_count_noun_read_into_a_label_after_its_quantity():
     spans = [("Crate packing units", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
     spans = [("4", 0, "quantity", "i1", None) if s[0] == "4 crates" else s for s in spans]
     assert _wording(state, spans).code == "label-cut"
+
+
+def test_wording_accepts_a_billing_time_when_another_sentence_states_the_side():
+    old = "Handling fee: $7.25, added after tax."
+    new = "Handling fee: $7.25, added at the end of the bill. The Handling fee is outside the tax."
+    state = STATE.replace(old, new)
+    assert _wording(state).code != "tax-side-ambiguous"

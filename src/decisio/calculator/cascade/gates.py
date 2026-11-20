@@ -783,9 +783,10 @@ def wording(asm: A.Assembly) -> Check:
                 return _fail(gate, "adjustment-side-unstated", g.id)
         if g.kind in ("fee", "credit", "daycredit", "adjustment") and "timing-not-side" not in DISABLED:
             # "The Tail-lift fee is added at the end of the bill": a time in the billing, not a side of the tax
-            for t in named:
-                if _TIMING.search(t) and not (_AFTER_TAX.search(t) or _BEFORE_TAX.search(t)):
-                    return _fail(gate, "tax-side-ambiguous", g.id)
+            # (a side stated in another sentence about the same line settles it)
+            timed = any(_TIMING.search(t) for t in named)
+            if timed and not any(_AFTER_TAX.search(t) or _BEFORE_TAX.search(t) for t in named):
+                return _fail(gate, "tax-side-ambiguous", g.id)
         if g.kind in ("fee", "credit", "daycredit"):
             code = _side_check(asm, g, named, A.norm_label(g.label) in outside, sides)
             if code:
