@@ -936,6 +936,13 @@ def test_sentences_join_wrapped_lines_only():
         ("No tax is charged on the Handling fee.", "tax-side"),
         ("Nothing is applied after tax.", ""),
         ("A discount applies to Cable. It does not apply to the Handling fee.", "tax-side-unstated"),
+        # the "It" sentences go on about the discount, the subject of the sentence that names the fee
+        (
+            "A discount applies to Cable. It does not apply to the Handling fee. It is deducted before tax.",
+            "tax-side-unstated",
+        ),
+        # a sentence about the fee itself still carries on into the next one
+        ("The Handling fee is charged once. It is added before tax.", ""),
     ],
 )
 def test_wording_needs_a_stated_tax_side_for_every_fee_and_credit(sentence, code):
@@ -1110,6 +1117,8 @@ def test_wording_reads_a_list_of_lines_as_a_list_not_every_line():
     [
         ("The Rush supplement is inside the taxed amount.", ""),
         ("The Rush supplement is applied when the account is settled.", "adjustment-side-unstated"),
+        # a list of what the tax is charged on that names the adjustment states its side
+        ("The Rush supplement is applied when it is due. Tax covers the charges and the Rush supplement.", ""),
         ("The order does not say whether the Rush supplement comes before or after tax.", "tax-side-ambiguous"),
     ],
 )

@@ -627,6 +627,9 @@ _CONTINUES = re.compile(
     r"(?:fee|fees|credit|credits|charge|charges|amount|deposit|voucher|discount|allowance|payment))\b",
     re.I,
 )
+# a sentence that opens with a pronoun goes on about an earlier line: a label it names is not its subject ("It does not
+# apply to Overtime or to the Tool allowance." after a sentence about a discount)
+_PRONOUN_OPENS = re.compile(r"\s*(?:it|this|that|they|these|those|its|their)\b", re.I)
 
 
 # an enumeration of lines after a sentence that introduces them: "Two further items are applied after the tax ...
@@ -644,7 +647,8 @@ def _same_item(gap: str) -> bool:
 def _naming(asm: A.Assembly, label: str):
     """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
     names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
-    "the fee", "the credit" ...)."""
+    "the fee", "the credit" ...), unless the naming sentence itself opens with a pronoun (its subject is an earlier
+    line, so the sentences after it go on about that line)."""
     key = A.norm_label(label)
     for _, text in asm.texts:
         sents = list(_sentences(text))
@@ -652,8 +656,13 @@ def _naming(asm: A.Assembly, label: str):
             if key not in A.norm_label(text[a:b]):
                 continue
             end, k = b, j + 1
+            # the sentences after it go on about this sentence's subject: when that is an earlier line (the sentence
+            # opens with a pronoun), they say nothing about this label ("... or to the Tool allowance. It is deducted
+            # before tax." states the discount's side, not the allowance's)
+            pronoun = "continuation-subject" not in DISABLED and _PRONOUN_OPENS.match(text[a:b])
             while (
-                k < len(sents)
+                not pronoun
+                and k < len(sents)
                 and _same_item(text[end : sents[k][0]])
                 and _CONTINUES.match(text[sents[k][0] : sents[k][1]])
             ):
@@ -1198,6 +1207,10 @@ def _lists(t: str, prev: str):
 def _stated_sides(asm: A.Assembly) -> _Sides:
     movable = [g for g in asm.groups if g.kind in ("fee", "credit", "daycredit")]
     labels = {A.norm_label(g.label) for g in movable}
+    if "list-names-adjustments" not in DISABLED:
+        # an adjustment named in a list of what the tax is charged on has its side stated too ("Tax at 12.5% is
+        # charged on top of the bill. It covers the charges and the Member reduction adjustment.")
+        labels |= {A.norm_label(g.label) for g in asm.groups if g.kind == "adjustment"}
     out = _Sides({}, {}, set())
     for _, text in asm.texts:
         sents = [_flat(text[a:b]) for a, b in _sentences(text)]
