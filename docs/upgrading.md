@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.51.1: a server's cascade reader shows its blocks
+
+### What changed
+
+- **A server now shows the cascade reader's blocks.** In 0.51.0 a server read its tagger through a lock that dropped an argument the cascade passes, so every reading the tagger took failed and was answered `none; reason=cascade-tagger-error`: the cascade added no block, on every backend, and only the rule reader's blocks (`path=rules_only`) and the date and time block appeared. The cascade read as designed when called directly (`decisio.calculator.annotate`).
+- **A failure the cascade turns into no block is logged** at warning level with its traceback and a short id of the state's text.
+
+### Who is affected
+
+| | 0.51.0 | 0.51.1 | What to do |
+| --- | --- | --- | --- |
+| A repository with `defaults.calculator_reader` (the cascade), or `--calculator-reader cascade` | the rule reader's blocks only; `cascade-tagger-error` where the cascade would have read | the cascade's blocks too (`path=threshold`, `stated_figures`, `rules_agree`) | upgrade; certify certified tasks again |
+| Every other server | | unchanged | nothing |
+
 ## 0.51.0: a date and time block, and two small bases
 
 ### What changed
