@@ -26,6 +26,7 @@ block (`Abstain("no-time-facts")`).
 from __future__ import annotations
 
 import calendar
+import functools
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -221,14 +222,31 @@ def _balanced(t: str) -> str:
     return t
 
 
-def _city_offset(zone: str, day: date, minutes: int) -> int | None:
-    """The zone's offset (minutes east of UTC) at that local date and time; None when the zone's rules are not
-    available here, or the local time is skipped or repeated by a clock change."""
+_ZONE_NAME = re.compile(r"[A-Za-z_]+(?:/[A-Za-z0-9_+-]+)*")
+
+
+@functools.lru_cache(maxsize=128)
+def _zone(name: str):
+    """The zone's rules from the `tzdata` package, never the host's zone files, so that every host (a Linux box reads
+    /usr/share/zoneinfo first, a Mac its own copy) applies the same rules for the same decisio install; None when the
+    name is not an IANA zone."""
+    if not _ZONE_NAME.fullmatch(name):
+        return None
     try:
+        from importlib.resources import files
         from zoneinfo import ZoneInfo
 
-        z = ZoneInfo(zone)
+        with files("tzdata.zoneinfo").joinpath(*name.split("/")).open("rb") as f:
+            return ZoneInfo.from_file(f, key=name)
     except Exception:
+        return None
+
+
+def _city_offset(zone: str, day: date, minutes: int) -> int | None:
+    """The zone's offset (minutes east of UTC) at that local date and time; None when the zone is unknown, or the
+    local time is skipped or repeated by a clock change."""
+    z = _zone(zone)
+    if z is None:
         return None
     if minutes >= 24 * 60:
         return None

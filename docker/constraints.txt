@@ -4,3 +4,4 @@
 # held at the image's versions by pin_installed.py). Keep in step with uv.lock.
 scipy==1.18.1
 obstore==0.12.1
+tzdata==2026.6
