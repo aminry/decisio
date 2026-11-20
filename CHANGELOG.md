@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.51.0](https://github.com/aminry/decisio/compare/v0.50.2...v0.51.0) (2026-11-20)
+
+
+### Features
+
+* **calculator:** a date and time calculator (time-v1) ([#503](https://github.com/aminry/decisio/issues/503)) ([59d4662](https://github.com/aminry/decisio/commit/59d4662436e30fc822bc20af14b98f0e9db1c039))
+* **calculator:** cascade reader with acceptance gates, opt-in in serving (rule reader stays the default) ([#491](https://github.com/aminry/decisio/issues/491)) ([3b89020](https://github.com/aminry/decisio/commit/3b8902075b45586c859cf3b6d2dde9430a57a176))
+* **calculator:** consistency checks: figures the text states for the bill, read from the text, must reconcile with the case (switch: DECISIO_CASCADE_CONSISTENCY=0) ([ad9c265](https://github.com/aminry/decisio/commit/ad9c265abd677fd7113435bd5e4b766c9a4848ce))
+* **calculator:** consistency checks: figures the text states must reconcile with the case ([#506](https://github.com/aminry/decisio/issues/506)) ([ad9c265](https://github.com/aminry/decisio/commit/ad9c265abd677fd7113435bd5e4b766c9a4848ce))
+* **calculator:** the cascade reads "thirty-nine (39)" as one value, a credit by its magnitude, and leaves out a lone range end on a header line ([d572466](https://github.com/aminry/decisio/commit/d5724669a567f4a06242d6dffc32e21c1c4f8159))
+* **calculator:** the cascade tagger reads long texts in windows and repairs split values before linking ([#493](https://github.com/aminry/decisio/issues/493)) ([d4d5b3b](https://github.com/aminry/decisio/commit/d4d5b3bc341ff5383dbdc12585b72b7c9bc33ca8))
+* **calculator:** the cascade tagger votes one line family per span when decoding, and its link head trains on pairs across families ([d572466](https://github.com/aminry/decisio/commit/d5724669a567f4a06242d6dffc32e21c1c4f8159))
+* **calculator:** the normalizer reads a time unit written out in full across column padding ("nearest 15    minutes"), so the rules reader and the cascade give a block for more states (a coverage change for setups with the calculator on); never a bare h, m or s, and never across a line or a column border ([d572466](https://github.com/aminry/decisio/commit/d5724669a567f4a06242d6dffc32e21c1c4f8159))
+* **serve:** a tuned repository can turn on the calculator's cascade reader (defaults.calculator_reader) ([#498](https://github.com/aminry/decisio/issues/498)) ([28c2bcd](https://github.com/aminry/decisio/commit/28c2bcd4d5dac12249435c771d690264228b1753))
+* **serve:** two small bases, qwen3.5-4b and gemma-4-e4b ([f50cfc5](https://github.com/aminry/decisio/commit/f50cfc51622c4f946752a0f08b01f2451cffbdea))
+* **serve:** two small bases, qwen3.5-4b and gemma-4-e4b (the bases served before are detected as before) ([#494](https://github.com/aminry/decisio/issues/494)) ([f50cfc5](https://github.com/aminry/decisio/commit/f50cfc51622c4f946752a0f08b01f2451cffbdea))
+
+
+### Bug Fixes
+
+* **calculator:** a sentence about an earlier line no longer states a fee's tax side (refuse-only) ([#508](https://github.com/aminry/decisio/issues/508)) ([729153d](https://github.com/aminry/decisio/commit/729153dedd01b37f41530b0a8108c5c8745e0950))
+* **calculator:** the cascade reads negation over its clause, catches equal entries read as one, billing times as sides, count nouns in labels ([#504](https://github.com/aminry/decisio/issues/504)) ([9272e34](https://github.com/aminry/decisio/commit/9272e34ad5083698d7bc0dbf0b5cada3acafc14d))
+* **calculator:** the cascade refuses a rounding step whose sentence does not speak of rounding, a day-priced line whose count and day count are the same number, an adjustment the text says to add when read as a deduction, a label short of its heading line, and a fee or credit placed against the sentence that introduces its enumeration ([9d57593](https://github.com/aminry/decisio/commit/9d575938f559bf1f3c28a9b3c90d6f9b99877c7c))
+* **calculator:** the cascade refuses five more misreadings (direction, label, tax side, unaccounted lines, table cells) ([#499](https://github.com/aminry/decisio/issues/499)) ([7ff5e87](https://github.com/aminry/decisio/commit/7ff5e8781bfe315f47ddfa5aa78cd5cff97368b3))
+* **calculator:** the cascade refuses four more holes (a name as the only take-off word, a list read as every line, an adjustment's unstated tax side, a negated target) ([715427b](https://github.com/aminry/decisio/commit/715427b45e948de8b422b848897b93c264dacecb))
+* **calculator:** the cascade refuses four more holes (take-off word, every-line lists, adjustment tax side, negated target) ([#502](https://github.com/aminry/decisio/issues/502)) ([715427b](https://github.com/aminry/decisio/commit/715427b45e948de8b422b848897b93c264dacecb))
+* **calculator:** the cascade refuses seven more misreadings and reads sentences over wrapped lines ([#497](https://github.com/aminry/decisio/issues/497)) ([6fdd772](https://github.com/aminry/decisio/commit/6fdd7728aae5624804fe22fa8d25ce1195131e2e))
+* **calculator:** the cascade's acceptance gates refuse a fee or credit whose side of the tax is stated in a following sentence, an added line the text takes off the bill, a label short of its heading or table cell, and an adjustment the text turns the other way; rule_forms no longer reads "added up" as rounding up ([d572466](https://github.com/aminry/decisio/commit/d5724669a567f4a06242d6dffc32e21c1c4f8159))
+* **calculator:** time-v1 reads zone rules from the tzdata package ([#507](https://github.com/aminry/decisio/issues/507)) ([027b904](https://github.com/aminry/decisio/commit/027b9045ad89449ad16484ce65f63dd609748af1))
+
+
+### Performance Improvements
+
+* **calculator:** the cascade skips the tagger where no block is possible and overlaps its CPU work with the encoder ([#500](https://github.com/aminry/decisio/issues/500)) ([6c83b72](https://github.com/aminry/decisio/commit/6c83b723ac13a1888d286a63c48d1132c669bef5))
+* **calculator:** the cascade tagger's decode runs its heads in a few batched calls (same decisions) ([9d57593](https://github.com/aminry/decisio/commit/9d575938f559bf1f3c28a9b3c90d6f9b99877c7c))
+* **calculator:** the cascade's checks split each text into sentences once per read ([#501](https://github.com/aminry/decisio/issues/501)) ([ee5d8fe](https://github.com/aminry/decisio/commit/ee5d8fedcf2ca56f1887620afe2da93499cdcde3))
+* **calculator:** with the cascade reader, the rule reader and time-v1 run while the tagger's encoder computes ([#510](https://github.com/aminry/decisio/issues/510)) ([9627c2f](https://github.com/aminry/decisio/commit/9627c2fa2b2bbc4228b865fcedad623a67041368))
+
 ## [0.50.2](https://github.com/aminry/decisio/compare/v0.50.1...v0.50.2) (2026-11-18)
 
 
