@@ -32,6 +32,8 @@ dependencies = [
     "torch>=2.13",
     "torchvision>=0.28",
     "transformers>=5.10.4",
+    # time-v1 reads zone rules from this package, not the host's zone files (decisio.calculator.temporal._zone)
+    "tzdata>=2026.6",
     "uvicorn>=0.34",
 ]
 

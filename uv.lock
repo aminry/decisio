@@ -494,6 +494,7 @@ dependencies = [
     { name = "torchvision" },
     { name = "transformers", version = "5.17.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'darwin'" },
     { name = "transformers", version = "5.18.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform == 'darwin'" },
+    { name = "tzdata" },
     { name = "uvicorn" },
 ]
 
@@ -571,6 +572,7 @@ requires-dist = [
     { name = "torchvision", specifier = ">=0.28" },
     { name = "transformers", specifier = ">=5.10.4" },
     { name = "typesafe-sdk", marker = "extra == 'bench'", specifier = "==0.7.5" },
+    { name = "tzdata", specifier = ">=2026.6" },
     { name = "uvicorn", specifier = ">=0.34" },
     { name = "vllm", marker = "sys_platform == 'linux' and extra == 'serve'", specifier = "==0.31.0" },
 ]

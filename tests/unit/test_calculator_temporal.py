@@ -152,3 +152,27 @@ def test_a_label_given_two_dates_is_not_read():
 def test_a_stamp_drops_a_closing_parenthesis_it_does_not_open():
     out = lines("(The call ended at 05:45 UTC+3) on 27 May 2026.")
     assert out == ["05:45 UTC+3, 27 May 2026 = 02:45 UTC, 27 May 2026"]
+
+
+def test_every_city_zone_comes_from_the_tzdata_package():
+    for zone in set(T.CITIES.values()):
+        assert T._zone(zone) is not None, zone
+
+
+def test_zone_rules_do_not_depend_on_the_host_zone_files(monkeypatch):
+    import zoneinfo
+
+    T._zone.cache_clear()
+    zoneinfo.reset_tzpath(to=[])  # no host zone files at all: the package's rules still apply
+    try:
+        assert T._city_offset("Europe/London", T.date(2026, 7, 1), 12 * 60) == 60
+        assert T._city_offset("Europe/London", T.date(2026, 1, 15), 12 * 60) == 0
+        assert T._city_offset("Europe/London", T.date(2026, 3, 29), 60 + 30) is None  # skipped by the clock change
+    finally:
+        zoneinfo.reset_tzpath()
+        T._zone.cache_clear()
+
+
+@pytest.mark.parametrize("name", ["../etc/passwd", "Europe/../../x", "Not/AZone", "", "Europe/London/"])
+def test_a_name_that_is_not_an_iana_zone_gives_no_rules(name):
+    assert T._zone(name) is None
