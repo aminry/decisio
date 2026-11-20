@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import functools
 import re
+import threading
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -93,6 +94,9 @@ class Group:
     per: str = ""  # time: "h" or "min"
 
 
+_LAST = threading.local()  # the last assembly's block, per thread (see Assembly.block)
+
+
 @dataclass(frozen=True)
 class Assembly:
     input: dict  # the calculator_input
@@ -103,9 +107,16 @@ class Assembly:
     texts: tuple[tuple[str, str], ...]  # ("state", text), ("context", text)
 
     def block(self, version: str = "calc-v1"):
+        """The block of the assembled case (decisio's from_input), made once per assembly and version: assemble()
+        checks it can be made, and the reader then shows it."""
         from decisio.calculator import from_input
 
-        return from_input(self.input, version)
+        last = getattr(_LAST, "block", None)
+        if last is not None and last[0] is self and last[1] == version:
+            return last[2]
+        out = from_input(self.input, version)
+        _LAST.block = (self, version, out)
+        return out
 
 
 _ID = re.compile(r"(i|f|c|a)([1-9]\d{0,3})|tax2?")
