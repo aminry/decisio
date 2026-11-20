@@ -50,6 +50,7 @@ import contextvars
 import functools
 import os
 import re
+import threading
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -375,9 +376,28 @@ def _cents(x: Fraction) -> set[Fraction]:
     return {Fraction(up, 100), Fraction(even, 100)}
 
 
+_LAST = threading.local()  # the last assembly's figures, per thread: three gates ask for the same case's figures
+
+
 def figures(asm: A.Assembly) -> list[tuple[str, Fraction, frozenset[str]]]:
     """The case's figures a text may state, each with the lines it covers: every line's value, the items' subtotal,
-    the taxed base, the tax and the total."""
+    the taxed base, the tax and the total. Computed once per assembly (the same object asked again gets the same list;
+    an error is raised again)."""
+    last = getattr(_LAST, "figures", None)
+    if last is not None and last[0] is asm:
+        if isinstance(last[1], Exception):
+            raise last[1]
+        return list(last[1])
+    try:
+        out = _figures(asm)
+    except Exception as e:
+        _LAST.figures = (asm, e)
+        raise
+    _LAST.figures = (asm, out)
+    return list(out)
+
+
+def _figures(asm: A.Assembly) -> list[tuple[str, Fraction, frozenset[str]]]:
     from decisio.calculator import CalculatorInputError, compute
     from decisio.calculator.inputs import case_from_input
 
@@ -464,6 +484,13 @@ def _stated_after(text: str, rx, doc):
                 break
 
 
+def _doc_text(texts: dict) -> str:
+    """The text the normalizer's document is made from, written as the assembler writes it, so its cached document is
+    the one used here too."""
+    context, state = texts.get("context"), texts.get("state", "")
+    return ((context + "\n") if context else "") + state
+
+
 def consistency(asm: A.Assembly) -> Check:
     """The case against the figures the text states, read from the text itself: every money amount a total-like word
     introduces ("Total due = $1,234.50", "| Taxed amount | ...") equals one of the case's figures to the cent (a line,
@@ -474,7 +501,7 @@ def consistency(asm: A.Assembly) -> Check:
     if "consistency" in DISABLED or os.environ.get("DECISIO_CASCADE_CONSISTENCY", "1") == "0":
         return _pass(gate)  # off: for side-by-side measurement (DECISIO_CASCADE_CONSISTENCY=0)
     texts = dict(asm.texts)
-    doc = N.document(((texts.get("context") or "") + "\n") + texts.get("state", ""))
+    doc = N.document(_doc_text(texts))
     try:
         figs = [x for _, x, _ in figures(asm)]
     except Exception:
@@ -1067,7 +1094,7 @@ def _unread_equal_entry(asm: A.Assembly) -> str:
     genuine entries ("Time entry A: 453 minutes", "Time entry B: 453 minutes") read as one. A restatement on the
     entry's own line ("453 minutes (7 h 33 min)") is not this."""
     texts = dict(asm.texts)
-    docs = N.document(((texts.get("context") or "") + "\n") + texts.get("state", ""))
+    docs = N.document(_doc_text(texts))
 
     def line_of(where: str, at: int) -> tuple[str, int]:
         return where, texts.get(where, "").rfind("\n", 0, at)
