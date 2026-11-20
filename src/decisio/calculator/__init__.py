@@ -133,9 +133,23 @@ def annotate(
     if version == "time-v1":
         return _time(state, context)
     if version == "calc-v1+time-v1":
-        kw = dict(normalized=normalized, reader=reader, tagger=tagger, thresholds=thresholds)
-        calc = annotate(state, context, "calc-v1", **kw)
-        time = _time(state, context)
+        if reader == "cascade":
+            # time-v1 runs on the CPU while the tagger's encoder computes (with the rule reader), not after it
+            done: dict = {}
+
+            def time_work():
+                try:
+                    done["time"] = _time(state, context)
+                except Exception as e:  # raised below, outside the tagger's call, as without the overlap
+                    done["error"] = e
+
+            calc = _cascade(state, context, "calc-v1", normalized, tagger, thresholds, also=time_work)
+            if "error" in done:
+                raise done["error"]
+            time = done["time"] if "time" in done else _time(state, context)
+        else:
+            calc = annotate(state, context, "calc-v1", normalized=normalized, reader=reader)
+            time = _time(state, context)
         parts = [a for a in (calc, time) if isinstance(a, Annotation)]
         if not parts:
             return calc
@@ -145,15 +159,21 @@ def annotate(
             lines=sum(a.lines for a in parts),
             path=calc.path if isinstance(calc, Annotation) else "",
         )
-    rules = _rules(state, context, version, normalized)
     if reader == "rules":
-        return rules
+        return _rules(state, context, version, normalized)
+    return _cascade(state, context, version, normalized, tagger, thresholds)
+
+
+def _cascade(state, context, version, normalized, tagger, thresholds, also=None) -> Annotation | Abstain:
+    """The cascade reader's block; `also` (no arguments) runs on the CPU while the tagger's encoder computes."""
     from decisio.calculator import cascade
 
     tg = cascade.tagger_for(tagger)
     th = cascade.thresholds_for(thresholds)
     try:
-        out = cascade.read(state, context, rules_case=rules, tagger=tg, thresholds=th, version=version)
+        out = cascade.read(
+            state, context, rules_case=None, tagger=tg, thresholds=th, version=version, also=also, normalized=normalized
+        )
     except Exception:  # never a partial or a guessed block, and never a failed request
         return Abstain("internal-error", path="abstain")
     if isinstance(out, Annotation):
