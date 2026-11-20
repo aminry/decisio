@@ -129,7 +129,7 @@ def test_block_shape():
     assert text.split("\n")[0] == calc.HEADING == "Calculator (exact values, shown to six decimals):"
     assert all(line.startswith("- ") for line in text.split("\n")[1:])
     assert not text.startswith("\n") and not text.endswith("\n")
-    assert calc.VERSIONS == ("calc-v1",)
+    assert calc.VERSIONS == ("calc-v1", "time-v1", "calc-v1+time-v1")
 
 
 # C2 number formats
