@@ -936,6 +936,13 @@ def test_sentences_join_wrapped_lines_only():
         ("No tax is charged on the Handling fee.", "tax-side"),
         ("Nothing is applied after tax.", ""),
         ("A discount applies to Cable. It does not apply to the Handling fee.", "tax-side-unstated"),
+        # the "It" sentences go on about the discount, the subject of the sentence that names the fee
+        (
+            "A discount applies to Cable. It does not apply to the Handling fee. It is deducted before tax.",
+            "tax-side-unstated",
+        ),
+        # a sentence about the fee itself still carries on into the next one
+        ("The Handling fee is charged once. It is added before tax.", ""),
     ],
 )
 def test_wording_needs_a_stated_tax_side_for_every_fee_and_credit(sentence, code):

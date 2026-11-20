@@ -46,6 +46,7 @@ different blocks.
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import os
 import re
@@ -627,6 +628,11 @@ _CONTINUES = re.compile(
     r"(?:fee|fees|credit|credits|charge|charges|amount|deposit|voucher|discount|allowance|payment))\b",
     re.I,
 )
+# a sentence that opens with a pronoun goes on about an earlier line: a label it names is not its subject ("It does not
+# apply to Overtime or to the Tool allowance." after a sentence about a discount)
+_PRONOUN_OPENS = re.compile(r"\s*(?:it|this|that|they|these|those|its|their)\b", re.I)
+# set while the wording gate reads a second time with each naming sentence's own subject (see `wording`)
+_SUBJECT_AWARE = contextvars.ContextVar("subject_aware", default=False)
 
 
 # an enumeration of lines after a sentence that introduces them: "Two further items are applied after the tax ...
@@ -644,7 +650,8 @@ def _same_item(gap: str) -> bool:
 def _naming(asm: A.Assembly, label: str):
     """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
     names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
-    "the fee", "the credit" ...)."""
+    "the fee", "the credit" ...); in the wording gate's second read (`_SUBJECT_AWARE`) not when the naming sentence
+    itself opens with a pronoun (its subject is an earlier line, so the sentences after it go on about that line)."""
     key = A.norm_label(label)
     for _, text in asm.texts:
         sents = list(_sentences(text))
@@ -652,8 +659,13 @@ def _naming(asm: A.Assembly, label: str):
             if key not in A.norm_label(text[a:b]):
                 continue
             end, k = b, j + 1
+            # the sentences after it go on about this sentence's subject: when that is an earlier line (the sentence
+            # opens with a pronoun), they say nothing about this label ("... or to the Tool allowance. It is deducted
+            # before tax." states the discount's side, not the allowance's)
+            pronoun = _SUBJECT_AWARE.get() and _PRONOUN_OPENS.match(text[a:b])
             while (
-                k < len(sents)
+                not pronoun
+                and k < len(sents)
                 and _same_item(text[end : sents[k][0]])
                 and _CONTINUES.match(text[sents[k][0] : sents[k][1]])
             ):
@@ -722,6 +734,35 @@ DISABLED: set[str] = set()
 
 
 def wording(asm: A.Assembly) -> Check:
+    """The wording checks (`_wording`), read twice: as the sentences come, then with each naming sentence's own subject
+    (a sentence that opens with a pronoun goes on about an earlier line, so the sentences after it say nothing about a
+    label it names: "It does not apply to Overtime or to the Tool allowance. It is deducted before tax." states the
+    discount's side, not the allowance's). The block passes only when both reads pass, so the second read can only
+    refuse (switch: continuation-subject)."""
+    first = _wording(asm)
+    if not first.ok or "continuation-subject" in DISABLED or not _pronoun_carries(asm):
+        return first
+    token = _SUBJECT_AWARE.set(True)
+    try:
+        second = _wording(asm)
+    finally:
+        _SUBJECT_AWARE.reset(token)
+    return first if second.ok else second
+
+
+def _pronoun_carries(asm: A.Assembly) -> bool:
+    """Whether some sentence that opens with a pronoun is followed, on the same item, by a sentence that goes on about
+    it: the only place the subject-aware read of `_naming` differs. Without one the second read is the first, so it is
+    skipped (the same decisions, without reading the wording twice)."""
+    for _, text in asm.texts:
+        sents = list(_sentences(text))
+        for (a, b), (c, d) in zip(sents, sents[1:]):
+            if _PRONOUN_OPENS.match(text[a:b]) and _same_item(text[b:c]) and _CONTINUES.match(text[c:d]):
+                return True
+    return False
+
+
+def _wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
     (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
     case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
