@@ -74,7 +74,7 @@ How to register a task end to end, what each number was measured on and where th
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_top12_dark.png">
-  <img src="docs/launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for ten open-weights systems in alphabetical order, with Jev 1.13.0 below as a reference row. Decisio on Gemma 4 31B scored 71.69 (interval 69.86 to 72.81) and Jev 1.13.0 71.49 (69.14 to 72.40); the two intervals overlap.">
+  <img src="launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for ten open-weights systems in alphabetical order, with Jev 1.13.0 below as a reference row. Decisio on Gemma 4 31B scored 71.69 (interval 69.86 to 72.81) and Jev 1.13.0 71.49 (69.14 to 72.40); the two intervals overlap.">
 </picture>
 
 ## Why Decisio
@@ -133,7 +133,7 @@ Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_axes_dark.png">
-  <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores for 11 rows: ten open-weights systems from the board's file and Jev 1.13.0 as a reference row, in alphabetical order, with six columns (overall, intelligence, sealed questions, calibration, speed, cost). Each cell is a plain value; the table has no shading or marks. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
+  <img src="launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores for 11 rows: ten open-weights systems from the board's file and Jev 1.13.0 as a reference row, in alphabetical order, with six columns (overall, intelligence, sealed questions, calibration, speed, cost). Each cell is a plain value; the table has no shading or marks. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
 </picture>
 
 - On JevBench v1.6.1, the 31B's sealed-set intelligence was 73.3 and Jev 1.13.0's 61.6; the open-set intelligence was 67.6 and 65.6. The sealed questions were never published.
@@ -168,7 +168,7 @@ What the compared systems' cards state, quoted as recorded with their revisions,
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/speed_50q_dark.svg">
-  <img src="docs/launch/speed_50q_light.svg" alt="Bar chart of the median time to answer 50 questions about one document, five systems measured in one session on one box. For a 3,000-token document: decisio Gemma 4 31B 1.08 seconds, decisio Gemma 4 12B 1.57, H2O-Lightning-4B 2.05, Jeff-1.0-Large 47.1, Quyet-1.0-Large 48.9. For a 6,000-token document: 1.73, 1.97, 2.82, 114.6 and 114.8 seconds. For a 32,000-token document only decisio Gemma 4 12B (6.76 s), H2O-Lightning-4B (9.05 s) and decisio Gemma 4 31B (10.1 s) answer; Jeff-1.0-Large and Quyet-1.0-Large are marked not supported.">
+  <img src="launch/speed_50q_light.svg" alt="Bar chart of the median time to answer 50 questions about one document, five systems measured in one session on one box. For a 3,000-token document: decisio Gemma 4 31B 1.08 seconds, decisio Gemma 4 12B 1.57, H2O-Lightning-4B 2.05, Jeff-1.0-Large 47.1, Quyet-1.0-Large 48.9. For a 6,000-token document: 1.73, 1.97, 2.82, 114.6 and 114.8 seconds. For a 32,000-token document only decisio Gemma 4 12B (6.76 s), H2O-Lightning-4B (9.05 s) and decisio Gemma 4 31B (10.1 s) answer; Jeff-1.0-Large and Quyet-1.0-Large are marked not supported.">
 </picture>
 
 Five systems, one box, one session: the median time to answer 50 questions about one document.
@@ -187,7 +187,7 @@ Measured by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell Workstation Edit
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
-  <img src="docs/launch/sealed_vs_open.png" alt="A dot plot of the intelligence axis of JevBench v1.6.1 for eleven systems in alphabetical order, each with its sealed-set score and its open-set score. Decisio on Gemma 4 31B scored 73.3 on the sealed set and 67.6 on the open set.">
+  <img src="launch/sealed_vs_open.png" alt="A dot plot of the intelligence axis of JevBench v1.6.1 for eleven systems in alphabetical order, each with its sealed-set score and its open-set score. Decisio on Gemma 4 31B scored 73.3 on the sealed set and 67.6 on the open set.">
 </picture>
 
 Decisio scores higher on the sealed items than on the open ones.
