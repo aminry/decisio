@@ -46,6 +46,7 @@ different blocks.
 
 from __future__ import annotations
 
+import contextvars
 import functools
 import os
 import re
@@ -630,6 +631,8 @@ _CONTINUES = re.compile(
 # a sentence that opens with a pronoun goes on about an earlier line: a label it names is not its subject ("It does not
 # apply to Overtime or to the Tool allowance." after a sentence about a discount)
 _PRONOUN_OPENS = re.compile(r"\s*(?:it|this|that|they|these|those|its|their)\b", re.I)
+# set while the wording gate reads a second time with each naming sentence's own subject (see `wording`)
+_SUBJECT_AWARE = contextvars.ContextVar("subject_aware", default=False)
 
 
 # an enumeration of lines after a sentence that introduces them: "Two further items are applied after the tax ...
@@ -647,8 +650,8 @@ def _same_item(gap: str) -> bool:
 def _naming(asm: A.Assembly, label: str):
     """The passages (of the state and the context) that name a label (case and spacing ignored): each sentence that
     names it, with the sentences right after it on the same line that go on about it (they open with a pronoun or
-    "the fee", "the credit" ...), unless the naming sentence itself opens with a pronoun (its subject is an earlier
-    line, so the sentences after it go on about that line)."""
+    "the fee", "the credit" ...); in the wording gate's second read (`_SUBJECT_AWARE`) not when the naming sentence
+    itself opens with a pronoun (its subject is an earlier line, so the sentences after it go on about that line)."""
     key = A.norm_label(label)
     for _, text in asm.texts:
         sents = list(_sentences(text))
@@ -659,7 +662,7 @@ def _naming(asm: A.Assembly, label: str):
             # the sentences after it go on about this sentence's subject: when that is an earlier line (the sentence
             # opens with a pronoun), they say nothing about this label ("... or to the Tool allowance. It is deducted
             # before tax." states the discount's side, not the allowance's)
-            pronoun = "continuation-subject" not in DISABLED and _PRONOUN_OPENS.match(text[a:b])
+            pronoun = _SUBJECT_AWARE.get() and _PRONOUN_OPENS.match(text[a:b])
             while (
                 not pronoun
                 and k < len(sents)
@@ -731,6 +734,23 @@ DISABLED: set[str] = set()
 
 
 def wording(asm: A.Assembly) -> Check:
+    """The wording checks (`_wording`), read twice: as the sentences come, then with each naming sentence's own subject
+    (a sentence that opens with a pronoun goes on about an earlier line, so the sentences after it say nothing about a
+    label it names: "It does not apply to Overtime or to the Tool allowance. It is deducted before tax." states the
+    discount's side, not the allowance's). The block passes only when both reads pass, so the second read can only
+    refuse (switch: continuation-subject)."""
+    first = _wording(asm)
+    if not first.ok or "continuation-subject" in DISABLED:
+        return first
+    token = _SUBJECT_AWARE.set(True)
+    try:
+        second = _wording(asm)
+    finally:
+        _SUBJECT_AWARE.reset(token)
+    return first if second.ok else second
+
+
+def _wording(asm: A.Assembly) -> Check:
     """The text's words against the case: `label-cut` (a label span starts or ends inside a phrase), `no-subtract-word`
     (a line the case takes off is named in no sentence that says something comes off), `comes-off-word` (a line the
     case adds is named as coming off the bill), `adjustment-direction` (an adjustment named as added when the case
@@ -1207,10 +1227,6 @@ def _lists(t: str, prev: str):
 def _stated_sides(asm: A.Assembly) -> _Sides:
     movable = [g for g in asm.groups if g.kind in ("fee", "credit", "daycredit")]
     labels = {A.norm_label(g.label) for g in movable}
-    if "list-names-adjustments" not in DISABLED:
-        # an adjustment named in a list of what the tax is charged on has its side stated too ("Tax at 12.5% is
-        # charged on top of the bill. It covers the charges and the Member reduction adjustment.")
-        labels |= {A.norm_label(g.label) for g in asm.groups if g.kind == "adjustment"}
     out = _Sides({}, {}, set())
     for _, text in asm.texts:
         sents = [_flat(text[a:b]) for a, b in _sentences(text)]

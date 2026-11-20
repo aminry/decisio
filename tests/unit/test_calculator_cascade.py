@@ -1117,8 +1117,6 @@ def test_wording_reads_a_list_of_lines_as_a_list_not_every_line():
     [
         ("The Rush supplement is inside the taxed amount.", ""),
         ("The Rush supplement is applied when the account is settled.", "adjustment-side-unstated"),
-        # a list of what the tax is charged on that names the adjustment states its side
-        ("The Rush supplement is applied when it is due. Tax covers the charges and the Rush supplement.", ""),
         ("The order does not say whether the Rush supplement comes before or after tax.", "tax-side-ambiguous"),
     ],
 )
