@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 640" width="680" height="640" role="img" aria-labelledby="t d">
+<style>
+  .bg { fill: #fcfcfb; }
+  .t1 { fill: #0b0b0b; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .t2 { fill: #52514e; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .grid { stroke: #e4e3df; stroke-width: 1; }
+  .axis { stroke: #b9b8b2; stroke-width: 1; }
+  .ref { stroke: #8f8e88; stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+  .s1 { fill: #2a78d6; stroke: #2a78d6; } .s2 { fill: #eb6834; stroke: #eb6834; } .s3 { fill: #1baf7a; stroke: #1baf7a; }
+  .line { fill: none; stroke-width: 2; }
+  .l1 { stroke: #2a78d6; } .l2 { stroke: #eb6834; } .l3 { stroke: #1baf7a; }
+  .ring { stroke: #fcfcfb; stroke-width: 2; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19; }
+    .t1 { fill: #f0efec; } .t2 { fill: #c3c2b7; }
+    .grid { stroke: #33332f; } .axis { stroke: #5c5b56; } .ref { stroke: #8a8983; }
+    .s1 { fill: #3987e5; stroke: #3987e5; } .s2 { fill: #d95926; stroke: #d95926; } .s3 { fill: #199e70; stroke: #199e70; }
+    .ring { stroke: #1a1a19; }
+    .l1 { stroke: #3987e5; } .l2 { stroke: #d95926; } .l3 { stroke: #199e70; }
+  }
+</style>
+<title id="t">Calibration on held-out questions</title>
+<desc id="d">Reliability curves: accuracy against stated confidence in ten bins. A calibrated model lies on the diagonal. Expected calibration error, in percentage points: Decisio v3 2.3, previous Decisio 12B 3.6, base Gemma 4 12B 9.0.</desc>
+<rect class="bg" width="680" height="640" rx="8"/>
+<text x="70.0" y="32.0" class="t1" font-size="17" text-anchor="start" font-weight="600">When it says 80%, it is right about 80% of the time</text>
+<text x="70.0" y="52.0" class="t2" font-size="12.5" text-anchor="start" font-weight="400">Accuracy against stated confidence, 2,500 held-out questions</text>
+<rect x="70.0" y="70.0" width="12" height="12" rx="3" class="s1"/><text x="88.0" y="80.0" class="t1" font-size="13" text-anchor="start" font-weight="400">Decisio v3</text><rect x="186.0" y="70.0" width="12" height="12" rx="3" class="s2"/><text x="204.0" y="80.0" class="t1" font-size="13" text-anchor="start" font-weight="400">Previous Decisio 12B</text><rect x="374.0" y="70.0" width="12" height="12" rx="3" class="s3"/><text x="392.0" y="80.0" class="t1" font-size="13" text-anchor="start" font-weight="400">Base Gemma 4 12B</text>
+<line class="axis" x1="70" x2="500" y1="534.0" y2="534.0"/>
+<line class="axis" x1="70.0" x2="70.0" y1="104" y2="534"/>
+<text x="62.0" y="538.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">0%</text>
+<text x="70.0" y="552.0" class="t2" font-size="11.5" text-anchor="middle" font-weight="400">0%</text>
+<line class="grid" x1="70" x2="500" y1="426.5" y2="426.5"/>
+<line class="grid" x1="177.5" x2="177.5" y1="104" y2="534"/>
+<text x="62.0" y="430.5" class="t2" font-size="11.5" text-anchor="end" font-weight="400">25%</text>
+<text x="177.5" y="552.0" class="t2" font-size="11.5" text-anchor="middle" font-weight="400">25%</text>
+<line class="grid" x1="70" x2="500" y1="319.0" y2="319.0"/>
+<line class="grid" x1="285.0" x2="285.0" y1="104" y2="534"/>
+<text x="62.0" y="323.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">50%</text>
+<text x="285.0" y="552.0" class="t2" font-size="11.5" text-anchor="middle" font-weight="400">50%</text>
+<line class="grid" x1="70" x2="500" y1="211.5" y2="211.5"/>
+<line class="grid" x1="392.5" x2="392.5" y1="104" y2="534"/>
+<text x="62.0" y="215.5" class="t2" font-size="11.5" text-anchor="end" font-weight="400">75%</text>
+<text x="392.5" y="552.0" class="t2" font-size="11.5" text-anchor="middle" font-weight="400">75%</text>
+<line class="grid" x1="70" x2="500" y1="104.0" y2="104.0"/>
+<line class="grid" x1="500.0" x2="500.0" y1="104" y2="534"/>
+<text x="62.0" y="108.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">100%</text>
+<text x="500.0" y="552.0" class="t2" font-size="11.5" text-anchor="middle" font-weight="400">100%</text>
+<line class="ref" x1="70" y1="534" x2="500" y2="104"/>
+<text x="125.9" y="512.5" class="t2" font-size="11" text-anchor="start" font-weight="400">dashed line: perfectly calibrated</text>
+<text x="285.0" y="576.0" class="t1" font-size="12.5" text-anchor="middle" font-weight="400">Stated confidence (top probability)</text>
+<text x="24" y="319.0" class="t1" font-size="12.5" text-anchor="middle" transform="rotate(-90 24 319.0)" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">Share right</text>
+<polyline class="line l3" points="183.6,429.1 220.6,400.8 264.2,389.0 306.6,374.5 349.3,328.8 394.0,276.0 435.8,221.9 483.8,134.2"/>
+<circle class="s3 ring" cx="183.6" cy="429.1" r="4.5"/>
+<circle class="s3 ring" cx="220.6" cy="400.8" r="4.5"/>
+<circle class="s3 ring" cx="264.2" cy="389.0" r="4.5"/>
+<circle class="s3 ring" cx="306.6" cy="374.5" r="4.5"/>
+<circle class="s3 ring" cx="349.3" cy="328.8" r="4.5"/>
+<circle class="s3 ring" cx="394.0" cy="276.0" r="4.5"/>
+<circle class="s3 ring" cx="435.8" cy="221.9" r="4.5"/>
+<circle class="s3 ring" cx="483.8" cy="134.2" r="4.5"/>
+<text x="336.6" y="405.0" class="t1" font-size="12" text-anchor="start" font-weight="400">Base Gemma 4 12B: off by 9.0 points</text>
+<polyline class="line l2" points="181.2,441.3 220.8,398.4 262.1,347.3 304.5,313.1 350.4,219.1 393.2,170.1 436.9,150.6 485.9,117.0"/>
+<circle class="s2 ring" cx="181.2" cy="441.3" r="4.5"/>
+<circle class="s2 ring" cx="220.8" cy="398.4" r="4.5"/>
+<circle class="s2 ring" cx="262.1" cy="347.3" r="4.5"/>
+<circle class="s2 ring" cx="304.5" cy="313.1" r="4.5"/>
+<circle class="s2 ring" cx="350.4" cy="219.1" r="4.5"/>
+<circle class="s2 ring" cx="393.2" cy="170.1" r="4.5"/>
+<circle class="s2 ring" cx="436.9" cy="150.6" r="4.5"/>
+<circle class="s2 ring" cx="485.9" cy="117.0" r="4.5"/>
+<text x="340.4" y="207.2" class="t1" font-size="12" text-anchor="end" font-weight="400">Previous Decisio 12B: off by 3.6 points</text>
+<polyline class="line l1" points="145.5,430.8 178.2,432.8 220.1,351.2 262.5,348.1 306.5,315.4 350.1,259.2 393.9,213.3 436.5,197.2 491.2,117.0"/>
+<circle class="s1 ring" cx="145.5" cy="430.8" r="4.5"/>
+<circle class="s1 ring" cx="178.2" cy="432.8" r="4.5"/>
+<circle class="s1 ring" cx="220.1" cy="351.2" r="4.5"/>
+<circle class="s1 ring" cx="262.5" cy="348.1" r="4.5"/>
+<circle class="s1 ring" cx="306.5" cy="315.4" r="4.5"/>
+<circle class="s1 ring" cx="350.1" cy="259.2" r="4.5"/>
+<circle class="s1 ring" cx="393.9" cy="213.3" r="4.5"/>
+<circle class="s1 ring" cx="436.5" cy="197.2" r="4.5"/>
+<circle class="s1 ring" cx="491.2" cy="117.0" r="4.5"/>
+<text x="210.1" y="337.2" class="t1" font-size="12" text-anchor="end" font-weight="600">Decisio v3: off by 2.3 points</text>
+<text x="70.0" y="610.0" class="t2" font-size="11" text-anchor="start" font-weight="400">Off by: the average gap between stated confidence and the share right (expected calibration error, 10 bins).</text>
+<text x="70.0" y="628.0" class="t2" font-size="11" text-anchor="start" font-weight="400">Source: the half of the held-out questions not used to fit temperatures; bins with 20 or more questions.</text>
+</svg>

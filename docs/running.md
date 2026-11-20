@@ -1017,7 +1017,7 @@ They were checked on Ollama 0.40.4, 0.40.9 and 0.40.16 (2026-11-15): each loads 
 On the questions measured, the `q8_0` tag of the base chooses the same answer as decisio's own server on the same Mac (MLX, 8-bit) for 98.3% of 300 questions, the tuned model's `q8_0` for 99.0%, and every tag matches decisio's image answers on 97% to 98% of 257 image questions (below).
 
 ```bash
-curl http://localhost:11434/v1/systemone -d '{
+curl http://localhost:11434/v1/systemone -H 'Content-Type: application/json' -d '{
   "model": "aminroudaki/decisio-gemma",
   "state": "The customer sent this photo of the parcel.",
   "images": ["'"$(base64 < parcel.jpg | tr -d '\n')"'"],

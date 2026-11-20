@@ -4,14 +4,14 @@
 # Calling a decisio server from other tools
 
 Decisio implements TypeSafe's published System One wire format, so clients written for that format can be pointed at a decisio server.
-Five of them were checked against a running server: LangChain, the Vercel AI SDK, n8n, TanStack AI and Pipecat (the table in the [README](../README.md#works-with); the checks and their records are in [`runs/2026-10-08_integration-checks/`](../runs/2026-10-08_integration-checks/manifest.json) and in decisio-examples' `integrations/`).
+Five of them were checked against a running server: LangChain, the Vercel AI SDK, n8n, TanStack AI and Pipecat (the table in the [README](overview.md#works-with); the checks and their records are in [`runs/2026-10-08_integration-checks/`](../runs/2026-10-08_integration-checks/manifest.json) and in decisio-examples' `integrations/`).
 Decisio is an independent project, not affiliated with or endorsed by TypeSafe or by the makers of these clients; none of them is called with a real TypeSafe key, and the key you pass is ignored by the server.
 This page gives, for each, a complete short program or workflow: the imports, the call and the output.
 
 How each snippet was checked: **run against decisio's CPU stand-in** (`--backend hf --model Qwen/Qwen3-0.6B-Base`, so the numbers below mean nothing about the served models) with the package versions named, on 2026-10-14; the n8n workflow was run in n8n 2.35.7 on Node 22 with `n8n execute`.
 They are not part of decisio's CI: a new release of one of these clients can change its API; the version pinned beside each snippet is the one that ran.
 
-Every snippet assumes a server on `http://127.0.0.1:8000` (start one as in the [README](../README.md#install-and-run), or on the stand-in with `uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base`) and asks the same two questions about one ticket: which queue (a choice) and whether it is urgent (a yes/no).
+Every snippet assumes a server on `http://127.0.0.1:8000` (start one as in the [README](overview.md#install-and-run), or on the stand-in with `uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base`) and asks the same two questions about one ticket: which queue (a choice) and whether it is urgent (a yes/no).
 
 **The base URL is not the same for every client.** Some append `/v1` themselves and some do not; a wrong one answers 404.
 

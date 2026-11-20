@@ -5,7 +5,7 @@
 
 The server ends itself with exit code 70 when its engine dies, and leaves the restart to whatever runs it ([`running.md`](running.md#when-the-engine-dies)).
 This page has one complete file for each of the three usual supervisors.
-Each one restarts on the exit, and each one waits long enough for a first start, which includes the checkpoint download (the 31B's first start took 7 min 54 s with the download and 4 min 3 s with the weights on disk, [`README.md`](../README.md#gpu-server); the image's own health check allows 45 minutes).
+Each one restarts on the exit, and each one waits long enough for a first start, which includes the checkpoint download (the 31B's first start took 7 min 54 s with the download and 4 min 3 s with the weights on disk, [`README.md`](overview.md#gpu-server); the image's own health check allows 45 minutes).
 
 What each file was checked against:
 
@@ -57,7 +57,7 @@ The named volume `decisio-data` keeps the checkpoint, so a restart does not down
 
 ## systemd
 
-For the GPU server install on a Linux host (`/opt/decisio` holding the checkout, set up once with `uv sync --extra serve --frozen` as in the [README](../README.md#gpu-server), and a user `decisio`):
+For the GPU server install on a Linux host (`/opt/decisio` holding the checkout, set up once with `uv sync --extra serve --frozen` as in the [README](overview.md#gpu-server), and a user `decisio`):
 
 ```ini
 # /etc/systemd/system/decisio.service

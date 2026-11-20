@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 430" width="760" height="430" role="img" aria-labelledby="t d">
+<style>
+  .bg { fill: #fcfcfb; }
+  .t1 { fill: #0b0b0b; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .t2 { fill: #52514e; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .grid { stroke: #e4e3df; stroke-width: 1; }
+  .axis { stroke: #b9b8b2; stroke-width: 1; }
+  .ref { stroke: #8f8e88; stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+  .s1 { fill: #2a78d6; stroke: #2a78d6; } .s2 { fill: #eb6834; stroke: #eb6834; } .s3 { fill: #1baf7a; stroke: #1baf7a; }
+  .line { fill: none; stroke-width: 2; }
+  .l1 { stroke: #2a78d6; } .l2 { stroke: #eb6834; } .l3 { stroke: #1baf7a; }
+  .ring { stroke: #fcfcfb; stroke-width: 2; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19; }
+    .t1 { fill: #f0efec; } .t2 { fill: #c3c2b7; }
+    .grid { stroke: #33332f; } .axis { stroke: #5c5b56; } .ref { stroke: #8a8983; }
+    .s1 { fill: #3987e5; stroke: #3987e5; } .s2 { fill: #d95926; stroke: #d95926; } .s3 { fill: #199e70; stroke: #199e70; }
+    .ring { stroke: #1a1a19; }
+    .l1 { stroke: #3987e5; } .l2 { stroke: #d95926; } .l3 { stroke: #199e70; }
+  }
+</style>
+<title id="t">Accuracy on 5,000 held-out questions</title>
+<desc id="d">Grouped bars. All questions: base Gemma 4 12B 67.7%, previous Decisio 12B 71.6%, Decisio v3 78.8%. Choice: 68.9%, 71.7%, 79.8%. Yes/no: 83.0%, 84.7%, 89.8%. Score: 45.1%, 55.2%, 62.2%.</desc>
+<rect class="bg" width="760" height="430" rx="8"/>
+<text x="56.0" y="32.0" class="t1" font-size="17" text-anchor="start" font-weight="600">Accuracy on 5,000 held-out questions</text>
+<text x="56.0" y="52.0" class="t2" font-size="12.5" text-anchor="start" font-weight="400">The same questions and readout for each model, each at its own temperatures</text>
+<rect x="56.0" y="66.0" width="12" height="12" rx="3" class="s1"/><text x="74.0" y="76.0" class="t1" font-size="13" text-anchor="start" font-weight="400">Decisio v3</text><rect x="172.0" y="66.0" width="12" height="12" rx="3" class="s2"/><text x="190.0" y="76.0" class="t1" font-size="13" text-anchor="start" font-weight="400">Previous Decisio 12B</text><rect x="360.0" y="66.0" width="12" height="12" rx="3" class="s3"/><text x="378.0" y="76.0" class="t1" font-size="13" text-anchor="start" font-weight="400">Base Gemma 4 12B</text>
+<line class="axis" x1="56" x2="736" y1="360.0" y2="360.0"/>
+<text x="48.0" y="364.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">0%</text>
+<line class="grid" x1="56" x2="736" y1="293.0" y2="293.0"/>
+<text x="48.0" y="297.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">25%</text>
+<line class="grid" x1="56" x2="736" y1="226.0" y2="226.0"/>
+<text x="48.0" y="230.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">50%</text>
+<line class="grid" x1="56" x2="736" y1="159.0" y2="159.0"/>
+<text x="48.0" y="163.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">75%</text>
+<line class="grid" x1="56" x2="736" y1="92.0" y2="92.0"/>
+<text x="48.0" y="96.0" class="t2" font-size="11.5" text-anchor="end" font-weight="400">100%</text>
+<path class="s3" d="M74.0,360.0 L74.0,182.6 Q74.0,178.6 78.0,178.6 L113.3,178.6 Q117.3,178.6 117.3,182.6 L117.3,360.0 Z"/>
+<text x="95.7" y="172.6" class="t2" font-size="11" text-anchor="middle" font-weight="400">67.7</text>
+<path class="s2" d="M119.3,360.0 L119.3,172.1 Q119.3,168.1 123.3,168.1 L158.7,168.1 Q162.7,168.1 162.7,172.1 L162.7,360.0 Z"/>
+<text x="141.0" y="162.1" class="t2" font-size="11" text-anchor="middle" font-weight="400">71.6</text>
+<path class="s1" d="M164.7,360.0 L164.7,152.8 Q164.7,148.8 168.7,148.8 L204.0,148.8 Q208.0,148.8 208.0,152.8 L208.0,360.0 Z"/>
+<text x="186.3" y="142.8" class="t1" font-size="12" text-anchor="middle" font-weight="600">78.8</text>
+<text x="141.0" y="380.0" class="t1" font-size="13" text-anchor="middle" font-weight="400">All questions</text>
+<text x="141.0" y="396.0" class="t2" font-size="11" text-anchor="middle" font-weight="400">5,000 questions</text>
+<path class="s3" d="M244.0,360.0 L244.0,179.3 Q244.0,175.3 248.0,175.3 L283.3,175.3 Q287.3,175.3 287.3,179.3 L287.3,360.0 Z"/>
+<path class="s2" d="M289.3,360.0 L289.3,171.8 Q289.3,167.8 293.3,167.8 L328.7,167.8 Q332.7,167.8 332.7,171.8 L332.7,360.0 Z"/>
+<path class="s1" d="M334.7,360.0 L334.7,150.1 Q334.7,146.1 338.7,146.1 L374.0,146.1 Q378.0,146.1 378.0,150.1 L378.0,360.0 Z"/>
+<text x="356.3" y="140.1" class="t1" font-size="12" text-anchor="middle" font-weight="600">79.8</text>
+<text x="311.0" y="380.0" class="t1" font-size="13" text-anchor="middle" font-weight="400">Choice</text>
+<text x="311.0" y="396.0" class="t2" font-size="11" text-anchor="middle" font-weight="400">2,792 questions</text>
+<path class="s3" d="M414.0,360.0 L414.0,141.6 Q414.0,137.6 418.0,137.6 L453.3,137.6 Q457.3,137.6 457.3,141.6 L457.3,360.0 Z"/>
+<path class="s2" d="M459.3,360.0 L459.3,137.0 Q459.3,133.0 463.3,133.0 L498.7,133.0 Q502.7,133.0 502.7,137.0 L502.7,360.0 Z"/>
+<path class="s1" d="M504.7,360.0 L504.7,123.3 Q504.7,119.3 508.7,119.3 L544.0,119.3 Q548.0,119.3 548.0,123.3 L548.0,360.0 Z"/>
+<text x="526.3" y="113.3" class="t1" font-size="12" text-anchor="middle" font-weight="600">89.8</text>
+<text x="481.0" y="380.0" class="t1" font-size="13" text-anchor="middle" font-weight="400">Yes/no</text>
+<text x="481.0" y="396.0" class="t2" font-size="11" text-anchor="middle" font-weight="400">1,220 questions</text>
+<path class="s3" d="M584.0,360.0 L584.0,243.1 Q584.0,239.1 588.0,239.1 L623.3,239.1 Q627.3,239.1 627.3,243.1 L627.3,360.0 Z"/>
+<path class="s2" d="M629.3,360.0 L629.3,216.1 Q629.3,212.1 633.3,212.1 L668.7,212.1 Q672.7,212.1 672.7,216.1 L672.7,360.0 Z"/>
+<path class="s1" d="M674.7,360.0 L674.7,197.3 Q674.7,193.3 678.7,193.3 L714.0,193.3 Q718.0,193.3 718.0,197.3 L718.0,360.0 Z"/>
+<text x="696.3" y="187.3" class="t1" font-size="12" text-anchor="middle" font-weight="600">62.2</text>
+<text x="651.0" y="380.0" class="t1" font-size="13" text-anchor="middle" font-weight="400">Score</text>
+<text x="651.0" y="396.0" class="t2" font-size="11" text-anchor="middle" font-weight="400">988 questions</text>
+<text x="56.0" y="420.0" class="t2" font-size="11" text-anchor="start" font-weight="400">Source: held-out questions never trained on, read in bf16 through decisio. Not an independent benchmark.</text>
+</svg>
