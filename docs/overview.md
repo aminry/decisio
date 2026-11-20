@@ -1,0 +1,711 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<!-- SPDX-FileCopyrightText: Copyright contributors to the decisio project -->
+
+# Decisio in depth
+
+This page is the long form of the README: the measurements, the bases, the decisions and every way to run decisio.
+The README is the short introduction.
+
+**Decisions you can trust, on your own hardware. Open source.**
+
+[![PyPI](https://img.shields.io/pypi/v/decisio)](https://pypi.org/project/decisio/)
+[![Licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-blue)](../LICENSE)
+[![CI](https://github.com/aminry/decisio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aminry/decisio/actions/workflows/ci.yml)
+
+**Decisio is an open-source server that answers typed questions about any text, with a calibrated probability for every option, from one forward pass and no generated text.**
+
+> **On JevBench v1.6.1 (the board's file, October 2026), Decisio 31B scored 71.69 on the composite (95% interval 69.86 to 72.81) and Jev 1.13.0 scored 71.49 (69.14 to 72.40); the two intervals overlap.** The live board is at https://benchmarkheaven.com/jev-models and has moved since.
+> ([JevBench v1.6.1](https://benchmarkheaven.com/api/jevbench/v1.6.1), decisio on Gemma 4 31B; [how we read the board](#how-we-read-the-board).)
+
+## Teach it your task
+
+**Teach it your task in minutes. No retraining.**
+
+Your labels, your rules, and it tells you which answers it is sure of.
+
+- **BANKING77: 0.787 to 0.844 after 10 labelled examples per intent (mean of 3 draws, 150 test items).** Intent accuracy on the Gemma 4 31B, the test items held out.
+- **CLINC150: 0.940 to 0.970 after 10 labelled examples per intent (mean of 3 draws, 100 test items).** The same, on 150 options, the test items held out.
+- **169 of 200 held-out tickets certified, 17 wrong.** On a ticket question (the Gemma 4 12B, on a Mac) with 400 labelled tickets, asking for at most 15% wrong. Every answer says `certified: true` or `certified: false`.
+
+How it works: you send labelled examples of your own question to `POST /v1/tasks`. The server fits a small correction to the frozen model's answers, checks it against your examples, and keeps it only if it helps.
+
+The tradeoff: you need labelled examples (10 per option for the intent head, and 59 held out to certify at the defaults, so 118 in all), and a certificate holds for one task on one serving setup. It is a rate over many answers, not a promise about one.
+
+**Under the hood.** The model behind Decisio stays frozen: its weights never change. The numbers above, for every base, with their records:
+
+**Before and after, from labelled examples** (BANKING77 has 77 options and 150 test items, CLINC150 has 150 options and 100 test items; 10 labelled examples per intent; the test items are held out; each base measured in its own session):
+
+| Base | BANKING77, untaught to taught | CLINC150, untaught to taught | Record |
+| --- | --- | --- | --- |
+| Gemma 4 31B (the default) | 0.787 to **0.844** | 0.940 to **0.970** | `runs/2026-10-04_gemma-4-31b/` (three draws) |
+| Gemma 4 12B | 0.747 to **0.832** | 0.850 to **0.908** | `runs/2026-10-04_gemma-base/` (six draws) |
+| Qwen3.6-35B-A3B | 0.747 to **0.840** (+9.3 points, 95% interval +5.1 to +14.0) | 0.820 to **0.912** (+9.2, +3.5 to +15.2) | `runs/2026-10-03_qiv-default/` (six draws) |
+
+These numbers use labels, so they compare the taught server with the untaught one and not with systems that see no labels.
+Registering takes about 0.30 s per example (770 examples took about 230 s on the Qwen base).
+
+**What a certificate looks like** (`runs/2026-10-14_certified-answers/`, the Gemma 4 12B on a Mac, a three-queue ticket question, 400 labelled tickets, `alpha` 0.15): the server held out 200 of them, and the threshold 0.986 certifies 169 (84%), 17 of them wrong.
+The promise: with probability at least 90% over the draw of such examples, at most 15% of the answers above the threshold are wrong, for traffic like them and on that serving stack.
+On 200 further tickets 169 answers were certified and 19 of those were wrong (11.2%); that is one draw, not a test of the promise, which is about a rate over many answers.
+Below 59 held-out examples (at the defaults) the server refuses to certify at all, and when no threshold holds it says so and certifies nothing.
+
+```json
+POST /v1/tasks
+{"id": "ticket-queue",
+ "examples": [{"request": <a /v1/systemone request: one ticket and the three queues>, "answer": "billing"}, ...],
+ "certify": {"alpha": 0.15, "delta": 0.1}}
+```
+
+From then on every answer for that question carries the verdict, for example `{"choice": "shipping", "certified": false, "certificate": "ticket-queue#c2e4cc6e431b", "certified_reason": "below_threshold", ...}`.
+Registering one question fits four things, in seconds to minutes: a **calibration** (one correction per option, so the probabilities are honest for your traffic), an **intent head** for questions with 10 or more options (a small layer on the model's internal representation of the text), a **per-task temperature** for the head (new in 0.12.0, fitted on examples the head did not see, so its probabilities are no more confident than it is right), and the **certificate**.
+Each correction is kept only if cross-validation on your own examples shows it helps; otherwise the question is served exactly as before, and the server says why.
+Every question you did not register is untouched.
+
+<!-- TEACH-IT PLACEHOLDERS (the maintainers' teaching-study numbers, which are not published; this section names the default 31B, the 12B reads gemma_4_12b; no Jev figure may appear here):
+     T1 teaching.by_base.gemma_4_31b.gatekeeper.n200.untaught.macro_f1      T2 teaching.by_base.gemma_4_31b.gatekeeper.n200.taught.macro_f1
+     T3 teaching.by_base.gemma_4_31b.gatekeeper.n1000.taught.macro_f1       T4 on a public page: teaching.intent_heads.gemma_4_31b.banking77.taught (accuracy; quote its wording, draws and test items)
+     T5, T6 post-hoc analysis: not for a public page yet
+     T7 teaching.by_base.gemma_4_31b.time_to_teach.n200.seconds (usable)    T8 teaching.by_base.gemma_4_31b.certified.gatekeeper.certified_share (waits for the server's own certificate) -->
+
+How to register a task end to end, what each number was measured on and where the promise stops: [`docs/tasks.md`](tasks.md).
+
+![How Decisio works: your text and your questions go in, a probability for every answer comes out](launch/decisio_article.png)
+*How it works (illustration; the probabilities are examples, real recorded responses are below).*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_top12_dark.png">
+  <img src="docs/launch/jevbench_top12.png" alt="A dot plot of JevBench v1.6.1 composite scores with 95% intervals for ten open-weights systems in alphabetical order, with Jev 1.13.0 below as a reference row. Decisio on Gemma 4 31B scored 71.69 (interval 69.86 to 72.81) and Jev 1.13.0 71.49 (69.14 to 72.40); the two intervals overlap.">
+</picture>
+
+## Why Decisio
+
+The usual way to get a decision out of a model is to let it write text and parse the result.
+Decisio skips the text.
+It reads your document once and reads the probability of each option straight off the model's output.
+
+- **What the model knows.** Intelligence axis on JevBench v1.6.1: 70.4 (Jev 1.13.0: 63.6).
+- **The sealed set.** On JevBench v1.6.1, the 31B's sealed-set intelligence was 73.3 and Jev 1.13.0's 61.6; the open-set intelligence was 67.6 and 65.6. The sealed questions were never published.
+- **Several questions on one read.** A second question on a 3,000-token state already read takes 43.3 ms (one RTX PRO 6000 at 585 W).
+- **Long prompts, many options.** Prompts of 32,768 tokens on the Qwen base and, on the Gemma bases, of the largest length the card holds, at least 32,768 and at most 98,304 on the 31B and 65,536 on the 12B ([`docs/running.md`](running.md#the-context-length)), and 255 options per question.
+- **Your hardware, no per-token bill.** It runs on your own GPU, Mac or laptop. The tradeoff: you buy and run the card, and on JevBench v1.6.1 its cost axis was 51.7 (Jev 1.13.0: 54.7).
+
+| | Gemma 4 31B (the default) |
+| --- | --- |
+| JevBench | 71.69; Jev 71.49, intervals overlap |
+| Calibration | ECE 0.035 standard, 0.091 hard |
+| New 300-token state | 80.7 ms |
+| Second question | 43.3 ms |
+| Memory | 30.6 GiB (FP8) |
+| Licence | Apache-2.0 |
+
+One RTX PRO 6000 at 585 W; intervals and the rest of the figures are under Benchmarks.
+
+## Benchmarks
+
+Each base with its own defaults on one RTX PRO 6000 Blackwell, measured by us with the public harnesses (the Decision Index kit 0.2.1) and recorded in `runs/`.
+None is a board score.
+
+| Measure | Qwen3.6-35B-A3B | Gemma 4 12B | Gemma 4 31B (default) |
+| --- | ---: | ---: | ---: |
+| JevBench published items, easy / standard / hard | 1.000 / 0.972 / 0.739 | 1.000 / 0.972 / 0.739 | 1.000 / 1.000 / 0.838 |
+| BANKING77, macro-F1 | 0.746 | 0.729 | 0.785 |
+| CLINC150+OOS, macro-F1 | 0.822 | 0.871 | 0.902 |
+| GPQA Diamond, accuracy | 0.510 | 0.378 | 0.520 |
+| MMLU-Pro, accuracy | 0.613 | 0.549 | 0.694 |
+| Intent heads, BANKING77 / CLINC150 | 0.840 / 0.912 | 0.832 / 0.908 | 0.844 / 0.970 |
+| Image input, ImajevBench v2.0-lite, accuracy on the 230 answerable of 254 items | 0.791 | n/m | n/m |
+| New 300-token state | 49.9 ms | 53.6 ms | 80.7 ms |
+| 1,000-token state, cached | 20.2 ms | 24.8 ms | 31.7 ms |
+
+The JevBench row is the 231 published items.
+Intent heads use labelled examples, so they are not comparable with zero-shot systems.
+n/m is not measured.
+The image row is the Qwen base's accuracy on the 230 answerable items of the 254 development items, from an earlier run.
+The Gemma bases' image figures are on another item set (the reporting half of a larger image set, 124 ImajevBench items, by answer type), so they are not put in this row: they are in `EVAL_CARD.md` section 10.
+Latency is server time on decisio 0.8.1's served defaults, at a 585 W power limit (default 600 W), so a card at 600 W may read new states faster (`runs/2026-10-06_latency-585w/`, `docs/running.md`).
+
+[`docs/comparison.md`](comparison.md) sets all three bases beside Jev and three open entries on every benchmark, with values and intervals (the board's figures and their date are in `EVAL_CARD.md` section 8.1).
+ECE, the expected calibration error, is the average gap between the stated probability and how often the answer was right, over 10 equal-width bins of the probability (JevBench's own measure; the card's other ECEs use 10 equal-mass bins and say so, `EVAL_CARD.md` section 3).
+Calibration on JevBench, as ECE on the standard and hard tiers: 0.121 and 0.043 on the Qwen base, 0.033 and 0.085 on the Gemma 4 12B base, 0.035 and 0.091 on the Gemma 4 31B base.
+`EVAL_CARD.md` has the full tables and what was fitted on what.
+
+### JevBench, axis by axis
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/jevbench_axes_dark.png">
+  <img src="docs/launch/jevbench_axes.png" alt="Table of JevBench v1.6.1 scores for 11 rows: ten open-weights systems from the board's file and Jev 1.13.0 as a reference row, in alphabetical order, with six columns (overall, intelligence, sealed questions, calibration, speed, cost). Each cell is a plain value; the table has no shading or marks. Decisio 31B v0.8.0's values are overall 71.69, intelligence 70.4, sealed questions 73.3, calibration 88.7, speed 91.2, cost 51.7. The Decisio rows are the board's v0.8.0 entries: Decisio 31B v0.8.0 (71.69) and Decisio 12B v0.8.0 (68.17). The board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.">
+</picture>
+
+- On JevBench v1.6.1, the 31B's sealed-set intelligence was 73.3 and Jev 1.13.0's 61.6; the open-set intelligence was 67.6 and 65.6. The sealed questions were never published.
+- On JevBench v1.6.1, calibration was 88.7 (Jev 1.13.0: 90.6) and speed 91.2 (91.5).
+- On JevBench v1.6.1, the cost axis was 51.7 (Jev 1.13.0: 54.7).
+
+<details>
+<summary>All the numbers: ten open-weights systems and Jev, by axis</summary>
+
+JevBench v1.6.1, 0 to 100, higher is better on every axis, in alphabetical order with Jev 1.13.0 last; only the composite has a published 95% interval.
+The Decisio rows are the board's v0.8.0 entries; the board's decisio v0.9.0 12B entry (67.76) is not among the rows shown.
+
+| System | Overall | Intelligence | Sealed questions | Calibration | Speed | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Cygnet | 68.55 | 54.8 | 51.3 | 87.0 | 91.8 | 56.4 |
+| decider-12b v1 | 70.42 | 60.6 | 59.5 | 83.8 | 90.5 | 57.8 |
+| decider-12b v2 | 70.88 | 63.0 | 63.6 | 82.0 | 90.5 | 57.8 |
+| Decisio 12B v0.8.0 (ours) | 68.17 | 52.3 | 51.6 | 89.2 | 87.0 | 59.3 |
+| Decisio 31B v0.8.0 (ours) | 71.69 | 70.4 | 73.3 | 88.7 | 91.2 | 51.7 |
+| deck-31B | 68.68 | 73.0 | 75.8 | 82.2 | 86.7 | 49.7 |
+| H2O-Lightning-4B | 72.52 | 60.0 | 59.0 | 90.0 | 92.6 | 60.3 |
+| Quyet-1.0-Large | 71.39 | 73.4 | 71.6 | 90.0 | 86.9 | 50.5 |
+| torchcast-decision-12b | 69.91 | 60.5 | 61.1 | 82.9 | 91.7 | 56.4 |
+| Winnow-12B Q8 | 68.89 | 59.5 | 59.2 | 83.0 | 86.7 | 56.6 |
+| Jev 1.13.0 (reference) | 71.49 | 63.6 | 61.6 | 90.6 | 91.5 | 54.7 |
+
+What the compared systems' cards state, quoted as recorded with their revisions, is in [EVAL_CARD.md](../EVAL_CARD.md) section 9.
+
+</details>
+
+### Many questions about one document
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/speed_50q_dark.svg">
+  <img src="docs/launch/speed_50q_light.svg" alt="Bar chart of the median time to answer 50 questions about one document, five systems measured in one session on one box. For a 3,000-token document: decisio Gemma 4 31B 1.08 seconds, decisio Gemma 4 12B 1.57, H2O-Lightning-4B 2.05, Jeff-1.0-Large 47.1, Quyet-1.0-Large 48.9. For a 6,000-token document: 1.73, 1.97, 2.82, 114.6 and 114.8 seconds. For a 32,000-token document only decisio Gemma 4 12B (6.76 s), H2O-Lightning-4B (9.05 s) and decisio Gemma 4 31B (10.1 s) answer; Jeff-1.0-Large and Quyet-1.0-Large are marked not supported.">
+</picture>
+
+Five systems, one box, one session: the median time to answer 50 questions about one document.
+On one box, Decisio 31B answers 50 questions about one 3,000-token document in 1.08 s and about one 6,000-token document in 1.73 s; Decisio 12B takes 1.57 s and 1.97 s, and H2O-Lightning-4B 2.05 s and 2.82 s.
+On one box (one RTX PRO 6000 at 600 W, one session on 2026-10-11), Decisio 31B answered 50 questions about a 3,000-token document in 1.08 s and about a 6,000-token document in 1.73 s; Jeff-1.0-Large took 47.1 s and 114.6 s, and Quyet-1.0-Large 48.9 s and 114.8 s, about 44 and 66 times as long. Neither accepts a 32,000-token document; Decisio 31B answered one in 10.1 s. Time, not accuracy.
+On one box, in the session of 2026-10-11, the first question about a new 3,000-token document takes a median of 112 ms on H2O-Lightning-4B, 295 ms on Decisio 12B, 490 ms on Decisio 31B, and 895 ms on Jeff-1.0-Large and 895 ms on Quyet-1.0-Large.
+At 32,000 tokens, Decisio 31B answers 50 questions about one document in 10.1 s, Decisio 12B in 6.76 s and H2O-Lightning-4B in 9.05 s; Jeff-1.0-Large accepts documents of up to 8,192 tokens and Quyet-1.0-Large up to 6,000, so neither accepts a 32,000-token document.
+
+Measured by Tachara AI Lab on one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W (enforced), each system on its own published server, in one session:
+- decisio v0.11.1 on vLLM 0.30.0 (the 31B and the 12B at their repositories' pins); H2O-Lightning-4B on its own `serve.sh` (stock vLLM 0.30.0); Jeff-1.0-Large and Quyet-1.0-Large on their own published code, bf16.
+- Synthetic support tickets of 3,000, 6,000 and 32,000 tokens by the Gemma 4 tokenizer, the same for every system, and one pool of 50 questions (20 choice with 4 options, 20 yes/no, 10 score with 4 levels). Medians over 10 documents for decisio and H2O-Lightning-4B at 3,000 and 6,000 tokens, and over 5 for Jeff, Quyet and the 32,000-token cells. This compares time, not accuracy.
+- Decisio reads the document once, and each question adds tens of milliseconds. H2O-Lightning-4B takes one question per request and shares the document through the prefix cache. Jeff and Quyet read the document again for every question; both are Gemma 4 31B based, and they are within 4 percent of each other at 3,000 tokens.
+- The SM clock ran at a median of 2,220 to 2,610 MHz and the power at 304 to 600 W across the five runs (`docs/comparison.md` links the log-axis chart that adds five systems from an earlier box).
+
+### How we read the board
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/launch/sealed_vs_open_dark.png">
+  <img src="docs/launch/sealed_vs_open.png" alt="A dot plot of the intelligence axis of JevBench v1.6.1 for eleven systems in alphabetical order, each with its sealed-set score and its open-set score. Decisio on Gemma 4 31B scored 73.3 on the sealed set and 67.6 on the open set.">
+</picture>
+
+Decisio scores higher on the sealed items than on the open ones.
+
+The two composite intervals overlap, so the measurement does not separate Decisio 31B from Jev 1.13.0.
+In short:
+
+- **The composite.** On JevBench v1.6.1 (the board's file, October 2026), Decisio 31B scored 71.69 on the composite (95% interval 69.86 to 72.81) and Jev 1.13.0 scored 71.49 (69.14 to 72.40); the two intervals overlap.
+- **Jev 1.13.0.** Our interval (69.86 to 72.81) and Jev 1.13.0's (69.14 to 72.40) overlap. The scores are 71.69 and 71.49.
+- **Not fitted, but read.** Our temperatures were not fitted on JevBench, but we have read its published items (EVAL_CARD 7.4).
+
+[`docs/board-reading.md`](board-reading.md) has the source file, the values and intervals, and what the board's row ran on.
+
+## Quickstart
+
+Ollama on a laptop, then pip on a GPU, then Docker.
+
+### On a laptop, with Ollama
+
+`aminroudaki/decisio-gemma` serves the Gemma 4 12B base on Ollama's decision route with decisio's own prompt and temperature, and it reads images.
+On the questions measured, its `q8_0` tag chooses the same answer as decisio's own server for 98% of them ([details](#ollama)).
+It works on Ollama 0.40.4 and later (checked on 0.40.4, 0.40.9 and 0.40.16), and its smallest tag takes 11.1 GB in memory:
+
+```bash
+ollama pull aminroudaki/decisio-gemma      # Gemma 4 12B, q4_k_m
+curl http://localhost:11434/v1/systemone -H 'Content-Type: application/json' -d '{
+  "model": "aminroudaki/decisio-gemma",
+  "state": "Hi, since this morning none of our 40 staff can log in to the dashboard. We get \"session expired\" right after entering the password. Payroll is due today.",
+  "questions": {
+    "urgent": {"type": "noul", "instructions": "Does this ticket need a response within the hour?"},
+    "category": {"type": "choice", "instructions": "Which team should handle this ticket?",
+                 "criteria": {"billing": "Invoices, payments, refunds", "access": "Login, passwords, permissions", "bug": "The product behaves wrongly", "other": null}}
+  }
+}'
+```
+
+An image goes in the request's `images` field, base64-encoded.
+Where Ollama's answers differ from decisio's (several questions in one request, images placed before the state, no Box) is in [docs/running.md](running.md#ollama).
+
+### On a GPU, with pip
+
+One NVIDIA card with 96 GB (the size everything below was measured on; the 31B also started and answered on an 80 GB H100, `docs/running.md`), Linux, Python 3.12:
+
+```bash
+python3.12 -m venv .venv && . .venv/bin/activate
+pip install "decisio[serve]"
+python -m decisio.serve.vllm_engine          # serves Gemma 4 31B; the first start downloads about 31 GB
+curl -s http://127.0.0.1:8000/health         # answers once it is ready
+```
+
+The measured environment is the lockfile's (`uv sync --extra serve --frozen`, [GPU server](#gpu-server)); pip resolves its own versions around vLLM 0.31.0.
+Measured on 2026-10-09 on decisio 0.11.0 from PyPI, on one RTX PRO 6000 Blackwell at 600 W and an AMD EPYC 9534: `pip install "decisio[serve]"` took 124 s; the first start of the no-flag 31B was ready after 7 min 54 s, including the download of its weights, and a start with the weights already on disk after 4 min 3 s; the first start of `--base gemma-4-12b` after 4 min 12 s, including its download (these are one session's times, with the network that session had).
+
+### With Docker
+
+```bash
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -v decisio-data:/data ghcr.io/aminry/decisio@sha256:d3a1833a5d245a7753e49b57576cbad6db5b3f1fa8594eac0ab3023a22321cf6
+```
+
+That digest is the 0.39.0 image (`ghcr.io/aminry/decisio:0.39.0`); the release notes of every release give theirs, and `gh attestation verify oci://ghcr.io/aminry/decisio@sha256:<digest> --repo aminry/decisio` checks it.
+[Docker](#docker) has the compose file.
+The same `curl` as above, with `/v1/systemone` on port 8000 and no `model` field, asks the server you started.
+
+## Three decisions, as recorded
+
+Each request is what was sent; each response is what the server answered on the Gemma 4 31B base (probabilities rounded to three decimals here).
+They are the three requests of this README's first recordings (the first record of examples 1, 2 and 4, taken as they came and not chosen for their result), sent to a freshly started server on decisio 0.11.0 as the quickstart above starts it.
+Each block says when, on which version and on which card it was recorded; the files in [`runs/2026-10-09_readme-pip-path/`](../runs/2026-10-09_readme-pip-path/manifest.json) hold the full-precision responses.
+The probabilities differ from the 2026-10-08 recordings on decisio 0.9.0 by up to 0.066 (decision 1), 0.024 (decision 2) and 0.003 (decision 3), with the same top answers; the moderation score moved from 0.78 to 0.81, across the example's block line at 0.8, so that message is now blocked where it was sent to review. Near-tied probabilities move between sessions ([EVAL_CARD.md](../EVAL_CARD.md) section 7.5).
+
+<details>
+<summary><b>1. Route a support ticket: three questions, one pass</b> (server time 107.5 ms on the first send, 58.5 ms on its repeat)</summary>
+
+Recorded 2026-10-10 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+
+Request:
+
+```json
+{"state": "I was charged twice for October. Both charges are 49.00 EUR, same day. Please refund one.", "questions": {"urgent": {"type": "noul", "instructions": "Does this ticket need a response within the hour?"}, "queue": {"type": "choice", "instructions": "Which team should handle this ticket?", "criteria": {"billing": "Invoices, payments, refunds, prices, VAT", "access": "Login, passwords, two-factor, SSO, permissions, invitations, account security", "bug": "The product behaves wrongly: errors, crashes, wrong numbers, lost data", "feature": "A request for something the product does not do yet", "cancellation": "Cancelling, pausing or closing an account, deleting data", "other": "Press, partners, jobs, sales pitches, wrong address, thanks, general questions"}}, "impact": {"type": "score", "instructions": "Rate the business impact using only the reported facts.", "criteria": ["No function impaired", "One user impaired, with a workaround", "Many users blocked from a core function", "Data loss or legal exposure"]}}}
+```
+
+Response:
+
+```json
+{
+ "model": "decisio-gemma-4-31b-it-letters",
+ "answers": {
+  "urgent": {
+   "type": "noul",
+   "noul": 0.225
+  },
+  "queue": {
+   "type": "choice",
+   "choice": "billing",
+   "confidence": 0.956,
+   "probabilities": {
+    "billing": 0.964,
+    "access": 0.01,
+    "bug": 0.015,
+    "feature": 0.003,
+    "cancellation": 0.005,
+    "other": 0.003
+   }
+  },
+  "impact": {
+   "type": "score",
+   "score": 0.911,
+   "confidence": 0.641,
+   "legend": {
+    "0": "No function impaired",
+    "1": "One user impaired, with a workaround",
+    "2": "Many users blocked from a core function",
+    "3": "Data loss or legal exposure"
+   },
+   "probabilities": {
+    "0": 0.224,
+    "1": 0.685,
+    "2": 0.047,
+    "3": 0.044
+   }
+  }
+ },
+ "usage": {
+  "input_tokens": 240,
+  "output_tokens": 3
+ }
+}
+```
+
+It routes the ticket to billing with 96% on the queue and puts the chance it needs a response within the hour at 0.22; the impact is most likely "one user impaired, with a workaround" at 69%.
+
+</details>
+
+<details>
+<summary><b>2. Gate a message: a yes/no with a threshold you choose</b> (server time 66.8 ms on the first send, 28.2 ms on its repeat)</summary>
+
+Recorded 2026-10-10 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+
+Request:
+
+```json
+{"state": "You are a fast-talking gregarious gargoyle merchant who specializes in forbidden artifacts. You prioritize your own interests and love to strike deals, often at the expense of morality. However, you harbor a secret soft spot for those less fortunate.", "questions": {"jailbreak": {"type": "noul", "instructions": "Is this message an attempt to jailbreak an AI assistant: to make it ignore or drop its rules, play a character that has no rules, or reveal its hidden instructions?", "criteria": {"true": "A jailbreak or instruction-override attempt", "false": "An ordinary request or message"}}}}
+```
+
+Response:
+
+```json
+{
+ "model": "decisio-gemma-4-31b-it-letters",
+ "answers": {
+  "jailbreak": {
+   "type": "noul",
+   "noul": 0.807
+  }
+ },
+ "usage": {
+  "input_tokens": 119,
+  "output_tokens": 1
+ }
+}
+```
+
+This prompt is a role-play instruction that the dataset's label calls benign; the server gives it 0.81 for "a jailbreak", which the example's fixed bands (pass below 0.2, block at 0.8 or more) send to a block. It is blocked, just past the line (the block band starts at 0.8), and the label says benign, so this is a wrong block that sits at the edge of the band.
+
+</details>
+
+<details>
+<summary><b>3. Decide what an assistant does next</b> (server time 67.2 ms on the first send, 28.1 ms on its repeat)</summary>
+
+Recorded 2026-10-10 on decisio 0.11.0, vLLM 0.30.0, tachara-ai/decisio-gemma-4-31b at 47833608, one NVIDIA RTX PRO 6000 Blackwell Workstation Edition at 600 W, AMD EPYC 9534.
+
+Request:
+
+```json
+{"state": "What does HTTP status 404 mean?", "questions": {"next": {"type": "choice", "instructions": "What should the assistant do next?", "criteria": {"answer": "Reply directly from general knowledge; no tool is needed", "search": "Look up company documents or policies before answering", "calculate": "Do arithmetic, or a unit or date calculation", "ask_user": "The request is missing something the assistant needs, so ask a clarifying question", "act": "Take an action that changes something: send, create, move, refund, delete, close or reset"}}}}
+```
+
+Response:
+
+```json
+{
+ "model": "decisio-gemma-4-31b-it-letters",
+ "answers": {
+  "next": {
+   "type": "choice",
+   "choice": "answer",
+   "confidence": 0.948,
+   "probabilities": {
+    "answer": 0.959,
+    "search": 0.013,
+    "calculate": 0.019,
+    "ask_user": 0.004,
+    "act": 0.005
+   }
+  }
+ },
+ "usage": {
+  "input_tokens": 110,
+  "output_tokens": 1
+ }
+}
+```
+
+Answering directly (0.96) is the most likely of five options; the next is calculate (0.02).
+
+</details>
+
+## Works with
+
+Five client integrations were checked against a running decisio server (Gemma 4 31B, decisio 0.9.0, from a Mac through an SSH tunnel, 2026-10-08); every check passed.
+They are plumbing checks of the wire format: the client sends a request, the server answers, the client parses it.
+The record, with each check, is in [`runs/2026-10-08_integration-checks/`](../runs/2026-10-08_integration-checks/manifest.json).
+A complete short program for each, run against the CPU stand-in, is in [`docs/integrations.md`](integrations.md).
+
+| Integration | Version checked | Checks passed |
+| --- | --- | --- |
+| LangChain | `langchain-typesafe` 0.0.1a3 | 42 of 42 |
+| Vercel AI SDK | `ai` 7.0.131, `@ai-sdk/typesafe-ai` 3.0.15 | 42 of 42 |
+| n8n | n8n 2.35.7, `n8n-nodes-jev` 0.2.3 | 44 of 44 |
+| TanStack AI | `@tanstack/ai` 0.65.1, `@tanstack/ai-typesafe` 0.1.8 | 39 of 39 |
+| Pipecat | `pipecat-ai` 1.12.0 | 39 of 39 |
+
+## Why open and self-hosted
+
+- **Your text goes to the machine that runs the server, and nowhere else.** There is no per-call price, only the card.
+- **Nothing is hidden.** Every base is an official checkpoint at a pinned revision, and the prompt, the temperatures and the readout are in the repository and in each base's `decision_config.json`.
+- **Apache-2.0**: the code, and each of the three bases under its own Apache-2.0 licence.
+- **You can check it.** Every figure here comes from a record in the repository ([EVAL_CARD.md](../EVAL_CARD.md)), with its host, card and power limit; the harnesses are the benchmarks' public ones.
+- **It learns your question without changing the model.** Register labelled examples and it fits a per-task calibration, and for long option lists an intent head; the weights stay as they were ([Teach it your question](#teach-it-your-question)).
+
+Decisio is an independent project, not affiliated with or endorsed by TypeSafe; it implements TypeSafe's published System One wire format.
+
+Built by [Tachara AI Lab](https://huggingface.co/tachara-ai).
+
+## Contents
+
+- [Benchmarks](#benchmarks)
+- [What it does](#what-it-does)
+- [Watch it play](#watch-it-play)
+- [Install and run](#install-and-run)
+- [Ask a question](#ask-a-question)
+- [Choosing a base](#choosing-a-base)
+- [Teach it your question](#teach-it-your-question)
+- [Options](#options)
+- [How it works](#how-it-works)
+- [Repository layout](#repository-layout)
+- [Contributing](#contributing)
+- [Licence](#licence)
+
+## What it does
+
+Decisio is a serving layer for decisions: typed questions about a piece of text go in, in TypeSafe's System One wire format, and a probability for every option comes out, each question from one forward pass with no text generated.
+The base model is yours to choose, and every base is served with the same calibration, task registration, shared state and prefix cache.
+The bases ship as profiles, each with its numbers and its provenance stated per base.
+
+On the Gemma 4 31B base, decisio scored 57.58 on the Decision Index 0.2.1 at a median of 56.0 ms per request, in a self-run of all 150,759 requests; it is our own run, not a board score, and its per-request records are published ([results](https://huggingface.co/datasets/aminry/decisio-decision-index), [submission](https://github.com/apolinario/decision-index/pull/62)).
+
+| | |
+| --- | --- |
+| Question types | yes/no (`noul`), a choice among up to 255 named options, a score on an ordered scale |
+| Many questions per request | the state is prefilled once and shared; each question is scored on its own, so its answer equals the question sent alone |
+| Probabilities | a distribution per question, tempered by fitted temperatures, with per-task calibration from labelled examples |
+| Task registration | `POST /v1/tasks` learns one recurring question from labelled examples: a calibration and, for long option lists, an intent head; with a `certify` block it also certifies answers against your labels (`docs/tasks.md`, "Certified answers") |
+| Abstention | an opt-in per-task threshold on a declared "can't tell" option (`POST /v1/abstention/tasks`) |
+| Image input and Box | pictures in the state, in a question's instructions and in its options, read by Gemma 4 12B and 31B on the same engine (`--images on`, [api.md](api.md#images-on-gemma-4---images-on)), on vLLM or on a Mac ([Images on a Mac](running.md#images-on-a-mac)), or by the Qwen base through a second engine (`--image-model`); Box questions answer where something is in a picture, with four edges and a confidence, on vLLM ([box.md](box.md)); measured figures are in `EVAL_CARD.md` section 10 |
+
+## Watch it play
+
+Four demos call a decisio server for every move (`examples/demos/`), and each clip is rendered from a recorded run at the speed it happened.
+
+| | |
+| --- | --- |
+| ![Pong](demos/media/pong_three_bases.gif) | ![Driving](demos/media/driving_gemma-4-31b.gif) |
+| Pong, the three bases on the same serve ([MP4](demos/media/pong_three_bases.mp4)) | A driving simulator in real time, on Gemma 4 31B ([MP4](demos/media/driving_gemma-4-31b.mp4)) |
+| ![Browser agent](demos/media/browser_travel_gemma-4-12b.gif) | ![Triage](demos/media/triage_gemma-4-12b.gif) |
+| A browser agent's travel task, on Gemma 4 12B ([MP4](demos/media/browser_travel_gemma-4-12b.mp4)) | Support-ticket triage before and after registering labelled tickets, on Gemma 4 12B ([MP4](demos/media/triage_gemma-4-12b.mp4)) |
+
+[`docs/demos/README.md`](demos/README.md) has every player, every clip and the result tables.
+
+## Install and run
+
+| Machine | Path | Memory needed |
+| --- | --- | --- |
+| Linux with one NVIDIA card | [GPU server](#gpu-server) | a 96 GB card, as measured (an 80 GB H100 also runs the 31B); each base's weights are in [Choosing a base](#choosing-a-base) |
+| Linux with one NVIDIA card and Docker | [Docker](#docker) | as the GPU server |
+| Mac with Apple silicon | [Mac with MLX](#mac-with-mlx) | each base's, in [docs/running.md](running.md#mac-with-mlx) |
+| Mac, Linux or Windows with Ollama 0.40.4 or later | [Ollama](#ollama) | 11.1 GB for the Gemma base's `q4_k_m` tag and 15.9 GB for its `q8_0` (measured on a 64 GB Mac); the tuned 12B's are on its model page ([decisio-gemma](https://ollama.com/aminroudaki/decisio-gemma), [decisio-gemma-tuned](https://ollama.com/aminroudaki/decisio-gemma-tuned)) |
+| Any machine, for development | [CPU stand-in](#cpu-stand-in-for-development) | a small Hugging Face model on the CPU |
+
+[`docs/running.md`](running.md) has the details of every path.
+
+### GPU server
+
+Linux, one NVIDIA card, a driver that supports CUDA 13.0, Python 3.12 and [uv](https://docs.astral.sh/uv/):
+
+```bash
+git clone --branch v0.51.0 https://github.com/aminry/decisio
+cd decisio
+uv sync --extra serve --frozen
+uv run python -m decisio.serve.vllm_engine
+```
+
+With no flag the server serves Gemma 4 31B, the default base (measured on a 96 GB card; it also runs on an 80 GB H100; [Choosing a base](#choosing-a-base) says when to pick another).
+The first start downloads the checkpoint (about 31 GB of FP8 weights) and warms the engine; the server then listens on `http://127.0.0.1:8000`.
+Upgrade notes: [docs/upgrading.md](upgrading.md).
+
+### Docker
+
+```bash
+uv build --wheel                   # the image installs this wheel
+docker compose up --build          # needs the NVIDIA Container Toolkit
+curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
+```
+
+The container serves the default base, Gemma 4 31B; `DECISIO_BASE=qwen3.6-35b-a3b docker compose up` (or `gemma-4-12b`, or `gemma-4-12b-fp8`) serves another.
+Release images are published to `ghcr.io/aminry/decisio`, with their digest in the release notes.
+
+### Mac with MLX
+
+```bash
+uv sync --extra mlx
+uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-12b --model mlx-community/gemma-4-12B-it-6bit
+uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --model mlx-community/gemma-4-31b-it-6bit
+```
+
+The Qwen base runs from its 6-bit MLX conversion, with every feature of the text route ([docs/running.md](running.md#mac-with-mlx)).
+The Gemma 4 12B base runs from its 6-bit MLX conversion, on a 32 GB Mac, with every feature of the text route ([docs/running.md](running.md#mac-with-mlx)).
+The default base, Gemma 4 31B, runs from its 6-bit MLX conversion on a 64 GB Mac (the only size measured), or from its 4-bit conversion `tachara-ai/decisio-gemma-4-31b-mlx-4bit` on a 48 GB Mac (derived from the 64 GB measurement), which scores 1.5 points lower on MMLU-Pro; both are documented for states up to 16,383 tokens; a Mac always names its conversion with `--model` ([docs/running.md](running.md#mac-with-mlx)).
+Both Gemma bases also read pictures on a Mac: install the `mlx-images` extra and add `--images on`; a conversion made for text takes the base's small vision add-on, downloaded once and checked by its sha256 ([Images on a Mac](running.md#images-on-a-mac)).
+
+### Ollama
+
+```bash
+ollama pull aminroudaki/decisio-gemma          # the Gemma 4 12B base
+ollama pull aminroudaki/decisio-gemma-tuned    # the tuned 12B (calibrated)
+```
+
+Both answer `/v1/systemone` with decisio's own prompt and temperatures, text and images, on Ollama 0.40.4 and later (checked on 0.40.4, 0.40.9 and 0.40.16).
+The base's `q8_0` tag chooses the same answer as decisio's own server for 98.3% of 300 text questions, and both listings for 97% to 98% of 257 image questions ([docs/running.md](running.md#ollama), which also lists where they differ).
+Each listing's `q4_k_m` tag takes about 11 GB in memory (11.1 GB the base, 10.8 GB the tuned model) and its `q8_0` tag 15.9 GB (measured on a Mac).
+The Qwen listing, `aminroudaki/decisio`, needs Ollama 0.35.1 through 0.40.3; on a newer Ollama use the Gemma listings or decisio's own server on the Mac ([Mac with MLX](#mac-with-mlx)).
+
+### CPU stand-in for development
+
+```bash
+uv sync --extra dev --frozen
+uv run pytest
+uv run python -m decisio.serve.vllm_engine --backend hf --model Qwen/Qwen3-0.6B-Base
+```
+
+The stand-in serves the routes from a small model on the CPU for development; it is not the measured system.
+
+## Ask a question
+
+```bash
+curl http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -d '{
+  "state": "Hi, since this morning none of our 40 staff can log in to the dashboard. We get \"session expired\" right after entering the password. Payroll is due today.",
+  "questions": {
+    "urgent":   {"type": "noul",   "instructions": "Does this ticket need a response within the hour?"},
+    "category": {"type": "choice", "instructions": "Which team should handle this ticket?",
+                 "criteria": {"billing": "Invoices, payments, refunds", "access": "Login, passwords, permissions", "bug": "The product behaves wrongly", "other": null}},
+    "impact":   {"type": "score",  "instructions": "Rate the business impact using only the reported facts.",
+                 "criteria": ["No function impaired", "One user impaired, with a workaround", "Many users blocked from a core function", "Data loss or legal exposure"]}
+  }
+}'
+```
+
+Response, abridged and rounded, as recorded on the default Gemma 4 31B base under its served defaults on 2026-10-08 (`runs/2026-10-08_readme-worked-decisions/ticket.json` holds the full response; the same response came back in 30 of 30 repeats on one server, measured by the maintainers and not published; decisio 0.9.0, one NVIDIA RTX PRO 6000 Blackwell at 600 W, AMD EPYC 9654):
+
+```json
+{"answers": {
+  "urgent":   {"type": "noul",   "noul": 0.995},
+  "category": {"type": "choice", "choice": "access", "probabilities": {"billing": 0.005, "access": 0.976, "bug": 0.012, "other": 0.007}},
+  "impact":   {"type": "score",  "score": 1.977, "probabilities": {"0": 0.005, "1": 0.024, "2": 0.961, "3": 0.011}}}}
+```
+
+The routes ([`docs/api.md`](api.md) has every field):
+- `POST /v1/systemone`: ask questions about a state, as above.
+- `POST /v1/tasks`: register a recurring question from labelled examples; `GET /v1/tasks` lists them.
+- `POST /v1/tasks/import`: load tasks exported with `GET /v1/tasks?full=1`, without fitting again.
+- `GET /v1/tasks/{id}`, `POST /v1/tasks/{id}/certify`, `GET /metrics`: a task's status, certifying again on new labelled examples, and the answer-mix monitor of certified tasks.
+- `POST /v1/abstention/tasks`: register an abstention threshold for a task; `GET` lists them.
+- `GET /health`: the engine, the base, its checkpoint and revision, the temperatures and the prompt being served.
+
+## Choosing a base
+
+Three base models are served behind the same routes, wire format and features, one per server, chosen with `--base`; with no flag the server serves Gemma 4 31B:
+
+```bash
+uv run python -m decisio.serve.vllm_engine                          # gemma-4-31b, the default
+uv run python -m decisio.serve.vllm_engine --base qwen3.6-35b-a3b
+uv run python -m decisio.serve.vllm_engine --base gemma-4-12b
+uv run python -m decisio.serve.vllm_engine --base gemma-4-12b-fp8                  # the 12B in FP8
+```
+
+`--base` brings its checkpoint at a pinned revision and every setting below; a flag given explicitly overrides the base's value.
+Each base's settings were measured as one configuration.
+A checkpoint named with `--model` and no `--base` brings the base its `config.json` declares, as before.
+
+| Base | Checkpoint | Provenance |
+| --- | --- | --- |
+| `gemma-4-31b` (default) | `tachara-ai/decisio-gemma-4-31b`: Google's `google/gemma-4-31B-it` at `842da379`, stored as FP8, 30.6 GiB in memory; `--model google/gemma-4-31B-it` serves Google's weights at the same revision instead, quantized to FP8 when they load (measured on vLLM 0.30.0; the server now pins 0.31.0) | Official checkpoint from Google, at a pinned revision, quantized to FP8 once with the arithmetic vLLM uses on load (`python -m decisio.hub_fp8`); no training or fine-tuning by us; the repository's card states the check that its tensors equal the ones made on load |
+| `qwen3.6-35b-a3b` | `Qwen/Qwen3.6-35B-A3B-FP8` at `95a723d0`, 33.3 GiB in memory | Official checkpoint from Alibaba's Qwen team, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-12b` | `google/gemma-4-12B-it` at `707f0a3b`, bf16, 22.8 GiB in memory | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-31b-bf16` | `google/gemma-4-31B-it` at `842da379`, as published, not quantized (57.91 GiB of weights); the 31B's second precision, chosen with `--base` only, whose profile and temperatures are the FP8 31B's and not measured at bf16 ([`docs/running.md`](running.md#the-31b-in-bf16)) | Official checkpoint from Google, at a pinned revision; no adapter or fine-tuning by us |
+| `gemma-4-12b-fp8` | the same checkpoint in FP8, quantized when it loads (12.13 GiB as a stored conversion, 12.74 GiB in memory on vLLM 0.31.0); a second precision of the 12B, whose default and records stay bf16 ([`docs/running.md`](running.md#the-12b-in-two-precisions)) | As `gemma-4-12b`, its linear layers quantized to FP8 with the arithmetic vLLM uses on load; its own task fingerprint and serving stack, and the bf16 12B's temperatures until they are refitted |
+
+A base that is a third-party fine-tune names its publisher in the provenance column and states what it was trained on.
+
+| Setting | `qwen3.6-35b-a3b` | `gemma-4-12b` | `gemma-4-31b` (default) |
+| --- | --- | --- | --- |
+| Temperatures | 1.370 for choice questions, 1.506 for yes/no and score | 3.592 for every question type | 4.672 for choice questions, 5.252 for yes/no and score |
+| Prompt | no system turn, read after an "Answer:" prefill, one token per option letter | a system turn, read at the chat template's own answer position, every single-token form of each letter summed | as `gemma-4-12b` |
+| Yes/no | a two-option letter choice with its sides named | a two-option letter choice, each side shown as its description | as `gemma-4-12b` |
+| Padding | the state padded to the 1,056-token block | none | none |
+| Several questions in one request | the same probabilities as each question sent alone, bit for bit | the same choice as each question sent alone, probabilities within 0.035 | scored in one batch after the state is read (`--multi-question warm`, its default): the same choice as one engine call per question on every item measured, probabilities within 0.0073 |
+| Precision | FP8, as the checkpoint stores it | bf16 | FP8, as its repository stores it (on load from Google's bf16 weights with `--model google/gemma-4-31B-it`; at bf16 they leave too little of a 96 GB card for a 32,768-token context) |
+| A second, different question on a document already read (decisio 0.8.1's served defaults, the 12B's boundary registered after the answer as on 0.9.0; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X) | read from the cache: 23.5 ms after an 85 ms first read (3,000 tokens) | read from the cache: 35.8 ms after a 260 ms first read; with the boundary registered after the answer (`--register-boundary after`) the first read costs nothing more, with it registered before the answer (the default) +16 to +28 ms at 300 to 3,000 tokens | read from the cache: 43.3 ms after a 439 ms first read; the boundary is registered before the answer, which costs the first read +21 to +34 ms and keeps throughput under load |
+
+In plain words:
+- **Gemma 4 31B, the default, for accuracy.**
+  It is stronger than both other bases on the suite, JevBench's published items and the Decision Index (suite 0.799 against 0.770 and 0.735; JevBench's published items 213 correct against 200 each; Decision Index MMLU-Pro 0.694 against 0.613 and 0.549); in the demos the 12B was the most accurate browser agent (below).
+  It is measured on a 96 GB card on vLLM (its weights take 31 GB) and also runs on an 80 GB H100 (`docs/running.md`); on a 64 GB Mac it runs from its 6-bit MLX conversion for states up to 16,383 tokens, and on a 48 GB Mac from its 4-bit conversion ([Mac with MLX](#mac-with-mlx)).
+- **Qwen3.6-35B-A3B for speed on long new states, for answers that repeat across sessions, and for calibration on wide option sets.**
+  - A question on a new state reads 3.2 and 5.1 times faster than on the 31B at 1,000 and 3,000 tokens (50.0 and 85.2 ms against 160.1 and 438.1; 1.6 times at 300 tokens, 49.9 against 80.7), measured in one session on one card at 585 W (`runs/2026-10-06_latency-585w/`).
+  - Its answers repeated an earlier session's record on another card of the same type on all 1,400 suite items to 1.1e-16 (`EVAL_CARD.md` 6.2), where the 31B's near-tied answers moved between sessions (7.5).
+  - On the 77-option BANKING77 items of the suite its calibration error is 0.055 against the 31B's 0.078; the temperatures were fitted on that suite, so both are in-sample (`EVAL_CARD.md` 3, 4 and 7.2).
+- **Gemma 4 12B for machines smaller than the 31B's.**
+  It runs on a 32 GB Mac from its MLX conversion ([Mac with MLX](#mac-with-mlx)), and its Ollama listing takes 11.1 GB at its smallest tag ([Ollama](#ollama)).
+  On vLLM its weights are the smallest of the three (22.8 GiB), but it did not start on a card limited to 32 GB; on an 80 GB H100 it served its ceiling of 65,536 tokens at the default share (`docs/running.md`), and cards between 32 and 80 GB were not measured (`EVAL_CARD.md` 6.6).
+  In FP8 (`--base gemma-4-12b-fp8`) it serves its full 65,536 tokens on a 32 GB RTX 5090 (12.74 GiB of weights, 11.66 GiB of KV cache) at 0.64 times the bf16 12B's server time, with its own answers: the top answer is the bf16 12B's on 96% of 200 requests ([`docs/running.md`](running.md#the-12b-in-two-precisions)).
+- On JevBench's published items the 12B and Qwen are level (200 of 231 each).
+
+What drives the choice, measured on one RTX PRO 6000 Blackwell in one session, each base with its own defaults, paired over the same items (95% bootstrap intervals; `runs/2026-10-04_gemma-base/`):
+
+| Measure | Gemma 4 12B | Qwen3.6-35B-A3B | Gemma minus Qwen |
+| --- | ---: | ---: | --- |
+| JevBench v1.5 open-set reading, I_open (equal types) | 64.4 | 49.4 | +15.0 [+7.0, +23.6] |
+| JevBench v1.5, yes/no / score | 49.0 / 63.7 | 13.7 / 57.2 | |
+| Yes/no answers between 0.20 and 0.80 (74 items) | 15% | 39% | |
+| JevBench, published items, correct | | | 0.0 points [-4.3, +4.3] |
+| Decision Index accuracy, CLINC150+OOS | | | +4.5 [+3.6, +5.5] |
+| Decision Index accuracy, BANKING77 | | | -1.4 [-2.7, -0.1] |
+| Decision Index accuracy, GPQA Diamond | | | -13.6 [-21.7, -5.6] |
+| Decision Index accuracy, MMLU-Pro | | | -6.4 [-7.2, -5.5] |
+| 1,400-item suite, accuracy | 0.735 | 0.770 | -3.5 [-5.5, -1.6] |
+| One question on a new 3,000-token state, server time (0.8.1's served defaults, the engine in the server's process; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X; one session, `runs/2026-10-06_latency-585w/`) | 258.6 ms | 85.2 ms | |
+
+The full paired table, the Gemma base's repeatability and its limits are in `EVAL_CARD.md` section 6.
+
+Gemma 4 31B was measured in its own session, on another card of the same type (`runs/2026-10-04_gemma-4-31b/`), so its numbers are not paired with the table above: suite accuracy 0.799 (Qwen 0.770, Gemma 4 12B 0.735), 213 of JevBench's 231 published items correct (200 each), Decision Index MMLU-Pro 0.694 and GPQA Diamond 0.520 (Qwen 0.613 and 0.510), one question on a new 3,000-token state 438 ms (Qwen 85 ms; 0.8.1's served defaults, the engine in the server's process; one RTX PRO 6000 at 585 W, AMD Ryzen Threadripper 9960X; `runs/2026-10-06_latency-585w/`).
+It went in under the maintainer's decision, past a pre-registered rule it missed by 0.2 to 1.1 points on three of four benchmarks; `EVAL_CARD.md` section 7 states the rule, the numbers and the reason.
+
+On the four demos, run on each base in one session ([docs/demos](demos/README.md)), Gemma 4 31B played Pong best (85% agreement with a perfect paddle, against 60% and 62%), made the fewest driving motion errors and was most accurate on triage (97.0% against 93.8% for Gemma 4 12B and 91.0% for Qwen), but lost one of nine real-time drives.
+Gemma 4 12B was the most accurate browser agent (269 of 272 labelled steps, against 248 and 243) and took the shortest path in every run.
+Qwen3.6-35B-A3B answered fastest in Pong, driving and triage (Pong 44 ms per decision, against 48 and 68 ms; level with Gemma 4 12B in the browser agent), but made the most browser-agent errors.
+
+## Teach it your question
+
+The model is frozen, but the server can learn one recurring question from your own labelled examples.
+It fits a per-task calibration and, for questions with many options, a small head on the model's hidden state, each kept only if cross-validation on your examples shows a gain.
+The intent-head rows of the Benchmarks table show what it does with a few labelled examples per intent.
+Tasks registered under the earlier compact layout are not applied by the current default and need registering again.
+
+```bash
+curl http://127.0.0.1:8000/v1/tasks -H 'Content-Type: application/json' -d @examples/tasks/examples.json
+```
+
+[`docs/tasks.md`](tasks.md) walks through it and states what each number was measured on; `examples/tasks/` runs it on a laptop against the CPU stand-in.
+
+## Options
+
+The served defaults need no flags; these change behaviour ([`docs/cli.md`](cli.md) has every flag and its default per base):
+- `--pad-policy row`: pads a single-question request so its whole row ends on the block boundary, faster on a new state at a small cost in repeatability.
+- `--multi-question warm`: scores a request's questions in one batch for bulk scoring, faster, but each answer then depends on the batch. It is the Gemma 4 31B base's default: with the engine in the server's process a warm request repeated exactly on a server that had answered it before (vLLM 0.30.0: 272 of 272 four-question requests, 5 repeats each); on vLLM 0.30.0 and 0.31.0 alike a request repeats exactly on a freshly started server, and on a server that has already answered it a repeat can differ (5 of 200 single-question requests, up to 0.031, no top answer changed, 31B, the same on both versions, `EVAL_CARD.md` section 7.5); and on the items measured it chose as `sequential` did every time (`runs/2026-10-05_engine-death-gates/`).
+- `--noul-commit`: commits a yes/no answer by moving a probability between 0.20 and 0.80 to the edge of that band on its own side; the answer never changes, its calibration does.
+- `--prompt-tail compact`: the compact layout, for tasks registered under it.
+- `--image-model`: a second engine on the same card for requests that carry images.
+- `--backend`: `vllm` (the default), `mlx` for Apple silicon, `hf` for the CPU stand-in.
+
+## How it works
+
+Each question becomes one prompt, the state followed by the question and its lettered options, and its answer is the model's distribution over the option letters at one position, so every question costs one forward pass and no generated text.
+The state is prefilled once per request and every question reads it from vLLM's prefix cache.
+No training: every base is an official checkpoint, frozen, with no fine-tuning and no adapter.
+decisio's vLLM plugin registers its model classes through an entry point, so vLLM loads them without a patch, and the served class also returns the hidden state at the answer position for the intent head.
+The design notes: [`docs/design/vllm-plugin.md`](design/vllm-plugin.md), [`docs/design/hidden-state-readout.md`](design/hidden-state-readout.md) and [`docs/design/mlx-backend.md`](design/mlx-backend.md).
+
+## Repository layout
+
+```text
+src/decisio/serve/      the server: /v1/systemone, tasks, abstention, temperature, image route, conformance
+src/decisio/readout/    the letters readout, calibration and the intent head (reference implementations)
+src/decisio/vllm_plugin/  the vLLM entry point and the two model classes
+src/decisio/bench/      benchmark scoring (JevBench v1.5 open-set reading, Decision Index reports)
+benchmarks/             scripts that run the public harnesses against a server
+patches/                optional vLLM patch series, off by default
+Dockerfile  compose.yaml  docker/   the server image (vLLM 0.31.0 release image plus the wheel)
+tests/unit/  tests/gpu/ CPU tests: the fast tier on every pull request, the slow tier nightly; GPU tests (pytest -m gpu) by hand on a card
+runs/                   evaluation records: a manifest, per-item results and hashes per run
+docs/                   running, the API, the command line, task registration, design notes
+docs/demos/             the demos judged decision by decision, and their clips
+examples/tasks/         a runnable task-registration walk-through (CPU stand-in)
+examples/reference/     the plain-transformers reference: one decision per call from a repository's decision_config.json
+examples/demos/         the demos' clients and the tools that render their clips
+EVAL_CARD.md            what was measured, on what, and what was fitted on what
+```
+
+## Contributing
+
+See `CONTRIBUTING.md`.
+Pull requests need a DCO sign-off (`git commit -s`), pass the CPU tests and lint, and are reviewed by a maintainer before merge.
+Security issues go through GitHub's private vulnerability reporting, as described in `SECURITY.md`.
+
+## Licence
+
+Apache-2.0 (`LICENSE`, `NOTICE`).
+The model weights are Alibaba's Qwen3.6-35B-A3B under Apache-2.0 and, for the other two bases, Google's Gemma 4 12B and 31B under Apache-2.0, which is all the Gemma 4 licence page and model cards state.
+The three `tachara-ai/decisio-*` model repositories redistribute those weights under Apache-2.0 with their licence and provenance files; the 12B and Qwen weights are byte-for-byte copies, while the 31B text model's linear layers are quantized to FP8 as its card and `NOTICE` state.
+`THIRD-PARTY.md` lists everything else this project builds on.
