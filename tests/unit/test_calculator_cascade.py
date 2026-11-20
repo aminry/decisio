@@ -1121,3 +1121,31 @@ def test_wording_refuses_a_target_named_after_a_negation():
     old = "Rush supplement: 10% of Crate packing, added."
     state = STATE.replace(old, "Rush supplement: 10% of Cable only (not the Crate packing charge), added.")
     assert _wording(state).code == "adjustment-target"  # the tagger's target is the negated name
+
+
+@pytest.mark.parametrize(
+    ("line", "code"),
+    [
+        ("Rush supplement: 10% of Crate packing only (not of the Cable charge), added.", ""),
+        ("Rush supplement: 10% of Cable only (not of the Crate packing charge), added.", "adjustment-target"),
+        ("Rush supplement: 10% of Cable, rather than Crate packing, added.", "adjustment-target"),
+    ],
+)
+def test_wording_reads_a_negation_over_its_whole_clause(line, code):
+    state = STATE.replace("Rush supplement: 10% of Crate packing, added.", line)
+    assert _wording(state).code == code
+
+
+def test_wording_refuses_a_fee_placed_by_a_billing_time_not_a_tax_side():
+    old = "Handling fee: $7.25, added after tax."
+    state = STATE.replace(old, "Handling fee: $7.25, added at the end of the bill.")
+    state = state.replace("on the bill.", "on the bill. Every charge and fee above is inside the taxed amount.")
+    assert _wording(state, SPANS, dict(FLAGS, tax_after=[])).code == "tax-side-ambiguous"
+
+
+def test_wording_refuses_a_count_noun_read_into_a_label_after_its_quantity():
+    state = STATE.replace("Crate packing: 4 crates at $12.50 each.", "We packed 4 Crate packing units at $12.50 each.")
+    state = state.replace("10% of Crate packing,", "10% of Crate packing units,")
+    spans = [("Crate packing units", 0, "item_label", "i1", None) if s[0] == "Crate packing" else s for s in SPANS]
+    spans = [("4", 0, "quantity", "i1", None) if s[0] == "4 crates" else s for s in spans]
+    assert _wording(state, spans).code == "label-cut"

@@ -650,8 +650,11 @@ def wording(asm: A.Assembly) -> Check:
     `identifier-number` (a number that names something read as a count: "Length section 1"), `negative-total` (a case
     whose taxed base or total is below zero), `subtract-word-outside-name` (a line taken off whose only word for it is
     its own name: "Site access deposit: $150.00"), `adjustment-side-unstated` (an adjustment whose side of the tax the
-    text never states). An every-line statement needs a line noun ("every charge"), and an adjustment's target named
-    after "not", "except" or "excluding" refuses."""
+    text never states). An every-line statement needs a line noun ("every charge"); an adjustment's target named
+    only inside a negated clause ("not of the Pallet handling charge", "rather than Cable") refuses;
+    `entry-repeated-unread` (two equal genuine entries read as one); a fee, credit or adjustment placed by a billing
+    time instead of a tax side ("added at the end of the bill") refuses as `tax-side-ambiguous`; a generic count noun
+    read into a label right after its quantity ("3 Lighting tower units") is a `label-cut`."""
     gate = "wording"
     texts = dict(asm.texts)
     for s in asm.spans:
@@ -718,6 +721,18 @@ def wording(asm: A.Assembly) -> Check:
         bad = _negative_figure(asm)
         if bad:
             return _fail(gate, "negative-total", bad)
+    if "entry-repeated-unread" not in DISABLED:
+        bad = _unread_equal_entry(asm)
+        if bad:
+            return _fail(gate, "entry-repeated-unread", bad)
+    if "label-count-noun" not in DISABLED:
+        for x in asm.spans:
+            if x.role == "item_label" and _COUNT_NOUN_LABEL.search(x.text):
+                before = texts.get(x.where, "")[max(0, x.start - 16) : x.start]
+                if re.search(r"\d[\d.,]*\s*$", before):
+                    return _fail(
+                        gate, "label-cut", x.key
+                    )  # "3 Lighting tower units at ...": the count noun is no label
     sides = _stated_sides(asm)
     if "tax-side-ambiguous" not in DISABLED:
         for _, text in asm.texts:
@@ -766,6 +781,11 @@ def wording(asm: A.Assembly) -> Check:
             said = said or A.norm_label(g.label) in sides.named or "before" in sides.every
             if not said:
                 return _fail(gate, "adjustment-side-unstated", g.id)
+        if g.kind in ("fee", "credit", "daycredit", "adjustment") and "timing-not-side" not in DISABLED:
+            # "The Tail-lift fee is added at the end of the bill": a time in the billing, not a side of the tax
+            for t in named:
+                if _TIMING.search(t) and not (_AFTER_TAX.search(t) or _BEFORE_TAX.search(t)):
+                    return _fail(gate, "tax-side-ambiguous", g.id)
         if g.kind in ("fee", "credit", "daycredit"):
             code = _side_check(asm, g, named, A.norm_label(g.label) in outside, sides)
             if code:
@@ -898,6 +918,64 @@ def _negative_figure(asm: A.Assembly) -> str:
     return ""
 
 
+# a time in the billing that is not a side of the tax
+_TIMING = re.compile(
+    r"\b(?:at the (?:end|close|bottom) of the (?:bill|invoice|order|statement)|(?:added|charged|applied|taken off) "
+    r"(?:last|at the end|at checkout|on settlement)|at (?:checkout|settlement)|when (?:the|your) (?:account|bill|"
+    r"invoice|order) is (?:settled|closed|finali[sz]ed|paid)|on the final (?:bill|invoice|statement))\b",
+    re.I,
+)
+# a generic count noun ending a label right after its quantity ("3 Lighting tower units at ...")
+_COUNT_NOUN_LABEL = re.compile(r"\s(?:units?|pieces?|items?|pcs)\s*$", re.I)
+
+
+def _unread_equal_entry(asm: A.Assembly) -> str:
+    """A time or length line's entry written again on an entry-shaped line of its own (a table row whose first cell is
+    the line's name, or a line naming the line that speaks of an entry), and tagged as a restatement there: two equal
+    genuine entries ("Time entry A: 453 minutes", "Time entry B: 453 minutes") read as one. A restatement on the
+    entry's own line ("453 minutes (7 h 33 min)") is not this."""
+    texts = dict(asm.texts)
+    docs = N.document(((texts.get("context") or "") + "\n") + texts.get("state", ""))
+
+    def line_of(where: str, at: int) -> tuple[str, int]:
+        return where, texts.get(where, "").rfind("\n", 0, at)
+
+    def value_of(sp) -> Fraction | None:
+        src = texts.get(sp.where, "")
+        vs = [v for v in N.normalize(src, docs).values if v.span[0] < sp.end and v.span[1] > sp.start]
+        if len(vs) != 1 or vs[0].kind not in ("duration", "quantity", "number"):
+            return None
+        v = vs[0]
+        if v.kind == "quantity" and v.dimension == "time":
+            f = N.factor(v.unit, "min")
+            return None if f is None else Fraction(v.value) * f
+        return Fraction(v.value)
+
+    for g in asm.groups:
+        if g.kind not in ("time", "length"):
+            continue
+        role = "duration" if g.kind == "time" else "quantity"
+        entries = [(sp, value_of(sp)) for r, sp, _ in g.values if r == role]
+        key = A.norm_label(g.label)
+        for d in asm.spans:
+            if d.role != "distractor":
+                continue
+            dv = value_of(d)
+            if dv is None:
+                continue
+            same = [sp for sp, v in entries if v is not None and v == dv]
+            if not same or any(line_of(sp.where, sp.start) == line_of(d.where, d.start) for sp in same):
+                continue
+            src = texts.get(d.where, "")
+            a = src.rfind("\n", 0, d.start) + 1
+            b = src.find("\n", d.end)
+            line = src[a : len(src) if b < 0 else b]
+            first = A.norm_label(line.strip().strip("|").split("|")[0]) if "|" in line else ""
+            if first == key or (key in A.norm_label(line) and re.search(r"\bentr(?:y|ies)\b", line, re.I)):
+                return g.id  # a row of its own for the line, or a line that speaks of an entry
+    return ""
+
+
 def _hyphen_cut(src: str, start: int, end: int) -> bool:
     """A label cut at a hyphen inside a word: "-booking sur" or "booking" out of "Pre-booking", "Pre" out of
     "Pre-booking"."""
@@ -911,6 +989,18 @@ def _hyphen_cut(src: str, start: int, end: int) -> bool:
 
 
 _PRICED = ("count", "days", "time", "length", "convert")
+
+
+# a negation and the clause it governs ("not of the 'Pallet handling' charge", "except the Fuel top-ups", "rather than
+# Cable"): to the next comma, semicolon, full stop or closing bracket
+_NEGATION = re.compile(r"\b(?:not|never|except|excluding|other than|rather than|apart from|without)\b[^,;.)\]]*", re.I)
+
+
+def _only_negated(sent: str, name: str) -> bool:
+    """Every mention of the name in the sentence lies inside a negated clause."""
+    spans = [(m.start(), m.end()) for m in _NEGATION.finditer(sent)]
+    at = [i for i in range(len(sent)) if sent.startswith(name, i)]
+    return bool(at) and all(any(a <= i < b for a, b in spans) for i in at)
 
 
 def _adjustment_target(asm: A.Assembly) -> str:
@@ -932,11 +1022,7 @@ def _adjustment_target(asm: A.Assembly) -> str:
             sent = next((A.norm_label(src[a:b]) for a, b in _sentences(src) if a <= x.start < b), "")
             if target and target in sent:
                 seen = True
-                at = sent.find(target)
-                if "target-negated" not in DISABLED and re.search(
-                    r"\b(?:not|except|excluding|other than|but not)\b(?: (?:the|to|on|of))?[ '\"]*$",
-                    sent[max(0, at - 20) : at],
-                ):
+                if "target-negated" not in DISABLED and _only_negated(sent, target):
                     return g.id
             elif any(lab in sent for lab in priced - {target} if not (target and lab in target)):
                 return g.id
