@@ -419,8 +419,16 @@ class _LockedTagger:
     def __init__(self, tagger):
         self._tagger, self._lock = tagger, threading.Lock()
 
-    def predict(self, state, context=None):
+    def predict(self, state, context=None, during=None):
+        """The tagger's predict under the lock; `during` (the CPU work the cascade runs while a GPU encoder computes)
+        is passed on to a tagger that takes it (one that says `overlaps`), else run first, so the wrapper keeps the
+        tagger's own call."""
         with self._lock:
+            if during is None:
+                return self._tagger.predict(state, context)
+            if getattr(self._tagger, "overlaps", False):
+                return self._tagger.predict(state, context, during=during)
+            during()
             return self._tagger.predict(state, context)
 
     def __getattr__(self, name):

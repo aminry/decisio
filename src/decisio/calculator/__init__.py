@@ -174,7 +174,10 @@ def _cascade(state, context, version, normalized, tagger, thresholds, also=None)
         out = cascade.read(
             state, context, rules_case=None, tagger=tg, thresholds=th, version=version, also=also, normalized=normalized
         )
-    except Exception:  # never a partial or a guessed block, and never a failed request
+    except Exception as e:  # never a partial or a guessed block, and never a failed request
+        from decisio.readout.letters import fmt_state
+
+        cascade.log_failure("the cascade", e, fmt_state(state))
         return Abstain("internal-error", path="abstain")
     if isinstance(out, Annotation):
         return Annotation(out.version, out.text, out.lines, path=out.path)
