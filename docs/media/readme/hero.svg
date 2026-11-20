@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 372" width="860" height="372" role="img" aria-labelledby="t d">
+<style>
+  .bg { fill: #fcfcfb; } .card { fill: #ffffff; stroke: #e4e3df; stroke-width: 1; }
+  .t1 { fill: #0b0b0b; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; } .t2 { fill: #52514e; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  .mono { fill: #0b0b0b; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; } .track { fill: #ecebe7; } .bar { fill: #2a78d6; }
+  .arrow { stroke: #8f8e88; stroke-width: 2; fill: none; } .arrowhead { fill: #8f8e88; }
+  .chip { fill: #2a78d6; } .chiptext { fill: #ffffff; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #1a1a19; } .card { fill: #232322; stroke: #3a3a37; }
+    .t1 { fill: #f0efec; } .t2 { fill: #c3c2b7; } .mono { fill: #f0efec; } .track { fill: #33332f; }
+    .bar { fill: #3987e5; } .arrow { stroke: #8a8983; } .arrowhead { fill: #8a8983; } .chip { fill: #3987e5; }
+  }
+</style>
+<title id="t">decisio answers typed questions with a probability for every option</title>
+<desc id="d">A support ticket and three questions go in; decisio answers: urgent yes 79%; category access 94%, bug 4%, other 1%, billing 1%; impact one person 1%, a team 29%, a whole company 65%, many companies 4%.</desc>
+<rect class="bg" width="860" height="372" rx="10"/>
+<rect class="card" x="20" y="20" width="300" height="332" rx="8"/>
+<text x="36.0" y="46.0" class="t2" font-size="12" text-anchor="start" font-weight="600">A text</text>
+<text x="36.0" y="68.0" class="t1" font-size="12.5" text-anchor="start" font-weight="400">Hi, since this morning none of our</text>
+<text x="36.0" y="85.0" class="t1" font-size="12.5" text-anchor="start" font-weight="400">40 staff can log in to the dashboard.</text>
+<text x="36.0" y="102.0" class="t1" font-size="12.5" text-anchor="start" font-weight="400">We get “session expired” right after</text>
+<text x="36.0" y="119.0" class="t1" font-size="12.5" text-anchor="start" font-weight="400">entering the password. Payroll is</text>
+<text x="36.0" y="136.0" class="t1" font-size="12.5" text-anchor="start" font-weight="400">due today.</text>
+<text x="36.0" y="172.0" class="t2" font-size="12" text-anchor="start" font-weight="600">Typed questions</text>
+<text x="36.0" y="196.0" class="mono" font-size="12" text-anchor="start" font-weight="600">urgent</text>
+<text x="110.0" y="196.0" class="t2" font-size="11.5" text-anchor="start" font-weight="400">yes/no</text>
+<text x="36.0" y="212.0" class="t1" font-size="12" text-anchor="start" font-weight="400">Needs a response within the hour?</text>
+<text x="36.0" y="232.0" class="mono" font-size="12" text-anchor="start" font-weight="600">category</text>
+<text x="110.0" y="232.0" class="t2" font-size="11.5" text-anchor="start" font-weight="400">choice</text>
+<text x="36.0" y="248.0" class="t1" font-size="12" text-anchor="start" font-weight="400">Which team should handle it?</text>
+<text x="36.0" y="268.0" class="mono" font-size="12" text-anchor="start" font-weight="600">impact</text>
+<text x="110.0" y="268.0" class="t2" font-size="11.5" text-anchor="start" font-weight="400">score</text>
+<text x="36.0" y="284.0" class="t1" font-size="12" text-anchor="start" font-weight="400">How many customers are affected?</text>
+<path class="arrow" d="M330,186 L414,186"/><path class="arrowhead" d="M414,180 L424,186 L414,192 Z"/>
+<rect class="chip" x="342" y="140" width="72" height="26" rx="13"/>
+<text x="378.0" y="157.0" class="chiptext" font-size="12.5" text-anchor="middle" font-weight="600">decisio</text>
+<text x="377.0" y="212.0" class="t2" font-size="11" text-anchor="middle" font-weight="400">one forward pass</text>
+<text x="377.0" y="226.0" class="t2" font-size="11" text-anchor="middle" font-weight="400">per question</text>
+<rect class="card" x="430" y="20" width="410" height="332" rx="8"/>
+<text x="446.0" y="46.0" class="t2" font-size="12" text-anchor="start" font-weight="600">Probabilities, every option</text>
+<text x="446.0" y="72.0" class="mono" font-size="12" text-anchor="start" font-weight="600">urgent</text>
+<text x="446.0" y="90.0" class="t1" font-size="11.5" text-anchor="start" font-weight="600">yes</text><rect class="track" x="558" y="81" width="140" height="11" rx="3"/><rect class="bar" x="558" y="81" width="110.2" height="11" rx="3"/><text x="706.0" y="90.0" class="t2" font-size="11" text-anchor="start" font-weight="400">79%</text><text x="446.0" y="109.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">no</text><rect class="track" x="558" y="100" width="140" height="11" rx="3"/><rect class="bar" x="558" y="100" width="29.8" height="11" rx="3"/><text x="706.0" y="109.0" class="t2" font-size="11" text-anchor="start" font-weight="400">21%</text>
+<text x="446.0" y="140.0" class="mono" font-size="12" text-anchor="start" font-weight="600">category</text>
+<text x="446.0" y="158.0" class="t1" font-size="11.5" text-anchor="start" font-weight="600">access</text><rect class="track" x="558" y="149" width="140" height="11" rx="3"/><rect class="bar" x="558" y="149" width="131.7" height="11" rx="3"/><text x="706.0" y="158.0" class="t2" font-size="11" text-anchor="start" font-weight="400">94%</text><text x="446.0" y="177.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">bug</text><rect class="track" x="558" y="168" width="140" height="11" rx="3"/><rect class="bar" x="558" y="168" width="5.8" height="11" rx="3"/><text x="706.0" y="177.0" class="t2" font-size="11" text-anchor="start" font-weight="400">4%</text><text x="446.0" y="196.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">other</text><rect class="track" x="558" y="187" width="140" height="11" rx="3"/><rect class="bar" x="558" y="187" width="2.0" height="11" rx="3"/><text x="706.0" y="196.0" class="t2" font-size="11" text-anchor="start" font-weight="400">1%</text><text x="446.0" y="215.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">billing</text><rect class="track" x="558" y="206" width="140" height="11" rx="3"/><rect class="bar" x="558" y="206" width="2.0" height="11" rx="3"/><text x="706.0" y="215.0" class="t2" font-size="11" text-anchor="start" font-weight="400">1%</text>
+<text x="446.0" y="262.0" class="mono" font-size="12" text-anchor="start" font-weight="600">impact</text>
+<text x="446.0" y="280.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">one person</text><rect class="track" x="558" y="271" width="140" height="11" rx="3"/><rect class="bar" x="558" y="271" width="2.0" height="11" rx="3"/><text x="706.0" y="280.0" class="t2" font-size="11" text-anchor="start" font-weight="400">1%</text><text x="446.0" y="299.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">a team</text><rect class="track" x="558" y="290" width="140" height="11" rx="3"/><rect class="bar" x="558" y="290" width="41.2" height="11" rx="3"/><text x="706.0" y="299.0" class="t2" font-size="11" text-anchor="start" font-weight="400">29%</text><text x="446.0" y="318.0" class="t1" font-size="11.5" text-anchor="start" font-weight="600">a whole company</text><rect class="track" x="558" y="309" width="140" height="11" rx="3"/><rect class="bar" x="558" y="309" width="91.6" height="11" rx="3"/><text x="706.0" y="318.0" class="t2" font-size="11" text-anchor="start" font-weight="400">65%</text><text x="446.0" y="337.0" class="t1" font-size="11.5" text-anchor="start" font-weight="400">many companies</text><rect class="track" x="558" y="328" width="140" height="11" rx="3"/><rect class="bar" x="558" y="328" width="5.3" height="11" rx="3"/><text x="706.0" y="337.0" class="t2" font-size="11" text-anchor="start" font-weight="400">4%</text>
+</svg>

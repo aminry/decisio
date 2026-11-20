@@ -35,7 +35,7 @@ A probability you can act on is the point of the product: a threshold you set me
 
 <p align="center"><img src="docs/media/readme/calibration.svg" alt="Reliability curves. Decisio v3 lies close to the diagonal, off by 2.3 points on average; the previous Decisio 12B is off by 3.6 points and the base model by 9.0." width="600"></p>
 
-**Fast.** One forward pass per question, with no text generated: FAST_LINE
+**Fast.** One forward pass per question, with no text generated: a question about a typical text takes about 60 ms on one RTX PRO 6000 (44 ms in FP8), and about 0.9 s on a Mac.
 
 **Exact arithmetic built in.** For bills, invoices, payslips and dates, the server adds the exact values a question depends on before the model reads the text, and shows nothing when it cannot read them with certainty ([calculator](docs/calculator.md)).
 
@@ -62,10 +62,15 @@ curl -s http://127.0.0.1:8000/v1/systemone -H 'Content-Type: application/json' -
 ```
 
 The first start downloads the model (22 GB) and the calculator's small tagger.
-The same request is in [`examples/request.json`](examples/request.json) (`-d @examples/request.json` in a clone). The answer, CAPTURE_HARDWARE:
+The same request is in [`examples/request.json`](examples/request.json) (`-d @examples/request.json` in a clone).
+The answer, on one RTX PRO 6000, probabilities rounded to three decimals:
 
 ```json
-CAPTURE_RESPONSE
+{"model": "Decisio-12b-tuned-v3-calibrated",
+ "answers": {
+   "urgent": {"type": "noul", "noul": 0.787},
+   "category": {"type": "choice", "choice": "access", "confidence": 0.921, "probabilities": {"billing": 0.008, "access": 0.941, "bug": 0.042, "other": 0.009}},
+   "impact": {"type": "score", "score": 1.716, "confidence": 0.641, "legend": {"0": "one person", "1": "a team", "2": "a whole company", "3": "many companies"}, "probabilities": {"0": 0.013, "1": 0.294, "2": 0.655, "3": 0.038}}}}
 ```
 
 ## Pick a model
@@ -84,7 +89,7 @@ CAPTURE_RESPONSE
 | Ollama | `aminroudaki/decisio-v3` (`q8_0`, `q4_k_m`) | 12.7 / 7.4 GB | any machine with Ollama |
 
 Every repository has a `commit` twin.
-Decisio v3 needs decisio 0.51.0 or later; an older decisio serves the revision tagged `v3-calc-v1`.
+Decisio v3 needs decisio 0.51.1 or later; with decisio 0.50.x, pin the revision tagged `v3-calc-v1`.
 
 The untrained bases are one flag away, with the same routes and features: `--base gemma-4-31b` (the default, FP8, the most accurate base), `--base gemma-4-12b`, `--base qwen3.6-35b-a3b`, and the small `--base gemma-4-e4b` and `--base qwen3.5-4b` ([choosing a base](docs/overview.md#choosing-a-base)).
 
@@ -126,7 +131,14 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/Decisio-12b-tuned-v
 
 ## Speed and memory
 
-SPEED_TABLE
+| Setup | Weights | First start, with the download | One question, median / 95th percentile |
+| --- | ---: | ---: | ---: |
+| RTX PRO 6000, bf16 | 22 GB | 4 min 51 s | 60 / 144 ms |
+| RTX PRO 6000, FP8 | 12 GB | 3 min 41 s | 44 / 97 ms |
+| Mac M5 Pro (64 GB), MLX 8-bit | 12 GB | 2 min 51 s | 0.90 / 1.07 s |
+
+One request at a time over 500 held-out texts of mixed length (100 on the Mac), decisio 0.51.0 installed with pip as above, the published repositories, the calibrated flavor.
+On a GPU, vLLM reserves most of the card's memory for its cache by default; `--gpu-memory-utilization` lowers it.
 
 ## What else it does
 
