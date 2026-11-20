@@ -117,7 +117,11 @@ jobs:
           ) &
           watch=$!
           rc=0
-          uv run pytest -v --durations=10 || rc=$?
+          # the task walk-through starts its own server on the CPU stand-in (about 6 GB): it runs first, in a process of
+          # its own, so that server never meets the memory the rest of the fast tier's process has grown to (the runner
+          # then ran out at 93%)
+          uv run pytest -v tests/unit/test_tasks_walkthrough.py || rc=$?
+          uv run pytest -v --durations=10 --ignore=tests/unit/test_tasks_walkthrough.py || rc=$?
           kill "$watch"
           exit "$rc"
 
