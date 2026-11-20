@@ -54,6 +54,33 @@ A missing block is the safe failure; a wrong number is the one failure the calcu
   - `"calculator": true` asks for it; on a model that records no format the request is answered without the block, with `x-decisio-warning` saying so. It is never shown to a model that was not trained with it.
   - `"calculator_input"` sends the amounts instead of having them read from the text (below).
 
+## Dates and times: `time-v1`
+
+A second block format reads the dates and clock times a state states and writes the facts a model would otherwise have to work out: what a zoned time is in UTC, how much real time lies between two zoned times, and what date "N days after" a date comes to.
+It suits rotas, travel logs, shipment and incident timelines, warranty and notice periods.
+The block holds facts, never an answer, and is written only where every value is certain.
+
+```text
+Calculator, times (exact):
+- 13:00 Chicago time, 3 Sep 2026 = 18:00 UTC, 3 Sep 2026
+- 01:30 by my watch (Madrid time), 4 Sep 2026 = 23:30 UTC, 3 Sep 2026
+- 13:00 Chicago time, 3 Sep 2026 to 01:30 by my watch (Madrid time), 4 Sep 2026: 5 h 30 min
+- 31 Aug 2026 + 18 months: 31 Feb 2028 does not exist; February 2028 has 29 days
+```
+
+There are four kinds of line:
+
+- **A dated zoned time in UTC.** The zone is an abbreviation with one meaning (CEST, EDT, JST and others), a UTC offset (UTC-4), or a major city ("Chicago time"), read with that zone's rules on the stated date, daylight saving included. A table row's zone cell next to its time cell counts.
+- **The real time between two dated zoned times,** across zones and clock changes, with "minus" when the second is earlier.
+- **A date plus N days, weeks, months or years,** where the base may be a date or a label the text gives one date for ("1 week after the Start date").
+- **A month end that does not exist,** stated and not resolved: the text's own rule decides what happens then.
+
+Anything that could be read two ways gives no line: an abbreviation with several meanings (CST, IST), a zone joined to another ("BST/IST"), a city time without its date or in an hour a clock change skips or repeats, a date without a year when the text names several years, a weekday that contradicts its date.
+A text with no date or clock time pays one regex scan.
+
+A model records the format in `defaults.calculator` as for `calc-v1`: `time-v1` for this block alone, or `calc-v1+time-v1` for both (each where it has lines, the billing block first).
+Older decisio versions do not know these names and serve such a model without the block.
+
 ## Sending the amounts: `calculator_input`
 
 A client that already holds structured amounts can send them, and gets the same block with no reading of the text:
