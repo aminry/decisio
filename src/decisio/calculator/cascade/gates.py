@@ -648,7 +648,10 @@ def wording(asm: A.Assembly) -> Check:
     together with the tax"), `unaccounted-line` (a fee or credit the text names that is no line of the case),
     `credit-direction` (a line taken off that the text adds by name: "plus the Standing charge days"),
     `identifier-number` (a number that names something read as a count: "Length section 1"), `negative-total` (a case
-    whose taxed base or total is below zero)."""
+    whose taxed base or total is below zero), `subtract-word-outside-name` (a line taken off whose only word for it is
+    its own name: "Site access deposit: $150.00"), `adjustment-side-unstated` (an adjustment whose side of the tax the
+    text never states). An every-line statement needs a line noun ("every charge"), and an adjustment's target named
+    after "not", "except" or "excluding" refuses."""
     gate = "wording"
     texts = dict(asm.texts)
     for s in asm.spans:
@@ -730,6 +733,11 @@ def wording(asm: A.Assembly) -> Check:
         named = list(_naming(asm, g.label))
         if off and not any(_SUBTRACT.search(t) for t in named):
             return _fail(gate, "no-subtract-word", g.id)
+        if off and "subtract-word-outside-name" not in DISABLED:
+            # the word that takes the line off is not only the line's own name ("Site access deposit: $150.00")
+            key = re.compile(re.escape(A.norm_label(g.label)), re.I)
+            if not any(_SUBTRACT.search(key.sub(" ", t)) for t in named):
+                return _fail(gate, "subtract-word-outside-name", g.id)
         if not off and g.kind != "adjustment" and any(_COMES_OFF.search(t) for t in named):
             return _fail(gate, "comes-off-word", g.id)
         if g.kind == "adjustment":
@@ -753,6 +761,11 @@ def wording(asm: A.Assembly) -> Check:
         if g.kind == "fee" and "fee-unstated" not in DISABLED and not any(_CHARGED.search(t) for t in named):
             # an amount the text only shows ("Parking reimbursement | - | $35.00"), never saying it is charged
             return _fail(gate, "fee-unstated", g.id)
+        if g.kind == "adjustment" and "adjustment-side-unstated" not in DISABLED:
+            said = any(_BEFORE_TAX.search(t) or _AFTER_TAX.search(t) for t in named)
+            said = said or A.norm_label(g.label) in sides.named or "before" in sides.every
+            if not said:
+                return _fail(gate, "adjustment-side-unstated", g.id)
         if g.kind in ("fee", "credit", "daycredit"):
             code = _side_check(asm, g, named, A.norm_label(g.label) in outside, sides)
             if code:
@@ -828,6 +841,7 @@ def _label_contradicts(g: A.Group, deducted: bool) -> bool:
 # wording that leaves an amount's side of the tax open ("handled together with the tax", "applied in line with the tax
 # step", "when the invoice is finalised")
 _TAX_AMBIGUOUS = re.compile(
+    r"\b(?:does not|doesn't|do not|did not) (?:say|state|specify)\b[^.]{0,60}\b(?:before or after|tax)\b|"
     r"\b(?:together|along|alongside|in line|in step|at the same time|in parallel)\b[^.]{0,20}\b(?:with )?the tax\b"
     r"|\bwith the tax step\b|\bwhen the (?:invoice|bill) is finali[sz]ed\b",
     re.I,
@@ -918,6 +932,12 @@ def _adjustment_target(asm: A.Assembly) -> str:
             sent = next((A.norm_label(src[a:b]) for a, b in _sentences(src) if a <= x.start < b), "")
             if target and target in sent:
                 seen = True
+                at = sent.find(target)
+                if "target-negated" not in DISABLED and re.search(
+                    r"\b(?:not|except|excluding|other than|but not)\b(?: (?:the|to|on|of))?[ '\"]*$",
+                    sent[max(0, at - 20) : at],
+                ):
+                    return g.id
             elif any(lab in sent for lab in priced - {target} if not (target and lab in target)):
                 return g.id
         if not seen:
@@ -958,7 +978,7 @@ _JOIN = re.compile(r"\b(?:so|but|while|whereas|because|then)\b|;", re.I)
 _HEAD_NOUN = re.compile(r"[ \t]*(?:fee|credit|charge|amount|deduction|allowance)?s?[ \t]*$", re.I)
 # the list covers every line ("every charge", "all of the above", "everything")
 _ALL_LINES = re.compile(
-    r"\b(?:every|all|each)\b(?: \w+)? (?:lines?|charges?|items?|amounts?)\b"
+    r"\b(?:every|all|each)\b(?: \w+){0,2} (?:lines?|charges?|items?|amounts?)\b|\ball of (?:this|these|them|it)\b"
     r"|\b(?:all|everything)(?: of the| listed)? above\b|\beverything\b",
     re.I,
 )
@@ -1034,7 +1054,8 @@ def _stated_sides(asm: A.Assembly) -> _Sides:
             said = "after" if _AFTER_TAX.search(t) else "before" if _BEFORE_TAX.search(t) else None
             if said is None or nothing:
                 continue
-            if _EVERY.search(t) and not re.search(r"\bno other\b", t, re.I):
+            every = _ALL_LINES.search(t) if "every-needs-lines" not in DISABLED else _EVERY.search(t)
+            if every and not re.search(r"\bno other\b", t, re.I):
                 out.every.add(said)
             for kind, noun in _KIND_NOUNS.items():
                 if noun.search(t):
