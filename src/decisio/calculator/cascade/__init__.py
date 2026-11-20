@@ -122,11 +122,11 @@ def may_hold_case(text: str, context: str | None = None) -> bool:
 _DISABLED: set[str] = set()
 
 
-def _rules_block(state, context, rules_case, version):
+def _rules_block(state, context, rules_case, version, normalized=None):
     from decisio.calculator import annotate, compute, render
 
     if rules_case is None:
-        rules_case = annotate(state, context, version)
+        rules_case = annotate(state, context, version, normalized=normalized)
     if isinstance(rules_case, Annotation):
         return rules_case
     if isinstance(rules_case, compute.Case):
@@ -143,16 +143,22 @@ def read(
     tagger: Tagger,
     thresholds: Thresholds = Thresholds(),
     version: str = "calc-v1",
+    also=None,
+    normalized: bool | None = None,
 ) -> Shown | Refused:
     """The block for a state through the cascade, or why there is none. `rules_case` is the rule reader's result for
-    the same text (an `Annotation`, a `compute.Case` or an `Abstain`); None runs the rule reader here."""
+    the same text (an `Annotation`, a `compute.Case` or an `Abstain`); None runs the rule reader here (with
+    `normalized`), on the CPU while a GPU tagger's encoder computes. `also` (no arguments) is more CPU work run there
+    too, once, whatever the outcome."""
     from decisio.readout.letters import fmt_state
 
     text = fmt_state(state)
     got: dict = {}
 
-    def run_rules():  # the rule reader, on the CPU while a GPU tagger's encoder runs
-        got["rules"] = _rules_block(state, context, rules_case, version)
+    def run_rules():  # the rule reader (and `also`), on the CPU while a GPU tagger's encoder runs
+        got["rules"] = _rules_block(state, context, rules_case, version, normalized)
+        if also is not None:
+            also()
 
     if not may_hold_case(text, context):  # no block can come from the tagger: it is not run (about 0 ms)
         run_rules()
