@@ -25,6 +25,8 @@ is loaded; the stub tagger, the assembler and the gates need nothing beyond the 
 
 from __future__ import annotations
 
+import hashlib
+import logging
 import re
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -72,6 +74,26 @@ class Refused(Abstain):
     # readers, accept
     detail: str = ""
     checks: tuple[Check, ...] = ()
+
+
+logger = logging.getLogger(__name__)
+
+
+def state_id(text: str) -> str:
+    """A short id of a state's text for the log: decisio has no request id, so a failure names the text it read."""
+    return hashlib.sha256(text.encode()).hexdigest()[:12]
+
+
+def log_failure(where: str, error: BaseException, text: str) -> None:
+    """A failure the cascade turns into no block is still a bug to see: logged at warning level, with its traceback."""
+    logger.warning(
+        "calculator cascade: %s failed on state %s (%s: %s); the request is read without the cascade's block",
+        where,
+        state_id(text),
+        type(error).__name__,
+        error,
+        exc_info=error,
+    )
 
 
 @lru_cache(maxsize=4)
@@ -175,6 +197,7 @@ def read(
             tags = tagger.predict(text, context)
     except Exception as e:  # a tagger failure is no block from the tagger, never a failed request
         error = e
+        log_failure("the tagger", e, text)
     if "rules" not in got:
         run_rules()
     rules = got["rules"]
@@ -196,6 +219,7 @@ def read(
     except Refusal as e:
         return rules_only("assemble", e.code, e.detail)
     except Exception as e:
+        log_failure("assembling the case", e, text)
         return rules_only("assemble", "internal-error", type(e).__name__)
 
     checks = []

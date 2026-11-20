@@ -81,6 +81,40 @@ def test_c1_a_tagger_failure_is_no_block_never_a_failed_request():
     assert r.headers["x-decisio-calculator"] == "none; reason=cascade-tagger-error"
 
 
+def test_c1_an_overlapping_tagger_is_read_through_the_servers_lock():
+    # the served tagger (HFTagger) runs the cascade's CPU work while its encoder computes (`overlaps`, `during`); the
+    # server reads it through a lock, which once dropped `during` and turned every reading into cascade-tagger-error
+    ran = []
+
+    class Overlapping(StubTagger):
+        overlaps = True
+
+        def predict(self, state, context=None, during=None):
+            if during is not None:
+                during()
+                ran.append(True)
+            return super().predict(state, context)
+
+    reader = calcs.Reader("cascade", Overlapping({STATE: tags_for()}), FACTS, TH, "thresholds.json")
+    client, _, eng = make(reader)
+    r = ask(client, state=STATE)
+    assert r.status_code == 200, r.text
+    assert r.headers["x-decisio-calculator"] == f"shown; lines={BLOCK.count(chr(10))}; version=calc-v1; path=threshold"
+    assert eng.seen[-1] == f"{STATE}\n{BLOCK}" and ran == [True]
+
+
+def test_c1_a_tagger_failure_is_logged(caplog):
+    def boom(state, context):
+        raise RuntimeError("no model")
+
+    client, _, _ = make(cascade(answers=boom))
+    with caplog.at_level("WARNING", logger="decisio.calculator.cascade"):
+        r = ask(client, state=STATE)
+    assert r.headers["x-decisio-calculator"] == "none; reason=cascade-tagger-error"
+    logged = [x for x in caplog.records if x.levelname == "WARNING" and "the tagger failed" in x.getMessage()]
+    assert logged and "RuntimeError: no model" in logged[0].getMessage() and logged[0].exc_info
+
+
 # ---- C2 -------------------------------------------------------------------------------------------------------------
 
 
