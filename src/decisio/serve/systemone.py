@@ -227,12 +227,14 @@ def request_count(t) -> int:
 
 
 def calibration_rule_stale(t) -> bool:
-    """A kept calibration fitted by the gated bias for a task whose request had at least TB_MIN_EXAMPLES labelled
-    examples (a record made before the temperature-and-bias fit): not what this release fits for such a task."""
-    from decisio.readout.calibration import TB_METHOD, TB_MIN_EXAMPLES
+    """A kept calibration fitted by the gated bias for a task whose request had at least
+    calibration.tb_min_examples(K) labelled examples (a record made before the temperature-and-bias fit): not what
+    this release fits for such a task."""
+    from decisio.readout.calibration import TB_METHOD, tb_min_examples
 
     cal = (t or {}).get("calibration") or {}
-    return bool(cal.get("applied")) and cal.get("method") != TB_METHOD and request_count(t) >= TB_MIN_EXAMPLES
+    k = len((t or {}).get("options") or ()) or int(cal.get("K") or 0)
+    return bool(cal.get("applied")) and cal.get("method") != TB_METHOD and request_count(t) >= tb_min_examples(k)
 
 
 class SystemOneRequest(BaseModel):
@@ -2226,7 +2228,7 @@ class SystemOne:
     def calibration_stale(self, t, qtype: str, options: int) -> bool:
         """Whether a task's kept calibration is one this server does not apply: fitted at another temperature than the
         question is served at here (every record made before 0.52.0 was fitted at 1), or by the gated bias for a task
-        of at least `calibration.TB_MIN_EXAMPLES` labelled examples, which is now fitted with its temperature
+        of at least `calibration.tb_min_examples(K)` labelled examples, which is now fitted with its temperature
         (`calibration_rule_stale`). It is not applied, the question is served as without the task, and the task's
         answers are not certified until it is registered again. A task that serves its head does not use it."""
         from decisio.readout.calibration import is_current
@@ -4277,7 +4279,7 @@ class SystemOne:
     def calibration_note(self, t) -> dict | None:
         """Why a task's kept calibration is not applied on this server, and what to do, or None: fitted at another
         temperature than the question is served at here (every record made before 0.52.0 was fitted at 1)."""
-        from decisio.readout.calibration import TB_MIN_EXAMPLES, fitted_temperature, is_current
+        from decisio.readout.calibration import fitted_temperature, is_current, tb_min_examples
 
         options = len(t.get("options") or ())
         if not options or not self.calibration_stale(t, t.get("type", "choice"), options):
@@ -4286,8 +4288,8 @@ class SystemOne:
         if is_current(t["calibration"], served) and calibration_rule_stale(t):
             why = (
                 f"its calibration was fitted by the gated bias, and a task of {request_count(t)} labelled examples "
-                f"(at least {TB_MIN_EXAMPLES}) now has its temperature and bias fitted together: the task answers as "
-                "without it, and is not certified, until it is registered again"
+                f"(at least {tb_min_examples(options)}) now has its temperature and bias fitted together: the task "
+                "answers as without it, and is not certified, until it is registered again"
             )
         else:
             why = (

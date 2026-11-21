@@ -140,3 +140,23 @@ def test_e3_a_task_that_serves_its_head_is_unchanged():
     assert not so.calibration_stale(head_task, "choice", 4)  # the head answers; the calibration is not used
     # without a hidden-state reader the head is not served, and the old record is stale
     assert _so().calibration_stale(head_task, "choice", 4)
+
+
+def _store_register_noul(n):
+    from decisio.serve.systemone import SystemOneRequest
+    from decisio.serve.tasks import TaskStore
+
+    p, y = _readout(n, K=2, seed=3)
+    q = SystemOneRequest.model_validate(
+        {"state": "", "questions": {"q": {"type": "noul", "instructions": "Is it urgent?"}}}
+    ).questions["q"]
+    examples = [(q, f"s{i}", bool(y[i] == 0)) for i in range(n)]
+    task, _ = TaskStore("fp").register("t", examples, lambda pairs: list(p), None, temperature=TQ)
+    return task
+
+
+def test_e6_a_yes_no_task_is_fitted_together_from_100_examples_and_three_options_from_50():
+    assert C.tb_min_examples(2) == 100 and C.tb_min_examples(3) == 50 and C.tb_min_examples(77) == 50
+    assert "method" not in _store_register_noul(99)["calibration"]  # the gated bias, exactly as below 50
+    assert _store_register_noul(100)["calibration"]["method"] == C.TB_METHOD
+    assert _store_register(50)[0]["calibration"]["method"] == C.TB_METHOD  # four options from 50

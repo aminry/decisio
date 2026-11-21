@@ -22,10 +22,11 @@ The rule was developed on 16 internal tasks and frozen before it was validated o
 A stored prior is valid only for the model and adapter it was fitted under; `fingerprint` names them, and the
 serving side must refuse a prior whose fingerprint differs from the live model's.
 
-From `TB_MIN_EXAMPLES` labelled examples (counted in the registration request, before a certificate's held-out
-split) the calibration is instead a temperature and a per-option bias fitted together, by maximum a posteriori with no
-keep-or-drop gate (`fit_tb`): served p = softmax(log p / T - b), with the priors log T ~ N(log T_q, TB_TAU^2) around the
-question's own temperature T_q and b_k ~ N(0, TB_SIGMA_B^2). A task that serves a head is unchanged.
+From `tb_min_examples(K)` labelled examples (counted in the registration request, before a certificate's held-out
+split: 100 for a yes/no question, 50 for three or more options) the calibration is instead a temperature and a
+per-option bias fitted together, by maximum a posteriori with no keep-or-drop gate (`fit_tb`): served
+p = softmax(log p / T - b), with the priors log T ~ N(log T_q, TB_TAU^2) around the question's own temperature T_q
+and b_k ~ N(0, TB_SIGMA_B^2). A task that serves a head is unchanged.
 
     prior = fit_task_prior(logps, labels, temperature=T)   # logps: per example, the K label log-scores in slot order
     p = apply_task_prior(logp, prior, temperature=T)       # at serving, at the same T
@@ -47,6 +48,15 @@ TB_TAU = 0.1  # the prior's spread of log T around the question's own temperatur
 TB_SIGMA_B = 0.8496  # the prior's spread of each option's bias (from the per-set fits of the study that chose it)
 TB_MAXITER = 500
 TB_EPS = 1e-12  # the probability floor of the log-scores the fit and the serving read
+TB_MIN_EXAMPLES_YES_NO = 100  # a two-option (yes/no) task: from this many labelled examples
+
+
+def tb_min_examples(K: int) -> int:
+    """From how many labelled examples in the request a task of K options is calibrated by the temperature-and-bias
+    fit (below it, the gated bias): 100 for two options (a yes/no question), 50 for three or more."""
+    return TB_MIN_EXAMPLES_YES_NO if int(K) == 2 else TB_MIN_EXAMPLES
+
+
 MIN_EXAMPLES = 10  # below this the fit is noise (5 per task gave +0.5 points, 95% CI [-2.5, +2.9])
 RECOMMENDED = 20  # where the measured effect was full
 MIN_GAIN = 0.005  # nats per item of cross-validated log loss the bias must save to be switched on

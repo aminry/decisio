@@ -367,7 +367,7 @@ class TaskStore:
         `context_record`, stored with it; the two functions read each state with it (the caller's concern).
         `temperature`: the one the question is served at without a task; the calibration is fitted at it.
         `n_request`: how many labelled examples the registration request gave, before a certificate's held-out split
-        (`len(examples)` when absent): from `calibration.TB_MIN_EXAMPLES` the calibration is the temperature and bias
+        (`len(examples)` when absent): from `calibration.tb_min_examples(K)` the calibration is the temperature and bias
         fitted together (`calibration.fit_tb_prior`), below it the gated bias."""
         if not examples:
             raise ValueError("no examples")
@@ -382,7 +382,7 @@ class TaskStore:
         lps = [log_probs(p) for p in score_fn(pairs)]
         n_request = len(examples) if n_request is None else int(n_request)
         args = {"fingerprint": self.fingerprint, "task_id": task_id, "K": len(options), "temperature": temperature}
-        if n_request >= calibration.TB_MIN_EXAMPLES:
+        if n_request >= calibration.tb_min_examples(len(options)):
             prior = calibration.fit_tb_prior(lps, labels, n_request=n_request, **args)
         else:
             prior = calibration.fit_task_prior(lps, labels, **args)
