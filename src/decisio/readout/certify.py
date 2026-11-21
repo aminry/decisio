@@ -19,7 +19,9 @@ no new dependency (scipy, already a dependency, gives the Beta quantile): two ar
   Bonferroni      test twelve fixed served shares (5 percent to 100 percent of the examples) with the bound at
                   delta / 2 / (number tested) and keep the most lenient that holds;
 
-and the answer is the stricter (higher) of the two thresholds. A threshold of `inf` means nothing could be certified.
+and the answer is the more lenient (lower) of the two thresholds: each arm's claim holds with probability at least
+1 - delta / 2, so both hold together with probability at least 1 - delta (the union bound), and with them the claim
+for the lower threshold. A threshold of `inf` means nothing could be certified.
 `tests/unit/test_certify.py` pins it to reference values, and `runs/2026-10-14_certified-answers/` re-runs the check
 that it
 equals the package's procedure on every split of a public record.
