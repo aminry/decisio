@@ -124,8 +124,10 @@ def test_t2_store_fits_with_the_reference():
     store = TaskStore("fp")
     task, fitted = store.register("t", ex, lambda pairs: P, lambda pairs: R)
     labels = [i % 10 for i in range(60)]
-    # 60 examples: the temperature and bias fitted together (calibration.TB_MIN_EXAMPLES and over)
-    ref = calibration.fit_tb_prior([log_probs(p) for p in P], labels, fingerprint="fp", task_id="t", K=10, n_request=60)
+    # 60 examples: the evidence-averaged temperature and bias (calibration.min_examples_for_fit and over)
+    ref = calibration.fit_large_prior(
+        [log_probs(p) for p in P], labels, fingerprint="fp", task_id="t", K=10, n_request=60
+    )
     from decisio.serve.tasks import inputs_digest
 
     digest = task["calibration"].pop("inputs_sha256")  # what registration read, named; the fit is the reference's

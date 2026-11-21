@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""From 50 labelled examples a task's calibration is its temperature and a per-option bias fitted together
-(decisio.readout.calibration.fit_tb; docs/tasks.md).
+"""From 50 labelled examples a task's calibration is its temperature and a per-option bias fitted together at four
+bias-prior spreads, averaged by their Laplace evidence (decisio.readout.calibration.fit_c; docs/tasks.md).
 
-E1  with b = 0 and T = T_q the method serves the untaught distribution at the question's temperature
-E2  a registration of 49 examples is the gated bias exactly; one of 50 stores and serves the temperature-and-bias fit,
+E1  with b = 0 and T = T_q the method serves the untaught distribution at the question's temperature; the weights sum to
+    1; with every weight on the temperature-only fit it serves that fit
+E2  a registration of 49 examples is the gated bias exactly; one of 50 stores and serves the evidence-averaged fit,
     counted on the request's examples before a held-out split
 E3  a task that serves its head is unchanged: its calibration is never stale and the head answers
 E4  a record of the gated bias for a task of 50 or more examples (made before) is stale: answered as without the task,
     with the reason and the register command, and not certified again; one of fewer examples is not
-E5  serving a stored fit is apply_tb on the plain readout's probabilities, exactly; the fit is deterministic and its
+E5  serving a stored fit is apply_c on the plain readout's probabilities, exactly; the fit is deterministic and its
     record is JSON
 
   uv run pytest -q tests/unit/test_calibration_tb.py
@@ -44,6 +45,12 @@ def test_e1_no_bias_at_the_question_temperature_is_the_untaught_answer():
     got = C.apply_tb(p, TQ, np.zeros(p.shape[1]))
     want = np.asarray([apply_temperature(r, TQ) for r in p])
     assert np.allclose(got, want, rtol=0, atol=1e-12)
+    p, y = _readout(80)
+    rec = C.fit_c(p, y, TQ)
+    assert len(rec) == len(C.C_GRID) and abs(sum(w for w, _, _ in rec) - 1.0) < 1e-12
+    assert np.array_equal(rec[0][2], np.zeros(4))  # the grid's first point is the temperature alone
+    only_t = [(1.0, rec[0][1], rec[0][2])] + [(0.0, T, b) for _, T, b in rec[1:]]
+    assert np.allclose(C.apply_c(p, only_t), C.apply_tb(p, rec[0][1], np.zeros(4)), rtol=0, atol=1e-15)
 
 
 def _store_register(n, **kw):
@@ -70,24 +77,23 @@ def test_e2_49_examples_are_the_gated_bias_and_50_the_new_fit():
     assert {k: v for k, v in t49["calibration"].items() if k != "inputs_sha256"} == ref
     t50, p, y = _store_register(50)
     cal = t50["calibration"]
-    assert cal["method"] == C.TB_METHOD and cal["applied"] and cal["temperature"] == TQ and t50["n_request"] == 50
-    T, b = C.fit_tb(p, y, TQ)
-    assert cal["T"] == T and cal["bias"] == list(b)
+    assert cal["method"] == C.C_METHOD and cal["applied"] and cal["temperature"] == TQ and t50["n_request"] == 50
+    rec = C.fit_c(p, y, TQ)
+    assert [q["sigma"] for q in cal["points"]] == list(C.C_GRID)
+    assert [(q["w"], q["T"], q["bias"]) for q in cal["points"]] == [(w, T, list(b)) for w, T, b in rec]
     # the count is the request's: 40 fit examples of a request of 80 (a held-out split) are the new fit
     t40, _, _ = _store_register(40, n_request=80)
-    assert t40["calibration"]["method"] == C.TB_METHOD and t40["n_request"] == 80
+    assert t40["calibration"]["method"] == C.C_METHOD and t40["n_request"] == 80
 
 
-def test_e5_serving_a_stored_fit_is_apply_tb_exactly():
+def test_e5_serving_a_stored_fit_is_apply_c_exactly():
     t50, p, y = _store_register(50)
     cal = t50["calibration"]
     for r in p[:10]:
-        assert np.array_equal(
-            C.apply_task_prior(log_probs(r), cal, TQ), C.apply_tb(r[None, :], cal["T"], cal["bias"])[0]
-        )
+        assert np.array_equal(C.apply_task_prior(log_probs(r), cal, TQ), C.apply_c(r[None, :], cal)[0])
     # at another served temperature the record is not applied (as every calibration record)
     assert np.allclose(C.apply_task_prior(log_probs(p[0]), cal, 1.5), apply_temperature(p[0], 1.5))
-    assert C.fit_tb(p, y, TQ)[0] == C.fit_tb(p, y, TQ)[0]
+    assert C.fit_c(p, y, TQ)[1][1] == C.fit_c(p, y, TQ)[1][1]
     json.dumps(cal, allow_nan=False)
 
 
@@ -117,9 +123,8 @@ def test_e4_an_old_rule_record_of_50_examples_is_stale():
     old = _task({"temperature": T}, 60)  # the gated bias, fitted at this temperature, for 60 examples
     assert so.calibration_stale(old, "choice", 4)
     note = so.calibration_note(old)
-    assert (
-        "gated bias" in note["why"] and "60 labelled examples" in note["why"] and "/v1/tasks" in note["register_again"]
-    )
+    assert "earlier rule" in note["why"] and "60 labelled examples" in note["why"]
+    assert "/v1/tasks" in note["register_again"]
     so.task_precheck = lambda kind, task_id: None
     with pytest.raises(ValueError, match="register the task again"):
         so._recertify({**old, "certificate": {"id": "c1", "alpha": 0.05, "delta": 0.1}}, [], None)
@@ -129,7 +134,7 @@ def test_e4_an_old_rule_record_of_50_examples_is_stale():
     # fewer than 50 in the request: current, as before
     assert not so.calibration_stale(_task({"temperature": T}, 49), "choice", 4)
     # a record of the new fit is current
-    new = _task({"temperature": T, "method": C.TB_METHOD, "T": T, "n_request": 60}, 60, n_request=60)
+    new = _task({"temperature": T, "method": C.CURRENT_METHOD, "n_request": 60}, 60, n_request=60)
     assert not so.calibration_stale(new, "choice", 4) and so.calibration_note(new) is None
 
 

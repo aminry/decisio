@@ -227,12 +227,16 @@ def request_count(t) -> int:
 
 
 def calibration_rule_stale(t) -> bool:
-    """A kept calibration fitted by the gated bias for a task whose request had at least TB_MIN_EXAMPLES labelled
-    examples (a record made before the temperature-and-bias fit): not what this release fits for such a task."""
-    from decisio.readout.calibration import TB_METHOD, TB_MIN_EXAMPLES
+    """A kept calibration fitted by another rule than this release's (`calibration.CURRENT_METHOD`) for a task whose
+    request had at least `calibration.min_examples_for_fit(K)` labelled examples: not what this release fits for such
+    a task."""
+    from decisio.readout.calibration import CURRENT_METHOD, min_examples_for_fit
 
     cal = (t or {}).get("calibration") or {}
-    return bool(cal.get("applied")) and cal.get("method") != TB_METHOD and request_count(t) >= TB_MIN_EXAMPLES
+    k = len((t or {}).get("options") or ()) or int(cal.get("K") or 0)
+    return (
+        bool(cal.get("applied")) and cal.get("method") != CURRENT_METHOD and request_count(t) >= min_examples_for_fit(k)
+    )
 
 
 class SystemOneRequest(BaseModel):
@@ -4354,7 +4358,7 @@ class SystemOne:
     def calibration_note(self, t) -> dict | None:
         """Why a task's kept calibration is not applied on this server, and what to do, or None: fitted at another
         temperature than the question is served at here (every record made before 0.52.0 was fitted at 1)."""
-        from decisio.readout.calibration import TB_MIN_EXAMPLES, fitted_temperature, is_current
+        from decisio.readout.calibration import fitted_temperature, is_current, min_examples_for_fit
 
         options = len(t.get("options") or ())
         if not options or not self.calibration_stale(t, t.get("type", "choice"), options):
@@ -4362,9 +4366,9 @@ class SystemOne:
         served = self.temperature_of(t.get("type", "choice"), None, options)
         if is_current(t["calibration"], served) and calibration_rule_stale(t):
             why = (
-                f"its calibration was fitted by the gated bias, and a task of {request_count(t)} labelled examples "
-                f"(at least {TB_MIN_EXAMPLES}) now has its temperature and bias fitted together: the task answers as "
-                "without it, and is not certified, until it is registered again"
+                f"its calibration was fitted by an earlier rule, and a task of {request_count(t)} labelled examples "
+                f"(at least {min_examples_for_fit(options)}) is now calibrated by its temperature and bias fitted "
+                "together: the task answers as without it, and is not certified, until it is registered again"
             )
         else:
             why = (

@@ -190,7 +190,8 @@ def test_y1_a_labelled_yes_no_table_is_kept_and_answers_what_it_is_sure_of_witho
     assert c["certified"] and c["table_threshold"] is not None and c["stages"]["table"]["certified_n"] > 0
     assert t["status"]["fast_table"]["state"] == "active"
     sc = c["served_check"]  # the serving path reads what the certificate was made on, the commit rule included
-    assert sc["max_shift"] == 0 and sc["crossed_threshold"] == 0 and sc["top_answer_changed"] == 0
+    # a yes/no answer reports P(yes) alone: its top read back as max(p, 1 - p) is the served top within a rounding step
+    assert sc["max_shift"] <= 2.3e-16 and sc["crossed_threshold"] == 0 and sc["top_answer_changed"] == 0
     calls = FakeEngine.calls
     y, n = ask(client, CLEAR_YES), ask(client, CLEAR_NO)
     assert FakeEngine.calls == calls  # the model was not asked

@@ -12,7 +12,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 ### What changed
 
-- **A task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together: served p = softmax(log p / T - b), with priors that keep T close to the question's own temperature and each bias close to 0. It is always applied (no keep-or-drop test).
+- **A task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together at four spreads of the bias's prior, weighted by their evidence: served p is the weighted mixture of softmax(log p / T - b), with T kept close to the question's own temperature. It is always applied (no keep-or-drop test).
 - Below 50 examples, and for a task that serves its head, nothing changes.
 - **A stored task of 50 or more examples whose calibration is the older gated bias is not applied:** its questions are answered as without the task, its answers are not certified (`certified_reason: calibration_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.52.0 change.
 

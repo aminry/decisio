@@ -398,8 +398,8 @@ class TaskStore:
         lps = [log_probs(p) for p in score_fn(pairs)]
         n_request = len(examples) if n_request is None else int(n_request)
         args = {"fingerprint": self.fingerprint, "task_id": task_id, "K": len(options), "temperature": temperature}
-        if n_request >= calibration.TB_MIN_EXAMPLES:
-            prior = calibration.fit_tb_prior(lps, labels, n_request=n_request, **args)
+        if n_request >= calibration.min_examples_for_fit(len(options)):
+            prior = calibration.fit_large_prior(lps, labels, n_request=n_request, **args)
         else:
             prior = calibration.fit_task_prior(lps, labels, **args)
         prior = {**prior, "inputs_sha256": inputs_digest(lps)}
