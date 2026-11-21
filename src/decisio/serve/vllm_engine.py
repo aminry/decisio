@@ -3993,6 +3993,8 @@ def main():
                 kv_cache_dtype=args.kv_cache_dtype,
                 engine_kw=engine_kwargs(args),
                 revision=args.revision,
+                family=args.family,
+                text_engine=engine,
             )
         # the second engine builds its rows with the server's prompt format and base, as the single-engine paths do
         hidden_engine.family = args.family

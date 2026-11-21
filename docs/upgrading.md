@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.52.0: the second engine for the intent head starts on a Gemma base
+
+### What changed
+
+- **`--head-engine` on a Gemma base reads the output layer from the input embedding.** Gemma 4's checkpoints have tied embeddings and no `lm_head.weight`, and before 0.52.0 the second engine read only that name, so a server started with `--head-engine` on a Gemma base stopped at start-up (`has no lm_head.weight (tied embeddings?)`). It now reads the rows where the base keeps them, as the default mode always did.
+- **On a Gemma base its label log-probabilities are the serving engine's readout of the row**, one more request per head question, as in the default mode, so a task registered in one mode serves the same in the other.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A Gemma base with `--head-engine` | did not start | starts; not yet timed on a card | nothing |
+| The Qwen base, or any base without `--head-engine` | | unchanged | nothing |
+
 ## 0.52.0: a task's calibration works on top of the temperature
 
 ### What changed

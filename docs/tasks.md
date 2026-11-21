@@ -248,6 +248,8 @@ Its caveats: one task, one draw and 300 test items, so the intervals cover the t
 - **Each later question**: in the default single-engine mode a question answered by a head takes about 80 ms more server time (126.8 against 46.5 ms), because the hidden state is read in three extra requests.
   Calibration and questions without a task cost nothing extra.
 - **Second-engine mode** (`--head-engine`) answers head questions without the extra requests (82 ms on a question's first sight, as a plain question took on that run; 42 ms when the same question repeats) but holds a second copy of the model's weights, leaves no room for the image engine on the card, and its pairing with the default text-only class has not been timed yet (`docs/handoffs/tasks.md`).
+  These figures are from the Qwen base.
+  On a Gemma base the second engine reads the label log-probabilities from the serving engine, one more request per head question, as the default mode does there; it starts there from 0.52.0 and has not been timed on a card yet.
 
 ## Certified answers
 
@@ -1033,4 +1035,5 @@ When you move a client to a task with a context, register the task first, then d
   Tasks of one question with different contexts are kept side by side, and a request names the one it is for ([Task context](#task-context)).
   It holds across layouts: a task applies to the requests of the layout it was fitted under ([A task under a layout](#a-task-under-a-layout)).
 - **Single-engine or second-engine mode.** The default reads the hidden state from the serving engine at the latency cost above; `--head-engine` trades a second weight copy for speed. Both declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`), and a task registered in one mode loads in the other.
+  On a Gemma base both modes take the label log-probabilities from the serving engine's readout, so a head's base log-probabilities are the plain readout's in either mode.
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.
