@@ -8,6 +8,20 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: label review in the registration response
+
+### What changed
+
+- **A task's registration response flags the labelled examples whose label looks wrong** (`label_review`, `docs/tasks.md`, "Label review"): choice and yes/no tasks with at least 20 labelled examples on Gemma 4 12B and the tuned 12B repositories (bf16, FP8, and on a Mac), from answers of the task fitted on the other examples; on the other bases the field says the review is not available.
+- Labels are never changed or dropped, and nothing stored changes.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A registration of a choice or yes/no task | no review | `label_review` in the response; registration takes five more fits (and one more read of a certified task's held-out examples) | check the flagged examples; nothing otherwise |
+| A stored task | | unchanged; it has no review until it is registered again | nothing |
+
 ## 0.52.0: a task's calibration works on top of the temperature
 
 ### What changed

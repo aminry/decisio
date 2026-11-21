@@ -380,6 +380,7 @@ The task's record, its listing and `/health` give the context's `sha256`, `chars
 
 - `GET /v1/tasks` lists the registered tasks, whether tasks are applied (`--tasks`, on by default), whether the server can serve intent heads (`head_engine`), and the server's fingerprint (the model and rendering tasks are fitted under).
 - `GET /v1/tasks?full=1` includes the heads' arrays: the form `--tasks-file` loads at start and `POST /v1/tasks/import` takes.
+- The registration response of a choice or yes/no task carries `label_review`: the labelled examples whose label looks wrong, from answers fitted on the other examples (`docs/tasks.md`, "Label review"). It is in the response only, not in the stored task.
 - With `--task-store` a task's listing and registration response carry `store_version`; a write names the version it replaces (by default the one the replica serves; `x-decisio-replaces: N` names another) and answers **409** `{message, kind, task, store_version, your_version}` when the store holds another (`?replace=1` replaces it), 409 on a replica started `--task-store-readonly`, and **503** when the store cannot be reached; the change is not made in any of them (`docs/tasks.md`, "Replicas").
 - A write that fails under `--tasks-dir` (disk full, read-only) answers 500 on registration, certification, import and removal, and the change is not made (`docs/tasks.md`, "Saved to disk").
 - `GET /v1/tasks` and `GET /v1/abstention/tasks` carry a `store` object: where tasks are saved, how many are loaded and apply, what the start loaded from where.
