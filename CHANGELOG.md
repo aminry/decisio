@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.53.0](https://github.com/aminry/decisio/compare/v0.52.0...v0.53.0) (2026-11-21)
+
+
+### Features
+
+* **tasks:** the registration response flags the labelled examples whose label looks wrong ([#525](https://github.com/aminry/decisio/issues/525)) ([21b4ea6](https://github.com/aminry/decisio/commit/21b4ea63863de646fd6fac4840aee806c1a0f134))
+
+
+### Bug Fixes
+
+* **serve:** a server stopped by SIGTERM stops its engine processes too ([#523](https://github.com/aminry/decisio/issues/523)) ([a0a600a](https://github.com/aminry/decisio/commit/a0a600a6063d9dd5948eb317c4516e2329eaea49))
+
 ## [0.52.0](https://github.com/aminry/decisio/compare/v0.51.1...v0.52.0) (2026-11-21)
 
 
