@@ -8,11 +8,18 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: a task's calibration works on top of the temperature
+## 0.52.0: a task's calibration works on top of the temperature
 
 ### What changed
 
-- **A task's calibration is fitted and served on top of the server's temperature for its question:** `softmax(log p / T - bias)`. Before, a task that kept calibration was fitted and served at temperature 1, without the temperature an untaught question gets, so its probabilities were overconfident (on a 12B base, at 3.592, a smooth calibration error of 0.25 to 0.30 against 0.06 to 0.07 with the temperature; the answer itself was unchanged).
+- **A task's calibration is fitted and served on top of the server's temperature for its question:** `softmax(log p / T - bias)`. Before, a task that kept calibration was fitted and served at temperature 1, without the temperature an untaught question gets, so its probabilities were overconfident; the answer itself was unchanged.
+  On a 12B base (temperature 3.592), a BANKING77 task of 200 examples (77 options) that keeps calibration, read on 600 held-out questions:
+
+  | | Expected calibration error | Log loss | Accuracy |
+  | --- | --- | --- | --- |
+  | 0.51.1 | 0.258 | 3.680 | 72.3% |
+  | 0.52.0, the task registered again | 0.085 | 1.375 | 72.2% |
+  | the same questions with no task | 0.082 | 1.384 | 72.2% |
 - **The acceptance rule reads both arms at that temperature**, so a correction is kept only if it beats the question as it is served without the task.
 - **A calibration fitted at another temperature is not applied.** Every task registered before this release was fitted at 1: on a server whose temperature for its question is not 1 (every base and tuned repository), its questions are answered as without the task, and its answers are not certified (`certified_reason: calibration_refit`) until the task is registered again. `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` (`systemone.task_store.readout.calibration_refit`) name such tasks, and `POST /v1/tasks/{id}/certify` refuses them, since the stored correction itself has to be fitted again.
 - Tasks whose intent head is kept, and tasks whose calibration was declined, are unchanged.
@@ -24,6 +31,17 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | A task that kept calibration, on a server with a temperature other than 1 | overconfident probabilities, certified as registered | answered as without the task, not certified (`calibration_refit`) | register it again with the same body: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json` |
 | A task with a kept intent head, or whose calibration was declined | | unchanged | nothing |
 | A question of no task | | unchanged | nothing |
+
+### Register again, then certify
+
+1. After the upgrade, read the tasks to register again: `curl -s http://<host>:<port>/health` lists them under `systemone.task_store.readout.calibration_refit.tasks`, and `GET /v1/tasks` marks each one with `calibration_refit`.
+2. Register each one again with the same body as its registration: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json`.
+   The server fits the calibration again at its temperature and stores that temperature in the record.
+   A body with a `certify` block makes the certificate again on the new probabilities in the same call, so a certified task needs no separate certify call.
+3. Read `/health` again: `calibration_refit` is gone once every task is registered again.
+
+`POST /v1/tasks/{id}/certify` refuses a task in `calibration_refit` (422, "register the task again"), because a certificate made on the old correction would not describe what the server serves.
+Every other certified task is suspended after this upgrade like after any other (`serving_stack_changed`) and is certified again with `POST /v1/tasks/{id}/certify`, as the top of this page says.
 
 ## 0.51.1: a server's cascade reader shows its blocks
 
