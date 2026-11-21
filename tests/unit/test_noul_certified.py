@@ -111,6 +111,17 @@ def parsed(ex):
     return req.state, req.questions["q1"]
 
 
+def pre(so, says_yes, conf, task_id="angry"):
+    """P(yes) decisio serves for a read that says yes (or no) at `conf`, before the commit rule: the task's calibration
+    on it (from 50 labelled examples, its temperature and bias fitted together)."""
+    from decisio.readout.calibration import apply_task_prior
+    from decisio.readout.debias import log_probs
+
+    py = conf if says_yes else 1.0 - conf
+    cal = so.task_store.snapshot(task_id)["calibration"]
+    return float(apply_task_prior(log_probs(np.array([py, 1.0 - py])), cal, so.temperature_of("noul", None, 2))[0])
+
+
 GRID = [0.51, 0.55, 0.62, 0.7, 0.75, 0.79, 0.8, 0.81, 0.84, 0.88, 0.9, 0.93, 0.96, 0.99]
 
 
@@ -128,7 +139,8 @@ def test_n1_registration_fits_on_the_fit_part_and_certifies_on_the_held_out_part
     assert c["stack"]["serving"]["noul_commit"] is commit and c["stack"]["serving"]["noul_rendering"] == "words"
     assert "warnings" not in c  # the catch-all warning is for choice tasks
     s = c["served_check"]
-    assert s["n"] == 20 and s["task_applied"] == 20 and s["max_shift"] == 0.0 and s["crossed_threshold"] == 0
+    # a yes/no answer reports P(yes) alone: its top read back as max(p, 1 - p) is the served top within a rounding step
+    assert s["n"] == 20 and s["task_applied"] == 20 and s["max_shift"] <= 2.3e-16 and s["crossed_threshold"] == 0
     assert s["top_answer_changed"] == 0
     assert t["status"]["state"] == "ok"
 
@@ -180,7 +192,7 @@ def test_n2_an_answer_is_certified_exactly_when_its_reported_top_probability_rea
     for said in ("yes", "no"):
         for conf in GRID:
             a = ask(client, said, conf)
-            assert (a["noul"] > 0.5) == (said == "yes")  # the commit rule never changes the answer
+            assert (a["noul"] > 0.5) == (pre(so, said == "yes", conf) > 0.5)  # the commit rule never changes it
             if commit and COMMIT_LO < a["noul"] < COMMIT_HI:
                 pytest.fail(f"a committed answer inside the band: {a['noul']}")
             assert a["certified"] is (top(a) >= thr), (said, conf, a, thr)
@@ -335,10 +347,12 @@ def test_n4_a_record_made_before_reads_the_reported_confidence_as_its_baseline_d
     )
     tail = exported[0]["monitor"]["confidence"]["tail_threshold"]
     assert 0.6 < tail < COMMIT_HI
-    ask(c2, "yes", 0.6)
-    # the reported 0.80 is observed, above the tail, where the 0.60 before the rule would have been below it
+    # a read decisio serves as an unsure yes, below the tail before the rule (the rule reports it at COMMIT_HI)
+    conf = next(c for c in np.arange(0.51, 0.99, 0.01) if 0.5 < pre(so, True, c) < min(tail, COMMIT_HI) - 0.01)
+    ask(c2, "yes", conf)
+    # the reported 0.80 is observed, above the tail, where the confidence before the rule would have been below it
     assert m.statistic == 0.0
-    ask(client, "yes", 0.6)
+    ask(client, "yes", conf)
     assert so.task_store.monitors["angry"].statistic > 0.0  # the record that says it reads before the rule
 
 

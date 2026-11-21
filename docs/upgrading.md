@@ -8,6 +8,14 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: from 50 labelled examples, a task's calibration fits its temperature too
+
+### What changed
+
+- **A task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together: served p = softmax(log p / T - b), with priors that keep T close to the question's own temperature and each bias close to 0. It is always applied (no keep-or-drop test).
+- Below 50 examples, and for a task that serves its head, nothing changes.
+- **A stored task of 50 or more examples whose calibration is the older gated bias is not applied:** its questions are answered as without the task, its answers are not certified (`certified_reason: calibration_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.52.0 change.
+
 ## Unreleased: score questions get no intent head
 
 ### What changed
@@ -71,6 +79,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- | --- |
 | A registration of a choice or yes/no task | no review | `label_review` in the response; registration takes five more fits (and one more read of a certified task's held-out examples) | check the flagged examples; nothing otherwise |
 | A stored task | | unchanged; it has no review until it is registered again | nothing |
+| A stored task of 50 or more labelled examples that kept calibration and serves no head | the gated bias | answered as without the task, not certified (`calibration_refit`) | register it again with the same body: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json` |
+| A task of fewer than 50 examples, or one that serves its head | | unchanged | nothing |
 
 ## 0.52.0: a task's calibration works on top of the temperature
 
