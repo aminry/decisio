@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.52.0](https://github.com/aminry/decisio/compare/v0.51.1...v0.52.0) (2026-11-21)
+
+
+### Bug Fixes
+
+* **tasks:** a task's calibration is fitted and served on top of the temperature ([#518](https://github.com/aminry/decisio/issues/518)) ([2a02b75](https://github.com/aminry/decisio/commit/2a02b75cc5619ec61c341644b194ce71a9b5e065))
+
+
+### Documentation
+
+* the 0.52.0 upgrading note, with how to register tasks again and certify ([#520](https://github.com/aminry/decisio/issues/520)) ([2c2f35d](https://github.com/aminry/decisio/commit/2c2f35d03931f19caaed1b0f063332f56730b139))
+
 ## [0.51.1](https://github.com/aminry/decisio/compare/v0.51.0...v0.51.1) (2026-11-21)
 
 
