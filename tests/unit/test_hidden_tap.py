@@ -4,7 +4,8 @@
 the answer position, in the same request as the letter probabilities.
 
 H1  DECISIO_TAP_LAYERS parses to sorted unique layers; a stored row splits into the final state and its layers
-H2  the model class: forward concatenates [final | layers] from vLLM's auxiliary states; compute_logits computes the
+H2  the model class: its layers come from the engine's additional_config (the compiled graph's cache key), not the
+    environment; forward concatenates [final | layers] from vLLM's auxiliary states; compute_logits computes the
     logits from the contiguous final part, equal to the hidden-readout class's on the same final state (the reserved
     columns included), and keeps the rows for the processor
 H3  the logits processor stores the rows of the requests that carry a key, by their slot, never changes the logits,
@@ -41,8 +42,14 @@ def test_h1_layers_and_split():
         tap.split(torch.zeros(2 * D), D, LAYERS)
 
 
+def _cfg(layers):
+    from decisio.vllm_plugin import tap
+
+    return types.SimpleNamespace(**tap.engine_config(layers))
+
+
 def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(monkeypatch):
-    monkeypatch.setenv("DECISIO_TAP_LAYERS", "2,5")
+    monkeypatch.setenv("DECISIO_TAP_LAYERS", "7")  # the environment is never read by the class
     monkeypatch.setenv("DECISIO_HIDDEN_READOUT_START", "40")
     with stub_vllm(vocab=V, hidden=D):
         from vllm.model_executor.models.gemma4_unified import Gemma4UnifiedForConditionalGeneration as Base
@@ -57,7 +64,7 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
         final, l2, l5 = (torch.randn(6, D, generator=g) for _ in range(3))
         monkeypatch.setattr(Base, "forward", lambda self, *a, **k: (final, [l2, l5]), raising=False)
 
-        model = gemma.DecisioGemma4UnifiedHiddenReadoutTap()
+        model = gemma.DecisioGemma4UnifiedHiddenReadoutTap(vllm_config=_cfg([5, 2]))
         assert set_layers == [(2, 5)] and model.tap_layers == (2, 5)
         wide = model.forward(None, None)
         assert torch.equal(wide, torch.cat([final, l2, l5], dim=-1))
@@ -69,8 +76,7 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
         assert torch.equal(logits, reference.compute_logits(final[[1, 4]].contiguous()))
         assert torch.equal(tap.take(), rows) and tap.take() is None
 
-        monkeypatch.setenv("DECISIO_TAP_LAYERS", "")  # final state only: forward and logits as the class above
-        plain = gemma.DecisioGemma4UnifiedHiddenReadoutTap()
+        plain = gemma.DecisioGemma4UnifiedHiddenReadoutTap(vllm_config=_cfg([]))  # final state only
         monkeypatch.setattr(Base, "forward", lambda self, *a, **k: final, raising=False)
         assert plain.forward() is final
         plain.load_state_dict(model.state_dict())
@@ -82,9 +88,9 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
             self.config = types.SimpleNamespace(hidden_size=D, num_hidden_layers=4)
 
         monkeypatch.setattr(Base, "__init__", with_layers)
-        monkeypatch.setenv("DECISIO_TAP_LAYERS", "5")
         with pytest.raises(ValueError, match="this model has 4 layers"):
-            gemma.DecisioGemma4UnifiedHiddenReadoutTap()
+            gemma.DecisioGemma4UnifiedHiddenReadoutTap(vllm_config=_cfg([5]))
+        assert gemma.DecisioGemma4UnifiedHiddenReadoutTap().tap_layers == ()  # no config: none, whatever the env
 
 
 def test_h3_the_processor_stores_keyed_rows_by_slot_and_leaves_the_logits():
