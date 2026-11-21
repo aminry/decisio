@@ -47,7 +47,7 @@ Two modes read it; the server's flags choose (`decisio.serve.vllm_engine.resolve
 | Weights on the card | one copy; the text engine at 0.90 of the card's memory | two copies (33 GiB each); the two engines at 0.47 each |
 | Image engine on the same card | yes: the two engines at 0.47 and 0.49 (measured) | no: refused at start-up |
 | Other questions | unchanged, bit for bit (1,400 of 1,400 suite answers) | unchanged (the text engine is not touched) |
-| Label arithmetic | the engine's own: logits rounded to bf16 | float64 from the pooled state |
+| Label arithmetic | the engine's own: logits rounded to bf16 (Qwen); the engine's readout of the row, one more request (Gemma) | float64 from the pooled state (Qwen); the serving engine's readout of the row, one more request (Gemma) |
 
 Choose the second engine for a deployment with heavy intent traffic on a dedicated card, where 45 ms per head question matters more than the second weight copy and the image route.
 Everything else should use the default.
@@ -56,6 +56,9 @@ Both modes give the same declared choice on every evaluation item of the stored 
 Tasks carry no mode, so a task registered in one mode loads in the other.
 The 82 ms was measured with the text-only view as the model directory (`--model-class view --head-engine`).
 The second-engine mode's default pairing, with the registered text-only class (`--head-engine` alone), is unmeasured for latency; it is to be timed in the next session on a card.
+Every figure in the table is from the Qwen base.
+On a Gemma base the second engine could not start before 0.52.0: it read the output layer as `lm_head.weight`, which a checkpoint with tied embeddings does not have.
+From 0.52.0 it reads the rows where the base keeps them (`decisio.families.Family.head_rows`), and it has not been run on a card on a Gemma base yet: its latency, its memory split and vLLM's pooling runner on that model are unmeasured.
 
 ## The global temperature
 

@@ -11,8 +11,8 @@ which vLLM's generate path does not return. Two modes read it (`vllm_engine.reso
   second-engine   --head-engine (`HiddenEngine`): a second copy of the served model in vLLM's pooling mode
                   (`runner="pooling"`, last-token pooling, no activation) returns h for the exact token rows the served
                   path builds (front padding included). One pooling request per head question, but a second weight
-                  copy on the card, and vLLM 0.30's pooling runner has no prefix cache on this hybrid model, so every
-                  head question prefills its whole prompt.
+                  copy on the card, and vLLM 0.30's pooling runner has no prefix cache on the Qwen base's hybrid
+                  model, so every head question prefills its whole prompt.
 
 In both, the K letter log-probabilities are computed from h and the output layer's K label rows,
 
@@ -20,7 +20,11 @@ In both, the K letter log-probabilities are computed from h and the output layer
     lp = log_softmax(z)
 
 so a head is fitted and served on the same (lp, h), and `intent_head.apply_intent_head(lp, h, rec, options)` is the
-served arithmetic exactly. The two modes differ only in the dtype of z (`label_logits`).
+served arithmetic exactly. The two modes differ only in the dtype of z (`label_logits`). On a base whose label
+log-probabilities the recomputation cannot reproduce (Gemma's soft cap, `Family.head_label_logprobs="engine"`), both
+modes take lp from the serving engine's readout of the same row instead, one more request, so a head's base is the
+plain readout's in either mode. The output layer's rows are read where the base keeps them (`Family.head_rows`: a base
+with tied embeddings keeps them in its input embedding).
 
     eng = HiddenEngine(os.environ["DECISIO_MODEL"], pad_to="block", pad_where="front", gpu_memory_utilization=0.47)
     [(lp, h), ...] = eng.readout(state, questions)
@@ -65,15 +69,26 @@ class HiddenReadout:
             return label_log_softmax(self.label_logits(h, allowed_ids(lab)), lab)
         return log_softmax(self.label_logits(h, lab))
 
+    def reads_engine_lp(self):
+        return getattr(self, "label_source", "recompute") == "engine" and getattr(self, "text_engine", None) is not None
+
+    def engine_lp(self, row):
+        """The serving engine's label log-probabilities for one row: its plain readout of the row, under its lock."""
+        eng = self.text_engine
+        with eng._lock:
+            (p,), _ = eng.score_prompts([row])
+        with np.errstate(divide="ignore"):
+            return np.log(np.asarray(p, dtype=np.float64))
+
     def readout(self, state, questions):
         with self._lock:
             t0 = time.perf_counter()
             rows, _ = self._prepare_separate(state, questions)
             H = self.hidden_rows([ids for ids, _ in rows])
             out = []
-            for (_, lab), h in zip(rows, H):
+            for row, h in zip(rows, H):
                 h = np.asarray(h, dtype=np.float32)
-                out.append((self.label_lp(h, lab), h))
+                out.append((self.engine_lp(row) if self.reads_engine_lp() else self.label_lp(h, row[1]), h))
             self.last_ms = (time.perf_counter() - t0) * 1000
         return out
 
@@ -93,7 +108,15 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         max_num_seqs=256,
         revision=None,
         kv_cache_dtype=None,
+        family=None,
+        text_engine=None,
     ):
+        """`family`: the served base (decisio.families), for where the checkpoint keeps the output layer's rows (a base
+        with tied embeddings, Gemma 4, keeps them in its input embedding) and where the label log-probabilities come
+        from. `text_engine`: the serving engine; under the family's `head_label_logprobs="engine"` (Gemma) a head
+        question's label log-probabilities are its readout of the same row, as `SingleEngineHidden` reads them, so the
+        head's base log-probabilities are the plain readout's in both modes. Without a family the rows are
+        `lm_head.weight` and the log-probabilities are recomputed from h."""
         from vllm import LLM
         from vllm.config import PoolerConfig
 
@@ -121,7 +144,11 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         self.block_size = cfg.block_size
         self.match_unit = self.block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
-        self._W = self._load_lm_head(model, revision=revision)
+        self.family, self.text_engine = family, text_engine
+        source = family.head_label_logprobs if family is not None else "recompute"
+        self.label_source = source if text_engine is not None else "recompute"
+        rows = family.head_rows if family is not None else ("lm_head.weight",)
+        self._W = self._load_lm_head(model, rows, revision=revision)
         import threading
 
         self._lock = threading.Lock()
@@ -212,6 +239,7 @@ class HiddenEngine(HiddenReadout, LettersEngine):
         return {
             "vllm": vllm.__version__,
             "mode": "hidden (pooling runner, last token)",
+            "label_logprobs": getattr(self, "label_source", "recompute"),
             "block_size": self.block_size,
             "pad_unit": self.pad_unit,
             "pad_where": self.pad_where if self.pad_unit else None,
