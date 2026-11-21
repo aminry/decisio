@@ -50,10 +50,10 @@ class DecisioGemma4UnifiedHiddenReadoutTap(DecisioGemma4UnifiedHiddenReadout):
         super().__init__(vllm_config=vllm_config, prefix=prefix)
         cfg = getattr(self.config, "text_config", self.config)
         self.tap_d = int(cfg.hidden_size)
-        self.tap_layers = tap.tap_layers()
+        self.tap_layers = tap.layers_of(vllm_config)  # in the compiled graph's cache key (tap.engine_config)
         n = getattr(cfg, "num_hidden_layers", None)
         if n is not None and any(layer > n for layer in self.tap_layers):
-            raise ValueError(f"DECISIO_TAP_LAYERS {self.tap_layers}: this model has {n} layers")
+            raise ValueError(f"the tapped layers {self.tap_layers}: this model has {n} layers")
         if self.tap_layers:
             self.set_aux_hidden_state_layers(self.tap_layers)
 

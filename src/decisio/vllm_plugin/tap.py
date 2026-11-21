@@ -20,7 +20,13 @@ How:
 The store is a module-level dict, so the caller must be in the engine's process (decisio's in-process engine,
 `--engine-process in`).
 
-  DECISIO_TAP_LAYERS="12,24,30,36,48"   layers tapped beside the final-norm state (empty: the final state only)
+The tapped layers are set in the engine's `additional_config` (`engine_config(layers)`, read by `layers_of`), never
+in the environment: vLLM keys its compiled graph on that config (VllmConfig.compute_hash), not on the model class, so
+a layer set set anywhere else would load a graph compiled for another set (seen on a card: the graph compiled without
+the layers was loaded for a start that asked for five, and served none of them).
+
+  DECISIO_TAP_LAYERS="12,24,30,36,48"   (tap_layers) the launcher's way to write that config: layers tapped beside the
+                                         final-norm state (empty: the final state only)
 """
 
 from __future__ import annotations
@@ -43,6 +49,21 @@ def tap_layers(env=None) -> tuple[int, ...]:
     if any(x < 0 for x in layers):
         raise ValueError(f"DECISIO_TAP_LAYERS: layer indices are 0 or more, got {raw!r}")
     return tuple(layers)
+
+
+CONFIG_KEY = "decisio_tap_layers"
+
+
+def engine_config(layers) -> dict:
+    """`LLM(...)` keyword arguments that give the tap class its layers, inside the compiled graph's cache key."""
+    return {"additional_config": {CONFIG_KEY: [int(x) for x in sorted(set(layers))]}}
+
+
+def layers_of(vllm_config) -> tuple[int, ...]:
+    """The tapped layers an engine was built with (`engine_config`), or () when none were given."""
+    extra = getattr(vllm_config, "additional_config", None) or {}
+    layers = extra.get(CONFIG_KEY, ()) if isinstance(extra, dict) else ()
+    return tuple(sorted({int(x) for x in layers}))
 
 
 def stash(rows) -> None:
