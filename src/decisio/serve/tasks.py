@@ -349,14 +349,26 @@ class TaskStore:
         return [t for k, t in self.by_key.items() if k == key or k.startswith((key + "@", key + "~"))]
 
     def register(
-        self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True, context=None, temperature=1.0
+        self,
+        task_id,
+        examples,
+        score_fn,
+        hidden_fn=None,
+        key_fn=None,
+        commit=True,
+        context=None,
+        temperature=1.0,
+        n_request=None,
     ):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
         server has none. Returns the stored task (`commit=False`: the fitted task, not yet stored: the caller adds a
         certificate and calls `put`, and a failure leaves the previous task in place). `context`: the task's
         `context_record`, stored with it; the two functions read each state with it (the caller's concern).
-        `temperature`: the one the question is served at without a task; the calibration is fitted at it."""
+        `temperature`: the one the question is served at without a task; the calibration is fitted at it.
+        `n_request`: how many labelled examples the registration request gave, before a certificate's held-out split
+        (`len(examples)` when absent): from `calibration.TB_MIN_EXAMPLES` the calibration is the temperature and bias
+        fitted together (`calibration.fit_tb_prior`), below it the gated bias."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -368,9 +380,12 @@ class TaskStore:
         labels = [gold_index(q, g) for q, _, g in examples]
         pairs = [(s, q) for q, s, _ in examples]
         lps = [log_probs(p) for p in score_fn(pairs)]
-        prior = calibration.fit_task_prior(
-            lps, labels, fingerprint=self.fingerprint, task_id=task_id, K=len(options), temperature=temperature
-        )
+        n_request = len(examples) if n_request is None else int(n_request)
+        args = {"fingerprint": self.fingerprint, "task_id": task_id, "K": len(options), "temperature": temperature}
+        if n_request >= calibration.TB_MIN_EXAMPLES:
+            prior = calibration.fit_tb_prior(lps, labels, n_request=n_request, **args)
+        else:
+            prior = calibration.fit_task_prior(lps, labels, **args)
         prior = {**prior, "inputs_sha256": inputs_digest(lps)}
         counts = np.bincount(labels, minlength=len(options))
         if hidden_fn is None:
@@ -430,6 +445,7 @@ class TaskStore:
             "calibration": prior,
             "head": head,
             "n_examples": len(examples),
+            "n_request": n_request,
             "per_option_min": int(counts.min()),
         }
         if context is not None:

@@ -137,8 +137,9 @@ def test_n6_task_key_and_registration():
     assert letters.noul_rendered(c) is None
 
     class Store:  # records what registration scores, as served
-        def register(self, task_id, examples, score, hidden=None, key_fn=None, temperature=1.0):
+        def register(self, task_id, examples, score, hidden=None, key_fn=None, temperature=1.0, n_request=None):
             self.scored, self.key = score([(s, q) for q, s, _ in examples]), key_fn(examples[0][0])
+            return {}, {}  # (task, fitted), as TaskStore.register returns
 
     letters.task_store = Store()
     letters.register_readout_task("t", [("s", q, True)])
