@@ -24,8 +24,9 @@ MIN_EXAMPLES = 20
 FOLDS = 5
 P_LABEL_MAX = 0.02
 P_OTHER_MIN = 0.9
-# the bases the review was not checked on: their registrations say so instead of reviewing
-UNCHECKED_BASES = frozenset({"gemma-4-31b", "gemma-4-31b-bf16"})
+# the bases the review was checked on (Gemma 4 12B in bf16: the base and the tuned 12B repositories, one pipeline);
+# a registration on any other base says the review is not available there
+CHECKED_BASES = frozenset({"gemma-4-12b"})
 
 
 def fold_seed(task_id: str) -> int:

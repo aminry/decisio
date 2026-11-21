@@ -2555,8 +2555,11 @@ class SystemOne:
         if q0.type == "score":
             return {"reviewed": False, "reason": "score questions are not reviewed"}
         base = getattr(getattr(self.engine, "family", None), "key", None)
-        if base in label_review.UNCHECKED_BASES:
-            return {"reviewed": False, "reason": f"the label review is not yet checked on {base}"}
+        if base not in label_review.CHECKED_BASES:
+            return {
+                "reviewed": False,
+                "reason": f"label review is not available on {base or 'this base'}: it is checked on Gemma 4 12B only",
+            }
         if len(everything) < label_review.MIN_EXAMPLES:
             return label_review.too_few(len(everything))
         options = answer_keys(q0)

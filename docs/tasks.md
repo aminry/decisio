@@ -217,8 +217,8 @@ A flag means: the model, fitted on your other examples, is at least 90% sure of 
 - **It flags only clear cases.** On 200 examples with 10% of the labels wrong, about six in ten flags were wrong labels, and about one wrong label in five was flagged.
   About 1.5% of correct labels were flagged overall (3.6% on the worst English set), and no language measured was clearly above 4%.
   A flag is a reason to look, not proof; no flag does not mean every label is right.
-- **Where it applies:** choice and yes/no tasks with at least 20 labelled examples.
-  Below 20, for a score question, and on Gemma 4 31B (not yet checked there) the field says why there is no review.
+- **Where it applies:** choice and yes/no tasks with at least 20 labelled examples, on Gemma 4 12B and the tuned 12B repositories, where it was checked.
+  Below 20, for a score question, and on the other bases (not yet checked there) the field says why there is no review.
   A task whose options change with every request has none.
 - **What it costs:** five more fits of the task at registration, and, for certified tasks, one more read of the held-out examples; nothing per request.
 

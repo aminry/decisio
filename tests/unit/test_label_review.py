@@ -7,7 +7,7 @@ L1  parity: on the stored BANKING77 readouts with planted wrong labels, the out-
     fitted on top of the temperature where kept, else the question at its temperature), bit for bit
 L2  no flags when every out-of-fold answer is certain and right
 L3  the field: present with an empty list when nothing is flagged; with a reason and no flags below 20 examples, for a
-    score question and on a base the review was not checked on
+    score question and on every base but Gemma 4 12B (the base and its tuned repositories)
 L4  determinism: the same request gives the same review
 L5  over HTTP, a wrong label is flagged at its place in the request, in the fit half or the held-out half of a
     certified task alike; the labels are never changed
@@ -80,7 +80,10 @@ def test_l1_parity_with_the_reference_procedure():
     assert f_ref.any() and (f_ref & planted).any()  # the check has something to compare
 
 
-def _server(answer_fn, family=None):
+G12 = types.SimpleNamespace(key="gemma-4-12b")
+
+
+def _server(answer_fn, family=G12):
     from fastapi.testclient import TestClient
 
     from decisio.serve.systemone import SystemOne
@@ -124,9 +127,10 @@ def test_l3_too_few_a_score_question_and_an_unchecked_base():
     client = _server(_sure)
     rev = client.post("/v1/tasks", json={"id": "few", "examples": _examples(19)}).json()["label_review"]
     assert rev["reviewed"] is False and "at least 20" in rev["reason"] and "flags" not in rev
-    big = _server(_sure, family=types.SimpleNamespace(key="gemma-4-31b"))
-    rev = big.post("/v1/tasks", json={"id": "b", "examples": _examples(24)}).json()["label_review"]
-    assert rev["reviewed"] is False and "gemma-4-31b" in rev["reason"]
+    for key in ("gemma-4-31b", "qwen3.6-35b-a3b", "gemma-4-e4b", "gemma-4-12b-fp8"):  # not checked there
+        other = _server(_sure, family=types.SimpleNamespace(key=key))
+        rev = other.post("/v1/tasks", json={"id": "b", "examples": _examples(24)}).json()["label_review"]
+        assert rev["reviewed"] is False and f"not available on {key}" in rev["reason"]
     sq = {"type": "score", "instructions": "How urgent?", "criteria": ["low", "mid", "high"]}
 
     def score_answer(state, questions, adapter=None):
