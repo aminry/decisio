@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.51.1](https://github.com/aminry/decisio/compare/v0.51.0...v0.51.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **calculator:** the server's cascade reads its tagger again, and a failure it hides is logged ([#512](https://github.com/aminry/decisio/issues/512)) ([26b8f4b](https://github.com/aminry/decisio/commit/26b8f4b5687646b5282666b78a0c51d6e5b1ea31))
+
+
+### Performance Improvements
+
+* **calculator:** the cascade's gates compute the case's figures, the block and the document once per read ([#511](https://github.com/aminry/decisio/issues/511)) ([3154d1b](https://github.com/aminry/decisio/commit/3154d1b973d84bda8c21c49b82654eeb63c7821f))
+
 ## [0.51.0](https://github.com/aminry/decisio/compare/v0.50.2...v0.51.0) (2026-11-20)
 
 
