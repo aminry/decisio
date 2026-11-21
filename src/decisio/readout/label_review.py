@@ -24,9 +24,10 @@ MIN_EXAMPLES = 20
 FOLDS = 5
 P_LABEL_MAX = 0.02
 P_OTHER_MIN = 0.9
-# the bases the review was checked on (Gemma 4 12B in bf16: the base and the tuned 12B repositories, one pipeline);
-# a registration on any other base says the review is not available there
-CHECKED_BASES = frozenset({"gemma-4-12b"})
+# the bases the review runs on: Gemma 4 12B in every format (bf16, FP8, and on a Mac, whose builds load under the bf16
+# profile), the base and the tuned 12B repositories, one served pipeline; a registration on any other base says the
+# review is not available there
+CHECKED_BASES = frozenset({"gemma-4-12b", "gemma-4-12b-fp8"})
 
 
 def fold_seed(task_id: str) -> int:

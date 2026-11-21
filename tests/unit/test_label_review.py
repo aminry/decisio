@@ -7,7 +7,7 @@ L1  parity: on the stored BANKING77 readouts with planted wrong labels, the out-
     fitted on top of the temperature where kept, else the question at its temperature), bit for bit
 L2  no flags when every out-of-fold answer is certain and right
 L3  the field: present with an empty list when nothing is flagged; with a reason and no flags below 20 examples, for a
-    score question and on every base but Gemma 4 12B (the base and its tuned repositories)
+    score question and on every base but Gemma 4 12B (every format, the base and its tuned repositories)
 L4  determinism: the same request gives the same review
 L5  over HTTP, a wrong label is flagged at its place in the request, in the fit half or the held-out half of a
     certified task alike; the labels are never changed
@@ -115,8 +115,9 @@ def _examples(n, wrong=()):
     return out
 
 
-def test_l2_l3_no_flags_when_every_answer_is_certain_and_right():
-    client = _server(_sure)
+@pytest.mark.parametrize("key", ["gemma-4-12b", "gemma-4-12b-fp8"])
+def test_l2_l3_no_flags_when_every_answer_is_certain_and_right(key):
+    client = _server(_sure, family=types.SimpleNamespace(key=key))  # every format of the 12B
     r = client.post("/v1/tasks", json={"id": "clean", "examples": _examples(24)})
     assert r.status_code == 200, r.text
     rev = r.json()["label_review"]
@@ -127,7 +128,7 @@ def test_l3_too_few_a_score_question_and_an_unchecked_base():
     client = _server(_sure)
     rev = client.post("/v1/tasks", json={"id": "few", "examples": _examples(19)}).json()["label_review"]
     assert rev["reviewed"] is False and "at least 20" in rev["reason"] and "flags" not in rev
-    for key in ("gemma-4-31b", "qwen3.6-35b-a3b", "gemma-4-e4b", "gemma-4-12b-fp8"):  # not checked there
+    for key in ("gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b", "qwen3.5-4b", "gemma-4-e4b"):  # not checked
         other = _server(_sure, family=types.SimpleNamespace(key=key))
         rev = other.post("/v1/tasks", json={"id": "b", "examples": _examples(24)}).json()["label_review"]
         assert rev["reviewed"] is False and f"not available on {key}" in rev["reason"]

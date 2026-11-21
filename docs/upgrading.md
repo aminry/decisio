@@ -12,7 +12,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 ### What changed
 
-- **A task's registration response flags the labelled examples whose label looks wrong** (`label_review`, `docs/tasks.md`, "Label review"): choice and yes/no tasks with at least 20 labelled examples on Gemma 4 12B and the tuned 12B repositories, from answers of the task fitted on the other examples; on the other bases the field says the review is not available.
+- **A task's registration response flags the labelled examples whose label looks wrong** (`label_review`, `docs/tasks.md`, "Label review"): choice and yes/no tasks with at least 20 labelled examples on Gemma 4 12B and the tuned 12B repositories (bf16, FP8, and on a Mac), from answers of the task fitted on the other examples; on the other bases the field says the review is not available.
 - Labels are never changed or dropped, and nothing stored changes.
 
 ### Who is affected

@@ -2558,7 +2558,7 @@ class SystemOne:
         if base not in label_review.CHECKED_BASES:
             return {
                 "reviewed": False,
-                "reason": f"label review is not available on {base or 'this base'}: it is checked on Gemma 4 12B only",
+                "reason": f"label review is not available on {base or 'this base'}: it runs on Gemma 4 12B only",
             }
         if len(everything) < label_review.MIN_EXAMPLES:
             return label_review.too_few(len(everything))
