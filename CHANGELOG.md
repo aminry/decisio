@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.52.1](https://github.com/aminry/decisio/compare/v0.52.0...v0.52.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **serve:** a server stopped by SIGTERM stops its engine processes too ([#523](https://github.com/aminry/decisio/issues/523)) ([a0a600a](https://github.com/aminry/decisio/commit/a0a600a6063d9dd5948eb317c4516e2329eaea49))
+
 ## [0.52.0](https://github.com/aminry/decisio/compare/v0.51.1...v0.52.0) (2026-11-21)
 
 
