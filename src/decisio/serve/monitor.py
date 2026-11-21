@@ -41,8 +41,10 @@ instead, at certification and in serving (`"reads": "before_noul_commit"` in the
 reads the confidence each answer reports, as before.
 
 On the card replay (the 31B, CLINC150 with 10 examples per intent, 5,363 messages, the out-of-scope share rising from
-message 1,000) the answer mix alerted after message 5,200 and 976 wrong certified answers; this signal alerts near
-message 1,700 after 55, and stays quiet on the replay's in-scope messages alone (`runs/2026-10-17_drift-monitor/`).
+message 1,000), under 0.14.0 the answer mix first alerted after message 5,200, with 1,027 wrong certified answers served
+before it; under 0.16.0 this signal first withheld an answer at message 1,570, after 40 (the offline replay of the
+recorded reads alerted at message 1,697, after 55), and it stays quiet on the replay's in-scope messages alone
+(`runs/2026-10-17_drift-monitor/`).
 
 Replay of record-based streams (2026-10-13): the alert fired on at most 0.5 percent of full-window checks
 without a
