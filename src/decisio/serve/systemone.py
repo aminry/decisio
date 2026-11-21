@@ -2496,6 +2496,7 @@ class SystemOne:
         from decisio.serve.tasks import answer_keys
 
         q0 = fit_ex[0][0]
+        temperature = self.temperature_of(q0.type, None, len(answer_keys(q0)))
         result = self.task_store.register(
             task_id,
             fit_ex,
@@ -2503,14 +2504,16 @@ class SystemOne:
             hidden if self.hidden_engine is not None else None,
             key_fn=lambda q: task_key(q, render_text, self.described(q), self.noul_rendered(q)),
             # the calibration is fitted at the temperature the question is served at without a task
-            temperature=self.temperature_of(q0.type, None, len(answer_keys(q0))),
+            temperature=temperature,
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
+        task, fitted = result
+        supplied = [(q, s, g) for s, q, g in certify_examples] if certify_examples is not None else []
+        fitted["label_review"] = self.review_labels(task_id, full, supplied, fit_ex, fitted, score, hidden, temperature)
         if certify is None:
             self.learning.drop(task_id)  # a task registered again without learning keeps no rows
             return result
-        task, fitted = result
         reads = None
         if prepared is not None:  # decisio's own reads of the held-out examples, timed one at a time, then the decision
             reads = self.read_certification(task, cert_ex)
@@ -2536,6 +2539,47 @@ class SystemOne:
         else:
             self.learning.drop(task_id)
         return task, fitted
+
+    def review_labels(self, task_id, full, supplied, fit_ex, fitted, score, hidden, temperature) -> dict:
+        """The registration's label review (decisio.readout.label_review) over every labelled example of the request,
+        `examples` then `certify.examples`, in their order: the fit examples' reads are the registration's own, the
+        others are read here (their plain readout, and their hidden-state readout when the task can have a head)."""
+        from decisio.readout import intent_head, label_review
+        from decisio.readout.debias import log_probs
+        from decisio.serve.tasks import MIN_OPTIONS_FOR_HEAD, answer_keys, gold_index
+
+        everything = [*full, *supplied]
+        positions = [{"list": "examples", "index": i} for i in range(len(full))]
+        positions += [{"list": "certify.examples", "index": i} for i in range(len(supplied))]
+        q0 = everything[0][0]
+        if q0.type == "score":
+            return {"reviewed": False, "reason": "score questions are not reviewed"}
+        base = getattr(getattr(self.engine, "family", None), "key", None)
+        if base in label_review.UNCHECKED_BASES:
+            return {"reviewed": False, "reason": f"the label review is not yet checked on {base}"}
+        if len(everything) < label_review.MIN_EXAMPLES:
+            return label_review.too_few(len(everything))
+        options = answer_keys(q0)
+        labels = [gold_index(q, g) for q, _, g in everything]
+        known = {id(e): i for i, e in enumerate(fit_ex)}
+        missing = [e for e in everything if id(e) not in known]
+        read = (
+            dict(zip(map(id, missing), (log_probs(p) for p in score([(s, q) for q, s, _ in missing]))))
+            if missing
+            else {}
+        )
+        lps = [fitted["lps"][known[id(e)]] if id(e) in known else read[id(e)] for e in everything]
+        readout = None
+        counts = np.bincount(labels, minlength=len(options))
+        head_possible = len(options) >= MIN_OPTIONS_FOR_HEAD and counts.min() >= intent_head.MIN_PER_OPTION
+        if self.hidden_engine is not None and head_possible:
+            have = fitted.get("readout")
+            todo = [e for e in everything if have is None or id(e) not in known]
+            new = dict(zip(map(id, todo), hidden([(s, q) for q, s, _ in todo]))) if todo else {}
+            readout = [have[known[id(e)]] if have is not None and id(e) in known else new[id(e)] for e in everything]
+        return label_review.review(
+            lps, labels, options, temperature, readout, task_id, positions, min_options_for_head=MIN_OPTIONS_FOR_HEAD
+        )
 
     def learning_labels(self, fit_ex, cert_ex, reads, prepared) -> dict | None:
         """What a labelled task that learns keeps of its examples for its refits: each student's features of the fit
@@ -4919,6 +4963,8 @@ def add_routes(app, systemone: SystemOne):
         out = with_version(TaskStore.public(task), "readout", task["id"])
         if task.get("certificate") or task.get("learn"):
             out["status"] = systemone.full_status(task)
+        if fitted.get("label_review") is not None:  # in the response only: a review aid, not part of the task
+            out["label_review"] = fitted["label_review"]
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:

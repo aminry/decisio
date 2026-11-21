@@ -112,6 +112,8 @@ The response has one record per correction, `calibration` and `head`, each with:
 
 - **`inputs_sha256`**, on both records: a digest of what registration read from the engine for your examples (the calibration's label log-scores; for a head, also the hidden states). Registering the same examples twice gives the same digest exactly when the server read them identically; if two registrations have different digests, a difference between their heads or thresholds comes from the reading, not from the fit. The reading of a Gemma base depends on what the server's cache held and, on some boxes, differs between server starts (`EVAL_CARD.md` section 6.5). A task you want to reproduce exactly is registered once and kept: export it (`GET /v1/tasks?full=1`) and import it (`POST /v1/tasks/import`); an imported task is exactly the stored one.
 
+- **`label_review`**: the examples whose label looks wrong ([Label review](#label-review)).
+
 Where the head is kept, calibration is not stacked on top of it: the head already includes what calibration would correct.
 
 **When a correction is declined**, nothing is lost: the question is answered as it was before registration.
@@ -194,6 +196,31 @@ The description rule (`--describe-options`, on by default) is part of the task's
 
 **Abstention tasks come after the readout task.** An abstention threshold (`POST /v1/abstention/tasks`, a threshold on a "can't tell" option) is fitted on the probabilities the question is actually served with, which include a registered task's correction.
 Register the readout task first and the abstention task second; if you register the readout task again, register its abstention task again too.
+
+## Label review
+
+The registration response flags the labelled examples whose label looks wrong, so you can check them before you rely on the task.
+A flag means: the model, fitted on your other examples, is at least 90% sure of another option and gives yours 2% or less.
+
+```json
+"label_review": {"reviewed": true, "examples": 200, "folds": 5,
+                 "rule": {"p_label_max": 0.02, "p_suggested_min": 0.9},
+                 "flags": [{"list": "examples", "index": 17, "label": "card_arrival", "suggested": "lost_or_stolen_card",
+                            "p_label": 0.004, "p_suggested": 0.962}]}
+```
+
+- **How it is made:** all your labelled examples, `examples` and `certify.examples` together, are split into five parts, the same parts for the same task id.
+  Each part is answered by the task fitted on the other four, exactly as the task serves: its intent head where one is fitted and kept, else its calibration where kept, else the question as it is answered without the task.
+- **Each flag** gives where the example is in your request (`list` and `index`), its `label`, the option the model `suggested`, and both probabilities.
+- **It changes nothing:** decisio never drops or changes a label, and the task is fitted and certified on the labels as you gave them.
+  To act on a flag, check the example, correct it if it is wrong, and register again.
+- **It flags only clear cases.** On 200 examples with 10% of the labels wrong, about six in ten flags were wrong labels, and about one wrong label in five was flagged.
+  About 1.5% of correct labels were flagged overall (3.6% on the worst English set), and no language measured was clearly above 4%.
+  A flag is a reason to look, not proof; no flag does not mean every label is right.
+- **Where it applies:** choice and yes/no tasks with at least 20 labelled examples.
+  Below 20, for a score question, and on Gemma 4 31B (not yet checked there) the field says why there is no review.
+  A task whose options change with every request has none.
+- **What it costs:** five more fits of the task at registration, and, for certified tasks, one more read of the held-out examples; nothing per request.
 
 ## What you get
 
