@@ -117,17 +117,38 @@ from decisio.vllm_plugin.worker import QUALNAME as WORKER_EXTENSION  # noqa: E40
 SERVED_ENGINE = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
 
 
+def reap_children(grace_s: float = 10.0) -> int:
+    """Stop every process this one started (vLLM's engine cores, compile workers) and wait for them: SIGTERM, then
+    SIGKILL for those still running after `grace_s` (0: SIGKILL at once). Returns how many there were."""
+    try:
+        import psutil
+
+        kids = psutil.Process().children(recursive=True)
+        for k in kids:
+            (k.terminate if grace_s > 0 else k.kill)()
+        _, alive = psutil.wait_procs(kids, timeout=grace_s if grace_s > 0 else 10)
+        for k in alive:
+            k.kill()
+        psutil.wait_procs(alive, timeout=10)
+        return len(kids)
+    except Exception:
+        return 0
+
+
 def run_or_die(main):
     """Run main(); on an exception print it and exit hard. A raised exception otherwise leaves the
     process waiting on vLLM's engine subprocess with the GPU held (seen: a crashed gate hung for
-    ten minutes at 88 GB until killed by PID)."""
+    ten minutes at 88 GB until killed by PID). On a normal return (a server stopped by SIGTERM or SIGINT) the
+    processes it started are stopped too: an engine in a process of its own (--engine-process separate, the
+    default with --head-engine, --image-model and --one-engine) otherwise outlives the server, with its share of the
+    card and the --tasks-dir lock (seen: two engine cores holding 89 GB after the server had exited)."""
     import os
     import traceback
 
     from decisio.serve.mlx_memory import MemoryRefused
 
     try:
-        return main()
+        out = main()
     except BaseException as e:
         if isinstance(e, MemoryRefused):  # a refusal to start, with its numbers: no traceback to read through
             print(f"decisio: {e}", file=sys.stderr)
@@ -136,16 +157,10 @@ def run_or_die(main):
         sys.stdout.flush()
         sys.stderr.flush()
         # os._exit alone orphans vLLM's engine-core child with the GPU held (seen: 88 GB after a crash)
-        try:
-            import psutil
-
-            kids = psutil.Process().children(recursive=True)
-            for k in kids:
-                k.kill()
-            psutil.wait_procs(kids, timeout=10)
-        except Exception:
-            pass
+        reap_children(0)
         os._exit(1)
+    reap_children()
+    return out
 
 
 PAD_PLACES = ("between", "front", "user")
