@@ -1126,7 +1126,16 @@ class LettersEngine:
         return rows, n, plan
 
     def score_prompts(
-        self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, row_mm=None, row_mm_uuids=None
+        self,
+        rows,
+        adapter=None,
+        warm=(),
+        skip_cache=False,
+        mm=None,
+        mm_uuids=None,
+        row_mm=None,
+        row_mm_uuids=None,
+        extra_args=None,
     ):
         """Label distributions for fully-built prompts [(token ids, label ids)], one engine request each.
 
@@ -1142,7 +1151,9 @@ class LettersEngine:
         before any question is scheduled (a warm-up of P+1 tokens registers the state at P).
         `skip_cache`: the requests do not read the prefix cache (each computes its whole prompt), which is
         how a cold batch is made in an engine that has cached blocks: a cache reset is not enough, as
-        vLLM runs one request first and the others then hit its freshly cached prefix."""
+        vLLM runs one request first and the others then hit its freshly cached prefix.
+        `extra_args`: per row, a dict for the request's `SamplingParams.extra_args` (the hidden-state tap's key,
+        decisio.vllm_plugin.tap), or None."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
 
@@ -1164,8 +1175,9 @@ class LettersEngine:
                 allowed_token_ids=allowed_ids(lab),
                 skip_reading_prefix_cache=skip_cache or None,
                 detokenize=False,
+                **({"extra_args": extra_args[i]} if extra_args and extra_args[i] else {}),
             )
-            for _, lab in rows
+            for i, (_, lab) in enumerate(rows)
         ]
         t = time.perf_counter()
         outs = guarded(
