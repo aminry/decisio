@@ -7,8 +7,10 @@ G1  the function: softmax(log p / T); the most probable option never changes, ex
 G2  served (CPU stand-in): with the flag off (T = 1) `/v1/systemone` is the raw readout (`/v1/answer`) bit for bit;
     with it on, every answer is `apply_temperature` of that readout and no choice, yes/no side or score mode changes,
     in one and two orders
-G3  composition: a registered task's own correction replaces the temperature (not stacked); a registered task whose
-    correction was declined, and a question of no task, get the temperature
+G3  composition: a registered task's calibration works on top of the temperature, softmax(log p / T - bias), and is
+    fitted at T; a task whose correction was declined, and a question of no task, get the temperature; a calibration
+    fitted at another temperature (a record made before 0.52.0, at 1) is not applied: the question is served as without
+    the task
 
   uv run pytest -q tests/unit/test_temperature.py
 """
@@ -121,7 +123,7 @@ def test_g2_flag_off_is_todays_output_and_on_never_changes_the_choice(served):
                     assert int(np.argmax(dist(x))) == int(np.argmax(dist(y)))
 
 
-def test_g3_a_task_correction_replaces_the_temperature(served):
+def test_g3_a_task_calibration_works_on_top_of_the_temperature(served):
     from decisio.readout import calibration
     from decisio.readout.debias import log_probs
 
@@ -148,13 +150,28 @@ def test_g3_a_task_correction_replaces_the_temperature(served):
     a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
     d = a["decisio_debug"]["q1"]
     assert d["path"] == "temperature" and dist(a["answers"]["q1"]) == apply_temperature(d["p"], T).tolist()
-    # accepted: calibration on the raw readout, the temperature not stacked on it
+    # the registration fitted the calibration at the temperature the question is served at
+    assert task["calibration"]["temperature"] == T
+    # accepted: the bias on top of the temperature, softmax(log p / T - bias)
     task["calibration"] = {**task["calibration"], "applied": True, "bias": [0.7, -0.2, -0.5]}
     a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
     d = a["decisio_debug"]["q1"]
-    want = calibration.apply_task_prior(log_probs(np.array(d["p"])), task["calibration"])
+    want = calibration.apply_task_prior(log_probs(np.array(d["p"])), task["calibration"], T)
     assert d["path"] == "calibration" and dist(a["answers"]["q1"]) == want.tolist()
-    # the task was fitted on the raw readout, not the tempered one
+    # a zero bias serves exactly the untaught question
+    task["calibration"] = {**task["calibration"], "bias": [0.0, 0.0, 0.0]}
+    a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
+    assert np.allclose(dist(a["answers"]["q1"]), apply_temperature(a["decisio_debug"]["q1"]["p"], T), atol=1e-12)
+    # fitted at another temperature (a record from before 0.52.0, fitted at 1): not applied, served as untaught
+    task["calibration"] = {**task["calibration"], "bias": [0.7, -0.2, -0.5], "temperature": 1.0}
+    a = client.post("/v1/systemone", json=body, headers={"x-decisio-debug": "readout"}).json()
+    d = a["decisio_debug"]["q1"]
+    assert d["path"] == "temperature" and d["calibration_stale"] == "cal"
+    assert dist(a["answers"]["q1"]) == apply_temperature(d["p"], T).tolist()
+    listed = client.get("/v1/tasks").json()
+    assert listed["store"]["readout"]["calibration_refit"]["tasks"] == ["cal"]
+    assert "registered again" in listed["tasks"][0]["calibration_refit"]["why"]
+    # registration still reads the raw readout; the fit tempers it
     so.task_store.by_key.clear()
     r = client.post("/v1/tasks", json={"id": "cal", "examples": ex}, headers={"x-decisio-debug": "readout"})
     raw = client.post(
