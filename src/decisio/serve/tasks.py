@@ -9,7 +9,7 @@ served order, plus the instructions for yes/no and score questions, whose option
 to the list is a new task, which is re-registered.
 
   calibration   `decisio.readout.calibration`: `fit_task_prior` on the examples' K label log-scores from the served
-                readout; served as `apply_task_prior` (softmax(lp - bias)).
+                readout at the question's temperature T; served as `apply_task_prior` (softmax(lp / T - bias)).
   intent head   `decisio.readout.intent_head`: `fit_intent_head` on the examples' (lp, h) from the hidden-state readout
                 (decisio.serve.hidden_engine), for a question of at least 10 options (an intent set, not a yes/no or
                 multiple-choice question) with at least `intent_head.MIN_PER_OPTION` (2) examples of every option;
@@ -348,12 +348,15 @@ class TaskStore:
         """Every task kept for the question `key`, whatever it was fitted under or with: the one at its key first."""
         return [t for k, t in self.by_key.items() if k == key or k.startswith((key + "@", key + "~"))]
 
-    def register(self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True, context=None):
+    def register(
+        self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True, context=None, temperature=1.0
+    ):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
         server has none. Returns the stored task (`commit=False`: the fitted task, not yet stored: the caller adds a
         certificate and calls `put`, and a failure leaves the previous task in place). `context`: the task's
-        `context_record`, stored with it; the two functions read each state with it (the caller's concern)."""
+        `context_record`, stored with it; the two functions read each state with it (the caller's concern).
+        `temperature`: the one the question is served at without a task; the calibration is fitted at it."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -365,7 +368,9 @@ class TaskStore:
         labels = [gold_index(q, g) for q, _, g in examples]
         pairs = [(s, q) for q, s, _ in examples]
         lps = [log_probs(p) for p in score_fn(pairs)]
-        prior = calibration.fit_task_prior(lps, labels, fingerprint=self.fingerprint, task_id=task_id, K=len(options))
+        prior = calibration.fit_task_prior(
+            lps, labels, fingerprint=self.fingerprint, task_id=task_id, K=len(options), temperature=temperature
+        )
         prior = {**prior, "inputs_sha256": inputs_digest(lps)}
         counts = np.bincount(labels, minlength=len(options))
         if hidden_fn is None:

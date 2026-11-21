@@ -1966,14 +1966,22 @@ class SystemOne:
                     forms = info.get("label_token_logprobs")
                     if forms:  # --label-variants summed: each form's log-probability, in engine order
                         dbg[name]["form_logprobs"] = forms[at[i]]
-                if t is not None and t["calibration"].get("applied"):  # per-task calibration (reference arithmetic)
+                if t is not None and t["calibration"].get("applied") and self.calibration_stale(t, q.type, len(p)):
+                    # fitted at another temperature (a record made before 0.52.0): served as without the task, below,
+                    # and not certified
+                    if debug:
+                        dbg.setdefault(name, {}).update(calibration_stale=t["id"])
+                elif t is not None and t["calibration"].get("applied"):  # per-task calibration (reference arithmetic)
                     from decisio.readout.calibration import apply_task_prior
                     from decisio.readout.debias import log_probs
 
-                    pc = apply_task_prior(log_probs(p), t["calibration"])
+                    t_cal = self.temperature_of(q.type, None, len(p))  # the bias works on top of the temperature
+                    pc = apply_task_prior(log_probs(p), t["calibration"], t_cal)
                     if p2 is not None:  # the bias is per displayed slot: apply it in branch 2's order
                         j, perm = plan[i]
-                        shown = apply_task_prior(log_probs(np.asarray(probs[j], dtype=np.float64)), t["calibration"])
+                        shown = apply_task_prior(
+                            log_probs(np.asarray(probs[j], dtype=np.float64)), t["calibration"], t_cal
+                        )
                         p2 = np.zeros_like(p)
                         for pos, orig in enumerate(perm):
                             p2[orig] = shown[pos]
@@ -2041,6 +2049,23 @@ class SystemOne:
                         "certificate": t["certificate"]["id"],
                         "certificate_kind": "gold",
                         "certified_reason": "orders_changed",
+                    }
+                )
+            elif (
+                t is not None
+                and t.get("certificate")
+                and q.type != "score"
+                and self.calibration_stale(t, q.type, len(keys))
+            ):
+                # its calibration was fitted at another temperature (before 0.52.0): served as without the task, so not
+                # what the certificate was made on; the monitor does not count it. Registering the task again fits and
+                # certifies it at this server's temperature
+                answers[name].update(
+                    {
+                        "certified": False,
+                        "certificate": t["certificate"]["id"],
+                        "certificate_kind": "gold",
+                        "certified_reason": "calibration_refit",
                     }
                 )
             elif via.get(i) in ("learn:table", "learn:spot_check"):  # a learned table's answer: its own certificate
@@ -2178,6 +2203,15 @@ class SystemOne:
                 if lo <= options <= hi:
                     return t
         return self.temperatures.get(qtype, self.temperature)
+
+    def calibration_stale(self, t, qtype: str, options: int) -> bool:
+        """Whether a task's kept calibration was fitted at another temperature than the question is served at here
+        (every record made before 0.52.0 was fitted at 1): it is not applied, the question is served as without the
+        task, and the task's answers are not certified until it is registered again."""
+        from decisio.readout.calibration import is_current
+
+        cal = (t or {}).get("calibration") or {}
+        return bool(cal.get("applied")) and not is_current(cal, self.temperature_of(qtype, None, options))
 
     def think_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
         """The temperature an answer that thought is served at: the named adapter's think temperature for the type, else
@@ -2459,12 +2493,17 @@ class SystemOne:
                 out.append((lp, h))
             return out
 
+        from decisio.serve.tasks import answer_keys
+
+        q0 = fit_ex[0][0]
         result = self.task_store.register(
             task_id,
             fit_ex,
             score,
             hidden if self.hidden_engine is not None else None,
             key_fn=lambda q: task_key(q, render_text, self.described(q), self.noul_rendered(q)),
+            # the calibration is fitted at the temperature the question is served at without a task
+            temperature=self.temperature_of(q0.type, None, len(answer_keys(q0))),
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
@@ -3155,11 +3194,11 @@ class SystemOne:
 
             lp, h = self.hidden_engine.readout(state, [eq])[0]
             return apply_intent_head(lp, h, t["head"], t["options"])
-        if t["calibration"].get("applied"):
+        if t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
             from decisio.readout.calibration import apply_task_prior
             from decisio.readout.debias import log_probs
 
-            return apply_task_prior(log_probs(p), t["calibration"])
+            return apply_task_prior(log_probs(p), t["calibration"], self.temperature_of(q.type, None, len(p)))
         return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
 
     # ---- certified answers and their monitor (decisio.readout.certify, decisio.serve.monitor, decisio.serve.stack) --
@@ -3300,8 +3339,8 @@ class SystemOne:
             p = np.asarray(probs[0], dtype=np.float64)
             if swapped:
                 p = p[::-1].copy()
-            if t["calibration"].get("applied"):
-                p = apply_task_prior(log_probs(p), t["calibration"])
+            if t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
+                p = apply_task_prior(log_probs(p), t["calibration"], self.temperature_of(q.type, None, len(p)))
             else:
                 p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
             if commit and self.commits(q):
@@ -3703,6 +3742,8 @@ class SystemOne:
             raise ValueError(
                 f"task {task_id!r} was registered without certification: register it again with a certify block"
             )
+        if note := self.calibration_note(t):  # the stored fit itself is stale: a certificate on it would not serve
+            raise ValueError(f"task {task_id!r}: {note['why']}; {note['register_again']}")
         from decisio.readout import certify
         from decisio.serve.tasks import example_digest
 
@@ -4204,6 +4245,30 @@ class SystemOne:
         only; records written before the fields carry no model and apply, and no layout means plain."""
         return t.get("model") in (None, self.name) and (t.get("layout") or "plain") == self.request_layout
 
+    REGISTER_AGAIN = (
+        "register the task again with the same body as its registration: curl -s http://<host>:<port>/v1/tasks "
+        "-H 'Content-Type: application/json' -d @<your task>.json"
+    )
+
+    def calibration_note(self, t) -> dict | None:
+        """Why a task's kept calibration is not applied on this server, and what to do, or None: fitted at another
+        temperature than the question is served at here (every record made before 0.52.0 was fitted at 1)."""
+        from decisio.readout.calibration import fitted_temperature
+
+        options = len(t.get("options") or ())
+        if not options or not self.calibration_stale(t, t.get("type", "choice"), options):
+            return None
+        served = self.temperature_of(t.get("type", "choice"), None, options)
+        return {
+            "stale": True,
+            "why": (
+                f"its calibration was fitted at temperature {fitted_temperature(t['calibration']):g}, and this server "
+                f"serves the question at {served:g}: the task answers as without it, and is not certified, until it is "
+                "registered again (decisio 0.52.0 fits the calibration on top of the temperature)"
+            ),
+            "register_again": self.REGISTER_AGAIN,
+        }
+
     def task_store_report(self) -> dict:
         """What /health and GET /v1/tasks say about the saved tasks: where they are kept, how many are loaded, how
         many of those apply to this server's stack, and what the start loaded from where."""
@@ -4212,9 +4277,11 @@ class SystemOne:
         # a task applies to the requests of the layout it was fitted under: either layout counts
         applied = sum(1 for t in readout if store.applies(t))
         a_model = sum(1 for t in self.tasks.values() if t.get("model") not in (None, self.name))
+        stale = sorted(t["id"] for t in readout if self.calibration_note(t))
+        refit = {"calibration_refit": {"tasks": stale, "register_again": self.REGISTER_AGAIN}} if stale else {}
         return {
             "saved_to": self.task_backend.describe() if self.task_backend is not None else None,
-            "readout": {"loaded": len(readout), "applied": applied, "other_stack": len(readout) - applied},
+            "readout": {"loaded": len(readout), "applied": applied, "other_stack": len(readout) - applied, **refit},
             "abstention": {"loaded": len(self.tasks), "applied": len(self.tasks) - a_model, "other_model": a_model},
             "at_start": self.task_report,
         }
@@ -4939,6 +5006,8 @@ def add_routes(app, systemone: SystemOne):
             )
             if (t.get("certificate") or t.get("learn")) and not full:
                 item["status"] = systemone.full_status(t)
+            if not full and (note := systemone.calibration_note(t)):
+                item["calibration_refit"] = note
             listed.append(item)
         return {
             "enabled": systemone.tasks_enabled,
@@ -4960,6 +5029,8 @@ def add_routes(app, systemone: SystemOne):
         out = with_version(TaskStore.public(t), "readout", t["id"])
         if t.get("certificate") or t.get("learn"):
             out["status"] = systemone.full_status(t)
+        if note := systemone.calibration_note(t):
+            out["calibration_refit"] = note
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
     async def certify_readout(task_id: str, request: Request):

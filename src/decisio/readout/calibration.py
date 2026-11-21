@@ -7,6 +7,11 @@ the letter readout's label scores on those examples we fit one bias per answer s
 At serving time the bias is subtracted from the label scores before the softmax: one K-vector, no extra
 forward.
 
+The bias works on top of the server's temperature for the question, not instead of it: it is fitted on the label
+log-scores divided by that temperature (what the question is served at without a task), the acceptance rule compares
+it against that tempered readout, and serving is softmax(log p / T - bias). The record stores T; a record fitted at
+another temperature (every record before 0.52.0 was fitted at 1) is never applied with it (`is_current`).
+
 What makes it safe to switch on for any task is the acceptance rule. The bias is fitted with a fixed L2 penalty
 (LAMBDA) and kept only if 5-fold cross-validation on the customer's own labelled examples shows a clear gain:
 cross-validated log loss lower by at least MIN_GAIN nats per item, a one-sided 95% test on the per-item
@@ -17,8 +22,8 @@ The rule was developed on 16 internal tasks and frozen before it was validated o
 A stored prior is valid only for the model and adapter it was fitted under; `fingerprint` names them, and the
 serving side must refuse a prior whose fingerprint differs from the live model's.
 
-    prior = fit_task_prior(logps, labels)            # logps: per example, the K label log-scores in slot order
-    p = apply_task_prior(logp, prior)                # at serving
+    prior = fit_task_prior(logps, labels, temperature=T)   # logps: per example, the K label log-scores in slot order
+    p = apply_task_prior(logp, prior, temperature=T)       # at serving, at the same T
 """
 
 from __future__ import annotations
@@ -35,6 +40,21 @@ T_ACCEPT = 1.645  # and the saving must clear a one-sided 95% test on the per-it
 LAMBDA = 0.1  # L2 penalty on the bias, fixed: with ~20 examples a cross-validated choice often picked no
 # penalty and overfit (in development, 12 of 16 tasks passed with it, 16 of 16 at 0.1)
 FORMAT = record_format("task-prior")
+
+
+def tempered(logp, temperature: float = 1.0):
+    """The label log-scores at a temperature: softmax of them is the question's distribution served at it."""
+    return np.asarray(logp, dtype=np.float64) / float(temperature)
+
+
+def fitted_temperature(prior) -> float:
+    """The temperature a prior was fitted at (a record without one was fitted at 1)."""
+    return float((prior or {}).get("temperature", 1.0))
+
+
+def is_current(prior, temperature: float) -> bool:
+    """Whether a prior may be applied at this serving temperature: it was fitted at the same one."""
+    return abs(fitted_temperature(prior) - float(temperature)) <= 1e-9
 
 
 def _fit(logps, y, K, idx):
@@ -64,13 +84,15 @@ def _cv(logps, y, K, folds):
     return ll0, ll1, ok0, ok1
 
 
-def fit_task_prior(logps, labels, fingerprint="", task_id="", K=None):
+def fit_task_prior(logps, labels, fingerprint="", task_id="", K=None, temperature: float = 1.0):
     """The stored prior for one task, from its labelled examples.
 
     `logps`: per example, the label log-scores in slot order (the readout's K-way log-softmax). `labels`: the
-    gold slot per example. K defaults to the widest example. Returns a JSON-serialisable dict; "applied" says
-    whether serving should use the bias (if False the bias is all zeros and serving is unchanged).
+    gold slot per example. K defaults to the widest example. `temperature`: the one the question is served at without
+    a task; the bias is fitted, and accepted or declined, on the log-scores at it. Returns a JSON-serialisable dict;
+    "applied" says whether serving should use the bias (if False the bias is all zeros and serving is unchanged).
     """
+    logps = [tempered(lp, temperature) for lp in logps]
     y = np.asarray(labels)
     n = len(y)
     K = K or max(len(lp) for lp in logps)
@@ -82,6 +104,7 @@ def fit_task_prior(logps, labels, fingerprint="", task_id="", K=None):
         "n_examples": int(n),
         "bias": [0.0] * int(K),
         "applied": False,
+        "temperature": float(temperature),
     }
     if n < MIN_EXAMPLES:
         return {**rec, "reason": f"{n} labelled examples, at least {MIN_EXAMPLES} needed"}
@@ -119,10 +142,12 @@ def fit_task_prior(logps, labels, fingerprint="", task_id="", K=None):
     }
 
 
-def apply_task_prior(logp, prior):
-    """Serving: corrected probabilities for one question's K label log-scores (slot order)."""
-    logp = np.asarray(logp, dtype=np.float64)
-    if not prior or not prior.get("applied"):
+def apply_task_prior(logp, prior, temperature: float = 1.0):
+    """Serving: corrected probabilities for one question's K label log-scores (slot order) at the question's
+    temperature, softmax(log p / T - bias). A prior fitted at another temperature is not applied: the question is
+    served as without a task."""
+    logp = tempered(logp, temperature)
+    if not prior or not prior.get("applied") or not is_current(prior, temperature):
         return debias.apply_bias(logp, np.zeros(len(logp)))
     if len(logp) > prior["K"]:
         # more options than the prior was fitted for: its slots do not cover the question, so it is not applied
