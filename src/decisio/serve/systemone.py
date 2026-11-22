@@ -5483,10 +5483,13 @@ def add_routes(app, systemone: SystemOne):
         from fastapi.responses import PlainTextResponse
 
         log = labels_log_of(task_id)
-        synced(log)
+        stale = synced(log)
         rows = log.table()
+        headers = {"x-decisio-warning": "the task store could not be read: this replica's own view"} if stale else {}
         return PlainTextResponse(
-            "".join(json.dumps(r, default=float) + "\n" for r in rows), media_type="application/x-ndjson"
+            "".join(json.dumps(r, default=float) + "\n" for r in rows),
+            media_type="application/x-ndjson",
+            headers=headers,
         )
 
     @app.get("/metrics")

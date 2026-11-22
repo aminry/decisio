@@ -17,6 +17,9 @@ R7  through the servers: a label posted to replica B for replica A's answer, the
     409, a 503 while the store is down, the store's gc keeping a live log and removing a removed task's
 R8  (with DECISIO_TEST_S3_ENDPOINT) two logs on a real S3-compatible service: listings, create-only writes and the
     compare-and-swap of the epochs
+R11 a read that fails after the listing loses nothing: once the store is back every row is held (the listing moves
+    only past files read); a file name with a long sequence parses; a label for an id no replica ever holds is dropped
+    after its due window and counted
 
   uv run pytest -q tests/unit/test_labels_replicas.py
 """
@@ -247,6 +250,8 @@ def test_r7_two_replicas_a_reader_and_the_store_gc():
     assert w.status_code == 503, w.text
     st = cb.get("/v1/tasks/angry/labels/status").json()
     assert st["synced"] is False and st["states"] == {"labelled": 1}
+    exp = cb.get("/v1/tasks/angry/labels/export")
+    assert exp.status_code == 200 and "x-decisio-warning" in exp.headers  # a stale view says so
     log.place.objects.down = False
     # the store's gc keeps a live task's log, and removes a removed task's
     assert not [p for p in ba.gc(older_than_days=-1, dry_run=True) if p.startswith("labels/")]
@@ -284,3 +289,43 @@ def test_r8_two_label_logs_on_a_real_s3_compatible_service():
     assert len(stored) == 3 and a.epoch["epoch"] == 2
     for path in objects.list(PREFIX):
         objects.delete(path)
+
+
+def test_r11_a_failed_read_after_the_listing_loses_nothing():
+    a, b, objects = _pair(audit_pi=1.0)
+    first = [_serve(a, f"one{i}")[0] for i in range(3)]
+    a.flush(force=True)
+    second = [_serve(a, f"two{i}")[0] for i in range(3)]
+    a.flush(force=True)  # two row segments from replica a
+    real_get, calls = objects.inner.get, {"n": 0}
+
+    def flaky_get(path, *args):
+        if "/rows/" in path:
+            calls["n"] += 1
+            if calls["n"] == 2:  # the store drops after the listing, on the second segment
+                raise TB.TaskStoreUnavailable("the task store cannot be reached")
+        return real_get(path, *args)
+
+    objects.inner.get = flaky_get
+    with pytest.raises(TB.TaskStoreUnavailable):
+        b.sync()
+    objects.inner.get = real_get
+    b.sync()
+    assert {k[0] for k in b.rows} == set(first + second)
+    # a file name whose sequence outgrew its width still parses
+    place = b.place
+    assert place._split("rows/1800000000000-1000000-host-a-1.jsonl") == ("rows", "1800000000000-1000000", "host-a-1")
+    with pytest.raises(LB.LabelsError):
+        place._split("rows/oops.jsonl")
+
+
+def test_r11b_a_label_for_an_id_no_replica_holds_expires():
+    clock = Clock()
+    a, b, _ = _pair(clock=clock, audit_pi=1.0)
+    made_up = LB.request_id("host-a-1", clock.t)  # well formed, from another replica, never served
+    assert b.post([{"request_id": made_up, "answer": "billing"}])["results"][0]["status"] == "not_joined"
+    b.sync()
+    assert b.counts()["not_joined"] == 1
+    clock.t += 15 * 86400
+    b.sync()
+    assert b.counts()["not_joined"] == 0 and b.counts()["unjoined_expired"] == 1

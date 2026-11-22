@@ -40,6 +40,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -184,6 +185,17 @@ def request_id(replica: str, now: float | None = None) -> str:
     return f"{replica}-{ulid(now)}"
 
 
+def rid_time(rid: str) -> float | None:
+    """The time a request id was issued (its ULID's milliseconds), or None when it is not one of ours."""
+    tail = str(rid).rsplit("-", 1)[-1]
+    if "-" not in str(rid) or len(tail) != 26 or any(c not in _CROCKFORD for c in tail):
+        return None
+    ms = 0
+    for c in tail[:10]:
+        ms = ms * 32 + _CROCKFORD.index(c)
+    return ms / 1000.0
+
+
 def state_text(state) -> str:
     """A request's state as the text its digest is made of: a string as it is, anything else as compact JSON with
     sorted keys and unescaped Unicode (`json.dumps(state, sort_keys=True, separators=(",", ":"),
@@ -318,6 +330,7 @@ class TaskLabels:
         self.revisions = 0  # labels that replaced a different answer (a sign of label noise)
         self.invalid_on_join = 0  # labels joined to a row whose options do not include their answer: ignored
         self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
+        self.unjoined_expired = 0  # labels for ids no replica's row ever joined, dropped after their due window
         self._pending_rows: list[dict] = []
         self._last_flush = clock()
         self._seq = 0
@@ -337,7 +350,7 @@ class TaskLabels:
         """A new file's name: time-ordered for this replica (the milliseconds never go back), and the replica's own."""
         self._seq += 1
         self._last_ms = max(self._last_ms, int(self.clock() * 1000))
-        return f"{kind}/{self._last_ms:013d}-{self._seq:06d}-{self.replica}.jsonl"
+        return f"{kind}/{self._last_ms:013d}-{self._seq:09d}-{self.replica}.jsonl"
 
     def sync(self) -> None:
         """Read what the place holds that this log has not: the epochs, and every replica's new row and event files
@@ -350,11 +363,16 @@ class TaskLabels:
                     if len(epochs) > len(self.epochs):
                         self.epochs = epochs
             for kind in ("rows/", "events/"):
+                advance = getattr(self.place, "advance", None)  # a shared store's listing resumes after what was read
                 for name in self.place.names(kind):
                     if name in self._read:
+                        if advance:
+                            advance(name)
                         continue
-                    data = self.place.get(name)
-                    if data is None:
+                    data = self.place.get(name)  # a failure raises here: the listing stays before this file
+                    if data is None:  # gone since the listing (merged elsewhere): nothing to read
+                        if advance:
+                            advance(name)
                         continue
                     items = [json.loads(x) for x in data.decode().splitlines() if x.strip()]
                     with self._lock:
@@ -363,6 +381,8 @@ class TaskLabels:
                         for it in items:
                             (self._index if kind == "rows/" else self._apply)(it)
                         self._read.add(name)
+                    if advance:
+                        advance(name)
             with self._lock:
                 self._join_parked()
                 while len(self.rows) > self.settings["max_rows"] and self._evict():
@@ -455,11 +475,17 @@ class TaskLabels:
         return True
 
     def _join_parked(self) -> None:
+        """Join the parked labels whose rows are known now; drop, and count as `unjoined_expired`, those whose
+        request is older than `due_days` and a few listing turns: no replica will write that row any more, so the
+        id was mistyped or made up."""
         for rid in [r for r in self._parked if r in self.by_rid]:
             waiting = self._parked.pop(rid)
             left = [ev for ev in waiting if not self._attach(ev)]
             if left:
                 self._parked[rid] = left
+        horizon = self.clock() - self.settings["due_days"] * 86400 - 3 * (SEGMENT_SECONDS + FLUSH_EVERY)
+        for rid in [r for r in self._parked if (rid_time(r) or 0.0) < horizon]:
+            self.unjoined_expired += len(self._parked.pop(rid))
 
     def _write_events(self, events: list[dict]) -> None:
         """Write events to the place, then add them to the log: a write that fails raises and leaves the log as it
@@ -677,16 +703,10 @@ class TaskLabels:
 
     def _elsewhere(self, rid: str) -> bool:
         """A request id another replica of a shared store issued, within the time its row could still be kept."""
-        if not self.shared or "-" not in rid:
+        t = rid_time(rid)
+        if not self.shared or t is None or rid.rsplit("-", 1)[0] == self.replica:
             return False
-        replica, tail = rid.rsplit("-", 1)
-        if replica == self.replica or len(tail) != 26 or any(c not in _CROCKFORD for c in tail):
-            return False
-        ms = 0
-        for c in tail[:10]:
-            ms = ms * 32 + _CROCKFORD.index(c)
-        age = self.clock() - ms / 1000.0
-        return -86400 < age < self.settings["due_days"] * 86400
+        return -86400 < self.clock() - t < self.settings["due_days"] * 86400
 
     def decline(self, refs) -> dict:
         """The client will not label these drawn requests: they leave the queue and count as missing."""
@@ -781,6 +801,8 @@ class TaskLabels:
                 out["invalid_on_join"] = self.invalid_on_join
             if self.unsaved:
                 out["unsaved_rows"] = self.unsaved
+            if self.unjoined_expired:
+                out["unjoined_expired"] = self.unjoined_expired
             return out
 
     def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
@@ -855,6 +877,9 @@ def assert_disjoint(fit_ids, cert_ids) -> None:
 # ---- a shared task store -------------------------------------------------------------------------------------------
 
 
+_FILE_NAME = re.compile(r"^(rows|events)/(\d{13}-\d+)-(.+)\.jsonl$")
+
+
 def shared_prefix(task_digest: str, salt: str) -> str:
     """A registration's label log on a shared task store: `labels/<task digest>/<first 12 of its salt>/`."""
     return f"labels/{task_digest}/{salt[:12]}/"
@@ -884,9 +909,11 @@ class SharedPlace:
 
     @staticmethod
     def _split(name: str) -> tuple[str, str, str]:
-        """`rows/<ms>-<seq>-<replica>.jsonl` -> ("rows", "<ms>-<seq>", "<replica>")."""
-        kind, rest = name.split("/", 1)
-        return kind, rest[:20], rest[21 : -len(".jsonl")]
+        """`rows/<ms>-<seq>-<replica>.jsonl` -> ("rows", "<ms>-<seq>", "<replica>"), whatever the sequence's width."""
+        m = _FILE_NAME.match(name)
+        if m is None:
+            raise LabelsError(f"not a label log file name: {name!r}")
+        return m.group(1), m.group(2), m.group(3)
 
     def _path(self, name: str) -> str:
         if name == "EPOCHS.json":
@@ -904,19 +931,27 @@ class SharedPlace:
         return None if got is None else got[0]
 
     def names(self, prefix: str) -> list[str]:
-        """The files of one kind (`rows/` or `events/`) written since the last call, as `TaskLabels` names them."""
+        """The files of one kind (`rows/` or `events/`) after each replica's cursor, as `TaskLabels` names them. The
+        cursor does not move here: `advance` moves it past a file once it has been read, so a read that fails leaves
+        that file and every later one to be listed again."""
         kind = prefix.rstrip("/")
         out = []
         for rdir in self.objects.prefixes(self.prefix):
             replica = rdir[len(self.prefix) :].strip("/")
             at = f"{self.prefix}{replica}/{kind}/"
-            got = self.objects.list(at, offset=self._after.get(f"{replica}/{kind}"))
-            for path in got:
+            for path in self.objects.list(at, offset=self._after.get(f"{replica}/{kind}")):
                 stem = path[len(at) :].removesuffix(".jsonl")
                 out.append(f"{kind}/{stem}-{replica}.jsonl")
-            if got:
-                self._after[f"{replica}/{kind}"] = got[-1]
         return sorted(out)
+
+    def advance(self, name: str) -> None:
+        """The file `name` has been read (or is gone): its replica's listing resumes after it. Files of one replica
+        are read in name order and a failed read stops the reading, so nothing before the cursor is left unread."""
+        kind, stem, replica = self._split(name)
+        path = f"{self.prefix}{replica}/{kind}/{stem}.jsonl"
+        key = f"{replica}/{kind}"
+        if path > self._after.get(key, ""):
+            self._after[key] = path
 
     def swap(self, name: str, fn, races: int = 8) -> list:
         """Move a shared object by compare-and-swap: `fn(current or None)` gives the new value, or None to keep it.
