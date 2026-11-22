@@ -59,7 +59,9 @@ CONTEXT_FORMAT = "decisio-task/2"
 CERTIFICATE_FORMAT = record_format("certificate")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
 # the question types a head is fitted for: every type and size is tested before a head serves it, and score questions
-# (an ordinal answer, served as the expected level) are not yet, so a score task gets calibration alone
+# (an ordinal answer, served as the expected level) are not yet, so a score task gets calibration alone. "noul" is
+# listed for heads already stored (0.54.0 reads a stored yes/no head in the served key order); a new registration fits
+# none, because a yes/no question has two options and MIN_OPTIONS_FOR_HEAD is 10
 HEAD_TYPES = frozenset({"choice", "noul"})
 SCORE_HEAD_REASON = (
     "the head is not fitted for score questions: it has not been tested on an ordinal answer, so a score task gets "
