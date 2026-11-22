@@ -54,6 +54,9 @@ L24 a task certified at alpha 0.01 or below needs labels on at least 5% of its a
     overview reports the share drawn and warns below it
 L25 status.budget gives the labels a day expected at the measured rate and flags spending above per_day (the 0.02
     floor on heavy traffic); the rate counts an answer once, also when it is read again after max_rows dropped it
+L26 detection at a strict alpha: the claim holds when the split's q (audit or cert, in the region) reaches the
+    validated reference (10/80/10/0 at 5%); otherwise the exact warning and what would reach it; never for a
+    lenient alpha
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -713,3 +716,26 @@ def test_l25_the_budget_shows_overspend_and_the_rate_counts_once():
     assert tl._evict()  # dropped past max_rows
     tl._index(row)  # read again from a merged file
     assert tl.rate() == rate  # not counted twice
+
+
+def test_l26_the_detection_claim_needs_the_reference_q():
+    ref = LB.reference_q(0.8)
+    assert ref == pytest.approx(1 - (1 - 0.005) * (1 - 0.05))
+    explicit = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.02, "margin_pi_max": 0.2})
+    d = LB.detection(explicit, 0.8)
+    assert d["validated"] is False and d["warning"] == "drift detection speed has not been validated for this split"
+    assert "claim" not in d and LB.region_q(0.02, d["needed"]["cert_pi"]) == pytest.approx(ref, abs=1e-3)
+    strict = {**LB.parse_settings(True), "shares": dict(LB.STRICT_SHARES)}
+    strict.update(LB.budget_pis(strict, rate=400, region_share=0.8, margin_weight=0.5))  # labels on 5%: 20 of 400
+    assert LB.detection(strict, 0.8)["validated"] is True and "claim" in LB.detection(strict, 0.8)
+    custom = {**LB.parse_settings({"shares": {"audit": 0.5, "cert": 0.2, "margin": 0.3, "typical": 0.0}})}
+    custom.update(LB.budget_pis(custom, rate=4_000, region_share=0.8, margin_weight=0.5))
+    d = LB.detection(custom, 0.8, rate=4_000)
+    assert d["validated"] is False and d["needed"]["label_share"] > 0.05 and d["needed"]["per_day"] > 20
+    block = LB.registration_block({"settings": explicit, "secret": LB.new_secrets()}, "memory", alpha=0.01)
+    assert block["detection"]["validated"] is False and LB.DETECTION_UNVALIDATED in block["warnings"]
+    assert "detection" not in LB.registration_block({"settings": explicit, "secret": LB.new_secrets()}, "memory", 0.05)
+    tl = _task(audit_pi=0.02, cert_pi=0.02, margin_pi_max=0)
+    assert tl.detection() is None  # no certificate known yet
+    tl.cert_alpha = 0.01
+    assert tl.overview()["detection"]["warning"] == LB.DETECTION_UNVALIDATED

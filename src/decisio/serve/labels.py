@@ -306,6 +306,54 @@ def most_labelled(s: dict) -> float:
     return min(1.0, s["audit_pi"] + s["cert_pi"] * s["region"] + s["margin_pi_max"] + s.get("typical_pi_max", 0.0))
 
 
+DETECTION_CLAIM = "a rising error is caught within a median of 100 wrong certified answers"
+DETECTION_UNVALIDATED = "drift detection speed has not been validated for this split"
+REFERENCE_BUDGET = 0.05  # the validated strict configuration: STRICT_SHARES with labels on 5% of answers
+
+
+def region_q(audit_pi: float, cert_pi: float) -> float:
+    """q: the chance an answer in the certified region is drawn by audit or cert (what the drift check's power rests
+    on)."""
+    return 1.0 - (1.0 - floor_pi(audit_pi)) * (1.0 - floor_pi(cert_pi))
+
+
+def reference_q(region_share: float) -> float:
+    """The q of the validated strict configuration (shares 10/80/10/0, labels on 5% of answers) over a region that
+    covers `region_share` of traffic."""
+    a = STRICT_SHARES["audit"] * REFERENCE_BUDGET
+    c = min(1.0, STRICT_SHARES["cert"] * REFERENCE_BUDGET / max(region_share, 1e-9))
+    return 1.0 - (1.0 - a) * (1.0 - c)
+
+
+def detection(s: dict, region_share: float, rate: float | None = None) -> dict:
+    """For a task certified at `STRICT_ALPHA` or below: whether its split labels its certified answers at least as
+    often as the validated configuration (q at least the reference), so that the detection claim holds; and when not,
+    what would reach it (`cert_pi`, or with a budget the share of answers to label). A shortfall never touches the
+    certificate: the certificate needs only uniform labels in the region with recorded chances."""
+    q, ref = region_q(s["audit_pi"], s["cert_pi"]), reference_q(region_share)
+    out = {
+        "q": round(q, 4),
+        "q_reference": round(ref, 4),
+        "region_share": round(region_share, 4),
+        "validated": q >= ref,
+    }
+    if out["validated"]:
+        out["claim"] = DETECTION_CLAIM
+        return out
+    out["warning"] = DETECTION_UNVALIDATED
+    out["needed"] = {"cert_pi": round(min(1.0, 1.0 - (1.0 - ref) / (1.0 - floor_pi(s["audit_pi"]))), 4)}
+    if s.get("per_day") is not None:  # the share of answers to label with this split's shares that reaches the q
+        lo, hi = 0.0, 1.0
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            pis = budget_pis({**s, "per_day": mid}, rate=1.0, region_share=region_share, margin_weight=0.5)
+            lo, hi = (lo, mid) if region_q(pis["audit_pi"], pis["cert_pi"]) >= ref else (mid, hi)
+        out["needed"]["label_share"] = round(hi, 4)
+        if rate:
+            out["needed"]["per_day"] = round(hi * rate, 1)
+    return out
+
+
 def strict_check(s: dict, alpha: float | None) -> tuple[str | None, list[str]]:
     """For a task certified at `STRICT_ALPHA` or below, which needs labels on at least `STRICT_MIN_SHARE` of its
     answers: (an error for explicit chances that cannot reach it, warnings for a budget that must keep up with
@@ -351,6 +399,9 @@ def registration_block(rec: dict, location: str, alpha: float | None = None) -> 
     here only), and the queue's first view (empty until the task has answered)."""
     s = rec["settings"]
     warnings = strict_check(s, alpha)[1]
+    det = detection(s, s["region"]) if alpha is not None and float(alpha) <= STRICT_ALPHA else None
+    if det and not det["validated"]:
+        warnings.append(DETECTION_UNVALIDATED)
     floor = budget_floor(s)
     if floor and s["tau_after"] > floor["above_answers_per_day"]:  # the assumed first day already overspends
         warnings.append(f"the audit and cert chances never go below {PI_MIN}: at the assumed {s['tau_after']} answers "
@@ -360,6 +411,7 @@ def registration_block(rec: dict, location: str, alpha: float | None = None) -> 
         **disclosure(s, location),
         **({"warnings": warnings} if warnings else {}),
         **({"budget_floor": floor} if floor else {}),
+        **({"detection": det} if det else {}),
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
@@ -1564,6 +1616,19 @@ class TaskLabels:
             r["strict_error"] = r["state"] != "labelled" or not r["correct"]
         return out
 
+    def detection(self) -> dict | None:
+        """`detection` for this task, if it is certified at a strict alpha: the epoch's chances against the reference,
+        over the region's measured share of traffic (the setting's until answers are held)."""
+        if self.cert_alpha is None or float(self.cert_alpha) > STRICT_ALPHA:
+            return None
+        with self._lock:
+            rows = list(self.rows.values())
+            tau = self.epoch["tau_min"]
+            share = (sum(r["conf"] >= tau for r in rows) / len(rows)) if rows and _tau_set(self.epoch) else None
+            s = self.settings
+            rate = self.rate() if rows else None
+        return detection(s, share if share is not None else s["region"], rate)
+
     def overview(self, top_langs: int = 20) -> dict:
         """What status adds to the counts: the response rate of drawn answers (labelled among those labelled,
         expired or declined), the audit slice's accuracy with a 90% Clopper-Pearson interval (on labelled answers, and
@@ -1629,6 +1694,7 @@ class TaskLabels:
             "since_last_label_s": None if last is None else round(now - last, 1),
             "languages": {k: langs[k] for k in busiest},
             "label_share": None if share is None else round(share, 4),
+            **({"detection": det} if (det := self.detection()) else {}),
             **({"warnings": warnings} if warnings else {}),
         }
 
