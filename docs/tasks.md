@@ -338,6 +338,7 @@ They leave every view at once.
 The answer says `erased`, with how many logged answers and labels it `matched`; an id that is not a request id is refused (422).
 The bytes go at the labels thread's next turn (within 10 seconds on one server; on a shared store at the next merge, 30 seconds after the erasure or more), and `status.erasures` counts them as `purged` then; many erasures are purged in one rewrite.
 What is kept of an erasure is the request id it erased, an opaque id, and its time.
+`ttl_days` (default none) erases, the same way, every answer and label older than that many days, at most once an hour; it is at least `due_days`.
 
 **The draw.**
 Each answered question is drawn independently into three slices, by a keyed hash of its request id, so every replica draws the same:

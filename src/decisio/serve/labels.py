@@ -70,6 +70,7 @@ DEFAULTS = {
     "region": 0.8,  # the share of traffic the cert region covers at least once tau_min is set (lenient alphas)
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
+    "ttl_days": None,  # answers and labels older than this are erased (None: kept until erased or dropped by max_rows)
     "max_rows": 50_000,
     "reservoir": 2_000,  # undrawn answers that keep their served distribution: a uniform sample, about this many
     "per_day": 20,  # labels a day the chances aim at (None: the chances above as given); a place to start
@@ -139,6 +140,9 @@ def parse_settings(block) -> dict | None:
         raise LabelsError("labels.margin_pi_min is at most labels.margin_pi_max")
     if not 0 < float(s["margin_scale"]) <= 1 or not 0 < float(s["region"]) <= 1:
         raise LabelsError("labels.margin_scale and labels.region are fractions above 0 and at most 1")
+    if s["ttl_days"] is not None and (isinstance(s["ttl_days"], bool) or not isinstance(s["ttl_days"], (int, float))
+                                      or s["ttl_days"] < s["due_days"]):  # fmt: skip
+        raise LabelsError("labels.ttl_days is a number of days at least due_days, or null to keep answers")
     for k in ("tau_after", "due_days", "max_rows", "reservoir", "typical_labels"):
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
@@ -277,7 +281,12 @@ def disclosure(settings: dict, location: str) -> dict:
         "text_stored": False,
         "features": s["features"],
         "stored_fields": stored_fields(s),
-        "retention": {"max_rows": s["max_rows"], "due_days": s["due_days"], "deleted_with_task": True},
+        "retention": {
+            "max_rows": s["max_rows"],
+            "due_days": s["due_days"],
+            "ttl_days": s.get("ttl_days"),
+            "deleted_with_task": True,
+        },
         "location": location,
         "settings": s,
         "stores": stores(s),
@@ -598,6 +607,7 @@ class TaskLabels:
         self._maybe_tau()
         self._maybe_rebudget()
         self._maybe_typical()
+        self._maybe_expire()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
             self.compact()
@@ -804,6 +814,22 @@ class TaskLabels:
                            "budget": b["budget"], "why": why, "by": self.replica}]  # fmt: skip
 
         self._adopt(self._swap_epochs(add))
+
+    def _maybe_expire(self) -> None:
+        """With `ttl_days`: erase what is older, at most once an hour, through the erase path (an erase event, then
+        the purge at the merge), so expiry and erasure leave the same trace."""
+        ttl = self.settings.get("ttl_days")
+        if ttl is None or not self.writes:
+            return
+        now = self.clock()
+        if now - getattr(self, "_last_expiry", float("-inf")) < 3600:
+            return
+        self._last_expiry = now
+        cutoff = now - float(ttl) * 86400
+        with self._lock:
+            old = any(r["t"] < cutoff for r in self.rows.values()) and cutoff > self._erased_before
+        if old:
+            self.erase(before=cutoff)
 
     def typical_labelled(self) -> int:
         with self._lock:

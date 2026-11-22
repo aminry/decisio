@@ -45,6 +45,8 @@ L20 the typical slice: levels from the reservoir rank a typical input above an o
     the student reads a bounded prefix of the input
 L21 the overview: the response rate, the audit accuracy and its strict form with their intervals, the last label,
     and per language the counts and the labels still needed; days to the need at the region's label rate
+L22 ttl_days: answers and labels older than it are erased by the labels thread, at most once an hour, through the
+    erase path; it is at least due_days
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -624,3 +626,21 @@ def test_l21_the_overview():
     assert n["region_labels_per_day"] == pytest.approx(8 / 7, abs=0.01) and n["days_if_no_error"] == pytest.approx(
         n["more_if_no_error"] / (8 / 7), abs=0.1)  # fmt: skip
     assert LB.accuracy_interval(0, 0) is None and LB.accuracy_interval(5, 5)[1] == 1.0
+
+
+def test_l22_ttl_days():
+    with pytest.raises(LB.LabelsError):
+        LB.parse_settings({"ttl_days": 7})  # under due_days (14)
+    clock = Clock()
+    tl = _task(clock=clock, audit_pi=1.0, ttl_days=30)
+    old = [_serve(tl, f"old{i}", [0.7, 0.2, 0.1])[0] for i in range(3)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in old])
+    clock.t += 20 * 86400
+    new = _serve(tl, "new", [0.7, 0.2, 0.1])[0]
+    tl.tick()
+    assert {k[0] for k in tl.rows} == set(old) | {new}  # nothing is 30 days old yet
+    clock.t += 11 * 86400
+    tl.tick()
+    assert {k[0] for k in tl.rows} == {new} and tl.counts()["erasures"]["erased"] == 1
+    tl.tick()
+    assert tl.counts()["erasures"]["erased"] == 1  # once an hour at most, and only when something is old
