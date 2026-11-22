@@ -376,6 +376,7 @@ class TaskStore:
         head_reader=None,
         n_request=None,
         large_types=(),
+        label_settings=None,
     ):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
@@ -388,7 +389,9 @@ class TaskStore:
         `n_request`: how many labelled examples the registration request gave, before a certificate's held-out split
         (`len(examples)` when absent). `large_types`: the question types (the base's `large_calibration_types`) whose
         calibration, from `calibration.min_examples_for_fit(K)` of them, is the temperature and bias fitted together
-        (`calibration.fit_large_prior`); every other task keeps the gated bias."""
+        (`calibration.fit_large_prior`); every other task keeps the gated bias. `label_settings`: the task's label
+        settings and secrets ({"settings", "secret"}, decisio.serve.labels), stored with it, or None: the task logs
+        nothing."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -481,6 +484,8 @@ class TaskStore:
         }
         if context is not None:
             task["context"] = context
+        if label_settings is not None:
+            task["labels"] = label_settings
         if commit:
             self.put(task)
         return task, {"lps": lps, "labels": labels, "readout": readout}
@@ -654,6 +659,8 @@ class TaskStore:
             out["fast_table"] = ft
         if task.get("context") and not full:  # the listing says how long the context is and its digest, never its text
             out["context"] = {k: v for k, v in task["context"].items() if k != "text"}
+        if task.get("labels") and not full:  # the listing names the settings, never the label secrets
+            out["labels"] = {"settings": task["labels"]["settings"]}
         cert = task.get("certificate")
         if cert and not full:  # the held-in digests are for re-certification; the listing says how many there are
             split = dict(cert["split"])

@@ -31,8 +31,10 @@ import functools
 import hashlib
 import json
 import logging
+import os
 import random
 import re
+import secrets
 import threading
 import time
 from collections import OrderedDict
@@ -53,6 +55,7 @@ from decisio.serve import fast_table as FT
 from decisio.serve import fast_table_learn as FTL
 from decisio.serve import header_questions as hq
 from decisio.serve import image_marks as marks
+from decisio.serve import labels as LB
 from decisio.serve import layout as lay
 from decisio.serve import over_limit as over
 from decisio.serve import think as thinking
@@ -1067,6 +1070,11 @@ class SystemOne:
             from decisio.serve import fast_table_replicas as FTR
 
             shared = FTR.Shared(FTR.Objects(task_backend.store), readonly=task_backend.readonly)
+        # the label logs of the tasks that ask for labels (decisio.serve.labels): beside learn/ under --tasks-dir,
+        # else in memory (lost at restart; a shared store's replicas keep theirs in memory too, for now)
+        self.labels_root = (Path(task_backend.describe()["path"]) / "labels") if backend_kind == "dir" else None
+        self.labels_logs: dict = {}
+        self.labels_replica = os.environ.get("DECISIO_REPLICA") or secrets.token_hex(3)
         self.learning = FTL.Learning(
             root,
             stack_sha=lambda layout=None: stack_sha256(self.stack_under(layout))[:16],
@@ -1887,18 +1895,23 @@ class SystemOne:
         ]
         # before[i]: a yes/no answer's distribution before --noul-commit moved it, which the confidence monitor reads
         served, via, learned, before = {}, {}, {}, {}
+        plain_of = {}  # per question: (the plain readout's label log-probabilities, h), for a task that logs labels
         task_ms, task_reads = 0.0, []
         if own:
             self._reads.infos = task_reads
             t_task = time.perf_counter()
             try:
                 for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
+                    # served_rows leaves its plain readout here for a task that logs labels (labels.TaskLabels.observe)
+                    self._reads.plain = [] if (rts[i] or {}).get("labels") else None
                     p, via[i], learned[i] = self.serve_row(rts[i], req.state, wire[i], learn=cut is None)
+                    plain_of[i] = (self._reads.plain or [None])[-1]
                     if self.commits(wire[i]):  # whoever answered, the commit rule last; the monitor reads before it
                         before[i], p = p, commit_noul(p)
                     served[i] = p
             finally:
                 self._reads.infos = None
+                self._reads.plain = None
             task_ms = (time.perf_counter() - t_task) * 1000
         head = [
             i
@@ -1971,6 +1984,7 @@ class SystemOne:
                 from decisio.readout.intent_head import apply_intent_head
 
                 lp, h = hidden[i]
+                plain_of[i] = (np.asarray(lp, dtype=np.float64), h)
                 p = apply_intent_head(lp, h, t["head"], t["options"])
                 if debug:
                     dbg.setdefault(name, {}).update(path="head", task=t["id"], hidden_lp=lp.tolist(), h=h.tolist())
@@ -1978,6 +1992,8 @@ class SystemOne:
                 p = np.asarray(probs[at[i]], dtype=np.float64)
                 if swapped[i]:  # read false first; from here on (yes, no), as every yes/no readout
                     p, keys = p[::-1].copy(), ["yes", "no"]
+                with np.errstate(divide="ignore"):
+                    plain_of[i] = (np.log(p), None)
                 if i in second:  # an unsure question: the plain read and the read after reasoning, mixed in log space
                     if debug:
                         dbg.setdefault(name, {}).update(think_p1=p.tolist(), think_lp2=second[i].tolist())
@@ -2173,6 +2189,7 @@ class SystemOne:
         if think_report is not None:  # the generated tokens are output tokens, and said so
             usage["output_tokens"] += think_report["tokens"]
             usage["thinking_tokens"] = think_report["tokens"]
+        first_id = self.label_answers(req, names, wire, rts, answers, plain_of)
         out = {
             "model": self.name if self.flavor else req.model or self.name,
             "answers": answers,
@@ -2224,6 +2241,8 @@ class SystemOne:
             out["_timing"]["think_ms"] = think_ms
             out["_timing"]["think_tokens"] = think_report["tokens"]
             out["_timing"]["stages"]["think"] = think_ms
+        if first_id is not None:
+            out["_timing"]["request_id"] = first_id  # the x-decisio-request-id header: the first logged question's id
         if debug and self.debug_readout:
             out[DEBUG_KEY] = dbg
         return out
@@ -2497,6 +2516,7 @@ class SystemOne:
         fast_table: bool | dict = False,
         learn: dict | None = None,
         context: str | None = None,
+        labels: dict | None = None,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
@@ -2509,6 +2529,8 @@ class SystemOne:
         every refit's fit and give its gold certificate (decisio.serve.fast_table_learn).
         `layout=`: the layout the task is fitted under (`_in_layout`; the server's by default): its reads, its
         fingerprint and its certificate are that layout's, and it applies to the requests of that layout only.
+        `labels` (`decisio.serve.labels.parse_settings`'s settings, or None): the task logs its answers and takes labels
+        from traffic; nothing is logged without it.
         `context`: the text read before every state of the task (`decisio.serve.tasks.serialise_context`), the
         examples' included, so the task is fitted, certified and timed on what it serves.
         A yes/no task's table is a two-class one whose P(yes) is calibrated on the fit examples by cross-fitting
@@ -2573,6 +2595,8 @@ class SystemOne:
             head_reader=getattr(self.hidden_engine, "reader", None),
             n_request=len(full),  # the request's labelled examples, before the held-out split
             large_types=self.large_calibration_types,
+            # opted in (decisio.serve.labels): its settings and two new secrets; a task registered again gets new ones
+            label_settings=None if labels is None else {"settings": labels, "secret": LB.new_secrets()},
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
@@ -3127,6 +3151,92 @@ class SystemOne:
             rt = cache[t["id"]] = FT.Runtime(ft, self.fast_table_stack(FT.record_features(ft)), commit_band=band)
         return rt
 
+    def labels_log(self, t):
+        """Task t's label log (decisio.serve.labels.TaskLabels), opened on first use, or None for a task that does
+        not ask for labels. A task registered again (new secrets) starts a new log."""
+        from decisio.serve.fast_table_learn import DirPlace, MemoryPlace
+
+        rec = (t or {}).get("labels")
+        if not rec:
+            return None
+        log = self.labels_logs.get(t["id"])
+        if log is None or log.secret != rec["secret"]:
+            if self.labels_root is not None:
+                place = DirPlace(self.labels_root / FTL.task_digest(t["id"]) / rec["secret"]["salt"][:12])
+            else:
+                place = MemoryPlace()
+            log = LB.TaskLabels(t["id"], rec["settings"], rec["secret"], place, self.labels_replica)
+            self.labels_logs[t["id"]] = log
+            self._start_labels_flusher()
+        return log
+
+    def _start_labels_flusher(self) -> None:
+        """A daemon thread writing the label logs' buffered rows every `LB.FLUSH_EVERY` seconds, off the request path
+        (a log writes a segment when it is due: `LB.SEGMENT_ROWS` rows or `LB.SEGMENT_SECONDS`), and every row at
+        exit."""
+        if getattr(self, "_labels_flusher", None) is not None:
+            return
+        import atexit
+
+        def loop():
+            while True:
+                time.sleep(LB.FLUSH_EVERY)
+                self.flush_labels()
+
+        self._labels_flusher = threading.Thread(target=loop, name="decisio-labels-flush", daemon=True)
+        self._labels_flusher.start()
+        atexit.register(self.flush_labels, True)
+
+    def flush_labels(self, force: bool = False) -> None:
+        for log in list(self.labels_logs.values()):
+            try:
+                log.flush(force)
+            except Exception as e:  # a full disk must not stop serving; the rows stay buffered for the next try
+                logger.warning("labels: could not write the log of task %s: %s", log.task_id, e)
+
+    def drop_labels(self, task_id: str) -> None:
+        """A removed task's label log goes with it: its rows, its labels and its files."""
+        log = self.labels_logs.pop(task_id, None)
+        if log is not None and hasattr(log.place, "remove_all"):
+            log.place.remove_all()
+
+    def label_answers(self, req, names, wire, rts, answers, plain_of) -> str | None:
+        """Log every answered question of a task that asks for labels, and give its answer a request id (and
+        `label_requested` when the draw chose it); the first id, or None when no question was logged."""
+        from decisio.serve.tasks import answer_keys
+
+        first = None
+        text = None
+        lang = ((req.model_extra or {}).get("meta") or {}).get("lang")
+        for i, name in enumerate(names):
+            t = rts[i]
+            log = self.labels_log(t) if t is not None else None
+            a = answers.get(name)
+            if log is None or not isinstance(a, dict):
+                continue
+            q = wire[i]
+            keys = answer_keys(q)
+            if "noul" in a:
+                p = [float(a["noul"]), 1.0 - float(a["noul"])]
+            elif isinstance(a.get("probabilities"), dict):
+                p = [float(a["probabilities"][k]) for k in keys]
+            else:
+                continue
+            text = LB.state_text(req.state) if text is None else text
+            plain = plain_of.get(i)
+            rid = LB.request_id(self.labels_replica)
+            add = log.observe(
+                rid, name, text=text, keys=keys, served=p,
+                lp=None if plain is None else plain[0], h=None if plain is None else plain[1],
+                via="model" if plain is not None else "table",
+                certified=a.get("certified"), version=t.get("store_version"),
+                stack=stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None,
+                lang=lang if isinstance(lang, str) else None,
+            )  # fmt: skip
+            a.update(add)
+            first = first or rid
+        return first
+
     def serve_row(self, t, state, q, learn: bool = True):
         """(distribution, via, version) of a certified or learning task's question: for a task with a fast table, the
         table's where it is on and its confidence reaches the table's threshold (the model is not asked), else
@@ -3459,6 +3569,8 @@ class SystemOne:
                 # 16 in flight).
                 lp, h = self.head_read(state, q)
                 self.collect_read(self.head_read_info())
+                if getattr(self._reads, "plain", None) is not None:
+                    self._reads.plain.append((np.asarray(lp, dtype=np.float64), h))
                 p = apply_intent_head(lp, h, t["head"], t["options"])
                 if commit and self.commits(q):
                     p = commit_noul(p)
@@ -3470,6 +3582,8 @@ class SystemOne:
             p = np.asarray(probs[0], dtype=np.float64)
             if swapped:
                 p = p[::-1].copy()
+            if getattr(self._reads, "plain", None) is not None:
+                self._reads.plain.append((log_probs(p), None))  # the log-scores a task's calibration is applied to
             if not head_stale and t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
                 p = apply_task_prior(log_probs(p), t["calibration"], self.temperature_of(q.type, None, len(p)))
             else:
@@ -4624,6 +4738,12 @@ def add_routes(app, systemone: SystemOne):
                     f"(case does not matter)",
                 )
         debug = debug_of(request)
+        lang = request.headers.get(header("lang"))  # the request's language tag, for a task that logs labels
+        if lang and req.model_extra is not None:
+            meta = req.model_extra.get("meta") if isinstance(req.model_extra.get("meta"), dict) else {}
+            if meta.get("lang") not in (None, lang):  # two tags that disagree: refused, never one picked silently
+                raise HTTPException(422, f"meta.lang {meta['lang']!r} and the x-decisio-lang header {lang!r} differ")
+            req.model_extra["meta"] = {**meta, "lang": lang}
         adapter = (req.model_extra or {}).get("adapter")
         if adapter is not None and not isinstance(adapter, str):
             raise HTTPException(422, '"adapter" must be the name of a loaded adapter, "none" or null')
@@ -4691,6 +4811,8 @@ def add_routes(app, systemone: SystemOne):
             headers[header("note")] = timing["note"]
         if timing.get("calculator"):  # the calculator block: shown (its lines and version), or why there is none
             headers[header("calculator")] = timing["calculator"]
+        if timing.get("request_id"):  # a task that logs labels: the first logged question's id (each has its own)
+            headers[header("request-id")] = timing["request_id"]
         if images and systemone.legacy_images():  # the old layout: served as asked, and said to be going away
             headers["Deprecation"] = "true"
             headers["Warning"] = f'299 - "{systemone.LEGACY_WARNING}"'
@@ -5062,8 +5184,14 @@ def add_routes(app, systemone: SystemOne):
                     raise HTTPException(422, "certify.examples: a list of {'request', 'answer'} like examples")
                 held_out = parse_examples(body["certify"]["examples"], "certify.examples", layout)
         try:
+            labels = LB.parse_settings(body.get("labels"))
+        except LB.LabelsError as e:
+            raise HTTPException(422, str(e))
+        if labels is not None and dynamic_options is not None:
+            raise HTTPException(422, "labels: not for a task whose options change with every request (not yet)")
+        try:
             task, fitted = await run_in_threadpool(
-                functools.partial(systemone.register_readout_task, layout=layout),
+                functools.partial(systemone.register_readout_task, layout=layout, labels=labels),
                 str(body["id"]),
                 examples,
                 certify,
@@ -5085,6 +5213,8 @@ def add_routes(app, systemone: SystemOne):
             out["status"] = systemone.full_status(task)
         if fitted.get("label_review") is not None:  # in the response only: a review aid, not part of the task
             out["label_review"] = fitted["label_review"]
+        if task.get("labels"):  # the digest key once, and what opting in keeps
+            out["labels"] = LB.registration_block(task["labels"], durable=systemone.labels_root is not None)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
@@ -5241,6 +5371,82 @@ def add_routes(app, systemone: SystemOne):
     certify_readout.__annotations__["request"] = Request
     app.post("/v1/tasks/{task_id}/certify")(certify_readout)
 
+    # ---- labels from traffic (decisio.serve.labels; docs/tasks.md, "Labels from traffic") ----
+
+    def labels_log_of(task_id: str):
+        store = systemone.task_store
+        t = next((x for x in (store.by_key.values() if store else []) if x["id"] == task_id), None)
+        if t is None:
+            raise HTTPException(404, f"no task {task_id!r}")
+        log = systemone.labels_log(t)
+        if log is None:
+            raise HTTPException(
+                409, f'task {task_id!r} does not take labels: register it with a labels block ("labels": true)'
+            )
+        return log
+
+    def durable() -> dict:
+        return {} if systemone.labels_root is not None else {"durable": False}
+
+    async def post_labels(task_id: str, request: Request):
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(422, f"request body is not valid JSON: {e}")
+        if not isinstance(body, dict):
+            raise HTTPException(422, 'body: {"labels": [{"request_id" | "digest" | "state" | "text", "answer"}, ...]}')
+        log = labels_log_of(task_id)
+        try:
+            out = await run_in_threadpool(log.post, body.get("labels"))
+        except LB.LabelsError as e:
+            raise HTTPException(422, str(e))
+        except OSError as e:  # the events could not be written: nothing is reported accepted
+            raise not_saved(e)
+        return JSONResponse(json.loads(json.dumps({**out, **durable()}, default=float)))
+
+    post_labels.__annotations__["request"] = Request
+    app.post("/v1/tasks/{task_id}/labels")(post_labels)
+
+    @app.get("/v1/tasks/{task_id}/labels/queue")
+    def labels_queue(task_id: str, limit: int = 20):
+        """The drawn answers still to label, oldest first: request ids, never the text."""
+        return JSONResponse(json.loads(json.dumps({**labels_log_of(task_id).queue(limit), **durable()}, default=float)))
+
+    @app.get("/v1/tasks/{task_id}/labels/status")
+    def labels_status(task_id: str):
+        """Counts by state and slice, and the label need per alpha (0.05, 0.10, 0.01, 0.005)."""
+        log = labels_log_of(task_id)
+        out = {**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"], **durable()}
+        return JSONResponse(json.loads(json.dumps(out, default=float)))
+
+    async def decline_labels(task_id: str, request: Request):
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(422, f"request body is not valid JSON: {e}")
+        refs = body.get("request_ids") if isinstance(body, dict) else None
+        if not isinstance(refs, list):
+            raise HTTPException(422, 'body: {"request_ids": [...]}')
+        log = labels_log_of(task_id)
+        try:
+            out = await run_in_threadpool(log.decline, refs)
+        except OSError as e:
+            raise not_saved(e)
+        return JSONResponse(json.loads(json.dumps({**out, **durable()}, default=float)))
+
+    decline_labels.__annotations__["request"] = Request
+    app.post("/v1/tasks/{task_id}/labels/decline")(decline_labels)
+
+    @app.get("/v1/tasks/{task_id}/labels/export")
+    def labels_export(task_id: str):
+        """The joined label table as JSON lines: every logged question, its draws, its state and its label."""
+        from fastapi.responses import PlainTextResponse
+
+        rows = labels_log_of(task_id).table()
+        return PlainTextResponse(
+            "".join(json.dumps(r, default=float) + "\n" for r in rows), media_type="application/x-ndjson"
+        )
+
     @app.get("/metrics")
     def metrics():
         """Per certified task, in Prometheus text format: state, answers, certified answers, answer-mix distance."""
@@ -5289,6 +5495,7 @@ def add_routes(app, systemone: SystemOne):
         if not removed:
             raise HTTPException(404, f"no task {task_id!r}")
         systemone.learning.drop(task_id)  # its logged rows and versions go with it
+        systemone.drop_labels(task_id)  # and its label log
         return {"removed": task_id}
 
     remove_readout_task.__annotations__["request"] = Request
