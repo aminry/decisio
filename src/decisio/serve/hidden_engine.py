@@ -327,8 +327,8 @@ class SingleEngineHidden(HiddenReadout):
 
 class TapHidden(HiddenReadout):
     """h, and the tapped middle layers, from the serving engine's own readout request (decisio.vllm_plugin.tap; the
-    Gemma 4 12B's head reader when the engine runs in the server's process): the engine runs
-    `DecisioGemma4UnifiedHiddenReadout` with the `HiddenTap` logits processor in this process, and a head question
+    head reader of every base when the engine runs in the server's process): the engine runs the base's hidden-readout
+    class, which carries the tap, with the `HiddenTap` logits processor in this process, and a head question
     is the plain question's one request, carrying a key; the label log-probabilities are that request's own, so they
     equal the plain readout's exactly. `last_layers()`: per question
     of the calling thread's last read, {layer: state} (float32), for the multi-layer heads."""

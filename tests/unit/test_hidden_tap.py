@@ -4,10 +4,10 @@
 the answer position, in the same request as the letter probabilities.
 
 H1  DECISIO_TAP_LAYERS parses to sorted unique layers; a stored row splits into the final state and its layers
-H2  the model class: its layers come from the engine's additional_config (the compiled graph's cache key), not the
-    environment; forward concatenates [final | layers] from vLLM's auxiliary states; compute_logits computes the
-    logits from the contiguous final part, equal to the hidden-readout class's on the same final state (the reserved
-    columns included), and keeps the rows for the processor
+H2  the model class (every base's hidden-readout class): its layers come from the engine's additional_config (the
+    compiled graph's cache key), not the environment; forward concatenates [final | layers] from vLLM's auxiliary
+    states; compute_logits computes the logits from the contiguous final part, equal to the stock class's on the same
+    final state with the reserved columns written, and keeps the rows for the processor
 H3  the logits processor stores the rows of the requests that carry a key, by their slot, never changes the logits,
     and declines (and forgets) a request without a key
 H4  score_prompts gives each row's extra_args to its request, and none when not asked
@@ -94,6 +94,49 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
         with pytest.raises(ValueError, match="this model has 4 layers"):
             gemma.DecisioGemma4UnifiedHiddenReadout(vllm_config=_cfg([5]))
         assert gemma.DecisioGemma4UnifiedHiddenReadout().tap_layers == ()  # no config: none, whatever the env
+
+
+@pytest.mark.parametrize(
+    "module, base_module, base, cls",
+    [
+        ("gemma", "gemma4", "Gemma4ForCausalLM", "DecisioGemma4HiddenReadout"),  # 31B (bf16, FP8), E4B
+        ("models", "qwen3_5", "Qwen3_5MoeForCausalLM", "DecisioQwen3_5MoeHiddenReadout"),  # Qwen3.6-35B-A3B
+        ("models", "qwen3_5", "Qwen3_5ForCausalLM", "DecisioQwen3_5HiddenReadout"),  # Qwen3.5 4B
+    ],
+)
+def test_h2_every_base_class_carries_the_tap(monkeypatch, module, base_module, base, cls):
+    """H2 on the other bases' hidden-readout classes: the same tap, the same columns as without it."""
+    import importlib
+
+    monkeypatch.setenv("DECISIO_HIDDEN_READOUT_START", "40")
+    with stub_vllm(vocab=V, hidden=D):
+        Base = getattr(importlib.import_module(f"vllm.model_executor.models.{base_module}"), base)
+        from decisio.vllm_plugin import tap
+        from decisio.vllm_plugin.hidden import write_hidden_columns
+
+        Cls = getattr(importlib.import_module(f"decisio.vllm_plugin.{module}"), cls)
+        assert Cls.__mro__[1] is tap.TapReadout and Cls.__name__ == cls  # the Hub profiles' class name
+        set_layers = []
+        monkeypatch.setattr(
+            Base, "set_aux_hidden_state_layers", lambda self, layers: set_layers.append(layers), raising=False
+        )
+        g = torch.Generator().manual_seed(2)
+        final, l2, l5 = (torch.randn(6, D, generator=g) for _ in range(3))
+        monkeypatch.setattr(Base, "forward", lambda self, *a, **k: (final, [l2, l5]), raising=False)
+        model = Cls(vllm_config=_cfg([5, 2]))
+        assert set_layers == [(2, 5)]
+        rows = model.forward(None, None)[[1, 4]]
+        logits = model.compute_logits(rows)
+        assert torch.equal(tap.take(), rows)
+        stock = Base.compute_logits(model, final[[1, 4]].contiguous())  # the stock class's logits, columns written
+        assert torch.equal(logits, write_hidden_columns(stock, final[[1, 4]].contiguous()))
+
+        plain = Cls(vllm_config=_cfg([]))  # final state only: forward and logits as the class without the tap
+        monkeypatch.setattr(Base, "forward", lambda self, *a, **k: final, raising=False)
+        assert plain.forward() is final and set_layers == [(2, 5)]
+        plain.load_state_dict(model.state_dict())
+        assert torch.equal(plain.compute_logits(final), write_hidden_columns(Base.compute_logits(plain, final), final))
+        assert torch.equal(tap.take(), final) and tap.take() is None
 
 
 def test_h3_the_processor_stores_keyed_rows_by_slot_and_leaves_the_logits():

@@ -273,8 +273,8 @@ Its caveats: one task, one draw and 300 test items, so the intervals cover the t
 ## What it costs
 
 - **Registration**: every example is one scored request, about 0.30 s each in the default mode (0.21 s in the former second-engine mode), plus the fit; 120 examples take well under a minute on the served model.
-- **Each later question**: on Gemma 4 12B (and the tuned 12B repositories) with the engine in the server's process, the default, a question answered by a head reads its hidden state in its own request, with no extra request: about 55 ms of client time against 151 ms when the state was read through the reserved logit columns (300 BANKING77 questions on one RTX PRO 6000; a plain question took 76 ms on first sight and 55 ms repeated on the same server), and its answers to every other question are unchanged, bit for bit.
-  On the other bases, and with a separate engine process, the hidden state is read in extra requests through the reserved logit columns, as before: about 80 ms more server time per head question (126.8 against 46.5 ms).
+- **Each later question**: with the engine in the server's process, the default, a question answered by a head reads its hidden state in its own request, with no extra request, on every base: on Gemma 4 12B about 55 ms of client time against 151 ms when the state was read through the reserved logit columns (300 BANKING77 questions on one RTX PRO 6000; a plain question took 76 ms on first sight and 55 ms repeated on the same server), and its answers to every other question are unchanged, bit for bit.
+  With a separate engine process, or more than one tensor-parallel rank, the hidden state is read in extra requests through the reserved logit columns, as before: about 80 ms more server time per head question (126.8 against 46.5 ms).
   Calibration and questions without a task cost nothing extra.
 
 ## Certified answers

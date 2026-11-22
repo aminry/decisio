@@ -115,6 +115,8 @@ def test_p5_no_class_shadows_a_torch_or_vllm_attribute():
                 "__qualname__",
                 "__firstlineno__",
                 "__static_attributes__",
+                "__dict__",  # the class-level slots of the tap's mixin (decisio.vllm_plugin.tap.TapReadout)
+                "__weakref__",
                 "__init__",
                 "forward",
                 "compute_logits",
@@ -212,9 +214,16 @@ def test_g1_gemma_hidden_readout_writes_after_the_soft_cap(monkeypatch):
         lp = torch.log_softmax(got[:, 40:49].double(), -1).numpy()
         assert abs(recover_hidden(lp) - h.double().numpy()).max() < 1e-6
         dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
-        # the tap's methods (decisio.vllm_plugin.tap): with no layers asked for, forward is the stock class's output, as
-        # it is, and compute_logits only keeps the rows for the tap's processor
-        assert set(vars(cls)) - dunder == {"__init__", "forward", "compute_logits"}
+        # the tap's methods (decisio.vllm_plugin.tap.TapReadout, first in the bases): with no layers asked for, forward
+        # is the stock class's output, as it is, and compute_logits only keeps the rows for the tap's processor
+        from decisio.vllm_plugin import tap
+
+        assert cls.__mro__[1] is tap.TapReadout and set(vars(cls)) - dunder == set()
+        assert set(vars(tap.TapReadout)) - dunder - {"__dict__", "__weakref__"} == {
+            "__init__",
+            "forward",
+            "compute_logits",
+        }
         sentinel = object()
         monkeypatch.setattr(base, "forward", lambda self, *a, **k: sentinel, raising=False)
         assert m.tap_layers == () and m.forward() is sentinel
@@ -239,7 +248,9 @@ def test_g2_gemma4_text_classes(monkeypatch):
         assert registry.config_map[p.GEMMA4_MM_HIDDEN_READOUT] == "Gemma4Config"
         dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
         assert set(vars(text)) - dunder == set()
-        assert set(vars(hidden)) - dunder == {"compute_logits"}
+        from decisio.vllm_plugin import tap
+
+        assert hidden.__mro__[1] is tap.TapReadout and set(vars(hidden)) - dunder == set()  # the tap's methods only
         m = text(vllm_config=None)
         kept = m.load_weights(
             [
