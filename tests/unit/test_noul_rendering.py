@@ -11,6 +11,8 @@ N4  choice and score questions are asked the same under every setting;
 N5  sides that would read the same, two-order requests and the abstain option keep words;
 N7  the image route keeps words, the prompt its figures were measured with;
 N6  the rendering enters a yes/no question's task key, never a choice question's; registration scores as served.
+N8  a yes/no head reads the served (letters) question, its label log-probabilities in key order (yes, no), at
+    registration, certification and serving, and in the debug readout
 
   uv run pytest -q tests/unit/test_noul_rendering.py
 """
@@ -155,3 +157,61 @@ def test_n7_image_route_keeps_words():
     assert not text.asked and image.asked[0]["kind"] == "noul" and out["answers"]["q"]["noul"] == pytest.approx(0.7)
     s1.answer(req)  # the text route: letters-keys
     assert text.asked[0]["kind"] == "choice"
+
+
+class HiddenEngine:
+    """The hidden-state readout of TextEngine's prompts: lp the log of TextEngine's answer, in engine order, and h a
+    marker of the form read ([1, 0] the letters choice, [0, 1] the words form), so a head that read another prompt, or
+    the letters in engine order, would show."""
+
+    reader = None
+
+    def __init__(self):
+        self.text = TextEngine()
+
+    def readout(self, state, questions):
+        probs, _ = self.text.answer(state, questions)
+        return [
+            (np.log(p), np.array([0.0, 1.0]) if q["kind"] == "noul" else np.array([1.0, 0.0]))
+            for p, q in zip(probs, questions)
+        ]
+
+    def read_info(self):
+        return None
+
+
+def test_n8_a_yes_no_head_reads_the_served_question_in_key_order(monkeypatch):
+    """A yes/no head under letters is fitted, certified and served on the letters question (the one served), with
+    its label log-probabilities reversed to (yes, no), the task's key order; the debug readout's hidden_lp is in that
+    order too. (Heads are fitted for 10 or more options; the floor is lowered here to reach the path.)"""
+    from decisio.readout import intent_head
+    from decisio.serve import tasks
+    from decisio.serve.systemone import key_order
+
+    assert np.array_equal(key_order(np.array([1.0, 2.0]), True), [2.0, 1.0])
+    seen = {}
+
+    def fit(logps, H, labels, options, **kw):  # a head that adds nothing: it serves softmax(lp), so the order shows
+        seen.update(lps=np.asarray(logps), H=np.asarray(H))
+        return {
+            "format": intent_head.FORMAT, "applied": True, "K": 2, "options": options,
+            "options_sha256": intent_head.options_digest(options), "A": np.zeros((2, 2)), "c": np.zeros(2),
+        }  # fmt: skip
+
+    monkeypatch.setattr(tasks, "MIN_OPTIONS_FOR_HEAD", 2)
+    monkeypatch.setattr(intent_head, "fit_intent_head", fit)
+    s1 = SystemOne(TextEngine(), "m", noul_rendering="letters", debug_readout=True)
+    s1.hidden_engine = HiddenEngine()
+    s1.task_store = tasks.TaskStore("fp")
+    q = SystemOneRequest.model_validate({"state": "s", "questions": {"q": noul(CRIT)}}).questions["q"]
+    task, _ = s1.register_readout_task("t", [(f"s{i}", q, i % 2 == 0) for i in range(4)])
+    assert task["head"]["applied"] and task["options"] == ["yes", "no"]
+    assert np.allclose(np.exp(seen["lps"]), [0.8, 0.2]) and np.array_equal(seen["H"], [[1.0, 0.0]] * 4)
+    assert np.allclose(s1.served_rows(task, [("s", q)])[0], [0.8, 0.2])  # certification reads as serving does
+    body = {"state": "s", "questions": {"q": noul(CRIT)}}
+    out = s1.answer(SystemOneRequest.model_validate(body), debug="readout")
+    assert out["answers"]["q"]["noul"] == pytest.approx(0.8)  # P(yes): the head read (yes, no)
+    dbg = out["decisio_debug"]["q"]
+    assert dbg["path"] == "head" and np.allclose(np.exp(dbg["hidden_lp"]), [0.8, 0.2])
+    out = s1.answer(SystemOneRequest.model_validate(body), debug="hidden")
+    assert np.allclose(np.exp(out["decisio_debug"]["q"]["hidden_lp"]), [0.8, 0.2])

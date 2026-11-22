@@ -267,6 +267,7 @@ Every POST must have `Content-Type: application/json` (parameters such as `; cha
 Request headers:
 - `x-decisio-route: text` or `image` chooses the route explicitly.
 - `x-decisio-debug: readout` or `hidden` adds the raw readout to the response, on a server started with `--debug-readout` only (verification, never production).
+  Every list in a question's readout is in its answer order: for a yes/no question that is (yes, no), the order of `p`, including `hidden_lp`, the hidden-state readout's label log-probabilities (before this release `hidden_lp` of a yes/no question asked as letters was in the engine's order, (no, yes)).
 
 
 ### Response

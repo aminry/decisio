@@ -383,6 +383,13 @@ def noul_as_letters(q, keys_shown: bool = False) -> tuple[dict, list[str]] | Non
     return {"kind": "choice", "instructions": instr, "options": options}, ["no", "yes"]
 
 
+def key_order(lp, swapped: bool) -> np.ndarray:
+    """A readout's label log-probabilities in its question's key order: reversed for a yes/no question asked as
+    letters (`engine_question`'s `swapped`, read false first), as every yes/no readout is read as (yes, no)."""
+    lp = np.asarray(lp)
+    return lp[::-1].copy() if swapped else lp
+
+
 COMMIT_LO, COMMIT_HI = 0.20, 0.80
 
 
@@ -1915,13 +1922,20 @@ class SystemOne:
                 adapter, engine,
             )  # fmt: skip
         t_head = time.perf_counter()
-        hidden = dict(zip(head, self.hidden_engine.readout(read, [qs[i] for i in head]))) if head else {}
+        hidden = (
+            {
+                i: (key_order(lp, swapped[i]), h)
+                for i, (lp, h) in zip(head, self.hidden_engine.readout(read, [qs[i] for i in head]))
+            }
+            if head
+            else {}
+        )
         head_ms = (time.perf_counter() - t_head) * 1000 if head else 0.0
         head_read = self.head_read_info() if head else None
         dbg = {}
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
-            for i, (lp, h) in enumerate(self.hidden_engine.readout(read, qs)):
-                dbg[names[i]] = {"hidden_lp": lp.tolist(), "h": h.tolist()}
+            for i, (lp, h) in enumerate(self.hidden_engine.readout(read, qs)):  # lp in key order, as p is
+                dbg[names[i]] = {"hidden_lp": key_order(lp, swapped[i]).tolist(), "h": h.tolist()}
         answers, log = {}, []
         for i, (name, q, (eq, keys)) in enumerate(zip(names, wire, mapped)):
             t = rts[i]
@@ -2253,6 +2267,15 @@ class SystemOne:
         eq, keys = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
         return eq, keys, False
 
+    def head_read(self, state, q):
+        """(lp, h) of question q's hidden-state readout, read on the question as this server serves it
+        (`engine_question`) and with lp in the task's key order: a yes/no question asked as letters comes back false
+        first and is reversed to (yes, no), as its plain readout is. Registration, certification and serving read a
+        head through this one function, so a head is fitted and applied on the same prompt and the same order."""
+        eq, _, swapped = self.engine_question(q)
+        lp, h = self.hidden_engine.readout(state, [eq])[0]
+        return key_order(lp, swapped), h
+
     def noul_rendered(self, q) -> str | None:
         """The yes/no rendering that enters question q's task key, or None (words, or not a yes/no question)."""
         if q.type != "noul" or self.noul_rendering == "words" or noul_as_letters(q) is None:
@@ -2495,8 +2518,7 @@ class SystemOne:
         def hidden(pairs):
             out = []
             for state, q in pairs:
-                eq, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                lp, h = self.hidden_engine.readout(self.read_state(context, state, examples=True), [eq])[0]
+                lp, h = self.head_read(self.read_state(context, state, examples=True), q)
                 require_finite(lp, "a registration example's label log-probability")
                 require_finite(h, "a registration example's hidden state")
                 out.append((lp, h))
@@ -3251,7 +3273,7 @@ class SystemOne:
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
-            lp, h = self.hidden_engine.readout(state, [eq])[0]
+            lp, h = self.head_read(state, q)
             return apply_intent_head(lp, h, t["head"], t["options"])
         if t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
             from decisio.readout.calibration import apply_task_prior
@@ -3385,8 +3407,7 @@ class SystemOne:
                 # vLLM the hidden-state read then differs slightly from the same read made without it (the card session
                 # of 2026-10-16: 154 served above the threshold against 153 certified, whether read one at a time or
                 # 16 in flight).
-                eqh, _ = to_engine_question(q, self.hide_index_keys, self.desnake_labels, self.describe_options)
-                lp, h = self.hidden_engine.readout(state, [eqh])[0]
+                lp, h = self.head_read(state, q)
                 self.collect_read(self.head_read_info())
                 p = apply_intent_head(lp, h, t["head"], t["options"])
                 if commit and self.commits(q):
