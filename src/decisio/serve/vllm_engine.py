@@ -1126,7 +1126,16 @@ class LettersEngine:
         return rows, n, plan
 
     def score_prompts(
-        self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None, row_mm=None, row_mm_uuids=None
+        self,
+        rows,
+        adapter=None,
+        warm=(),
+        skip_cache=False,
+        mm=None,
+        mm_uuids=None,
+        row_mm=None,
+        row_mm_uuids=None,
+        extra_args=None,
     ):
         """Label distributions for fully-built prompts [(token ids, label ids)], one engine request each.
 
@@ -1142,7 +1151,9 @@ class LettersEngine:
         before any question is scheduled (a warm-up of P+1 tokens registers the state at P).
         `skip_cache`: the requests do not read the prefix cache (each computes its whole prompt), which is
         how a cold batch is made in an engine that has cached blocks: a cache reset is not enough, as
-        vLLM runs one request first and the others then hit its freshly cached prefix."""
+        vLLM runs one request first and the others then hit its freshly cached prefix.
+        `extra_args`: per row, a dict for the request's `SamplingParams.extra_args` (the hidden-state tap's key,
+        decisio.vllm_plugin.tap), or None."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
 
@@ -1164,8 +1175,9 @@ class LettersEngine:
                 allowed_token_ids=allowed_ids(lab),
                 skip_reading_prefix_cache=skip_cache or None,
                 detokenize=False,
+                **({"extra_args": extra_args[i]} if extra_args and extra_args[i] else {}),
             )
-            for _, lab in rows
+            for i, (_, lab) in enumerate(rows)
         ]
         t = time.perf_counter()
         outs = guarded(
@@ -2140,7 +2152,48 @@ def engine_kwargs(args) -> dict:
         return kw  # images on: the checkpoint's own multimodal class, with its vision tower (the 31B), as one engine
     if arch is None:  # the base's own class, unmodified (Gemma's text path)
         return kw
+    if tap_enabled(args, arch):
+        kw = tap_engine_kwargs(kw)
     return {**kw, **plugin.engine_kwargs(arch)}
+
+
+def tap_enabled(args, arch=None) -> bool:
+    """Whether the head reads its hidden state in the question's own request (decisio.vllm_plugin.tap): the vLLM
+    server, a base whose hidden-readout class is the 12B's (the class carries the tap) and the engine in this process,
+    where the tap's store is. Otherwise the head reads the reserved logit columns, which the class writes as well."""
+    import decisio.vllm_plugin as plugin
+
+    if arch is None:
+        arch = (getattr(getattr(args, "family", None), "classes", None) or {}).get(getattr(args, "model_class", None))
+    return (
+        arch == plugin.GEMMA4_HIDDEN_READOUT
+        and getattr(args, "backend", "vllm") == "vllm"
+        and getattr(args, "engine_process", None) == "in"
+    )
+
+
+def single_engine_reader(engine, args):
+    """The vLLM single-engine head reader: the tap (one request per head question) where `tap_enabled`, the reserved
+    logit columns otherwise."""
+    from decisio.serve import hidden_engine as he
+
+    if tap_enabled(args):
+        return he.TapHidden(engine, layers=())
+    return he.SingleEngineHidden(engine, args.model, revision=args.revision)
+
+
+def tap_engine_kwargs(kw: dict) -> dict:
+    """The hidden-state tap's engine arguments added to `kw` (decisio.vllm_plugin.tap): its logits processor beside any
+    the caller names, and its layer set in additional_config, which vLLM's compiled graph is keyed on (the final state
+    alone unless the caller's additional_config names layers)."""
+    from decisio.vllm_plugin import tap
+
+    procs = list(kw.get("logits_processors") or [])
+    if tap.PROCESSOR not in procs:
+        procs.append(tap.PROCESSOR)
+    extra = dict(kw.get("additional_config") or {})
+    extra.setdefault(tap.CONFIG_KEY, [])
+    return {**kw, "logits_processors": procs, "additional_config": extra}
 
 
 KV_CACHE_DTYPES = ("auto", "fp8")
@@ -3981,9 +4034,7 @@ def main():
             hidden_engine.family = args.family
             hidden_engine.fmt = fmt
         else:
-            from decisio.serve.hidden_engine import SingleEngineHidden
-
-            hidden_engine = SingleEngineHidden(engine, args.model, revision=args.revision)
+            hidden_engine = single_engine_reader(engine, args)
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
     if head_mode == "second-engine":
         if args.backend == "vllm" and args.gpu_memory_utilization + args.head_gpu_memory_utilization > 0.95:

@@ -7,10 +7,15 @@ module is imported only inside vLLM, when it builds a model of this architecture
       vLLM's own `Gemma4UnifiedForConditionalGeneration` (google/gemma-4-12B-it: encoder-free, the language model is
       vLLM's `Gemma4ForCausalLM`) that also returns the final-norm hidden state at the answer position through d + 1
       reserved logit columns (`decisio.vllm_plugin.hidden`), written after the class's own final-logit soft cap and
-      special-token suppression, so the intent head needs no second copy of the weights. The text path is the stock
-      class with every multimodal input off (`decisio.families.GEMMA4.limit_mm`); there is no text-only subclass,
-      because Gemma has no M-RoPE and the stock class reads a text prompt exactly as its language model does. A
-      serving-only class, like the Qwen one: only the decision server's head-capable engine uses it.
+      special-token suppression, so the intent head needs no second copy of the weights. It is also the tap's class
+      (`decisio.vllm_plugin.tap`): its `compute_logits` keeps the answer-position rows for the `HiddenTap` logits
+      processor, which an in-process engine adds, so a head question reads its hidden state in its own request; with
+      the layers in the engine's `additional_config` its forward also returns the residual stream after them,
+      concatenated after the compiled region (off unless asked for: it changes the compiled graph and the served
+      numerics slightly). The text path is the stock class with every multimodal input off
+      (`decisio.families.GEMMA4.limit_mm`); there is no text-only subclass, because Gemma has no M-RoPE and the stock
+      class reads a text prompt exactly as its language model does. A serving-only class, like the Qwen one: only the
+      decision server's head-capable engine uses it.
 
   DecisioGemma4TextOnly
       the text model of a `Gemma4ForConditionalGeneration` checkpoint (google/gemma-4-31B-it): vLLM's own
@@ -28,13 +33,38 @@ from __future__ import annotations
 from vllm.model_executor.models.gemma4 import Gemma4ForCausalLM
 from vllm.model_executor.models.gemma4_unified import Gemma4UnifiedForConditionalGeneration
 
+from decisio.vllm_plugin import tap
 from decisio.vllm_plugin.hidden import write_hidden_columns
 
 
 class DecisioGemma4UnifiedHiddenReadout(Gemma4UnifiedForConditionalGeneration):
+    def __init__(self, *, vllm_config=None, prefix: str = ""):
+        super().__init__(vllm_config=vllm_config, prefix=prefix)
+        cfg = getattr(self.config, "text_config", self.config)
+        self.tap_d = int(cfg.hidden_size)
+        self.tap_layers = tap.layers_of(vllm_config)  # in the compiled graph's cache key (tap.engine_config)
+        n = getattr(cfg, "num_hidden_layers", None)
+        if n is not None and any(layer > n for layer in self.tap_layers):
+            raise ValueError(f"the tapped layers {self.tap_layers}: this model has {n} layers")
+        if self.tap_layers:
+            self.set_aux_hidden_state_layers(self.tap_layers)
+
+    def forward(self, *args, **kwargs):
+        out = super().forward(*args, **kwargs)
+        if isinstance(out, tuple):  # (final-norm state, [layer states]) once auxiliary layers are set
+            import torch
+
+            final, layers = out
+            return torch.cat([final, *layers], dim=-1)
+        return out
+
     def compute_logits(self, hidden_states):
-        logits = super().compute_logits(hidden_states)
-        return logits if logits is None else write_hidden_columns(logits, hidden_states)
+        tap.stash(hidden_states)  # the answer-position rows, for the tap's logits processor when it runs
+        final = hidden_states
+        if hidden_states.shape[-1] != self.tap_d:
+            final = hidden_states[..., : self.tap_d].contiguous()
+        logits = super().compute_logits(final)
+        return logits if logits is None else write_hidden_columns(logits, final)
 
 
 class DecisioGemma4TextOnly(Gemma4ForCausalLM):

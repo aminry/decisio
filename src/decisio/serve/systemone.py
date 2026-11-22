@@ -1870,7 +1870,11 @@ class SystemOne:
         head = [
             i
             for i, t in enumerate(rts)
-            if t is not None and t["head"].get("applied") and self.hidden_engine and i not in served
+            if t is not None
+            and t["head"].get("applied")
+            and self.hidden_engine
+            and i not in served
+            and not self.head_stale(t)
         ]
         if head and orders == 2:
             raise ValueError(
@@ -1966,7 +1970,12 @@ class SystemOne:
                     forms = info.get("label_token_logprobs")
                     if forms:  # --label-variants summed: each form's log-probability, in engine order
                         dbg[name]["form_logprobs"] = forms[at[i]]
-                if t is not None and t["calibration"].get("applied") and self.calibration_stale(t, q.type, len(p)):
+                if t is not None and self.head_stale(t):
+                    # its head was fitted on another hidden-state reader's reads: served as without the task, below,
+                    # and not certified
+                    if debug:
+                        dbg.setdefault(name, {}).update(head_stale=t["id"])
+                elif t is not None and t["calibration"].get("applied") and self.calibration_stale(t, q.type, len(p)):
                     # fitted at another temperature (a record made before 0.52.0): served as without the task, below,
                     # and not certified
                     if debug:
@@ -2055,7 +2064,7 @@ class SystemOne:
                 t is not None
                 and t.get("certificate")
                 and q.type != "score"
-                and self.calibration_stale(t, q.type, len(keys))
+                and (self.head_stale(t) or self.calibration_stale(t, q.type, len(keys)))
             ):
                 # its calibration was fitted at another temperature (before 0.52.0): served as without the task, so not
                 # what the certificate was made on; the monitor does not count it. Registering the task again fits and
@@ -2065,7 +2074,7 @@ class SystemOne:
                         "certified": False,
                         "certificate": t["certificate"]["id"],
                         "certificate_kind": "gold",
-                        "certified_reason": "calibration_refit",
+                        "certified_reason": "head_refit" if self.head_stale(t) else "calibration_refit",
                     }
                 )
             elif via.get(i) in ("learn:table", "learn:spot_check"):  # a learned table's answer: its own certificate
@@ -2505,6 +2514,7 @@ class SystemOne:
             key_fn=lambda q: task_key(q, render_text, self.described(q), self.noul_rendered(q)),
             # the calibration is fitted at the temperature the question is served at without a task
             temperature=temperature,
+            head_reader=getattr(self.hidden_engine, "reader", None),
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
@@ -3236,6 +3246,8 @@ class SystemOne:
         t = self.plain_readout_task(q)
         if t is None:
             return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
+        if self.head_stale(t):
+            return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
         if t["head"].get("applied") and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
@@ -3362,7 +3374,8 @@ class SystemOne:
         if t.get("dynamic"):
             return self.dynamic_rows(t, pairs)
         out = []
-        with_head = t["head"].get("applied") and self.hidden_engine is not None
+        head_stale = self.head_stale(t)
+        with_head = t["head"].get("applied") and self.hidden_engine is not None and not head_stale
         context = context_text(t)  # read before each state; the states themselves are the requests'
         for state, q in pairs:
             state = self.read_state(context, state, examples=True)
@@ -3386,7 +3399,7 @@ class SystemOne:
             p = np.asarray(probs[0], dtype=np.float64)
             if swapped:
                 p = p[::-1].copy()
-            if t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
+            if not head_stale and t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
                 p = apply_task_prior(log_probs(p), t["calibration"], self.temperature_of(q.type, None, len(p)))
             else:
                 p = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
@@ -3789,7 +3802,7 @@ class SystemOne:
             raise ValueError(
                 f"task {task_id!r} was registered without certification: register it again with a certify block"
             )
-        if note := self.calibration_note(t):  # the stored fit itself is stale: a certificate on it would not serve
+        if note := self.calibration_note(t) or self.head_note(t):  # a stale fit: a certificate on it would not serve
             raise ValueError(f"task {task_id!r}: {note['why']}; {note['register_again']}")
         from decisio.readout import certify
         from decisio.serve.tasks import example_digest
@@ -4316,6 +4329,29 @@ class SystemOne:
             "register_again": self.REGISTER_AGAIN,
         }
 
+    def head_stale(self, t) -> bool:
+        """Whether a task's kept intent head was fitted on another hidden-state reader's reads than this server's: on a
+        server whose head reader is the tap (decisio.vllm_plugin.tap), a head fitted before it, on the reserved columns'
+        reads (which re-read the prompt from the prefix cache: 1.5 to 4.5% apart from the tap's on a card), is not
+        applied. The task answers as without it, and is not certified, until it is registered again."""
+        head = (t or {}).get("head") or {}
+        reader = getattr(self.hidden_engine, "reader", None)
+        return bool(head.get("applied")) and reader == "tap" and head.get("reader") != "tap"
+
+    def head_note(self, t) -> dict | None:
+        """Why a task's kept head is not applied on this server, and what to do (`head_stale`), or None."""
+        if not self.head_stale(t):
+            return None
+        return {
+            "stale": True,
+            "why": (
+                "its intent head was fitted on hidden states read through the reserved logit columns, and this server "
+                "reads them in the question's own request: the task answers as without it, and is not certified, "
+                "until it is registered again"
+            ),
+            "register_again": self.REGISTER_AGAIN,
+        }
+
     def task_store_report(self) -> dict:
         """What /health and GET /v1/tasks say about the saved tasks: where they are kept, how many are loaded, how
         many of those apply to this server's stack, and what the start loaded from where."""
@@ -4326,6 +4362,9 @@ class SystemOne:
         a_model = sum(1 for t in self.tasks.values() if t.get("model") not in (None, self.name))
         stale = sorted(t["id"] for t in readout if self.calibration_note(t))
         refit = {"calibration_refit": {"tasks": stale, "register_again": self.REGISTER_AGAIN}} if stale else {}
+        heads = sorted(t["id"] for t in readout if self.head_note(t))
+        if heads:
+            refit["head_refit"] = {"tasks": heads, "register_again": self.REGISTER_AGAIN}
         return {
             "saved_to": self.task_backend.describe() if self.task_backend is not None else None,
             "readout": {"loaded": len(readout), "applied": applied, "other_stack": len(readout) - applied, **refit},
@@ -5057,6 +5096,8 @@ def add_routes(app, systemone: SystemOne):
                 item["status"] = systemone.full_status(t)
             if not full and (note := systemone.calibration_note(t)):
                 item["calibration_refit"] = note
+            if not full and (note := systemone.head_note(t)):
+                item["head_refit"] = note
             listed.append(item)
         return {
             "enabled": systemone.tasks_enabled,
@@ -5080,6 +5121,8 @@ def add_routes(app, systemone: SystemOne):
             out["status"] = systemone.full_status(t)
         if note := systemone.calibration_note(t):
             out["calibration_refit"] = note
+        if note := systemone.head_note(t):
+            out["head_refit"] = note
         return JSONResponse(json.loads(json.dumps(out, default=float)))
 
     async def certify_readout(task_id: str, request: Request):
