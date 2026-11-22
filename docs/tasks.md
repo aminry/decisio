@@ -305,6 +305,9 @@ An answer drawn under earlier settings counts when its confidence is in the curr
 Drawn answers still waiting for a label are shown as `region_pending` and not counted; the figure is for planning, and a certificate waits until they are due.
 A drawn answer declined, or not labelled within `due_days`, counts as an error there: a missing label is never assumed right.
 When the errors so far are already at or above alpha, that level's entry has a `reason`: it will not certify there unless the error falls.
+Each level also gives `region_labels_per_day` (the region's labels over the last 7 days) and `days_if_no_error`, the time to the labels still needed at that rate.
+`status` also gives the `response_rate` (drawn answers labelled, among those labelled, expired or declined), the audit slice's `accuracy` with a 90% Clopper-Pearson interval, on labelled answers and `strict` (every expired or declined answer counted wrong), the time of the last label (`last_label_at`, `since_last_label_s`), and per language tag the answers, drawn and labelled, and the labels each alpha still needs there (`languages`; untagged requests are `unknown`, never merged into a language).
+These are counts only: no answer, text or chance of any one request.
 `GET /v1/tasks/{id}/labels/export` returns every logged question with all its stored fields, its draw, state and label as JSON lines; `ps`, `lp` and `h` are base64 little-endian float32.
 
 **Which labels may be used for what.**

@@ -43,6 +43,8 @@ L20 the typical slice: levels from the reservoir rank a typical input above an o
     budget task starts the slice (an epoch), draws it at its level, ends it after typical_labels (its share back to
     margin), and its labels are fit labels weighted by the chance of either fit slice; without the student it is off;
     the student reads a bounded prefix of the input
+L21 the overview: the response rate, the audit accuracy and its strict form with their intervals, the last label,
+    and per language the counts and the labels still needed; days to the need at the region's label rate
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -593,3 +595,27 @@ def test_l20_the_typical_slice():
     _serve(capped, "c0-" + "x" * 50_000, [0.6, 0.3, 0.1])
     assert seen == [LB.TYPICAL_TEXT]  # the student reads a bounded prefix whatever the state's length
     assert LB.script_class("я" * 600 + "a" * 50_000) == "cyrillic"  # the script class too: its first 500 characters
+
+
+def test_l21_the_overview():
+    clock = Clock()
+    tl = _task(clock=clock, audit_pi=1.0, cert_pi=1.0, margin_pi_max=0, tau_after=10_000)
+    de = [_serve(tl, f"de{i}", [0.8, 0.1, 0.1])[0] for i in range(10)]
+    for r in de:
+        tl.rows[(r, "q")]["lang"] = "de"
+    en = [_serve(tl, f"en{i}", [0.8, 0.1, 0.1])[0] for i in range(10)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in de[:8]] + [{"request_id": en[0], "answer": "tech"}])
+    tl.decline([de[8]])
+    o = tl.overview()
+    assert o["response_rate"] == pytest.approx(9 / 10)  # 9 labelled of 10 closed (one declined; the rest pending)
+    assert o["audit"]["labelled"] == 9 and o["audit"]["accuracy"] == pytest.approx(8 / 9, abs=1e-4)
+    assert o["audit"]["strict_accuracy"] == pytest.approx(8 / 10, abs=1e-4)
+    lo, hi = o["audit"]["interval_90"]
+    assert lo < 8 / 9 < hi and o["since_last_label_s"] == 0.0
+    assert o["languages"]["de"] == {"answers": 10, "drawn": 10, "labelled": 8, "need": o["languages"]["de"]["need"]}
+    assert set(o["languages"]) == {"de", "en"} and set(o["languages"]["de"]["need"]) == {0.05, 0.10, 0.01, 0.005}
+    n = {x["alpha"]: x for x in tl.need(lang="de")}[0.05]
+    assert n["region_labels"] == 9 and n["region_errors"] == 1  # 8 right, 1 declined
+    assert n["region_labels_per_day"] == pytest.approx(8 / 7, abs=0.01) and n["days_if_no_error"] == pytest.approx(
+        n["more_if_no_error"] / (8 / 7), abs=0.1)  # fmt: skip
+    assert LB.accuracy_interval(0, 0) is None and LB.accuracy_interval(5, 5)[1] == 1.0

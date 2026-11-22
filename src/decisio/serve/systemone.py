@@ -5534,6 +5534,7 @@ def add_routes(app, systemone: SystemOne):
         extra = synced(log)
         return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"],
                             "settings": log.settings, "budget": log.budget(), "typical": log.typical_status(),
+                            **log.overview(),
                             **extra})  # fmt: skip
 
     async def decline_labels(task_id: str, request: Request):

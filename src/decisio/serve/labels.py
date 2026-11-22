@@ -294,7 +294,13 @@ def registration_block(rec: dict, location: str) -> dict:
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
         "one space and the ends stripped",
-        "next_to_label": {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"},
+        "next_to_label": {
+            "items": [],
+            "pending": 0,
+            "available": False,
+            "reason": "no traffic yet",
+            "budget": {"per_day": s.get("per_day")},
+        },
     }
 
 
@@ -1427,7 +1433,55 @@ class TaskLabels:
             r["strict_error"] = r["state"] != "labelled" or not r["correct"]
         return out
 
-    def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
+    def overview(self, top_langs: int = 20) -> dict:
+        """What status adds to the counts: the response rate of drawn answers (labelled among those labelled,
+        expired or declined), the audit slice's accuracy with a 90% Clopper-Pearson interval (on labelled answers, and
+        strict, with every expired or declined one counted wrong), the time of the last label, and per language tag
+        (at most `top_langs`, the busiest; "unknown" its own) the answers, drawn and labelled, and the labels still
+        needed per alpha. Aggregates only: no row, text or chance per row."""
+        now = self.clock()
+        with self._lock:
+            closed = labelled = 0
+            a_n = a_right = a_closed = a_closed_right = 0
+            langs: dict[str, dict] = {}
+            last = None
+            for key, row in self.rows.items():
+                st = self.state_of(key, self.latest, now)
+                ev = self.latest.get(key)
+                lg = langs.setdefault(row["lang"], {"answers": 0, "drawn": 0, "labelled": 0})
+                lg["answers"] += 1
+                lg["drawn"] += bool(row["drawn"])
+                lg["labelled"] += st == "labelled"
+                if st == "labelled":
+                    last = max(last or 0.0, float(ev["received"]))
+                if row["drawn"] and st in ("labelled", "expired", "declined"):
+                    closed += 1
+                    labelled += st == "labelled"
+                if row["draws"]["audit"]["in"] and st in ("labelled", "expired", "declined"):
+                    right = st == "labelled" and ev["answer"] == row["top"]
+                    a_closed += 1
+                    a_closed_right += right
+                    if st == "labelled":
+                        a_n += 1
+                        a_right += right
+        busiest = sorted(langs, key=lambda k: -langs[k]["answers"])[:top_langs]
+        for k in busiest:
+            langs[k]["need"] = {n["alpha"]: n["more_if_no_error"] for n in self.need(lang=k)}
+        return {
+            "response_rate": round(labelled / closed, 4) if closed else None,
+            "audit": {
+                "labelled": a_n,
+                "accuracy": round(a_right / a_n, 4) if a_n else None,
+                "interval_90": accuracy_interval(a_right, a_n),
+                "strict_accuracy": round(a_closed_right / a_closed, 4) if a_closed else None,
+                "strict_interval_90": accuracy_interval(a_closed_right, a_closed),
+            },  # fmt: skip
+            "last_label_at": last,
+            "since_last_label_s": None if last is None else round(now - last, 1),
+            "languages": {k: langs[k] for k in busiest},
+        }
+
+    def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1, lang: str | None = None) -> list[dict]:
         """Per alpha: the cert slice's labelled answers in the current region and the errors among them (expired and
         declined rows counted as errors, the strict rule), the Clopper-Pearson upper bound, and how many more labels
         the region needs if no further error comes and if one more does.
@@ -1441,7 +1495,9 @@ class TaskLabels:
         current region's traffic in that epoch, and `pi` only changes how many there are, so the Clopper-Pearson bound
         is exact (`pooling: "exact"`). An epoch whose `tau_min` was higher drew nothing in the band between the two
         thresholds, and its rows are left out. Pending rows are shown apart (`region_pending`), never counted. Only cert
-        rows are counted, which is conservative: audit rows of the region could be pooled under the same rule."""
+        rows are counted, which is conservative: audit rows of the region could be pooled under the same rule.
+        `lang`: only that language tag's answers ("unknown" for untagged ones). `days_if_no_error` is the time to the
+        labels still needed at the region's label rate over the last 7 days."""
         from decisio.readout import certify
 
         now = self.clock()
@@ -1450,12 +1506,16 @@ class TaskLabels:
             tau = e["tau_min"]
             covers = {x["epoch"] for x in self.epochs if x["tau_min"] <= tau}  # epochs whose region held the current
             latest = self.latest
-            n = err = pending = 0
+            n = err = pending = recent = 0
             for key, row in self.rows.items():
                 c = row["draws"]["cert"]
                 if not c["in"] or row["conf"] < tau or row["epoch"] not in covers:
                     continue
+                if lang is not None and row["lang"] != lang:
+                    continue
                 st = self.state_of(key, latest, now)
+                if st == "labelled" and now - float(latest[key]["received"]) <= 7 * 86400:
+                    recent += 1
                 if st == "pending":
                     pending += 1
                 elif st == "labelled":
@@ -1478,12 +1538,16 @@ class TaskLabels:
                     lo = mid + 1
             return lo - n
 
+        per_day = recent / 7.0
         out = []
         for a in alphas:
+            m = more(err, a)
+            days = None if m is None or per_day == 0 else round(m / per_day, 1)
             rec = {"alpha": a, "delta": delta, "region_labels": n, "region_errors": err, "region_pending": pending,
+                   "region_labels_per_day": round(per_day, 2), "days_if_no_error": days,
                    "pooling": "exact",
                    "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
-                   "more_if_no_error": more(err, a), "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
+                   "more_if_no_error": m, "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
             if n and err / n >= a:
                 rec["reason"] = (
                     "the errors so far are at or above alpha: it certifies only after more right labels bring the "
@@ -1491,6 +1555,18 @@ class TaskLabels:
                 )
             out.append(rec)
         return out
+
+
+def accuracy_interval(right: int, n: int, level: float = 0.9) -> list[float] | None:
+    """The two-sided Clopper-Pearson interval on an accuracy seen as `right` of `n`, at `level`."""
+    if n == 0:
+        return None
+    from scipy.stats import beta
+
+    a = (1 - level) / 2
+    lo = 0.0 if right == 0 else float(beta.ppf(a, right, n - right + 1))
+    hi = 1.0 if right == n else float(beta.ppf(1 - a, right + 1, n - right))
+    return [round(lo, 4), round(hi, 4)]
 
 
 def _tau_set(epoch: dict) -> bool:

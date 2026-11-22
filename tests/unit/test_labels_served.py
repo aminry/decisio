@@ -54,7 +54,13 @@ def test_s1_opt_in_only_and_the_secrets_stay_out_of_the_listing():
     assert lb["settings"]["audit_pi"] == 1.0 and len(lb["digest_key"]) == 64 and lb["stores"]
     assert lb["enabled"] is True and lb["text_stored"] is False and lb["features"] == "full"
     assert lb["location"] == "memory" and lb["retention"]["deleted_with_task"] is True
-    assert lb["next_to_label"] == {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"}
+    assert lb["next_to_label"] == {
+        "items": [],
+        "pending": 0,
+        "available": False,
+        "reason": "no traffic yet",
+        "budget": {"per_day": None},
+    }  # fmt: skip (audit_pi given: no budget)
     listed = client.get("/v1/tasks/angry2").json()
     assert listed["labels"]["settings"] == lb["settings"] == listed["labels"]["registered_settings"]
     assert listed["labels"]["stored_fields"] == lb["stored_fields"] and lb["digest_key"] not in json.dumps(listed)
@@ -182,6 +188,8 @@ def test_s5_settings_and_erasure_routes(tmp_path):
     assert r.json()["epoch"]["epoch"] == 1 and r.json()["epoch"]["settings"]["cert_pi"] == 0.5
     assert client.get("/v1/tasks/angry/labels/status").json()["settings"]["cert_pi"] == 0.5
     assert set(client.get("/v1/tasks/angry/labels/status").json()["typical"]) == {"state", "labelled", "until", "held"}
+    st = client.get("/v1/tasks/angry/labels/status").json()
+    assert {"response_rate", "audit", "last_label_at", "since_last_label_s", "languages"} <= set(st)
     got = client.get("/v1/tasks/angry").json()["labels"]
     assert (
         got["settings"]["cert_pi"] == 0.5 and got["registered_settings"]["cert_pi"] == 0.05
