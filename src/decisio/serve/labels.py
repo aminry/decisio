@@ -520,7 +520,7 @@ class TaskLabels:
             return {"status": "duplicate", "request_id": key[0], "question": key[1]}
         selection = "slice" if row["drawn"] else "self"
         ev = {"type": "label", "request_id": key[0], "question": key[1], "answer": answer,
-              "source": "queue" if row["drawn"] and source == "user" else source, "selection": selection,
+              "source": source, "selection": selection,
               "labelled_at": it.get("labelled_at") or now, "received": now, "replica": self.replica}  # fmt: skip
         events.append(ev)
         latest[key] = ev
@@ -620,22 +620,28 @@ class TaskLabels:
         the region needs if no further error comes and if one more does.
 
         The region is the current epoch's: served confidence at or above its `tau_min`. A row of an earlier epoch
-        counts when its confidence is in that region and its cert `pi` is the current one, so every counted row had
-        the same chance of being drawn and the bound is exact (`pooling: "exact"`)."""
+        counts when its confidence is in that region and that epoch's region contained the current one (its `tau_min`
+        at most the current one), whatever its cert `pi`: each epoch's drawn rows are then a uniform sample of the
+        current region's traffic in that epoch, and `pi` only changes how many there are, so the Clopper-Pearson bound
+        is exact (`pooling: "exact"`). An epoch whose `tau_min` was higher drew nothing in the band between the two
+        thresholds, and its rows are left out. Pending rows are shown apart (`region_pending`), never counted."""
         from decisio.readout import certify
 
         now = self.clock()
         with self._lock:
             e = self.epoch
-            tau, pi = e["tau_min"], floor_pi(e["settings"]["cert_pi"])
+            tau = e["tau_min"]
+            covers = {x["epoch"] for x in self.epochs if x["tau_min"] <= tau}  # epochs whose region held the current
             latest = self.latest
-            n = err = 0
+            n = err = pending = 0
             for key, row in self.rows.items():
                 c = row["draws"]["cert"]
-                if not c["in"] or row["conf"] < tau or c["pi"] != pi:
+                if not c["in"] or row["conf"] < tau or row["epoch"] not in covers:
                     continue
                 st = self.state_of(key, latest, now)
-                if st == "labelled":
+                if st == "pending":
+                    pending += 1
+                elif st == "labelled":
                     n += 1
                     err += latest[key]["answer"] != row["top"]
                 elif st in ("expired", "declined"):
@@ -657,7 +663,8 @@ class TaskLabels:
 
         out = []
         for a in alphas:
-            rec = {"alpha": a, "delta": delta, "region_labels": n, "region_errors": err, "pooling": "exact",
+            rec = {"alpha": a, "delta": delta, "region_labels": n, "region_errors": err, "region_pending": pending,
+                   "pooling": "exact",
                    "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
                    "more_if_no_error": more(err, a), "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
             if n and err / n >= a:

@@ -299,7 +299,9 @@ Look the text up in your own system by request id.
 
 **Status and export.**
 `GET /v1/tasks/{id}/labels/status` gives the counts by state (`pending`, `labelled`, `declined`, `expired`, `undrawn`) and by slice, the number of `revisions` (labels that replaced a different answer), and the label need for alpha 0.05, 0.10, 0.01 and 0.005 at delta 0.1: the labelled answers in the certificate's current region, the errors among them, the upper bound, and how many more labels it takes with no further error and with one more.
-The region is the current one (confidence at or above its lowest threshold), and an answer drawn earlier counts when its confidence is in it and it was drawn at the same chance, so the bound is exact.
+The region is the current one (confidence at or above its lowest threshold).
+An answer drawn under earlier settings counts when its confidence is in the current region and the region then reached at least as low, whatever its chance of being drawn, so the bound is exact; when the region was higher then, that period drew nothing in between and its answers are left out.
+Drawn answers still waiting for a label are shown as `region_pending` and not counted; the figure is for planning, and a certificate waits until they are due.
 A drawn answer declined, or not labelled within `due_days`, counts as an error there: a missing label is never assumed right.
 When the errors so far are already at or above alpha, that level's entry has a `reason`: it will not certify there unless the error falls.
 `GET /v1/tasks/{id}/labels/export` returns every logged question with all its stored fields, its draw, state and label as JSON lines; `ps`, `lp` and `h` are base64 little-endian float32.

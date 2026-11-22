@@ -22,6 +22,9 @@ L10 a label write that fails to reach the place raises and leaves nothing acknow
 L11 the need counts only the current region at one chance (exact pooling), says when a level will not certify, and is
     quick when it never will
 L12 (slow) each slice's inclusion matches its pi within binomial noise on 200,000 rows, the margin slice too
+L13 the need pools an earlier epoch's rows only when its region contained the current one (its tau_min at most the
+    current), whatever its cert pi: a tau_min that falls leaves the older epoch out, one that rises keeps it; a
+    label keeps the source its poster gave
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -294,3 +297,34 @@ def test_l12_inclusion_matches_pi_on_200000_rows():
             got[x] += d[x]["in"]
     for x in LB.SLICES:
         assert abs(got[x] - want[x]) < 4 * var[x] ** 0.5, (x, got[x], want[x])
+
+
+def test_l13_pooling_by_region_containment_and_the_real_source():
+    tl = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=10_000)
+    tl.epochs[-1]["tau_min"] = 0.0
+
+    def epoch(tau, cert_pi):
+        tl.settings = {**tl.settings, "cert_pi": cert_pi}
+        tl._new_epoch(tau_min=tau, why="test")
+
+    def serve_label(n, conf):
+        rids = [_serve(tl, f"e{tl.epoch['epoch']}-{conf}-{i}", [conf, (1 - conf) / 2, (1 - conf) / 2])[0]
+                for i in range(n)]  # fmt: skip
+        tl.post([{"request_id": r, "answer": "billing"} for r in rids])
+        return rids
+
+    epoch(0.8, 1.0)
+    serve_label(5, 0.9)  # epoch 1: region 0.8 and up
+    epoch(0.6, 0.5)  # tau_min falls: epoch 1 drew nothing in [0.6, 0.8)
+    drawn2 = [r for r in serve_label(40, 0.7) + serve_label(40, 0.9) if tl.rows[(r, "q")]["draws"]["cert"]["in"]]
+    a = {n["alpha"]: n for n in tl.need()}[0.05]
+    assert a["region_labels"] == len(drawn2) and a["pooling"] == "exact"  # epoch 1 left out
+    epoch(0.7, 1.0)  # tau_min rises: epoch 2's region (0.6 and up) held it, epoch 1's (0.8) did not
+    serve_label(3, 0.75)
+    a = {n["alpha"]: n for n in tl.need()}[0.05]
+    assert a["region_labels"] == len(drawn2) + 3  # epoch 2's rows at 0.7 and up (all of them here), epoch 3's three
+    assert a["region_pending"] == 0
+    rid = _serve(tl, "pending one", [0.9, 0.05, 0.05])[0]
+    assert {n["alpha"]: n for n in tl.need()}[0.05]["region_pending"] == 1 and (rid, "q") in tl.rows
+    tl.post([{"request_id": rid, "answer": "billing"}])
+    assert tl.latest[(rid, "q")]["source"] == "user"  # the poster's own source, not rewritten to "queue"
