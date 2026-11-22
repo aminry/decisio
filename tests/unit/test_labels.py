@@ -17,6 +17,11 @@ L6  the label need: the cert slice's labelled answers and errors, expired and de
 L7  a certificate never uses a label its version was fitted on
 L8  the cert slice's region: all traffic until tau_after answers, then a new epoch with tau_min set
 L9  past max_rows the oldest undrawn rows go and every drawn row stays, also when a log is read back
+L10 a label write that fails to reach the place raises and leaves nothing acknowledged; a failed segment write keeps
+    its rows for the next try; a write in progress does not hold up serving
+L11 the need counts only the current region at one chance (exact pooling), says when a level will not certify, and is
+    quick when it never will
+L12 (slow) each slice's inclusion matches its pi within binomial noise on 200,000 rows, the margin slice too
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -194,3 +199,98 @@ def test_l9_max_rows_drops_the_oldest_undrawn_rows(tmp_path):
     assert kept_undrawn == undrawn[len(undrawn) - len(kept_undrawn) :] and len(kept_undrawn) <= 1  # the newest only
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
     assert {k[0] for k in back.rows} == set(drawn)  # read back: the same rule, every undrawn row over the cap goes
+
+
+class FailingPlace(MemoryPlace):
+    def __init__(self):
+        super().__init__()
+        self.fail = False
+
+    def put(self, name, data):
+        if self.fail:
+            raise OSError("disk full")
+        super().put(name, data)
+
+
+def test_l10_nothing_unsaved_is_acknowledged_and_serving_does_not_wait():
+    import threading
+
+    place = FailingPlace()
+    tl = _task(place=place, audit_pi=1.0)
+    rid, _ = _serve(tl, "a", [0.7, 0.2, 0.1])
+    place.fail = True
+    with pytest.raises(OSError):
+        tl.post([{"request_id": rid, "answer": "billing"}])
+    assert tl.events == [] and tl.state_of((rid, "q"), tl.latest, tl.clock()) == "pending"
+    with pytest.raises(OSError):
+        tl.flush(force=True)
+    assert len(tl._pending_rows) == 1  # kept for the next try
+    place.fail = False
+    assert tl.flush(force=True) == 1
+    assert tl.post([{"request_id": rid, "answer": "billing"}])["results"][0]["status"] == "accepted"
+
+    class SlowPlace(MemoryPlace):
+        def __init__(self):
+            super().__init__()
+            self.entered, self.release = threading.Event(), threading.Event()
+
+        def put(self, name, data):
+            if name.startswith("events/"):
+                self.entered.set()
+                self.release.wait(5)
+            super().put(name, data)
+
+    slow = SlowPlace()
+    tl = _task(place=slow, audit_pi=1.0)
+    rid, _ = _serve(tl, "a", [0.7, 0.2, 0.1])
+    th = threading.Thread(target=tl.post, args=([{"request_id": rid, "answer": "billing"}],))
+    th.start()
+    assert slow.entered.wait(5)
+    done = threading.Event()
+    threading.Thread(target=lambda: (_serve(tl, "b", [0.6, 0.3, 0.1]), done.set())).start()
+    assert done.wait(2), "serving waited on a label write"
+    slow.release.set()
+    th.join(5)
+    assert tl.state_of((rid, "q"), tl.latest, tl.clock()) == "labelled"
+
+
+def test_l11_the_need_is_the_current_region_at_one_chance():
+    tl = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=20, region=0.5)
+    low = [_serve(tl, f"low{i}", [0.5, 0.3, 0.2])[0] for i in range(10)]  # epoch 0: all traffic is the region
+    high = [_serve(tl, f"high{i}", [0.9, 0.05, 0.05])[0] for i in range(10)]
+    assert tl.epoch["epoch"] == 1 and tl.epoch["tau_min"] > 0.5
+    tl.post([{"request_id": r, "answer": "billing"} for r in low + high])
+    a = {n["alpha"]: n for n in tl.need()}[0.05]
+    assert a["region_labels"] == 10 and a["pooling"] == "exact"  # the low rows are below the current region
+    bad = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=10_000)
+    rids = [_serve(bad, f"t{i}", [0.8, 0.1, 0.1])[0] for i in range(20)]
+    bad.post([{"request_id": r, "answer": "tech"} for r in rids])  # every answer wrong
+    import time as _time
+
+    t0 = _time.perf_counter()
+    need = bad.need()
+    assert _time.perf_counter() - t0 < 1.0
+    assert all("reason" in n and n["region_errors"] == 20 for n in need)
+    assert need[0]["more_if_no_error"] > 300  # finite: enough right answers would bring the bound under alpha
+
+
+@pytest.mark.slow
+def test_l12_inclusion_matches_pi_on_200000_rows():
+    salt = LB.new_secrets()["salt"]
+    s = LB.parse_settings({"audit_pi": 0.05, "cert_pi": 0.2})
+    epoch = {"epoch": 1, "tau_min": 0.7, "settings": s}
+    rng = np.random.default_rng(1)
+    n = 200_000
+    confs, margins = rng.uniform(0.34, 1.0, n), rng.uniform(0.0, 0.6, n)
+    want = {x: 0.0 for x in LB.SLICES}
+    got = {x: 0 for x in LB.SLICES}
+    var = {x: 0.0 for x in LB.SLICES}
+    for i in range(n):
+        d = LB.draw(salt, f"r-{i}", "q", float(confs[i]), float(margins[i]), epoch)
+        for x in LB.SLICES:
+            pi = d[x]["pi"]
+            want[x] += pi
+            var[x] += pi * (1 - pi)
+            got[x] += d[x]["in"]
+    for x in LB.SLICES:
+        assert abs(got[x] - want[x]) < 4 * var[x] ** 0.5, (x, got[x], want[x])

@@ -113,9 +113,10 @@ def test_s3_the_routes():
     d = client.post("/v1/tasks/angry/labels/decline", json={"request_ids": [d["request_id"]]})
     assert d.status_code == 200 and d.json()["declined"] == 1
     lines = [json.loads(x) for x in client.get("/v1/tasks/angry/labels/export").text.splitlines()]
-    assert {x["state"] for x in lines} == {"labelled", "declined"} and all(
-        "ps" not in x and "lp" not in x for x in lines
-    )
+    assert {x["state"] for x in lines} == {"labelled", "declined"}
+    # every stored field is exported, the plain readout too: a new version re-scores the rows from it
+    assert all(set(LB.stored_fields(LB.parse_settings({"audit_pi": 1.0}))) <= set(x) for x in lines)
+    assert np.allclose(np.exp(LB.unarr(lines[0]["lp"])), [0.93, 0.07], atol=1e-6)
     assert client.get("/v1/tasks/nope/labels/status").status_code == 404
     assert client.post("/v1/tasks/angry/labels", json={"labels": []}).status_code == 422
     assert client.post("/v1/tasks/angry/labels", json=[1]).status_code == 422

@@ -247,7 +247,7 @@ curl -s localhost:8000/v1/tasks -H 'content-type: application/json' -d '{
 The registration response's `labels.stores` lists it, and it is this:
 
 - For every answered question of the task: a request id, the time, the answer, its confidence and the gap to the next option, the language tag the request gave and the script class of its text, two digests of the input, the certificate and serving stack it was answered under, and whether it was drawn to be labelled.
-- With `features: "full"` (the default), also the served distribution and the plain readout's label log-probabilities (the scores before the task's calibration or head), and for drawn questions of a task with an intent head the hidden state at the answer position.
+- With `features: "full"` (the default), also the served distribution, and for drawn questions the plain readout's label log-probabilities (the scores before the task's calibration or head) and, for a task with an intent head, the hidden state at the answer position.
   The hidden state is a model feature, not an anonymous number; it stays in this server's tasks directory.
   `features: "minimal"` keeps neither the distributions nor the hidden state.
 - Never the request's text or state.
@@ -298,9 +298,11 @@ Look the text up in your own system by request id.
 `POST /v1/tasks/{id}/labels/decline` with `{"request_ids": [...]}` takes items you will not label out of the queue.
 
 **Status and export.**
-`GET /v1/tasks/{id}/labels/status` gives the counts by state (`pending`, `labelled`, `declined`, `expired`, `undrawn`) and by slice, and the label need for alpha 0.05, 0.10, 0.01 and 0.005 at delta 0.1: the labelled answers in the certificate's region, the errors among them, the upper bound, and how many more labels it takes with no further error and with one more.
+`GET /v1/tasks/{id}/labels/status` gives the counts by state (`pending`, `labelled`, `declined`, `expired`, `undrawn`) and by slice, the number of `revisions` (labels that replaced a different answer), and the label need for alpha 0.05, 0.10, 0.01 and 0.005 at delta 0.1: the labelled answers in the certificate's current region, the errors among them, the upper bound, and how many more labels it takes with no further error and with one more.
+The region is the current one (confidence at or above its lowest threshold), and an answer drawn earlier counts when its confidence is in it and it was drawn at the same chance, so the bound is exact.
 A drawn answer declined, or not labelled within `due_days`, counts as an error there: a missing label is never assumed right.
-`GET /v1/tasks/{id}/labels/export` returns every logged question with its draw, state and label as JSON lines, without the distributions or the hidden state.
+When the errors so far are already at or above alpha, that level's entry has a `reason`: it will not certify there unless the error falls.
+`GET /v1/tasks/{id}/labels/export` returns every logged question with all its stored fields, its draw, state and label as JSON lines; `ps`, `lp` and `h` are base64 little-endian float32.
 
 **The draw.**
 Each answered question is drawn independently into three slices, by a keyed hash of its request id, so every replica draws the same:

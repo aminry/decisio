@@ -133,7 +133,7 @@ FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution
 
 
 def stored_fields(settings: dict) -> list[str]:
-    """The fields a row of this task's log has, as the mode in force stores them (`h` is null on undrawn rows)."""
+    """The fields a row of this task's log has, as the mode in force stores them (`lp`, `h` null on undrawn rows)."""
     return list(ROW_FIELDS) + (list(FULL_FIELDS) if settings["features"] == "full" else [])
 
 
@@ -277,12 +277,15 @@ class TaskLabels:
     def __init__(self, task_id: str, settings: dict, secret: dict, place, replica: str, clock=time.time):
         self.task_id, self.settings, self.secret, self.place, self.replica = task_id, settings, secret, place, replica
         self.clock = clock
-        self._lock = threading.RLock()
+        self._lock = threading.RLock()  # the in-memory log; held briefly, never across a write to the place
+        self._write = threading.Lock()  # one event writer at a time (labels, declines, fit use)
         self.rows: dict[tuple[str, str], dict] = {}  # (request id, question) -> row
         self.by_digest: dict[str, list[tuple[str, str]]] = {}
         self.by_rid: dict[str, list[tuple[str, str]]] = {}
         self._undrawn: collections.deque = collections.deque()  # undrawn keys, oldest first: what max_rows drops
         self.events: list[dict] = []
+        self.latest: dict[tuple[str, str], dict] = {}  # (request id, question) -> its latest label or decline event
+        self.revisions = 0  # labels that replaced a different answer (a sign of label noise)
         self._pending_rows: list[dict] = []
         self._last_flush = clock()
         self._seq = 0
@@ -308,7 +311,7 @@ class TaskLabels:
         for name in sorted(self.place.names("events/")):
             for line in (self.place.get(name) or b"").decode().splitlines():
                 if line.strip():
-                    self.events.append(json.loads(line))
+                    self._apply(json.loads(line))
         self._seq = len(self.place.names("rows/")) + len(self.place.names("events/"))
         while len(self.rows) > self.settings["max_rows"] and self._evict():
             pass
@@ -329,21 +332,52 @@ class TaskLabels:
         self.place.put("EPOCHS.json", json.dumps(self.epochs).encode())
         return e
 
+    def _apply(self, ev: dict) -> None:
+        """Add one event to the in-memory log (under `_lock`, or while loading)."""
+        self.events.append(ev)
+        if ev["type"] in ("label", "decline") and ev.get("request_id") is not None:
+            key = (ev["request_id"], ev["question"])
+            prev = self.latest.get(key)
+            if ev["type"] == "label" and prev is not None and prev["type"] == "label":
+                self.revisions += prev["answer"] != ev["answer"]
+            self.latest[key] = ev
+
+    def _write_events(self, events: list[dict]) -> None:
+        """Write events to the place, then add them to the log: a write that fails raises and leaves the log as it
+        was, so nothing unsaved is ever acknowledged. The caller holds `_write`, never `_lock`, so the request path
+        (`observe`) does not wait on the disk."""
+        if not events:
+            return
+        with self._lock:
+            name = self._name("events")
+        self.place.put(name, "".join(json.dumps(e) + "\n" for e in events).encode())
+        with self._lock:
+            for ev in events:
+                self._apply(ev)
+
     def flush(self, force: bool = False) -> int:
         """Write the buffered rows as one segment when there are `SEGMENT_ROWS` or the oldest is `SEGMENT_SECONDS`
         old (or `force`); returns how many were written. Called off the request path (the task store's poll, or a
-        timer), and at shutdown."""
-        with self._lock:
-            due = (
-                force
-                or len(self._pending_rows) >= SEGMENT_ROWS
-                or (self._pending_rows and self.clock() - self._last_flush >= SEGMENT_SECONDS)
-            )
-            if not due or not self._pending_rows:
-                return 0
-            rows, self._pending_rows = self._pending_rows, []
-            self.place.put(self._name("rows"), "".join(json.dumps(r) + "\n" for r in rows).encode())
-            self._last_flush = self.clock()
+        timer), and at shutdown. The write happens outside the log's lock; a failed write puts the rows back."""
+        with self._write:
+            with self._lock:
+                due = (
+                    force
+                    or len(self._pending_rows) >= SEGMENT_ROWS
+                    or (self._pending_rows and self.clock() - self._last_flush >= SEGMENT_SECONDS)
+                )
+                if not due or not self._pending_rows:
+                    return 0
+                rows, self._pending_rows = self._pending_rows, []
+                name = self._name("rows")
+            try:
+                self.place.put(name, "".join(json.dumps(r) + "\n" for r in rows).encode())
+            except Exception:
+                with self._lock:
+                    self._pending_rows[:0] = rows
+                raise
+            with self._lock:
+                self._last_flush = self.clock()
             return len(rows)
 
     # ---- the request path
@@ -387,7 +421,7 @@ class TaskLabels:
                 "draws": d,
                 "drawn": drawn,
                 "replica": self.replica,
-                **({"ps": _arr(p), "lp": _arr(lp), "h": _arr(h) if drawn else None} if full else {}),
+                **({"ps": _arr(p), "lp": _arr(lp) if drawn else None, "h": _arr(h) if drawn else None} if full else {}),
             }
             if len(self.rows) >= self.settings["max_rows"]:
                 self._evict()
@@ -423,12 +457,8 @@ class TaskLabels:
     # ---- labels
 
     def _latest(self) -> dict:
-        """{(request id, question): the latest label-side event} (labels, declines, erasures)."""
-        out = {}
-        for ev in self.events:
-            if ev["type"] in ("label", "decline"):
-                out[(ev["request_id"], ev["question"])] = ev
-        return out
+        """{(request id, question): the latest label-side event} (labels, declines), kept as events are added."""
+        return self.latest
 
     def post(self, items) -> dict:
         """Store a batch of labels (each with exactly one of request_id, digest, state, text, and an answer). The
@@ -439,13 +469,12 @@ class TaskLabels:
             raise LabelsError(f"labels: at most {MAX_BATCH} labels per write")
         now = self.clock()
         results, events = [], []
-        with self._lock:
-            latest = self._latest()
-            for it in items:
-                results.append(self._one(it, now, latest, events))
-            if events:
-                self.place.put(self._name("events"), "".join(json.dumps(e) + "\n" for e in events).encode())
-                self.events.extend(events)
+        with self._write:
+            with self._lock:
+                latest = dict(self.latest)  # this batch's view: earlier labels in the batch count for later ones
+                for it in items:
+                    results.append(self._one(it, now, latest, events))
+            self._write_events(events)
         return {"results": results, **self.counts()}
 
     def _one(self, it, now, latest, events) -> dict:
@@ -508,17 +537,15 @@ class TaskLabels:
                 for key in [k for k in self.by_rid.get(rid, []) if q is None or k[1] == q]:
                     events.append({"type": "decline", "request_id": key[0], "question": key[1], "received": now,
                                    "replica": self.replica})  # fmt: skip
-            if events:
-                self.place.put(self._name("events"), "".join(json.dumps(e) + "\n" for e in events).encode())
-                self.events.extend(events)
+        with self._write:
+            self._write_events(events)
         return {"declined": len(events), **self.counts()}
 
     def record_fit_use(self, version: str, label_ids) -> None:
         """A fit of `version` is about to use these labels ((request id, question) pairs): recorded first."""
         ev = {"type": "fit_use", "version": version, "labels": [list(x) for x in label_ids], "received": self.clock()}
-        with self._lock:
-            self.place.put(self._name("events"), (json.dumps(ev) + "\n").encode())
-            self.events.append(ev)
+        with self._write:
+            self._write_events([ev])
 
     def fit_use(self, versions) -> set:
         vs = set(versions)
@@ -536,14 +563,15 @@ class TaskLabels:
         return "expired" if now - row["t"] > self.settings["due_days"] * 86400 else "pending"
 
     def table(self) -> list[dict]:
-        """The joined label table: one record per logged question, its label side and its state."""
+        """The joined label table: one record per logged question with every stored field, its label side and its
+        state (the export route's JSON lines)."""
         now = self.clock()
         with self._lock:
             latest = self._latest()
             out = []
             for key, row in self.rows.items():
                 ev = latest.get(key)
-                rec = {k: v for k, v in row.items() if k not in ("ps", "lp", "h")}
+                rec = dict(row)  # every stored field (ps, lp and h as base64 little-endian float32; unarr reads them)
                 rec["state"] = self.state_of(key, latest, now)
                 if ev is not None and ev["type"] == "label":
                     rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], selection=ev["selection"],
@@ -583,20 +611,28 @@ class TaskLabels:
                         by_slice[s]["drawn"] += 1
                         by_slice[s]["labelled"] += st == "labelled"
             imports = sum(1 for ev in self.events if ev["type"] == "label" and ev.get("source") == "import")
-            return {"rows": len(self.rows), "states": states, "by_slice": by_slice, "imports": imports}
+            return {"rows": len(self.rows), "states": states, "by_slice": by_slice, "imports": imports,
+                    "revisions": self.revisions}  # fmt: skip
 
     def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
-        """Per alpha: the cert slice's labelled answers in the region and the errors among them (expired and declined
-        rows counted as errors, the strict rule), the Clopper-Pearson upper bound, and how many more labels the region
-        needs if no further error comes and if one more does."""
+        """Per alpha: the cert slice's labelled answers in the current region and the errors among them (expired and
+        declined rows counted as errors, the strict rule), the Clopper-Pearson upper bound, and how many more labels
+        the region needs if no further error comes and if one more does.
+
+        The region is the current epoch's: served confidence at or above its `tau_min`. A row of an earlier epoch
+        counts when its confidence is in that region and its cert `pi` is the current one, so every counted row had
+        the same chance of being drawn and the bound is exact (`pooling: "exact"`)."""
         from decisio.readout import certify
 
         now = self.clock()
         with self._lock:
-            latest = self._latest()
+            e = self.epoch
+            tau, pi = e["tau_min"], floor_pi(e["settings"]["cert_pi"])
+            latest = self.latest
             n = err = 0
             for key, row in self.rows.items():
-                if not row["draws"]["cert"]["in"]:
+                c = row["draws"]["cert"]
+                if not c["in"] or row["conf"] < tau or c["pi"] != pi:
                     continue
                 st = self.state_of(key, latest, now)
                 if st == "labelled":
@@ -605,20 +641,28 @@ class TaskLabels:
                 elif st in ("expired", "declined"):
                     n += 1
                     err += 1
+
+        def more(k: int, a: float) -> int | None:
+            """The fewest further labels (all right) after which k errors certify at a, or None past 100,000."""
+            lo, hi = max(n, k + 1), n + 100_000
+            if certify.upper_bound(k, hi, delta) > a:
+                return None
+            while lo < hi:  # the bound falls as labels are added: the first m whose bound is at most a
+                mid = (lo + hi) // 2
+                if certify.upper_bound(k, mid, delta) <= a:
+                    hi = mid
+                else:
+                    lo = mid + 1
+            return lo - n
+
         out = []
         for a in alphas:
-
-            def more(k):
-                m = n
-                while certify.upper_bound(k, m, delta) > a:
-                    m += 1
-                    if m > n + 100_000:
-                        return None
-                return m - n
-
-            out.append({"alpha": a, "delta": delta, "region_labels": n, "region_errors": err,
-                        "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
-                        "more_if_no_error": more(err), "more_if_one_more_error": more(err + 1)})  # fmt: skip
+            rec = {"alpha": a, "delta": delta, "region_labels": n, "region_errors": err, "pooling": "exact",
+                   "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
+                   "more_if_no_error": more(err, a), "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
+            if n and err / n >= a:
+                rec["reason"] = "the region's observed error is at or above alpha: it will not certify at this alpha"
+            out.append(rec)
         return out
 
 
