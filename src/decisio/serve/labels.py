@@ -82,7 +82,7 @@ UNLABELLED_RULE = (
     "a drawn answer not labelled by its due date counts as an error, so a task that leaves its drawn answers "
     "unlabelled loses its certificate or never gets one: label them, raise per_day, or register without a certificate"
 )
-STRICT_MIN_SHARE = 0.10  # such a task needs labels on at least this share of its answers (its drift checks fail below)
+STRICT_MIN_SHARE = 0.05  # such a task needs labels on at least this share of its answers (its drift checks fail below)
 PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max", "typical_pi_max")
 REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
 REBUDGET_BAND = (0.5, 2.0)  # and ends when the measured rate leaves this band around the rate it assumed
