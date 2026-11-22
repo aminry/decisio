@@ -15,11 +15,15 @@ R5  a store out of reach: a label write raises and nothing is acknowledged; rows
 R6  a replica that does not write (--task-store-readonly) logs no answers, takes no labels, and reads the others'
 R7  through the servers: a label posted to replica B for replica A's answer, the status on both, a read-only replica's
     409, a 503 while the store is down, the store's gc keeping a live log and removing a removed task's
+R8  (with DECISIO_TEST_S3_ENDPOINT) two logs on a real S3-compatible service: listings, create-only writes and the
+    compare-and-swap of the epochs
 
   uv run pytest -q tests/unit/test_labels_replicas.py
 """
 
+import os
 import time
+import uuid
 
 import numpy as np
 import pytest
@@ -252,3 +256,31 @@ def test_r7_two_replicas_a_reader_and_the_store_gc():
     bb.sync_once()
     sb.flush_labels(force=True)
     assert "angry" not in sb.labels_logs and not FTR.Objects(store).list("labels/")
+
+
+@pytest.mark.skipif(not os.environ.get("DECISIO_TEST_S3_ENDPOINT"), reason="no S3-compatible service named")
+def test_r8_two_label_logs_on_a_real_s3_compatible_service():
+    """As test_task_store_shared's S10: DECISIO_TEST_S3_ENDPOINT, the AWS_* credentials and region, and a bucket in
+    DECISIO_TEST_S3_BUCKET (default decisio-test); a fresh prefix per run. The listing with an offset and a delimiter,
+    the create-only writes and the compare-and-swap on a real service."""
+    url = f"s3://{os.environ.get('DECISIO_TEST_S3_BUCKET', 'decisio-test')}/labels-{uuid.uuid4().hex[:8]}"
+    endpoint = os.environ["DECISIO_TEST_S3_ENDPOINT"]
+    objects = FTR.Objects(S.open_store(url, endpoint))
+    s = LB.parse_settings({"audit_pi": 1.0, "tau_after": 3})
+    secret, clock = LB.new_secrets(), Clock(time.time())
+    a = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-a-1"), "host-a-1", clock)
+    b = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-b-2"), "host-b-2", clock)
+    rids = [_serve(a, f"t{i}")[0] for i in range(3)]
+    assert b.post([{"request_id": rids[0], "answer": "billing"}])["results"][0]["status"] == "not_joined"
+    a.tick(force=True)  # writes the segment and stores epoch 1 by a create
+    clock.t += 1
+    rids.append(_serve(a, "t3")[0])
+    a.flush(force=True)
+    b.tick()  # reads both of a's segments (the second after the listing's offset) and adopts the epoch
+    assert {k[0] for k in b.rows} == set(rids) and b.counts()["states"]["labelled"] == 1
+    assert b.epoch["epoch"] == 1 and b.epoch == a.epoch
+    stored = b._swap_epochs(lambda cur: cur + [{**cur[-1], "epoch": 2}])  # a compare-and-swap on the stored copy
+    a.sync()
+    assert len(stored) == 3 and a.epoch["epoch"] == 2
+    for path in objects.list(PREFIX):
+        objects.delete(path)
