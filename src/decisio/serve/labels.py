@@ -62,6 +62,7 @@ DEFAULTS = {
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
     "max_rows": 50_000,
+    "reservoir": 2_000,  # undrawn answers that keep their served distribution: a uniform sample, about this many
 }
 FEATURES = ("full", "minimal")
 SEGMENT_ROWS = 2_000  # rows buffered before a segment is written
@@ -108,7 +109,7 @@ def parse_settings(block) -> dict | None:
         raise LabelsError("labels.margin_pi_min is at most labels.margin_pi_max")
     if not 0 < float(s["margin_scale"]) <= 1 or not 0 < float(s["region"]) <= 1:
         raise LabelsError("labels.margin_scale and labels.region are fractions above 0 and at most 1")
-    for k in ("tau_after", "due_days", "max_rows"):
+    for k in ("tau_after", "due_days", "max_rows", "reservoir"):
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
     return s
@@ -119,21 +120,24 @@ STORES = (
     "next option, the language tag the request gave (meta.lang or x-decisio-lang) and the script class of its text, "
     "two digests of the input (salted; not reversible without the task's secrets), the certificate and the serving "
     "stack it was answered under, and whether it was drawn to be labelled",
-    'with features "full" (the default): also the served distribution and the plain readout\'s label '
-    "log-probabilities, and for drawn questions of a task with an intent head the hidden state at the answer position "
-    "(a model feature that is not anonymous; it stays in this server's tasks directory)",
+    'with features "full" (the default): for drawn questions also the served distribution, the plain readout\'s label '
+    "log-probabilities and, for a task with an intent head, the hidden state at the answer position (a model feature "
+    "that is not anonymous; it stays where the task's log is kept); and the served distribution of a uniform sample "
+    "of the other questions (about `reservoir` of them)",
     "never the request's text or state",
     "the labels you post, with who chose the item (the draw, or you)",
 )
 
 
 ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "script", "keys", "top", "conf",
-              "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "replica")  # fmt: skip
+              "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "sample",
+              "replica")  # fmt: skip
 FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
 
 
 def stored_fields(settings: dict) -> list[str]:
-    """The fields a row of this task's log has, as the mode in force stores them (`lp`, `h` null on undrawn rows)."""
+    """The fields a row of this task's log has, as the mode in force stores them (`lp`, `h` null on undrawn rows,
+    `ps` too outside the `sample`)."""
     return list(ROW_FIELDS) + (list(FULL_FIELDS) if settings["features"] == "full" else [])
 
 
@@ -521,6 +525,7 @@ class TaskLabels:
             e = self.epoch
             d = draw(self.secret["salt"], rid, question, conf, margin, e)
             drawn = any(v["in"] for v in d.values())
+            sample = self._sample(rid, question)
             full = self.settings["features"] == "full"
             canonical = canonical_text(text)
             row = {
@@ -541,9 +546,18 @@ class TaskLabels:
                 "version": version,
                 "stack": stack,
                 "draws": d,
+                "sample": sample,
                 "drawn": drawn,
                 "replica": self.replica,
-                **({"ps": _arr(p), "lp": _arr(lp) if drawn else None, "h": _arr(h) if drawn else None} if full else {}),
+                **(
+                    {
+                        "ps": _arr(p) if drawn or sample["in"] else None,
+                        "lp": _arr(lp) if drawn else None,
+                        "h": _arr(h) if drawn else None,
+                    }
+                    if full
+                    else {}
+                ),  # fmt: skip
             }
             if len(self.rows) >= self.settings["max_rows"]:
                 self._evict()
@@ -553,6 +567,14 @@ class TaskLabels:
             else:  # the place has been out of reach for long: the row serves here but is not written
                 self.unsaved += 1
         return {"request_id": rid, **({"label_requested": True} if drawn else {})}
+
+    def _sample(self, rid: str, question: str) -> dict:
+        """Whether an undrawn answer keeps its served distribution: a keyed draw at `reservoir / max_rows`, so the
+        undrawn answers that keep it are a uniform sample of those held (about `reservoir` at the cap), the same on
+        every replica: the unlabelled pool for monitoring. Every other undrawn answer keeps no distribution."""
+        pi = min(1.0, self.settings["reservoir"] / self.settings["max_rows"])
+        u = uniform(self.secret["salt"], rid, question, "reservoir")
+        return {"in": u < pi, "pi": pi, "u": u}
 
     def _evict(self) -> bool:
         """Over `max_rows`: drop the oldest undrawn row (a drawn row stays: its label may still come). Constant time on
@@ -715,8 +737,7 @@ class TaskLabels:
                 rec = dict(row)  # every stored field (ps, lp and h as base64 little-endian float32; unarr reads them)
                 rec["state"] = self.state_of(key, latest, now)
                 if ev is not None and ev["type"] == "label":
-                    src = "queue" if row["drawn"] and ev["source"] == "user" else ev["source"]
-                    rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], source=src,
+                    rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], source=ev["source"],
                                selection="slice" if row["drawn"] else "self", labelled_at=ev["labelled_at"],
                                replica_labelled=ev.get("replica"))  # fmt: skip
                 out.append(rec)
@@ -816,7 +837,10 @@ class TaskLabels:
                    "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
                    "more_if_no_error": more(err, a), "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
             if n and err / n >= a:
-                rec["reason"] = "the region's observed error is at or above alpha: it will not certify at this alpha"
+                rec["reason"] = (
+                    "the errors so far are at or above alpha: it certifies only after more right labels bring the "
+                    "error down"
+                )
             out.append(rec)
         return out
 

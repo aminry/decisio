@@ -247,7 +247,7 @@ curl -s localhost:8000/v1/tasks -H 'content-type: application/json' -d '{
 The registration response's `labels.stores` lists it, and it is this:
 
 - For every answered question of the task: a request id, the time, the answer, its confidence and the gap to the next option, the language tag the request gave and the script class of its text, two digests of the input, the certificate and serving stack it was answered under, and whether it was drawn to be labelled.
-- With `features: "full"` (the default), also the served distribution, and for drawn questions the plain readout's label log-probabilities (the scores before the task's calibration or head) and, for a task with an intent head, the hidden state at the answer position.
+- With `features: "full"` (the default), also, for drawn questions, the served distribution, the plain readout's label log-probabilities (the scores before the task's calibration or head) and, for a task with an intent head, the hidden state at the answer position; and the served distribution of a uniform sample of the other questions, about `reservoir` (2,000) of them at `max_rows`.
   The hidden state is a model feature, not an anonymous number; it stays in this server's tasks directory.
   `features: "minimal"` keeps neither the distributions nor the hidden state.
 - Never the request's text or state.
@@ -318,6 +318,7 @@ Each answered question is drawn independently into three slices, by a keyed hash
 A chance is 0 or at least 0.02.
 The certificate region covers all traffic for the first `tau_after` (200) answers; after that it is the top `region` (0.5) share by confidence.
 `due_days` (14) is how long a drawn answer waits for its label, and `max_rows` (50,000) is the most answers kept: past it the oldest answers that were not drawn are dropped.
+The answers that were not drawn are therefore the most recent ones, a sliding window, not a sample of all time; the ones that keep their served distribution are a uniform sample of that window.
 
 **Where it is kept.**
 With `--tasks-dir` the log is append-only files under `<tasks-dir>/labels/`, and it survives a restart.
