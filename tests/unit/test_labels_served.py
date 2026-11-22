@@ -109,7 +109,8 @@ def test_s3_the_routes():
     q = client.get("/v1/tasks/angry/labels/queue").json()
     assert [it["request_id"] for it in q["items"]] == [d["request_id"]] and q["pending"] == 1
     assert set(q["items"][0]) == {"request_id", "question", "asked_at", "due_by"}  # blind
-    assert set(q) == {"items", "pending", "epoch", "as_of", "durable"}
+    assert set(q) == {"items", "pending", "epoch", "as_of", "budget", "durable"}
+    assert set(q["budget"]) == {"per_day", "rate_per_day"}  # no slice, chance or threshold
     st = client.get("/v1/tasks/angry/labels/status").json()
     assert st["states"]["labelled"] == 3 and {n["alpha"] for n in st["need"]} == {0.05, 0.10, 0.01, 0.005}
     assert st.get("durable") is False  # no --tasks-dir: in memory
@@ -120,6 +121,16 @@ def test_s3_the_routes():
     # every stored field is exported, the plain readout too: a new version re-scores the rows from it
     assert all(set(LB.stored_fields(LB.parse_settings({"audit_pi": 1.0}))) <= set(x) for x in lines)
     assert np.allclose(np.exp(LB.unarr(lines[0]["lp"])), [0.93, 0.07], atol=1e-6)
+    ev = [json.loads(x) for x in client.get("/v1/tasks/angry/labels/export", params={"view": "eval"}).text.splitlines()]
+    assert {x["request_id"] for x in ev} == {
+        a["request_id"],
+        b["request_id"],
+        c["request_id"],
+        q["items"][0]["request_id"],
+    }
+    assert client.get("/v1/tasks/angry/labels/export", params={"view": "fit"}).text == ""  # every row is evaluation's
+    assert client.get("/v1/tasks/angry/labels/export", params={"view": "cohort"}).text == ""  # none due yet
+    assert client.get("/v1/tasks/angry/labels/export", params={"view": "nope"}).status_code == 422
     assert client.get("/v1/tasks/nope/labels/status").status_code == 404
     assert client.post("/v1/tasks/angry/labels", json={"labels": []}).status_code == 422
     assert client.post("/v1/tasks/angry/labels", json=[1]).status_code == 422

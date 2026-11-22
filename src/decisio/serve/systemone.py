@@ -3236,6 +3236,10 @@ class SystemOne:
             if t is None or (t.get("labels") or {}).get("secret") != log.secret:
                 self.labels_logs.pop(task_id, None)  # removed or registered again (on another replica, too)
                 continue
+            cert = t.get("certificate") or {}
+            log.cert_threshold = (
+                cert.get("threshold") if cert.get("certified", cert.get("threshold") is not None) else None
+            )
             try:
                 log.tick(force, merge=merge)
             except (
@@ -5497,7 +5501,7 @@ def add_routes(app, systemone: SystemOne):
         log = labels_log_of(task_id)
         extra = synced(log)
         return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"],
-                            "settings": log.settings, **extra})  # fmt: skip
+                            "settings": log.settings, "budget": log.budget(), **extra})  # fmt: skip
 
     async def decline_labels(task_id: str, request: Request):
         try:
@@ -5546,13 +5550,22 @@ def add_routes(app, systemone: SystemOne):
         return labels_json(label_write(log, lambda t: log.erase(before=t), before))
 
     @app.get("/v1/tasks/{task_id}/labels/export")
-    def labels_export(task_id: str):
-        """The joined label table as JSON lines: every logged question, its draws, its state and its label."""
+    def labels_export(task_id: str, view: str = "table", cutoff: float | None = None):
+        """The label table as JSON lines. `view`: `table` (every logged question with every stored field, its draws,
+        state and label), `eval` (the rows an evaluation slice drew: certificates and tests only), `fit` (the rows a
+        fit may use, with their weights), or `cohort` (the evaluation rows drawn by `cutoff`, default now - due_days,
+        each closed: labelled, expired or declined)."""
         from fastapi.responses import PlainTextResponse
 
         log = labels_log_of(task_id)
         stale = synced(log)
-        rows = log.table()
+        views = {"table": log.table, "eval": log.eval_rows, "fit": log.fit_rows, "cohort": lambda: log.cohort(cutoff)}
+        if view not in views:
+            raise HTTPException(422, f"view is one of {sorted(views)}")
+        try:
+            rows = views[view]()
+        except LB.LabelsError as e:
+            raise HTTPException(422, str(e))
         headers = {"x-decisio-warning": "the task store could not be read: this replica's own view"} if stale else {}
         return PlainTextResponse(
             "".join(json.dumps(r, default=float) + "\n" for r in rows),
