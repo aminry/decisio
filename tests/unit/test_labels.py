@@ -375,10 +375,15 @@ def test_l15_erasure_on_one_server(tmp_path):
     gone, _ = _serve(tl, "gone", [0.7, 0.2, 0.1])
     tl.flush(force=True)
     tl.post([{"request_id": r, "answer": "billing"} for r in (*old, keep, gone)])
-    assert tl.erase(request_id=gone)["state"] == "purged"  # one server: the merge runs at once
-    assert (gone, "q") not in tl.rows and gone not in _files_text(place)
+    out = tl.erase(request_id=gone)
+    assert out["state"] == "erased" and out["matched"] == {"answers": 1, "labels": 1}
+    assert (gone, "q") not in tl.rows and gone in _files_text(place)  # gone from every view; the bytes at the merge
+    tl.tick()  # the labels thread's next turn: one server purges at once
+    assert gone not in _files_text(place) and tl.counts()["erasures"] == {"erased": 1, "purged": 1}
     out = tl.erase(before=clock.t - 50)
-    assert out["state"] == "purged" and all(r not in _files_text(place) for r in old)
+    assert out["matched"]["answers"] == 3
+    tl.tick()
+    assert all(r not in _files_text(place) for r in old)
     assert {r["request_id"] for r in tl.table()} == {keep}
     assert tl.counts()["erasures"] == {"erased": 2, "purged": 2}
     late, _ = _serve(tl, "late", [0.7, 0.2, 0.1])  # served after: kept
@@ -389,6 +394,8 @@ def test_l15_erasure_on_one_server(tmp_path):
     assert back.table()[0]["state"] == "labelled"
     with pytest.raises(LB.LabelsError):
         tl.erase()
+    with pytest.raises(LB.LabelsError, match="not a request id"):
+        tl.erase(request_id="queue")
 
 
 def test_l16_the_merge_keeps_everything_kept(monkeypatch, tmp_path):

@@ -23,10 +23,14 @@ R11 a read that fails after the listing loses nothing: once the store is back ev
 R9  erasure on a shared store: gone at once on the replica that erased and on the others when they read it; the
     merger purges it only PURGE_AFTER later, then no object holds it and every replica says purged
 R10 two merges at once lose nothing and count nothing twice; settings changed on one replica reach the others
+R12 a merger whose clock is behind the last one's names its files after the merged files it read; a row of an erased
+    request written after the purge re-opens it for the next merge; an event written without an id is counted once
+    however often it is read
 
   uv run pytest -q tests/unit/test_labels_replicas.py
 """
 
+import json
 import os
 import time
 import uuid
@@ -387,3 +391,42 @@ def test_r10_two_merges_at_once_and_settings_from_another_replica():
     e = b.set_settings({"cert_pi": 0.5})
     a.sync()
     assert a.epoch == e and a.settings["cert_pi"] == 0.5
+
+
+def test_r12_merges_after_a_handover_late_erased_rows_and_events_without_ids():
+    clock_a, clock_b = Clock(), Clock(1_800_000_000.0 - 3600)  # b's clock is an hour behind
+    objects = Faulty(FTR.Objects(MemoryStore()))
+    s, secret = LB.parse_settings({"audit_pi": 1.0}), LB.new_secrets()
+    a = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-a-1"), "host-a-1", clock_a)
+    b = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-b-2"), "host-b-2", clock_b)
+    reader = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-c-3"), "host-c-3", clock_a)
+    first = [_serve(a, f"one{i}")[0] for i in range(3)]
+    a.flush(force=True)
+    a.compact()  # a merges first, at its clock
+    reader.sync()
+    b.sync()
+    later = [_serve(b, f"two{i}")[0] for i in range(3)]
+    b.flush(force=True)
+    b.compact()  # then b, an hour behind
+    reader.sync()
+    assert {k[0] for k in reader.rows} == set(first + later)  # nothing behind the reader's cursor
+    # a row of an erased request written after the purge
+    slow, _ = _serve(b, "slow one")  # served on b, not written yet
+    a.erase(request_id=slow)
+    clock_a.t += LB.PURGE_AFTER + 1
+    a.tick(merge=True)
+    assert a.unpurged() == []
+    b.flush(force=True)  # b writes it before reading the erasure
+    a.sync()
+    assert (slow, "q") not in a.rows and a.unpurged()  # dropped, and the purge is open again
+    a.tick(merge=True)
+    assert slow not in _store_text(objects) and a.unpurged() == []
+    # an event without an id, read in two files
+    place = LB.SharedPlace(objects, PREFIX, "host-d-4")
+    line = json.dumps({"type": "label", "request_id": None, "question": None, "digest": "hk1:x", "answer": "tech",
+                       "source": "import", "selection": "import", "received": 1.0, "replica": "old"})  # fmt: skip
+    objects.create(f"{PREFIX}old/events/0000000000001-000000001.jsonl", line.encode())
+    objects.create(f"{PREFIX}{LB.MERGED}/events/0000000000002-000000001.jsonl", line.encode())
+    d = LB.TaskLabels("t", s, secret, place, "host-d-4", clock_a)
+    d.sync()
+    assert d.counts()["imports"] == 1

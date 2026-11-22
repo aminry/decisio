@@ -3180,6 +3180,20 @@ class SystemOne:
             self._start_labels_flusher()
         return log
 
+    def labels_view(self, t) -> dict | None:
+        """A task's labels as its listing shows them: the settings in force (the current epoch's, which a
+        `PUT .../labels/settings` changes), what they store, and the registration's own settings; never a secret."""
+        log = self.labels_log(t)
+        if log is None:
+            return None
+        try:
+            log.ensure_loaded()
+        except Exception:  # the store out of reach: what this replica holds
+            pass
+        s = log.settings
+        return {"settings": s, "stored_fields": LB.stored_fields(s), "epoch": log.epoch["epoch"],
+                "registered_settings": t["labels"]["settings"]}  # fmt: skip
+
     @property
     def labels_location(self) -> str:
         """Where the label logs are kept: `task_store`, `tasks_dir` or `memory`."""
@@ -5341,6 +5355,8 @@ def add_routes(app, systemone: SystemOne):
             )
             if (t.get("certificate") or t.get("learn")) and not full:
                 item["status"] = systemone.full_status(t)
+            if t.get("labels") and not full:
+                item["labels"] = systemone.labels_view(t)
             if not full and (note := systemone.calibration_note(t)):
                 item["calibration_refit"] = note
             if not full and (note := systemone.head_note(t)):
@@ -5366,6 +5382,8 @@ def add_routes(app, systemone: SystemOne):
         out = with_version(TaskStore.public(t), "readout", t["id"])
         if t.get("certificate") or t.get("learn"):
             out["status"] = systemone.full_status(t)
+        if t.get("labels"):
+            out["labels"] = systemone.labels_view(t)
         if note := systemone.calibration_note(t):
             out["calibration_refit"] = note
         if note := systemone.head_note(t):
@@ -5502,7 +5520,12 @@ def add_routes(app, systemone: SystemOne):
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             raise HTTPException(422, f"request body is not valid JSON: {e}")
         log = labels_log_of(task_id)
-        out = await run_in_threadpool(label_write, log, lambda b: {"epoch": log.set_settings(b)}, body)
+
+        def change(b):
+            epoch = log.set_settings(b)  # what the log keeps from now on, said as the registration said it
+            return {"epoch": epoch, "labels": LB.disclosure(epoch["settings"], systemone.labels_location)}
+
+        out = await run_in_threadpool(label_write, log, change, body)
         return labels_json(out)
 
     put_label_settings.__annotations__["request"] = Request

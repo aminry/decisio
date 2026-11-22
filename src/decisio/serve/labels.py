@@ -136,17 +136,25 @@ ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "
 FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
 
 
+MINIMAL_STORES = 'with features "minimal": no distribution, no plain readout and no hidden state'
+
+
 def stored_fields(settings: dict) -> list[str]:
     """The fields a row of this task's log has, as the mode in force stores them (`lp`, `h` null on undrawn rows,
     `ps` too outside the `sample`)."""
     return list(ROW_FIELDS) + (list(FULL_FIELDS) if settings["features"] == "full" else [])
 
 
-def registration_block(rec: dict, location: str) -> dict:
-    """What a registration's response says of the task's labels: the settings, the digest key (shown here only), what
-    the log stores and where (`location`: tasks_dir, task_store or memory), and the queue's first view (empty until
-    the task has answered)."""
-    s = rec["settings"]
+def stores(settings: dict) -> list[str]:
+    """What the log stores under `settings`, in words (the `features` setting decides the distributions' line)."""
+    full = settings["features"] == "full"
+    return [STORES[0]] + ([STORES[1]] if full else [MINIMAL_STORES]) + list(STORES[2:])
+
+
+def disclosure(settings: dict, location: str) -> dict:
+    """What the log keeps under `settings`, exactly: the registration's response says it, and so does every change of
+    the settings (`PUT .../labels/settings`), since a change can widen or narrow it. Never a secret."""
+    s = settings
     return {
         "enabled": True,
         "text_stored": False,
@@ -155,11 +163,20 @@ def registration_block(rec: dict, location: str) -> dict:
         "retention": {"max_rows": s["max_rows"], "due_days": s["due_days"], "deleted_with_task": True},
         "location": location,
         "settings": s,
+        "stores": stores(s),
+    }
+
+
+def registration_block(rec: dict, location: str) -> dict:
+    """What a registration's response says of the task's labels: the disclosure (`disclosure`), the digest key (shown
+    here only), and the queue's first view (empty until the task has answered)."""
+    s = rec["settings"]
+    return {
+        **disclosure(s, location),
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
         "one space and the ends stripped",
-        "stores": list(STORES),
         "next_to_label": {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"},
     }
 
@@ -396,12 +413,25 @@ class TaskLabels:
                     if advance:
                         advance(name)
                     continue
-                items = [json.loads(x) for x in data.decode().splitlines() if x.strip()]
+                lines = [x for x in data.decode().splitlines() if x.strip()]
+                items = [json.loads(x) for x in lines]
+                if (
+                    kind == "events/"
+                ):  # an event written without an id gets one from its bytes: read twice, counted once
+                    for line, it in zip(lines, items):
+                        it.setdefault("id", "h" + hashlib.blake2b(line.encode(), digest_size=12).hexdigest())
                 with self._lock:
                     if name in self._read:
                         continue
+                    late = 0
                     for it in items:
-                        (self._index if kind == "rows/" else self._apply)(it)
+                        if kind == "rows/":
+                            late += self._index(it) is False
+                        else:
+                            self._apply(it)
+                    if late and not name.endswith(f"-{MERGED}.jsonl"):
+                        # an erased row in a file the purge did not see: the next merge purges again
+                        self._purged.difference_update(self._tombs)
                     self._read.add(name)
                 if advance:
                     advance(name)
@@ -452,6 +482,11 @@ class TaskLabels:
                 rows = [r for k, r in self.rows.items() if k not in waiting]
                 events = [e for e in self.events if e["type"] != "purged"]
                 tombs = sorted(ripe)
+            with self._lock:  # name after every merged file read, whoever's clock wrote it (a lease handover)
+                for name in self._read:
+                    m = _FILE_NAME.match(name)
+                    if m and m.group(3) == MERGED:
+                        self._last_ms = max(self._last_ms, int(m.group(2).split("-")[0]) + 1)
             written = []
             for kind, items, size in (("rows", rows, MERGED_ROWS), ("events", events, MERGED_EVENTS)):
                 for i in range(0, len(items), size):
@@ -479,19 +514,32 @@ class TaskLabels:
     def erase(self, request_id: str | None = None, before: float | None = None) -> dict:
         """Erase one request's answers and labels (`request_id`), or everything served or labelled before a time
         (`before`, in seconds since the epoch). An erase event is written first and the rows leave memory at once
-        (`erased`); the bytes leave the place at the next merge (`purged`), at once on one server."""
+        (`erased`, with how many logged answers and labels it matched); the bytes leave the place at the merger's next
+        turn (`purged`: within `FLUSH_EVERY` seconds on one server, `PURGE_AFTER` and a turn on a shared store), so
+        a thousand erasures are one rewrite, not a thousand."""
         if not self.writes:
             raise LabelsReadOnly(READ_ONLY)
         if (request_id is None) == (before is None):
             raise LabelsError("erase: give a request id or a time, not both")
+        if request_id is not None and rid_time(request_id) is None:
+            raise LabelsError(f"erase: {request_id!r} is not a request id")
         now = self.clock()
+        with self._lock:
+            bound = float("-inf") if before is None else float(before)
+            keys = [k for k, r in self.rows.items() if k[0] == request_id or r["t"] < bound]
+            rids = {k[0] for k in keys}
+            n_labels = sum(
+                1
+                for e in self.events
+                if e["type"] in ("label", "decline")
+                and (e.get("request_id") in rids or float(e.get("received") or 0) < bound)
+            )
+            matched = {"answers": len(keys), "labels": n_labels}
         tomb = {"type": "erase", "request_id": request_id, "before": None if before is None else float(before),
                 "received": now, "replica": self.replica}  # fmt: skip
         with self._write:
             self._write_events([tomb])
-        if not self.shared:
-            self.compact()
-        return {"state": "purged" if tomb["id"] in self._purged else "erased", "erase_id": tomb["id"],
+        return {"state": "erased", "erase_id": tomb["id"], "matched": matched,
                 **({"request_id": request_id} if request_id else {"before": tomb["before"]})}  # fmt: skip
 
     def _swap_epochs(self, fn) -> list:
@@ -567,9 +615,10 @@ class TaskLabels:
         self._adopt(stored)
         return stored[-1]
 
-    def _index(self, row: dict) -> None:
+    def _index(self, row: dict) -> bool | None:
+        """Add a row; False when it is erased (and so dropped)."""
         if row["request_id"] in self._erased_rids or row["t"] < self._erased_before:
-            return
+            return False
         key = (row["request_id"], row["question"])
         if key not in self.rows:
             self.by_rid.setdefault(key[0], []).append(key)

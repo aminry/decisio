@@ -309,14 +309,15 @@ When the errors so far are already at or above alpha, that level's entry has a `
 **Changing the settings.**
 `PUT /v1/tasks/{id}/labels/settings` with the settings to change (`{"cert_pi": 0.2}`) starts a new epoch: answers served from then on are drawn at the new chances, and every answer drawn before keeps its epoch and its chance, so estimates stay exact within an epoch.
 Changing `region` sets the certificate region again from the answers held.
-`status` shows the settings in force; `GET /v1/tasks/{id}` keeps showing the registration's.
+A change can widen or narrow what is stored (`features`), so the response carries the same disclosure as the registration (`labels`: `features`, `stored_fields`, `retention`, `location`, `stores`; never the digest key).
+`status` and `GET /v1/tasks/{id}` show the settings in force and their `stored_fields`; the listing also names the registration's own as `registered_settings`.
 On a shared store the new epoch reaches the other replicas at their next read.
 
 **Erasure.**
 `DELETE /v1/tasks/{id}/labels/{request_id}` erases one request's logged answers and labels, and `DELETE /v1/tasks/{id}/labels?before=<seconds since the epoch>` erases every answer served and every label received before that time (and the labels of the answers it erases).
 They leave every view at once.
-The answer says `purged` when the bytes are gone from disk, which on one server is before it returns.
-On a shared store it says `erased`: the bytes go at the next merge, about 30 seconds later or more, and `status.erasures` counts them as `purged` then.
+The answer says `erased`, with how many logged answers and labels it `matched`; an id that is not a request id is refused (422).
+The bytes go at the labels thread's next turn (within 10 seconds on one server; on a shared store at the next merge, 30 seconds after the erasure or more), and `status.erasures` counts them as `purged` then; many erasures are purged in one rewrite.
 What is kept of an erasure is the request id it erased, an opaque id, and its time.
 
 **The draw.**
