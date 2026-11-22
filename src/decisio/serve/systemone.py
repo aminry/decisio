@@ -3269,6 +3269,7 @@ class SystemOne:
                 cert.get("threshold") if cert.get("certified", cert.get("threshold") is not None) else None
             )
             log.cert_alpha = cert.get("alpha")
+            log.cert_id = cert.get("id")
             try:
                 log.tick(force, merge=merge)
             except (
@@ -3314,7 +3315,7 @@ class SystemOne:
                 rid, name, text=text, keys=keys, served=p,
                 lp=None if plain is None else plain[0], h=None if plain is None else plain[1],
                 via="model" if plain is not None else "table",
-                certified=a.get("certified"), version=t.get("store_version"),
+                certified=a.get("certified"), version=t.get("store_version"), certificate=a.get("certificate"),
                 stack=stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None,
                 lang=lang if isinstance(lang, str) else None,
                 option_texts=[str(v) for v in q.criteria.values()] if t.get("dynamic") else None,
@@ -4188,6 +4189,8 @@ class SystemOne:
             and cert.get("suspend_on_alert", SUSPEND_ON_ALERT)
         ):
             reason = "traffic_changed"  # the promise is for traffic like the examples, and the monitor says it is not
+        if reason is None and cert.get("suspend_on_alert", SUSPEND_ON_ALERT) and self.label_drift_alerting(t, cert):
+            reason = "label_drift"  # the labels of certified answers say the certified error rose above alpha
         if m is not None and observe and not getattr(self._probe, "on", False):
             extra = {"shared": True} if shared else {}
             if t.get("dynamic"):
@@ -4205,6 +4208,13 @@ class SystemOne:
         if reason is not None:
             out["certified_reason"] = reason
         return out
+
+    def label_drift_alerting(self, t, cert) -> bool:
+        """Whether the task's label monitor (decisio.serve.labels, `TaskLabels.drift`) alerts for this certificate:
+        its last reading on the labels thread, so the answer path only reads a flag."""
+        log = self.labels_logs.get(t["id"])
+        d = log.drift_state if log is not None else None
+        return bool(d and d["alerting"] and d["certificate"] == cert.get("id"))
 
     def task_status(self, t) -> dict | None:
         """The state of a certified task: ok, traffic_changed (the answer-mix alert) or suspended (the stack
@@ -4253,9 +4263,25 @@ class SystemOne:
                 )
         else:
             text = "ok"
+        log = self.labels_logs.get(t["id"])
+        drift = log.drift_state if log is not None else None
+        if drift and drift["certificate"] == cert.get("id") and drift["alerting"]:
+            if cert.get("suspend_on_alert", SUSPEND_ON_ALERT):
+                state = "label_drift"
+                text = (
+                    "label drift: the labels of certified answers say their error rose above the certificate's alpha; "
+                    "certification is suspended (every answer is certified: false) until the monitor clears"
+                )
+            else:
+                text = "label drift: the labels of certified answers say their error rose above alpha (not suspended)"
         if f and self.batched:  # which reads the monitor counts on a batched server
             f = {**f, "concurrency": "batched: answers scored in a shared engine call are not observed"}
-        out = {"state": state, "text": text, **({"monitor": f} if f else {})}
+        out = {
+            "state": state,
+            "text": text,
+            **({"monitor": f} if f else {}),
+            **({"label_monitor": drift} if drift else {}),
+        }
         if rt is not None:
             out["fast_table"] = rt.facts()  # this replica's: each replica says for itself whether it uses the table
         elif t.get("fast_table_report"):

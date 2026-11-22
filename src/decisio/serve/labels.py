@@ -259,7 +259,7 @@ STORES = (
 
 
 ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "script", "keys", "top", "conf",
-              "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "sample",
+              "margin", "served_certified", "certificate", "via", "version", "stack", "draws", "drawn", "sample",
               "options_digest", "replica")  # fmt: skip
 FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
 
@@ -620,6 +620,7 @@ class TaskLabels:
         self.events: list[dict] = []
         self.latest: dict[tuple[str, str], dict] = {}  # (request id, question) -> its latest label or decline event
         self._history: dict[tuple[str, str], list[dict]] = {}  # its label and decline events, oldest first
+        self._first_label: dict[tuple[str, str], float] = {}  # when its first label came (the label monitor's order)
         self._changes: dict[tuple[str, str], int] = {}
         self._parked: dict[str, list[dict]] = {}  # request id -> label events whose row is not known here yet
         self.revisions = 0  # labels that replaced a different answer (a sign of label noise)
@@ -632,6 +633,8 @@ class TaskLabels:
         self.merges = 0
         self.cert_threshold: float | None = None  # the task's certified threshold, when it has one (the server sets it)
         self.cert_alpha: float | None = None  # the alpha the task is certified at (the server sets it)
+        self.cert_id: str | None = None  # the task's certificate (the server sets it): the label monitor's
+        self.drift_state: dict | None = None  # the label monitor's last reading (the labels thread's), for answers
         self.embed = None  # the static student's embedding of a text (the server sets it once the student is here)
         self.embed_off: str | None = "no static student on this server"
         self.typicality = Typicality(int(secret["salt"][:8], 16))
@@ -745,6 +748,7 @@ class TaskLabels:
         self._maybe_typical()
         self._maybe_strict()
         self._maybe_expire()
+        self.drift_state = self.drift()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
             self.compact()
@@ -1189,6 +1193,7 @@ class TaskLabels:
                 if not keys:
                     index.pop(k, None)
             self._history.pop(key, None)
+            self._first_label.pop(key, None)
             self.latest.pop(key, None)
             self.revisions -= self._changes.pop(key, 0)
         for rid in [r for r in self._parked if r in self._erased_rids]:
@@ -1214,6 +1219,9 @@ class TaskLabels:
             return True
         hist = self._history.setdefault(key, [])
         hist.append(ev)
+        if ev["type"] == "label":
+            t = float(ev.get("received") or 0.0)
+            self._first_label[key] = min(self._first_label.get(key, t), t)
         hist.sort(key=self._order)
         self.latest[key] = hist[-1]
         answers = [e["answer"] for e in hist if e["type"] == "label"]
@@ -1294,7 +1302,7 @@ class TaskLabels:
         return "ok1:" + mac.hexdigest()[:32]
 
     def observe(self, rid: str, question: str, *, text: str, keys, served, lp, h, certified, version, stack,
-                lang: str | None, via: str = "model", option_texts=None,
+                lang: str | None, via: str = "model", option_texts=None, certificate: str | None = None,
                 embed_text: str | None = None) -> dict:  # fmt: skip
         """Log one served question and draw it. Returns the answer's additions: {"request_id"} and, when the row was
         drawn into any slice, "label_requested": True; nothing on a replica that does not write. Cheap: a few hashes
@@ -1339,6 +1347,7 @@ class TaskLabels:
                 "conf": conf,
                 "margin": margin,
                 "served_certified": certified,
+                "certificate": certificate,
                 "via": via,
                 "version": version,
                 "stack": stack,
@@ -1643,6 +1652,58 @@ class TaskLabels:
             r["strict_error"] = r["state"] != "labelled" or not r["correct"]
         return out
 
+    def drift(self) -> dict | None:
+        """The label monitor of the task's current certificate (the server sets `cert_id`, `cert_alpha` and
+        `cert_threshold` from it): the e-detector over the labels of the answers that certificate certified, read
+        from the log each time (no separate state, so every replica that has read the same files agrees), and reset by
+        a new certificate. It reads the audit and cert rows of the certified region when every one of them had the same
+        chance of being drawn (`pooling: "pooled"`), else the audit rows alone (`"audit"`). A label counts once, at the
+        time it first came; a drawn row expired or declined counts as an error at that time (the strict rule). Margin,
+        typical, volunteered and imported labels never feed it. None for a task without such a certificate."""
+        if self.cert_id is None or self.cert_alpha is None or self.cert_threshold is None:
+            return None
+        alpha, thr = float(self.cert_alpha), float(self.cert_threshold)
+        rows, latest, now, due = self._snapshot()
+        with self._lock:
+            first = dict(self._first_label)
+            audit_now = floor_pi(self.settings["audit_pi"])
+        region = [(k, r) for k, r in rows if r.get("certificate") == self.cert_id and r["conf"] >= thr]
+        pis = {(r["draws"]["audit"]["pi"], r["draws"]["cert"]["pi"]) for _, r in region}
+        pooled = len(pis) == 1 and next(iter(pis))[1] > 0
+        slices = ("audit", "cert") if pooled else ("audit",)
+        seq = []
+        for key, row in region:
+            d = row["draws"]
+            if not any(d[x]["in"] for x in slices):
+                continue
+            ev = latest.get(key)
+            if ev is not None and ev["type"] == "label":
+                seq.append((first.get(key, float(ev["received"])), float(ev["answer"] != row["top"])))
+            elif ev is not None:  # declined: an error when it was declined
+                seq.append((float(ev["received"]), 1.0))
+            elif now - row["t"] > due:  # expired: an error at its due time
+                seq.append((row["t"] + due, 1.0))
+        q = region_q(*next(iter(pis))) if region and pooled else audit_now
+        seq.sort(key=lambda x: x[0])
+        h = detector_threshold(q)
+        states = detector_states([e for _, e in seq], alpha, h) if seq else []
+        last_alert = None
+        for (t, _), (_, on), prev in zip(seq, states, [False] + [x[1] for x in states[:-1]]):
+            if on and not prev:
+                last_alert = t
+        stat = min(states[-1][0], 1e300) if states else 0.0  # finite in JSON
+        drawn = self._drawn_share() if self.rate() * 7 >= 100 else None
+        claims = []
+        if drawn is not None and drawn >= TESTED_SHARES[0]:
+            claims.append(FALSE_SUSPENSION_CLAIM)
+        lenient = alpha in (0.05, 0.1) and self.settings["shares"] == DEFAULTS["shares"]
+        if drawn is not None and drawn >= TESTED_SHARES[1] and lenient and self.settings.get("per_day") is not None:
+            claims.append(COMPARISON_CLAIM)
+        return {"certificate": self.cert_id, "alpha": alpha, "statistic": round(stat, 4),
+                "h": round(h, 3), "labels": len(seq), "pooling": "pooled" if pooled else "audit",
+                "alerting": bool(states and states[-1][1]), "last_alert_at": last_alert,
+                "label_share": None if drawn is None else round(drawn, 4), "claims": claims}  # fmt: skip
+
     def detection(self) -> dict | None:
         """`detection` for this task, if it is certified at a strict alpha: the epoch's chances against the reference,
         over the region's measured share of traffic (the setting's until answers are held)."""
@@ -1719,6 +1780,7 @@ class TaskLabels:
             "languages": {k: langs[k] for k in busiest},
             "label_share": None if share is None else round(share, 4),
             **({"detection": det} if (det := self.detection()) else {}),
+            **({"label_monitor": mon} if (mon := self.drift()) else {}),
             **({"warnings": warnings} if warnings else {}),
         }
 
@@ -1816,6 +1878,51 @@ def accuracy_interval(right: int, n: int, level: float = 0.9) -> list[float] | N
     lo = 0.0 if right == 0 else float(beta.ppf(a, right, n - right + 1))
     hi = 1.0 if right == n else float(beta.ppf(1 - a, right + 1, n - right))
     return [round(lo, 4), round(hi, 4)]
+
+
+# ---- the label monitor (drift of the certified error, from audit and cert labels) ----------------------------------
+
+DETECTOR_FRACTIONS = (0.02, 0.05, 0.1, 0.2, 0.4, 0.8)  # betting fractions, in units of 1 / alpha
+COMPARISON_CLAIM = (
+    "In the same replays, the label monitor suspended certification after fewer wrong certified answers than the "
+    "confidence monitor alone, on every concept-change stream tested."
+)
+FALSE_SUSPENSION_CLAIM = (
+    "In replays without drift, on tasks whose certificate held, the monitors started fewer than one suspension per "
+    "5,000 certified answers at every level and budget tested."
+)
+TESTED_SHARES = (0.03, 0.10)  # the least share of answers drawn at which the false-suspension figure was measured,
+# and the share of the reviewed comparison with the confidence monitor (default shares, alpha 0.05 and 0.10)
+DETECTOR_FACTOR = 10.0  # the run length under the null is this many times the false-suspension bar
+DETECTOR_BAR = 5000.0  # at most one false suspension per this many certified answers
+
+
+def detector_threshold(q: float) -> float:
+    """h = 10 x 5,000 x q: an average run length of at least h labels under the null puts false suspensions a factor 10
+    inside one per 5,000 certified answers, q being the share of certified answers that get a label."""
+    return DETECTOR_FACTOR * DETECTOR_BAR * q
+
+
+def detector_states(errors, alpha: float, h: float) -> list[tuple[float, bool]]:
+    """A Shiryaev-Roberts e-detector (Shin, Ramdas and Rinaldo, "E-detectors: a nonparametric framework for sequential
+    change detection", arXiv 2203.03532) on 0-1 errors in arrival order: for each betting fraction lam = u / alpha,
+    R <- (1 + R)(1 + lam (e - alpha)); the statistic is the mean of the R (an average of e-detectors is one). It
+    alerts when the statistic reaches h and clears when it falls under h / 2. Returns (statistic, alerting) after each
+    error. A statistic that overflows is infinite: it stays alerting until a new certificate starts the monitor again
+    (it would need tens of thousands of right labels to fall back in any case)."""
+    lam = np.asarray(DETECTOR_FRACTIONS) / float(alpha)
+    R = np.zeros(len(lam))
+    on, out = False, []
+    for e in errors:
+        with np.errstate(over="ignore"):  # a long run of errors overflows to infinity, which stays alerting
+            R = (1.0 + R) * (1.0 + lam * (float(e) - alpha))
+            m = float(R.mean())
+        if not on and m >= h:
+            on = True
+        elif on and m < h / 2:
+            on = False
+        out.append((m, on))
+    return out
 
 
 def _tau_set(epoch: dict) -> bool:
