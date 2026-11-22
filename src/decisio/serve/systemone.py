@@ -1902,7 +1902,8 @@ class SystemOne:
             t_task = time.perf_counter()
             try:
                 for i in own:  # decisio's own read, or the fast table's where the task has one and it is sure
-                    self._reads.plain = []  # served_rows leaves its plain readout here (labels.TaskLabels.observe)
+                    # served_rows leaves its plain readout here for a task that logs labels (labels.TaskLabels.observe)
+                    self._reads.plain = [] if (rts[i] or {}).get("labels") else None
                     p, via[i], learned[i] = self.serve_row(rts[i], req.state, wire[i], learn=cut is None)
                     plain_of[i] = (self._reads.plain or [None])[-1]
                     if self.commits(wire[i]):  # whoever answered, the commit rule last; the monitor reads before it
@@ -3582,8 +3583,7 @@ class SystemOne:
             if swapped:
                 p = p[::-1].copy()
             if getattr(self._reads, "plain", None) is not None:
-                with np.errstate(divide="ignore"):
-                    self._reads.plain.append((np.log(p), None))
+                self._reads.plain.append((log_probs(p), None))  # the log-scores a task's calibration is applied to
             if not head_stale and t["calibration"].get("applied") and not self.calibration_stale(t, q.type, len(p)):
                 p = apply_task_prior(log_probs(p), t["calibration"], self.temperature_of(q.type, None, len(p)))
             else:
