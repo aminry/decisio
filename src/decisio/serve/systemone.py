@@ -2554,7 +2554,9 @@ class SystemOne:
         if dynamic_options is not None and fast_table:
             raise ValueError("fast_table: a task whose options change with every request has no table")
         if dynamic_options is not None:
-            return self.register_dynamic_task(task_id, examples, certify, certify_examples, dynamic_options, context)
+            return self.register_dynamic_task(
+                task_id, examples, certify, certify_examples, dynamic_options, context, labels=labels
+            )
         from decisio.serve.tasks import task_key
 
         pairs = [(e[0], e[1]) for e in [*examples, *(certify_examples or [])]]  # every example this call will read
@@ -2836,7 +2838,9 @@ class SystemOne:
             "gold_real": gi if gi != none_i else -1,
         }
 
-    def register_dynamic_task(self, task_id, examples, certify, certify_examples, opts: dict, context=None):
+    def register_dynamic_task(
+        self, task_id, examples, certify, certify_examples, opts: dict, context=None, labels: dict | None = None
+    ):
         """Fit and store a task whose options change with every request (decisio.serve.dynamic): matched on the
         instructions, certified on its top probability whatever the options, with a re-ranker where cross-validation
         shows a gain. Always certified: the certificate is what a dynamic task adds. Nothing is stored when refused."""
@@ -2898,6 +2902,8 @@ class SystemOne:
             "n_examples": len(fit_ex),
             "per_option_min": None,
             **({"context": ctx} if ctx else {}),
+            # opted in (decisio.serve.labels): its settings and two new secrets; options are kept as digests only
+            **({"labels": {"settings": labels, "secret": LB.new_secrets()}} if labels is not None else {}),
         }
         registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
         previous = self.task_store.snapshot(task["id"])
@@ -3175,7 +3181,8 @@ class SystemOne:
                 place = DirPlace(self.labels_root / FTL.task_digest(t["id"]) / rec["secret"]["salt"][:12])
             else:
                 place = MemoryPlace()
-            log = LB.TaskLabels(t["id"], rec["settings"], rec["secret"], place, self.labels_replica)
+            log = LB.TaskLabels(t["id"], rec["settings"], rec["secret"], place, self.labels_replica,
+                                dynamic=bool(t.get("dynamic")))  # fmt: skip
             self.labels_logs[t["id"]] = log
             self._start_labels_flusher()
         return log
@@ -3230,13 +3237,33 @@ class SystemOne:
             logger.warning("labels: could not take or renew the merger's lease: %s", e)
             return False
 
+    def labels_student(self):
+        """The static student's embedding function for the typical slice, loaded once on the labels thread and only
+        from files already on this server (`local_files_only`: a label setting never downloads a model); None with
+        the reason in `labels_student_off` when it is not here."""
+        if getattr(self, "_labels_student", None) is None and getattr(self, "labels_student_off", None) is None:
+            try:
+                enc = FT.StaticEncoder.load(FT.DEFAULT_STATIC_MODEL, local_files_only=True)
+                self._labels_student = lambda text: enc.encode([text])[0]
+            except Exception as e:  # the table extra not installed, or its files not fetched here
+                self.labels_student_off = f"no static student on this server ({type(e).__name__})"
+        return getattr(self, "_labels_student", None)
+
     def flush_labels(self, force: bool = False) -> None:
         merge = self.labels_merger() if self.labels_logs else False
+        wants = any(
+            log.settings.get("typical_pi_max", 0) > 0
+            or (log.settings.get("per_day") and log.settings["shares"]["typical"])
+            for log in self.labels_logs.values()
+        )
+        embed = self.labels_student() if wants else None
         for task_id, log in list(self.labels_logs.items()):
             t = self.task_store.snapshot(task_id) if self.task_store is not None else None
             if t is None or (t.get("labels") or {}).get("secret") != log.secret:
                 self.labels_logs.pop(task_id, None)  # removed or registered again (on another replica, too)
                 continue
+            log.embed = embed
+            log.embed_off = None if embed is not None else getattr(self, "labels_student_off", None) or "not loaded"
             cert = t.get("certificate") or {}
             log.cert_threshold = (
                 cert.get("threshold") if cert.get("certified", cert.get("threshold") is not None) else None
@@ -3289,6 +3316,8 @@ class SystemOne:
                 certified=a.get("certified"), version=t.get("store_version"),
                 stack=stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None,
                 lang=lang if isinstance(lang, str) else None,
+                option_texts=[str(v) for v in q.criteria.values()] if t.get("dynamic") else None,
+                embed_text=render_text(req.state) if log.embed is not None else None,
             )  # fmt: skip
             a.update(add)
             if add.get("request_id"):  # a replica that does not write logs nothing and gives no id
@@ -3654,6 +3683,8 @@ class SystemOne:
     def dynamic_rows(self, t, pairs) -> list[np.ndarray]:
         """`served_rows` of a dynamic-option task: decisio's own distribution for each (state, question), re-ranked
         where the task's re-ranker was kept. The options are the request's own."""
+        from decisio.readout.debias import log_probs
+
         rec = t["dynamic"]
         none_key = rec.get("none_option", dynamic.NONE_KEY)
         out = []
@@ -3665,6 +3696,8 @@ class SystemOne:
             require_finite(p, "a dynamic task's probability")
             if swapped:
                 p = p[::-1].copy()
+            if getattr(self._reads, "plain", None) is not None:  # a task that logs labels: its plain readout
+                self._reads.plain.append((log_probs(p), None))
             plain = apply_temperature(p, self.temperature_of(q.type, None, len(p)))
             if rec.get("applied"):
                 _, texts, hashes, none_i = dynamic.question_parts(q.criteria, render_text, none_key)
@@ -5245,8 +5278,6 @@ def add_routes(app, systemone: SystemOne):
             labels = LB.parse_settings(body.get("labels"))
         except LB.LabelsError as e:
             raise HTTPException(422, str(e))
-        if labels is not None and dynamic_options is not None:
-            raise HTTPException(422, "labels: not for a task whose options change with every request (not yet)")
         try:
             task, fitted = await run_in_threadpool(
                 functools.partial(systemone.register_readout_task, layout=layout, labels=labels),
@@ -5502,7 +5533,8 @@ def add_routes(app, systemone: SystemOne):
         log = labels_log_of(task_id)
         extra = synced(log)
         return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"],
-                            "settings": log.settings, "budget": log.budget(), **extra})  # fmt: skip
+                            "settings": log.settings, "budget": log.budget(), "typical": log.typical_status(),
+                            **extra})  # fmt: skip
 
     async def decline_labels(task_id: str, request: Request):
         try:

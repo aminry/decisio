@@ -250,6 +250,7 @@ The registration response's `labels.stores` lists it, and it is this:
 - With `features: "full"` (the default), also, for drawn questions, the served distribution, the plain readout's label log-probabilities (the scores before the task's calibration or head) and, for a task with an intent head, the hidden state at the answer position; and the served distribution of a uniform sample of the other questions, about `reservoir` (2,000) of them at `max_rows`.
   The hidden state is a model feature, not an anonymous number; it stays in this server's tasks directory.
   `features: "minimal"` keeps neither the distributions nor the hidden state.
+- For a task whose options change with every request: its options and answers only as keyed digests, and one keyed digest of the request's option texts.
 - Never the request's text or state.
 - The labels you post, and whether the draw or you chose the item.
 
@@ -312,7 +313,7 @@ A label's use depends on why its answer was drawn, and the export's views give e
 - `?view=eval`: the answers an evaluation slice (audit or cert) drew, whatever else drew them.
   Certificates, accuracy estimates, drift and challenger tests read these, and no fit may use them: an evaluation draw makes an answer evaluation-only.
 - `?view=fit`: the labelled answers a fit may use.
-  Those the margin slice drew and no evaluation slice did carry `weight` `1 / (pi_margin x (1 - p_eval))`, where `p_eval = 1 - (1 - audit_pi)(1 - cert_pi)` is the answer's chance of an evaluation draw.
+  Those a fit slice (margin or typical) drew and no evaluation slice did carry `weight` `1 / (p_fit x (1 - p_eval))`, where `p_fit = 1 - (1 - pi_margin)(1 - pi_typical)` and `p_eval = 1 - (1 - audit_pi)(1 - cert_pi)` are the answer's chances of a fit and of an evaluation draw.
   Labels you gave for answers no slice drew are there too with `selection: "self"` and no weight: for a challenger or error analysis, never for calibration.
 - `?view=cohort&cutoff=<seconds>`: what a certificate reads.
   The evaluation answers drawn at or before the cutoff (default now minus `due_days`), so every one is labelled, expired or declined; under the strict rule an expired or declined answer counts as an error (`strict_error`).
@@ -342,11 +343,20 @@ Each answered question is drawn independently into three slices, by a keyed hash
 | audit | `audit_pi` over all traffic | accuracy, calibration, certificates, drift checks; never a fit |
 | cert | `cert_pi` where the confidence is at or above the region's lowest threshold, else 0 | the labels a certificate needs; never a fit |
 | margin | between `margin_pi_min` and `margin_pi_max`, higher as the top two options get closer | refits only, never a certificate |
+| typical | up to `typical_pi_max`, higher the more the input resembles earlier traffic; at cold start only | a first head or calibration only, never a certificate |
 
 A chance is 0 or at least 0.02.
 
+**The typical slice.**
+At cold start, labels of ordinary requests teach a first head or calibration more than labels of odd ones.
+The typical slice measures how much each input resembles earlier traffic, with the fast table's static student (a 512-input sample of earlier embeddings; the mean similarity to the 10 nearest, in 4 levels), and draws in proportion to the level.
+It runs only on a server where the static student's files already are (`pip install 'decisio[table]'` and a fast table, or `DECISIO_STUDENTS_DIR`): a label setting never downloads a model.
+It starts once 64 inputs have been seen, and ends once `typical_labels` (50) of its answers are labelled; in a budget its share then goes back to margin.
+`status.typical` says whether it is on, waiting, ended or off and why.
+Its labels are for fitting only.
+
 **The budget.**
-By default the chances follow a budget: `per_day` (20) labels a day, split by `shares` (audit 0.15, cert 0.45, margin 0.30, and 0.10 that goes to margin until there is a typicality slice).
+By default the chances follow a budget: `per_day` (20) labels a day, split by `shares` (audit 0.15, cert 0.45, margin 0.30, typical 0.10; the typical share goes to margin whenever the typical slice is not running).
 Before the server has seen any traffic it assumes `tau_after` (200) answers a day, which at the default gives about 20 labels in the first 200 answers.
 When the certificate region is set (after `tau_after` answers), the chances are set again from the measured rate (answers a day over the last 7 days).
 After that a new budget starts at most once a day, and only when the rate has moved below half or above twice the rate the chances assumed.
@@ -373,7 +383,8 @@ A label for a request id that no replica's answers ever hold (a mistyped or made
 While the store cannot be reached, a label write is refused with a 503 (nothing is reported accepted that is not stored), the queue and status answer from what the replica holds with `"synced": false` (the export with an `x-decisio-warning` header), and answers keep being served and logged in memory, to be written when the store is back (past 50,000 waiting answers per task, newer ones are served but not written, and `status` counts them as `unsaved_rows`).
 A replica started with `--task-store-readonly` reads the log and serves the queue and status, logs no answers (its answers carry no request id), and refuses label writes with a 409.
 Removing the task on any replica deletes its log from the store; the store's gc (`python -m decisio.serve.task_store_shared gc`) removes what a replica that was down at the time wrote later.
-A task whose options change with every request cannot opt in yet.
+A task whose options change with every request (`"options": "dynamic"`) can opt in too.
+Its options and the answers you post are kept only as keyed digests, with one keyed digest of the request's option texts (`options_digest`), so no option text is stored; a label is checked against that request's own options, and the option list is not shown back when it is not one of them.
 
 **What it costs.**
 About 30 microseconds per answered question of an opted-in task, measured at 50,000 rows; the files are written off the request path.
