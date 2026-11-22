@@ -371,6 +371,7 @@ Give the chances yourself (`audit_pi`, `cert_pi`, `margin_pi_min`, `margin_pi_ma
 A task certified at alpha 0.01 or 0.005 needs hundreds of labels in its region, so with the default shares its budget moves to audit 0.10, cert 0.80, margin 0.10 and no typical slice, which reaches those labels about 1.8 times sooner; the audit share still gives 100 labels in every 1,000. Shares you give at registration are kept.
 Such a task also needs labels on at least 10% of its answers, or its drift checks catch a rising error too late.
 With chances you give (`audit_pi`, `cert_pi`, `margin_pi_max`), a registration whose chances cannot reach that share is refused (422), with the `cert_pi` that would.
+Registered without labels, it is registered as before and logs nothing, and the response says what it needs: `"labels": {"enabled": false, "warnings": [...]}`.
 With a budget, the registration response's `labels.warnings` says how many answers a day `per_day` covers at that share (`per_day` / 0.10), and `status` reports `label_share` (the share of the last 7 days' answers drawn for a label) with a warning while it is under 10%.
 Every drawn answer keeps the chance it was drawn at, so a change of chances never invalidates what was drawn before.
 

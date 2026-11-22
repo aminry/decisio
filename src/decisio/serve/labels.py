@@ -320,6 +320,18 @@ def strict_check(s: dict, alpha: float | None) -> tuple[str | None, list[str]]:
                   "day; status reports the share labelled and warns below it"]  # fmt: skip
 
 
+def not_enabled_block(alpha: float | None) -> dict | None:
+    """What a registration says of labels when the task did not opt in: nothing, except for a task certified at
+    `STRICT_ALPHA` or below, which needs labels on a share of its answers; it is told so, and nothing is logged."""
+    if alpha is None or float(alpha) > STRICT_ALPHA:
+        return None
+    return {"enabled": False, "warnings": [
+        f"a task certified at alpha {alpha} needs labels on at least {STRICT_MIN_SHARE:.0%} of its answers for its "
+        "drift checks to catch a rising error in time; this task takes no labels and logs nothing: register it with "
+        'a labels block ("labels": true, or a per_day budget) to opt in'
+    ]}  # fmt: skip
+
+
 def registration_block(rec: dict, location: str, alpha: float | None = None) -> dict:
     """What a registration's response says of the task's labels: the disclosure (`disclosure`), the digest key (shown
     here only), and the queue's first view (empty until the task has answered)."""

@@ -12,7 +12,8 @@ S3  the routes: post labels by request id, by digest and by state, the blind que
     declines, the export; a task without labels is a 409, an unknown task a 404, a bad body a 422
 S4  under --tasks-dir the rows and labels are written and read back by a new server; removing the task removes them
 S5  the settings route starts an epoch; erasing one request and everything before a time; their 422s
-S8  a task certified at alpha 0.01 whose explicit chances cannot label a tenth of its answers is refused (422)
+S8  a task certified at alpha 0.01 whose explicit chances cannot label a tenth of its answers is refused (422); one
+    registered without labels is told what it needs (labels.enabled false, warnings) and logs nothing
 S6  a task whose options change with every request opts in: its options and answers are kept as digests only, a label
     is checked against that request's own options, and the plain readout is kept
 
@@ -263,3 +264,12 @@ def test_s8_a_strict_alpha_with_too_few_labels_is_refused():
     r = client.post("/v1/tasks", json={"id": "angry", "examples": noul_examples(120), "certify": {"alpha": 0.01},
                                        "labels": {"audit_pi": 0.02, "cert_pi": 0.02, "margin_pi_max": 0}})  # fmt: skip
     assert r.status_code == 422 and "at least 10%" in r.text and so.labels_logs == {}
+    r = client.post("/v1/tasks", json={"id": "angry", "examples": noul_examples(700), "certify": {"alpha": 0.01}})
+    assert r.status_code == 200, r.text  # without labels: registered, and told what it needs; nothing is logged
+    lb = r.json()["labels"]
+    assert lb["enabled"] is False and "at least 10%" in lb["warnings"][0] and "digest_key" not in lb
+    a, _ = ask(client, "yes:0.93:a")
+    assert "request_id" not in a and so.labels_logs == {}
+    r = client.post("/v1/tasks", json={"id": "calm", "examples": noul_examples(120), "certify": {},
+                                       "instructions": "Is the customer calm?"})  # fmt: skip
+    assert "labels" not in r.json()  # a lenient alpha without labels: nothing said, as before

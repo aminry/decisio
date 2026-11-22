@@ -5310,6 +5310,8 @@ def add_routes(app, systemone: SystemOne):
         if task.get("labels"):  # the digest key once, and what opting in keeps
             alpha = (task.get("certificate") or {}).get("alpha")
             out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location, alpha=alpha)
+        elif off := LB.not_enabled_block((task.get("certificate") or {}).get("alpha")):
+            out["labels"] = off  # a strict alpha without labels: told what it needs; nothing is turned on
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
