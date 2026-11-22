@@ -8,7 +8,8 @@ T1  a task's identity: the question type and its option list in order (plus the 
     question the same key either way;
 T2  the store: calibration is `calibration.fit_task_prior` on the examples' served log-scores, unchanged; the head is
     `intent_head.fit_intent_head` on their hidden readout, fitted only for 10 or more options with at least
-    MIN_PER_OPTION (2) examples per option (else off, with the reason); a re-registration replaces the task; the JSON
+    MIN_PER_OPTION (2) examples per option and never for a score question (else off, with the reason); a
+    re-registration replaces the task; the JSON
     form round-trips the head's arrays exactly;
 T3  served (CPU stand-in): no task, or a task of another list, changes nothing, bit for bit; calibration is
     `apply_task_prior` on the served readout and the head `apply_intent_head` on the hidden readout, exactly; the head
@@ -409,3 +410,38 @@ def test_t2_certain_readout_over_http():
     r = client.post("/v1/tasks", json={"id": "certain", "examples": examples})
     assert r.status_code == 200, r.text
     assert r.json()["calibration"]["applied"] is False and r.json()["calibration"]["cv_t"] == 0.0
+
+
+def test_t2_score_questions_fit_no_head():
+    """T2 a score question never fits a head, whatever its levels (not yet tested on an ordinal answer): its
+    calibration is fitted as before, the head record says why, and a score task's head kept from an earlier
+    registration is neither served nor listed as applied."""
+    from decisio.serve.tasks import SCORE_HEAD_REASON, head_applies
+
+    levels = [f"level {i}" for i in range(11)]  # a 0 to 10 scale: over the head's 10-option floor
+    body = {
+        "state": {"message": "m"},
+        "model": "m",
+        "questions": {"q1": {"type": "score", "instructions": "How urgent is it?", "criteria": levels}},
+    }
+    q = question(body)
+    rng = np.random.default_rng(3)
+    ex, P, R = [], [], []
+    for i in range(44):
+        z = rng.normal(0, 0.3, 11)
+        z[i % 11] += 1.0
+        p = np.exp(z) / np.exp(z).sum()
+        ex.append((q, {"i": i}, i % 11))
+        P.append(p)
+        R.append((np.log(p), rng.normal(0, 1, 16).astype(np.float32)))
+    hidden = []
+    task, _ = TaskStore("fp").register("t", ex, lambda pairs: P, lambda pairs: hidden.append(1) or R)
+    assert not task["head"]["applied"] and task["head"]["reason"] == SCORE_HEAD_REASON and not hidden
+    plain, _ = TaskStore("fp").register("t", ex, lambda pairs: P)  # no hidden reader: the same calibration
+    assert task["calibration"] == plain["calibration"] and not head_applies(task)
+    kept = {**task, "head": {**task["head"], "applied": True, "reason": "cross-validated gain"}}
+    assert not head_applies(kept)
+    listed = TaskStore.public(kept)["head"]
+    assert not listed["applied"] and listed["reason"].startswith(SCORE_HEAD_REASON)
+    choice = {**kept, "type": "choice"}
+    assert head_applies(choice)

@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: score questions get no intent head
+
+### What changed
+
+- **A score question never fits an intent head**, whatever its number of levels: a head has not been tested on an ordinal answer.
+  Its calibration is fitted and served as before.
+- The task's head record says why (`head.reason` in `GET /v1/tasks` and `GET /v1/tasks/{id}`).
+- A score task whose head was fitted before (a scale of 10 levels or more) keeps its record, but the head is not applied: the question is answered through the task's calibration, and the listing shows the head as not applied, with the reason.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A score task of 10 levels or more | an intent head could be fitted and served | calibration only | nothing |
+| Any other task | | unchanged | nothing |
+
 ## Unreleased: two-engine mode (`--head-engine`) is removed
 
 ### What changed

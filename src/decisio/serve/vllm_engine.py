@@ -1714,6 +1714,8 @@ def make_app(engine, systemone=None, health=None):
 
     @app.get("/health")
     def health_route():
+        from decisio.serve.tasks import head_applies
+
         if health is not None and health.dead:
             return JSONResponse(
                 status_code=503,
@@ -1791,7 +1793,7 @@ def make_app(engine, systemone=None, health=None):
                     "readout_tasks": {
                         t["id"]: {
                             "calibration": bool(t["calibration"].get("applied")),
-                            "head": bool(t["head"].get("applied")),
+                            "head": head_applies(t),
                             # a task's context: its length and digest, never its text
                             **(
                                 {"context": {k: v for k, v in t["context"].items() if k != "text"}}

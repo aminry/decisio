@@ -268,6 +268,7 @@ Its caveats: one task, one draw and 300 test items, so the intervals cover the t
   - in the other 38 cells the changes ran from -0.4 to +0.9 point, and no certificate was violated where a floor of 5 had kept its promise.
   The gain comes from a few cells, mostly two sets; a task with no rare options is unchanged. The head is still kept only if its cross-validation prefers it, and a task with an option that has no example still serves calibration.
 - **Heads are only fitted for 10 or more options.** Fitted at 5 examples per option on questions with few options, heads broke the never-hurts criterion on four tasks where calibration alone held (among them CUAD clause, -0.73 points on average, and FiQA, -0.62; `evaluation.json`, `head_any`), so the server fits a head only on option lists of 10 or more.
+- **Score questions get no head.** A head has not been tested on an ordinal answer (a score is served as the expected level), so a score task gets calibration alone, whatever its number of levels; its head record says why.
 
 ## What it costs
 

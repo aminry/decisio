@@ -67,7 +67,7 @@ from decisio.serve.task_backends import (
     TaskStoreUnavailable,
     WriteIntent,
 )
-from decisio.serve.tasks import FAST_TABLE_VOLATILE, TaskSelectionError, context_sha, context_text
+from decisio.serve.tasks import FAST_TABLE_VOLATILE, TaskSelectionError, context_sha, context_text, head_applies
 from decisio.serve.temperature import apply_temperature
 
 JSONContent = Any  # str | dict | list, as the SDK's schema allows
@@ -1877,11 +1877,7 @@ class SystemOne:
         head = [
             i
             for i, t in enumerate(rts)
-            if t is not None
-            and t["head"].get("applied")
-            and self.hidden_engine
-            and i not in served
-            and not self.head_stale(t)
+            if t is not None and head_applies(t) and self.hidden_engine and i not in served and not self.head_stale(t)
         ]
         if head and orders == 2:
             raise ValueError(
@@ -3270,7 +3266,7 @@ class SystemOne:
             return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
         if self.head_stale(t):
             return apply_temperature(p, self.temperature_of(q.type, None, len(p)))
-        if t["head"].get("applied") and self.hidden_engine is not None:
+        if head_applies(t) and self.hidden_engine is not None:
             from decisio.readout.intent_head import apply_intent_head
 
             lp, h = self.head_read(state, q)
@@ -3397,7 +3393,7 @@ class SystemOne:
             return self.dynamic_rows(t, pairs)
         out = []
         head_stale = self.head_stale(t)
-        with_head = t["head"].get("applied") and self.hidden_engine is not None and not head_stale
+        with_head = head_applies(t) and self.hidden_engine is not None and not head_stale
         context = context_text(t)  # read before each state; the states themselves are the requests'
         for state, q in pairs:
             state = self.read_state(context, state, examples=True)
