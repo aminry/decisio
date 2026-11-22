@@ -25,6 +25,8 @@ L12 (slow) each slice's inclusion matches its pi within binomial noise on 200,00
 L13 the need pools an earlier epoch's rows only when its region contained the current one (its tau_min at most the
     current), whatever its cert pi: a tau_min that falls leaves the older epoch out, one that rises keeps it; a
     label keeps the source its poster gave
+L14 an undrawn answer keeps its served distribution only in the uniform sample (reservoir / max_rows), the same on
+    every replica; a drawn one always does
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -131,6 +133,7 @@ def test_l4_labels_every_reference_and_a_restart(tmp_path):
         tl.post([])
     # every acknowledged label is on the place: a new log over the same place reads it all back
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
     labelled = {(r["request_id"], r.get("answer")) for r in back.table() if r["state"] == "labelled"}
     assert labelled == {(rid, "sales"), (rid_b, "tech")}
 
@@ -182,6 +185,8 @@ def test_l8_the_region_is_all_traffic_then_the_top_share():
     confs = np.linspace(0.4, 0.99, 50)
     for c in confs:
         _serve(tl, f"t{c}", [c, (1 - c) / 2, (1 - c) / 2])
+    assert len(tl.epochs) == 1  # the request path never writes: the labels thread starts the epoch
+    tl.tick()
     assert len(tl.epochs) == 2 and tl.epoch["tau_min"] == pytest.approx(float(np.quantile(confs, 0.5)))
     low = _serve(tl, "low", [0.41, 0.3, 0.29])[0]
     assert not tl.rows[(low, "q")]["draws"]["cert"]["in"] and tl.rows[(low, "q")]["epoch"] == 1
@@ -201,6 +206,7 @@ def test_l9_max_rows_drops_the_oldest_undrawn_rows(tmp_path):
     assert all((r, "q") in tl.rows for r in drawn)  # a drawn row's label may still come
     assert kept_undrawn == undrawn[len(undrawn) - len(kept_undrawn) :] and len(kept_undrawn) <= 1  # the newest only
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
     assert {k[0] for k in back.rows} == set(drawn)  # read back: the same rule, every undrawn row over the cap goes
 
 
@@ -261,6 +267,7 @@ def test_l11_the_need_is_the_current_region_at_one_chance():
     tl = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=20, region=0.5)
     low = [_serve(tl, f"low{i}", [0.5, 0.3, 0.2])[0] for i in range(10)]  # epoch 0: all traffic is the region
     high = [_serve(tl, f"high{i}", [0.9, 0.05, 0.05])[0] for i in range(10)]
+    tl.tick()
     assert tl.epoch["epoch"] == 1 and tl.epoch["tau_min"] > 0.5
     tl.post([{"request_id": r, "answer": "billing"} for r in low + high])
     a = {n["alpha"]: n for n in tl.need()}[0.05]
@@ -301,11 +308,11 @@ def test_l12_inclusion_matches_pi_on_200000_rows():
 
 def test_l13_pooling_by_region_containment_and_the_real_source():
     tl = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=10_000)
-    tl.epochs[-1]["tau_min"] = 0.0
 
     def epoch(tau, cert_pi):
-        tl.settings = {**tl.settings, "cert_pi": cert_pi}
-        tl._new_epoch(tau_min=tau, why="test")
+        last = tl.epochs[-1]
+        tl.epochs = [*tl.epochs, {"epoch": len(tl.epochs), "start": tl.clock(), "tau_min": tau, "tau_set": True,
+                                  "settings": {**last["settings"], "cert_pi": cert_pi}, "why": "test"}]  # fmt: skip
 
     def serve_label(n, conf):
         rids = [_serve(tl, f"e{tl.epoch['epoch']}-{conf}-{i}", [conf, (1 - conf) / 2, (1 - conf) / 2])[0]
@@ -328,3 +335,17 @@ def test_l13_pooling_by_region_containment_and_the_real_source():
     assert {n["alpha"]: n for n in tl.need()}[0.05]["region_pending"] == 1 and (rid, "q") in tl.rows
     tl.post([{"request_id": rid, "answer": "billing"}])
     assert tl.latest[(rid, "q")]["source"] == "user"  # the poster's own source, not rewritten to "queue"
+
+
+def test_l14_the_served_distribution_of_undrawn_answers_is_a_uniform_sample():
+    tl = _task(audit_pi=0.1, max_rows=10_000, reservoir=1_000)  # a sample at 0.1
+    n = 4_000
+    rids = [_serve(tl, f"t{i}", [0.6, 0.3, 0.1])[0] for i in range(n)]
+    rows = [tl.rows[(r, "q")] for r in rids]
+    undrawn = [r for r in rows if not r["drawn"]]
+    kept = [r for r in undrawn if r["ps"] is not None]
+    assert all(r["ps"] is not None for r in rows if r["drawn"])
+    assert all((r["ps"] is not None) == r["sample"]["in"] for r in undrawn) and undrawn[0]["sample"]["pi"] == 0.1
+    assert abs(len(kept) / len(undrawn) - 0.1) < 4 * (0.09 / len(undrawn)) ** 0.5
+    other = LB.TaskLabels("t", tl.settings, tl.secret, MemoryPlace(), "r2", tl.clock)
+    assert other._sample(rids[0], "q") == tl.rows[(rids[0], "q")]["sample"]  # any replica draws the same

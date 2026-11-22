@@ -1070,11 +1070,15 @@ class SystemOne:
             from decisio.serve import fast_table_replicas as FTR
 
             shared = FTR.Shared(FTR.Objects(task_backend.store), readonly=task_backend.readonly)
-        # the label logs of the tasks that ask for labels (decisio.serve.labels): beside learn/ under --tasks-dir,
-        # else in memory (lost at restart; a shared store's replicas keep theirs in memory too, for now)
+        # the label logs of the tasks that ask for labels (decisio.serve.labels): beside learn/ under --tasks-dir, on
+        # the shared store under labels/ (each replica its own files, joined when read), else in memory
         self.labels_root = (Path(task_backend.describe()["path"]) / "labels") if backend_kind == "dir" else None
+        self.labels_objects, self.labels_writes = None, True
         self.labels_logs: dict = {}
         self.labels_replica = os.environ.get("DECISIO_REPLICA") or secrets.token_hex(3)
+        if shared is not None:
+            self.labels_objects, self.labels_writes = shared.objects, shared.writes
+            self.labels_replica = shared.replica  # one replica id for its learned rows and its label log
         self.learning = FTL.Learning(
             root,
             stack_sha=lambda layout=None: stack_sha256(self.stack_under(layout))[:16],
@@ -3161,7 +3165,10 @@ class SystemOne:
             return None
         log = self.labels_logs.get(t["id"])
         if log is None or log.secret != rec["secret"]:
-            if self.labels_root is not None:
+            if self.labels_objects is not None:
+                prefix = LB.shared_prefix(FTL.task_digest(t["id"]), rec["secret"]["salt"])
+                place = LB.SharedPlace(self.labels_objects, prefix, self.labels_replica, writes=self.labels_writes)
+            elif self.labels_root is not None:
                 place = DirPlace(self.labels_root / FTL.task_digest(t["id"]) / rec["secret"]["salt"][:12])
             else:
                 place = MemoryPlace()
@@ -3170,10 +3177,15 @@ class SystemOne:
             self._start_labels_flusher()
         return log
 
+    @property
+    def labels_location(self) -> str:
+        """Where the label logs are kept: `task_store`, `tasks_dir` or `memory`."""
+        return "task_store" if self.labels_objects is not None else "tasks_dir" if self.labels_root else "memory"
+
     def _start_labels_flusher(self) -> None:
-        """A daemon thread writing the label logs' buffered rows every `LB.FLUSH_EVERY` seconds, off the request path
-        (a log writes a segment when it is due: `LB.SEGMENT_ROWS` rows or `LB.SEGMENT_SECONDS`), and every row at
-        exit."""
+        """A daemon thread that, every `LB.FLUSH_EVERY` seconds and off the request path, gives each label log its turn
+        (`TaskLabels.tick`: read what other replicas wrote, start a due epoch, write a due segment), and writes every
+        buffered row at exit."""
         if getattr(self, "_labels_flusher", None) is not None:
             return
         import atexit
@@ -3188,17 +3200,26 @@ class SystemOne:
         atexit.register(self.flush_labels, True)
 
     def flush_labels(self, force: bool = False) -> None:
-        for log in list(self.labels_logs.values()):
+        for task_id, log in list(self.labels_logs.items()):
+            t = self.task_store.snapshot(task_id) if self.task_store is not None else None
+            if t is None or (t.get("labels") or {}).get("secret") != log.secret:
+                self.labels_logs.pop(task_id, None)  # removed or registered again (on another replica, too)
+                continue
             try:
-                log.flush(force)
-            except Exception as e:  # a full disk must not stop serving; the rows stay buffered for the next try
-                logger.warning("labels: could not write the log of task %s: %s", log.task_id, e)
+                log.tick(force)
+            except (
+                Exception
+            ) as e:  # a full disk or a store out of reach must not stop serving; rows wait for the next try
+                logger.warning("labels: could not read or write the log of task %s: %s", log.task_id, e)
 
     def drop_labels(self, task_id: str) -> None:
         """A removed task's label log goes with it: its rows, its labels and its files."""
         log = self.labels_logs.pop(task_id, None)
         if log is not None and hasattr(log.place, "remove_all"):
-            log.place.remove_all()
+            try:
+                log.place.remove_all()
+            except Exception as e:  # the task is gone; what is left on a shared store is the store's gc's
+                logger.warning("labels: could not delete the log of task %s: %s", task_id, e)
 
     def label_answers(self, req, names, wire, rts, answers, plain_of) -> str | None:
         """Log every answered question of a task that asks for labels, and give its answer a request id (and
@@ -3234,7 +3255,8 @@ class SystemOne:
                 lang=lang if isinstance(lang, str) else None,
             )  # fmt: skip
             a.update(add)
-            first = first or rid
+            if add.get("request_id"):  # a replica that does not write logs nothing and gives no id
+                first = first or rid
         return first
 
     def serve_row(self, t, state, q, learn: bool = True):
@@ -5214,7 +5236,7 @@ def add_routes(app, systemone: SystemOne):
         if fitted.get("label_review") is not None:  # in the response only: a review aid, not part of the task
             out["label_review"] = fitted["label_review"]
         if task.get("labels"):  # the digest key once, and what opting in keeps
-            out["labels"] = LB.registration_block(task["labels"], durable=systemone.labels_root is not None)
+            out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
@@ -5385,8 +5407,34 @@ def add_routes(app, systemone: SystemOne):
             )
         return log
 
+    def synced(log) -> dict:
+        """Read what the log's place holds that this server has not (other replicas' answers and labels) before a
+        route reads or writes. A place out of reach: 503 if this server has never read it, else the route goes on
+        with what it holds and says `"synced": false`."""
+        try:
+            log.sync()
+        except (TaskPersistError, OSError) as e:
+            if not log.loaded:
+                raise not_saved(e)
+            return {"synced": False}
+        return {}
+
     def durable() -> dict:
-        return {} if systemone.labels_root is not None else {"durable": False}
+        return {} if systemone.labels_location != "memory" else {"durable": False}
+
+    def labels_json(out: dict) -> JSONResponse:
+        return JSONResponse(json.loads(json.dumps({**out, **durable()}, default=float)))
+
+    def label_write(log, fn, arg):
+        extra = synced(log)
+        try:
+            return {**fn(arg), **extra}
+        except LB.LabelsReadOnly as e:
+            raise HTTPException(409, str(e))
+        except LB.LabelsError as e:
+            raise HTTPException(422, str(e))
+        except (TaskPersistError, OSError) as e:  # the events could not be written: nothing is reported accepted
+            raise not_saved(e)
 
     async def post_labels(task_id: str, request: Request):
         try:
@@ -5396,13 +5444,7 @@ def add_routes(app, systemone: SystemOne):
         if not isinstance(body, dict):
             raise HTTPException(422, 'body: {"labels": [{"request_id" | "digest" | "state" | "text", "answer"}, ...]}')
         log = labels_log_of(task_id)
-        try:
-            out = await run_in_threadpool(log.post, body.get("labels"))
-        except LB.LabelsError as e:
-            raise HTTPException(422, str(e))
-        except OSError as e:  # the events could not be written: nothing is reported accepted
-            raise not_saved(e)
-        return JSONResponse(json.loads(json.dumps({**out, **durable()}, default=float)))
+        return labels_json(await run_in_threadpool(label_write, log, log.post, body.get("labels")))
 
     post_labels.__annotations__["request"] = Request
     app.post("/v1/tasks/{task_id}/labels")(post_labels)
@@ -5410,14 +5452,16 @@ def add_routes(app, systemone: SystemOne):
     @app.get("/v1/tasks/{task_id}/labels/queue")
     def labels_queue(task_id: str, limit: int = 20):
         """The drawn answers still to label, oldest first: request ids, never the text."""
-        return JSONResponse(json.loads(json.dumps({**labels_log_of(task_id).queue(limit), **durable()}, default=float)))
+        log = labels_log_of(task_id)
+        extra = synced(log)
+        return labels_json({**log.queue(limit), **extra})
 
     @app.get("/v1/tasks/{task_id}/labels/status")
     def labels_status(task_id: str):
         """Counts by state and slice, and the label need per alpha (0.05, 0.10, 0.01, 0.005)."""
         log = labels_log_of(task_id)
-        out = {**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"], **durable()}
-        return JSONResponse(json.loads(json.dumps(out, default=float)))
+        extra = synced(log)
+        return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"], **extra})
 
     async def decline_labels(task_id: str, request: Request):
         try:
@@ -5428,11 +5472,7 @@ def add_routes(app, systemone: SystemOne):
         if not isinstance(refs, list):
             raise HTTPException(422, 'body: {"request_ids": [...]}')
         log = labels_log_of(task_id)
-        try:
-            out = await run_in_threadpool(log.decline, refs)
-        except OSError as e:
-            raise not_saved(e)
-        return JSONResponse(json.loads(json.dumps({**out, **durable()}, default=float)))
+        return labels_json(await run_in_threadpool(label_write, log, log.decline, refs))
 
     decline_labels.__annotations__["request"] = Request
     app.post("/v1/tasks/{task_id}/labels/decline")(decline_labels)
@@ -5442,9 +5482,14 @@ def add_routes(app, systemone: SystemOne):
         """The joined label table as JSON lines: every logged question, its draws, its state and its label."""
         from fastapi.responses import PlainTextResponse
 
-        rows = labels_log_of(task_id).table()
+        log = labels_log_of(task_id)
+        stale = synced(log)
+        rows = log.table()
+        headers = {"x-decisio-warning": "the task store could not be read: this replica's own view"} if stale else {}
         return PlainTextResponse(
-            "".join(json.dumps(r, default=float) + "\n" for r in rows), media_type="application/x-ndjson"
+            "".join(json.dumps(r, default=float) + "\n" for r in rows),
+            media_type="application/x-ndjson",
+            headers=headers,
         )
 
     @app.get("/metrics")

@@ -40,6 +40,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -62,6 +63,7 @@ DEFAULTS = {
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
     "max_rows": 50_000,
+    "reservoir": 2_000,  # undrawn answers that keep their served distribution: a uniform sample, about this many
 }
 FEATURES = ("full", "minimal")
 SEGMENT_ROWS = 2_000  # rows buffered before a segment is written
@@ -108,7 +110,7 @@ def parse_settings(block) -> dict | None:
         raise LabelsError("labels.margin_pi_min is at most labels.margin_pi_max")
     if not 0 < float(s["margin_scale"]) <= 1 or not 0 < float(s["region"]) <= 1:
         raise LabelsError("labels.margin_scale and labels.region are fractions above 0 and at most 1")
-    for k in ("tau_after", "due_days", "max_rows"):
+    for k in ("tau_after", "due_days", "max_rows", "reservoir"):
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
     return s
@@ -119,27 +121,31 @@ STORES = (
     "next option, the language tag the request gave (meta.lang or x-decisio-lang) and the script class of its text, "
     "two digests of the input (salted; not reversible without the task's secrets), the certificate and the serving "
     "stack it was answered under, and whether it was drawn to be labelled",
-    'with features "full" (the default): also the served distribution and the plain readout\'s label '
-    "log-probabilities, and for drawn questions of a task with an intent head the hidden state at the answer position "
-    "(a model feature that is not anonymous; it stays in this server's tasks directory)",
+    'with features "full" (the default): for drawn questions also the served distribution, the plain readout\'s label '
+    "log-probabilities and, for a task with an intent head, the hidden state at the answer position (a model feature "
+    "that is not anonymous; it stays where the task's log is kept); and the served distribution of a uniform sample "
+    "of the other questions (about `reservoir` of them)",
     "never the request's text or state",
     "the labels you post, with who chose the item (the draw, or you)",
 )
 
 
 ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "script", "keys", "top", "conf",
-              "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "replica")  # fmt: skip
+              "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "sample",
+              "replica")  # fmt: skip
 FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
 
 
 def stored_fields(settings: dict) -> list[str]:
-    """The fields a row of this task's log has, as the mode in force stores them (`lp`, `h` null on undrawn rows)."""
+    """The fields a row of this task's log has, as the mode in force stores them (`lp`, `h` null on undrawn rows,
+    `ps` too outside the `sample`)."""
     return list(ROW_FIELDS) + (list(FULL_FIELDS) if settings["features"] == "full" else [])
 
 
-def registration_block(rec: dict, durable: bool) -> dict:
+def registration_block(rec: dict, location: str) -> dict:
     """What a registration's response says of the task's labels: the settings, the digest key (shown here only), what
-    the log stores and where, and the queue's first view (empty until the task has answered)."""
+    the log stores and where (`location`: tasks_dir, task_store or memory), and the queue's first view (empty until
+    the task has answered)."""
     s = rec["settings"]
     return {
         "enabled": True,
@@ -147,7 +153,7 @@ def registration_block(rec: dict, durable: bool) -> dict:
         "features": s["features"],
         "stored_fields": stored_fields(s),
         "retention": {"max_rows": s["max_rows"], "due_days": s["due_days"], "deleted_with_task": True},
-        "location": "tasks_dir" if durable else "memory",
+        "location": location,
         "settings": s,
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
@@ -177,6 +183,17 @@ def ulid(now: float | None = None) -> str:
 
 def request_id(replica: str, now: float | None = None) -> str:
     return f"{replica}-{ulid(now)}"
+
+
+def rid_time(rid: str) -> float | None:
+    """The time a request id was issued (its ULID's milliseconds), or None when it is not one of ours."""
+    tail = str(rid).rsplit("-", 1)[-1]
+    if "-" not in str(rid) or len(tail) != 26 or any(c not in _CROCKFORD for c in tail):
+        return None
+    ms = 0
+    for c in tail[:10]:
+        ms = ms * 32 + _CROCKFORD.index(c)
+    return ms / 1000.0
 
 
 def state_text(state) -> str:
@@ -269,52 +286,151 @@ def unarr(s: str | None):
 # ---- the log of one task -------------------------------------------------------------------------------------------
 
 
+class LabelsReadOnly(LabelsError):
+    """This replica does not write to the shared task store (`--task-store-readonly`): it takes no labels."""
+
+
+READ_ONLY = (
+    "this replica does not write to the task store (--task-store-readonly): it logs no answers and takes no labels; "
+    "post labels to a replica that writes"
+)
+PENDING_MAX = 50_000  # rows a task holds for writing while its place cannot be reached; past it, new rows go unsaved
+
+
 class TaskLabels:
-    """One task's rows and label events, in memory and on its place (`DirPlace` under --tasks-dir, else
-    `MemoryPlace`): `rows/<ms>-<seq>.jsonl` written in segments off the request path, `events/<ms>-<seq>.jsonl`
-    written before a label write is acknowledged, `EPOCHS.json` the settings in force. Thread-safe."""
+    """One task's rows and label events, in memory and on its place: `DirPlace` under --tasks-dir, `MemoryPlace`
+    without it, or `SharedPlace` on a shared task store. Files are written once and never rewritten:
+    `rows/<ms>-<seq>-<replica>.jsonl` in segments off the request path, `events/<ms>-<seq>-<replica>.jsonl` before a
+    label write is acknowledged; `EPOCHS.json` holds the epochs, moved only by `_swap_epochs` (a compare-and-swap on a
+    shared store).
+
+    Nothing here touches the place on the request path (`observe`). `tick`, on the server's labels thread, reads what
+    other replicas wrote (`sync`), starts a due epoch and writes a due segment; the label routes `sync` before they
+    read. A label event is joined to its row when both are known, whichever comes first, so a label posted to one
+    replica for an answer another replica served is kept at once and counted once that replica's segment is read.
+    Thread-safe."""
 
     def __init__(self, task_id: str, settings: dict, secret: dict, place, replica: str, clock=time.time):
         self.task_id, self.settings, self.secret, self.place, self.replica = task_id, settings, secret, place, replica
         self.clock = clock
-        self._lock = threading.RLock()  # the in-memory log; held briefly, never across a write to the place
-        self._write = threading.Lock()  # one event writer at a time (labels, declines, fit use)
+        self.shared = bool(getattr(place, "shared", False))
+        self.writes = bool(getattr(place, "writes", True))
+        self._lock = threading.RLock()  # the in-memory log; held briefly, never across a call to the place
+        self._write = threading.Lock()  # one writer to the place at a time (labels, declines, fit use, segments)
+        self._sync = threading.Lock()  # one reader of the place at a time
         self.rows: dict[tuple[str, str], dict] = {}  # (request id, question) -> row
         self.by_digest: dict[str, list[tuple[str, str]]] = {}
         self.by_rid: dict[str, list[tuple[str, str]]] = {}
         self._undrawn: collections.deque = collections.deque()  # undrawn keys, oldest first: what max_rows drops
         self.events: list[dict] = []
         self.latest: dict[tuple[str, str], dict] = {}  # (request id, question) -> its latest label or decline event
+        self._history: dict[tuple[str, str], list[dict]] = {}  # its label and decline events, oldest first
+        self._changes: dict[tuple[str, str], int] = {}
+        self._parked: dict[str, list[dict]] = {}  # request id -> label events whose row is not known here yet
         self.revisions = 0  # labels that replaced a different answer (a sign of label noise)
+        self.invalid_on_join = 0  # labels joined to a row whose options do not include their answer: ignored
+        self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
+        self.unjoined_expired = 0  # labels for ids no replica's row ever joined, dropped after their due window
         self._pending_rows: list[dict] = []
         self._last_flush = clock()
         self._seq = 0
-        self.epochs: list[dict] = []
-        self._load()
-        if not self.epochs:
-            self._new_epoch(tau_min=0.0, why="registration")
+        self._last_ms = 0
+        self._read: set[str] = set()  # files of the place already in memory (this replica's own as it writes them)
+        self.loaded = False  # the place has been read once (`sync`)
+        self.last_sync: float | None = None
+        self.epochs: list[dict] = [self._epoch_zero()]
 
-    # ---- persistence
+    # ---- the place
+
+    def _epoch_zero(self) -> dict:
+        """The registration's epoch: its settings, the region all traffic. The same on every replica without a write."""
+        return {"epoch": 0, "start": None, "tau_min": 0.0, "why": "registration", "settings": dict(self.settings)}
 
     def _name(self, kind: str) -> str:
+        """A new file's name: time-ordered for this replica (the milliseconds never go back), and the replica's own."""
         self._seq += 1
-        return f"{kind}/{int(self.clock() * 1000):013d}-{self._seq:06d}.jsonl"
+        self._last_ms = max(self._last_ms, int(self.clock() * 1000))
+        return f"{kind}/{self._last_ms:013d}-{self._seq:09d}-{self.replica}.jsonl"
 
-    def _load(self) -> None:
-        raw = self.place.get("EPOCHS.json")
-        if raw:
-            self.epochs = json.loads(raw)
-        for name in sorted(self.place.names("rows/")):
-            for line in (self.place.get(name) or b"").decode().splitlines():
-                if line.strip():
-                    self._index(json.loads(line))
-        for name in sorted(self.place.names("events/")):
-            for line in (self.place.get(name) or b"").decode().splitlines():
-                if line.strip():
-                    self._apply(json.loads(line))
-        self._seq = len(self.place.names("rows/")) + len(self.place.names("events/"))
-        while len(self.rows) > self.settings["max_rows"] and self._evict():
-            pass
+    def sync(self) -> None:
+        """Read what the place holds that this log has not: the epochs, and every replica's new row and event files
+        (written once, so each is read once). Raises when the place cannot be read; what is in memory stays."""
+        with self._sync:
+            raw = self.place.get("EPOCHS.json")
+            if raw:
+                epochs = json.loads(raw)
+                with self._lock:
+                    if len(epochs) > len(self.epochs):
+                        self.epochs = epochs
+            for kind in ("rows/", "events/"):
+                advance = getattr(self.place, "advance", None)  # a shared store's listing resumes after what was read
+                for name in self.place.names(kind):
+                    if name in self._read:
+                        if advance:
+                            advance(name)
+                        continue
+                    data = self.place.get(name)  # a failure raises here: the listing stays before this file
+                    if data is None:  # gone since the listing (merged elsewhere): nothing to read
+                        if advance:
+                            advance(name)
+                        continue
+                    items = [json.loads(x) for x in data.decode().splitlines() if x.strip()]
+                    with self._lock:
+                        if name in self._read:
+                            continue
+                        for it in items:
+                            (self._index if kind == "rows/" else self._apply)(it)
+                        self._read.add(name)
+                    if advance:
+                        advance(name)
+            with self._lock:
+                self._join_parked()
+                while len(self.rows) > self.settings["max_rows"] and self._evict():
+                    pass
+                self.loaded = True
+                self.last_sync = self.clock()
+
+    def ensure_loaded(self) -> None:
+        if not self.loaded:
+            self.sync()
+
+    def tick(self, force: bool = False) -> None:
+        """The labels thread's turn: read the place, start an epoch that is due, write a segment that is due."""
+        self.sync()
+        self._maybe_tau()
+        self.flush(force)
+
+    def _swap_epochs(self, fn) -> list:
+        """Move `EPOCHS.json` by `fn(current) -> new list, or None to keep it`: a compare-and-swap on a shared store
+        (`SharedPlace.swap`), else a read and a write under this log's writer lock. Returns the epochs now stored."""
+        if hasattr(self.place, "swap"):
+            return self.place.swap("EPOCHS.json", fn)
+        with self._write:
+            raw = self.place.get("EPOCHS.json")
+            cur = json.loads(raw) if raw else None
+            new = fn(cur)
+            if new is None:
+                return cur or []
+            self.place.put("EPOCHS.json", json.dumps(new).encode())
+            return new
+
+    def _maybe_tau(self) -> None:
+        """Once `tau_after` answers are known, a new epoch whose cert region is the top `region` share of their
+        confidences. Every replica may propose it; the first stored wins, and the others adopt it."""
+        if not self.writes:
+            return
+        with self._lock:
+            if self.epoch["epoch"] != 0 or len(self.rows) < self.settings["tau_after"]:
+                return
+            confs = np.sort([r["conf"] for r in self.rows.values()])
+            tau = float(np.quantile(confs, 1.0 - self.settings["region"]))
+            new = {"epoch": 1, "start": self.clock(), "tau_min": tau, "settings": dict(self.settings),
+                   "why": f"tau_min from the first {len(confs)} answers", "by": self.replica}  # fmt: skip
+        zero = self._epoch_zero()
+        stored = self._swap_epochs(lambda cur: None if cur and len(cur) > 1 else [zero, new])
+        with self._lock:
+            if len(stored) > len(self.epochs):
+                self.epochs = stored
 
     def _index(self, row: dict) -> None:
         key = (row["request_id"], row["question"])
@@ -325,40 +441,72 @@ class TaskLabels:
                 self._undrawn.append(key)
         self.rows[key] = row
 
-    def _new_epoch(self, tau_min: float, why: str) -> dict:
-        e = {"epoch": len(self.epochs), "start": self.clock(), "tau_min": float(tau_min), "why": why,
-             "settings": dict(self.settings)}  # fmt: skip
-        self.epochs.append(e)
-        self.place.put("EPOCHS.json", json.dumps(self.epochs).encode())
-        return e
-
     def _apply(self, ev: dict) -> None:
-        """Add one event to the in-memory log (under `_lock`, or while loading)."""
+        """Add one event to the in-memory log (under `_lock`): a label or decline is joined to its row, or parked
+        until the row is known."""
         self.events.append(ev)
         if ev["type"] in ("label", "decline") and ev.get("request_id") is not None:
-            key = (ev["request_id"], ev["question"])
-            prev = self.latest.get(key)
-            if ev["type"] == "label" and prev is not None and prev["type"] == "label":
-                self.revisions += prev["answer"] != ev["answer"]
-            self.latest[key] = ev
+            if not self._attach(ev):
+                self._parked.setdefault(ev["request_id"], []).append(ev)
+
+    @staticmethod
+    def _order(ev: dict) -> tuple:
+        return (float(ev.get("received") or 0.0), str(ev.get("replica") or ""))
+
+    def _attach(self, ev: dict) -> bool:
+        """Join a label or decline to its row; False when the row is not known here (yet). The latest event by
+        receipt time wins, whichever replica took it and in whatever order the replicas' files are read."""
+        rid, q = ev["request_id"], ev.get("question")
+        keys = [k for k in self.by_rid.get(rid, []) if q is None or k[1] == q]
+        if len(keys) != 1:
+            return False
+        key = keys[0]
+        if ev["type"] == "label" and ev["answer"] not in self.rows[key]["keys"]:
+            self.invalid_on_join += 1
+            return True
+        hist = self._history.setdefault(key, [])
+        hist.append(ev)
+        hist.sort(key=self._order)
+        self.latest[key] = hist[-1]
+        answers = [e["answer"] for e in hist if e["type"] == "label"]
+        changes = sum(a != b for a, b in zip(answers, answers[1:]))
+        self.revisions += changes - self._changes.get(key, 0)
+        self._changes[key] = changes
+        return True
+
+    def _join_parked(self) -> None:
+        """Join the parked labels whose rows are known now; drop, and count as `unjoined_expired`, those whose
+        request is older than `due_days` and a few listing turns: no replica will write that row any more, so the
+        id was mistyped or made up."""
+        for rid in [r for r in self._parked if r in self.by_rid]:
+            waiting = self._parked.pop(rid)
+            left = [ev for ev in waiting if not self._attach(ev)]
+            if left:
+                self._parked[rid] = left
+        horizon = self.clock() - self.settings["due_days"] * 86400 - 3 * (SEGMENT_SECONDS + FLUSH_EVERY)
+        for rid in [r for r in self._parked if (rid_time(r) or 0.0) < horizon]:
+            self.unjoined_expired += len(self._parked.pop(rid))
 
     def _write_events(self, events: list[dict]) -> None:
         """Write events to the place, then add them to the log: a write that fails raises and leaves the log as it
         was, so nothing unsaved is ever acknowledged. The caller holds `_write`, never `_lock`, so the request path
-        (`observe`) does not wait on the disk."""
+        (`observe`) does not wait on the place."""
         if not events:
             return
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
         with self._lock:
             name = self._name("events")
         self.place.put(name, "".join(json.dumps(e) + "\n" for e in events).encode())
         with self._lock:
+            self._read.add(name)
             for ev in events:
                 self._apply(ev)
 
     def flush(self, force: bool = False) -> int:
         """Write the buffered rows as one segment when there are `SEGMENT_ROWS` or the oldest is `SEGMENT_SECONDS`
-        old (or `force`); returns how many were written. Called off the request path (the task store's poll, or a
-        timer), and at shutdown. The write happens outside the log's lock; a failed write puts the rows back."""
+        old (or `force`); returns how many were written. Called off the request path (the labels thread), and at
+        shutdown. The write happens outside the log's lock; a failed write puts the rows back for the next try."""
         with self._write:
             with self._lock:
                 due = (
@@ -377,6 +525,7 @@ class TaskLabels:
                     self._pending_rows[:0] = rows
                 raise
             with self._lock:
+                self._read.add(name)
                 self._last_flush = self.clock()
             return len(rows)
 
@@ -389,7 +538,10 @@ class TaskLabels:
     def observe(self, rid: str, question: str, *, text: str, keys, served, lp, h, certified, version, stack,
                 lang: str | None, via: str = "model") -> dict:  # fmt: skip
         """Log one served question and draw it. Returns the answer's additions: {"request_id"} and, when the row was
-        drawn into any slice, "label_requested": True. Cheap: a few hashes and an append under the lock."""
+        drawn into any slice, "label_requested": True; nothing on a replica that does not write. Cheap: a few hashes
+        and an append under the lock, never a call to the place."""
+        if not self.writes:
+            return {}
         p = np.asarray(served, dtype=np.float64)
         order = np.argsort(-p)
         top = int(order[0])
@@ -399,6 +551,7 @@ class TaskLabels:
             e = self.epoch
             d = draw(self.secret["salt"], rid, question, conf, margin, e)
             drawn = any(v["in"] for v in d.values())
+            sample = self._sample(rid, question)
             full = self.settings["features"] == "full"
             canonical = canonical_text(text)
             row = {
@@ -419,17 +572,35 @@ class TaskLabels:
                 "version": version,
                 "stack": stack,
                 "draws": d,
+                "sample": sample,
                 "drawn": drawn,
                 "replica": self.replica,
-                **({"ps": _arr(p), "lp": _arr(lp) if drawn else None, "h": _arr(h) if drawn else None} if full else {}),
+                **(
+                    {
+                        "ps": _arr(p) if drawn or sample["in"] else None,
+                        "lp": _arr(lp) if drawn else None,
+                        "h": _arr(h) if drawn else None,
+                    }
+                    if full
+                    else {}
+                ),  # fmt: skip
             }
             if len(self.rows) >= self.settings["max_rows"]:
                 self._evict()
             self._index(row)
-            self._pending_rows.append(row)
-            if e["epoch"] == 0 and e["tau_min"] == 0.0 and len(self.rows) >= self.settings["tau_after"]:
-                self._set_tau_min()
+            if len(self._pending_rows) < PENDING_MAX:
+                self._pending_rows.append(row)
+            else:  # the place has been out of reach for long: the row serves here but is not written
+                self.unsaved += 1
         return {"request_id": rid, **({"label_requested": True} if drawn else {})}
+
+    def _sample(self, rid: str, question: str) -> dict:
+        """Whether an undrawn answer keeps its served distribution: a keyed draw at `reservoir / max_rows`, so the
+        undrawn answers that keep it are a uniform sample of those held (about `reservoir` at the cap), the same on
+        every replica: the unlabelled pool for monitoring. Every other undrawn answer keeps no distribution."""
+        pi = min(1.0, self.settings["reservoir"] / self.settings["max_rows"])
+        u = uniform(self.secret["salt"], rid, question, "reservoir")
+        return {"in": u < pi, "pi": pi, "u": u}
 
     def _evict(self) -> bool:
         """Over `max_rows`: drop the oldest undrawn row (a drawn row stays: its label may still come). Constant time on
@@ -448,12 +619,6 @@ class TaskLabels:
             return True
         return False
 
-    def _set_tau_min(self) -> None:
-        """A new epoch whose cert region is the top `region` share of the confidences seen so far."""
-        confs = np.sort([r["conf"] for r in self.rows.values()])
-        tau = float(np.quantile(confs, 1.0 - self.settings["region"])) if len(confs) else 0.0
-        self._new_epoch(tau_min=tau, why=f"tau_min from the first {len(confs)} answers")
-
     # ---- labels
 
     def _latest(self) -> dict:
@@ -467,6 +632,8 @@ class TaskLabels:
             raise LabelsError('labels: give "labels": [{"request_id": ..., "answer": ...}, ...]')
         if len(items) > MAX_BATCH:
             raise LabelsError(f"labels: at most {MAX_BATCH} labels per write")
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
         now = self.clock()
         results, events = [], []
         with self._write:
@@ -495,6 +662,13 @@ class TaskLabels:
             if len(cands) > 1:
                 return {"status": "invalid", "why": "this request has several questions: name the question"}
             key = cands[0] if cands else None
+            if key is None and self._elsewhere(rid):
+                # served by another replica whose segment this one has not read yet: kept now, joined when it is
+                ev = {"type": "label", "request_id": rid, "question": q, "answer": answer, "source": source,
+                      "selection": None, "labelled_at": it.get("labelled_at") or now, "received": now,
+                      "replica": self.replica}  # fmt: skip
+                events.append(ev)
+                return {"status": "not_joined", "request_id": rid, **({"question": q} if q is not None else {})}
             if key is None:
                 return {"status": "unknown_ref", "request_id": rid}
         else:
@@ -527,8 +701,17 @@ class TaskLabels:
         status = "revised" if prev is not None and prev["type"] == "label" else "accepted"
         return {"status": status, "request_id": key[0], "question": key[1], **({"matched": matched} if matched else {})}
 
+    def _elsewhere(self, rid: str) -> bool:
+        """A request id another replica of a shared store issued, within the time its row could still be kept."""
+        t = rid_time(rid)
+        if not self.shared or t is None or rid.rsplit("-", 1)[0] == self.replica:
+            return False
+        return -86400 < self.clock() - t < self.settings["due_days"] * 86400
+
     def decline(self, refs) -> dict:
         """The client will not label these drawn requests: they leave the queue and count as missing."""
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
         now = self.clock()
         events = []
         with self._lock:
@@ -574,8 +757,9 @@ class TaskLabels:
                 rec = dict(row)  # every stored field (ps, lp and h as base64 little-endian float32; unarr reads them)
                 rec["state"] = self.state_of(key, latest, now)
                 if ev is not None and ev["type"] == "label":
-                    rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], selection=ev["selection"],
-                               source=ev["source"], labelled_at=ev["labelled_at"])  # fmt: skip
+                    rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], source=ev["source"],
+                               selection="slice" if row["drawn"] else "self", labelled_at=ev["labelled_at"],
+                               replica_labelled=ev.get("replica"))  # fmt: skip
                 out.append(rec)
             return sorted(out, key=lambda r: r["t"])
 
@@ -611,8 +795,15 @@ class TaskLabels:
                         by_slice[s]["drawn"] += 1
                         by_slice[s]["labelled"] += st == "labelled"
             imports = sum(1 for ev in self.events if ev["type"] == "label" and ev.get("source") == "import")
-            return {"rows": len(self.rows), "states": states, "by_slice": by_slice, "imports": imports,
-                    "revisions": self.revisions}  # fmt: skip
+            out = {"rows": len(self.rows), "states": states, "by_slice": by_slice, "imports": imports,
+                   "revisions": self.revisions, "not_joined": sum(len(v) for v in self._parked.values())}  # fmt: skip
+            if self.invalid_on_join:
+                out["invalid_on_join"] = self.invalid_on_join
+            if self.unsaved:
+                out["unsaved_rows"] = self.unsaved
+            if self.unjoined_expired:
+                out["unjoined_expired"] = self.unjoined_expired
+            return out
 
     def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
         """Per alpha: the cert slice's labelled answers in the current region and the errors among them (expired and
@@ -668,7 +859,10 @@ class TaskLabels:
                    "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
                    "more_if_no_error": more(err, a), "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
             if n and err / n >= a:
-                rec["reason"] = "the region's observed error is at or above alpha: it will not certify at this alpha"
+                rec["reason"] = (
+                    "the errors so far are at or above alpha: it certifies only after more right labels bring the "
+                    "error down"
+                )
             out.append(rec)
         return out
 
@@ -678,3 +872,113 @@ def assert_disjoint(fit_ids, cert_ids) -> None:
     shared = set(map(tuple, fit_ids)) & set(map(tuple, cert_ids))
     if shared:
         raise LabelsError(f"a certificate would use {len(shared)} label(s) its version was fitted on: refused")
+
+
+# ---- a shared task store -------------------------------------------------------------------------------------------
+
+
+_FILE_NAME = re.compile(r"^(rows|events)/(\d{13}-\d+)-(.+)\.jsonl$")
+
+
+def shared_prefix(task_digest: str, salt: str) -> str:
+    """A registration's label log on a shared task store: `labels/<task digest>/<first 12 of its salt>/`."""
+    return f"labels/{task_digest}/{salt[:12]}/"
+
+
+class SharedPlace:
+    """A task's label log on a shared task store (`fast_table_replicas.Objects`), as `TaskLabels` reads and writes it:
+
+        labels/<task digest>/<registration>/EPOCHS.json                        the epochs, by compare-and-swap
+        labels/<task digest>/<registration>/<replica>/rows/<ms>-<seq>.jsonl    one replica's rows, written once
+        labels/<task digest>/<registration>/<replica>/events/<ms>-<seq>.jsonl  its label events, written once
+
+    A replica writes only under its own name and only with create-only writes, so replicas never overwrite each
+    other. `names` lists only what is new since its last call (each replica's files are listed after the last one
+    seen), so a poll costs one listing of the replicas and one short listing per replica and kind. A replica that
+    does not write (`writes=False`) reads everything and writes nothing."""
+
+    persistent = True
+    shared = True
+
+    def __init__(self, objects, prefix: str, replica: str, writes: bool = True):
+        self.objects, self.prefix, self.replica, self.writes = objects, prefix, replica, writes
+        self._after: dict[str, str] = {}  # "<replica>/<kind>" -> the last path listed there
+
+    def describe(self) -> str:
+        return f"task store {self.prefix}"
+
+    @staticmethod
+    def _split(name: str) -> tuple[str, str, str]:
+        """`rows/<ms>-<seq>-<replica>.jsonl` -> ("rows", "<ms>-<seq>", "<replica>"), whatever the sequence's width."""
+        m = _FILE_NAME.match(name)
+        if m is None:
+            raise LabelsError(f"not a label log file name: {name!r}")
+        return m.group(1), m.group(2), m.group(3)
+
+    def _path(self, name: str) -> str:
+        if name == "EPOCHS.json":
+            return self.prefix + name
+        kind, stem, replica = self._split(name)
+        return f"{self.prefix}{replica}/{kind}/{stem}.jsonl"
+
+    def put(self, name: str, data: bytes) -> None:
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
+        self.objects.create(self._path(name), data)
+
+    def get(self, name: str) -> bytes | None:
+        got = self.objects.get(self._path(name))
+        return None if got is None else got[0]
+
+    def names(self, prefix: str) -> list[str]:
+        """The files of one kind (`rows/` or `events/`) after each replica's cursor, as `TaskLabels` names them. The
+        cursor does not move here: `advance` moves it past a file once it has been read, so a read that fails leaves
+        that file and every later one to be listed again."""
+        kind = prefix.rstrip("/")
+        out = []
+        for rdir in self.objects.prefixes(self.prefix):
+            replica = rdir[len(self.prefix) :].strip("/")
+            at = f"{self.prefix}{replica}/{kind}/"
+            for path in self.objects.list(at, offset=self._after.get(f"{replica}/{kind}")):
+                stem = path[len(at) :].removesuffix(".jsonl")
+                out.append(f"{kind}/{stem}-{replica}.jsonl")
+        return sorted(out)
+
+    def advance(self, name: str) -> None:
+        """The file `name` has been read (or is gone): its replica's listing resumes after it. Files of one replica
+        are read in name order and a failed read stops the reading, so nothing before the cursor is left unread."""
+        kind, stem, replica = self._split(name)
+        path = f"{self.prefix}{replica}/{kind}/{stem}.jsonl"
+        key = f"{replica}/{kind}"
+        if path > self._after.get(key, ""):
+            self._after[key] = path
+
+    def swap(self, name: str, fn, races: int = 8) -> list:
+        """Move a shared object by compare-and-swap: `fn(current or None)` gives the new value, or None to keep it.
+        Retried when another replica wrote first; returns the value stored."""
+        from decisio.serve.fast_table_replicas import Exists, Raced
+
+        path = self._path(name)
+        for _ in range(races):
+            got = self.objects.get(path)
+            cur, tag = (None, None) if got is None else (json.loads(got[0]), got[1])
+            new = fn(cur)
+            if new is None or not self.writes:
+                return cur or []
+            data = json.dumps(new).encode()
+            try:
+                if tag is None:
+                    self.objects.create(path, data)
+                else:
+                    self.objects.update(path, data, tag)
+                return new
+            except (Exists, Raced):
+                continue
+        raise LabelsError(f"{path}: another replica kept writing it ({races} tries)")
+
+    def remove_all(self) -> None:
+        """Delete the whole log (the task was removed on this replica)."""
+        if not self.writes:
+            return
+        for path in self.objects.list(self.prefix):
+            self.objects.delete(path)

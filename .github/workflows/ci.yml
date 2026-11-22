@@ -188,12 +188,15 @@ jobs:
       - name: Install (locked)
         run: uv sync --extra dev --frozen
 
-      # Both tests must run: a skip (a missing dependency, an unset variable) fails the job.
-      - name: The two-replica tests on MinIO
+      # All three tests must run, named by node id so that new tests cannot change the count: a skip (a missing
+      # dependency, an unset variable) fails the job.
+      - name: The two-replica tests on MinIO (tasks, learning, labels)
         run: |
-          uv run pytest -q -rs -p no:cacheprovider tests/unit/test_task_store_shared.py \
-            tests/unit/test_fast_table_replicas.py -k "s10 or r11" | tee pytest.out
-          grep -Eq '^2 passed' pytest.out
+          uv run pytest -q -rs -p no:cacheprovider \
+            tests/unit/test_task_store_shared.py::test_s10_two_replicas_on_a_real_s3_compatible_service \
+            tests/unit/test_fast_table_replicas.py::test_r11_two_replicas_learn_on_a_real_s3_compatible_service \
+            tests/unit/test_labels_replicas.py::test_r8_two_label_logs_on_a_real_s3_compatible_service | tee pytest.out
+          grep -Eq '^3 passed' pytest.out
 
       - name: MinIO's log
         if: failure()

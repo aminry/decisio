@@ -193,7 +193,7 @@ Replicas behind a load balancer are separate servers; with `--task-store` they s
 - **Reads are eventually consistent.** After a registration the other replicas serve the new version within the poll interval plus the fetch, and the old one until then; a client that must read its own write asks the replica that took it. Replicas that start later load everything at once.
 - **A fast table that learns from traffic learns across the replicas.** Every replica that writes to the store logs its rows there, one replica trains under a lease, and every replica serves the published versions after timing them itself ([below](#a-fast-table-that-learns-from-traffic)).
 - **Monitors stay per replica.** The answer-mix counts of a certified task are not shared; `/metrics` is per replica, so sum `decisio_task_*` across replicas in Prometheus. There is no fleet monitoring.
-- **Housekeeping.** Each fitted version of a task is an immutable object under `objects/`; the manifest points at the current ones. Superseded objects are not deleted automatically (a lifecycle rule by age would delete tasks nobody has changed): `python -m decisio.serve.task_store_shared gc s3://bucket/prefix --older-than-days 1 [--dry-run]` removes the ones no entry points to, and the learned rows and versions of removed registrations.
+- **Housekeeping.** Each fitted version of a task is an immutable object under `objects/`; the manifest points at the current ones. Superseded objects are not deleted automatically (a lifecycle rule by age would delete tasks nobody has changed): `python -m decisio.serve.task_store_shared gc s3://bucket/prefix --older-than-days 1 [--dry-run]` removes the ones no entry points to, and the learned rows and versions and the label logs of removed registrations.
 - **Checked on** obstore's in-memory store (which enforces the same preconditions), and against a running RustFS and SeaweedFS (S3-compatible services) for the start-up probe, with two-replica runs of the task store and of a learning fast table on RustFS and, in CI on every pull request, on MinIO (Chainguard's build, `cgr.dev/chainguard/minio`) (`DECISIO_TEST_S3_ENDPOINT`, `tests/unit/test_task_store_shared.py`, `tests/unit/test_fast_table_replicas.py`). Not run against AWS S3, R2, GCS or Azure; the start-up probe is what tells you whether yours enforces conditional writes.
 
 A task is valid only for the model and rendering it was fitted under (the served name, the checkpoint, padding and the rendering flags): a task fitted on another configuration is not applied, and the server says which.
@@ -247,7 +247,7 @@ curl -s localhost:8000/v1/tasks -H 'content-type: application/json' -d '{
 The registration response's `labels.stores` lists it, and it is this:
 
 - For every answered question of the task: a request id, the time, the answer, its confidence and the gap to the next option, the language tag the request gave and the script class of its text, two digests of the input, the certificate and serving stack it was answered under, and whether it was drawn to be labelled.
-- With `features: "full"` (the default), also the served distribution, and for drawn questions the plain readout's label log-probabilities (the scores before the task's calibration or head) and, for a task with an intent head, the hidden state at the answer position.
+- With `features: "full"` (the default), also, for drawn questions, the served distribution, the plain readout's label log-probabilities (the scores before the task's calibration or head) and, for a task with an intent head, the hidden state at the answer position; and the served distribution of a uniform sample of the other questions, about `reservoir` (2,000) of them at `max_rows`.
   The hidden state is a model feature, not an anonymous number; it stays in this server's tasks directory.
   `features: "minimal"` keeps neither the distributions nor the hidden state.
 - Never the request's text or state.
@@ -286,7 +286,7 @@ Give the request's language as `meta.lang` in the body or the `x-decisio-lang` h
 
 The state as text is the string itself, or for any other state `json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`; it is then put in Unicode NFC, runs of whitespace become one space, and the ends are stripped.
 A digest or state matching several logged answers labels the newest one not yet labelled.
-Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `unknown_ref`, `invalid_answer` or `invalid`.
+Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `not_joined` (on a shared store: kept, for an answer another replica served that this one has not read yet), `unknown_ref`, `invalid_answer` or `invalid`.
 A digest or state that matches nothing logged is kept as an `import`: usable for review, never for a certificate.
 Labels are written to disk before the response returns.
 
@@ -318,12 +318,20 @@ Each answered question is drawn independently into three slices, by a keyed hash
 A chance is 0 or at least 0.02.
 The certificate region covers all traffic for the first `tau_after` (200) answers; after that it is the top `region` (0.5) share by confidence.
 `due_days` (14) is how long a drawn answer waits for its label, and `max_rows` (50,000) is the most answers kept: past it the oldest answers that were not drawn are dropped.
+The answers that were not drawn are therefore the most recent ones, a sliding window, not a sample of all time; the ones that keep their served distribution are a uniform sample of that window.
 
 **Where it is kept.**
 With `--tasks-dir` the log is append-only files under `<tasks-dir>/labels/`, and it survives a restart.
 Without it the log is in memory, is lost at restart, and the queue and status say `"durable": false`.
 Deleting the task deletes its log.
-In this version the log is per server: a shared store (`--task-store`) keeps each replica's log in its memory and does not merge them.
+On a shared store (`--task-store`) the log is on the store, under `labels/`: each replica writes its own files, once, and every replica reads the others' within about a minute (a replica writes its answers every `60` seconds and reads the store every `10`).
+A label can be posted to any replica.
+One for an answer another replica served, whose answers this replica has not read yet, is kept at once with the status `not_joined` and is counted once they are read; `status` gives how many are waiting as `not_joined`.
+When two replicas take a label for the same answer, both are kept and the later one wins, by each replica's own clock: keep the replicas' clocks in sync (NTP), or a label taken on a replica whose clock runs behind can lose to an older one.
+A label for a request id that no replica's answers ever hold (a mistyped or made-up id) waits as `not_joined` until the request's `due_days` have passed, and is then dropped and counted in `status` as `unjoined_expired`.
+While the store cannot be reached, a label write is refused with a 503 (nothing is reported accepted that is not stored), the queue and status answer from what the replica holds with `"synced": false` (the export with an `x-decisio-warning` header), and answers keep being served and logged in memory, to be written when the store is back (past 50,000 waiting answers per task, newer ones are served but not written, and `status` counts them as `unsaved_rows`).
+A replica started with `--task-store-readonly` reads the log and serves the queue and status, logs no answers (its answers carry no request id), and refuses label writes with a 409.
+Removing the task on any replica deletes its log from the store; the store's gc (`python -m decisio.serve.task_store_shared gc`) removes what a replica that was down at the time wrote later.
 A task whose options change with every request cannot opt in yet.
 
 **What it costs.**

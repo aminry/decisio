@@ -510,19 +510,23 @@ class ObjectBackend:
     def gc(self, older_than_days: float = 1.0, dry_run: bool = False) -> list[str]:
         """Delete the objects no manifest entry points to and that are older than `older_than_days` (an object just
         written, for a manifest write still to come, is spared), and the learned rows and versions (`tasks/<digest>/`,
-        decisio.serve.fast_table_replicas) of a registration no live task names, as old. Returns the paths."""
+        decisio.serve.fast_table_replicas) and the label logs (`labels/<digest>/<registration>/`,
+        decisio.serve.labels) of a registration no live task names, as old. Returns the paths."""
+        from decisio.serve.fast_table_learn import task_digest
         from decisio.serve.fast_table_replicas import learning_digest
 
         obs = _obstore()
         manifest, _ = self._read_manifest()
         live = [e for e in manifest["entries"].values() if e.get("object") and not e.get("deleted")]
         keep = {e["object"] for e in manifest["entries"].values() if e.get("object")}
-        learning = set()
+        learning, labelled = set(), set()
         for e in live:
             if e.get("kind") == "readout":
                 record = self._get_object(e["object"])
                 if record.get("learn"):
                     learning.add(learning_digest(record["id"], record["learn"].get("registration")))
+                if (record.get("labels") or {}).get("secret"):
+                    labelled.add(f"{task_digest(record['id'])}/{record['labels']['secret']['salt'][:12]}")
         cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
         gone = []
         for batch in obs.list(self.store, "objects/"):
@@ -534,6 +538,11 @@ class ObjectBackend:
             for item in batch:
                 parts = item["path"].split("/")
                 if len(parts) > 2 and parts[1] not in learning and item["last_modified"] < cutoff:
+                    gone.append(item["path"])
+        for batch in obs.list(self.store, "labels/"):
+            for item in batch:
+                parts = item["path"].split("/")
+                if len(parts) > 3 and f"{parts[1]}/{parts[2]}" not in labelled and item["last_modified"] < cutoff:
                     gone.append(item["path"])
         if not dry_run:
             for path in gone:
