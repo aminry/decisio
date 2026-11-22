@@ -193,7 +193,7 @@ jobs:
         run: |
           uv run pytest -q -rs -p no:cacheprovider tests/unit/test_task_store_shared.py \
             tests/unit/test_fast_table_replicas.py tests/unit/test_labels_replicas.py \
-            -k "s10 or r11 or labels_on_a_real_s3" | tee pytest.out
+            -k "s10 or r11 or label_logs_on_a_real_s3" | tee pytest.out
           grep -Eq '^3 passed' pytest.out
 
       - name: MinIO's log
