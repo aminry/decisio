@@ -309,23 +309,25 @@ def test_l11_the_need_is_the_current_region_at_one_chance():
 @pytest.mark.slow
 def test_l12_inclusion_matches_pi_on_200000_rows():
     salt = LB.new_secrets()["salt"]
-    s = LB.parse_settings({"audit_pi": 0.05, "cert_pi": 0.2})
+    s = LB.parse_settings({"audit_pi": 0.05, "cert_pi": 0.2, "typical_pi_max": 0.4})
     epoch = {"epoch": 1, "tau_min": 0.7, "settings": s}
     rng = np.random.default_rng(1)
     n = 200_000
     confs, margins = rng.uniform(0.34, 1.0, n), rng.uniform(0.0, 0.6, n)
+    levels = rng.integers(0, LB.TYPICAL_LEVELS + 1, n)  # 0: no level yet (the typical slice draws nothing)
     want = {x: 0.0 for x in LB.SLICES}
     got = {x: 0 for x in LB.SLICES}
     var = {x: 0.0 for x in LB.SLICES}
     for i in range(n):
-        d = LB.draw(salt, f"r-{i}", "q", float(confs[i]), float(margins[i]), epoch)
+        d = LB.draw(salt, f"r-{i}", "q", float(confs[i]), float(margins[i]), epoch, typical=int(levels[i]) or None)
         for x in LB.SLICES:
             pi = d[x]["pi"]
             want[x] += pi
             var[x] += pi * (1 - pi)
             got[x] += d[x]["in"]
     for x in LB.SLICES:
-        assert abs(got[x] - want[x]) < 4 * var[x] ** 0.5, (x, got[x], want[x])
+        assert want[x] > 0, x  # every slice draws in this test, the typical one too
+        assert abs(got[x] - want[x]) <= 4 * var[x] ** 0.5, (x, got[x], want[x])
 
 
 def test_l13_pooling_by_region_containment_and_the_real_source():
