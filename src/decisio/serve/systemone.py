@@ -1932,6 +1932,16 @@ class SystemOne:
         if debug == "hidden" and self.hidden_engine is not None:  # verification: every question's hidden readout
             for i, (lp, h) in enumerate(self.hidden_engine.readout(read, qs)):  # lp in key order, as p is
                 dbg[names[i]] = {"hidden_lp": key_order(lp, swapped[i]).tolist(), "h": h.tolist()}
+            # the tap's middle layers at the answer position, and their means over the state's tokens
+            for field, got in (
+                ("layers", getattr(self.hidden_engine, "last_layers", lambda: None)()),
+                ("state_mean", getattr(self.hidden_engine, "last_state_means", lambda: None)()),
+            ):
+                for i, per in enumerate(got or []):
+                    if per:
+                        dbg[names[i]][field] = {
+                            str(k): (v.tolist() if hasattr(v, "tolist") else v) for k, v in per.items()
+                        }
         answers, log = {}, []
         for i, (name, q, (eq, keys)) in enumerate(zip(names, wire, mapped)):
             t = rts[i]

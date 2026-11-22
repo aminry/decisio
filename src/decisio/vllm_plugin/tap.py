@@ -54,6 +54,9 @@ def tap_layers(env=None) -> tuple[int, ...]:
 
 
 CONFIG_KEY = "decisio_tap_layers"
+# the tapped layers whose mean over the request's state tokens the head reader also reads (TapHidden.state_means); a
+# subset of CONFIG_KEY's. The model class ignores it (it computes the same graph); the reader reads it
+STATE_MEAN_KEY = "decisio_tap_state_mean_layers"
 
 
 def engine_config(layers) -> dict:
@@ -66,6 +69,83 @@ def layers_of(vllm_config) -> tuple[int, ...]:
     extra = getattr(vllm_config, "additional_config", None) or {}
     layers = extra.get(CONFIG_KEY, ()) if isinstance(extra, dict) else ()
     return tuple(sorted({int(x) for x in layers}))
+
+
+# the state-span mean (`span_begin` .. `span_end`): one job at a time, run by the reader under the engine's lock as an
+# engine call of one request that reads its whole prompt (no prefix cache), so every token of the span is computed and
+# each step's tokens are that request's
+_span = None
+
+
+class SpanError(RuntimeError):
+    """A state-span read that did not see its span: computed in part, or batched with another request."""
+
+
+def span_begin(start: int, end: int, slots: dict[int, int]) -> None:
+    """Start a state-span job: the mean over token positions [start, end) of each tapped layer in `slots` ({layer:
+    its index among the tapped layers}), summed by the model's forward (`span_add`) until `span_end`."""
+    global _span
+    if _span is not None:
+        raise SpanError("a state-span read is already running")
+    if not 0 <= start < end:
+        raise ValueError(f"a state span [{start}, {end}) is empty")
+    _span = {"start": int(start), "end": int(end), "slots": dict(slots), "sum": {}, "seen": 0, "error": None}
+
+
+def span_end() -> dict[int, "object"]:
+    """The finished job's {layer: mean state} (float32 numpy). Raises SpanError when the forward did not see every
+    position of the span exactly once, or saw another request's tokens in a step."""
+    import numpy as np
+
+    global _span
+    job, _span = _span, None
+    if job is None:
+        raise SpanError("no state-span read is running")
+    if job["error"]:
+        raise SpanError(job["error"])
+    n = job["end"] - job["start"]
+    if job["seen"] != n:
+        raise SpanError(
+            f"the state span [{job['start']}, {job['end']}) was computed for {job['seen']} of its {n} tokens: the "
+            "read must compute its whole prompt (skip_cache) in an engine call of its own"
+        )
+    return {layer: (v / n).float().cpu().numpy().astype(np.float32) for layer, v in job["sum"].items()}
+
+
+def span_add(wide, positions, d: int) -> None:
+    """The model's forward, during a state-span job: add this step's rows at the span's positions ([final | layers],
+    tokens x (1 + k) * d) to the job's sums. Padding rows (the forward context's mask) are left out; the step's real
+    tokens must be one request's, positions consecutive."""
+    job = _span
+    if job is None or job["error"]:
+        return
+    import torch
+
+    pos = positions.reshape(-1)
+    real = torch.ones_like(pos, dtype=torch.bool)
+    try:
+        from vllm.forward_context import get_forward_context
+
+        pad = getattr(get_forward_context(), "is_padding", None)
+        if pad is not None:
+            real = ~pad[: pos.shape[0]].to(torch.bool)
+    except (ImportError, AssertionError, AttributeError):  # no vLLM, or no forward context (the tests)
+        pass
+    p = pos[real]
+    if p.numel() == 0:
+        return
+    if p.numel() > 1 and not bool(torch.all(p[1:] - p[:-1] == 1)):
+        job["error"] = "a state-span read shared an engine step with another request"
+        return
+    inside = (p >= job["start"]) & (p < job["end"])
+    k = int(inside.sum())
+    if not k:
+        return
+    rows = wide[: pos.shape[0]][real][inside].float()
+    for layer, slot in job["slots"].items():
+        part = rows[:, d * (1 + slot) : d * (2 + slot)].sum(0)
+        job["sum"][layer] = part if layer not in job["sum"] else job["sum"][layer] + part
+    job["seen"] += k
 
 
 def stash(rows) -> None:
@@ -183,7 +263,11 @@ class TapReadout:
             import torch
 
             final, layers = out
-            return torch.cat([final, *layers], dim=-1)
+            out = torch.cat([final, *layers], dim=-1)
+        if _span is not None:  # a state-span read (`span_begin`): this step's span rows, summed
+            positions = kwargs.get("positions", args[1] if len(args) > 1 else None)
+            if positions is not None:
+                span_add(out, positions, self.tap_d)
         return out
 
     def compute_logits(self, hidden_states):

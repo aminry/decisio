@@ -11,6 +11,7 @@ D2  the reader: the tap with an in-process engine on every base, the reserved co
 D3  a head fitted on the tap's reads records it; on a tap server a kept head fitted before (no such record) is stale:
     the task answers as without it (its calibration too), names the reason and the register command in the listing
     and the store report, and is not certified again; on a reserved-columns server nothing is stale
+D4  the debug readout carries the tap's middle layers and their state-span means beside h
 
   uv run pytest -q tests/unit/test_tap_default.py
 """
@@ -77,7 +78,7 @@ def test_d2_the_reader_follows_the_engine_process(monkeypatch):
     from decisio.serve import vllm_engine as sv
 
     built = []
-    monkeypatch.setattr(he, "TapHidden", lambda engine, layers=None: built.append("tap") or "tap")
+    monkeypatch.setattr(he, "TapHidden", lambda engine, layers=None, state_mean_layers=(): built.append("tap") or "tap")
     monkeypatch.setattr(he, "SingleEngineHidden", lambda engine, model, revision=None: built.append("reserved") or "r")
     args = lambda fam, process, engine="{}": types.SimpleNamespace(  # noqa: E731
         family=fam,
@@ -93,6 +94,13 @@ def test_d2_the_reader_follows_the_engine_process(monkeypatch):
     assert sv.single_engine_reader(object(), args(GEMMA4, "separate")) == "r"
     assert sv.single_engine_reader(object(), args(QWEN, "in", '{"tensor_parallel_size": 2}')) == "r"
     assert built == ["tap"] * 5 + ["reserved"] * 2
+    # the reader splits the rows by the layers the engine was built with (--engine's additional_config), sorted, and
+    # averages those it is asked to over the state's tokens
+    got = {}
+    monkeypatch.setattr(he, "TapHidden", lambda engine, **kw: got.update(kw) or "tap")
+    layered = '{"additional_config": {"decisio_tap_layers": [36, 12], "decisio_tap_state_mean_layers": [36]}}'
+    assert sv.single_engine_reader(object(), args(GEMMA4, "in", layered)) == "tap"
+    assert got == {"layers": (12, 36), "state_mean_layers": (36,)}
 
 
 def _so(reader):
@@ -160,3 +168,36 @@ def test_d3_registration_records_the_reader():
     assert tapped["head"]["applied"] and tapped["head"]["reader"] == "tap"
     plain, _ = TaskStore("fp").register("t", ex, lambda pairs: P, lambda pairs: R)
     assert "reader" not in plain["head"]
+
+
+def test_d4_the_debug_readout_carries_the_layers_and_the_state_means():
+    """D4 `x-decisio-debug: hidden` gives, beside each question's h, the tap's middle layers at the answer position
+    (`layers`) and their means over the state's tokens (`state_mean`), keyed by layer, when the reader reads them."""
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_noul_rendering import TextEngine
+
+    from decisio.serve.systemone import SystemOne, SystemOneRequest
+
+    class Reader:
+        reader = "tap"
+
+        def readout(self, state, questions):
+            return [(np.log(np.array([0.5, 0.5])), np.zeros(4)) for _ in questions]
+
+        def last_layers(self):
+            return [{36: np.full(4, 2.0)}]
+
+        def last_state_means(self):
+            return [{36: np.full(4, 3.0)}]
+
+        def read_info(self):
+            return None
+
+    s1 = SystemOne(TextEngine(), "m", debug_readout=True)
+    s1.hidden_engine = Reader()
+    body = {
+        "state": "s",
+        "questions": {"q": {"type": "choice", "instructions": "Which?", "criteria": {"a": None, "b": None}}},
+    }
+    dbg = s1.answer(SystemOneRequest.model_validate(body), debug="hidden")["decisio_debug"]["q"]
+    assert dbg["layers"] == {"36": [2.0] * 4} and dbg["state_mean"] == {"36": [3.0] * 4} and dbg["h"] == [0.0] * 4

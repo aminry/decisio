@@ -268,6 +268,7 @@ Request headers:
 - `x-decisio-route: text` or `image` chooses the route explicitly.
 - `x-decisio-debug: readout` or `hidden` adds the raw readout to the response, on a server started with `--debug-readout` only (verification, never production).
   Every list in a question's readout is in its answer order: for a yes/no question that is (yes, no), the order of `p`, including `hidden_lp`, the hidden-state readout's label log-probabilities (before this release `hidden_lp` of a yes/no question asked as letters was in the engine's order, (no, yes)).
+  On a server whose engine taps middle layers (`--engine '{"additional_config": {"decisio_tap_layers": [36], "decisio_tap_state_mean_layers": [36]}}'`), `hidden` also gives each question's `layers`, those layers' states at the answer position, and `state_mean`, the listed layers' mean over the request's state tokens, both keyed by layer. A state's mean is read once, in a request of its own that does not read the prefix cache, and kept for the state's later questions.
 
 
 ### Response

@@ -13,10 +13,16 @@ H3  the logits processor stores the rows of the requests that carry a key, by th
 H4  score_prompts gives each row's extra_args to its request, and none when not asked
 H5  the reader: one score_prompts call for the question rows, each with its own key; the label log-probabilities
     are that call's, h and the layers are the stored rows'; a missing row is an error naming the setup
+H6  a state-span job (the mean of a tapped layer over the request's state tokens): the forward adds the rows at the
+    span's positions of each step, padding left out; a span computed in part, or a step shared with another request,
+    is an error
+H7  the reader's state-span mean: the state's text at its last occurrence in the shared prefix, one skip-cache
+    request up to the span's end, the mean equal to the reference within float tolerance, kept per state
 
   uv run pytest -q tests/unit/test_hidden_tap.py
 """
 
+import os
 import sys
 import types
 from pathlib import Path
@@ -236,3 +242,119 @@ def test_h5_the_reader_reads_one_request_per_question_row():
     assert tap.pending() == 0 and reader.facts()["requests_per_question"] == 1
     with pytest.raises(RuntimeError, match="DecisioGemma4UnifiedHiddenReadout"):
         TapHidden(_Engine(probs, H, store=False), layers=LAYERS).readout(None, [{"i": 0}])
+
+
+def _rows_at(positions, slots, d=D):
+    """A stand-in forward's [final | layers] rows: row t, part j is t * 10 + j + arange(d) / d."""
+    pos = torch.as_tensor(positions, dtype=torch.float32)[:, None]
+    return torch.cat([pos * 10 + j + torch.arange(d) / d for j in range(1 + slots)], dim=-1)
+
+
+def test_h6_the_state_span_mean_is_summed_in_the_forward(monkeypatch):
+    """H6 the class's forward, during a state-span job, adds the rows at the span's positions of each step (a prompt
+    read in chunks), leaves padding rows out (the forward context's mask), and the job's mean is the layer's mean over
+    the span; a span computed in part, or a step with another request's tokens, is an error."""
+    monkeypatch.setenv("DECISIO_HIDDEN_READOUT_START", "40")
+    with stub_vllm(vocab=V, hidden=D):
+        from vllm.model_executor.models.gemma4_unified import Gemma4UnifiedForConditionalGeneration as Base
+
+        from decisio.vllm_plugin import gemma, tap
+
+        monkeypatch.setattr(Base, "set_aux_hidden_state_layers", lambda self, layers: None, raising=False)
+        steps = iter([np.arange(0, 6), np.arange(6, 12)])  # one request's prompt of 12 tokens in two chunks
+        pad = {"n": 0}
+
+        def forward(self, *a, positions=None, **k):
+            p = positions.numpy()
+            wide = _rows_at(p, 2)
+            return wide[:, :D], [wide[:, D : 2 * D], wide[:, 2 * D :]]
+
+        monkeypatch.setattr(Base, "forward", forward, raising=False)
+        fc = types.ModuleType("vllm.forward_context")
+        fc.get_forward_context = lambda: types.SimpleNamespace(is_padding=pad.get("mask"))
+        monkeypatch.setitem(sys.modules, "vllm.forward_context", fc)
+        model = gemma.DecisioGemma4UnifiedHiddenReadout(vllm_config=_cfg([5, 2]))  # layers (2, 5): slots 0 and 1
+
+        tap.span_begin(3, 10, {5: 1})
+        for p in steps:
+            if p[0] == 6:  # the second step padded with two rows, at stale positions inside the span
+                pad["mask"] = torch.tensor([False] * 6 + [True] * 2)
+                p = np.concatenate([p, [4, 5]])
+            model.forward(None, positions=torch.as_tensor(p))
+        pad.pop("mask")
+        means = tap.span_end()
+        want = _rows_at(np.arange(3, 10), 2)[:, 2 * D :].mean(0).numpy()
+        assert set(means) == {5} and np.allclose(means[5], want, atol=1e-5) and means[5].dtype == np.float32
+
+        tap.span_begin(3, 10, {5: 1})
+        model.forward(None, positions=torch.arange(0, 6))  # the read stopped before the span's end
+        with pytest.raises(tap.SpanError, match="computed for 3 of its 7 tokens"):
+            tap.span_end()
+        tap.span_begin(3, 10, {5: 1})
+        model.forward(None, positions=torch.tensor([0, 1, 2, 3, 0, 1]))  # two requests in one step
+        with pytest.raises(tap.SpanError, match="another request"):
+            tap.span_end()
+        model.forward(None, positions=torch.arange(0, 4))  # no job: nothing is kept
+        with pytest.raises(tap.SpanError, match="no state-span read"):
+            tap.span_end()
+
+
+class _SpanEngine(_Engine):
+    """`_Engine` with a tokenizer and prompt rows built from text, whose skip-cache request runs the stand-in forward
+    over its whole prompt (in two steps), as the class's forward sums it during a state-span job."""
+
+    def __init__(self, tok, prompt, shared_text, H):
+        super().__init__({0: np.array([0.5, 0.5])}, H)
+        self.tok, self.ids = tok, tok(prompt, add_special_tokens=False)["input_ids"]
+        self.shared = len(tok(shared_text, add_special_tokens=False)["input_ids"])
+        self.span_reads = []
+
+    def _prepare_separate(self, state, questions):
+        return [(self.ids, [0, 1]) for _ in questions], self.shared
+
+    def score_prompts(self, rows, extra_args=None, skip_cache=False, **kw):
+        from decisio.vllm_plugin import tap
+
+        if extra_args is None:  # the state-span read
+            assert skip_cache and len(rows) == 1
+            ids = rows[0][0]
+            self.span_reads.append(len(ids))
+            half = len(ids) // 2
+            for p in (np.arange(0, half), np.arange(half, len(ids))):
+                tap.span_add(_rows_at(p, 2), torch.as_tensor(p), D)
+            return [np.array([0.5, 0.5])], {}
+        for (ids, _), a in zip(rows, extra_args):
+            tap.put(a[tap.TAP_KEY], torch.from_numpy(self.H[0]))
+        return [self.probs[0] for _ in rows], {}
+
+
+def test_h7_the_reader_reads_the_state_span_mean_once_per_state():
+    """H7 the reader's state-span mean: the span is the state's text at its last occurrence inside the shared prefix
+    (not the option that repeats it after), read in one skip-cache request up to the span's end, its mean equal to the
+    reference (the layer's rows averaged over the span) within float tolerance; kept per state, so the next question
+    sends none; a reader asked for a layer the tap does not read is refused."""
+    from transformers import AutoTokenizer
+
+    from decisio.readout.state_span import state_span
+    from decisio.serve.hidden_engine import TapHidden
+
+    tok = AutoTokenizer.from_pretrained(os.environ.get("DECISIO_STAND_IN_MODEL", "Qwen/Qwen3-0.6B-Base"))
+    state = "The parcel arrived three days late, and the box was crushed."
+    head = "Read the text and answer.\n\n"
+    shared = head + state + "\n\n"
+    prompt = shared + "Was the delivery on time? Options: A. " + state + " B. No\nAnswer:"
+    eng = _SpanEngine(tok, prompt, shared, np.zeros((1, 3 * D), dtype=np.float32))
+    reader = TapHidden(eng, layers=LAYERS, state_mean_layers=(5,))
+    reader.readout(state, [{"i": 0}, {"i": 0}])
+    start, end = state_span(tok, eng.ids, state, within=eng.shared, occurrence="last")
+    dec = lambda a, b: tok.decode(eng.ids[a:b])  # noqa: E731
+    assert state in dec(start, end) and state not in dec(start + 1, end) and state not in dec(start, end - 1)
+    assert end <= eng.shared and eng.span_reads == [end]  # the read stops at the span's end
+    means = reader.last_state_means()
+    want = _rows_at(np.arange(start, end), 2)[:, 2 * D :].mean(0).numpy()
+    assert len(means) == 2 and np.allclose(means[0][5], want, atol=1e-5)
+    reader.readout(state, [{"i": 0}])
+    assert eng.span_reads == [end] and np.array_equal(reader.last_state_means()[0][5], means[0][5])  # kept
+    assert reader.facts()["state_mean_layers"] == [5]
+    with pytest.raises(ValueError, match="the tap reads only"):
+        TapHidden(eng, layers=LAYERS, state_mean_layers=(36,))

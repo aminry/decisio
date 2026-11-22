@@ -2181,7 +2181,16 @@ def single_engine_reader(engine, args):
     from decisio.serve import hidden_engine as he
 
     if tap_enabled(args):
-        return he.TapHidden(engine, layers=())
+        from decisio.vllm_plugin import tap
+
+        # the layers the engine was built with (--engine's additional_config, as the class reads them) and those of
+        # them averaged over the state's tokens
+        extra = tap_engine_kwargs(json.loads(getattr(args, "engine", None) or "{}"))["additional_config"]
+        return he.TapHidden(
+            engine,
+            layers=tuple(sorted({int(x) for x in extra[tap.CONFIG_KEY]})),
+            state_mean_layers=tuple(extra.get(tap.STATE_MEAN_KEY, ())),
+        )
     return he.SingleEngineHidden(engine, args.model, revision=args.revision)
 
 

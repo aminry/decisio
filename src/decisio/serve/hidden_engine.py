@@ -356,12 +356,23 @@ class TapHidden(HiddenReadout):
     equal the plain readout's exactly. `last_layers()`: per question
     of the calling thread's last read, {layer: state} (float32), for the multi-layer heads."""
 
-    def __init__(self, engine, layers=None):
+    # the state-span means kept, one per (state's tokens, span, layers): a question about a state read before costs
+    # no extra request
+    STATE_MEANS_KEPT = 4096
+
+    def __init__(self, engine, layers=None, state_mean_layers=()):
+        from collections import OrderedDict
+
         from decisio.vllm_plugin import tap
 
         self.engine, self.llm, self.tok, self._lock = engine, engine.llm, engine.tok, engine._lock
         self.family = getattr(engine, "family", None)
         self.layers = tap.tap_layers() if layers is None else tuple(layers)
+        self.state_mean_layers = tuple(sorted({int(x) for x in state_mean_layers}))
+        missing = sorted(set(self.state_mean_layers) - set(self.layers))
+        if missing:
+            raise ValueError(f"state-span means of layers {missing}: the tap reads only {list(self.layers)}")
+        self._state_means = OrderedDict()
         self.mode = "hidden (serving engine, tap in the same request)"
         self.reader = "tap"  # stored with every head fitted on this reader's reads (SystemOne.head_stale)
 
@@ -378,6 +389,39 @@ class TapHidden(HiddenReadout):
 
     def last_layers(self):
         return getattr(self._read, "layers", None)
+
+    def last_state_means(self):
+        """Per question of the calling thread's last read, {layer: the mean state over the request's state tokens}
+        (float32), or None for a reader without state-span layers; a question whose state span was not found has
+        {"error": why}."""
+        return getattr(self._read, "state_means", None)
+
+    def state_means(self, ids, labels, shared, state):
+        """{layer: mean of that layer's state over the state's tokens} for one prompt row (`ids`, its `labels`, the
+        row's shared prefix length `shared`): the span is the state's text inside the shared prefix
+        (decisio.readout.state_span), read in an engine call of one request that computes its whole prompt up to the
+        span's end (no prefix cache), so every state token is in the forward. Kept per state; the engine's lock must be
+        held."""
+        import hashlib
+
+        from decisio.readout.state_span import state_span, state_text_of
+        from decisio.vllm_plugin import tap
+
+        start, end = state_span(self.tok, ids, state_text_of(state), within=shared, occurrence="last")
+        key = (hashlib.sha256(np.asarray(ids[:end], dtype="<i8").tobytes()).hexdigest(), start, self.state_mean_layers)
+        got = self._state_means.get(key)
+        if got is not None:
+            self._state_means.move_to_end(key)
+            return got
+        tap.span_begin(start, end, {layer: self.layers.index(layer) for layer in self.state_mean_layers})
+        try:
+            self.engine.score_prompts([(list(ids[:end]), labels)], skip_cache=True)
+        finally:
+            means = tap.span_end()
+        self._state_means[key] = means
+        while len(self._state_means) > self.STATE_MEANS_KEPT:
+            self._state_means.popitem(last=False)
+        return means
 
     def read_info(self) -> dict | None:
         """The calling thread's last `readout`: `context_ms` and `context_boundary` for a state read with a task's
@@ -422,6 +466,15 @@ class TapHidden(HiddenReadout):
                     out.append((np.log(np.asarray(p, dtype=np.float64)), h))
                 layers.append(mids)
             self._read.layers = layers
+            self._read.state_means = None
+            if self.state_mean_layers:  # the questions share the state: one span read (or none, when kept)
+                from decisio.readout.state_span import StateSpanError
+
+                try:
+                    means = self.state_means(rows[0][0], rows[0][1], prepared[1], state)
+                except StateSpanError as e:
+                    means = {"error": str(e)}
+                self._read.state_means = [means] * len(rows)
             self.last_ms = (time.perf_counter() - t0) * 1000
         return out
 
@@ -432,6 +485,7 @@ class TapHidden(HiddenReadout):
         return {
             "mode": self.mode,
             "layers": list(self.layers),
+            "state_mean_layers": list(self.state_mean_layers),
             "label_logprobs": "engine",
             "requests_per_question": 1,
             "reader": "tap",
