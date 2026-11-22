@@ -165,7 +165,7 @@ def test_s8_a_head_question_is_one_hidden_state_read_and_no_plain_read(monkeypat
     client, so = make(engine=BatchEngine())
     so.hidden_engine = Hidden()
     monkeypatch.setattr(ih, "apply_intent_head", lambda lp, h, head, options: np.array([0.1, 0.2, 0.7]))
-    task = {"head": {"applied": True}, "calibration": {}, "options": ["a", "b", "c"]}
+    task = {"type": "choice", "head": {"applied": True}, "calibration": {}, "options": ["a", "b", "c"]}
     from decisio.serve.systemone import ChoiceQuestion
 
     q = ChoiceQuestion(type="choice", instructions="Which?", criteria=CRIT)

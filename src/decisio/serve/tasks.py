@@ -58,6 +58,19 @@ FORMAT = record_format("task")
 CONTEXT_FORMAT = "decisio-task/2"
 CERTIFICATE_FORMAT = record_format("certificate")
 MIN_OPTIONS_FOR_HEAD = 10  # heads on intent sets only: smaller option lists get calibration alone
+# the question types a head is fitted for: every type and size is tested before a head serves it, and score questions
+# (an ordinal answer, served as the expected level) are not yet, so a score task gets calibration alone
+HEAD_TYPES = frozenset({"choice", "noul"})
+SCORE_HEAD_REASON = (
+    "the head is not fitted for score questions: it has not been tested on an ordinal answer, so a score task gets "
+    "calibration only"
+)
+
+
+def head_applies(task) -> bool:
+    """Whether a stored task's intent head is served: fitted and kept (`applied`), for a question type heads are
+    fitted for (`HEAD_TYPES`). A score task's head kept from an earlier registration is not applied."""
+    return bool((task.get("head") or {}).get("applied")) and task.get("type") in HEAD_TYPES
 
 
 def check_table_settings(rec: dict, what: str) -> None:
@@ -394,6 +407,16 @@ class TaskStore:
                 "reason": "this server reads no hidden state (--model-class text-only or view, or --one-engine)",
             }
             readout = None
+        elif q0.type not in HEAD_TYPES:
+            head = {
+                "format": intent_head.FORMAT,
+                "applied": False,
+                "K": len(options),
+                "options": options,
+                "options_sha256": intent_head.options_digest(options),
+                "reason": SCORE_HEAD_REASON,
+            }
+            readout = None
         elif len(options) < MIN_OPTIONS_FOR_HEAD:
             head = {
                 "format": intent_head.FORMAT,
@@ -602,6 +625,8 @@ class TaskStore:
     @staticmethod
     def public(task, full=False):
         head = dict(task["head"])
+        if head.get("applied") and not head_applies(task):  # a score task's head from before: shown as not served
+            head = {**head, "applied": False, "reason": SCORE_HEAD_REASON + " (a head kept from before is not applied)"}
         for k in ("A", "c"):
             if k in head:
                 head[k] = _pack(head[k]) if full else {"shape": list(np.asarray(head[k]).shape)}
