@@ -128,16 +128,33 @@ class HFHiddenEngine(HiddenReadout):
     """The CPU stand-in: h from the HF model's final-norm hidden state at the last position, the label rows from its
     `lm_head` (float32 model). Not for measurement."""
 
-    def __init__(self, model, pad_to="block", pad_where="front", block_size=64, revision=None):
+    device = "cpu"  # the stand-in's; an engine built with `device` sets its own
+
+    def __init__(
+        self,
+        model,
+        pad_to="block",
+        pad_where="front",
+        block_size=64,
+        revision=None,
+        device="cpu",
+        dtype="float32",
+    ):
         import threading
 
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoTokenizer
+
+        from decisio.serve.hf_letters import load_causal_lm
 
         self.mode, self.pad_token, self.pad_where = "hidden", 198, pad_where
         self.adapters = {}
+        self.device = str(torch.device(device))
         self.tok = AutoTokenizer.from_pretrained(model, revision=revision)
-        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float32, revision=revision).eval()
+        self.model = load_causal_lm(model, revision, dtype)
+        if self.device != "cpu":
+            self.model = self.model.to(self.device)
+        self.model = self.model.eval()
         self.block_size = self.match_unit = block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
         self._lock = threading.Lock()
@@ -152,14 +169,18 @@ class HFHiddenEngine(HiddenReadout):
     _labels = LettersEngine._labels
 
     def label_rows(self, lab):
-        return self.model.lm_head.weight[list(lab)].detach().double().numpy()
+        return self.model.lm_head.weight[list(lab)].detach().double().cpu().numpy()
 
     def hidden_rows(self, token_lists):
         import torch
 
         with torch.no_grad():
             return [
-                guarded(self, self.model.model, input_ids=torch.tensor([ids])).last_hidden_state[0, -1].float().numpy()
+                guarded(self, self.model.model, input_ids=torch.tensor([ids], device=self.device))
+                .last_hidden_state[0, -1]
+                .float()
+                .cpu()
+                .numpy()
                 for ids in token_lists
             ]
 
@@ -168,7 +189,9 @@ class HFHiddenEngine(HiddenReadout):
         import torch
 
         with torch.no_grad():
-            self.model.model(input_ids=torch.tensor([self.tok.encode("ok", add_special_tokens=False)[:1]]))
+            self.model.model(
+                input_ids=torch.tensor([self.tok.encode("ok", add_special_tokens=False)[:1]], device=self.device)
+            )
 
     def facts(self):
         return {"engine": "hf hidden (CPU stand-in, not for measurement)", "pad_unit": self.pad_unit}

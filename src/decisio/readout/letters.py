@@ -377,10 +377,12 @@ def template_text(text: str, content: str | None) -> str:
 def check_thinking_closed(text: str, content: str | None = None) -> None:
     """Refuse a prompt whose chat template left a thinking block open. Only the template's own markers count: a state,
     question or option that quotes `<think>` (an abstract about reasoning models, a code sample) is the caller's text,
-    not an open block, so it is cut out first (`content`, the user turn as written)."""
+    not an open block, so it is cut out first (`content`, the user turn as written). A block is open when the template
+    opened more than it closed: a template that turns thinking off by closing a block it never opened (a generation
+    prompt that ends "</think>") leaves none open."""
     own = template_text(text, content)
     for open_, close in THINK_MARKERS:
-        if own.count(open_) != own.count(close):
+        if own.count(open_) > own.count(close):
             raise AssertionError(f"thinking left open in chat mode: {text[-80:]!r}")
 
 

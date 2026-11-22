@@ -2926,9 +2926,22 @@ def build_parser():
         "--backend",
         default="vllm",
         choices=["vllm", "hf", "mlx"],
-        help="hf: the CPU stand-in (decisio.serve.hf_letters), for the CPU smoke test only; mlx: Apple silicon "
+        help="hf: transformers (decisio.serve.hf_letters), the CPU stand-in for the CPU smoke test (--hf-device and "
+        "--hf-dtype read a model on a card, for evaluation, not as a serving path); mlx: Apple silicon "
         "(decisio.serve.mlx_engine), --model an MLX conversion, the text route with every feature except the image "
         "route, packed mode and adapters",
+    )
+    ap.add_argument(
+        "--hf-device",
+        default="cpu",
+        help="--backend hf: the torch device transformers runs the model on (cpu, the stand-in's; cuda to read a base "
+        "on a card)",
+    )
+    ap.add_argument(
+        "--hf-dtype",
+        default="float32",
+        choices=["float32", "bfloat16", "float16"],
+        help="--backend hf: the precision the model is loaded in (float32, the stand-in's)",
     )
     ap.add_argument(
         "--prefix-cache-mb",
@@ -3877,6 +3890,8 @@ def main():
             pad_to=None if args.pad_to == "none" else args.pad_to,
             pad_where=args.pad_where,
             revision=args.revision,
+            device=args.hf_device,
+            dtype=args.hf_dtype,
         )
         engine.fmt, engine.family = fmt, args.family
     elif args.backend == "mlx":
@@ -4024,7 +4039,12 @@ def main():
             from decisio.serve.hidden_engine import HFReservedHiddenEngine
 
             hidden_engine = HFReservedHiddenEngine(
-                args.model, pad_to=engine.pad_unit, pad_where=args.pad_where, revision=args.revision
+                args.model,
+                pad_to=engine.pad_unit,
+                pad_where=args.pad_where,
+                revision=args.revision,
+                device=args.hf_device,
+                dtype=args.hf_dtype,
             )
             hidden_engine.family = args.family
             hidden_engine.fmt = fmt

@@ -26,19 +26,47 @@ from decisio.serve.gemma_images import DEFAULT_MAX_IMAGES, GemmaImageRequests
 from decisio.serve.vllm_engine import PAD_PLACES, PAD_TOKEN, LettersEngine
 
 
+def load_causal_lm(model, revision=None, dtype="float32"):
+    """The checkpoint's causal LM through transformers, in `dtype` (a torch dtype's name)."""
+    import torch
+    from transformers import AutoModelForCausalLM
+
+    return AutoModelForCausalLM.from_pretrained(model, torch_dtype=getattr(torch, dtype), revision=revision)
+
+
 class HFLettersEngine(LettersEngine):
+    # the stand-in's place and precision; an engine built with `device` and `dtype` sets its own (subclasses that build
+    # their model themselves, the image stand-ins, keep these)
+    device = "cpu"
+    dtype = "float32"
+
     def __init__(
-        self, model, pad_to=None, pad_token=PAD_TOKEN, pad_where="front", block_size=64, warm_up=True, revision=None
+        self,
+        model,
+        pad_to=None,
+        pad_token=PAD_TOKEN,
+        pad_where="front",
+        block_size=64,
+        warm_up=True,
+        revision=None,
+        device="cpu",
+        dtype="float32",
     ):
+        """`device` and `dtype`: where and in what precision transformers runs the model (the CPU stand-in's float32 by
+        default; "cuda" and "bfloat16" read a base on a card through transformers, `--hf-device`, `--hf-dtype`)."""
         import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoTokenizer
 
         if pad_where not in PAD_PLACES:
             raise ValueError(f"pad_where must be one of {PAD_PLACES}")
         self.mode, self.pad_token, self.pad_where = "separate", pad_token, pad_where
         self.adapters = {}
+        self.device, self.dtype = str(torch.device(device)), dtype
         self.tok = AutoTokenizer.from_pretrained(model, revision=revision)
-        self.model = AutoModelForCausalLM.from_pretrained(model, torch_dtype=torch.float32, revision=revision).eval()
+        self.model = load_causal_lm(model, revision, dtype)
+        if self.device != "cpu":
+            self.model = self.model.to(self.device)
+        self.model = self.model.eval()
         self.model_name, self.revision = model, revision
         self.block_size = self.match_unit = block_size
         self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
@@ -52,14 +80,22 @@ class HFLettersEngine(LettersEngine):
         import torch
 
         with torch.no_grad():
-            self.model(torch.tensor([self.tok.encode("ok", add_special_tokens=False)[:1]]), logits_to_keep=1)
+            self.model(
+                torch.tensor([self.tok.encode("ok", add_special_tokens=False)[:1]], device=self.device),
+                logits_to_keep=1,
+            )
 
     def facts(self):
         import torch
         import transformers
 
+        on_cpu = self.device == "cpu" and self.dtype == "float32"
         return {
-            "engine": "hf_letters (CPU stand-in, not for measurement)",
+            "engine": "hf_letters (CPU stand-in, not for measurement)"
+            if on_cpu
+            else f"hf_letters (transformers on {self.device}, {self.dtype})",
+            "device": self.device,
+            "dtype": self.dtype,
             "transformers": transformers.__version__,
             "torch": torch.__version__,
             "model": self.model_name,
@@ -80,7 +116,7 @@ class HFLettersEngine(LettersEngine):
         t0 = time.perf_counter()
         with torch.no_grad():
             for ids in warm:
-                guarded(self, self.model, torch.tensor([list(ids)]), logits_to_keep=1)
+                guarded(self, self.model, torch.tensor([list(ids)], device=self.device), logits_to_keep=1)
         return (time.perf_counter() - t0) * 1000
 
     def score_prompts(self, rows, adapter=None, warm=(), skip_cache=False, mm=None, mm_uuids=None):
@@ -97,7 +133,8 @@ class HFLettersEngine(LettersEngine):
             for ids, lab in rows:
                 self.scored_rows.append((list(ids), list(lab)))
                 # the last position's logits only: the output layer over every position dominated the stand-in's time
-                logits = guarded(self, self.model, torch.tensor([ids]), logits_to_keep=1).logits[0, -1].double()
+                out = guarded(self, self.model, torch.tensor([ids], device=self.device), logits_to_keep=1)
+                logits = out.logits[0, -1].double().cpu()
                 if is_grouped(lab):  # several forms per label: their probabilities summed (label_log_softmax)
                     flat = allowed_ids(lab)
                     lp = torch.log_softmax(logits[flat], -1).numpy()
