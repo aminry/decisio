@@ -22,15 +22,20 @@ The rule was developed on 16 internal tasks and frozen before it was validated o
 A stored prior is valid only for the model and adapter it was fitted under; `fingerprint` names them, and the
 serving side must refuse a prior whose fingerprint differs from the live model's.
 
-From `TB_MIN_EXAMPLES` labelled examples (counted in the registration request, before a certificate's held-out
-split) the calibration is instead a temperature and a per-option bias fitted together, by maximum a posteriori with no
-keep-or-drop gate (`fit_tb`): served p = softmax(log p / T - b), with the priors log T ~ N(log T_q, TB_TAU^2) around the
-question's own temperature T_q and b_k ~ N(0, TB_SIGMA_B^2). A task that serves a head is unchanged.
+From `min_examples_for_fit(K)` (`TB_MIN_EXAMPLES`, 50) labelled examples (counted in the registration request, before a
+certificate's held-out split), on the bases in `Family.large_calibration_types`, the calibration is instead the
+evidence-averaged temperature and bias (`fit_c_prior`, `CURRENT_METHOD`, candidate C): the temperature and a per-option
+bias fitted together by maximum a posteriori at each prior spread in `C_GRID` (`fit_tb_logscores` is one such fit; the
+priors are log T ~ N(log T_q, TB_TAU^2) around the question's own temperature T_q and b_k ~ N(0, s^2)), the fits
+weighted by their Laplace evidence and mixed: served p = sum_j w_j softmax(log p / T_j - b_j). There is no keep-or-drop
+gate: it is always applied. A task that serves a head is unchanged. `fit_tb` and `fit_tb_prior` (one spread, TB_SIGMA_B)
+are the earlier form of this fit and stay for records stored under `TB_METHOD`.
 
-    prior = fit_task_prior(logps, labels, temperature=T)   # logps: per example, the K label log-scores in slot order
+    prior = fit_task_prior(logps, labels, temperature=T)   # below 50 examples, the gated bias; logps: per example,
+                                                           # the K label log-scores in slot order
     p = apply_task_prior(logp, prior, temperature=T)       # at serving, at the same T
-    T, b = fit_tb(probs, labels, T_q)                      # from 50 examples: the plain readout's probabilities
-    p = apply_tb(probs, T, b)
+    prior = fit_c_prior(logps, labels, temperature=T)      # from 50 examples: the evidence-averaged fit, always applied
+    p = apply_c(probs, prior)                              # probs: the plain readout's probabilities (n x K)
 """
 
 from __future__ import annotations

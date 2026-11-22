@@ -2712,7 +2712,7 @@ class SystemOne:
         if extra:
             raise ValueError(
                 f"certify: {extra} do not apply to a learning task, whose certificate is made on its own traffic; "
-                "alpha and delta do"
+                "alpha and delta do (it always suspends on an alert, as `suspend_on_alert` does by default)"
             )
         settings = self.certify_settings(spec)
         self.task_precheck("readout", task_id)
@@ -3337,7 +3337,9 @@ class SystemOne:
         """The settings of a certification, from the request's `certify` block: alpha (the most wrong answers
         tolerated among the certified ones, default 0.05), delta (the chance allowed that the promise fails, default
         0.1), min_examples (at least this many held-out examples, never fewer than the procedure needs at all) and
-        holdout (the share of `examples` held out when no separate list is given, default 0.5)."""
+        holdout (the share of `examples` held out when no separate list is given, default 0.5) and suspend_on_alert
+        (whether the traffic monitor's confidence or unseen-options alert stops the task certifying while it is on,
+        default true; false only reports it)."""
         from decisio.readout import certify
 
         spec = dict(spec or {})
@@ -5047,7 +5049,10 @@ def add_routes(app, systemone: SystemOne):
         certify, held_out = None, None
         if body.get("certify") is not None:
             if not isinstance(body["certify"], dict):
-                raise HTTPException(422, "certify: an object {'alpha', 'delta', 'min_examples', 'holdout', 'examples'}")
+                raise HTTPException(
+                    422,
+                    "certify: an object {'alpha', 'delta', 'min_examples', 'holdout', 'examples', 'suspend_on_alert'}",
+                )
             try:
                 certify = systemone.certify_settings(body["certify"])
             except ValueError as e:
@@ -5207,7 +5212,9 @@ def add_routes(app, systemone: SystemOne):
             raise HTTPException(422, f"request body is not valid JSON: {e}")
         if not isinstance(body, dict) or not isinstance(body.get("examples"), list):
             raise HTTPException(
-                422, "body: {'examples': [{'request', 'answer'}], optional 'alpha', 'delta', 'min_examples'}"
+                422,
+                "body: {'examples': [{'request', 'answer'}], optional 'alpha', 'delta', 'min_examples', "
+                "'suspend_on_alert'}",
             )
         set_intent(request)
         refuse_adapter(body)
