@@ -10,11 +10,13 @@ L3  logging a served question: a request id, label_requested exactly when drawn,
     readout and h only with full features (h only on drawn rows)
 L4  labels: by request id, by a digest the client computes, by text (hashed, never kept), imports; duplicates,
     revisions, invalid answers, unknown references; written before the write returns, and read back after a restart
-L5  the queue: the drawn questions still to label, oldest first, without slice or probability; declines leave it,
+L5  the queue: the drawn questions still to label, oldest first, blind (no served answer, confidence, slice or
+    probability); declines leave it,
     rows past due expire
 L6  the label need: the cert slice's labelled answers and errors, expired and declined rows counted as errors
 L7  a certificate never uses a label its version was fitted on
 L8  the cert slice's region: all traffic until tau_after answers, then a new epoch with tau_min set
+L9  past max_rows the oldest undrawn rows go and every drawn row stays, also when a log is read back
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -46,7 +48,7 @@ def _task(place=None, clock=None, **settings):
 def _serve(tl, text, p, rid=None, h=None):
     rid = rid or LB.request_id("r1")
     lp = np.log(np.asarray(p))
-    return rid, tl.observe(rid, "q", text=text, keys=KEYS, served=p, plain_lp=lp, h=h, certified=True,
+    return rid, tl.observe(rid, "q", text=text, keys=KEYS, served=p, lp=lp, h=h, certified=True,
                            version="v1", stack="fp", lang="en")  # fmt: skip
 
 
@@ -56,7 +58,7 @@ def test_l1_settings():
     assert LB.parse_settings(True) == LB.DEFAULTS
     assert LB.parse_settings({"cert_pi": 0.3})["cert_pi"] == 0.3
     for bad in ({"nope": 1}, {"cert_pi": 0.01}, {"features": "all"}, {"margin_pi_min": 0.3, "margin_pi_max": 0.2},
-                {"due_days": 0}, {"show_answer": "yes"}, "on"):  # fmt: skip
+                {"due_days": 0}, {"show_answer": True}, "on"):  # fmt: skip
         with pytest.raises(LB.LabelsError):
             LB.parse_settings(bad)
 
@@ -87,13 +89,13 @@ def test_l3_logging_keeps_no_text_and_draws():
     assert add == {"request_id": rid, "label_requested": True}
     row = tl.rows[(rid, "q")]
     assert "My card" not in json.dumps(row) and row["top"] == "billing" and row["lang"] == "en"
-    assert np.allclose(LB.unarr(row["plain_lp"]), np.log([0.7, 0.2, 0.1])) and LB.unarr(row["h"]).shape == (4,)
+    assert np.allclose(LB.unarr(row["lp"]), np.log([0.7, 0.2, 0.1])) and LB.unarr(row["h"]).shape == (4,)
     quiet = _task(audit_pi=0, cert_pi=0, margin_pi_max=0)
     rid2, add2 = _serve(quiet, "x", [0.7, 0.2, 0.1], h=np.ones(4))
     assert add2 == {"request_id": rid2} and quiet.rows[(rid2, "q")]["h"] is None  # h only on drawn rows
     minimal = _task(features="minimal", audit_pi=1.0)
     rid3, _ = _serve(minimal, "x", [0.7, 0.2, 0.1], h=np.ones(4))
-    assert not {"p", "plain_lp", "h"} & set(minimal.rows[(rid3, "q")])
+    assert not {"ps", "lp", "h"} & set(minimal.rows[(rid3, "q")])
 
 
 def test_l4_labels_every_reference_and_a_restart(tmp_path):
@@ -134,12 +136,9 @@ def test_l5_the_queue_declines_and_expiry():
         rids.append(_serve(tl, f"text {i}", [0.6, 0.3, 0.1])[0])
     q = tl.queue(limit=2)
     assert [it["request_id"] for it in q["items"]] == rids[:2] and q["pending"] == 3
-    assert set(q["items"][0]) == {"request_id", "question", "asked_at", "due_by", "answer_given", "confidence"}
+    assert set(q["items"][0]) == {"request_id", "question", "asked_at", "due_by"}  # blind: no answer, no confidence
     tl.decline([rids[0]])
     assert [it["request_id"] for it in tl.queue()["items"]] == rids[1:]
-    hidden = _task(audit_pi=1.0, show_answer=False)
-    _serve(hidden, "x", [0.6, 0.3, 0.1])
-    assert "answer_given" not in hidden.queue()["items"][0]
     clock.t += 15 * 86400  # past the default 14 days
     assert tl.queue()["pending"] == 0 and tl.counts()["states"]["expired"] == 2
 
@@ -178,3 +177,20 @@ def test_l8_the_region_is_all_traffic_then_the_top_share():
     assert len(tl.epochs) == 2 and tl.epoch["tau_min"] == pytest.approx(float(np.quantile(confs, 0.5)))
     low = _serve(tl, "low", [0.41, 0.3, 0.29])[0]
     assert not tl.rows[(low, "q")]["draws"]["cert"]["in"] and tl.rows[(low, "q")]["epoch"] == 1
+
+
+def test_l9_max_rows_drops_the_oldest_undrawn_rows(tmp_path):
+    clock = Clock()
+    tl = _task(place=DirPlace(tmp_path / "labels"), clock=clock, audit_pi=0.3, max_rows=10)
+    drawn, undrawn = [], []
+    for i in range(60):
+        clock.t += 1
+        rid, add = _serve(tl, f"t{i}", [0.6, 0.3, 0.1])
+        (drawn if add.get("label_requested") else undrawn).append(rid)
+    tl.flush(force=True)
+    assert len(drawn) >= 11  # 60 at 0.3: about 18, more than max_rows
+    kept_undrawn = [r for r in undrawn if (r, "q") in tl.rows]
+    assert all((r, "q") in tl.rows for r in drawn)  # a drawn row's label may still come
+    assert kept_undrawn == undrawn[len(undrawn) - len(kept_undrawn) :] and len(kept_undrawn) <= 1  # the newest only
+    back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    assert {k[0] for k in back.rows} == set(drawn)  # read back: the same rule, every undrawn row over the cap goes

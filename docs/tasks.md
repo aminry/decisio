@@ -227,6 +227,98 @@ A flag means: the model, fitted on your other examples, is at least 90% sure of 
   A task whose options change with every request has none.
 - **What it costs:** five more fits of the task at registration, and, for certified tasks, one more read of the held-out examples; nothing per request.
 
+## Labels from traffic (opt-in)
+
+A task can collect the right answers to some of the requests it served, so its accuracy can be measured and its certificate checked on real traffic.
+The server picks which answers to ask about, by a probability draw that does not depend on the right answer, so the labels stand for the traffic.
+
+**Nothing is logged per request unless the task opts in.**
+A task registered without a `labels` block keeps no record of its requests, and its answers carry no request id.
+To opt in, register with `"labels": true` (the defaults) or with settings:
+
+```bash
+curl -s localhost:8000/v1/tasks -H 'content-type: application/json' -d '{
+  "id": "angry", "examples": [...], "certify": {},
+  "labels": {"audit_pi": 0.05, "due_days": 7}
+}'
+```
+
+**What opting in stores.**
+The registration response's `labels.stores` lists it, and it is this:
+
+- For every answered question of the task: a request id, the time, the answer, its confidence and the gap to the next option, the language tag the request gave and the script class of its text, two digests of the input, the certificate and serving stack it was answered under, and whether it was drawn to be labelled.
+- With `features: "full"` (the default), also the served distribution and the plain readout's label log-probabilities (the scores before the task's calibration or head), and for drawn questions of a task with an intent head the hidden state at the answer position.
+  The hidden state is a model feature, not an anonymous number; it stays in this server's tasks directory.
+  `features: "minimal"` keeps neither the distributions nor the hidden state.
+- Never the request's text or state.
+- The labels you post, and whether the draw or you chose the item.
+
+**The registration response.**
+
+```json
+"labels": {"settings": {"features": "full", "audit_pi": 0.05, "cert_pi": 0.05, "...": "..."},
+           "digest_key": "9f2c...", "digest": "hk1: then the hex HMAC-SHA256 ...",
+           "stores": ["..."],
+           "next_to_label": {"items": [], "pending": 0, "available": false, "reason": "no traffic yet"}}
+```
+
+`digest_key` is shown only here: keep it if you want to label by digest.
+`GET /v1/tasks/{id}` shows the settings and never the key.
+
+**Answers.**
+Each answered question of the task gets a `request_id` (`<replica>-<ULID>`), and `label_requested: true` when the draw chose it.
+The first question's id is also in the `x-decisio-request-id` response header.
+Give the request's language as `meta.lang` in the body or the `x-decisio-lang` header (a BCP 47 tag such as `de`); an untagged request is counted as `unknown`.
+
+**Posting labels.**
+`POST /v1/tasks/{id}/labels` takes up to 1,000 labels, each with an `answer` (one of the task's options) and exactly one reference:
+
+- `request_id` (and `question` when the request had several);
+- `digest`: `hk1:` and the hex HMAC-SHA256, under `digest_key`, of the request's state as text, for a client that kept the input but not the id;
+- `state`: the request's state, which the server hashes the same way and does not keep;
+- `text`: the state as text, hashed the same way.
+
+The state as text is the string itself, or for any other state `json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`; it is then put in Unicode NFC, runs of whitespace become one space, and the ends are stripped.
+A digest or state matching several logged answers labels the newest one not yet labelled.
+Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `unknown_ref`, `invalid_answer` or `invalid`.
+A digest or state that matches nothing logged is kept as an `import`: usable for review, never for a certificate.
+Labels are written to disk before the response returns.
+
+**The queue.**
+`GET /v1/tasks/{id}/labels/queue?limit=20` lists the drawn answers still to label, oldest first: `request_id`, `question`, `asked_at` and `due_by`.
+It does not show the served answer, its confidence, or why the item was drawn: a labeller who sees the answer tends to agree with it, and that would make the error estimate look better than it is.
+Look the text up in your own system by request id.
+`POST /v1/tasks/{id}/labels/decline` with `{"request_ids": [...]}` takes items you will not label out of the queue.
+
+**Status and export.**
+`GET /v1/tasks/{id}/labels/status` gives the counts by state (`pending`, `labelled`, `declined`, `expired`, `undrawn`) and by slice, and the label need for alpha 0.05, 0.10, 0.01 and 0.005 at delta 0.1: the labelled answers in the certificate's region, the errors among them, the upper bound, and how many more labels it takes with no further error and with one more.
+A drawn answer declined, or not labelled within `due_days`, counts as an error there: a missing label is never assumed right.
+`GET /v1/tasks/{id}/labels/export` returns every logged question with its draw, state and label as JSON lines, without the distributions or the hidden state.
+
+**The draw.**
+Each answered question is drawn independently into three slices, by a keyed hash of its request id, so every replica draws the same:
+
+| Slice | Chance | Used for |
+| --- | --- | --- |
+| audit | `audit_pi` (default 0.02) over all traffic | accuracy, calibration, certificates, drift checks |
+| cert | `cert_pi` (default 0.05) where the confidence is at or above the region's lowest threshold, else 0 | the labels a certificate needs |
+| margin | between `margin_pi_min` (0) and `margin_pi_max` (0.2), higher as the top two options get closer | refits only, never a certificate |
+
+A chance is 0 or at least 0.02.
+The certificate region covers all traffic for the first `tau_after` (200) answers; after that it is the top `region` (0.5) share by confidence.
+`due_days` (14) is how long a drawn answer waits for its label, and `max_rows` (50,000) is the most answers kept: past it the oldest answers that were not drawn are dropped.
+
+**Where it is kept.**
+With `--tasks-dir` the log is append-only files under `<tasks-dir>/labels/`, and it survives a restart.
+Without it the log is in memory, is lost at restart, and the queue and status say `"durable": false`.
+Deleting the task deletes its log.
+In this version the log is per server: a shared store (`--task-store`) keeps each replica's log in its memory and does not merge them.
+A task whose options change with every request cannot opt in yet.
+
+**What it costs.**
+About 30 microseconds per answered question of an opted-in task, measured at 50,000 rows; the files are written off the request path.
+Nothing for tasks that do not opt in.
+
 ## What you get
 
 Every number here is on the served model (Qwen3.6-35B-A3B-FP8 on one RTX PRO 6000 Blackwell, `EVAL_CARD.md`) and comes from the record named beside it.

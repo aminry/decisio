@@ -35,6 +35,7 @@ Standard library and numpy; the storage is the learner's (`fast_table_learn.DirP
 from __future__ import annotations
 
 import base64
+import collections
 import hashlib
 import hmac
 import json
@@ -60,14 +61,16 @@ DEFAULTS = {
     "region": 0.5,  # the share of traffic the cert slice's region should cover once tau_min is set
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
-    "show_answer": True,
     "max_rows": 50_000,
 }
 FEATURES = ("full", "minimal")
 SEGMENT_ROWS = 2_000  # rows buffered before a segment is written
 SEGMENT_SECONDS = 60  # and at most this old when written
+FLUSH_EVERY = 10  # seconds between the server's checks for a segment that is due
 MAX_BATCH = 1_000  # labels per write
-REFUSED_TEXT = "the labels log keeps no request text: give the request id, the digest, or the text to be hashed"
+REFUSED_TEXT = (
+    "the labels log keeps no request text: give the request id, the digest, or the state or text to be hashed"
+)
 
 
 class LabelsError(ValueError):
@@ -106,9 +109,34 @@ def parse_settings(block) -> dict | None:
     for k in ("tau_after", "due_days", "max_rows"):
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
-    if not isinstance(s["show_answer"], bool):
-        raise LabelsError("labels.show_answer is true or false")
     return s
+
+
+STORES = (
+    "for every answered question of this task: a request id, the time, the answer, its confidence and the gap to the "
+    "next option, the language tag the request gave (meta.lang or x-decisio-lang) and the script class of its text, "
+    "two digests of the input (salted; not reversible without the task's secrets), the certificate and the serving "
+    "stack it was answered under, and whether it was drawn to be labelled",
+    'with features "full" (the default): also the served distribution and the plain readout\'s label '
+    "log-probabilities, and for drawn questions of a task with an intent head the hidden state at the answer position "
+    "(a model feature that is not anonymous; it stays in this server's tasks directory)",
+    "never the request's text or state",
+    "the labels you post, with who chose the item (the draw, or you)",
+)
+
+
+def registration_block(rec: dict) -> dict:
+    """What a registration's response says of the task's labels: the settings, the digest key (shown here only), what
+    the log stores, and the queue's first view (empty until the task has answered)."""
+    return {
+        "settings": rec["settings"],
+        "digest_key": rec["secret"]["digest_key"],
+        "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
+        "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
+        "one space and the ends stripped",
+        "stores": list(STORES),
+        "next_to_label": {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"},
+    }
 
 
 def new_secrets() -> dict:
@@ -130,6 +158,15 @@ def ulid(now: float | None = None) -> str:
 
 def request_id(replica: str, now: float | None = None) -> str:
     return f"{replica}-{ulid(now)}"
+
+
+def state_text(state) -> str:
+    """A request's state as the text its digest is made of: a string as it is, anything else as compact JSON with
+    sorted keys and unescaped Unicode (`json.dumps(state, sort_keys=True, separators=(",", ":"),
+    ensure_ascii=False)`), so a client that kept the state can compute the same digest."""
+    if isinstance(state, str):
+        return state
+    return json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
 def canonical_text(text: str) -> str:
@@ -224,6 +261,8 @@ class TaskLabels:
         self._lock = threading.RLock()
         self.rows: dict[tuple[str, str], dict] = {}  # (request id, question) -> row
         self.by_digest: dict[str, list[tuple[str, str]]] = {}
+        self.by_rid: dict[str, list[tuple[str, str]]] = {}
+        self._undrawn: collections.deque = collections.deque()  # undrawn keys, oldest first: what max_rows drops
         self.events: list[dict] = []
         self._pending_rows: list[dict] = []
         self._last_flush = clock()
@@ -252,11 +291,17 @@ class TaskLabels:
                 if line.strip():
                     self.events.append(json.loads(line))
         self._seq = len(self.place.names("rows/")) + len(self.place.names("events/"))
+        while len(self.rows) > self.settings["max_rows"] and self._evict():
+            pass
 
     def _index(self, row: dict) -> None:
         key = (row["request_id"], row["question"])
+        if key not in self.rows:
+            self.by_rid.setdefault(key[0], []).append(key)
+            self.by_digest.setdefault(row["hk1"], []).append(key)
+            if not row["drawn"]:
+                self._undrawn.append(key)
         self.rows[key] = row
-        self.by_digest.setdefault(row["hk1"], []).append(key)
 
     def _new_epoch(self, tau_min: float, why: str) -> dict:
         e = {"epoch": len(self.epochs), "start": self.clock(), "tau_min": float(tau_min), "why": why,
@@ -288,8 +333,8 @@ class TaskLabels:
     def epoch(self) -> dict:
         return self.epochs[-1]
 
-    def observe(self, rid: str, question: str, *, text: str, keys, served, plain_lp, h, certified, version, stack,
-                lang: str | None) -> dict:  # fmt: skip
+    def observe(self, rid: str, question: str, *, text: str, keys, served, lp, h, certified, version, stack,
+                lang: str | None, via: str = "model") -> dict:  # fmt: skip
         """Log one served question and draw it. Returns the answer's additions: {"request_id"} and, when the row was
         drawn into any slice, "label_requested": True. Cheap: a few hashes and an append under the lock."""
         p = np.asarray(served, dtype=np.float64)
@@ -316,13 +361,14 @@ class TaskLabels:
                 "top": keys[top],
                 "conf": conf,
                 "margin": margin,
-                "certified": certified,
+                "served_certified": certified,
+                "via": via,
                 "version": version,
                 "stack": stack,
                 "draws": d,
                 "drawn": drawn,
                 "replica": self.replica,
-                **({"p": _arr(p), "plain_lp": _arr(plain_lp), "h": _arr(h) if drawn else None} if full else {}),
+                **({"ps": _arr(p), "lp": _arr(lp), "h": _arr(h) if drawn else None} if full else {}),
             }
             if len(self.rows) >= self.settings["max_rows"]:
                 self._evict()
@@ -332,15 +378,22 @@ class TaskLabels:
                 self._set_tau_min()
         return {"request_id": rid, **({"label_requested": True} if drawn else {})}
 
-    def _evict(self) -> None:
-        """Over `max_rows`: drop the oldest undrawn row (a drawn row stays: its label may still come)."""
-        for key, row in sorted(self.rows.items(), key=lambda kv: kv[1]["t"]):
-            if not row["drawn"]:
-                self.rows.pop(key)
-                keys = self.by_digest.get(row["hk1"], [])
+    def _evict(self) -> bool:
+        """Over `max_rows`: drop the oldest undrawn row (a drawn row stays: its label may still come). Constant time on
+        the request path; False when every row left is drawn."""
+        while self._undrawn:
+            key = self._undrawn.popleft()
+            row = self.rows.pop(key, None)
+            if row is None:
+                continue
+            for index, k in ((self.by_digest, row["hk1"]), (self.by_rid, key[0])):
+                keys = index.get(k, [])
                 if key in keys:
                     keys.remove(key)
-                return
+                if not keys:
+                    index.pop(k, None)
+            return True
+        return False
 
     def _set_tau_min(self) -> None:
         """A new epoch whose cert region is the top `region` share of the confidences seen so far."""
@@ -359,8 +412,8 @@ class TaskLabels:
         return out
 
     def post(self, items) -> dict:
-        """Store a batch of labels (each with exactly one of request_id, digest, text, and an answer). The events are
-        written before this returns; a failure to write raises and nothing is reported accepted."""
+        """Store a batch of labels (each with exactly one of request_id, digest, state, text, and an answer). The
+        events are written before this returns; a failure to write raises and nothing is reported accepted."""
         if not isinstance(items, list) or not items:
             raise LabelsError('labels: give "labels": [{"request_id": ..., "answer": ...}, ...]')
         if len(items) > MAX_BATCH:
@@ -379,9 +432,9 @@ class TaskLabels:
     def _one(self, it, now, latest, events) -> dict:
         if not isinstance(it, dict):
             return {"status": "invalid", "why": "each label is an object"}
-        refs = [k for k in ("request_id", "digest", "text") if it.get(k) is not None]
+        refs = [k for k in ("request_id", "digest", "state", "text") if it.get(k) is not None]
         if len(refs) != 1:
-            return {"status": "invalid", "why": "give exactly one of request_id, digest, text"}
+            return {"status": "invalid", "why": "give exactly one of request_id, digest, state, text"}
         answer = it.get("answer")
         source = it.get("source", "user")
         if source not in ("user", "queue", "import"):
@@ -390,14 +443,17 @@ class TaskLabels:
         if "request_id" in refs:
             rid = str(it["request_id"])
             q = it.get("question")
-            cands = [k for k in self.rows if k[0] == rid and (q is None or k[1] == q)]
+            cands = [k for k in self.by_rid.get(rid, []) if q is None or k[1] == q]
             if len(cands) > 1:
                 return {"status": "invalid", "why": "this request has several questions: name the question"}
             key = cands[0] if cands else None
             if key is None:
                 return {"status": "unknown_ref", "request_id": rid}
         else:
-            dg = it["digest"] if "digest" in refs else hk1(self.secret["digest_key"], it["text"])
+            if "digest" in refs:
+                dg = it["digest"]
+            else:
+                dg = hk1(self.secret["digest_key"], state_text(it["state"]) if "state" in refs else str(it["text"]))
             cands = sorted(self.by_digest.get(dg, []), key=lambda k: self.rows[k]["t"], reverse=True)
             matched = len(cands)
             fresh = [k for k in cands if k not in latest]
@@ -430,7 +486,7 @@ class TaskLabels:
         with self._lock:
             for r in refs:
                 rid, q = (r.get("request_id"), r.get("question")) if isinstance(r, dict) else (str(r), None)
-                for key in [k for k in self.rows if k[0] == rid and (q is None or k[1] == q)]:
+                for key in [k for k in self.by_rid.get(rid, []) if q is None or k[1] == q]:
                     events.append({"type": "decline", "request_id": key[0], "question": key[1], "received": now,
                                    "replica": self.replica})  # fmt: skip
             if events:
@@ -468,7 +524,7 @@ class TaskLabels:
             out = []
             for key, row in self.rows.items():
                 ev = latest.get(key)
-                rec = {k: v for k, v in row.items() if k not in ("p", "plain_lp", "h")}
+                rec = {k: v for k, v in row.items() if k not in ("ps", "lp", "h")}
                 rec["state"] = self.state_of(key, latest, now)
                 if ev is not None and ev["type"] == "label":
                     rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], selection=ev["selection"],
@@ -477,7 +533,9 @@ class TaskLabels:
             return sorted(out, key=lambda r: r["t"])
 
     def queue(self, limit: int = 20) -> dict:
-        """The drawn questions still to label, oldest first: which request, never its text, slice or probability."""
+        """The drawn questions still to label, oldest first: which request, never its text, the served answer, its
+        confidence, the slice or the probability (a labeller who sees the answer tends to agree with it, and one who
+        knows the slice could label it differently)."""
         now = self.clock()
         with self._lock:
             latest = self._latest()
@@ -489,8 +547,6 @@ class TaskLabels:
                 row = self.rows[key]
                 item = {"request_id": key[0], "question": key[1], "asked_at": row["t"],
                         "due_by": row["t"] + self.settings["due_days"] * 86400}  # fmt: skip
-                if self.settings["show_answer"]:
-                    item.update(answer_given=row["top"], confidence=row["conf"])
                 items.append(item)
             return {"items": items, "pending": len(pend)}
 
