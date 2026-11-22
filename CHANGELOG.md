@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.54.0](https://github.com/aminry/decisio/compare/v0.53.0...v0.54.0) (2026-11-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** --head-engine and --head-gpu-memory-utilization are removed; a server started with them refuses to start. Drop the flags.
+
+### Features
+
+* **serve:** --hf-device and --hf-dtype read a model through transformers on a card ([#535](https://github.com/aminry/decisio/issues/535)) ([f319d31](https://github.com/aminry/decisio/commit/f319d31a004955ac33afc420926c3d933116e030))
+* **serve:** every base's intent head reads its hidden state in the question's own request ([#532](https://github.com/aminry/decisio/issues/532)) ([b872eb7](https://github.com/aminry/decisio/commit/b872eb7ef3c1e1d5f38937cd4add2c96bcb1507c))
+* **serve:** two-engine mode (--head-engine) is removed ([#531](https://github.com/aminry/decisio/issues/531)) ([fc377bd](https://github.com/aminry/decisio/commit/fc377bdd585c0fda473b1a1732113bca8a78a9da))
+* **tasks:** on the 12B, from 50 labelled examples a task's calibration fits its temperature and bias together ([#526](https://github.com/aminry/decisio/issues/526)) ([62d1490](https://github.com/aminry/decisio/commit/62d14903d0fe006c175617b88eaf5b93e54266c9))
+* **tasks:** the Gemma 4 12B's intent head reads its hidden state in the question's own request ([#529](https://github.com/aminry/decisio/issues/529)) ([28dac26](https://github.com/aminry/decisio/commit/28dac26ad813a2a419a59614aca778fdbcab2041))
+
+
+### Bug Fixes
+
+* **tasks:** a yes/no head reads the served question in key order, and the debug hidden_lp follows ([#533](https://github.com/aminry/decisio/issues/533)) ([5d329a2](https://github.com/aminry/decisio/commit/5d329a20c65bb8863d9393c57ef305a3396be907))
+* **tasks:** score questions fit no intent head ([#534](https://github.com/aminry/decisio/issues/534)) ([bd3e857](https://github.com/aminry/decisio/commit/bd3e857e803012155028700f9bd61e67949079c2))
+
 ## [0.53.0](https://github.com/aminry/decisio/compare/v0.52.0...v0.53.0) (2026-11-21)
 
 
