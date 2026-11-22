@@ -8,32 +8,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: on Gemma 4 12B, from 50 labelled examples, a task's calibration fits its temperature too
-
-### What changed
-
-- **On Gemma 4 12B (bf16, FP8 and the tuned 12B repositories), a choice or yes/no task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together at four spreads of the bias's prior, weighted by their evidence: served p is the weighted mixture of softmax(log p / T - b), with T kept close to the question's own temperature. It is always applied (no keep-or-drop test).
-- Below 50 examples, for a task that serves its head, for score questions, and on every other base, nothing changes.
-- The registration's label review calibrates its folds the same way.
-- **On those servers, a stored choice or yes/no task of 50 or more examples whose calibration is the older gated bias is not applied:** its questions are answered as without the task, its answers are not certified (`certified_reason: calibration_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.52.0 change.
-
-## Unreleased: score questions get no intent head
-
-### What changed
-
-- **A score question never fits an intent head**, whatever its number of levels: a head has not been tested on an ordinal answer.
-  Its calibration is fitted and served as before.
-- The task's head record says why (`head.reason` in `GET /v1/tasks` and `GET /v1/tasks/{id}`).
-- A score task whose head was fitted before (a scale of 10 levels or more) keeps its record, but the head is not applied: the question is answered through the task's calibration, and the listing shows the head as not applied, with the reason.
-
-### Who is affected
-
-| | Before | Now | What to do |
-| --- | --- | --- | --- |
-| A score task of 10 levels or more | an intent head could be fitted and served | calibration only | nothing |
-| Any other task | | unchanged | nothing |
-
-## Unreleased: two-engine mode (`--head-engine`) is removed
+## 0.54.0: two-engine mode (`--head-engine`) is removed
 
 ### What changed
 
@@ -49,7 +24,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | A task whose head was fitted under `--head-engine` | | with an in-process engine, `head_refit` (below); otherwise it loads as before | register it again |
 | Any other server | | unchanged | nothing |
 
-## Unreleased: the intent head reads its hidden state in the question's own request
+## 0.54.0: the intent head reads its hidden state in the question's own request
 
 ### What changed
 
@@ -66,6 +41,31 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | --- | --- | --- | --- |
 | A task with a kept intent head, on a server with the engine in its process | the head, its state read in extra requests | answered as without the task, not certified (`head_refit`) | register it again with the same body: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json` |
 | A task without a head, or on a server with a separate engine process or several tensor-parallel ranks | | unchanged | nothing |
+
+## 0.54.0: score questions get no intent head
+
+### What changed
+
+- **A score question never fits an intent head**, whatever its number of levels: a head has not been tested on an ordinal answer.
+  Its calibration is fitted and served as before.
+- The task's head record says why (`head.reason` in `GET /v1/tasks` and `GET /v1/tasks/{id}`).
+- A score task whose head was fitted before (a scale of 10 levels or more) keeps its record, but the head is not applied: the question is answered through the task's calibration, and the listing shows the head as not applied, with the reason.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A score task of 10 levels or more | an intent head could be fitted and served | calibration only | nothing |
+| Any other task | | unchanged | nothing |
+
+## 0.54.0: on Gemma 4 12B, from 50 labelled examples, a task's calibration fits its temperature too
+
+### What changed
+
+- **On Gemma 4 12B (bf16, FP8 and the tuned 12B repositories), a choice or yes/no task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together at four spreads of the bias's prior, weighted by their evidence: served p is the weighted mixture of softmax(log p / T - b), with T kept close to the question's own temperature. It is always applied (no keep-or-drop test).
+- Below 50 examples, for a task that serves its head, for score questions, and on every other base, nothing changes.
+- The registration's label review calibrates its folds the same way.
+- **On those servers, a stored choice or yes/no task of 50 or more examples whose calibration is the older gated bias is not applied:** its questions are answered as without the task, its answers are not certified (`certified_reason: calibration_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.52.0 change.
 
 ## 0.53.0: label review in the registration response
 
