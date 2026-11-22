@@ -283,8 +283,12 @@ Every write is create-only and under the writer's own replica name, so replicas 
 - Removing a task deletes its log on the replica that removes it; the others drop theirs from memory at their next turn without writing.
 - The store's gc (`python -m decisio.serve.task_store_shared gc`) deletes label files of a registration no live task names, older than its cutoff.
 
-### Not built yet
+### Merging and erasure
 
-- Compaction of the per-replica files into merged generations, and erasure of one answer with a purge at the merge.
-- Settings changed after registration (new epochs by `PUT .../labels/settings`).
+- One writing replica merges the label logs: the holder of `labels/LEASE.json` (the learner's lease, on its own path, so it is held whether or not a task learns).
+- A merge reads the store first, writes what the merger keeps as new files under `merged/` (create-only), then deletes only files it read, and records the erasures it purged.
+- Every event carries an id and a row is keyed by its request id and question, so a file read twice, or two mergers racing, add nothing twice and lose nothing.
+- An erasure is an event: every replica drops the rows and labels it names when it reads it, and drops them from what it writes after.
+- A merge purges an erasure only `PURGE_AFTER` (30 s) after it: a replica can write a file holding an erased row until its labels thread has read the erasure, and that thread reads the store before it writes.
+- Settings changed after registration are a new epoch, appended to `EPOCHS.json` by compare-and-swap.
 

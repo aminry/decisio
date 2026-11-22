@@ -27,6 +27,12 @@ L13 the need pools an earlier epoch's rows only when its region contained the cu
     label keeps the source its poster gave
 L14 an undrawn answer keeps its served distribution only in the uniform sample (reservoir / max_rows), the same on
     every replica; a drawn one always does
+L15 erasure on one server: by request id and by time, gone from memory at once and from every file (purged), and
+    still gone when the log is read back
+L16 the merge: many files become a few, nothing kept is lost, an event or row read twice counts once, and a log read
+    back from the merged files has the same table
+L17 settings after registration: a new epoch, draws at the new chances, rows keep their epoch; a region change
+    moves tau_min; bad settings are refused
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -349,3 +355,87 @@ def test_l14_the_served_distribution_of_undrawn_answers_is_a_uniform_sample():
     assert abs(len(kept) / len(undrawn) - 0.1) < 4 * (0.09 / len(undrawn)) ** 0.5
     other = LB.TaskLabels("t", tl.settings, tl.secret, MemoryPlace(), "r2", tl.clock)
     assert other._sample(rids[0], "q") == tl.rows[(rids[0], "q")]["sample"]  # any replica draws the same
+
+
+def _files_text(place) -> str:
+    """Every row and label on the place, as text (an erase event keeps the id it erased, an opaque id, and nothing
+    else of the request)."""
+    files = [place.get(n) or b"" for k in ("rows/", "events/") for n in place.names(k)]
+    lines = [x for data in files for x in data.decode().splitlines()]
+    return "\n".join(x for x in lines if '"type": "erase"' not in x)
+
+
+def test_l15_erasure_on_one_server(tmp_path):
+    clock = Clock()
+    place = DirPlace(tmp_path / "labels")
+    tl = _task(place=place, clock=clock, audit_pi=1.0)
+    old = [_serve(tl, f"old {i}", [0.7, 0.2, 0.1])[0] for i in range(3)]
+    clock.t += 100
+    keep, _ = _serve(tl, "keep", [0.7, 0.2, 0.1])
+    gone, _ = _serve(tl, "gone", [0.7, 0.2, 0.1])
+    tl.flush(force=True)
+    tl.post([{"request_id": r, "answer": "billing"} for r in (*old, keep, gone)])
+    assert tl.erase(request_id=gone)["state"] == "purged"  # one server: the merge runs at once
+    assert (gone, "q") not in tl.rows and gone not in _files_text(place)
+    out = tl.erase(before=clock.t - 50)
+    assert out["state"] == "purged" and all(r not in _files_text(place) for r in old)
+    assert {r["request_id"] for r in tl.table()} == {keep}
+    assert tl.counts()["erasures"] == {"erased": 2, "purged": 2}
+    late, _ = _serve(tl, "late", [0.7, 0.2, 0.1])  # served after: kept
+    tl.flush(force=True)
+    back = LB.TaskLabels("t", tl.registered, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
+    assert {r["request_id"] for r in back.table()} == {keep, late}
+    assert back.table()[0]["state"] == "labelled"
+    with pytest.raises(LB.LabelsError):
+        tl.erase()
+
+
+def test_l16_the_merge_keeps_everything_kept(monkeypatch, tmp_path):
+    clock = Clock()
+    place = DirPlace(tmp_path / "labels")
+    tl = _task(place=place, clock=clock, audit_pi=0.5)
+    rids = []
+    for i in range(40):
+        clock.t += 1
+        rids.append(_serve(tl, f"t{i}", [0.6, 0.3, 0.1])[0])
+        if i % 4 == 3:
+            tl.flush(force=True)
+    tl.post([{"request_id": r, "answer": "tech"} for r in rids[:10]])
+    tl.post([{"request_id": rids[0], "answer": "billing"}])  # a revision
+    monkeypatch.setattr(LB, "COMPACT_FILES", 5)
+    before = tl.table()
+    n_files = len(place.names("rows/")) + len(place.names("events/"))
+    tl.tick()
+    after = len(place.names("rows/")) + len(place.names("events/"))
+    assert tl.merges == 1 and n_files >= 12 and after == 2
+    assert tl.table() == before and tl.revisions == 1
+    back = LB.TaskLabels("t", tl.registered, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
+    assert back.table() == before and back.revisions == 1
+    # a merged file read twice (a second merger's copy) changes nothing
+    for name in place.names("rows/") + place.names("events/"):
+        place.put(name.replace("-merged.jsonl", "-merged2.jsonl"), place.get(name))
+    again = LB.TaskLabels("t", tl.registered, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    again.sync()
+    assert again.table() == before and again.revisions == 1 and len(again.events) == len(back.events)
+
+
+def test_l17_settings_after_registration():
+    tl = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=20, region=0.5)
+    for i in range(20):
+        _serve(tl, f"a{i}", [0.5 + i / 50, 0.3, 0.2])
+    tl.tick()
+    tau1 = tl.epoch["tau_min"]
+    assert tl.epoch["epoch"] == 1 and tau1 > 0
+    e = tl.set_settings({"audit_pi": 1.0})
+    assert e["epoch"] == 2 and tl.settings["audit_pi"] == 1.0 and e["tau_min"] == tau1
+    rid, add = _serve(tl, "after", [0.6, 0.3, 0.1])
+    assert add["label_requested"] and tl.rows[(rid, "q")]["epoch"] == 2
+    assert all(tl.rows[k]["epoch"] < 2 for k in tl.rows if k[0] != rid)  # the rows before keep their epoch
+    e = tl.set_settings({"region": 0.25})
+    assert e["tau_min"] > tau1  # a smaller region: a higher lowest confidence
+    for bad in ({}, {"cert_pi": 0.01}, {"nope": 1}, {"enabled": False}, "x"):
+        with pytest.raises(LB.LabelsError):
+            tl.set_settings(bad)
+    assert tl.epoch["epoch"] == 3 and tl.registered["audit_pi"] == 0

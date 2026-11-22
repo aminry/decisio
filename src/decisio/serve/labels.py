@@ -295,6 +295,11 @@ READ_ONLY = (
     "post labels to a replica that writes"
 )
 PENDING_MAX = 50_000  # rows a task holds for writing while its place cannot be reached; past it, new rows go unsaved
+COMPACT_FILES = 64  # files read before the merger rewrites a log as a few merged ones
+MERGED_ROWS = 5_000  # rows per merged file
+MERGED_EVENTS = 20_000  # events per merged file
+MERGED = "merged"  # the writer name of merged files
+PURGE_AFTER = 3 * FLUSH_EVERY  # an erasure this old is read by every replica that writes (each reads before it writes)
 
 
 class TaskLabels:
@@ -311,7 +316,8 @@ class TaskLabels:
     Thread-safe."""
 
     def __init__(self, task_id: str, settings: dict, secret: dict, place, replica: str, clock=time.time):
-        self.task_id, self.settings, self.secret, self.place, self.replica = task_id, settings, secret, place, replica
+        self.task_id, self.secret, self.place, self.replica = task_id, secret, place, replica
+        self.registered = dict(settings)  # the registration's settings: epoch 0's
         self.clock = clock
         self.shared = bool(getattr(place, "shared", False))
         self.writes = bool(getattr(place, "writes", True))
@@ -329,6 +335,12 @@ class TaskLabels:
         self._parked: dict[str, list[dict]] = {}  # request id -> label events whose row is not known here yet
         self.revisions = 0  # labels that replaced a different answer (a sign of label noise)
         self.invalid_on_join = 0  # labels joined to a row whose options do not include their answer: ignored
+        self._ids: set[str] = set()  # event ids seen: a merged file repeats events, each counts once
+        self._erased_rids: set[str] = set()
+        self._erased_before = float("-inf")  # rows served and events received before this are erased
+        self._tombs: dict[str, dict] = {}  # erase events by id
+        self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
+        self.merges = 0
         self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
         self.unjoined_expired = 0  # labels for ids no replica's row ever joined, dropped after their due window
         self._pending_rows: list[dict] = []
@@ -342,63 +354,145 @@ class TaskLabels:
 
     # ---- the place
 
+    @property
+    def settings(self) -> dict:
+        """The settings in force: the current epoch's."""
+        return self.epochs[-1]["settings"]
+
     def _epoch_zero(self) -> dict:
         """The registration's epoch: its settings, the region all traffic. The same on every replica without a write."""
-        return {"epoch": 0, "start": None, "tau_min": 0.0, "why": "registration", "settings": dict(self.settings)}
+        return {"epoch": 0, "start": None, "tau_min": 0.0, "tau_set": False, "why": "registration",
+                "settings": dict(self.registered)}  # fmt: skip
 
-    def _name(self, kind: str) -> str:
-        """A new file's name: time-ordered for this replica (the milliseconds never go back), and the replica's own."""
+    def _name(self, kind: str, writer: str | None = None) -> str:
+        """A new file's name: time-ordered for its writer (the milliseconds never go back), and the writer's own."""
         self._seq += 1
         self._last_ms = max(self._last_ms, int(self.clock() * 1000))
-        return f"{kind}/{self._last_ms:013d}-{self._seq:09d}-{self.replica}.jsonl"
+        return f"{kind}/{self._last_ms:013d}-{self._seq:09d}-{writer or self.replica}.jsonl"
 
     def sync(self) -> None:
         """Read what the place holds that this log has not: the epochs, and every replica's new row and event files
         (written once, so each is read once). Raises when the place cannot be read; what is in memory stays."""
         with self._sync:
-            raw = self.place.get("EPOCHS.json")
-            if raw:
-                epochs = json.loads(raw)
-                with self._lock:
-                    if len(epochs) > len(self.epochs):
-                        self.epochs = epochs
-            for kind in ("rows/", "events/"):
-                advance = getattr(self.place, "advance", None)  # a shared store's listing resumes after what was read
-                for name in self.place.names(kind):
-                    if name in self._read:
-                        if advance:
-                            advance(name)
-                        continue
-                    data = self.place.get(name)  # a failure raises here: the listing stays before this file
-                    if data is None:  # gone since the listing (merged elsewhere): nothing to read
-                        if advance:
-                            advance(name)
-                        continue
-                    items = [json.loads(x) for x in data.decode().splitlines() if x.strip()]
-                    with self._lock:
-                        if name in self._read:
-                            continue
-                        for it in items:
-                            (self._index if kind == "rows/" else self._apply)(it)
-                        self._read.add(name)
+            self._read_place()
+
+    def _read_place(self) -> None:
+        """`sync`'s work; the caller holds `_sync`."""
+        raw = self.place.get("EPOCHS.json")
+        if raw:
+            epochs = json.loads(raw)
+            with self._lock:
+                if len(epochs) > len(self.epochs):
+                    self.epochs = epochs
+        for kind in ("rows/", "events/"):
+            advance = getattr(self.place, "advance", None)  # a shared store's listing resumes after what was read
+            for name in self.place.names(kind):
+                if name in self._read:
                     if advance:
                         advance(name)
-            with self._lock:
-                self._join_parked()
-                while len(self.rows) > self.settings["max_rows"] and self._evict():
-                    pass
-                self.loaded = True
-                self.last_sync = self.clock()
+                    continue
+                data = self.place.get(name)  # a failure raises here: the listing stays before this file
+                if data is None:  # gone since the listing (merged elsewhere): nothing to read
+                    if advance:
+                        advance(name)
+                    continue
+                items = [json.loads(x) for x in data.decode().splitlines() if x.strip()]
+                with self._lock:
+                    if name in self._read:
+                        continue
+                    for it in items:
+                        (self._index if kind == "rows/" else self._apply)(it)
+                    self._read.add(name)
+                if advance:
+                    advance(name)
+        with self._lock:
+            self._join_parked()
+            while len(self.rows) > self.settings["max_rows"] and self._evict():
+                pass
+            self.loaded = True
+            self.last_sync = self.clock()
 
     def ensure_loaded(self) -> None:
         if not self.loaded:
             self.sync()
 
-    def tick(self, force: bool = False) -> None:
-        """The labels thread's turn: read the place, start an epoch that is due, write a segment that is due."""
+    def tick(self, force: bool = False, merge: bool = True) -> None:
+        """The labels thread's turn: read the place, start an epoch that is due, write a segment that is due, and,
+        for the merger (`merge`: one server, or the holder of the labels lease on a shared store), merge the log when
+        it has many files or an erasure waits for its purge."""
         self.sync()
         self._maybe_tau()
         self.flush(force)
+        if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
+            self.compact()
+
+    def unpurged(self, ripe: bool = False) -> list[str]:
+        """The erase events whose bytes may still be on the place; `ripe`: only those a merge may purge now. On a
+        shared store that is `PURGE_AFTER` after the erasure: another replica may write a file holding an erased row
+        until its labels thread has read the erasure, and that thread reads the place before it writes."""
+        with self._lock:
+            now = self.clock()
+            return [i for i, t in self._tombs.items() if i not in self._purged
+                    and (not ripe or not self.shared or now - float(t["received"]) >= PURGE_AFTER)]  # fmt: skip
+
+    def compact(self) -> int:
+        """Rewrite the files this log has read as a few merged ones holding what it keeps (no erased row or label,
+        no row dropped by `max_rows`), then delete the files it read, then record the erasures as purged. Every
+        write is a new file and only files read and merged are deleted, so a second merger racing this one, or a
+        replica reading meanwhile, loses nothing: a row read twice is one row, an event read twice is one event.
+        Returns how many files it replaced."""
+        with self._sync, self._write:
+            self._read_place()  # every file there is now, so a ripe erasure's rows are in no file left unread
+            ripe = set(self.unpurged(ripe=True))
+            with self._lock:
+                files = sorted(self._read)
+                if not files:
+                    return 0
+                waiting = {(r["request_id"], r["question"]) for r in self._pending_rows}
+                rows = [r for k, r in self.rows.items() if k not in waiting]
+                events = [e for e in self.events if e["type"] != "purged"]
+                tombs = sorted(ripe)
+            written = []
+            for kind, items, size in (("rows", rows, MERGED_ROWS), ("events", events, MERGED_EVENTS)):
+                for i in range(0, len(items), size):
+                    with self._lock:
+                        name = self._name(kind, MERGED)
+                    self.place.put(name, "".join(json.dumps(x) + "\n" for x in items[i : i + size]).encode())
+                    written.append(name)
+            for name in files:
+                if name not in written:
+                    self.place.delete(name)
+            with self._lock:
+                self._read = (self._read - set(files)) | set(written)
+                self.merges += 1
+            if tombs:
+                done = {"type": "purged", "of": tombs, "received": self.clock(), "replica": self.replica,
+                        "id": ulid(self.clock())}  # fmt: skip
+                with self._lock:
+                    name = self._name("events", MERGED)
+                self.place.put(name, (json.dumps(done) + "\n").encode())
+                with self._lock:
+                    self._read.add(name)
+                    self._apply(done)
+            return len(files)
+
+    def erase(self, request_id: str | None = None, before: float | None = None) -> dict:
+        """Erase one request's answers and labels (`request_id`), or everything served or labelled before a time
+        (`before`, in seconds since the epoch). An erase event is written first and the rows leave memory at once
+        (`erased`); the bytes leave the place at the next merge (`purged`), at once on one server."""
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
+        if (request_id is None) == (before is None):
+            raise LabelsError("erase: give a request id or a time, not both")
+        now = self.clock()
+        tomb = {"type": "erase", "request_id": request_id, "before": None if before is None else float(before),
+                "received": now, "replica": self.replica}  # fmt: skip
+        with self._write:
+            self._write_events([tomb])
+        if not self.shared:
+            self.compact()
+        return {"state": "purged" if tomb["id"] in self._purged else "erased", "erase_id": tomb["id"],
+                **({"request_id": request_id} if request_id else {"before": tomb["before"]})}  # fmt: skip
 
     def _swap_epochs(self, fn) -> list:
         """Move `EPOCHS.json` by `fn(current) -> new list, or None to keep it`: a compare-and-swap on a shared store
@@ -420,19 +514,62 @@ class TaskLabels:
         if not self.writes:
             return
         with self._lock:
-            if self.epoch["epoch"] != 0 or len(self.rows) < self.settings["tau_after"]:
+            if _tau_set(self.epoch) or len(self.rows) < self.settings["tau_after"]:
                 return
-            confs = np.sort([r["conf"] for r in self.rows.values()])
-            tau = float(np.quantile(confs, 1.0 - self.settings["region"]))
-            new = {"epoch": 1, "start": self.clock(), "tau_min": tau, "settings": dict(self.settings),
-                   "why": f"tau_min from the first {len(confs)} answers", "by": self.replica}  # fmt: skip
+            tau, n = self._tau_now()
+            why = f"tau_min from the first {n} answers"
         zero = self._epoch_zero()
-        stored = self._swap_epochs(lambda cur: None if cur and len(cur) > 1 else [zero, new])
+
+        def add(cur):
+            cur = cur or [zero]
+            if _tau_set(cur[-1]):
+                return None  # another replica set it first: adopt theirs
+            last = cur[-1]
+            return cur + [{"epoch": len(cur), "start": self.clock(), "tau_min": tau, "tau_set": True,
+                           "settings": last["settings"], "why": why, "by": self.replica}]  # fmt: skip
+
+        self._adopt(self._swap_epochs(add))
+
+    def _tau_now(self, region: float | None = None) -> tuple[float, int]:
+        """The cert region's lowest confidence for the top `region` share (default the settings') of the answers held
+        (under `_lock`)."""
+        region = self.settings["region"] if region is None else region
+        confs = np.sort([r["conf"] for r in self.rows.values()])
+        return (float(np.quantile(confs, 1.0 - region)) if len(confs) else 0.0), len(confs)
+
+    def _adopt(self, stored: list) -> None:
         with self._lock:
-            if len(stored) > len(self.epochs):
+            if stored and len(stored) > len(self.epochs):
                 self.epochs = stored
 
+    def set_settings(self, block) -> dict:
+        """Change the settings after registration: a new epoch, stored by compare-and-swap, so every replica draws
+        under it once it has read it (each row keeps the epoch it was drawn under). Returns the new epoch."""
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
+        if not isinstance(block, dict) or not block or "enabled" in block:
+            raise LabelsError("labels settings: an object of the settings to change (remove the task to stop)")
+        with self._lock:
+            new_settings = parse_settings({**self.settings, **block})
+            region_moved = new_settings["region"] != self.settings["region"]
+            tau, n = self._tau_now(new_settings["region"])
+        zero = self._epoch_zero()
+
+        def add(cur):
+            cur = cur or [zero]
+            last = cur[-1]
+            keep = _tau_set(last) and not region_moved
+            return cur + [{"epoch": len(cur), "start": self.clock(), "settings": new_settings, "by": self.replica,
+                           "tau_min": last["tau_min"] if keep or not _tau_set(last) else tau,
+                           "tau_set": _tau_set(last), "why": "settings changed"}]  # fmt: skip
+
+        stored = self._swap_epochs(add)
+        self._adopt(stored)
+        return stored[-1]
+
     def _index(self, row: dict) -> None:
+        if row["request_id"] in self._erased_rids or row["t"] < self._erased_before:
+            return
         key = (row["request_id"], row["question"])
         if key not in self.rows:
             self.by_rid.setdefault(key[0], []).append(key)
@@ -443,15 +580,60 @@ class TaskLabels:
 
     def _apply(self, ev: dict) -> None:
         """Add one event to the in-memory log (under `_lock`): a label or decline is joined to its row, or parked
-        until the row is known."""
+        until the row is known. An event seen before (a merged file repeats them) is skipped; an erased one too."""
+        eid = ev.get("id")
+        if eid is not None:
+            if eid in self._ids:
+                return
+            self._ids.add(eid)
+        if ev["type"] == "erase":
+            self.events.append(ev)
+            self._tombs[eid] = ev
+            self._erase_in_memory(ev)
+            return
+        if ev["type"] == "purged":
+            self.events.append(ev)
+            self._purged.update(ev["of"])
+            return
+        if self._is_erased(ev):
+            return
         self.events.append(ev)
         if ev["type"] in ("label", "decline") and ev.get("request_id") is not None:
             if not self._attach(ev):
                 self._parked.setdefault(ev["request_id"], []).append(ev)
 
+    def _is_erased(self, ev: dict) -> bool:
+        if ev["type"] not in ("label", "decline"):
+            return False
+        return ev.get("request_id") in self._erased_rids or float(ev.get("received") or 0) < self._erased_before
+
+    def _erase_in_memory(self, tomb: dict) -> None:
+        """Drop what an erase event names, at once: the rows, their labels and declines (under `_lock`)."""
+        if tomb.get("request_id") is not None:
+            self._erased_rids.add(tomb["request_id"])
+        if tomb.get("before") is not None:
+            self._erased_before = max(self._erased_before, float(tomb["before"]))
+        gone = [k for k, r in self.rows.items() if k[0] in self._erased_rids or r["t"] < self._erased_before]
+        self._erased_rids.update(k[0] for k in gone)  # an erased answer's labels go with it, whenever they came
+        for key in gone:
+            row = self.rows.pop(key)
+            for index, k in ((self.by_digest, row["hk1"]), (self.by_rid, key[0])):
+                keys = index.get(k, [])
+                if key in keys:
+                    keys.remove(key)
+                if not keys:
+                    index.pop(k, None)
+            self._history.pop(key, None)
+            self.latest.pop(key, None)
+            self.revisions -= self._changes.pop(key, 0)
+        for rid in [r for r in self._parked if r in self._erased_rids]:
+            self._parked.pop(rid)
+        self.events = [e for e in self.events if not self._is_erased(e)]
+        self._pending_rows = [r for r in self._pending_rows if (r["request_id"], r["question"]) in self.rows]
+
     @staticmethod
     def _order(ev: dict) -> tuple:
-        return (float(ev.get("received") or 0.0), str(ev.get("replica") or ""))
+        return (float(ev.get("received") or 0.0), str(ev.get("replica") or ""))  # ties: one replica's write order
 
     def _attach(self, ev: dict) -> bool:
         """Join a label or decline to its row; False when the row is not known here (yet). The latest event by
@@ -495,6 +677,8 @@ class TaskLabels:
             return
         if not self.writes:
             raise LabelsReadOnly(READ_ONLY)
+        for ev in events:
+            ev.setdefault("id", ulid(self.clock()))
         with self._lock:
             name = self._name("events")
         self.place.put(name, "".join(json.dumps(e) + "\n" for e in events).encode())
@@ -761,7 +945,7 @@ class TaskLabels:
                                selection="slice" if row["drawn"] else "self", labelled_at=ev["labelled_at"],
                                replica_labelled=ev.get("replica"))  # fmt: skip
                 out.append(rec)
-            return sorted(out, key=lambda r: r["t"])
+            return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
 
     def queue(self, limit: int = 20) -> dict:
         """The drawn questions still to label, oldest first: which request, never its text, the served answer, its
@@ -803,6 +987,8 @@ class TaskLabels:
                 out["unsaved_rows"] = self.unsaved
             if self.unjoined_expired:
                 out["unjoined_expired"] = self.unjoined_expired
+            if self._tombs:
+                out["erasures"] = {"erased": len(self._tombs), "purged": len(self._purged & set(self._tombs))}
             return out
 
     def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
@@ -865,6 +1051,11 @@ class TaskLabels:
                 )
             out.append(rec)
         return out
+
+
+def _tau_set(epoch: dict) -> bool:
+    """Whether an epoch's cert region has been set from traffic (epoch 0's has not: it is all traffic)."""
+    return bool(epoch.get("tau_set", epoch["epoch"] > 0))
 
 
 def assert_disjoint(fit_ids, cert_ids) -> None:
@@ -975,6 +1166,11 @@ class SharedPlace:
             except (Exists, Raced):
                 continue
         raise LabelsError(f"{path}: another replica kept writing it ({races} tries)")
+
+    def delete(self, name: str) -> None:
+        if not self.writes:
+            raise LabelsReadOnly(READ_ONLY)
+        self.objects.delete(self._path(name))
 
     def remove_all(self) -> None:
         """Delete the whole log (the task was removed on this replica)."""

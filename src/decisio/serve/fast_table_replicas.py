@@ -212,10 +212,12 @@ class Objects:
 
 class Lease:
     """The trainer's lease (`learner/LEASE.json`), as the module's account says. `step` takes or renews it; `fence`
-    re-reads it before a write only the holder may make."""
+    re-reads it before a write only the holder may make. Another `path` is another lease on the same store (the label
+    logs' merger: decisio.serve.labels)."""
 
-    def __init__(self, shared: Shared):
+    def __init__(self, shared: Shared, path: str = LEASE_PATH, what: str = "fast-table learning"):
         self.sh = shared
+        self.path, self.what = path, what
         self.generation: int | None = None  # the generation this replica holds, or None
         self.expires = 0.0
         self._tag = None
@@ -235,7 +237,7 @@ class Lease:
     def _drop(self, why: str) -> None:
         if self.generation is not None:
             self.losses += 1
-            logger.warning("fast-table learning: this replica lost the trainer's lease (generation %s): %s",
+            logger.warning("%s: this replica lost the lease (generation %s): %s", self.what,
                            self.generation, why)  # fmt: skip
         self.generation, self._tag, self.lost_reason = None, None, why
 
@@ -249,7 +251,7 @@ class Lease:
             if self.generation is not None:
                 body = {"holder": self.replica, "generation": self.generation, "expires": now + LEASE_SECONDS}
                 try:
-                    self._tag = objects.update(LEASE_PATH, _bytes(body), self._tag)
+                    self._tag = objects.update(self.path, _bytes(body), self._tag)
                 except Raced:
                     self._drop("another replica wrote the lease")
                     return False
@@ -258,11 +260,11 @@ class Lease:
                     raise
                 self.expires, self.seen = body["expires"], body
                 return True
-            got = objects.get(LEASE_PATH)
+            got = objects.get(self.path)
             if got is None:
                 body = {"holder": self.replica, "generation": 1, "expires": now + LEASE_SECONDS}
                 try:
-                    tag = objects.create(LEASE_PATH, _bytes(body))
+                    tag = objects.create(self.path, _bytes(body))
                 except Exists:
                     return False
             else:
@@ -273,13 +275,13 @@ class Lease:
                 g = int(cur["generation"]) + 1
                 body = {"holder": self.replica, "generation": g, "expires": now + LEASE_SECONDS}
                 try:
-                    tag = objects.update(LEASE_PATH, _bytes(body), got[1])
+                    tag = objects.update(self.path, _bytes(body), got[1])
                 except Raced:
                     return False
             self.generation, self.expires, self._tag, self.seen = body["generation"], body["expires"], tag, body
             self.takes += 1
             self.lost_reason = None
-            logger.info("fast-table learning: this replica (%s) trains, lease generation %s", self.replica,
+            logger.info("%s: this replica (%s) holds the lease, generation %s", self.what, self.replica,
                         self.generation)  # fmt: skip
             return True
 
@@ -289,7 +291,7 @@ class Lease:
         g = self.generation
         if g is None or not self.held():
             raise LeaseLost("this replica does not hold the trainer's lease")
-        got = self.sh.objects.get(LEASE_PATH)
+        got = self.sh.objects.get(self.path)
         cur = json.loads(got[0]) if got else None
         if cur is None or cur.get("holder") != self.replica or int(cur.get("generation", -1)) != g:
             with self._lock:
@@ -307,7 +309,7 @@ class Lease:
                 return
             body = {"holder": self.replica, "generation": self.generation, "expires": self.sh.now()}
             try:
-                self.sh.objects.update(LEASE_PATH, _bytes(body), self._tag)
+                self.sh.objects.update(self.path, _bytes(body), self._tag)
             except (Raced, TaskStoreUnavailable):
                 pass
             self.generation, self._tag = None, None

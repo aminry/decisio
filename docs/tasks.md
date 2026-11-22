@@ -306,6 +306,19 @@ A drawn answer declined, or not labelled within `due_days`, counts as an error t
 When the errors so far are already at or above alpha, that level's entry has a `reason`: it will not certify there unless the error falls.
 `GET /v1/tasks/{id}/labels/export` returns every logged question with all its stored fields, its draw, state and label as JSON lines; `ps`, `lp` and `h` are base64 little-endian float32.
 
+**Changing the settings.**
+`PUT /v1/tasks/{id}/labels/settings` with the settings to change (`{"cert_pi": 0.2}`) starts a new epoch: answers served from then on are drawn at the new chances, and every answer drawn before keeps its epoch and its chance, so estimates stay exact within an epoch.
+Changing `region` sets the certificate region again from the answers held.
+`status` shows the settings in force; `GET /v1/tasks/{id}` keeps showing the registration's.
+On a shared store the new epoch reaches the other replicas at their next read.
+
+**Erasure.**
+`DELETE /v1/tasks/{id}/labels/{request_id}` erases one request's logged answers and labels, and `DELETE /v1/tasks/{id}/labels?before=<seconds since the epoch>` erases every answer served and every label received before that time (and the labels of the answers it erases).
+They leave every view at once.
+The answer says `purged` when the bytes are gone from disk, which on one server is before it returns.
+On a shared store it says `erased`: the bytes go at the next merge, about 30 seconds later or more, and `status.erasures` counts them as `purged` then.
+What is kept of an erasure is the request id it erased, an opaque id, and its time.
+
 **The draw.**
 Each answered question is drawn independently into three slices, by a keyed hash of its request id, so every replica draws the same:
 
@@ -319,6 +332,7 @@ A chance is 0 or at least 0.02.
 The certificate region covers all traffic for the first `tau_after` (200) answers; after that it is the top `region` (0.5) share by confidence.
 `due_days` (14) is how long a drawn answer waits for its label, and `max_rows` (50,000) is the most answers kept: past it the oldest answers that were not drawn are dropped.
 The answers that were not drawn are therefore the most recent ones, a sliding window, not a sample of all time; the ones that keep their served distribution are a uniform sample of that window.
+The log's files are merged now and then (once there are 64, or an erasure waits), which also drops from disk what `max_rows` dropped from memory.
 
 **Where it is kept.**
 With `--tasks-dir` the log is append-only files under `<tasks-dir>/labels/`, and it survives a restart.
