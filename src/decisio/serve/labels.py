@@ -78,6 +78,10 @@ DEFAULTS = {
 }
 STRICT_ALPHA = 0.01  # a task certified at this alpha or below has its labels drawn mostly where its certificate is
 STRICT_SHARES = {"audit": 0.10, "cert": 0.80, "margin": 0.10, "typical": 0.0}
+UNLABELLED_RULE = (
+    "a drawn answer not labelled by its due date counts as an error, so a task that leaves its drawn answers "
+    "unlabelled loses its certificate or never gets one: label them, raise per_day, or register without a certificate"
+)
 STRICT_MIN_SHARE = 0.10  # such a task needs labels on at least this share of its answers (its drift checks fail below)
 PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max", "typical_pi_max")
 REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
@@ -332,14 +336,30 @@ def not_enabled_block(alpha: float | None) -> dict | None:
     ]}  # fmt: skip
 
 
+def budget_floor(s: dict) -> dict | None:
+    """In budget mode: the share of answers the 0.02 floors of audit and cert label whatever per_day is (certificates
+    and drift checks need audit labels, so the floors are never lowered), and the answers a day above which that is
+    more than per_day."""
+    if s.get("per_day") is None:
+        return None
+    share = PI_MIN + PI_MIN * s["region"]
+    return {"min_share": round(share, 4), "above_answers_per_day": round(s["per_day"] / share)}
+
+
 def registration_block(rec: dict, location: str, alpha: float | None = None) -> dict:
     """What a registration's response says of the task's labels: the disclosure (`disclosure`), the digest key (shown
     here only), and the queue's first view (empty until the task has answered)."""
     s = rec["settings"]
     warnings = strict_check(s, alpha)[1]
+    floor = budget_floor(s)
+    if floor and s["tau_after"] > floor["above_answers_per_day"]:  # the assumed first day already overspends
+        warnings.append(f"the audit and cert chances never go below {PI_MIN}: at the assumed {s['tau_after']} answers "
+                        f"a day this task asks for about {s['tau_after'] * floor['min_share']:.0f} labels a day, more "
+                        f"than per_day ({s['per_day']}); {UNLABELLED_RULE}")  # fmt: skip
     return {
         **disclosure(s, location),
         **({"warnings": warnings} if warnings else {}),
+        **({"budget_floor": floor} if floor else {}),
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
@@ -1586,6 +1606,13 @@ class TaskLabels:
             if share < STRICT_MIN_SHARE:
                 warnings.append(f"certified at alpha {self.cert_alpha}: {share:.1%} of answers are drawn for labels, "
                                 f"under the {STRICT_MIN_SHARE:.0%} it needs; raise per_day or cert_pi")  # fmt: skip
+        b = self.budget()
+        if b["over_budget"]:
+            warnings.append(
+                f"about {b['expected_per_day']:.0f} labels a day are asked for, above per_day ({b['per_day']}): the "
+                f"audit and cert chances never go below {PI_MIN}, since certificates and drift checks need audit "
+                f"labels; and {UNLABELLED_RULE}"
+            )
         busiest = sorted(langs, key=lambda k: -langs[k]["answers"])[:top_langs]
         for k in busiest:
             langs[k]["need"] = {n["alpha"]: n["more_if_no_error"] for n in self.need(lang=k)}

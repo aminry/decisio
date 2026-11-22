@@ -365,7 +365,11 @@ By default the chances follow a budget: `per_day` (20) labels a day, split by `s
 Before the server has seen any traffic it assumes `tau_after` (200) answers a day, which at the default gives about 20 labels in the first 200 answers.
 When the certificate region is set (after `tau_after` answers), the chances are set again from the measured rate (answers a day over the last 7 days).
 After that a new budget starts at most once a day, and only when the rate has moved below half or above twice the rate the chances assumed.
-Audit and cert chances never go below 0.02, so a small budget on heavy traffic asks for more than `per_day`; a margin chance under 0.02 is off.
+Audit and cert chances never go below 0.02, because certificates and drift checks need audit labels, so a small budget on heavy traffic asks for more than `per_day`; a margin chance under 0.02 is off.
+The registration response's `labels.budget_floor` says how much that is: `min_share`, the share of answers the floors label whatever the budget, and `above_answers_per_day`, the traffic above which that is more than `per_day` (556 answers a day at the default 20); it warns when the assumed first day already exceeds it, and `status` warns while `over_budget` is true.
+Those labels matter: a drawn answer not labelled by its due date counts as an error, so a task that leaves its drawn answers unlabelled loses its certificate or never gets one.
+Label them, raise `per_day`, or register the task without a certificate.
+`expected_per_day` and `over_budget` only report; they change no chance.
 `status.budget` gives the labels a day asked for, the measured rate, the chances in force, and `expected_per_day`, the labels a day the last 7 days' answers were drawn for at that rate; `over_budget` is true when that is more than a quarter above `per_day` (the 0.02 floor on heavy traffic). The queue gives `per_day` and the rate only.
 Give the chances yourself (`audit_pi`, `cert_pi`, `margin_pi_min`, `margin_pi_max`) to turn the budget off; `PUT .../labels/settings` with `per_day` turns it on again.
 A task certified at alpha 0.01 or 0.005 needs hundreds of labels in its region, so with the default shares its budget moves to audit 0.10, cert 0.80, margin 0.10 and no typical slice, which reaches those labels about 1.8 times sooner; the audit share still gives 100 labels in every 1,000. Shares you give at registration are kept.

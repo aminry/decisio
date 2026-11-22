@@ -700,6 +700,13 @@ def test_l25_the_budget_shows_overspend_and_the_rate_counts_once():
     tl.tick()
     b = tl.budget()
     assert b["expected_per_day"] > 25 and b["over_budget"] is True
+    w = next(w for w in tl.overview()["warnings"] if "above per_day (20)" in w)
+    assert "counts as an error" in w and "register without a certificate" in w
+    assert tl.settings["audit_pi"] == LB.PI_MIN  # display only: no chance moves
+    block = LB.registration_block({"settings": LB.parse_settings(True), "secret": LB.new_secrets()}, "memory")
+    assert block["budget_floor"] == {"min_share": 0.036, "above_answers_per_day": 556} and "warnings" not in block
+    small = LB.registration_block({"settings": LB.parse_settings({"per_day": 2}), "secret": LB.new_secrets()}, "memory")
+    assert "more than per_day (2)" in small["warnings"][0]  # the assumed first day already overspends
     rate = tl.rate()
     gone = next(iter(tl._undrawn))
     row = dict(tl.rows[gone])
