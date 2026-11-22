@@ -376,10 +376,12 @@ A task certified at alpha 0.01 or 0.005 needs hundreds of labels in its region, 
 Such a task also needs labels on at least 5% of its answers, or its drift checks catch a rising error too late.
 With chances you give (`audit_pi`, `cert_pi`, `margin_pi_max`), a registration whose chances cannot reach that share is refused (422), with the `cert_pi` that would.
 Registered without labels, it is registered as before and logs nothing, and the response says what it needs: `"labels": {"enabled": false, "warnings": [...]}`.
-How fast a rising error is caught depends on q, the chance that an answer in the certified region is drawn by the audit or cert slice.
-The validated configurations at alpha 0.01 and 0.005 are shares 10/80/10/0 with labels on 5% or 10% of answers, and 15/45/30/10 with labels on 10%; with them a rising error is caught within a median of 100 wrong certified answers.
-The registration response and `status` carry `detection` for such a task: `q`, `q_reference` (the q of 10/80/10/0 at 5% over the same region share), `region_share` and `validated`.
-When `q` reaches the reference, `detection.claim` states that; otherwise `detection.warning` is "drift detection speed has not been validated for this split" (also in `labels.warnings` at registration), and `detection.needed` gives the `cert_pi`, or with a budget the `label_share` of answers (and `per_day` at the measured rate), that would reach it.
+For such a task the registration response and `status` carry `detection`.
+The detection claim was measured on two configurations at alpha 0.01 and 0.005: shares 10/80/10/0 with at least 5% of answers drawn for labels, and shares 15/45/30/10 with at least 10%.
+For a task on one of them whose measured share of answers drawn (`label_share`) reaches that, `detection.claim` is: "In replays of concept-change drift (synthetic streams and recorded model outputs), the median number of wrong certified answers served before the label monitor suspended certification was at most 100 on every stream tested."
+At registration, before any share is measured, `detection.pending` says which share the claim waits for.
+For any other split, or under its share, `detection.warning` is "Drift detection speed has not been validated for this split." (also in `labels.warnings` at registration), and `detection.needed` gives the `cert_pi`, or with a budget the `label_share` (and `per_day` at the measured rate), that would reach the labelling rate of 10/80/10/0 at 5%.
+`detection.q` (the chance that an answer in the certified region is drawn by the audit or cert slice), `q_reference` and `region_share` are for diagnosis; they are not the claim's condition.
 The certificate itself is unaffected: it needs only uniform labels in its region with their recorded chances, which any split gives.
 With a budget, the registration response's `labels.warnings` says how many answers a day `per_day` covers at that share (`per_day` / 0.05), and `status` reports `label_share` (the share of the last 7 days' answers drawn for a label) with a warning while it is under 5%.
 Every drawn answer keeps the chance it was drawn at, so a change of chances never invalidates what was drawn before.

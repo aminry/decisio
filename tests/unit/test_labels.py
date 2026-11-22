@@ -57,6 +57,8 @@ L25 status.budget gives the labels a day expected at the measured rate and flags
 L26 detection at a strict alpha: the claim holds when the split's q (audit or cert, in the region) reaches the
     validated reference (10/80/10/0 at 5%); otherwise the exact warning and what would reach it; never for a
     lenient alpha
+L27 status reads never hold up serving: observe() stays fast while another thread polls the queue, the overview,
+    the need and the budget (each scan reads a snapshot outside the log's lock)
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -718,24 +720,52 @@ def test_l25_the_budget_shows_overspend_and_the_rate_counts_once():
     assert tl.rate() == rate  # not counted twice
 
 
-def test_l26_the_detection_claim_needs_the_reference_q():
+def test_l26_the_detection_claim_only_for_a_validated_split():
     ref = LB.reference_q(0.8)
     assert ref == pytest.approx(1 - (1 - 0.005) * (1 - 0.05))
-    explicit = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.02, "margin_pi_max": 0.2})
-    d = LB.detection(explicit, 0.8)
-    assert d["validated"] is False and d["warning"] == "drift detection speed has not been validated for this split"
-    assert "claim" not in d and LB.region_q(0.02, d["needed"]["cert_pi"]) == pytest.approx(ref, abs=1e-3)
+    explicit = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.5, "margin_pi_max": 0.2})  # a high q, no named split
+    d = LB.detection(explicit, 0.8, label_share=0.4)
+    assert d["validated"] is False and d["warning"] == "Drift detection speed has not been validated for this split."
+    assert "claim" not in d and d["q"] > d["q_reference"]  # q is a diagnostic, never the claim's condition
     strict = {**LB.parse_settings(True), "shares": dict(LB.STRICT_SHARES)}
-    strict.update(LB.budget_pis(strict, rate=400, region_share=0.8, margin_weight=0.5))  # labels on 5%: 20 of 400
-    assert LB.detection(strict, 0.8)["validated"] is True and "claim" in LB.detection(strict, 0.8)
-    custom = {**LB.parse_settings({"shares": {"audit": 0.5, "cert": 0.2, "margin": 0.3, "typical": 0.0}})}
+    assert LB.detection(strict, 0.8, label_share=0.06)["claim"] == LB.DETECTION_CLAIM
+    assert LB.detection(strict, 0.8, label_share=0.04)["warning"] == LB.DETECTION_UNVALIDATED  # under its 5%
+    assert "the claim applies once at least 5%" in LB.detection(strict, 0.8)["pending"]  # not measured yet
+    default = LB.parse_settings(True)  # 15/45/30/10: validated at 10%
+    assert "claim" in LB.detection(default, 0.8, label_share=0.11) and "warning" in LB.detection(
+        default, 0.8, label_share=0.07
+    )
+    custom = LB.parse_settings({"shares": {"audit": 0.5, "cert": 0.2, "margin": 0.3, "typical": 0.0}})
     custom.update(LB.budget_pis(custom, rate=4_000, region_share=0.8, margin_weight=0.5))
-    d = LB.detection(custom, 0.8, rate=4_000)
-    assert d["validated"] is False and d["needed"]["label_share"] > 0.05 and d["needed"]["per_day"] > 20
+    d = LB.detection(custom, 0.8, rate=4_000, label_share=0.5)
+    assert d["warning"] == LB.DETECTION_UNVALIDATED and d["needed"]["label_share"] > 0.05
     block = LB.registration_block({"settings": explicit, "secret": LB.new_secrets()}, "memory", alpha=0.01)
     assert block["detection"]["validated"] is False and LB.DETECTION_UNVALIDATED in block["warnings"]
+    block = LB.registration_block({"settings": default, "secret": LB.new_secrets()}, "memory", alpha=0.01)
+    assert "pending" in block["detection"] and LB.DETECTION_UNVALIDATED not in block.get("warnings", [])
     assert "detection" not in LB.registration_block({"settings": explicit, "secret": LB.new_secrets()}, "memory", 0.05)
     tl = _task(audit_pi=0.02, cert_pi=0.02, margin_pi_max=0)
     assert tl.detection() is None  # no certificate known yet
     tl.cert_alpha = 0.01
     assert tl.overview()["detection"]["warning"] == LB.DETECTION_UNVALIDATED
+
+
+def test_l27_status_reads_never_hold_up_serving(monkeypatch):
+    tl = _task(audit_pi=0.3, cert_pi=0.3)
+    rids = [_serve(tl, f"t{i}", [0.6, 0.3, 0.1])[0] for i in range(300)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in rids[:100]])
+    held = []
+    real = LB.TaskLabels._state
+
+    def state(row, ev, now, due):  # every scan works row by row outside the lock the answer path takes
+        held.append(tl._lock._is_owned())
+        return real(row, ev, now, due)
+
+    monkeypatch.setattr(LB.TaskLabels, "_state", staticmethod(state))
+    for read in (tl.queue, tl.counts, tl.overview, tl.need, tl.table, tl.eval_rows, tl.fit_rows, tl.budget):
+        read()
+    assert held and not any(held)
+    hours = len(tl._hours)
+    assert hours >= 1 and tl._drawn_share() == pytest.approx(
+        np.mean([1 - np.prod([1 - d["pi"] for d in r["draws"].values()]) for r in tl.rows.values()])
+    )  # the budget's drawn share comes from hourly sums, not a scan of the rows
