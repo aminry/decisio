@@ -40,7 +40,7 @@ A task registered with a `certify` block also stores a **certificate** (`decisio
 The head needs the final-norm hidden state at the answer position, which vLLM's generate path does not return.
 The serving engine runs decisio's hidden-readout class, and the server reads the state one of two ways (`decisio.serve.vllm_engine.single_engine_reader`):
 
-| | The tap (Gemma 4 12B, engine in the server's process: the default there) | Reserved columns (the other bases, or a separate engine process) |
+| | The tap (every base, engine in the server's process and one tensor-parallel rank: the default) | Reserved columns (a separate engine process, or several tensor-parallel ranks) |
 | --- | --- | --- |
 | How | The class keeps the answer-position rows; a vLLM logits processor stores those of the head question's own request (decisio.vllm_plugin.tap) | The class writes the hidden state into reserved logit columns, read in one request per chunk of them (docs/design/hidden-state-readout.md) |
 | Requests per head question | one, the plain question's own | the plain readout's and one per chunk (five on the 12B) |

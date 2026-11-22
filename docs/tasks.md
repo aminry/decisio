@@ -273,8 +273,8 @@ Its caveats: one task, one draw and 300 test items, so the intervals cover the t
 ## What it costs
 
 - **Registration**: every example is one scored request, about 0.30 s each in the default mode (0.21 s in the former second-engine mode), plus the fit; 120 examples take well under a minute on the served model.
-- **Each later question**: on Gemma 4 12B (and the tuned 12B repositories) with the engine in the server's process, the default, a question answered by a head reads its hidden state in its own request, with no extra request: about 55 ms of client time against 151 ms when the state was read through the reserved logit columns (300 BANKING77 questions on one RTX PRO 6000; a plain question took 76 ms on first sight and 55 ms repeated on the same server), and its answers to every other question are unchanged, bit for bit.
-  On the other bases, and with a separate engine process, the hidden state is read in extra requests through the reserved logit columns, as before: about 80 ms more server time per head question (126.8 against 46.5 ms).
+- **Each later question**: with the engine in the server's process, the default, a question answered by a head reads its hidden state in its own request, with no extra request, on every base: on Gemma 4 12B about 55 ms of client time against 151 ms when the state was read through the reserved logit columns (300 BANKING77 questions on one RTX PRO 6000; a plain question took 76 ms on first sight and 55 ms repeated on the same server), and its answers to every other question are unchanged, bit for bit.
+  With a separate engine process, or more than one tensor-parallel rank, the hidden state is read in extra requests through the reserved logit columns, as before: about 80 ms more server time per head question (126.8 against 46.5 ms).
   Calibration and questions without a task cost nothing extra.
 
 ## Certified answers
@@ -1059,5 +1059,5 @@ When you move a client to a task with a context, register the task first, then d
 - **One task per option list per server.** Registration is per server instance; keep it with `--tasks-dir` (or an export and `--tasks-file`), as above.
   Tasks of one question with different contexts are kept side by side, and a request names the one it is for ([Task context](#task-context)).
   It holds across layouts: a task applies to the requests of the layout it was fitted under ([A task under a layout](#a-task-under-a-layout)).
-- **Where the head reads its hidden state.** From the serving engine, always: in the question's own request on Gemma 4 12B with the engine in the server's process, through reserved logit columns otherwise (the latency above). Both readers declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`).
+- **Where the head reads its hidden state.** From the serving engine, always: in the question's own request with the engine in the server's process and one tensor-parallel rank, on every base, through reserved logit columns otherwise (the latency above). Both readers declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`).
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.

@@ -3,8 +3,8 @@
 """The intent head's hidden-state readers (`decisio.serve.vllm_engine.resolve_head_mode`, `single_engine_reader`;
 docs/handoffs/tasks.md). Two-engine mode (--head-engine) is removed.
 
-tap        on the Gemma 4 12B with an in-process engine: the head question's hidden state from its own request
-           (`hidden_engine.TapHidden`, decisio.vllm_plugin.tap)
+tap        with an in-process engine and one tensor-parallel rank, on every base: the head question's hidden state
+           from its own request (`hidden_engine.TapHidden`, decisio.vllm_plugin.tap)
 reserved   otherwise: the hidden-readout class writes h into reserved logit columns (`hidden_engine.SingleEngineHidden`)
 
 M1  the flags select the mode: the default is the single engine on the hidden-readout class; the view and the text-only

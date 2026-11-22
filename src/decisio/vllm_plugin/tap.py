@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The hidden-state tap (vLLM 0.31.0; the Gemma 4 12B's head reader in an in-process engine): a question's hidden
+"""The hidden-state tap (vLLM 0.31.0; every base's head reader in an in-process engine): a question's hidden
 states at its answer position, the final-norm state and a configured set of middle layers, read in the same engine
 request as its letter probabilities, with no extra request and no second engine.
 
 How:
-  - the model class (`decisio.vllm_plugin.gemma.DecisioGemma4UnifiedHiddenReadout`) asks vLLM's Gemma 4 model
-    for the residual stream after the layers in `DECISIO_TAP_LAYERS` (vLLM's EAGLE-3 auxiliary-state mechanism:
+  - every base's hidden-readout class (`TapReadout` first in its bases: the Gemma 4 12B's, the Gemma 4 text class of
+    the 31B and E4B, and both Qwen classes) asks vLLM's model for the residual stream after the tapped layers
+    (`engine_config`, below; vLLM's EAGLE-3 auxiliary-state mechanism:
     layer L is the output of decoder layer L, before the final norm; 0 is the embeddings) and returns
     [final | layer a | layer b | ...] for every token;
   - vLLM's runner takes the answer-position rows of that tensor and hands them to the class's `compute_logits`, which
@@ -156,3 +157,41 @@ class HiddenTap(_processor_base()):
         # one logits row per request without speculative decoding: row i is batch position i
         route(rows, ctx.idx_mapping_np[: rows.shape[0]], self.keys)
         return logits
+
+
+class TapReadout:
+    """The tap's part of decisio's hidden-readout classes, first in their bases (every base: decisio.vllm_plugin.gemma,
+    decisio.vllm_plugin.models). With no layers asked for (`layers_of`), forward is the base class's, as it is; with
+    some, it returns [final | layers] (vLLM's EAGLE-3 auxiliary states), concatenated after the compiled region.
+    compute_logits keeps the answer-position rows for `HiddenTap`, computes the logits from the contiguous final state
+    and writes [0, h] into the reserved columns, so a server reads the head's state either way."""
+
+    def __init__(self, *, vllm_config=None, prefix: str = ""):
+        super().__init__(vllm_config=vllm_config, prefix=prefix)
+        cfg = getattr(self.config, "text_config", self.config)
+        self.tap_d = int(cfg.hidden_size)
+        self.tap_layers = layers_of(vllm_config)  # in the compiled graph's cache key (engine_config)
+        n = getattr(cfg, "num_hidden_layers", None)
+        if n is not None and any(layer > n for layer in self.tap_layers):
+            raise ValueError(f"the tapped layers {self.tap_layers}: this model has {n} layers")
+        if self.tap_layers:
+            self.set_aux_hidden_state_layers(self.tap_layers)
+
+    def forward(self, *args, **kwargs):
+        out = super().forward(*args, **kwargs)
+        if isinstance(out, tuple):  # (final-norm state, [layer states]) once auxiliary layers are set
+            import torch
+
+            final, layers = out
+            return torch.cat([final, *layers], dim=-1)
+        return out
+
+    def compute_logits(self, hidden_states):
+        from decisio.vllm_plugin.hidden import write_hidden_columns
+
+        stash(hidden_states)  # the answer-position rows, for the tap's logits processor when it runs
+        final = hidden_states
+        if hidden_states.shape[-1] != self.tap_d:
+            final = hidden_states[..., : self.tap_d].contiguous()
+        logits = super().compute_logits(final)
+        return logits if logits is None else write_hidden_columns(logits, final)

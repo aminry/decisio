@@ -2032,8 +2032,8 @@ def resolve_head_mode(model_class, one_engine=False):
     Returns (model_class, head_mode), head_mode one of:
 
       "single-engine"   the default: the text engine runs decisio's hidden-readout class and the head's hidden state is
-                        read from it (`single_engine_reader`: in the question's own request on the Gemma 4 12B with an
-                        in-process engine, through reserved logit columns otherwise)
+                        read from it (`single_engine_reader`: in the question's own request with an in-process
+                        engine and one tensor-parallel rank, through reserved logit columns otherwise)
       None              no head: --model-class view or text-only, or --one-engine; a registered task then gets
                         calibration only"""
     if one_engine:
@@ -2150,16 +2150,28 @@ def engine_kwargs(args) -> dict:
 
 def tap_enabled(args, arch=None) -> bool:
     """Whether the head reads its hidden state in the question's own request (decisio.vllm_plugin.tap): the vLLM
-    server, a base whose hidden-readout class is the 12B's (the class carries the tap) and the engine in this process,
-    where the tap's store is. Otherwise the head reads the reserved logit columns, which the class writes as well."""
+    server, a base whose hidden-readout class carries the tap (every base's: `tap.TapReadout`), the engine in this
+    process, where the tap's store is, and one tensor-parallel rank (the sharded sampler reorders the rows). Otherwise
+    the head reads the reserved logit columns, which the class writes as well."""
     import decisio.vllm_plugin as plugin
 
     if arch is None:
         arch = (getattr(getattr(args, "family", None), "classes", None) or {}).get(getattr(args, "model_class", None))
+    tapped = {
+        plugin.GEMMA4_HIDDEN_READOUT,
+        plugin.GEMMA4_MM_HIDDEN_READOUT,
+        plugin.HIDDEN_READOUT,
+        plugin.QWEN_DENSE_HIDDEN_READOUT,
+    }
+    try:
+        tp = int((json.loads(getattr(args, "engine", None) or "{}") or {}).get("tensor_parallel_size") or 1)
+    except (TypeError, ValueError):
+        tp = 1
     return (
-        arch == plugin.GEMMA4_HIDDEN_READOUT
+        arch in tapped
         and getattr(args, "backend", "vllm") == "vllm"
         and getattr(args, "engine_process", None) == "in"
+        and tp == 1
     )
 
 
@@ -3636,8 +3648,8 @@ def main():
     if args.head_engine or args.head_gpu_memory_utilization is not None:
         ap.error(
             "--head-engine and --head-gpu-memory-utilization were removed with two-engine mode: the intent head reads "
-            "its hidden state from the serving engine (in the question's own request on Gemma 4 12B); drop the flags "
-            "(docs/upgrading.md)"
+            "its hidden state from the serving engine (in the question's own request with an in-process engine); "
+            "drop the flags (docs/upgrading.md)"
         )
     adapters = dict(a.split("=", 1) for a in args.adapter)
     if "none" in adapters:

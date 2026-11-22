@@ -29,7 +29,7 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 ### What changed
 
 - **`--head-engine` and `--head-gpu-memory-utilization` are removed.** Two-engine mode read the intent head's hidden state from a second copy of the model in vLLM's pooling mode, at twice the weights on the card.
-- The head reads its hidden state from the serving engine on every base: in the question's own request on Gemma 4 12B with the engine in the server's process (below), through reserved logit columns otherwise.
+- The head reads its hidden state from the serving engine on every base: in the question's own request with the engine in the server's process and one tensor-parallel rank (below), through reserved logit columns otherwise.
 - **A server started with either flag refuses to start**, with a message that says why; it does not ignore them.
 
 ### Who is affected
@@ -37,24 +37,26 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 | | Before | Now | What to do |
 | --- | --- | --- | --- |
 | A server started with `--head-engine` (and `--head-gpu-memory-utilization`) | a second engine read the head's hidden state | refused at start-up | drop the flags; the default head reader needs no second copy, so `--gpu-memory-utilization` can go back to its default |
-| A task whose head was fitted under `--head-engine` | | on Gemma 4 12B with an in-process engine, `head_refit` (below); elsewhere it loads as before | on the 12B, register it again |
+| A task whose head was fitted under `--head-engine` | | with an in-process engine, `head_refit` (below); otherwise it loads as before | register it again |
 | Any other server | | unchanged | nothing |
 
-## Unreleased: the 12B's intent head reads its hidden state in the question's own request
+## Unreleased: the intent head reads its hidden state in the question's own request
 
 ### What changed
 
-- **On Gemma 4 12B (bf16 and FP8, and the tuned 12B repositories) with the engine in the server's process (the default), a question answered by an intent head reads its hidden state in its own request**, through decisio's model class and a vLLM logits processor, with no extra request: about 55 ms instead of 151 ms per head question on one RTX PRO 6000, and a registration of 1,000 examples in 162 s instead of 255 s.
+- **On every base (Gemma 4 12B, 31B and E4B, Qwen3.6-35B-A3B and Qwen3.5 4B, and the tuned repositories of each) with the engine in the server's process (the default) and one tensor-parallel rank, a question answered by an intent head reads its hidden state in its own request**, through decisio's model class and a vLLM logits processor, with no extra request.
+  On Gemma 4 12B that is about 55 ms instead of 151 ms per head question on one RTX PRO 6000, and a registration of 1,000 examples in 162 s instead of 255 s.
+- The model classes keep their names, so the repositories' profiles are unchanged.
 - Every other question's answer is unchanged, bit for bit, and so are the prefix cache and images.
 - The hidden state now comes from the forward that produced the question's letters; the reserved columns re-read the prompt from the prefix cache, which gives a state 1.5 to 4.5% apart. **A head fitted before is therefore not applied on such a server:** its questions are answered as without the task, its answers are not certified (`certified_reason: head_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` (`systemone.task_store.readout.head_refit`) name it with the command that registers it again.
-- With a separate engine process (`--engine-process separate`), and on the other bases, the head reads its hidden state through the reserved logit columns as before.
+- With a separate engine process (`--engine-process separate`), or with more than one tensor-parallel rank, the head reads its hidden state through the reserved logit columns as before.
 
 ### Who is affected
 
 | | Before | Now | What to do |
 | --- | --- | --- | --- |
-| A task with a kept intent head, on a Gemma 4 12B server with the engine in its process | the head, its state read in extra requests | answered as without the task, not certified (`head_refit`) | register it again with the same body: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json` |
-| A task without a head, or on another base or engine process | | unchanged | nothing |
+| A task with a kept intent head, on a server with the engine in its process | the head, its state read in extra requests | answered as without the task, not certified (`head_refit`) | register it again with the same body: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json` |
+| A task without a head, or on a server with a separate engine process or several tensor-parallel ranks | | unchanged | nothing |
 
 ## 0.53.0: label review in the registration response
 

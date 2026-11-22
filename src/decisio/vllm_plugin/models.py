@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from vllm.model_executor.models.qwen3_5 import Qwen3_5ForCausalLM, Qwen3_5MoeForCausalLM
 
+from decisio.vllm_plugin import tap
 from decisio.vllm_plugin.hidden import write_hidden_columns
 from decisio.vllm_plugin.weights import without_vision
 
@@ -35,11 +36,9 @@ class DecisioQwen3_5MoeTextOnly(Qwen3_5MoeForCausalLM):
         return super().load_weights(without_vision(weights))
 
 
-class DecisioQwen3_5MoeHiddenReadout(DecisioQwen3_5MoeTextOnly):
-    def compute_logits(self, hidden_states):
-        logits = super().compute_logits(hidden_states)
-        return logits if logits is None else write_hidden_columns(logits, hidden_states)
-
+class DecisioQwen3_5MoeHiddenReadout(tap.TapReadout, DecisioQwen3_5MoeTextOnly):
+    # tensor-parallel sampling (vLLM's batch sharder) reorders the rows across ranks: the reserved columns only, no tap
+    # (vllm_engine.tap_enabled needs one rank)
     def compute_logits_local(self, hidden_states):
         return write_hidden_columns(super().compute_logits_local(hidden_states), hidden_states)
 
@@ -49,10 +48,8 @@ class DecisioQwen3_5TextOnly(Qwen3_5ForCausalLM):
         return super().load_weights(without_vision(weights))
 
 
-class DecisioQwen3_5HiddenReadout(DecisioQwen3_5TextOnly):
-    def compute_logits(self, hidden_states):
-        logits = super().compute_logits(hidden_states)
-        return logits if logits is None else write_hidden_columns(logits, hidden_states)
-
+class DecisioQwen3_5HiddenReadout(tap.TapReadout, DecisioQwen3_5TextOnly):
+    # tensor-parallel sampling (vLLM's batch sharder) reorders the rows across ranks: the reserved columns only, no tap
+    # (vllm_engine.tap_enabled needs one rank)
     def compute_logits_local(self, hidden_states):
         return write_hidden_columns(super().compute_logits_local(hidden_states), hidden_states)

@@ -6,7 +6,7 @@
 The intent head serves `softmax(lp + h @ A + c)`, where `lp` are the label log-probabilities and `h` is the final-norm hidden state (2,048 numbers) at the answer position.
 vLLM's generate path returns log-probabilities only.
 This note is how decisio gets `h` from the serving engine itself, with no second copy of the weights and no change to vLLM's source.
-Verified on a card (`runs/2026-09-30_plugin-verification`); the alternative, a second engine in pooling mode (`--head-engine`), is removed. On Gemma 4 12B with an in-process engine the state is now read in the question's own request instead (decisio.vllm_plugin.tap; docs/handoffs/tasks.md); the reserved columns serve the other bases.
+Verified on a card (`runs/2026-09-30_plugin-verification`); the alternative, a second engine in pooling mode (`--head-engine`), is removed. With an in-process engine and one tensor-parallel rank the state is now read in the question's own request instead, on every base (decisio.vllm_plugin.tap; docs/handoffs/tasks.md); the reserved columns serve a separate engine process and several tensor-parallel ranks.
 
 ## Options considered
 
