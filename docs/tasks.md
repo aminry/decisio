@@ -287,7 +287,8 @@ Give the request's language as `meta.lang` in the body or the `x-decisio-lang` h
 
 The state as text is the string itself, or for any other state `json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`; it is then put in Unicode NFC, runs of whitespace become one space, and the ends are stripped.
 A digest or state matching several logged answers labels the newest one not yet labelled.
-Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `not_joined` (on a shared store: kept, for an answer another replica served that this one has not read yet), `unknown_ref`, `invalid_answer` or `invalid`.
+Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `not_joined` (on a shared store: kept, for an answer another replica served that this one has not read yet), `expired_ref` (the answer was served and then dropped past `max_rows`), `unknown_ref`, `invalid_answer` or `invalid`.
+The response also gives the counts and, per alpha, the labels the region still needs (`need`).
 A digest or state that matches nothing logged is kept as an `import`: usable for review, never for a certificate.
 Labels are written to disk before the response returns.
 

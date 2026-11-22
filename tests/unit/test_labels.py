@@ -147,6 +147,7 @@ def test_l4_labels_every_reference_and_a_restart(tmp_path):
         {"request_id": "r1-NOPE", "answer": "tech"},
         {"request_id": rid, "answer": "refunds"},
     ])  # fmt: skip
+    assert set(out["need"]) == {0.05, 0.10, 0.01, 0.005}  # the label need comes with every write
     st = [r["status"] for r in out["results"]]
     assert st == ["accepted", "accepted", "accepted", "unknown_ref", "invalid_answer"]
     assert out["results"][1]["request_id"] == rid_b and out["results"][2]["source"] == "import"
@@ -229,6 +230,10 @@ def test_l9_max_rows_drops_the_oldest_undrawn_rows(tmp_path):
     kept_undrawn = [r for r in undrawn if (r, "q") in tl.rows]
     assert all((r, "q") in tl.rows for r in drawn)  # a drawn row's label may still come
     assert kept_undrawn == undrawn[len(undrawn) - len(kept_undrawn) :] and len(kept_undrawn) <= 1  # the newest only
+    gone = undrawn[0]  # dropped past max_rows: the label says so
+    assert tl.post([{"request_id": gone, "answer": "billing"}])["results"][0]["status"] == "expired_ref"
+    assert tl.post([{"request_id": "r1-" + LB.ulid(clock.t + 5), "answer": "billing"}])["results"][0]["status"] == (
+        "unknown_ref")  # fmt: skip
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
     back.sync()
     assert {k[0] for k in back.rows} == set(drawn)  # read back: the same rule, every undrawn row over the cap goes

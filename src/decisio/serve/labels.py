@@ -496,6 +496,7 @@ class TaskLabels:
         self._first_t: float | None = None
         self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
         self.unjoined_expired = 0  # labels for ids no replica's row ever joined, dropped after their due window
+        self._evicted_upto = float("-inf")  # the newest serve time of an answer `max_rows` dropped
         self._pending_rows: list[dict] = []
         self._last_flush = clock()
         self._seq = 0
@@ -1163,6 +1164,7 @@ class TaskLabels:
             row = self.rows.pop(key, None)
             if row is None:
                 continue
+            self._evicted_upto = max(self._evicted_upto, float(row["t"]))
             for index, k in ((self.by_digest, row["hk1"]), (self.by_rid, key[0])):
                 keys = index.get(k, [])
                 if key in keys:
@@ -1195,7 +1197,7 @@ class TaskLabels:
                 for it in items:
                     results.append(self._one(it, now, latest, events))
             self._write_events(events)
-        return {"results": results, **self.counts()}
+        return {"results": results, **self.counts(), "need": {n["alpha"]: n["more_if_no_error"] for n in self.need()}}
 
     def _one(self, it, now, latest, events) -> dict:
         if not isinstance(it, dict):
@@ -1225,6 +1227,9 @@ class TaskLabels:
                 events.append(ev)
                 return {"status": "not_joined", "request_id": rid, **({"question": q} if q is not None else {})}
             if key is None:
+                t = rid_time(rid)
+                if t is not None and t <= self._evicted_upto:  # served, then dropped past max_rows
+                    return {"status": "expired_ref", "request_id": rid}
                 return {"status": "unknown_ref", "request_id": rid}
         else:
             if "digest" in refs:
