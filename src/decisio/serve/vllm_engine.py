@@ -2152,7 +2152,48 @@ def engine_kwargs(args) -> dict:
         return kw  # images on: the checkpoint's own multimodal class, with its vision tower (the 31B), as one engine
     if arch is None:  # the base's own class, unmodified (Gemma's text path)
         return kw
+    if tap_enabled(args, arch):
+        kw = tap_engine_kwargs(kw)
     return {**kw, **plugin.engine_kwargs(arch)}
+
+
+def tap_enabled(args, arch=None) -> bool:
+    """Whether the head reads its hidden state in the question's own request (decisio.vllm_plugin.tap): the vLLM
+    server, a base whose hidden-readout class is the 12B's (the class carries the tap) and the engine in this process,
+    where the tap's store is. Otherwise the head reads the reserved logit columns, which the class writes as well."""
+    import decisio.vllm_plugin as plugin
+
+    if arch is None:
+        arch = (getattr(getattr(args, "family", None), "classes", None) or {}).get(getattr(args, "model_class", None))
+    return (
+        arch == plugin.GEMMA4_HIDDEN_READOUT
+        and getattr(args, "backend", "vllm") == "vllm"
+        and getattr(args, "engine_process", None) == "in"
+    )
+
+
+def single_engine_reader(engine, args):
+    """The vLLM single-engine head reader: the tap (one request per head question) where `tap_enabled`, the reserved
+    logit columns otherwise."""
+    from decisio.serve import hidden_engine as he
+
+    if tap_enabled(args):
+        return he.TapHidden(engine, layers=())
+    return he.SingleEngineHidden(engine, args.model, revision=args.revision)
+
+
+def tap_engine_kwargs(kw: dict) -> dict:
+    """The hidden-state tap's engine arguments added to `kw` (decisio.vllm_plugin.tap): its logits processor beside any
+    the caller names, and its layer set in additional_config, which vLLM's compiled graph is keyed on (the final state
+    alone unless the caller's additional_config names layers)."""
+    from decisio.vllm_plugin import tap
+
+    procs = list(kw.get("logits_processors") or [])
+    if tap.PROCESSOR not in procs:
+        procs.append(tap.PROCESSOR)
+    extra = dict(kw.get("additional_config") or {})
+    extra.setdefault(tap.CONFIG_KEY, [])
+    return {**kw, "logits_processors": procs, "additional_config": extra}
 
 
 KV_CACHE_DTYPES = ("auto", "fp8")
@@ -3993,9 +4034,7 @@ def main():
             hidden_engine.family = args.family
             hidden_engine.fmt = fmt
         else:
-            from decisio.serve.hidden_engine import SingleEngineHidden
-
-            hidden_engine = SingleEngineHidden(engine, args.model, revision=args.revision)
+            hidden_engine = single_engine_reader(engine, args)
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
     if head_mode == "second-engine":
         if args.backend == "vllm" and args.gpu_memory_utilization + args.head_gpu_memory_utilization > 0.95:

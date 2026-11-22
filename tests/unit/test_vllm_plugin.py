@@ -212,7 +212,12 @@ def test_g1_gemma_hidden_readout_writes_after_the_soft_cap(monkeypatch):
         lp = torch.log_softmax(got[:, 40:49].double(), -1).numpy()
         assert abs(recover_hidden(lp) - h.double().numpy()).max() < 1e-6
         dunder = {"__module__", "__doc__", "__qualname__", "__firstlineno__", "__static_attributes__"}
-        assert set(vars(cls)) - dunder == {"compute_logits"}
+        # the tap's methods (decisio.vllm_plugin.tap): with no layers asked for, forward is the stock class's output, as
+        # it is, and compute_logits only keeps the rows for the tap's processor
+        assert set(vars(cls)) - dunder == {"__init__", "forward", "compute_logits"}
+        sentinel = object()
+        monkeypatch.setattr(base, "forward", lambda self, *a, **k: sentinel, raising=False)
+        assert m.tap_layers == () and m.forward() is sentinel
 
 
 def test_g2_gemma4_text_classes(monkeypatch):

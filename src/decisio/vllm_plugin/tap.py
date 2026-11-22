@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The hidden-state tap (a study prototype, vLLM 0.31.0): a question's hidden states at its answer position, the
-final-norm state and a configured set of middle layers, read in the same engine request as its letter probabilities,
-with no extra request and no second engine.
+"""The hidden-state tap (vLLM 0.31.0; the Gemma 4 12B's head reader in an in-process engine): a question's hidden
+states at its answer position, the final-norm state and a configured set of middle layers, read in the same engine
+request as its letter probabilities, with no extra request and no second engine.
 
 How:
-  - the model class (`decisio.vllm_plugin.gemma.DecisioGemma4UnifiedHiddenReadoutTap`) asks vLLM's Gemma 4 model
+  - the model class (`decisio.vllm_plugin.gemma.DecisioGemma4UnifiedHiddenReadout`) asks vLLM's Gemma 4 model
     for the residual stream after the layers in `DECISIO_TAP_LAYERS` (vLLM's EAGLE-3 auxiliary-state mechanism:
     layer L is the output of decoder layer L, before the final norm; 0 is the embeddings) and returns
     [final | layer a | layer b | ...] for every token;
@@ -35,6 +35,7 @@ import os
 import threading
 
 TAP_KEY = "decisio_tap"
+PROCESSOR = "decisio.vllm_plugin.tap:HiddenTap"  # the logits processor's name, as vLLM's logits_processors take it
 _lock = threading.Lock()
 _store: dict = {}
 # this step's answer-position rows: written by the model's compute_logits and read by the processor in the same engine

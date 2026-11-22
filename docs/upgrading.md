@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: the 12B's intent head reads its hidden state in the question's own request
+
+### What changed
+
+- **On Gemma 4 12B (bf16 and FP8, and the tuned 12B repositories) with the engine in the server's process (the default), a question answered by an intent head reads its hidden state in its own request**, through decisio's model class and a vLLM logits processor, with no extra request: about 55 ms instead of 151 ms per head question on one RTX PRO 6000, and a registration of 1,000 examples in 162 s instead of 255 s.
+- Every other question's answer is unchanged, bit for bit, and so are the prefix cache and images.
+- The hidden state now comes from the forward that produced the question's letters; the reserved columns re-read the prompt from the prefix cache, which gives a state 1.5 to 4.5% apart. **A head fitted before is therefore not applied on such a server:** its questions are answered as without the task, its answers are not certified (`certified_reason: head_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` (`systemone.task_store.readout.head_refit`) name it with the command that registers it again.
+- With a separate engine process (`--engine-process separate`), and on the other bases, the head reads its hidden state through the reserved logit columns as before.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A task with a kept intent head, on a Gemma 4 12B server with the engine in its process | the head, its state read in extra requests | answered as without the task, not certified (`head_refit`) | register it again with the same body: `curl -s http://<host>:<port>/v1/tasks -H 'Content-Type: application/json' -d @<your task>.json` |
+| A task without a head, or on another base or engine process | | unchanged | nothing |
+
 ## 0.53.0: label review in the registration response
 
 ### What changed

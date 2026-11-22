@@ -23,7 +23,6 @@ SUPPORTED_VLLM = "0.31.0"
 TEXT_ONLY = "DecisioQwen3_5MoeTextOnly"
 HIDDEN_READOUT = "DecisioQwen3_5MoeHiddenReadout"
 GEMMA4_HIDDEN_READOUT = "DecisioGemma4UnifiedHiddenReadout"
-GEMMA4_HIDDEN_TAP = "DecisioGemma4UnifiedHiddenReadoutTap"
 GEMMA4_MM_TEXT_ONLY = "DecisioGemma4TextOnly"
 GEMMA4_MM_HIDDEN_READOUT = "DecisioGemma4HiddenReadout"
 QWEN_DENSE_TEXT_ONLY = "DecisioQwen3_5TextOnly"
@@ -32,7 +31,6 @@ MODELS: dict[str, str] = {
     TEXT_ONLY: "decisio.vllm_plugin.models:DecisioQwen3_5MoeTextOnly",
     HIDDEN_READOUT: "decisio.vllm_plugin.models:DecisioQwen3_5MoeHiddenReadout",
     GEMMA4_HIDDEN_READOUT: "decisio.vllm_plugin.gemma:DecisioGemma4UnifiedHiddenReadout",
-    GEMMA4_HIDDEN_TAP: "decisio.vllm_plugin.gemma:DecisioGemma4UnifiedHiddenReadoutTap",
     GEMMA4_MM_TEXT_ONLY: "decisio.vllm_plugin.gemma:DecisioGemma4TextOnly",
     GEMMA4_MM_HIDDEN_READOUT: "decisio.vllm_plugin.gemma:DecisioGemma4HiddenReadout",
     QWEN_DENSE_TEXT_ONLY: "decisio.vllm_plugin.models:DecisioQwen3_5TextOnly",
@@ -46,7 +44,6 @@ BASE_ARCHS: dict[str, str] = {
     # Gemma4Config picks one attention backend for Gemma 4's two head sizes (256 sliding, 512 full); without the hook
     # under this name the layers would mix kernels
     GEMMA4_HIDDEN_READOUT: "Gemma4UnifiedForConditionalGeneration",
-    GEMMA4_HIDDEN_TAP: "Gemma4UnifiedForConditionalGeneration",
     # the text classes of Gemma4ForConditionalGeneration checkpoints (the 31B) subclass Gemma4ForCausalLM, whose hook
     # is the same Gemma4Config
     GEMMA4_MM_TEXT_ONLY: "Gemma4ForCausalLM",

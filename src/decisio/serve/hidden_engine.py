@@ -423,10 +423,11 @@ class SingleEngineHidden(HiddenReadout):
 
 
 class TapHidden(HiddenReadout):
-    """h, and the tapped middle layers, from the serving engine's own readout request (a study prototype,
-    decisio.vllm_plugin.tap): the engine runs `DecisioGemma4UnifiedHiddenReadoutTap` with the `HiddenTap` logits
-    processor in this process, and a head question is the plain question's one request, carrying a key; the label
-    log-probabilities are that request's own, so they equal the plain readout's exactly. `last_layers()`: per question
+    """h, and the tapped middle layers, from the serving engine's own readout request (decisio.vllm_plugin.tap; the
+    Gemma 4 12B's head reader when the engine runs in the server's process): the engine runs
+    `DecisioGemma4UnifiedHiddenReadout` with the `HiddenTap` logits processor in this process, and a head question
+    is the plain question's one request, carrying a key; the label log-probabilities are that request's own, so they
+    equal the plain readout's exactly. `last_layers()`: per question
     of the calling thread's last read, {layer: state} (float32), for the multi-layer heads."""
 
     def __init__(self, engine, layers=None):
@@ -436,6 +437,7 @@ class TapHidden(HiddenReadout):
         self.family = getattr(engine, "family", None)
         self.layers = tap.tap_layers() if layers is None else tuple(layers)
         self.mode = "hidden (serving engine, tap in the same request)"
+        self.reader = "tap"  # stored with every head fitted on this reader's reads (SystemOne.head_stale)
 
     def _prepare_separate(self, state, questions):
         return self.engine._prepare_separate(state, questions)
@@ -451,26 +453,42 @@ class TapHidden(HiddenReadout):
     def last_layers(self):
         return getattr(self._read, "layers", None)
 
-    def read_info(self):
-        return None
+    def read_info(self) -> dict | None:
+        """The calling thread's last `readout`: `context_ms` and `context_boundary` for a state read with a task's
+        context (x-decisio-stages), as `SingleEngineHidden.read_info`; None for one without."""
+        return getattr(self._read, "info", None)
 
     def readout(self, state, questions):
+        """[(label log-probabilities, h)] per question, from one engine request per question row: the plain readout's
+        own request, carrying the tap's key. A state read with its task's context registers the context's boundary in
+        the prefix cache as the letters path and `SingleEngineHidden` do (vllm_engine.ContextRegistrations)."""
         import uuid
 
         from decisio.vllm_plugin import tap
 
         with self._lock:
             t0 = time.perf_counter()
-            rows, _ = self._prepare_separate(state, questions)
+            registrar = getattr(self.engine, "__dict__", {}).get("_registrar")
+            if registrar is not None:
+                registrar.run_due()
+            prepared = self._prepare_separate(state, questions)
+            rows = prepared[0]
+            ctx = ContextRegistrations(self.engine, None)
+            ctx.add(prepared, 0)
+            ctx_ms = ctx.send()
             keys = [f"tap-{uuid.uuid4().hex}" for _ in rows]
-            probs, _ = self.engine.score_prompts(rows, extra_args=[{tap.TAP_KEY: k} for k in keys])
+            probs, info = self.engine.score_prompts(rows, extra_args=[{tap.TAP_KEY: k} for k in keys])
+            first = (info.get("cached_tokens") or [None])[0] if isinstance(info, dict) else None
+            ctx.settle(lambda k: first)
+            facts = ctx.facts()
+            self._read.info = {"context_ms": ctx_ms, "context_boundary": facts} if facts is not None else None
             out, layers = [], []
             for p, k in zip(probs, keys):
                 row = tap.pop(k)
                 if row is None:
                     raise RuntimeError(
                         "the engine stored no hidden state for this question: the tap needs the engine built with "
-                        "DecisioGemma4UnifiedHiddenReadoutTap and decisio.vllm_plugin.tap:HiddenTap, in this process"
+                        "DecisioGemma4UnifiedHiddenReadout and decisio.vllm_plugin.tap:HiddenTap, in this process"
                     )
                 d = int(row.shape[-1]) // (1 + len(self.layers))
                 h, mids = tap.split(row, d, self.layers)
@@ -485,7 +503,13 @@ class TapHidden(HiddenReadout):
         self.engine.probe()
 
     def facts(self):
-        return {"mode": self.mode, "layers": list(self.layers), "requests_per_question": 1}
+        return {
+            "mode": self.mode,
+            "layers": list(self.layers),
+            "label_logprobs": "engine",
+            "requests_per_question": 1,
+            "reader": "tap",
+        }
 
 
 def softcap_bf16(z, cap):

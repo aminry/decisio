@@ -64,19 +64,19 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
         final, l2, l5 = (torch.randn(6, D, generator=g) for _ in range(3))
         monkeypatch.setattr(Base, "forward", lambda self, *a, **k: (final, [l2, l5]), raising=False)
 
-        model = gemma.DecisioGemma4UnifiedHiddenReadoutTap(vllm_config=_cfg([5, 2]))
+        model = gemma.DecisioGemma4UnifiedHiddenReadout(vllm_config=_cfg([5, 2]))
         assert set_layers == [(2, 5)] and model.tap_layers == (2, 5)
         wide = model.forward(None, None)
         assert torch.equal(wide, torch.cat([final, l2, l5], dim=-1))
 
         rows = wide[[1, 4]]  # the runner's answer-position rows
         logits = model.compute_logits(rows)
-        reference = gemma.DecisioGemma4UnifiedHiddenReadout()
+        assert torch.equal(tap.take(), rows) and tap.take() is None
+        reference = gemma.DecisioGemma4UnifiedHiddenReadout()  # no layers: the final state's own logits
         reference.load_state_dict(model.state_dict())
         assert torch.equal(logits, reference.compute_logits(final[[1, 4]].contiguous()))
-        assert torch.equal(tap.take(), rows) and tap.take() is None
 
-        plain = gemma.DecisioGemma4UnifiedHiddenReadoutTap(vllm_config=_cfg([]))  # final state only
+        plain = gemma.DecisioGemma4UnifiedHiddenReadout(vllm_config=_cfg([]))  # final state only
         monkeypatch.setattr(Base, "forward", lambda self, *a, **k: final, raising=False)
         assert plain.forward() is final
         plain.load_state_dict(model.state_dict())
@@ -89,8 +89,8 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
 
         monkeypatch.setattr(Base, "__init__", with_layers)
         with pytest.raises(ValueError, match="this model has 4 layers"):
-            gemma.DecisioGemma4UnifiedHiddenReadoutTap(vllm_config=_cfg([5]))
-        assert gemma.DecisioGemma4UnifiedHiddenReadoutTap().tap_layers == ()  # no config: none, whatever the env
+            gemma.DecisioGemma4UnifiedHiddenReadout(vllm_config=_cfg([5]))
+        assert gemma.DecisioGemma4UnifiedHiddenReadout().tap_layers == ()  # no config: none, whatever the env
 
 
 def test_h3_the_processor_stores_keyed_rows_by_slot_and_leaves_the_logits():
@@ -188,5 +188,5 @@ def test_h5_the_reader_reads_one_request_per_question_row():
         assert np.array_equal(lp, np.log(probs[i])) and np.array_equal(h, H[i, :D])
         assert np.array_equal(reader.last_layers()[i][5], H[i, 2 * D :])
     assert tap.pending() == 0 and reader.facts()["requests_per_question"] == 1
-    with pytest.raises(RuntimeError, match="HiddenReadoutTap"):
+    with pytest.raises(RuntimeError, match="DecisioGemma4UnifiedHiddenReadout"):
         TapHidden(_Engine(probs, H, store=False), layers=LAYERS).readout(None, [{"i": 0}])

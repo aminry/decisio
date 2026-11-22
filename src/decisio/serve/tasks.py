@@ -349,14 +349,25 @@ class TaskStore:
         return [t for k, t in self.by_key.items() if k == key or k.startswith((key + "@", key + "~"))]
 
     def register(
-        self, task_id, examples, score_fn, hidden_fn=None, key_fn=None, commit=True, context=None, temperature=1.0
+        self,
+        task_id,
+        examples,
+        score_fn,
+        hidden_fn=None,
+        key_fn=None,
+        commit=True,
+        context=None,
+        temperature=1.0,
+        head_reader=None,
     ):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
         server has none. Returns the stored task (`commit=False`: the fitted task, not yet stored: the caller adds a
         certificate and calls `put`, and a failure leaves the previous task in place). `context`: the task's
         `context_record`, stored with it; the two functions read each state with it (the caller's concern).
-        `temperature`: the one the question is served at without a task; the calibration is fitted at it."""
+        `temperature`: the one the question is served at without a task; the calibration is fitted at it.
+        `head_reader`: the hidden-state reader the head is fitted on ("tap" for decisio.vllm_plugin.tap), stored in the
+        head record as `reader`; a tap server does not apply a head fitted on another reader's reads."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -419,6 +430,7 @@ class TaskStore:
             head = {
                 **head,
                 "inputs_sha256": inputs_digest([lp for lp, _ in readout], [h for _, h in readout]),
+                **({"reader": head_reader} if head_reader else {}),
             }
         task = {
             "format": FORMAT,
