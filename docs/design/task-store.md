@@ -245,3 +245,46 @@ The trainer also reads the task's kept rows once per refit.
 - A learner process (`python -m decisio.serve.learner`) that holds the lease and serves nothing.
   The certificate counts only the rows logged on the trainer's serving stack, and a process with no engine has no stack; giving it one to train for is a decision of its own, not a cheap addition.
 - A cache of the trainer's segments between refits (each refit reads the kept rows again).
+
+## Labels on the shared store
+
+Status: built (decisio.serve.labels, `SharedPlace`).
+A task that takes labels from traffic (`"labels": {...}` at registration, [`tasks.md`](../tasks.md)) keeps its label log on the shared store when the replicas share one.
+One server's log, under `--tasks-dir` or in memory, is the same code on another place.
+
+### Layout
+
+```
+labels/<task digest>/<registration>/EPOCHS.json                        the epochs, moved only by compare-and-swap
+labels/<task digest>/<registration>/<replica>/rows/<ms>-<seq>.jsonl    one replica's answers, written once
+labels/<task digest>/<registration>/<replica>/events/<ms>-<seq>.jsonl  its label events, written once
+```
+
+`<registration>` is the first 12 characters of the registration's draw salt, so a task registered again starts a new log.
+Every write is create-only and under the writer's own replica name, so replicas never overwrite each other and need no lease for the log.
+
+### Writing and reading
+
+- The request path never touches the store: an answered question is drawn and appended in memory, and the labels thread writes a segment every `SEGMENT_SECONDS` (60) or `SEGMENT_ROWS` (2,000).
+- A label write is acknowledged only after its events file is stored; a store out of reach is a 503 and nothing is kept in memory.
+- Every `FLUSH_EVERY` (10) seconds, and before every labels route, a replica lists the store's replica names and, for each, the files after the last one it read (a listing with an offset), and reads each new file once.
+- A label and its answer are joined when both are known, whichever arrives first: a label for an answer another replica served is kept as `not_joined` and joined when that replica's segment is read.
+- The latest label for an answer wins by its receipt time, whatever order the files are read in, so every replica that has read the same files has the same table.
+
+### Epochs
+
+- Epoch 0 is the registration's settings and needs no write: every replica has it.
+- The epoch that sets the cert region (`tau_min`, once `tau_after` answers are known) is proposed by the labels thread of any writing replica, and stored by compare-and-swap on `EPOCHS.json`; a replica that loses adopts the stored one.
+- A row records the epoch it was drawn under, so a replica that has not read the new epoch yet draws validly under the old one.
+
+### Read-only replicas, removal and gc
+
+- A `--task-store-readonly` replica reads the log and answers the queue and status; it logs no answers and refuses label writes (409).
+- Removing a task deletes its log on the replica that removes it; the others drop theirs from memory at their next turn without writing.
+- The store's gc (`python -m decisio.serve.task_store_shared gc`) deletes label files of a registration no live task names, older than its cutoff.
+
+### Not built yet
+
+- Compaction of the per-replica files into merged generations, and erasure of one answer with a purge at the merge.
+- Settings changed after registration (new epochs by `PUT .../labels/settings`).
+

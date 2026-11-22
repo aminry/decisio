@@ -131,6 +131,7 @@ def test_l4_labels_every_reference_and_a_restart(tmp_path):
         tl.post([])
     # every acknowledged label is on the place: a new log over the same place reads it all back
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
     labelled = {(r["request_id"], r.get("answer")) for r in back.table() if r["state"] == "labelled"}
     assert labelled == {(rid, "sales"), (rid_b, "tech")}
 
@@ -182,6 +183,8 @@ def test_l8_the_region_is_all_traffic_then_the_top_share():
     confs = np.linspace(0.4, 0.99, 50)
     for c in confs:
         _serve(tl, f"t{c}", [c, (1 - c) / 2, (1 - c) / 2])
+    assert len(tl.epochs) == 1  # the request path never writes: the labels thread starts the epoch
+    tl.tick()
     assert len(tl.epochs) == 2 and tl.epoch["tau_min"] == pytest.approx(float(np.quantile(confs, 0.5)))
     low = _serve(tl, "low", [0.41, 0.3, 0.29])[0]
     assert not tl.rows[(low, "q")]["draws"]["cert"]["in"] and tl.rows[(low, "q")]["epoch"] == 1
@@ -201,6 +204,7 @@ def test_l9_max_rows_drops_the_oldest_undrawn_rows(tmp_path):
     assert all((r, "q") in tl.rows for r in drawn)  # a drawn row's label may still come
     assert kept_undrawn == undrawn[len(undrawn) - len(kept_undrawn) :] and len(kept_undrawn) <= 1  # the newest only
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
     assert {k[0] for k in back.rows} == set(drawn)  # read back: the same rule, every undrawn row over the cap goes
 
 
@@ -261,6 +265,7 @@ def test_l11_the_need_is_the_current_region_at_one_chance():
     tl = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=20, region=0.5)
     low = [_serve(tl, f"low{i}", [0.5, 0.3, 0.2])[0] for i in range(10)]  # epoch 0: all traffic is the region
     high = [_serve(tl, f"high{i}", [0.9, 0.05, 0.05])[0] for i in range(10)]
+    tl.tick()
     assert tl.epoch["epoch"] == 1 and tl.epoch["tau_min"] > 0.5
     tl.post([{"request_id": r, "answer": "billing"} for r in low + high])
     a = {n["alpha"]: n for n in tl.need()}[0.05]

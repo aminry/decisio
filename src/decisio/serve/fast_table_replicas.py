@@ -189,10 +189,20 @@ class Objects:
         except Exception as e:
             raise self._down("written", path, e) from e
 
-    def list(self, prefix: str) -> list[str]:
+    def list(self, prefix: str, offset: str | None = None) -> list[str]:
+        """The paths under `prefix`, sorted; with `offset`, only those after it (a listing that resumes)."""
         obs, _ = self._obs()
         try:
-            return sorted(item["path"] for batch in obs.list(self.store, prefix) for item in batch)
+            got = obs.list(self.store, prefix, offset=offset) if offset else obs.list(self.store, prefix)
+            return sorted(item["path"] for batch in got for item in batch)
+        except Exception as e:
+            raise self._down("listed", prefix, e) from e
+
+    def prefixes(self, prefix: str) -> list[str]:
+        """The directories one level under `prefix` (a listing with a delimiter), sorted."""
+        obs, _ = self._obs()
+        try:
+            return sorted(obs.list_with_delimiter(self.store, prefix)["common_prefixes"])
         except Exception as e:
             raise self._down("listed", prefix, e) from e
 
