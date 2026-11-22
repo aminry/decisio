@@ -33,6 +33,12 @@ L16 the merge: many files become a few, nothing kept is lost, an event or row re
     back from the merged files has the same table
 L17 settings after registration: a new epoch, draws at the new chances, rows keep their epoch; a region change
     moves tau_min; bad settings are refused
+L18 roles: an evaluation draw (audit or cert) makes a row evaluation-only; fit rows are margin rows drawn by no
+    evaluation slice, weighted 1 / (pi_margin (1 - p_eval)), and self labels on undrawn rows (no weight); the cohort is
+    closed at now - due_days and refuses a cutoff with pending rows; the region reaches the certified threshold
+L19 the per-day budget: the registration's chances assume tau_after answers a day; the region epoch sets them from
+    the measured rate so the expected labels a day meet per_day; a new budget epoch only after a day and only when
+    the rate has left 0.5x to 2x; per_day and explicit chances switch each other off
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -71,10 +77,14 @@ def _serve(tl, text, p, rid=None, h=None):
 def test_l1_settings():
     assert LB.parse_settings(None) is None and LB.parse_settings(False) is None
     assert LB.parse_settings({"enabled": False}) is None
-    assert LB.parse_settings(True) == LB.DEFAULTS
+    d = LB.parse_settings(True)  # a budget of 20 a day; the registration's epoch assumes tau_after (200) answers a day
+    assert d["per_day"] == 20 and {k: d[k] for k in LB.PI_KEYS} == {
+        "audit_pi": 0.02, "cert_pi": 0.045, "margin_pi_min": 0.0, "margin_pi_max": 0.08}  # fmt: skip
+    assert LB.parse_settings({"cert_pi": 0.3})["per_day"] is None  # chances given: no budget
     assert LB.parse_settings({"cert_pi": 0.3})["cert_pi"] == 0.3
     for bad in ({"nope": 1}, {"cert_pi": 0.01}, {"features": "all"}, {"margin_pi_min": 0.3, "margin_pi_max": 0.2},
-                {"due_days": 0}, {"show_answer": True}, {"enabled": 1}, "on"):  # fmt: skip
+                {"due_days": 0}, {"show_answer": True}, {"enabled": 1}, "on", {"per_day": 0},
+                {"per_day": 10, "cert_pi": 0.2}, {"shares": {"audit": 0.5}}):  # fmt: skip
         with pytest.raises(LB.LabelsError):
             LB.parse_settings(bad)
 
@@ -446,3 +456,77 @@ def test_l17_settings_after_registration():
         with pytest.raises(LB.LabelsError):
             tl.set_settings(bad)
     assert tl.epoch["epoch"] == 3 and tl.registered["audit_pi"] == 0
+
+
+def test_l18_roles_the_cohort_and_the_region():
+    clock = Clock()
+    tl = _task(clock=clock, audit_pi=0.3, cert_pi=0.3, margin_pi_min=0.5, margin_pi_max=0.5, tau_after=10_000)
+    rids = [_serve(tl, f"t{i}", [0.6, 0.3, 0.1])[0] for i in range(400)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in rids])
+    rows = {r: tl.rows[(r, "q")]["draws"] for r in rids}
+    ev = {r["request_id"] for r in tl.eval_rows()}
+    fit = {r["request_id"]: r for r in tl.fit_rows()}
+    assert ev == {r for r, d in rows.items() if d["audit"]["in"] or d["cert"]["in"]}
+    assert not ev & set(fit)  # an evaluation draw makes a row evaluation-only
+    assert set(fit) == set(rids) - ev  # margin rows (weighted) and self labels on undrawn rows
+    both = [r for r, d in rows.items() if d["margin"]["in"] and r in ev]
+    assert both  # rows drawn by margin and by an evaluation slice exist, and none is a fit row
+    w = next(x for x in fit.values() if x["selection"] == "slice")["weight"]
+    assert w == pytest.approx(1 / (0.5 * (1 - (1 - (1 - 0.3) * (1 - 0.3)))))
+    assert all(x["weight"] is None for x in fit.values() if x["selection"] == "self")
+    LB.assert_disjoint([(r, "q") for r in fit], [(r, "q") for r in ev])
+    clock.t += 1
+    late = next(
+        r
+        for r in (_serve(tl, f"late{i}", [0.6, 0.3, 0.1])[0] for i in range(50))
+        if tl.rows[(r, "q")]["draws"]["audit"]["in"]
+    )
+    with pytest.raises(LB.LabelsError, match="pending"):  # a drawn row still pending at that cutoff: the cohort waits
+        tl.cohort(cutoff=clock.t)
+    assert tl.cohort() == []  # nothing is due yet: every row is younger than due_days
+    clock.t += 15 * 86400
+    co = tl.cohort()
+    assert {r["request_id"] for r in co} == {r["request_id"] for r in tl.eval_rows()} and late in {
+        r["request_id"] for r in co
+    }
+    assert all(not r["strict_error"] for r in co if r["request_id"] in ev)
+    assert next(r for r in co if r["request_id"] == late)["strict_error"]  # expired: an error under the strict rule
+    reg = _task(audit_pi=0, cert_pi=1.0, margin_pi_max=0, tau_after=50)
+    for i in range(50):
+        _serve(reg, f"r{i}", [0.5 + i / 100, 0.3, 0.2])
+    reg.cert_threshold = 0.52  # the task's certified threshold sits below the top-80% cut
+    reg.tick()
+    assert reg.epoch["tau_min"] == pytest.approx(0.52)
+
+
+def test_l19_the_per_day_budget():
+    clock = Clock()
+    tl = _task(clock=clock)  # per_day 20
+    rng = np.random.default_rng(3)
+    for i in range(200):  # 200 answers over 10 days: 20 a day
+        clock.t += 72 * 60
+        c = float(rng.uniform(0.45, 0.6))  # near ties: the margin slice can spend its share
+        _serve(tl, f"t{i}", [c, 0.99 - c, 0.01])
+    assert tl.epoch["epoch"] == 0 and tl.settings["cert_pi"] == 0.045
+    tl.tick()
+    e = tl.epoch
+    assert e["epoch"] == 1 and e["budget"]["rate_per_day"] == pytest.approx(20, rel=0.05)
+    assert e["settings"]["audit_pi"] == pytest.approx(20 * 0.15 / e["budget"]["rate_per_day"], rel=1e-3)
+    assert e["budget"]["expected_per_day"] == pytest.approx(20, abs=0.5)  # no chance clamped: the budget is spent
+    assert tl.budget()["per_day"] == 20
+    clock.t += 3600
+    for i in range(200):  # a burst: the rate triples, but within a day of the epoch nothing moves
+        _serve(tl, f"b{i}", [0.9, 0.06, 0.04])
+    tl.tick()
+    assert tl.epoch["epoch"] == 1
+    clock.t += 86_400
+    for i in range(400):
+        _serve(tl, f"c{i}", [0.9, 0.06, 0.04])
+    tl.tick()
+    assert tl.epoch["epoch"] == 2 and "rate moved" in tl.epoch["why"]
+    assert tl.epoch["settings"]["audit_pi"] < e["settings"]["audit_pi"]  # more traffic: smaller chances
+    assert tl.epoch["tau_min"] == e["tau_min"]
+    up = tl.set_settings({"per_day": 80})
+    assert up["settings"]["per_day"] == 80 and up["settings"]["audit_pi"] > tl.epochs[-2]["settings"]["audit_pi"]
+    off = tl.set_settings({"cert_pi": 0.3})
+    assert off["settings"]["per_day"] is None and off["settings"]["cert_pi"] == 0.3 and "budget" not in off

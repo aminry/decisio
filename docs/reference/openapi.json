@@ -1054,7 +1054,7 @@
     "/v1/tasks/{task_id}/labels/export": {
       "get": {
         "summary": "Labels Export",
-        "description": "The joined label table as JSON lines: every logged question, its draws, its state and its label.",
+        "description": "The label table as JSON lines. `view`: `table` (every logged question with every stored field, its draws,\nstate and label), `eval` (the rows an evaluation slice drew: certificates and tests only), `fit` (the rows a\nfit may use, with their weights), or `cohort` (the evaluation rows drawn by `cutoff`, default now - due_days,\neach closed: labelled, expired or declined).",
         "operationId": "labels_export_v1_tasks__task_id__labels_export_get",
         "parameters": [
           {
@@ -1064,6 +1064,32 @@
             "schema": {
               "type": "string",
               "title": "Task Id"
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "table",
+              "title": "View"
+            }
+          },
+          {
+            "name": "cutoff",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cutoff"
             }
           }
         ],

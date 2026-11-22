@@ -59,12 +59,17 @@ DEFAULTS = {
     "margin_pi_min": 0.0,
     "margin_pi_max": 0.2,
     "margin_scale": 0.1,  # the margin (top-two gap) at which the margin pi is halfway between its min and max
-    "region": 0.5,  # the share of traffic the cert slice's region should cover once tau_min is set
+    "region": 0.8,  # the share of traffic the cert region covers at least once tau_min is set (lenient alphas)
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
     "max_rows": 50_000,
     "reservoir": 2_000,  # undrawn answers that keep their served distribution: a uniform sample, about this many
+    "per_day": 20,  # labels a day the chances aim at (None: the chances above as given); a place to start
+    "shares": {"audit": 0.15, "cert": 0.45, "margin": 0.30, "typical": 0.10},  # of per_day, by slice
 }
+PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max")
+REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
+REBUDGET_BAND = (0.5, 2.0)  # and ends when the measured rate leaves this band around the rate it assumed
 FEATURES = ("full", "minimal")
 SEGMENT_ROWS = 2_000  # rows buffered before a segment is written
 SEGMENT_SECONDS = 60  # and at most this old when written
@@ -99,7 +104,23 @@ def parse_settings(block) -> dict | None:
     unknown = sorted(set(block) - set(DEFAULTS) - {"enabled"})
     if unknown:
         raise LabelsError(f"labels: unknown settings {unknown}; the settings are {sorted(DEFAULTS)}")
+    explicit = any(k in block for k in PI_KEYS)
+    if explicit and block.get("per_day") is not None:
+        raise LabelsError("labels: give per_day (a budget the chances follow) or the chances themselves, not both")
     s = {**DEFAULTS, **{k: v for k, v in block.items() if k != "enabled"}}
+    if explicit:
+        s["per_day"] = None
+    if s["per_day"] is not None and (isinstance(s["per_day"], bool) or not isinstance(s["per_day"], (int, float))
+                                     or s["per_day"] <= 0):  # fmt: skip
+        raise LabelsError("labels.per_day is a number of labels a day above 0, or null for the chances as given")
+    sh = s["shares"]
+    if (not isinstance(sh, dict) or set(sh) - set(DEFAULTS["shares"])
+            or any(not isinstance(v, (int, float)) or v < 0 for v in sh.values())
+            or abs(sum(sh.values()) - 1.0) > 1e-6):  # fmt: skip
+        raise LabelsError(f"labels.shares: fractions of per_day for {sorted(DEFAULTS['shares'])}, summing to 1")
+    s["shares"] = {k: float(sh.get(k, 0.0)) for k in DEFAULTS["shares"]}
+    if s["per_day"] is not None:  # the registration's epoch: tau_after answers a day assumed, all traffic the region
+        s.update(budget_pis(s, rate=float(s["tau_after"]), region_share=1.0, margin_weight=0.5))
     if s["features"] not in FEATURES:
         raise LabelsError(f"labels.features is one of {list(FEATURES)}")
     for k in ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max"):
@@ -114,6 +135,25 @@ def parse_settings(block) -> dict | None:
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
     return s
+
+
+def margin_weight(margin: float, scale: float) -> float:
+    """The margin slice's shape: 1 at a tie, 1/2 at `scale`, falling after."""
+    return 1.0 / (1.0 + (max(0.0, float(margin)) / scale) ** 2)
+
+
+def budget_pis(s: dict, rate: float, region_share: float, margin_weight: float) -> dict:
+    """The chances that spend `per_day` labels a day in `shares` at `rate` answers a day: audit over all traffic,
+    cert over the region (`region_share` of traffic), margin scaled by the mean margin weight. Audit and cert are
+    raised to `PI_MIN` when the budget is too small (they spend more than their share then); margin below it is off.
+    The typicality share goes to margin while there is no typicality slice."""
+    per, sh = float(s["per_day"]), s["shares"]
+    rate = max(float(rate), 1e-9)
+    audit = min(1.0, max(PI_MIN, per * sh["audit"] / rate))
+    cert = min(1.0, max(PI_MIN, per * sh["cert"] / (rate * max(region_share, 1e-9))))
+    m = per * (sh["margin"] + sh.get("typical", 0.0)) / (rate * max(margin_weight, 1e-9))
+    return {"audit_pi": round(audit, 6), "cert_pi": round(cert, 6), "margin_pi_min": 0.0,
+            "margin_pi_max": 0.0 if m < PI_MIN else round(min(1.0, m), 6)}  # fmt: skip
 
 
 STORES = (
@@ -246,7 +286,7 @@ def floor_pi(pi: float) -> float:
 
 def margin_pi(margin: float, settings: dict) -> float:
     lo, hi, scale = settings["margin_pi_min"], settings["margin_pi_max"], settings["margin_scale"]
-    w = 1.0 / (1.0 + (max(0.0, float(margin)) / scale) ** 2)  # 1 at a tie, 1/2 at the scale, falling after
+    w = margin_weight(margin, scale)
     return floor_pi(lo + (hi - lo) * w)
 
 
@@ -358,6 +398,9 @@ class TaskLabels:
         self._tombs: dict[str, dict] = {}  # erase events by id
         self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
         self.merges = 0
+        self.cert_threshold: float | None = None  # the task's certified threshold, when it has one (the server sets it)
+        self._hours: dict[int, int] = {}  # answers known here (every replica's) by the hour they were served
+        self._first_t: float | None = None
         self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
         self.unjoined_expired = 0  # labels for ids no replica's row ever joined, dropped after their due window
         self._pending_rows: list[dict] = []
@@ -446,12 +489,20 @@ class TaskLabels:
         if not self.loaded:
             self.sync()
 
+    def read_epochs(self) -> None:
+        """Only the epochs from the place (one small read), for a view that needs the settings in force but not the
+        rows: the task listing."""
+        raw = self.place.get("EPOCHS.json")
+        if raw:
+            self._adopt(json.loads(raw))
+
     def tick(self, force: bool = False, merge: bool = True) -> None:
         """The labels thread's turn: read the place, start an epoch that is due, write a segment that is due, and,
         for the merger (`merge`: one server, or the holder of the labels lease on a shared store), merge the log when
         it has many files or an erasure waits for its purge."""
         self.sync()
         self._maybe_tau()
+        self._maybe_rebudget()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
             self.compact()
@@ -566,6 +617,7 @@ class TaskLabels:
                 return
             tau, n = self._tau_now()
             why = f"tau_min from the first {n} answers"
+            b = self._budget(self.settings, tau) if self.settings.get("per_day") is not None else None
         zero = self._epoch_zero()
 
         def add(cur):
@@ -573,8 +625,84 @@ class TaskLabels:
             if _tau_set(cur[-1]):
                 return None  # another replica set it first: adopt theirs
             last = cur[-1]
-            return cur + [{"epoch": len(cur), "start": self.clock(), "tau_min": tau, "tau_set": True,
-                           "settings": last["settings"], "why": why, "by": self.replica}]  # fmt: skip
+            new = {"epoch": len(cur), "start": self.clock(), "tau_min": tau, "tau_set": True,
+                   "settings": last["settings"], "why": why, "by": self.replica}  # fmt: skip
+            if b is not None:  # the chances from the measured rate, from now on
+                new.update(settings=b["settings"], budget=b["budget"])
+            return cur + [new]
+
+        self._adopt(self._swap_epochs(add))
+
+    def rate(self) -> float:
+        """Answers a day over the last 7 days (or since the first answer, at least an hour), every replica's that
+        this log has read (under `_lock`)."""
+        now = self.clock()
+        lo = now - 7 * 86400
+        for h in [h for h in self._hours if (h + 1) * 3600 < lo]:
+            del self._hours[h]
+        n = sum(c for h, c in self._hours.items() if (h + 1) * 3600 >= lo)
+        span = max(3600.0, now - max(lo, self._first_t if self._first_t is not None else now))
+        return n * 86400.0 / span
+
+    def _budget(self, settings: dict, tau: float) -> dict:
+        """The chances for `settings`' per_day at the measured rate, over the region above `tau` (under `_lock`):
+        {"settings": with the chances, "budget": what they assumed}."""
+        rows = list(self.rows.values())
+        rate = self.rate()
+        share = (sum(r["conf"] >= tau for r in rows) / len(rows)) if rows else 1.0
+        w = float(np.mean([margin_weight(r["margin"], settings["margin_scale"]) for r in rows])) if rows else 0.5
+        pis = budget_pis(settings, rate, share, w)
+        new = {**settings, **pis}
+        per_row = [  # the chance each held answer would have of being drawn into each slice, floors and caps applied
+            floor_pi(new["audit_pi"])
+            + (floor_pi(new["cert_pi"]) if r["conf"] >= tau else 0.0)
+            + margin_pi(r["margin"], new)
+            for r in rows
+        ]
+        expected = rate * float(np.mean(per_row)) if rows else 0.0  # below per_day when a slice is floored or full
+        budget = {"per_day": settings["per_day"], "rate_per_day": round(rate, 3), "region_share": round(share, 4),
+                  "margin_weight": round(w, 4), "expected_per_day": round(expected, 2)}  # fmt: skip
+        return {"settings": new, "budget": budget}
+
+    def budget(self) -> dict:
+        """The budget in force, for the queue and status: the labels a day asked for and expected at the measured
+        rate (`per_day` None: the chances as given)."""
+        with self._lock:
+            e = self.epoch
+            s = e["settings"]
+            rate = self.rate()
+            out = {"per_day": s.get("per_day"), "rate_per_day": round(rate, 3), "since": e.get("start")}
+            if e.get("budget"):
+                out["assumed_rate_per_day"] = e["budget"]["rate_per_day"]
+            out["chances"] = {k: s[k] for k in PI_KEYS}
+            return out
+
+    def _maybe_rebudget(self) -> None:
+        """A budget epoch lasts at least `REBUDGET_SECONDS`; after that, a new one when the measured rate has left
+        `REBUDGET_BAND` around the rate it assumed (the region kept)."""
+        if not self.writes:
+            return
+        with self._lock:
+            e = self.epoch
+            s = e["settings"]
+            if s.get("per_day") is None or not _tau_set(e) or e.get("start") is None:
+                return
+            if self.clock() - e["start"] < REBUDGET_SECONDS:
+                return
+            assumed = (e.get("budget") or {}).get("rate_per_day") or float(s["tau_after"])
+            ratio = self.rate() / max(assumed, 1e-9)
+            if REBUDGET_BAND[0] <= ratio <= REBUDGET_BAND[1]:
+                return
+            b = self._budget(s, e["tau_min"])
+            n = e["epoch"]
+
+        def add(cur):
+            cur = cur or [self._epoch_zero()]
+            if cur[-1]["epoch"] != n:
+                return None  # another replica moved the epochs first
+            why = f"the rate moved {ratio:.2f}x"
+            return cur + [{**cur[-1], "epoch": len(cur), "start": self.clock(), "settings": b["settings"],
+                           "budget": b["budget"], "why": why, "by": self.replica}]  # fmt: skip
 
         self._adopt(self._swap_epochs(add))
 
@@ -583,7 +711,10 @@ class TaskLabels:
         (under `_lock`)."""
         region = self.settings["region"] if region is None else region
         confs = np.sort([r["conf"] for r in self.rows.values()])
-        return (float(np.quantile(confs, 1.0 - region)) if len(confs) else 0.0), len(confs)
+        tau = float(np.quantile(confs, 1.0 - region)) if len(confs) else 0.0
+        if self.cert_threshold is not None:  # the region reaches down to the task's certified threshold at least
+            tau = min(tau, float(self.cert_threshold))
+        return tau, len(confs)
 
     def _adopt(self, stored: list) -> None:
         with self._lock:
@@ -598,9 +729,20 @@ class TaskLabels:
         if not isinstance(block, dict) or not block or "enabled" in block:
             raise LabelsError("labels settings: an object of the settings to change (remove the task to stop)")
         with self._lock:
-            new_settings = parse_settings({**self.settings, **block})
+            base = dict(self.settings)
+            if any(k in block for k in PI_KEYS):
+                base["per_day"] = None  # chances given: the budget is off
+            elif {**base, **block}.get("per_day") is not None:
+                for k in PI_KEYS:
+                    base.pop(k, None)  # a budget: the chances follow it
+            new_settings = parse_settings({**base, **block})
             region_moved = new_settings["region"] != self.settings["region"]
             tau, n = self._tau_now(new_settings["region"])
+            if new_settings["per_day"] is not None and _tau_set(self.epoch):
+                b = self._budget(new_settings, tau if region_moved else self.epoch["tau_min"])
+                new_settings, budget = b["settings"], b["budget"]
+            else:
+                budget = None
         zero = self._epoch_zero()
 
         def add(cur):
@@ -609,7 +751,8 @@ class TaskLabels:
             keep = _tau_set(last) and not region_moved
             return cur + [{"epoch": len(cur), "start": self.clock(), "settings": new_settings, "by": self.replica,
                            "tau_min": last["tau_min"] if keep or not _tau_set(last) else tau,
-                           "tau_set": _tau_set(last), "why": "settings changed"}]  # fmt: skip
+                           "tau_set": _tau_set(last), "why": "settings changed",
+                           **({"budget": budget} if budget else {})}]  # fmt: skip
 
         stored = self._swap_epochs(add)
         self._adopt(stored)
@@ -621,6 +764,9 @@ class TaskLabels:
             return False
         key = (row["request_id"], row["question"])
         if key not in self.rows:
+            h = int(row["t"] // 3600)
+            self._hours[h] = self._hours.get(h, 0) + 1
+            self._first_t = row["t"] if self._first_t is None else min(self._first_t, row["t"])
             self.by_rid.setdefault(key[0], []).append(key)
             self.by_digest.setdefault(row["hk1"], []).append(key)
             if not row["drawn"]:
@@ -1012,7 +1158,8 @@ class TaskLabels:
                 item = {"request_id": key[0], "question": key[1], "asked_at": row["t"],
                         "due_by": row["t"] + self.settings["due_days"] * 86400}  # fmt: skip
                 items.append(item)
-            return {"items": items, "pending": len(pend), "epoch": self.epoch["epoch"], "as_of": now}
+            return {"items": items, "pending": len(pend), "epoch": self.epoch["epoch"], "as_of": now,
+                    "budget": {k: v for k, v in self.budget().items() if k in ("per_day", "rate_per_day")}}  # fmt: skip
 
     def counts(self) -> dict:
         now = self.clock()
@@ -1040,17 +1187,87 @@ class TaskLabels:
                 out["erasures"] = {"erased": len(self._tombs), "purged": len(self._purged & set(self._tombs))}
             return out
 
+    @staticmethod
+    def p_eval(row: dict) -> float:
+        """The chance a row had of being drawn by an evaluation slice (audit or cert): 1 - (1 - pi_a)(1 - pi_c)."""
+        d = row["draws"]
+        return 1.0 - (1.0 - d["audit"]["pi"]) * (1.0 - d["cert"]["pi"])
+
+    def eval_rows(self) -> list[dict]:
+        """The rows an evaluation slice drew (audit or cert), whatever else drew them: certificates, accuracy,
+        drift and challenger tests read these, and no fit may (an evaluation draw makes a row evaluation-only).
+        Each: request_id, question, slices, pi per slice, p_eval, epoch, lang, conf, top, t, state, answer, correct
+        (None while pending; expired and declined rows have no answer)."""
+        now = self.clock()
+        out = []
+        with self._lock:
+            for key, row in self.rows.items():
+                d = row["draws"]
+                if not (d["audit"]["in"] or d["cert"]["in"]):
+                    continue
+                out.append(self._role_rec(key, row, now, [s for s in EVAL_SLICES if d[s]["in"]]))
+        return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
+
+    def fit_rows(self) -> list[dict]:
+        """The labelled rows a fit may use: those drawn by a fit slice (margin) and by no evaluation slice, weighted
+        `1 / (pi_margin x (1 - p_eval))` (the chance of being drawn by margin and not by audit or cert), and the
+        labels a client chose itself on rows no slice drew (`selection: "self"`, weight None: not probability-sampled,
+        never for calibration). A label on a row an evaluation slice drew is never here."""
+        now = self.clock()
+        out = []
+        with self._lock:
+            for key, row in self.rows.items():
+                ev = self.latest.get(key)
+                if ev is None or ev["type"] != "label":
+                    continue
+                d = row["draws"]
+                if d["audit"]["in"] or d["cert"]["in"]:
+                    continue
+                rec = self._role_rec(key, row, now, [s for s in FIT_SLICES if d[s]["in"]])
+                if d["margin"]["in"]:
+                    rec["weight"] = 1.0 / (d["margin"]["pi"] * (1.0 - self.p_eval(row)))
+                    rec["selection"] = "slice"
+                else:
+                    rec["weight"], rec["selection"] = None, "self"
+                out.append(rec)
+        return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
+
+    def _role_rec(self, key, row, now, slices) -> dict:
+        ev = self.latest.get(key)
+        labelled = ev is not None and ev["type"] == "label"
+        return {"request_id": key[0], "question": key[1], "slices": slices, "t": row["t"], "epoch": row["epoch"],
+                "lang": row["lang"], "conf": row["conf"], "top": row["top"], "version": row["version"],
+                "pi": {s: row["draws"][s]["pi"] for s in SLICES}, "p_eval": self.p_eval(row),
+                "state": self.state_of(key, self.latest, now), "answer": ev["answer"] if labelled else None,
+                "correct": (ev["answer"] == row["top"]) if labelled else None}  # fmt: skip
+
+    def cohort(self, cutoff: float | None = None) -> list[dict]:
+        """A certificate's input: the evaluation rows drawn at or before `cutoff` (default now - due_days), so every
+        one is labelled, expired or declined and none is left out for being slow to label (labelling delay can
+        depend on whether the answer was right). Under the strict rule an expired or declined row is an error."""
+        cutoff = self.clock() - self.settings["due_days"] * 86400 if cutoff is None else float(cutoff)
+        out = [r for r in self.eval_rows() if r["t"] <= cutoff]
+        for r in out:
+            if r["state"] == "pending":  # only with a cutoff later than the default: not closed yet
+                raise LabelsError(f"cohort: row {r['request_id']} is still pending at this cutoff; use an earlier one")
+            r["strict_error"] = r["state"] != "labelled" or not r["correct"]
+        return out
+
     def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
         """Per alpha: the cert slice's labelled answers in the current region and the errors among them (expired and
         declined rows counted as errors, the strict rule), the Clopper-Pearson upper bound, and how many more labels
         the region needs if no further error comes and if one more does.
+
+        A planning figure, not a certificate: it counts the labels received so far and leaves pending rows out, and
+        labelling delay can depend on whether the answer was right. A certificate reads a closed cohort (`cohort`).
 
         The region is the current epoch's: served confidence at or above its `tau_min`. A row of an earlier epoch
         counts when its confidence is in that region and that epoch's region contained the current one (its `tau_min`
         at most the current one), whatever its cert `pi`: each epoch's drawn rows are then a uniform sample of the
         current region's traffic in that epoch, and `pi` only changes how many there are, so the Clopper-Pearson bound
         is exact (`pooling: "exact"`). An epoch whose `tau_min` was higher drew nothing in the band between the two
-        thresholds, and its rows are left out. Pending rows are shown apart (`region_pending`), never counted."""
+        thresholds, and its rows are left out. Pending rows are shown apart (`region_pending`), never counted. Only cert
+        rows are counted, which is conservative: audit rows of the region could be pooled under the same rule."""
         from decisio.readout import certify
 
         now = self.clock()

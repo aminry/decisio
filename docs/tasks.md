@@ -306,6 +306,20 @@ A drawn answer declined, or not labelled within `due_days`, counts as an error t
 When the errors so far are already at or above alpha, that level's entry has a `reason`: it will not certify there unless the error falls.
 `GET /v1/tasks/{id}/labels/export` returns every logged question with all its stored fields, its draw, state and label as JSON lines; `ps`, `lp` and `h` are base64 little-endian float32.
 
+**Which labels may be used for what.**
+A label's use depends on why its answer was drawn, and the export's views give each use its rows:
+
+- `?view=eval`: the answers an evaluation slice (audit or cert) drew, whatever else drew them.
+  Certificates, accuracy estimates, drift and challenger tests read these, and no fit may use them: an evaluation draw makes an answer evaluation-only.
+- `?view=fit`: the labelled answers a fit may use.
+  Those the margin slice drew and no evaluation slice did carry `weight` `1 / (pi_margin x (1 - p_eval))`, where `p_eval = 1 - (1 - audit_pi)(1 - cert_pi)` is the answer's chance of an evaluation draw.
+  Labels you gave for answers no slice drew are there too with `selection: "self"` and no weight: for a challenger or error analysis, never for calibration.
+- `?view=cohort&cutoff=<seconds>`: what a certificate reads.
+  The evaluation answers drawn at or before the cutoff (default now minus `due_days`), so every one is labelled, expired or declined; under the strict rule an expired or declined answer counts as an error (`strict_error`).
+  A cutoff at which a drawn answer is still pending is refused: the certificate waits rather than leave it out, since how fast an answer is labelled can depend on whether it was right.
+
+The label need in `status` is a planning figure: it counts the labels received so far and shows the pending ones apart.
+
 **Changing the settings.**
 `PUT /v1/tasks/{id}/labels/settings` with the settings to change (`{"cert_pi": 0.2}`) starts a new epoch: answers served from then on are drawn at the new chances, and every answer drawn before keeps its epoch and its chance, so estimates stay exact within an epoch.
 Changing `region` sets the certificate region again from the answers held.
@@ -325,12 +339,24 @@ Each answered question is drawn independently into three slices, by a keyed hash
 
 | Slice | Chance | Used for |
 | --- | --- | --- |
-| audit | `audit_pi` (default 0.02) over all traffic | accuracy, calibration, certificates, drift checks |
-| cert | `cert_pi` (default 0.05) where the confidence is at or above the region's lowest threshold, else 0 | the labels a certificate needs |
-| margin | between `margin_pi_min` (0) and `margin_pi_max` (0.2), higher as the top two options get closer | refits only, never a certificate |
+| audit | `audit_pi` over all traffic | accuracy, calibration, certificates, drift checks; never a fit |
+| cert | `cert_pi` where the confidence is at or above the region's lowest threshold, else 0 | the labels a certificate needs; never a fit |
+| margin | between `margin_pi_min` and `margin_pi_max`, higher as the top two options get closer | refits only, never a certificate |
 
 A chance is 0 or at least 0.02.
-The certificate region covers all traffic for the first `tau_after` (200) answers; after that it is the top `region` (0.5) share by confidence.
+
+**The budget.**
+By default the chances follow a budget: `per_day` (20) labels a day, split by `shares` (audit 0.15, cert 0.45, margin 0.30, and 0.10 that goes to margin until there is a typicality slice).
+Before the server has seen any traffic it assumes `tau_after` (200) answers a day, which at the default gives about 20 labels in the first 200 answers.
+When the certificate region is set (after `tau_after` answers), the chances are set again from the measured rate (answers a day over the last 7 days).
+After that a new budget starts at most once a day, and only when the rate has moved below half or above twice the rate the chances assumed.
+Audit and cert chances never go below 0.02, so a small budget on heavy traffic asks for more than `per_day`; a margin chance under 0.02 is off.
+`status.budget` gives the labels a day asked for, the measured rate and the chances in force; the queue gives `per_day` and the rate only.
+Give the chances yourself (`audit_pi`, `cert_pi`, `margin_pi_min`, `margin_pi_max`) to turn the budget off; `PUT .../labels/settings` with `per_day` turns it on again.
+Every drawn answer keeps the chance it was drawn at, so a change of chances never invalidates what was drawn before.
+
+The certificate region covers all traffic for the first `tau_after` (200) answers.
+After that it is the top `region` (0.8) share by confidence, reaching at least down to the task's certified threshold when it has one, so that a certificate at a lenient alpha still has its labels drawn where it needs them.
 `due_days` (14) is how long a drawn answer waits for its label, and `max_rows` (50,000) is the most answers kept: past it the oldest answers that were not drawn are dropped.
 The answers that were not drawn are therefore the most recent ones, a sliding window, not a sample of all time; the ones that keep their served distribution are a uniform sample of that window.
 The log's files are merged now and then (once there are 64, or an erasure waits), which also drops from disk what `max_rows` dropped from memory.
