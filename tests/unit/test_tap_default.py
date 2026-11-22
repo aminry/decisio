@@ -14,7 +14,9 @@ D3  a head fitted on the tap's reads records it; on a tap server a kept head fit
   uv run pytest -q tests/unit/test_tap_default.py
 """
 
+import sys
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -116,7 +118,9 @@ def test_d3_the_store_report_names_the_stale_heads():
 
 def test_d3_registration_records_the_reader():
     from decisio.serve.tasks import TaskStore
-    from tests.unit.test_tasks import fake_examples
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from test_tasks import fake_examples
 
     ex, P, R = fake_examples(6)
     store = TaskStore("fp")

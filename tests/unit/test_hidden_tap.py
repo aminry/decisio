@@ -17,13 +17,16 @@ H5  the reader: one score_prompts call for the question rows, each with its own 
   uv run pytest -q tests/unit/test_hidden_tap.py
 """
 
+import sys
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
 import torch
 
-from tests.unit.stub_vllm import stub_vllm
+sys.path.insert(0, str(Path(__file__).parent))
+from stub_vllm import stub_vllm  # noqa: E402
 
 D, V, LAYERS = 8, 64, (2, 5)
 
