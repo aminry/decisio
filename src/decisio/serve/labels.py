@@ -78,6 +78,7 @@ DEFAULTS = {
 }
 STRICT_ALPHA = 0.01  # a task certified at this alpha or below has its labels drawn mostly where its certificate is
 STRICT_SHARES = {"audit": 0.10, "cert": 0.80, "margin": 0.10, "typical": 0.0}
+STRICT_MIN_SHARE = 0.10  # such a task needs labels on at least this share of its answers (its drift checks fail below)
 PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max", "typical_pi_max")
 REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
 REBUDGET_BAND = (0.5, 2.0)  # and ends when the measured rate leaves this band around the rate it assumed
@@ -295,12 +296,38 @@ def disclosure(settings: dict, location: str) -> dict:
     }
 
 
-def registration_block(rec: dict, location: str) -> dict:
+def most_labelled(s: dict) -> float:
+    """The largest share of answers explicit chances can draw (each slice at its highest chance, the cert region at
+    `region`): a bound, so a check against it refuses only what cannot reach a share."""
+    return min(1.0, s["audit_pi"] + s["cert_pi"] * s["region"] + s["margin_pi_max"] + s.get("typical_pi_max", 0.0))
+
+
+def strict_check(s: dict, alpha: float | None) -> tuple[str | None, list[str]]:
+    """For a task certified at `STRICT_ALPHA` or below, which needs labels on at least `STRICT_MIN_SHARE` of its
+    answers: (an error for explicit chances that cannot reach it, warnings for a budget that must keep up with
+    traffic)."""
+    if alpha is None or float(alpha) > STRICT_ALPHA:
+        return None, []
+    need = f"a task certified at alpha {alpha} needs labels on at least {STRICT_MIN_SHARE:.0%} of its answers"
+    if s.get("per_day") is None:
+        most = most_labelled(s)
+        if most < STRICT_MIN_SHARE:
+            cert = (STRICT_MIN_SHARE - s["audit_pi"] - s["margin_pi_max"] - s.get("typical_pi_max", 0.0)) / s["region"]
+            return (f"labels: {need}; these chances label at most {most:.1%} (raise cert_pi to at least "
+                    f"{min(1.0, cert):.3f}, or give per_day)"), []  # fmt: skip
+        return None, []
+    return None, [f"{need}: per_day ({s['per_day']}) covers up to {s['per_day'] / STRICT_MIN_SHARE:,.0f} answers a "
+                  "day; status reports the share labelled and warns below it"]  # fmt: skip
+
+
+def registration_block(rec: dict, location: str, alpha: float | None = None) -> dict:
     """What a registration's response says of the task's labels: the disclosure (`disclosure`), the digest key (shown
     here only), and the queue's first view (empty until the task has answered)."""
     s = rec["settings"]
+    warnings = strict_check(s, alpha)[1]
     return {
         **disclosure(s, location),
+        **({"warnings": warnings} if warnings else {}),
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
@@ -1524,6 +1551,17 @@ class TaskLabels:
                     if st == "labelled":
                         a_n += 1
                         a_right += right
+        with self._lock:
+            week = [r for r in self.rows.values() if now - r["t"] <= 7 * 86400]
+            share = (
+                float(np.mean([1.0 - np.prod([1.0 - d["pi"] for d in r["draws"].values()]) for r in week]))
+                if week else None
+            )  # fmt: skip
+        warnings = []
+        if share is not None and len(week) >= 100 and self.cert_alpha is not None and self.cert_alpha <= STRICT_ALPHA:
+            if share < STRICT_MIN_SHARE:
+                warnings.append(f"certified at alpha {self.cert_alpha}: {share:.1%} of answers are drawn for labels, "
+                                f"under the {STRICT_MIN_SHARE:.0%} it needs; raise per_day or cert_pi")  # fmt: skip
         busiest = sorted(langs, key=lambda k: -langs[k]["answers"])[:top_langs]
         for k in busiest:
             langs[k]["need"] = {n["alpha"]: n["more_if_no_error"] for n in self.need(lang=k)}
@@ -1539,6 +1577,8 @@ class TaskLabels:
             "last_label_at": last,
             "since_last_label_s": None if last is None else round(now - last, 1),
             "languages": {k: langs[k] for k in busiest},
+            "label_share": None if share is None else round(share, 4),
+            **({"warnings": warnings} if warnings else {}),
         }
 
     def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1, lang: str | None = None) -> list[dict]:

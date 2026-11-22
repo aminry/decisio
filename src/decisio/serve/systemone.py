@@ -5279,6 +5279,10 @@ def add_routes(app, systemone: SystemOne):
             labels = LB.parse_settings(body.get("labels"))
         except LB.LabelsError as e:
             raise HTTPException(422, str(e))
+        if labels is not None:  # a strict alpha needs a share of its answers labelled: chances that cannot are refused
+            err, _ = LB.strict_check(labels, certify.get("alpha") if certify else None)
+            if err:
+                raise HTTPException(422, err)
         try:
             task, fitted = await run_in_threadpool(
                 functools.partial(systemone.register_readout_task, layout=layout, labels=labels),
@@ -5304,7 +5308,8 @@ def add_routes(app, systemone: SystemOne):
         if fitted.get("label_review") is not None:  # in the response only: a review aid, not part of the task
             out["label_review"] = fitted["label_review"]
         if task.get("labels"):  # the digest key once, and what opting in keeps
-            out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location)
+            alpha = (task.get("certificate") or {}).get("alpha")
+            out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location, alpha=alpha)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:

@@ -49,6 +49,9 @@ L22 ttl_days: answers and labels older than it are erased by the labels thread, 
     erase path; it is at least due_days
 L23 a task certified at alpha 0.01 or below, in budget mode with the default shares, moves to audit 0.10, cert 0.80,
     margin 0.10, typical 0 (an epoch); given shares and lenient alphas are kept
+L24 a task certified at alpha 0.01 or below needs labels on at least 10% of its answers: explicit chances that
+    cannot reach it are refused with the cert_pi that would, a budget gets a warning at registration, and the
+    overview reports the share drawn and warns below it
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -665,3 +668,22 @@ def test_l23_shares_for_a_strict_alpha():
     given.cert_alpha = 0.01
     given.tick()
     assert given.epoch["epoch"] == 0  # shares given at registration are kept
+
+
+def test_l24_a_strict_alpha_needs_a_tenth_of_its_answers_labelled():
+    low = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.05, "margin_pi_max": 0})
+    err, _ = LB.strict_check(low, 0.01)
+    assert err and "at least 10%" in err and "cert_pi to at least" in err
+    assert LB.strict_check(low, 0.05) == (None, [])  # a lenient alpha: no requirement
+    ok = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.2, "margin_pi_max": 0})
+    assert LB.strict_check(ok, 0.005) == (None, [])
+    err, warn = LB.strict_check(LB.parse_settings(True), 0.01)
+    assert err is None and "200 answers a day" in warn[0]
+    block = LB.registration_block({"settings": LB.parse_settings(True), "secret": LB.new_secrets()}, "memory", 0.01)
+    assert block["warnings"] == warn
+    tl = _task(audit_pi=0.02, cert_pi=0.02, margin_pi_max=0)
+    tl.cert_alpha = 0.01
+    for i in range(150):
+        _serve(tl, f"t{i}", [0.7, 0.2, 0.1])
+    o = tl.overview()
+    assert o["label_share"] < 0.1 and "under the 10%" in o["warnings"][0]
