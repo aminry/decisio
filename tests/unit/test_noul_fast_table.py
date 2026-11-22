@@ -157,6 +157,17 @@ def watch(m):
     return seen
 
 
+def pre(so, says_yes, conf, task_id="angry"):
+    """P(yes) decisio serves for a read that says yes (or no) at `conf`, before the commit rule: the task's calibration
+    on it (from 50 labelled examples, its temperature and bias fitted together)."""
+    from decisio.readout.calibration import apply_task_prior
+    from decisio.readout.debias import log_probs
+
+    py = conf if says_yes else 1.0 - conf
+    cal = so.task_store.snapshot(task_id)["calibration"]
+    return float(apply_task_prior(log_probs(np.array([py, 1.0 - py])), cal, so.temperature_of("noul", None, 2))[0])
+
+
 RNG = np.random.default_rng(123)
 CLEAR_YES = state(False, 0.6, " ".join(YES_WORDS[:4] + FILLER[:6]))  # decisio unsure and wrong; the text says yes
 CLEAR_NO = state(True, 0.6, " ".join(NO_WORDS[:4] + FILLER[6:12]))
@@ -179,7 +190,8 @@ def test_y1_a_labelled_yes_no_table_is_kept_and_answers_what_it_is_sure_of_witho
     assert c["certified"] and c["table_threshold"] is not None and c["stages"]["table"]["certified_n"] > 0
     assert t["status"]["fast_table"]["state"] == "active"
     sc = c["served_check"]  # the serving path reads what the certificate was made on, the commit rule included
-    assert sc["max_shift"] == 0 and sc["crossed_threshold"] == 0 and sc["top_answer_changed"] == 0
+    # a yes/no answer reports P(yes) alone: its top read back as max(p, 1 - p) is the served top within a rounding step
+    assert sc["max_shift"] <= 2.3e-16 and sc["crossed_threshold"] == 0 and sc["top_answer_changed"] == 0
     calls = FakeEngine.calls
     y, n = ask(client, CLEAR_YES), ask(client, CLEAR_NO)
     assert FakeEngine.calls == calls  # the model was not asked
@@ -189,7 +201,7 @@ def test_y1_a_labelled_yes_no_table_is_kept_and_answers_what_it_is_sure_of_witho
     d = ask(client, SILENT)
     assert d["answered_by"] == "decisio" and FakeEngine.calls == calls + 1 and d["noul"] > 0.5
     if not commit:
-        assert d["noul"] == pytest.approx(0.62, abs=1e-6)  # decisio's own read, before any rule
+        assert d["noul"] == pytest.approx(pre(so, True, 0.62), abs=1e-12)  # decisio's own read, before any rule
 
 
 def test_y1_a_yes_no_table_needs_a_certify_block_and_enough_fit_examples():
@@ -588,7 +600,8 @@ def test_y7_table_and_deferred_answers_feed_the_monitor_the_confidence_before_th
     seen = watch(so.task_store.monitors["angry"])
     a = ask(client, SILENT)
     assert a["answered_by"] == "decisio" and a["noul"] == COMMIT_HI and a["certified_reason"] == "below_threshold"
-    assert seen[-1] == pytest.approx(0.62, abs=1e-9)  # decisio's own, before the rule
+    p0 = pre(so, True, 0.62)
+    assert seen[-1] == pytest.approx(max(p0, 1 - p0), abs=1e-9)  # decisio's own, before the rule
     weak = state(False, 0.6, " ".join(YES_WORDS[:2] + FILLER[40:46]))
     b = ask(client, weak)
     if b["answered_by"] == "table":
@@ -606,8 +619,9 @@ def test_y7_with_the_table_off_decisios_answers_feed_the_alone_monitor_before_th
     so.table_runtime(t).suspend("a test")
     seen = watch(so.task_store.monitors_alone["angry"])
     a = ask(client, CLEAR_YES)
-    assert a["answered_by"] == "decisio" and a["noul"] == COMMIT_LO  # decisio says no at 0.6: reported 0.20
-    assert seen[-1] == pytest.approx(0.6, abs=1e-9)
+    assert a["answered_by"] == "decisio" and a["noul"] == COMMIT_LO  # decisio says no, unsure: reported 0.20
+    p0 = pre(so, False, 0.6)
+    assert seen[-1] == pytest.approx(max(p0, 1 - p0), abs=1e-9)
 
 
 def test_y7_a_learning_tasks_decisio_rows_feed_the_monitor_before_the_rule():
@@ -621,7 +635,8 @@ def test_y7_a_learning_tasks_decisio_rows_feed_the_monitor_before_the_rule():
     seen = watch(m)
     a = ask(client, SILENT)
     assert a["answered_by"] == "decisio" and a["noul"] == COMMIT_HI
-    assert seen[-1] == pytest.approx(0.62, abs=1e-9)
+    p0 = pre(so, True, 0.62)
+    assert seen[-1] == pytest.approx(max(p0, 1 - p0), abs=1e-9)
     assert so.learning.learners["angry"].counters["no_table"] == 1
 
 

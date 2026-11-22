@@ -124,7 +124,11 @@ def test_t2_store_fits_with_the_reference():
     store = TaskStore("fp")
     task, fitted = store.register("t", ex, lambda pairs: P, lambda pairs: R)
     labels = [i % 10 for i in range(60)]
+    # a base without large_calibration_types: the gated bias, whatever the count
     ref = calibration.fit_task_prior([log_probs(p) for p in P], labels, fingerprint="fp", task_id="t", K=10)
+    # the 12B's types: from calibration.min_examples_for_fit examples, the evidence-averaged temperature and bias
+    large, _ = TaskStore("fp").register("t", ex, lambda pairs: P, lambda pairs: R, large_types=("choice", "noul"))
+    assert large["calibration"]["method"] == calibration.C_METHOD and large["n_request"] == 60
     from decisio.serve.tasks import inputs_digest
 
     digest = task["calibration"].pop("inputs_sha256")  # what registration read, named; the fit is the reference's

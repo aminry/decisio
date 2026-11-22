@@ -40,16 +40,19 @@ def folds(n: int, rng) -> list[np.ndarray]:
     return np.array_split(rng.permutation(n), min(FOLDS, n))
 
 
-def fit_serve(lps, labels, options, temperature, readout, train, serve, min_options_for_head):
+def fit_serve(lps, labels, options, temperature, readout, train, serve, min_options_for_head, large=False):
     """The served distributions of the `serve` examples under the task's pipeline fitted on the `train` examples.
     `lps`: per example, the K label log-scores of the plain readout (temperature 1); `readout`: per example, the
-    hidden-state readout (lp, h), or None when no head can be fitted (no reader, too few options or examples)."""
+    hidden-state readout (lp, h), or None when no head can be fitted (no reader, too few options or examples).
+    `large`: the task is calibrated as registration calibrates it from `calibration.min_examples_for_fit(K)` examples
+    (`calibration.fit_large_prior`, the temperature and bias fitted together), else by the gated bias."""
     from decisio.readout import calibration, intent_head
     from decisio.serve.temperature import apply_temperature
 
     K = len(options)
     y = np.asarray(labels)
-    cal = calibration.fit_task_prior([lps[i] for i in train], y[train].tolist(), K=K, temperature=temperature)
+    fit = calibration.fit_large_prior if large else calibration.fit_task_prior
+    cal = fit([lps[i] for i in train], y[train].tolist(), K=K, temperature=temperature)
     head = None
     if (
         readout is not None
@@ -66,12 +69,12 @@ def fit_serve(lps, labels, options, temperature, readout, train, serve, min_opti
     return np.asarray([apply_temperature(np.exp(np.asarray(lps[i], dtype=np.float64)), temperature) for i in serve])
 
 
-def out_of_fold(lps, labels, options, temperature, readout, parts, min_options_for_head):
+def out_of_fold(lps, labels, options, temperature, readout, parts, min_options_for_head, large=False):
     """n x K: each example's distribution from the pipeline fitted on the folds it is not in."""
     P = np.zeros((len(labels), len(options)))
     for k, test in enumerate(parts):
         train = np.concatenate([parts[j] for j in range(len(parts)) if j != k])
-        P[test] = fit_serve(lps, labels, options, temperature, readout, train, test, min_options_for_head)
+        P[test] = fit_serve(lps, labels, options, temperature, readout, train, test, min_options_for_head, large)
     return P
 
 
@@ -95,7 +98,9 @@ def too_few(n: int) -> dict:
     }
 
 
-def review(lps, labels, options, temperature, readout, task_id, positions=None, min_options_for_head=10, rng=None):
+def review(
+    lps, labels, options, temperature, readout, task_id, positions=None, min_options_for_head=10, rng=None, large=False
+):
     """The label review of a task's labelled examples. `positions`: per example, where it was in the request (a
     dict, e.g. {"list": "examples", "index": 3}); its index in `labels` when absent. `rng`: the folds' generator
     (numpy default_rng of `fold_seed(task_id)` when absent)."""
@@ -104,7 +109,7 @@ def review(lps, labels, options, temperature, readout, task_id, positions=None, 
         return too_few(n)
     rng = np.random.default_rng(fold_seed(task_id)) if rng is None else rng
     parts = folds(n, rng)
-    P = out_of_fold(lps, labels, options, temperature, readout, parts, min_options_for_head)
+    P = out_of_fold(lps, labels, options, temperature, readout, parts, min_options_for_head, large)
     flagged, p_label, other, p_other = flag_mask(P, labels)
     flags = []
     for i in np.flatnonzero(flagged):

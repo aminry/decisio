@@ -22,8 +22,15 @@ The rule was developed on 16 internal tasks and frozen before it was validated o
 A stored prior is valid only for the model and adapter it was fitted under; `fingerprint` names them, and the
 serving side must refuse a prior whose fingerprint differs from the live model's.
 
+From `TB_MIN_EXAMPLES` labelled examples (counted in the registration request, before a certificate's held-out
+split) the calibration is instead a temperature and a per-option bias fitted together, by maximum a posteriori with no
+keep-or-drop gate (`fit_tb`): served p = softmax(log p / T - b), with the priors log T ~ N(log T_q, TB_TAU^2) around the
+question's own temperature T_q and b_k ~ N(0, TB_SIGMA_B^2). A task that serves a head is unchanged.
+
     prior = fit_task_prior(logps, labels, temperature=T)   # logps: per example, the K label log-scores in slot order
     p = apply_task_prior(logp, prior, temperature=T)       # at serving, at the same T
+    T, b = fit_tb(probs, labels, T_q)                      # from 50 examples: the plain readout's probabilities
+    p = apply_tb(probs, T, b)
 """
 
 from __future__ import annotations
@@ -32,6 +39,27 @@ import numpy as np
 
 from decisio.names import record_format
 from decisio.readout import debias
+
+# from this many labelled examples in the request: the temperature and bias fitted together (`fit_tb`)
+TB_MIN_EXAMPLES = 50
+TB_METHOD = "map_temperature_bias"
+TB_TAU = 0.1  # the prior's spread of log T around the question's own temperature
+TB_SIGMA_B = 0.8496  # the prior's spread of each option's bias (from the per-set fits of the study that chose it)
+TB_MAXITER = 500
+TB_EPS = 1e-12  # the probability floor of the log-scores the fit and the serving read
+# from TB_MIN_EXAMPLES: the temperature-and-bias fit at each of these bias-prior spreads (0: the temperature alone),
+# each weighted by its Laplace evidence, and their mixture served (`fit_c`)
+C_METHOD = "evidence_averaged_temperature_bias"
+C_GRID = (0.0, 0.2, 0.4, 0.8496)
+SB_FLOOR = 1e-4  # the smallest prior spread of a bias (the temperature-only fit's)
+CURRENT_METHOD = C_METHOD  # the method this release fits from min_examples_for_fit(K) examples
+
+
+def min_examples_for_fit(K: int) -> int:
+    """From how many labelled examples in the request a task of K options is calibrated by `fit_large_prior` (below
+    it, the gated bias)."""
+    return TB_MIN_EXAMPLES
+
 
 MIN_EXAMPLES = 10  # below this the fit is noise (5 per task gave +0.5 points, 95% CI [-2.5, +2.9])
 RECOMMENDED = 20  # where the measured effect was full
@@ -146,6 +174,18 @@ def apply_task_prior(logp, prior, temperature: float = 1.0):
     """Serving: corrected probabilities for one question's K label log-scores (slot order) at the question's
     temperature, softmax(log p / T - bias). A prior fitted at another temperature is not applied: the question is
     served as without a task."""
+    if prior and prior.get("method") == C_METHOD and prior.get("applied") and is_current(prior, temperature):
+        if len(logp) > prior["K"]:
+            return debias.apply_bias(tempered(logp, temperature), np.zeros(len(logp)))
+        LP = np.asarray(logp, dtype=np.float64)[None, :]
+        pts = [(q["w"], q["T"], np.asarray(q["bias"][: len(logp)], dtype=np.float64)) for q in prior["points"]]
+        return sum(w * _apply_rows(tb_logscores(LP), T, b) for w, T, b in pts if w > 0)[0]
+    if prior and prior.get("method") == TB_METHOD and prior.get("applied") and is_current(prior, temperature):
+        if len(logp) > prior["K"]:
+            return debias.apply_bias(tempered(logp, temperature), np.zeros(len(logp)))
+        return apply_tb_logscores(np.asarray(logp, dtype=np.float64)[None, :], prior["T"], prior["bias"][: len(logp)])[
+            0
+        ]
     logp = tempered(logp, temperature)
     if not prior or not prior.get("applied") or not is_current(prior, temperature):
         return debias.apply_bias(logp, np.zeros(len(logp)))
@@ -153,3 +193,258 @@ def apply_task_prior(logp, prior, temperature: float = 1.0):
         # more options than the prior was fitted for: its slots do not cover the question, so it is not applied
         return debias.apply_bias(logp, np.zeros(len(logp)))
     return debias.apply_bias(logp, np.asarray(prior["bias"][: len(logp)]))
+
+
+def tb_logscores(LP):
+    """The log-scores the temperature-and-bias fit reads: log p floored at TB_EPS and capped at 0 (from log-scores of
+    any floor: the same as log(clip(p, TB_EPS, 1)), bit for bit)."""
+    return np.clip(np.asarray(LP, dtype=np.float64), np.log(TB_EPS), 0.0)
+
+
+def fit_tb_logscores(LP, y, T_q, tau=TB_TAU, sigma_b=TB_SIGMA_B, maxiter=TB_MAXITER):
+    """(T, b): the MAP of softmax(LP / T - b) on labels y (LP: n x K log-scores), with log T ~ N(log T_q, tau^2) and
+    b_k ~ N(0, sigma_b^2); L-BFGS-B with analytic gradients from log T = log T_q, b = 0."""
+    import math
+
+    from scipy.optimize import minimize
+
+    LP = tb_logscores(LP)
+    y = np.asarray(y)
+    n, K = LP.shape
+    mu = math.log(float(T_q))
+    tw = 1.0 / (2 * tau * tau)
+    bw = 1.0 / (2 * sigma_b * sigma_b)
+
+    def f(w):
+        lt, b = w[0], w[1:]
+        T = math.exp(lt)
+        Z = LP / T - b
+        Z = Z - Z.max(1, keepdims=True)
+        lse = np.log(np.exp(Z).sum(1))
+        nll = (lse - Z[np.arange(n), y]).sum()
+        Pm = np.exp(Z - lse[:, None])
+        Pm[np.arange(n), y] -= 1.0
+        g_b = -Pm.sum(0)
+        g_lt = (Pm * (-LP / T)).sum()
+        loss = nll + tw * (lt - mu) ** 2 + bw * (b**2).sum()
+        g = np.concatenate([[g_lt + 2 * tw * (lt - mu)], g_b + 2 * bw * b])
+        return loss, g
+
+    w0 = np.concatenate([[mu], np.zeros(K)])
+    r = minimize(f, w0, jac=True, method="L-BFGS-B", options={"maxiter": maxiter})
+    return math.exp(r.x[0]), r.x[1:]
+
+
+def apply_tb_logscores(LP, T, b):
+    """softmax(LP / T - b) per row (LP: n x K log-scores of any floor, read as `tb_logscores`)."""
+    Z = tb_logscores(LP) / float(T) - np.asarray(b, dtype=np.float64)
+    Z = Z - Z.max(1, keepdims=True)
+    E = np.exp(Z)
+    return E / E.sum(1, keepdims=True)
+
+
+def fit_tb(probs, labels, T_q):
+    """(T, b) from the plain readout's probabilities of the fit examples (n x K), their labels and the question's
+    temperature T_q: the fit a task of at least TB_MIN_EXAMPLES labelled examples stores."""
+    return fit_tb_logscores(np.log(np.clip(np.asarray(probs, dtype=np.float64), TB_EPS, 1)), labels, T_q)
+
+
+def apply_tb(probs, T, b):
+    """The served probabilities (n x K) of plain-readout probabilities under a fit of `fit_tb`."""
+    return apply_tb_logscores(np.log(np.clip(np.asarray(probs, dtype=np.float64), TB_EPS, 1)), T, b)
+
+
+def fit_tb_prior(logps, labels, fingerprint="", task_id="", K=None, temperature: float = 1.0, n_request=None):
+    """The stored record of the temperature-and-bias fit (`fit_tb_logscores` on the examples' K label log-scores at
+    the question's temperature `temperature`), for a task of at least TB_MIN_EXAMPLES labelled examples. Always
+    applied: there is no keep-or-drop gate."""
+    LP = np.asarray(logps, dtype=np.float64)
+    K = int(K if K is not None else LP.shape[1])
+    T, b = fit_tb_logscores(LP, labels, temperature)
+    return {
+        "format": FORMAT,
+        "method": TB_METHOD,
+        "fingerprint": fingerprint,
+        "task_id": task_id,
+        "K": K,
+        "n": int(len(labels)),
+        **({"n_request": int(n_request)} if n_request is not None else {}),
+        "temperature": float(temperature),
+        "T": float(T),
+        "bias": [float(x) for x in b],
+        "tau": TB_TAU,
+        "sigma_b": TB_SIGMA_B,
+        "applied": True,
+        "reason": (
+            f"{n_request if n_request is not None else len(labels)} labelled examples: the temperature and a bias per "
+            f"option fitted together (from {TB_MIN_EXAMPLES} examples, with no keep-or-drop gate)"
+        ),
+    }
+
+
+# ---- the evidence-averaged fit (C_METHOD) --------------------------------------------------------------------------
+
+
+def _apply_rows(LP, T, b):
+    """softmax(LP / T - b) per row."""
+    Z = LP / T - b
+    Z = Z - Z.max(1, keepdims=True)
+    E = np.exp(Z)
+    return E / E.sum(1, keepdims=True)
+
+
+def fit_tbk_logscores(LP, y, mu, tau, s):
+    """(T, b): the MAP of softmax(LP / T - b), log T ~ N(mu, tau^2), b_k ~ N(0, s_k^2) (s floored at SB_FLOOR);
+    L-BFGS-B with analytic gradients from log T = mu, b = 0, at most TB_MAXITER iterations."""
+    import math
+
+    from scipy.optimize import minimize
+
+    n, K = LP.shape
+    tw = 1.0 / (2 * tau * tau)
+    bw = 1.0 / (2 * np.maximum(np.asarray(s, np.float64), SB_FLOOR) ** 2)
+
+    def f(w):
+        lt, b = w[0], w[1:]
+        T = math.exp(lt)
+        Z = LP / T - b
+        Z = Z - Z.max(1, keepdims=True)
+        lse = np.log(np.exp(Z).sum(1))
+        nll = (lse - Z[np.arange(n), y]).sum()
+        Pm = np.exp(Z - lse[:, None])
+        Pm[np.arange(n), y] -= 1.0
+        g_b = -Pm.sum(0)
+        g_lt = (Pm * (-LP / T)).sum()
+        loss = nll + tw * (lt - mu) ** 2 + (bw * b * b).sum()
+        g = np.concatenate([[g_lt + 2 * tw * (lt - mu)], g_b + 2 * bw * b])
+        return loss, g
+
+    w0 = np.concatenate([[mu], np.zeros(K)])
+    r = minimize(f, w0, jac=True, method="L-BFGS-B", options={"maxiter": TB_MAXITER})
+    return math.exp(r.x[0]), r.x[1:]
+
+
+def fit_t_logscores(LP, y, mu, tau):
+    """The temperature alone (b = 0): the MAP of log T under log T ~ N(mu, tau^2), L-BFGS-B from log T = mu."""
+    import math
+
+    from scipy.optimize import minimize
+
+    n = len(y)
+
+    def f(w):
+        T = math.exp(w[0])
+        Z = LP / T
+        Z = Z - Z.max(1, keepdims=True)
+        lse = np.log(np.exp(Z).sum(1))
+        Pm = np.exp(Z - lse[:, None])
+        Pm[np.arange(n), y] -= 1.0
+        nll = float((lse - Z[np.arange(n), y]).sum())
+        return nll + (w[0] - mu) ** 2 / (2 * tau**2), np.array([(Pm * (-LP / T)).sum() + (w[0] - mu) / tau**2])
+
+    r = minimize(f, np.array([mu]), jac=True, method="L-BFGS-B", options={"maxiter": TB_MAXITER})
+    return math.exp(r.x[0])
+
+
+def hessian(LP, y, T, b, tau, sigma):
+    """The analytic Hessian of the negative log posterior in (log T, b) at (T, b); sigma None: the temperature alone
+    (1 x 1). z_i = LP_i / T - b, u_i = -LP_i / T, p_i = softmax(z_i), g_i = p_i - e_y, S_i = diag(p_i) - p_i p_i^T:
+    H_tt = sum(u^T S u - g^T u) + 1 / tau^2, H_tb = -sum S u, H_bb = sum S + I / sigma^2."""
+    n, K = LP.shape
+    U = -LP / T
+    P = _apply_rows(LP, T, b)
+    G = P.copy()
+    G[np.arange(n), y] -= 1.0
+    PU = (P * U).sum(1)
+    SU = P * U - P * PU[:, None]
+    h_tt = float((U * SU).sum() - (G * U).sum()) + 1.0 / tau**2
+    if sigma is None:
+        return np.array([[h_tt]])
+    H = np.empty((K + 1, K + 1))
+    H[0, 0] = h_tt
+    H[0, 1:] = H[1:, 0] = -SU.sum(0)
+    H[1:, 1:] = np.diag(P.sum(0)) - P.T @ P + np.eye(K) / sigma**2
+    return H
+
+
+def log_evidence(LP, y, mu, tau, sigma):
+    """(Laplace log evidence, T, b) of the fit at bias-prior spread sigma (0: the temperature alone, b = 0); a fit
+    whose Hessian is not positive definite has evidence -inf. Terms common to every sigma are left out."""
+    import math
+
+    n, K = LP.shape
+    if sigma <= 0:
+        T = fit_t_logscores(LP, y, mu, tau)
+        b = np.zeros(K)
+        nll = float(-np.log(np.clip(_apply_rows(LP, T, b)[np.arange(n), y], 1e-300, None)).sum())
+        H = hessian(LP, y, T, b, tau, None)
+        ev = -(nll + (math.log(T) - mu) ** 2 / (2 * tau**2)) - 0.5 * math.log(H[0, 0]) if H[0, 0] > 0 else -math.inf
+        return ev, T, b
+    T, b = fit_tbk_logscores(LP, y, mu, tau, np.full(K, sigma))
+    nll = float(-np.log(np.clip(_apply_rows(LP, T, b)[np.arange(n), y], 1e-300, None)).sum())
+    sign, logdet = np.linalg.slogdet(hessian(LP, y, T, b, tau, sigma))
+    if sign <= 0 or not np.isfinite(logdet):
+        return -math.inf, T, b
+    U_ = nll + (math.log(T) - mu) ** 2 / (2 * tau**2) + float((b * b).sum()) / (2 * sigma**2) + K * math.log(sigma)
+    return -U_ - 0.5 * logdet, T, b
+
+
+def fit_c_logscores(LP, y, T_q, tau=TB_TAU, grid=C_GRID):
+    """[(weight, T, b)] in grid order: the fit at each bias-prior spread, weighted by its Laplace evidence (a uniform
+    prior on the grid; the weights sum to 1)."""
+    import math
+
+    LP = tb_logscores(LP)
+    y = np.asarray(y)
+    fits = [log_evidence(LP, y, math.log(float(T_q)), tau, sg) for sg in grid]
+    ev = np.array([f[0] for f in fits])
+    w = np.exp(ev - ev.max())
+    w /= w.sum()
+    return [(float(wi), float(f[1]), np.asarray(f[2], np.float64)) for wi, f in zip(w, fits)]
+
+
+def fit_c(p_fit, y, T_q):
+    """The evidence-averaged fit from the plain readout's probabilities of the fit examples (n x K), their labels and
+    the question's temperature: [(weight, T, b)] in C_GRID order."""
+    return fit_c_logscores(np.log(np.clip(np.asarray(p_fit, dtype=np.float64), TB_EPS, 1)), y, T_q)
+
+
+def apply_c(p, record):
+    """The served probabilities (n x K) of plain-readout probabilities under `fit_c`'s record (or a stored record of
+    C_METHOD): sum_j w_j softmax(log p / T_j - b_j)."""
+    LP = np.log(np.clip(np.asarray(p, dtype=np.float64), TB_EPS, 1))
+    if isinstance(record, dict):
+        record = [(q["w"], q["T"], np.asarray(q["bias"], dtype=np.float64)) for q in record["points"]]
+    return sum(w * _apply_rows(LP, T, b) for w, T, b in record if w > 0)
+
+
+def fit_c_prior(logps, labels, fingerprint="", task_id="", K=None, temperature: float = 1.0, n_request=None):
+    """The stored record of the evidence-averaged fit, for a task of at least min_examples_for_fit(K) labelled
+    examples: per point of C_GRID its spread, weight, T and bias. Always applied: there is no keep-or-drop gate."""
+    LP = np.asarray(logps, dtype=np.float64)
+    K = int(K if K is not None else LP.shape[1])
+    points = fit_c_logscores(LP, labels, temperature)
+    n = int(len(labels)) if n_request is None else int(n_request)
+    return {
+        "format": FORMAT,
+        "method": C_METHOD,
+        "fingerprint": fingerprint,
+        "task_id": task_id,
+        "K": K,
+        "n": int(len(labels)),
+        **({"n_request": int(n_request)} if n_request is not None else {}),
+        "temperature": float(temperature),
+        "tau": TB_TAU,
+        "grid": list(C_GRID),
+        "points": [
+            {"sigma": float(sg), "w": w, "T": T, "bias": [float(x) for x in b]} for sg, (w, T, b) in zip(C_GRID, points)
+        ],
+        "applied": True,
+        "reason": (
+            f"{n} labelled examples: the temperature and a bias per option fitted at {len(C_GRID)} prior spreads and "
+            f"averaged by their evidence (from {TB_MIN_EXAMPLES} examples, with no keep-or-drop gate)"
+        ),
+    }
+
+
+fit_large_prior = fit_c_prior  # what registration fits from min_examples_for_fit(K) examples
