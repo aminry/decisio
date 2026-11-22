@@ -6,11 +6,11 @@ The head needs h, the final-norm hidden state at the readout position (the vecto
 which vLLM's generate path does not return. The serving engine runs decisio's hidden-readout class, and h is read one
 of two ways (`vllm_engine.single_engine_reader`; docs/handoffs/tasks.md):
 
-  tap        `TapHidden`, on the Gemma 4 12B with an in-process engine (decisio.vllm_plugin.tap): the class keeps the
-             answer-position rows and a logits processor stores those of the requests that carry a key, so a head
-             question is the plain question's one request.
-  reserved   `SingleEngineHidden`, on the other bases and with a separate engine process: the class writes h into
-             reserved logit columns, read in one request per chunk of them (docs/design/hidden-state-readout.md).
+  tap        `TapHidden`, on every base with an in-process engine and one tensor-parallel rank
+             (decisio.vllm_plugin.tap): the class keeps the answer-position rows and a logits processor stores those
+             of the requests that carry a key, so a head question is the plain question's one request.
+  reserved   `SingleEngineHidden`, with a separate engine process or several tensor-parallel ranks: the class writes h
+             into reserved logit columns, read in one request per chunk of them (docs/design/hidden-state-readout.md).
 
 The K letter log-probabilities are the engine's own readout of the row (Gemma, `Family.head_label_logprobs="engine"`)
 or computed from h and the output layer's K label rows (Qwen),

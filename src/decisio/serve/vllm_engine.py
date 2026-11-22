@@ -2032,8 +2032,8 @@ def resolve_head_mode(model_class, one_engine=False):
     Returns (model_class, head_mode), head_mode one of:
 
       "single-engine"   the default: the text engine runs decisio's hidden-readout class and the head's hidden state is
-                        read from it (`single_engine_reader`: in the question's own request on the Gemma 4 12B with an
-                        in-process engine, through reserved logit columns otherwise)
+                        read from it (`single_engine_reader`: in the question's own request with an in-process
+                        engine and one tensor-parallel rank, through reserved logit columns otherwise)
       None              no head: --model-class view or text-only, or --one-engine; a registered task then gets
                         calibration only"""
     if one_engine:
@@ -3648,8 +3648,8 @@ def main():
     if args.head_engine or args.head_gpu_memory_utilization is not None:
         ap.error(
             "--head-engine and --head-gpu-memory-utilization were removed with two-engine mode: the intent head reads "
-            "its hidden state from the serving engine (in the question's own request on Gemma 4 12B); drop the flags "
-            "(docs/upgrading.md)"
+            "its hidden state from the serving engine (in the question's own request with an in-process engine); "
+            "drop the flags (docs/upgrading.md)"
         )
     adapters = dict(a.split("=", 1) for a in args.adapter)
     if "none" in adapters:
