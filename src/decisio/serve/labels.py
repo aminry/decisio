@@ -48,9 +48,15 @@ import unicodedata
 
 import numpy as np
 
-SLICES = ("audit", "cert", "margin")
+SLICES = ("audit", "cert", "margin", "typical")
 EVAL_SLICES = ("audit", "cert")  # the slices certificates and drift checks read; never used to fit
-FIT_SLICES = ("margin",)  # probability-sampled slices a refit may use (weighted by 1 / pi)
+FIT_SLICES = ("margin", "typical")  # probability-sampled slices a refit may use (weighted by 1 / pi)
+TYPICAL_RESERVOIR = 512  # answers' embeddings the typicality of a new one is measured against
+TYPICAL_K = 10  # nearest neighbours whose mean similarity is an answer's typicality
+TYPICAL_MIN = 64  # embeddings held before typicality levels exist (the typical slice draws nothing before)
+TYPICAL_LEVELS = 4  # typicality is bucketed into this many levels, by the quantiles of the reservoir's own
+TYPICAL_TEXT = 1_000  # characters of an input the student embeds for its typicality: a bounded cost per answer
+SCRIPT_TEXT = 500  # characters read for the script class: enough to tell the script, a bounded cost per answer
 PI_MIN = 0.02  # a slice's pi is 0 or at least this: inverse-probability weights stay at most 50
 DEFAULTS = {
     "features": "full",
@@ -58,6 +64,8 @@ DEFAULTS = {
     "cert_pi": 0.05,
     "margin_pi_min": 0.0,
     "margin_pi_max": 0.2,
+    "typical_pi_max": 0.0,  # the typical slice's chance at the most typical level (cold start; fitting only)
+    "typical_labels": 50,  # the typical slice ends once this many of its answers are labelled
     "margin_scale": 0.1,  # the margin (top-two gap) at which the margin pi is halfway between its min and max
     "region": 0.8,  # the share of traffic the cert region covers at least once tau_min is set (lenient alphas)
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
@@ -67,7 +75,7 @@ DEFAULTS = {
     "per_day": 20,  # labels a day the chances aim at (None: the chances above as given); a place to start
     "shares": {"audit": 0.15, "cert": 0.45, "margin": 0.30, "typical": 0.10},  # of per_day, by slice
 }
-PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max")
+PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max", "typical_pi_max")
 REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
 REBUDGET_BAND = (0.5, 2.0)  # and ends when the measured rate leaves this band around the rate it assumed
 FEATURES = ("full", "minimal")
@@ -120,7 +128,7 @@ def parse_settings(block) -> dict | None:
         raise LabelsError(f"labels.shares: fractions of per_day for {sorted(DEFAULTS['shares'])}, summing to 1")
     s["shares"] = {k: float(sh.get(k, 0.0)) for k in DEFAULTS["shares"]}
     if s["per_day"] is not None:  # the registration's epoch: tau_after answers a day assumed, all traffic the region
-        s.update(budget_pis(s, rate=float(s["tau_after"]), region_share=1.0, margin_weight=0.5))
+        s.update(budget_pis(s, rate=float(s["tau_after"]), region_share=1.0, margin_weight=0.5, typical=False))
     if s["features"] not in FEATURES:
         raise LabelsError(f"labels.features is one of {list(FEATURES)}")
     for k in ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max"):
@@ -131,7 +139,7 @@ def parse_settings(block) -> dict | None:
         raise LabelsError("labels.margin_pi_min is at most labels.margin_pi_max")
     if not 0 < float(s["margin_scale"]) <= 1 or not 0 < float(s["region"]) <= 1:
         raise LabelsError("labels.margin_scale and labels.region are fractions above 0 and at most 1")
-    for k in ("tau_after", "due_days", "max_rows", "reservoir"):
+    for k in ("tau_after", "due_days", "max_rows", "reservoir", "typical_labels"):
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
     return s
@@ -142,18 +150,85 @@ def margin_weight(margin: float, scale: float) -> float:
     return 1.0 / (1.0 + (max(0.0, float(margin)) / scale) ** 2)
 
 
-def budget_pis(s: dict, rate: float, region_share: float, margin_weight: float) -> dict:
+def budget_pis(s: dict, rate: float, region_share: float, margin_weight: float, typical: bool = False) -> dict:
     """The chances that spend `per_day` labels a day in `shares` at `rate` answers a day: audit over all traffic,
-    cert over the region (`region_share` of traffic), margin scaled by the mean margin weight. Audit and cert are
-    raised to `PI_MIN` when the budget is too small (they spend more than their share then); margin below it is off.
-    The typicality share goes to margin while there is no typicality slice."""
+    cert over the region (`region_share` of traffic), margin scaled by the mean margin weight, and with `typical`
+    the typical slice (its chance at the top level, the levels' mean weight being 5/8). Audit, cert and a running
+    typical slice are raised to `PI_MIN` when the budget is too small (they spend more than their share then; at the
+    floor only the most typical level is drawn); margin below it is off.
+    Without the typical slice its share goes to margin."""
     per, sh = float(s["per_day"]), s["shares"]
     rate = max(float(rate), 1e-9)
     audit = min(1.0, max(PI_MIN, per * sh["audit"] / rate))
     cert = min(1.0, max(PI_MIN, per * sh["cert"] / (rate * max(region_share, 1e-9))))
-    m = per * (sh["margin"] + sh.get("typical", 0.0)) / (rate * max(margin_weight, 1e-9))
+    m_share = sh["margin"] + (0.0 if typical else sh.get("typical", 0.0))
+    m = per * m_share / (rate * max(margin_weight, 1e-9))
+    t = per * sh.get("typical", 0.0) / (rate * 0.625) if typical else 0.0
     return {"audit_pi": round(audit, 6), "cert_pi": round(cert, 6), "margin_pi_min": 0.0,
-            "margin_pi_max": 0.0 if m < PI_MIN else round(min(1.0, m), 6)}  # fmt: skip
+            "margin_pi_max": 0.0 if m < PI_MIN else round(min(1.0, m), 6),
+            "typical_pi_max": round(min(1.0, max(PI_MIN, t)), 6) if typical else 0.0}  # fmt: skip
+
+
+class Typicality:
+    """How typical an answer's input is, from the static student's embedding (unit vectors) against a reservoir of
+    earlier ones: the mean similarity to its `TYPICAL_K` nearest, bucketed into `TYPICAL_LEVELS` levels by the
+    quantiles of the reservoir's own scores. `level` is the request path's (a matrix product); `refresh`, which sets
+    the levels' cut points, is the labels thread's. The reservoir is a uniform sample of what was seen (reservoir
+    sampling), so a level depends only on earlier traffic, never on a label."""
+
+    def __init__(self, seed: int = 0):
+        import random
+
+        self._lock = threading.Lock()
+        self.vecs: np.ndarray | None = None
+        self.n = 0
+        self.seen = 0
+        self.cuts: np.ndarray | None = None
+        self._changed = 0
+        self._rng = random.Random(seed)
+
+    def _score(self, vecs: np.ndarray, v: np.ndarray, skip: int | None = None) -> float:
+        sims = vecs @ v
+        if skip is not None:
+            sims = np.delete(sims, skip)
+        k = min(TYPICAL_K, len(sims))
+        return float(np.mean(np.partition(sims, len(sims) - k)[-k:])) if k else 0.0
+
+    def level(self, v: np.ndarray) -> int | None:
+        """1 (least typical) to `TYPICAL_LEVELS`, or None before the levels exist."""
+        with self._lock:
+            vecs, cuts, n = self.vecs, self.cuts, self.n
+        if cuts is None or vecs is None:
+            return None
+        return 1 + int(np.searchsorted(cuts, self._score(vecs[:n], v)))
+
+    def add(self, v: np.ndarray) -> None:
+        with self._lock:
+            if self.vecs is None:
+                self.vecs = np.zeros((TYPICAL_RESERVOIR, len(v)), dtype=np.float32)
+            self.seen += 1
+            if self.n < TYPICAL_RESERVOIR:
+                self.vecs[self.n] = v
+                self.n += 1
+                self._changed += 1
+            else:
+                j = self._rng.randrange(self.seen)
+                if j < TYPICAL_RESERVOIR:
+                    self.vecs[j] = v
+                    self._changed += 1
+
+    def refresh(self) -> None:
+        """The levels' cut points from the reservoir's own scores (each against the others), once it holds
+        `TYPICAL_MIN` and has changed by an eighth since the last time."""
+        with self._lock:
+            if self.n < TYPICAL_MIN or (self.cuts is not None and self._changed < max(8, self.n // 8)):
+                return
+            vecs = self.vecs[: self.n].copy()
+            self._changed = 0
+        scores = np.array([self._score(vecs, vecs[i], skip=i) for i in range(len(vecs))])
+        cuts = np.quantile(scores, [i / TYPICAL_LEVELS for i in range(1, TYPICAL_LEVELS)])
+        with self._lock:
+            self.cuts = cuts
 
 
 STORES = (
@@ -165,6 +240,8 @@ STORES = (
     "log-probabilities and, for a task with an intent head, the hidden state at the answer position (a model feature "
     "that is not anonymous; it stays where the task's log is kept); and the served distribution of a uniform sample "
     "of the other questions (about `reservoir` of them)",
+    "for a task whose options change with every request: its options and answers only as keyed digests, and one "
+    "keyed digest of the request's option texts",
     "never the request's text or state",
     "the labels you post, with who chose the item (the draw, or you)",
 )
@@ -172,7 +249,7 @@ STORES = (
 
 ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "script", "keys", "top", "conf",
               "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "sample",
-              "replica")  # fmt: skip
+              "options_digest", "replica")  # fmt: skip
 FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
 
 
@@ -267,10 +344,11 @@ def canonical_text(text: str) -> str:
     return " ".join(unicodedata.normalize("NFC", str(text)).split())
 
 
-def hk1(digest_key: str, text: str) -> str:
-    """The client-computable digest of an input: `hk1:` and HMAC-SHA256 of its canonical text under the task's key."""
-    mac = hmac.new(bytes.fromhex(digest_key), canonical_text(text).encode(), hashlib.sha256).hexdigest()
-    return "hk1:" + mac
+def hk1(digest_key: str, text: str, canonical: str | None = None) -> str:
+    """The client-computable digest of an input: `hk1:` and HMAC-SHA256 of its canonical text under the task's key
+    (`canonical`: that text, when the caller has it already)."""
+    canon = canonical_text(text) if canonical is None else canonical
+    return "hk1:" + hmac.new(bytes.fromhex(digest_key), canon.encode(), hashlib.sha256).hexdigest()
 
 
 def uniform(salt: str, rid: str, question: str, slice_name: str) -> float:
@@ -290,13 +368,17 @@ def margin_pi(margin: float, settings: dict) -> float:
     return floor_pi(lo + (hi - lo) * w)
 
 
-def draw(salt: str, rid: str, question: str, conf: float, margin: float, epoch: dict) -> dict:
-    """{slice: {"in", "pi", "u"}} for one served question under `epoch` (its settings and `tau_min`)."""
+def draw(
+    salt: str, rid: str, question: str, conf: float, margin: float, epoch: dict, typical: int | None = None
+) -> dict:
+    """{slice: {"in", "pi", "u"}} for one served question under `epoch` (its settings and `tau_min`); `typical`: its
+    typicality level (None: the typical slice draws nothing, as before the levels exist or without the student)."""
     s = epoch["settings"]
     pis = {
         "audit": floor_pi(s["audit_pi"]),
         "cert": floor_pi(s["cert_pi"]) if conf >= epoch["tau_min"] else 0.0,
         "margin": margin_pi(margin, s),
+        "typical": floor_pi(s.get("typical_pi_max", 0.0) * typical / TYPICAL_LEVELS) if typical else 0.0,
     }
     out = {}
     for name in SLICES:
@@ -308,7 +390,7 @@ def draw(salt: str, rid: str, question: str, conf: float, margin: float, epoch: 
 def script_class(text: str) -> str:
     """The Unicode block of most of the letters: latin, cyrillic, greek, arabic, hebrew, devanagari, cjk or other."""
     counts: dict[str, int] = {}
-    for ch in str(text)[:4000]:
+    for ch in str(text)[:SCRIPT_TEXT]:
         if not ch.isalpha():
             continue
         name = unicodedata.name(ch, "")
@@ -372,8 +454,10 @@ class TaskLabels:
     replica for an answer another replica served is kept at once and counted once that replica's segment is read.
     Thread-safe."""
 
-    def __init__(self, task_id: str, settings: dict, secret: dict, place, replica: str, clock=time.time):
+    def __init__(self, task_id: str, settings: dict, secret: dict, place, replica: str, clock=time.time,
+                 dynamic: bool = False):  # fmt: skip
         self.task_id, self.secret, self.place, self.replica = task_id, secret, place, replica
+        self.dynamic = dynamic  # options change with every request: options and answers are kept as digests only
         self.registered = dict(settings)  # the registration's settings: epoch 0's
         self.clock = clock
         self.shared = bool(getattr(place, "shared", False))
@@ -399,6 +483,9 @@ class TaskLabels:
         self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
         self.merges = 0
         self.cert_threshold: float | None = None  # the task's certified threshold, when it has one (the server sets it)
+        self.embed = None  # the static student's embedding of a text (the server sets it once the student is here)
+        self.embed_off: str | None = "no static student on this server"
+        self.typicality = Typicality(int(secret["salt"][:8], 16))
         self._hours: dict[int, int] = {}  # answers known here (every replica's) by the hour they were served
         self._first_t: float | None = None
         self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
@@ -503,6 +590,7 @@ class TaskLabels:
         self.sync()
         self._maybe_tau()
         self._maybe_rebudget()
+        self._maybe_typical()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
             self.compact()
@@ -644,14 +732,18 @@ class TaskLabels:
         span = max(3600.0, now - max(lo, self._first_t if self._first_t is not None else now))
         return n * 86400.0 / span
 
-    def _budget(self, settings: dict, tau: float) -> dict:
+    def typical_wanted(self) -> bool:
+        """Whether the typical slice should run: the student is here and the slice has not ended."""
+        return self.embed is not None and not any(e.get("why") == "the typical slice ended" for e in self.epochs)
+
+    def _budget(self, settings: dict, tau: float, typical: bool | None = None, rate: float | None = None) -> dict:
         """The chances for `settings`' per_day at the measured rate, over the region above `tau` (under `_lock`):
         {"settings": with the chances, "budget": what they assumed}."""
         rows = list(self.rows.values())
-        rate = self.rate()
+        rate = self.rate() if rate is None else float(rate)
         share = (sum(r["conf"] >= tau for r in rows) / len(rows)) if rows else 1.0
         w = float(np.mean([margin_weight(r["margin"], settings["margin_scale"]) for r in rows])) if rows else 0.5
-        pis = budget_pis(settings, rate, share, w)
+        pis = budget_pis(settings, rate, share, w, typical=self.typical_wanted() if typical is None else typical)
         new = {**settings, **pis}
         per_row = [  # the chance each held answer would have of being drawn into each slice, floors and caps applied
             floor_pi(new["audit_pi"])
@@ -705,6 +797,61 @@ class TaskLabels:
                            "budget": b["budget"], "why": why, "by": self.replica}]  # fmt: skip
 
         self._adopt(self._swap_epochs(add))
+
+    def typical_labelled(self) -> int:
+        with self._lock:
+            return sum(
+                1
+                for k, r in self.rows.items()
+                if r["draws"].get("typical", {}).get("in") and (self.latest.get(k) or {}).get("type") == "label"
+            )
+
+    def _maybe_typical(self) -> None:
+        """The typical slice's turn: refresh its levels; in budget mode, start it (a new epoch) once the student is
+        here; end it (a new epoch, its share back to margin) once `typical_labels` of its answers are labelled."""
+        self.typicality.refresh()
+        if not self.writes:
+            return
+        with self._lock:
+            s, e = self.settings, self.epoch
+            on = s.get("typical_pi_max", 0.0) > 0
+        if on and self.typical_labelled() >= s["typical_labels"]:
+            why, change = "the typical slice ended", {"typical_pi_max": 0.0}
+        elif (not on and s.get("per_day") is not None and s["shares"].get("typical", 0) > 0 and self.typical_wanted()
+              and not any(x.get("why") == "the typical slice started" for x in self.epochs)):  # fmt: skip
+            why, change = "the typical slice started", None
+        else:
+            return
+        with self._lock:
+            ended = why == "the typical slice ended"
+            if s.get("per_day") is not None:  # recomputed: ended, its share goes back to margin
+                assumed = None if _tau_set(e) else float(s["tau_after"])  # before the region: the assumed rate
+                b = self._budget(s, e["tau_min"], typical=not ended, rate=assumed)
+                new_settings, budget = b["settings"], b["budget"]
+            else:
+                new_settings, budget = {**s, **change}, None
+            n = e["epoch"]
+
+        def add(cur):
+            cur = cur or [self._epoch_zero()]
+            if cur[-1]["epoch"] != n:
+                return None
+            return cur + [{**cur[-1], "epoch": len(cur), "start": self.clock(), "settings": new_settings,
+                           "why": why, "by": self.replica, **({"budget": budget} if budget else {})}]  # fmt: skip
+
+        self._adopt(self._swap_epochs(add))
+
+    def typical_status(self) -> dict:
+        s = self.settings
+        state = (
+            "ended" if any(e.get("why") == "the typical slice ended" for e in self.epochs)
+            else f"off: {self.embed_off}" if self.embed is None
+            else "on" if s.get("typical_pi_max", 0.0) > 0 and self.typicality.cuts is not None
+            else f"waiting for {TYPICAL_MIN} answers" if s.get("typical_pi_max", 0.0) > 0
+            else "off"
+        )  # fmt: skip
+        return {"state": state, "labelled": self.typical_labelled(), "until": s["typical_labels"],
+                "held": self.typicality.n}  # fmt: skip
 
     def _tau_now(self, region: float | None = None) -> tuple[float, int]:
         """The cert region's lowest confidence for the top `region` share (default the settings') of the answers held
@@ -914,13 +1061,31 @@ class TaskLabels:
     def epoch(self) -> dict:
         return self.epochs[-1]
 
+    def option_key(self, key) -> str:
+        """How an option's key is kept: as given, or for a task whose options change with every request a keyed
+        digest (`ok1:`), so no option of a request is stored; a label's answer is kept the same way."""
+        if not self.dynamic:
+            return key
+        mac = hmac.new(bytes.fromhex(self.secret["digest_key"]), b"option\x00" + str(key).encode(), hashlib.sha256)
+        return "ok1:" + mac.hexdigest()[:32]
+
     def observe(self, rid: str, question: str, *, text: str, keys, served, lp, h, certified, version, stack,
-                lang: str | None, via: str = "model") -> dict:  # fmt: skip
+                lang: str | None, via: str = "model", option_texts=None,
+                embed_text: str | None = None) -> dict:  # fmt: skip
         """Log one served question and draw it. Returns the answer's additions: {"request_id"} and, when the row was
         drawn into any slice, "label_requested": True; nothing on a replica that does not write. Cheap: a few hashes
         and an append under the lock, never a call to the place."""
         if not self.writes:
             return {}
+        level = None
+        if self.embed is not None and self.settings.get("typical_pi_max", 0.0) > 0:
+            try:  # cold start only; a failing student never fails an answer
+                src = text if embed_text is None else embed_text
+                v = np.asarray(self.embed(src[:TYPICAL_TEXT]), dtype=np.float32).reshape(-1)  # a bounded cost
+                level = self.typicality.level(v)
+                self.typicality.add(v)
+            except Exception:
+                level = None
         p = np.asarray(served, dtype=np.float64)
         order = np.argsort(-p)
         top = int(order[0])
@@ -928,7 +1093,7 @@ class TaskLabels:
         margin = float(p[top] - p[order[1]]) if len(p) > 1 else 1.0
         with self._lock:
             e = self.epoch
-            d = draw(self.secret["salt"], rid, question, conf, margin, e)
+            d = draw(self.secret["salt"], rid, question, conf, margin, e, typical=level)
             drawn = any(v["in"] for v in d.values())
             sample = self._sample(rid, question)
             full = self.settings["features"] == "full"
@@ -939,11 +1104,14 @@ class TaskLabels:
                 "t": self.clock(),
                 "epoch": e["epoch"],
                 "digest": hashlib.blake2b(canonical.encode(), key=bytes.fromhex(self.secret["salt"])[:64]).hexdigest(),
-                "hk1": hk1(self.secret["digest_key"], text),
+                "hk1": hk1(self.secret["digest_key"], text, canonical),
                 "lang": lang or "unknown",
                 "script": script_class(text),
-                "keys": list(keys),
-                "top": keys[top],
+                "keys": [self.option_key(k) for k in keys],
+                "top": self.option_key(keys[top]),
+                "options_digest": None
+                if option_texts is None
+                else hk1(self.secret["digest_key"], "\x1f".join(canonical_text(x) for x in option_texts)),
                 "conf": conf,
                 "margin": margin,
                 "served_certified": certified,
@@ -1030,6 +1198,8 @@ class TaskLabels:
         if len(refs) != 1:
             return {"status": "invalid", "why": "give exactly one of request_id, digest, state, text"}
         answer = it.get("answer")
+        if self.dynamic and answer is not None:
+            answer = self.option_key(str(answer))
         source = it.get("source", "user")
         if source not in ("user", "queue", "import"):
             return {"status": "invalid", "why": "source is user, queue or import"}
@@ -1067,6 +1237,8 @@ class TaskLabels:
                 return {"status": "accepted", "source": "import", "matched": 0}
         row = self.rows[key]
         if answer not in row["keys"]:
+            if self.dynamic:  # the options are kept as digests: not shown
+                return {"status": "invalid_answer", "why": "not one of this request's options", "request_id": key[0]}
             return {"status": "invalid_answer", "options": row["keys"], "request_id": key[0]}
         prev = latest.get(key)
         if prev is not None and prev["type"] == "label" and prev["answer"] == answer:
@@ -1209,8 +1381,9 @@ class TaskLabels:
         return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
 
     def fit_rows(self) -> list[dict]:
-        """The labelled rows a fit may use: those drawn by a fit slice (margin) and by no evaluation slice, weighted
-        `1 / (pi_margin x (1 - p_eval))` (the chance of being drawn by margin and not by audit or cert), and the
+        """The labelled rows a fit may use: those drawn by a fit slice (margin, typical) and by no evaluation slice,
+        weighted `1 / (p_fit x (1 - p_eval))` with `p_fit = 1 - (1 - pi_margin)(1 - pi_typical)` (the chance of being
+        drawn by a fit slice and not by audit or cert), and the
         labels a client chose itself on rows no slice drew (`selection: "self"`, weight None: not probability-sampled,
         never for calibration). A label on a row an evaluation slice drew is never here."""
         now = self.clock()
@@ -1223,9 +1396,10 @@ class TaskLabels:
                 d = row["draws"]
                 if d["audit"]["in"] or d["cert"]["in"]:
                     continue
-                rec = self._role_rec(key, row, now, [s for s in FIT_SLICES if d[s]["in"]])
-                if d["margin"]["in"]:
-                    rec["weight"] = 1.0 / (d["margin"]["pi"] * (1.0 - self.p_eval(row)))
+                rec = self._role_rec(key, row, now, [s for s in FIT_SLICES if d.get(s, {}).get("in")])
+                if rec["slices"]:  # drawn by margin or typical: the chance of either, and of no evaluation draw
+                    p_fit = 1.0 - float(np.prod([1.0 - d[s]["pi"] for s in FIT_SLICES if s in d]))
+                    rec["weight"] = 1.0 / (p_fit * (1.0 - self.p_eval(row)))
                     rec["selection"] = "slice"
                 else:
                     rec["weight"], rec["selection"] = None, "self"
@@ -1237,7 +1411,7 @@ class TaskLabels:
         labelled = ev is not None and ev["type"] == "label"
         return {"request_id": key[0], "question": key[1], "slices": slices, "t": row["t"], "epoch": row["epoch"],
                 "lang": row["lang"], "conf": row["conf"], "top": row["top"], "version": row["version"],
-                "pi": {s: row["draws"][s]["pi"] for s in SLICES}, "p_eval": self.p_eval(row),
+                "pi": {s: row["draws"][s]["pi"] for s in SLICES if s in row["draws"]}, "p_eval": self.p_eval(row),
                 "state": self.state_of(key, self.latest, now), "answer": ev["answer"] if labelled else None,
                 "correct": (ev["answer"] == row["top"]) if labelled else None}  # fmt: skip
 

@@ -39,11 +39,16 @@ L18 roles: an evaluation draw (audit or cert) makes a row evaluation-only; fit r
 L19 the per-day budget: the registration's chances assume tau_after answers a day; the region epoch sets them from
     the measured rate so the expected labels a day meet per_day; a new budget epoch only after a day and only when
     the rate has left 0.5x to 2x; per_day and explicit chances switch each other off
+L20 the typical slice: levels from the reservoir rank a typical input above an outlier; with the student present a
+    budget task starts the slice (an epoch), draws it at its level, ends it after typical_labels (its share back to
+    margin), and its labels are fit labels weighted by the chance of either fit slice; without the student it is off;
+    the student reads a bounded prefix of the input
 
   uv run pytest -q tests/unit/test_labels.py
 """
 
 import json
+import zlib
 
 import numpy as np
 import pytest
@@ -79,7 +84,8 @@ def test_l1_settings():
     assert LB.parse_settings({"enabled": False}) is None
     d = LB.parse_settings(True)  # a budget of 20 a day; the registration's epoch assumes tau_after (200) answers a day
     assert d["per_day"] == 20 and {k: d[k] for k in LB.PI_KEYS} == {
-        "audit_pi": 0.02, "cert_pi": 0.045, "margin_pi_min": 0.0, "margin_pi_max": 0.08}  # fmt: skip
+        "audit_pi": 0.02, "cert_pi": 0.045, "margin_pi_min": 0.0, "margin_pi_max": 0.08,
+        "typical_pi_max": 0.0}  # fmt: skip
     assert LB.parse_settings({"cert_pi": 0.3})["per_day"] is None  # chances given: no budget
     assert LB.parse_settings({"cert_pi": 0.3})["cert_pi"] == 0.3
     for bad in ({"nope": 1}, {"cert_pi": 0.01}, {"features": "all"}, {"margin_pi_min": 0.3, "margin_pi_max": 0.2},
@@ -303,23 +309,25 @@ def test_l11_the_need_is_the_current_region_at_one_chance():
 @pytest.mark.slow
 def test_l12_inclusion_matches_pi_on_200000_rows():
     salt = LB.new_secrets()["salt"]
-    s = LB.parse_settings({"audit_pi": 0.05, "cert_pi": 0.2})
+    s = LB.parse_settings({"audit_pi": 0.05, "cert_pi": 0.2, "typical_pi_max": 0.4})
     epoch = {"epoch": 1, "tau_min": 0.7, "settings": s}
     rng = np.random.default_rng(1)
     n = 200_000
     confs, margins = rng.uniform(0.34, 1.0, n), rng.uniform(0.0, 0.6, n)
+    levels = rng.integers(0, LB.TYPICAL_LEVELS + 1, n)  # 0: no level yet (the typical slice draws nothing)
     want = {x: 0.0 for x in LB.SLICES}
     got = {x: 0 for x in LB.SLICES}
     var = {x: 0.0 for x in LB.SLICES}
     for i in range(n):
-        d = LB.draw(salt, f"r-{i}", "q", float(confs[i]), float(margins[i]), epoch)
+        d = LB.draw(salt, f"r-{i}", "q", float(confs[i]), float(margins[i]), epoch, typical=int(levels[i]) or None)
         for x in LB.SLICES:
             pi = d[x]["pi"]
             want[x] += pi
             var[x] += pi * (1 - pi)
             got[x] += d[x]["in"]
     for x in LB.SLICES:
-        assert abs(got[x] - want[x]) < 4 * var[x] ** 0.5, (x, got[x], want[x])
+        assert want[x] > 0, x  # every slice draws in this test, the typical one too
+        assert abs(got[x] - want[x]) <= 4 * var[x] ** 0.5, (x, got[x], want[x])
 
 
 def test_l13_pooling_by_region_containment_and_the_real_source():
@@ -530,3 +538,58 @@ def test_l19_the_per_day_budget():
     assert up["settings"]["per_day"] == 80 and up["settings"]["audit_pi"] > tl.epochs[-2]["settings"]["audit_pi"]
     off = tl.set_settings({"cert_pi": 0.3})
     assert off["settings"]["per_day"] is None and off["settings"]["cert_pi"] == 0.3 and "budget" not in off
+
+
+def _fake_embed(dim=16, seed=0):
+    """Texts "c<k>..." near centre k of a few clusters, "x..." far from all: a stand-in for the static student."""
+    rng = np.random.default_rng(seed)
+    centres = rng.normal(size=(3, dim))
+
+    def embed(text):
+        r = np.random.default_rng(zlib.crc32(text.encode()))
+        v = (rng.normal(size=dim) * 3 if text.startswith("x") else centres[int(text[1]) % 3]) + r.normal(size=dim) * 0.3
+        return v / np.linalg.norm(v)
+
+    return embed
+
+
+def test_l20_the_typical_slice():
+    typ = LB.Typicality(1)
+    embed = _fake_embed()
+    for i in range(200):  # most inputs like cluster 0, some like cluster 1, a few unlike anything
+        typ.add(embed(f"c0-{i}" if i < 160 else f"c1-{i}" if i < 190 else f"x-{i}"))
+    typ.refresh()
+    assert typ.level(embed("c0-new")) >= 3 and typ.level(embed("x-outlier")) == 1
+
+    clock = Clock()
+    tl = _task(clock=clock, typical_labels=5, per_day=400)  # a budget the typical slice can draw from
+    assert tl.typical_status()["state"].startswith("off: no static student")
+    tl.embed = embed
+    tl.tick()
+    assert tl.epoch["why"] == "the typical slice started" and tl.settings["typical_pi_max"] > 0
+    assert tl.settings["margin_pi_max"] <= tl.epochs[0]["settings"]["margin_pi_max"]  # margin gave up its share
+    rids = [_serve(tl, f"c{i % 3}-{i}", [0.6, 0.3, 0.1])[0] for i in range(80)]  # the reservoir fills
+    tl.tick()
+    assert tl.typical_status()["state"] == "on"
+    rids += [_serve(tl, f"c{i % 3}-t{i}", [0.6, 0.3, 0.1])[0] for i in range(400)]
+    typ_rows = [r for r in rids if tl.rows[(r, "q")]["draws"]["typical"]["in"]]
+    assert len(typ_rows) >= 20 and all(tl.rows[(r, "q")]["draws"]["typical"]["pi"] > 0 for r in typ_rows)
+    tl.post([{"request_id": r, "answer": "billing"} for r in typ_rows[:5]])
+    fit = {x["request_id"]: x for x in tl.fit_rows()}
+    for r in typ_rows[:5]:
+        d = tl.rows[(r, "q")]["draws"]
+        if d["audit"]["in"] or d["cert"]["in"]:
+            continue  # evaluation first
+        p_fit = 1 - (1 - d["margin"]["pi"]) * (1 - d["typical"]["pi"])
+        assert fit[r]["weight"] == pytest.approx(1 / (p_fit * (1 - tl.p_eval(tl.rows[(r, "q")]))))
+    tl.tick()
+    assert tl.epoch["why"] == "the typical slice ended" and tl.settings["typical_pi_max"] == 0.0
+    assert tl.typical_status()["state"] == "ended" and not tl.typical_wanted()
+    late, _ = _serve(tl, "c1-late", [0.6, 0.3, 0.1])
+    assert tl.rows[(late, "q")]["draws"]["typical"]["pi"] == 0.0
+    seen = []
+    capped = _task(typical_pi_max=0.3)
+    capped.embed = lambda t: (seen.append(len(t)), embed("c0-" + t[:5]))[1]
+    _serve(capped, "c0-" + "x" * 50_000, [0.6, 0.3, 0.1])
+    assert seen == [LB.TYPICAL_TEXT]  # the student reads a bounded prefix whatever the state's length
+    assert LB.script_class("я" * 600 + "a" * 50_000) == "cyrillic"  # the script class too: its first 500 characters

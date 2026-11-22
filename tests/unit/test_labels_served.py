@@ -12,6 +12,8 @@ S3  the routes: post labels by request id, by digest and by state, the blind que
     declines, the export; a task without labels is a 409, an unknown task a 404, a bad body a 422
 S4  under --tasks-dir the rows and labels are written and read back by a new server; removing the task removes them
 S5  the settings route starts an epoch; erasing one request and everything before a time; their 422s
+S6  a task whose options change with every request opts in: its options and answers are kept as digests only, a label
+    is checked against that request's own options, and the plain readout is kept
 
   uv run pytest -q tests/unit/test_labels_served.py
 """
@@ -179,6 +181,7 @@ def test_s5_settings_and_erasure_routes(tmp_path):
     assert r.status_code == 200, r.text
     assert r.json()["epoch"]["epoch"] == 1 and r.json()["epoch"]["settings"]["cert_pi"] == 0.5
     assert client.get("/v1/tasks/angry/labels/status").json()["settings"]["cert_pi"] == 0.5
+    assert set(client.get("/v1/tasks/angry/labels/status").json()["typical"]) == {"state", "labelled", "until", "held"}
     got = client.get("/v1/tasks/angry").json()["labels"]
     assert (
         got["settings"]["cert_pi"] == 0.5 and got["registered_settings"]["cert_pi"] == 0.05
@@ -217,3 +220,30 @@ def test_s7_a_settings_change_discloses_what_is_stored():
         assert got["registered_settings"]["features"] == "minimal"
         listed = next(t for t in client.get("/v1/tasks").json()["tasks"] if t["id"] == "angry")["labels"]
         assert listed["settings"]["features"] == features
+
+
+def test_s6_a_task_whose_options_change_takes_labels_and_keeps_no_option_text():
+    import test_dynamic_task as D
+
+    client, so = D.make()
+    r = D.post(client, {"id": "brand", **D.DYN, "examples": D.examples(500), "certify": D.CERT,
+                        "labels": {"audit_pi": 1.0}})  # fmt: skip
+    assert r.status_code == 200, r.text
+    assert "options_digest" in r.json()["labels"]["stored_fields"]
+    opts = ["brand01x", "brand02x", "brand03x"]
+    out = client.post("/v1/systemone", json=D.request(opts, 2, 0.8, "buy the brand03x product today"))
+    a = out.json()["answers"]["q1"]
+    assert a["request_id"] and a["label_requested"]
+    log = so.labels_logs["brand"]
+    row = log.rows[(a["request_id"], "q1")]
+    dumped = json.dumps(row)
+    assert not any(o in dumped for o in opts) and "brand03x product" not in dumped
+    assert all(k.startswith("ok1:") for k in row["keys"]) and row["options_digest"].startswith("hk1:")
+    assert row["via"] == "model" and row["lp"] is not None
+    bad = client.post("/v1/tasks/brand/labels", json={"labels": [{"request_id": a["request_id"], "answer": "9"}]})
+    assert bad.json()["results"][0]["status"] == "invalid_answer" and "options" not in bad.json()["results"][0]
+    ok = client.post("/v1/tasks/brand/labels", json={"labels": [{"request_id": a["request_id"], "answer": "3"}]})
+    assert ok.json()["results"][0]["status"] == "accepted"
+    rec = next(x for x in log.table() if x["request_id"] == a["request_id"])
+    assert rec["correct"] is (a["choice"] == "3") and rec["answer"] == log.option_key("3")
+    assert not any(o in json.dumps(log.events) for o in opts)
