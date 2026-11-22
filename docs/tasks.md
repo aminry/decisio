@@ -368,6 +368,7 @@ After that a new budget starts at most once a day, and only when the rate has mo
 Audit and cert chances never go below 0.02, so a small budget on heavy traffic asks for more than `per_day`; a margin chance under 0.02 is off.
 `status.budget` gives the labels a day asked for, the measured rate and the chances in force; the queue gives `per_day` and the rate only.
 Give the chances yourself (`audit_pi`, `cert_pi`, `margin_pi_min`, `margin_pi_max`) to turn the budget off; `PUT .../labels/settings` with `per_day` turns it on again.
+A task certified at alpha 0.01 or 0.005 needs hundreds of labels in its region, so with the default shares its budget moves to audit 0.10, cert 0.80, margin 0.10 and no typical slice, which reaches those labels about 1.8 times sooner; the audit share still gives 100 labels in every 1,000. Shares you give at registration are kept.
 Every drawn answer keeps the chance it was drawn at, so a change of chances never invalidates what was drawn before.
 
 The certificate region covers all traffic for the first `tau_after` (200) answers.

@@ -47,6 +47,8 @@ L21 the overview: the response rate, the audit accuracy and its strict form with
     and per language the counts and the labels still needed; days to the need at the region's label rate
 L22 ttl_days: answers and labels older than it are erased by the labels thread, at most once an hour, through the
     erase path; it is at least due_days
+L23 a task certified at alpha 0.01 or below, in budget mode with the default shares, moves to audit 0.10, cert 0.80,
+    margin 0.10, typical 0 (an epoch); given shares and lenient alphas are kept
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -644,3 +646,22 @@ def test_l22_ttl_days():
     assert {k[0] for k in tl.rows} == {new} and tl.counts()["erasures"]["erased"] == 1
     tl.tick()
     assert tl.counts()["erasures"]["erased"] == 1  # once an hour at most, and only when something is old
+
+
+def test_l23_shares_for_a_strict_alpha():
+    tl = _task()
+    tl.cert_alpha = 0.05
+    tl.tick()
+    assert tl.epoch["epoch"] == 0  # a lenient alpha keeps the default shares
+    tl.cert_alpha = 0.005
+    tl.tick()
+    e = tl.epoch
+    assert e["epoch"] == 1 and e["settings"]["shares"] == LB.STRICT_SHARES and "alpha 0.005" in e["why"]
+    assert e["settings"]["cert_pi"] > tl.epochs[0]["settings"]["cert_pi"] and e["settings"]["typical_pi_max"] == 0.0
+    assert e["budget"]["per_day"] == 20
+    tl.tick()
+    assert tl.epoch["epoch"] == 1  # once
+    given = _task(shares={"audit": 0.2, "cert": 0.5, "margin": 0.3, "typical": 0.0})
+    given.cert_alpha = 0.01
+    given.tick()
+    assert given.epoch["epoch"] == 0  # shares given at registration are kept

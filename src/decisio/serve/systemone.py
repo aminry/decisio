@@ -3268,6 +3268,7 @@ class SystemOne:
             log.cert_threshold = (
                 cert.get("threshold") if cert.get("certified", cert.get("threshold") is not None) else None
             )
+            log.cert_alpha = cert.get("alpha")
             try:
                 log.tick(force, merge=merge)
             except (

@@ -76,6 +76,8 @@ DEFAULTS = {
     "per_day": 20,  # labels a day the chances aim at (None: the chances above as given); a place to start
     "shares": {"audit": 0.15, "cert": 0.45, "margin": 0.30, "typical": 0.10},  # of per_day, by slice
 }
+STRICT_ALPHA = 0.01  # a task certified at this alpha or below has its labels drawn mostly where its certificate is
+STRICT_SHARES = {"audit": 0.10, "cert": 0.80, "margin": 0.10, "typical": 0.0}
 PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max", "typical_pi_max")
 REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
 REBUDGET_BAND = (0.5, 2.0)  # and ends when the measured rate leaves this band around the rate it assumed
@@ -498,6 +500,7 @@ class TaskLabels:
         self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
         self.merges = 0
         self.cert_threshold: float | None = None  # the task's certified threshold, when it has one (the server sets it)
+        self.cert_alpha: float | None = None  # the alpha the task is certified at (the server sets it)
         self.embed = None  # the static student's embedding of a text (the server sets it once the student is here)
         self.embed_off: str | None = "no static student on this server"
         self.typicality = Typicality(int(secret["salt"][:8], 16))
@@ -607,6 +610,7 @@ class TaskLabels:
         self._maybe_tau()
         self._maybe_rebudget()
         self._maybe_typical()
+        self._maybe_strict()
         self._maybe_expire()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
@@ -810,6 +814,31 @@ class TaskLabels:
             if cur[-1]["epoch"] != n:
                 return None  # another replica moved the epochs first
             why = f"the rate moved {ratio:.2f}x"
+            return cur + [{**cur[-1], "epoch": len(cur), "start": self.clock(), "settings": b["settings"],
+                           "budget": b["budget"], "why": why, "by": self.replica}]  # fmt: skip
+
+        self._adopt(self._swap_epochs(add))
+
+    def _maybe_strict(self) -> None:
+        """A task certified at `STRICT_ALPHA` or below, in budget mode with the default shares: the shares move to
+        `STRICT_SHARES` (an epoch), so its labels reach the hundreds a strict certificate needs about 1.8x sooner;
+        the audit share stays above 30 labels in the first 1,000. Shares given at registration are kept."""
+        if not self.writes or self.cert_alpha is None or float(self.cert_alpha) > STRICT_ALPHA:
+            return
+        with self._lock:
+            s, e = self.settings, self.epoch
+            if s.get("per_day") is None or s["shares"] != DEFAULTS["shares"]:
+                return
+            strict = {**s, "shares": dict(STRICT_SHARES)}
+            assumed = None if _tau_set(e) else float(s["tau_after"])
+            b = self._budget(strict, e["tau_min"], typical=False, rate=assumed)
+            n = e["epoch"]
+            why = f"shares for a certificate at alpha {self.cert_alpha}"
+
+        def add(cur):
+            cur = cur or [self._epoch_zero()]
+            if cur[-1]["epoch"] != n:
+                return None
             return cur + [{**cur[-1], "epoch": len(cur), "start": self.clock(), "settings": b["settings"],
                            "budget": b["budget"], "why": why, "by": self.replica}]  # fmt: skip
 
