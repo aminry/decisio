@@ -12,7 +12,7 @@ import pytest
 import torch
 from safetensors.torch import save_file
 
-from decisio.serve.hidden_engine import HiddenEngine
+from decisio.serve.hidden_engine import load_output_rows
 
 W = torch.arange(12, dtype=torch.float32).reshape(4, 3)
 
@@ -36,7 +36,7 @@ def checkpoint(root, sharded):
 
 @pytest.mark.parametrize("sharded", [True, False])
 def test_local_directory(tmp_path, sharded):
-    assert torch.equal(HiddenEngine._load_lm_head(str(checkpoint(tmp_path / "ckpt", sharded))), W)
+    assert torch.equal(load_output_rows(str(checkpoint(tmp_path / "ckpt", sharded))), W)
 
 
 @pytest.mark.parametrize("sharded", [True, False])
@@ -55,7 +55,7 @@ def test_repo_id_fetches_only_what_it_needs(tmp_path, monkeypatch, sharded):
         return str(cache / filename)
 
     monkeypatch.setattr(huggingface_hub, "hf_hub_download", fake_download)
-    assert torch.equal(HiddenEngine._load_lm_head("Qwen/Qwen3.6-35B-A3B-FP8"), W)
+    assert torch.equal(load_output_rows("Qwen/Qwen3.6-35B-A3B-FP8"), W)
     want = (
         ["model.safetensors.index.json", "model-00002-of-00002.safetensors"]
         if sharded
@@ -68,21 +68,21 @@ def test_clear_errors(tmp_path):
     empty = tmp_path / "empty"
     empty.mkdir()
     with pytest.raises(FileNotFoundError, match="neither model.safetensors.index.json nor model.safetensors"):
-        HiddenEngine._load_lm_head(str(empty))
+        load_output_rows(str(empty))
     tied = tmp_path / "tied"
     tied.mkdir()
     save_file({"model.embed.weight": W}, str(tied / "model.safetensors"))
     with pytest.raises(ValueError, match="no lm_head.weight"):
-        HiddenEngine._load_lm_head(str(tied))
+        load_output_rows(str(tied))
     (tied / "model.safetensors.index.json").write_text(
         json.dumps({"weight_map": {"model.embed.weight": "model.safetensors"}})
     )
     with pytest.raises(ValueError, match="index.json has no lm_head.weight"):
-        HiddenEngine._load_lm_head(str(tied))
+        load_output_rows(str(tied))
     missing = checkpoint(tmp_path / "missing", sharded=True)
     (missing / "model-00002-of-00002.safetensors").unlink()
     with pytest.raises(FileNotFoundError, match="the shard the index names"):
-        HiddenEngine._load_lm_head(str(missing))
+        load_output_rows(str(missing))
 
 
 def test_tied_embeddings_by_name(tmp_path):
@@ -93,10 +93,10 @@ def test_tied_embeddings_by_name(tmp_path):
     tied = tmp_path / "tied"
     tied.mkdir()
     save_file({"model.language_model.embed_tokens.weight": W}, str(tied / "model.safetensors"))
-    assert torch.equal(HiddenEngine._load_lm_head(str(tied), GEMMA4.head_rows), W)
+    assert torch.equal(load_output_rows(str(tied), GEMMA4.head_rows), W)
     (tied / "model.safetensors.index.json").write_text(
         json.dumps({"weight_map": {"model.language_model.embed_tokens.weight": "model.safetensors"}})
     )
-    assert torch.equal(HiddenEngine._load_lm_head(str(tied), GEMMA4.head_rows), W)
+    assert torch.equal(load_output_rows(str(tied), GEMMA4.head_rows), W)
     with pytest.raises(ValueError, match="no lm_head.weight"):
-        HiddenEngine._load_lm_head(str(tied))  # the default name alone still refuses tied embeddings
+        load_output_rows(str(tied))  # the default name alone still refuses tied embeddings

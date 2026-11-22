@@ -446,7 +446,7 @@ What the server is serving, in one object a run record can quote:
 - `systemone.calculator`, on a server that shows the calculator block: `version`, `requests` read with it on, `shown`, `from_input` (blocks made from `calculator_input`) and `none` (a count per reason there was no block); with the cascade reader also `reader`, `tagger` (`name`, `revision`, `device`), `thresholds` and `paths` (a count per path); never any state text ([calculator.md](calculator.md)).
 - `systemone.header_layout`: `reads`, the engine calls read under the header layout, and `state_rereads`, those whose state an earlier call had read under another header, which the prefix cache could not serve; `states_remembered` and `window` (4,096), how many recent states the count looks back over ([running.md](running.md#the-header-layout---layout)).
   A high `state_rereads` means clients ask about one state in several requests: they want all their questions in one request, or `"layout": "plain"`.
-- `head_engine`, the intent head's hidden-state reader (the serving engine by default, a second engine with `--head-engine`), and `image_engine` when one is running.
+- `head_engine`, the intent head's hidden-state reader (the serving engine: the tap on Gemma 4 12B with an in-process engine, the reserved columns otherwise), and `image_engine` when one is running.
 
 Once the engine has died, `/health` answers 503 with `{"ok": false, "engine": "dead", "reason": "...", "exit_code": 70}`, every other route answers 503 with the reason, and the server exits with code 70 (`docs/running.md`, "When the engine dies").
 

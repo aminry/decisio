@@ -1,26 +1,25 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The intent head's two modes (`decisio.serve.vllm_engine.resolve_head_mode`; docs/handoffs/tasks.md).
+"""The intent head's hidden-state readers (`decisio.serve.vllm_engine.resolve_head_mode`, `single_engine_reader`;
+docs/handoffs/tasks.md). Two-engine mode (--head-engine) is removed.
 
-single-engine   the default: the text engine runs decisio's hidden-readout class and the head's hidden state is read
-                from it (`hidden_engine.SingleEngineHidden`)
-second-engine   --head-engine: a second copy of the model in vLLM's pooling mode reads it
-                (`hidden_engine.HiddenEngine`)
+tap        on the Gemma 4 12B with an in-process engine: the head question's hidden state from its own request
+           (`hidden_engine.TapHidden`, decisio.vllm_plugin.tap)
+reserved   otherwise: the hidden-readout class writes h into reserved logit columns (`hidden_engine.SingleEngineHidden`)
 
-M1  the flags select the mode: the default is single-engine on the hidden-readout class; --head-engine selects the
-    second engine and the text-only class; the view and the text-only class alone serve no head; contradictory
-    flags are refused
-M2  the server's start-up builds the selected mode's engine (the CPU stand-in's classes, replaced by recorders)
-M3  both modes give the same declared choice on the stored intent readouts (tests/data/intent_readouts, BANKING77 and
-    CLINC150): each mode's own code reads the stored hidden states (the single engine through vLLM's masked
-    log-probabilities of the reserved columns and bf16 label logits, the second engine through a pooled h and
-    float64 label logits), fits its head on its own example readouts and serves the evaluation items
+M1  the flags select the mode: the default is the single engine on the hidden-readout class; the view and the text-only
+    class serve no head; --one-engine serves none; an unknown class is refused
+M2  the server's start-up builds the single engine's reader (the CPU stand-in's classes, replaced by recorders); the
+    removed flags --head-engine and --head-gpu-memory-utilization are refused with the reason
+M3  the two readers give the same declared choice on the stored intent readouts (tests/data/intent_readouts, BANKING77
+    and CLINC150): each reads the stored hidden states its own way (the reserved columns through vLLM's masked
+    log-probabilities and bf16 label logits, the tap as the forward's own rows and the engine's own letters), fits its
+    head on its own example readouts and serves the evaluation items
 
   uv run pytest -q tests/unit/test_head_modes.py
 """
 
 import sys
-import types
 from pathlib import Path
 
 import numpy as np
@@ -34,29 +33,22 @@ from decisio.serve.vllm_engine import resolve_head_mode  # noqa: E402
 
 
 @pytest.mark.parametrize(
-    "model_class,head_engine,want",
+    "model_class,want",
     [
-        (None, False, ("hidden-readout", "single-engine")),
-        (None, True, ("text-only", "second-engine")),
-        ("text-only", True, ("text-only", "second-engine")),
-        ("view", True, ("view", "second-engine")),
-        ("text-only", False, ("text-only", None)),
-        ("view", False, ("view", None)),
-        ("hidden-readout", False, ("hidden-readout", "single-engine")),
+        (None, ("hidden-readout", "single-engine")),
+        ("hidden-readout", ("hidden-readout", "single-engine")),
+        ("text-only", ("text-only", None)),
+        ("view", ("view", None)),
     ],
 )
-def test_m1_flags_select_the_mode(model_class, head_engine, want):
-    assert resolve_head_mode(model_class, head_engine) == want
+def test_m1_flags_select_the_mode(model_class, want):
+    assert resolve_head_mode(model_class) == want
 
 
-def test_m1_contradictions_are_refused():
-    with pytest.raises(ValueError, match="choose one"):
-        resolve_head_mode("hidden-readout", True)
-    with pytest.raises(ValueError, match="one-engine"):
-        resolve_head_mode(None, True, one_engine=True)
-    assert resolve_head_mode(None, False, one_engine=True) == (None, None)
+def test_m1_one_engine_and_unknown_classes():
+    assert resolve_head_mode(None, one_engine=True) == (None, None)
     with pytest.raises(ValueError, match="must be one of"):
-        resolve_head_mode("multimodal", False)
+        resolve_head_mode("multimodal")
 
 
 class Recorder:
@@ -98,17 +90,16 @@ def start(monkeypatch, *argv):
     return served["so"]
 
 
-def test_m2_start_up_builds_the_selected_mode(monkeypatch):
+def test_m2_start_up_builds_the_single_engine_reader(monkeypatch, capsys):
     so = start(monkeypatch)
-    assert type(so.hidden_engine).__name__ == "HFReservedHiddenEngine"  # single-engine, the default
+    assert type(so.hidden_engine).__name__ == "HFReservedHiddenEngine"  # the single engine, the default
     assert Recorder.built == ["HFLettersEngine", "HFReservedHiddenEngine"]
-    so = start(monkeypatch, "--head-engine")
-    assert type(so.hidden_engine).__name__ == "HFHiddenEngine"  # the second engine
     for argv in (["--model-class", "view"], ["--model-class", "text-only"]):
         assert start(monkeypatch, *argv).hidden_engine is None  # no head: calibration only
-    for argv in (["--model-class", "hidden-readout", "--head-engine"], ["--head-engine", "--image-model", "x"]):
+    for argv in (["--head-engine"], ["--head-gpu-memory-utilization", "0.47"]):
         with pytest.raises(SystemExit):
             start(monkeypatch, *argv)
+        assert "removed with two-engine mode" in capsys.readouterr().err
 
 
 START = 256  # reserved ids above the stand-in's label ids 0..K-1 (small: no 100,000-row matrix)
@@ -124,9 +115,9 @@ def single_engine_readout(monkeypatch, H, W):
     K, D = W.shape
     monkeypatch.setenv("DECISIO_HIDDEN_READOUT_START", str(START))
     monkeypatch.setattr(
-        hidden_engine.HiddenEngine,
-        "_load_lm_head",
-        staticmethod(lambda model: torch.from_numpy(np.concatenate([W, np.zeros((START + D + 1 - K, D))]))),
+        hidden_engine,
+        "load_output_rows",
+        lambda model, names=(), revision=None: torch.from_numpy(np.concatenate([W, np.zeros((START + D + 1 - K, D))])),
     )
     monkeypatch.setattr("decisio.readout.letters.label_token_ids", lambda tok, labels: list(range(K)))
     monkeypatch.setattr("decisio.readout.letters.letter_labels", lambda tok, k: [])
@@ -139,34 +130,40 @@ def single_engine_readout(monkeypatch, H, W):
         return single.readout(None, [{"i": i} for i in range(len(H))])
 
 
-def second_engine_readout(H, W):
-    """(lp, h) per stored state through `HiddenEngine`'s own methods: the pooling engine returns h in float32, the
-    label log-probabilities come from the output layer's label rows in float64."""
+def tap_readout(H, W):
+    """(lp, h) per stored state through `TapHidden`: the engine's readout request returns the letters (softmax of the
+    label logits, float64) and the tap's processor stores the forward's own row, h in float32."""
     import threading
 
     import torch
 
-    from decisio.serve.hidden_engine import HiddenEngine
+    from decisio.serve.hidden_engine import TapHidden
+    from decisio.vllm_plugin import tap
 
     K = W.shape[0]
-    eng = HiddenEngine.__new__(HiddenEngine)
-    eng._W, eng._lock = torch.from_numpy(W), threading.Lock()
-    eng._prepare_separate = lambda state, questions: ([([int(q["i"])], list(range(K))) for q in questions], 1)
 
-    def pooled(prompts, **kw):
-        return [
-            types.SimpleNamespace(outputs=types.SimpleNamespace(data=torch.from_numpy(H[pr.prompt_token_ids[0]])))
-            for pr in prompts
-        ]
+    class Engine:
+        llm = tok = None
+        _lock = threading.Lock()
 
-    eng.llm = types.SimpleNamespace(encode=pooled)
-    with stub_vllm("0.31.0"):
-        return eng.readout(None, [{"i": i} for i in range(len(H))])
+        def _prepare_separate(self, state, questions):
+            return [([int(q["i"])], list(range(K))) for q in questions], 1
+
+        def score_prompts(self, rows, extra_args=None, **kw):
+            out = []
+            for (ids, _), a in zip(rows, extra_args):
+                z = H[ids[0]].astype(np.float64) @ W.T
+                e = np.exp(z - z.max())
+                out.append(e / e.sum())
+                tap.put(a[tap.TAP_KEY], torch.from_numpy(H[ids[0]]))
+            return out, {"cached_tokens": [0] * len(rows)}
+
+    return TapHidden(Engine(), layers=()).readout(None, [{"i": i} for i in range(len(H))])
 
 
 @pytest.mark.parametrize("task", ["banking77", "clinc150"])
 @pytest.mark.slow
-def test_m3_both_modes_declare_the_same_choice(monkeypatch, task):
+def test_m3_both_readers_declare_the_same_choice(monkeypatch, task):
     from decisio.readout import intent_head
     from decisio.serve.systemone import top_index
 
@@ -179,7 +176,7 @@ def test_m3_both_modes_declare_the_same_choice(monkeypatch, task):
     served, heads = {}, {}
     for mode, readout in (
         ("single-engine", single_engine_readout(monkeypatch, H, W)),
-        ("second-engine", second_engine_readout(H, W)),
+        ("tap", tap_readout(H, W)),
     ):
         lp = [a for a, _ in readout]
         h = [b for _, b in readout]
@@ -187,37 +184,7 @@ def test_m3_both_modes_declare_the_same_choice(monkeypatch, task):
         assert rec["applied"], (mode, rec["reason"])
         heads[mode] = rec
         served[mode] = np.array([intent_head.apply_intent_head(lp[i], h[i], rec, options) for i in range(n, len(H))])
-    assert heads["single-engine"]["lambda"] == heads["second-engine"]["lambda"]
+    assert heads["single-engine"]["lambda"] == heads["tap"]["lambda"]
     choices = {m: [top_index(options, p) for p in served[m]] for m in served}
-    assert choices["single-engine"] == choices["second-engine"]  # every evaluation item
-    assert np.abs(served["single-engine"] - served["second-engine"]).max() < 1e-2
-
-
-class FormatRecorder(Recorder):
-    """A recorder whose token rows depend on the prompt format and base it was given, as the real row builder's do."""
-
-    def _prepare_separate(self, state, questions):
-        tag = (repr(getattr(self, "fmt", None)), getattr(getattr(self, "family", None), "key", None))
-        return [([hash(tag) % 997], [4, 5]) for _ in questions], 3
-
-
-def test_m4_the_second_engine_builds_rows_in_the_served_format(monkeypatch):
-    """--head-engine: the second engine is given the server's prompt format and base before the start-up check that
-    its token rows equal the text engine's (under the served spaced layout the defaults differ: start-up refused)."""
-    import decisio.serve.hf_letters as hf
-    import decisio.serve.hidden_engine as he
-
-    for mod, name in ((hf, "HFLettersEngine"), (he, "HFReservedHiddenEngine"), (he, "HFHiddenEngine")):
-        monkeypatch.setattr(mod, name, type(name, (FormatRecorder,), {}))
-    import uvicorn
-
-    from decisio.serve import vllm_engine
-
-    served = {}
-    monkeypatch.setattr(vllm_engine, "make_app", lambda engine, so: served.update(engine=engine, so=so) or object())
-    monkeypatch.setattr(uvicorn, "run", lambda app, **kw: None)
-    monkeypatch.setattr(sys, "argv", ["decisio", "--backend", "hf", "--model", "stand-in", "--head-engine"])
-    vllm_engine.main()
-    text, hidden = served["engine"], served["so"].hidden_engine
-    assert type(hidden).__name__ == "HFHiddenEngine"
-    assert hidden.fmt == text.fmt and hidden.family == text.family
+    assert choices["single-engine"] == choices["tap"]  # every evaluation item
+    assert np.abs(served["single-engine"] - served["tap"]).max() < 1e-2

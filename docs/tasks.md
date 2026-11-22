@@ -5,7 +5,7 @@
 
 This guide is for someone who has never used Decisio's tasks.
 It explains what a task is, when registering one helps, and how to do it end to end.
-The exact rules (formats, fields, the head's two modes) are in the reference, `docs/handoffs/tasks.md`.
+The exact rules (formats, fields, how the head reads its hidden state) are in the reference, `docs/handoffs/tasks.md`.
 A runnable walk-through, which works on a laptop without a GPU, is in `examples/tasks/`.
 
 ## What a task is
@@ -244,7 +244,7 @@ In every intent measurement the test items are held out: none of them is among t
 The intervals are 95% paired bootstrap intervals over test items (the gain averaged over the draws of examples).
 Under the served prompt of 2026-10-03 they are computed the same way from that record's per-item rows (`heads6.json`), with the plain answer from the same server without the task.
 The single-engine intervals are computed from the record's per-item rows by `benchmarks/intent_head_gain.py`, with the plain answer taken from the same forward pass as the head's, 10,000 paired resamples of the test items and numpy's `default_rng(0)`; the output is stored as `runs/2026-09-30_plugin-verification/derived/intent_head_gains.json`, and another seed moves the interval ends by a few tenths of a point.
-The second-engine intervals are the ones that run recorded.
+The second-engine intervals are the ones that run recorded (a mode since removed: decisio no longer runs a second copy of the model for the head).
 The Decision Index heads were fitted on the datasets' training texts and scored on the benchmark's test requests.
 These numbers use labelled examples, so they compare the registered server with the unregistered one, not with systems that see no labels.
 
@@ -271,11 +271,10 @@ Its caveats: one task, one draw and 300 test items, so the intervals cover the t
 
 ## What it costs
 
-- **Registration**: every example is one scored request, about 0.30 s each in the default mode (0.21 s in second-engine mode), plus the fit; 120 examples take well under a minute on the served model.
+- **Registration**: every example is one scored request, about 0.30 s each in the default mode (0.21 s in the former second-engine mode), plus the fit; 120 examples take well under a minute on the served model.
 - **Each later question**: on Gemma 4 12B (and the tuned 12B repositories) with the engine in the server's process, the default, a question answered by a head reads its hidden state in its own request, with no extra request: about 55 ms of client time against 151 ms when the state was read through the reserved logit columns (300 BANKING77 questions on one RTX PRO 6000; a plain question took 76 ms on first sight and 55 ms repeated on the same server), and its answers to every other question are unchanged, bit for bit.
   On the other bases, and with a separate engine process, the hidden state is read in extra requests through the reserved logit columns, as before: about 80 ms more server time per head question (126.8 against 46.5 ms).
   Calibration and questions without a task cost nothing extra.
-- **Second-engine mode** (`--head-engine`) answers head questions without the extra requests (82 ms on a question's first sight, as a plain question took on that run; 42 ms when the same question repeats) but holds a second copy of the model's weights, leaves no room for the image engine on the card, and its pairing with the default text-only class has not been timed yet (`docs/handoffs/tasks.md`).
 
 ## Certified answers
 
@@ -986,7 +985,6 @@ The server finds where they end in each request's rows (the context boundary) an
   The question is not enough there: it reads the context through the warm-up's own checkpoint whether the context was in the cache or not.
   A state's own boundary is registered as for a request without a context.
 - **The intent head.** A task with an intent head reads its hidden state from the same rows, and on vLLM's default head mode, where the serving engine reads it, registers the context's boundary the same way, in the same registry, so the letters path and the head find each other's registration.
-  With `--head-engine` the second engine has no prefix cache, and every head question reads its whole prompt, the context included.
   On MLX the head reads the letters' own forward, context entry included.
 - **MLX.** The context's tokens are their own entry in the prefix cache (`--prefix-cache-mb`), and each request's state continues from a copy of it.
   The prefix is always computed in these two steps, whether the context came from the cache or not, so an answer does not depend on it.
@@ -1060,5 +1058,5 @@ When you move a client to a task with a context, register the task first, then d
 - **One task per option list per server.** Registration is per server instance; keep it with `--tasks-dir` (or an export and `--tasks-file`), as above.
   Tasks of one question with different contexts are kept side by side, and a request names the one it is for ([Task context](#task-context)).
   It holds across layouts: a task applies to the requests of the layout it was fitted under ([A task under a layout](#a-task-under-a-layout)).
-- **Single-engine or second-engine mode.** The default reads the hidden state from the serving engine at the latency cost above; `--head-engine` trades a second weight copy for speed. Both declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`), and a task registered in one mode loads in the other.
+- **Where the head reads its hidden state.** From the serving engine, always: in the question's own request on Gemma 4 12B with the engine in the server's process, through reserved logit columns otherwise (the latency above). Both readers declare the same choice on every stored evaluation item (`tests/unit/test_head_modes.py`).
 - **The measured gains are on intent classification.** Your question's gain depends on how far the model's plain reading is from your labels; `examples/tasks/evaluate.py` measures it on your own held-out examples.

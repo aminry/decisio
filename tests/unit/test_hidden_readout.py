@@ -165,9 +165,9 @@ def test_h3_exact_arithmetic_on_the_stored_readouts(monkeypatch):
     W = np.linalg.lstsq(H.astype(np.float64), np.concatenate([ex_lp, ev_lp]), rcond=None)[0].T  # K x d
     assert np.abs(H.astype(np.float64) @ W.T - np.concatenate([ex_lp, ev_lp])).max() < 1e-6
     monkeypatch.setattr(
-        hidden_engine.HiddenEngine,
-        "_load_lm_head",
-        staticmethod(lambda model: torch.from_numpy(np.concatenate([W, np.zeros((START + D + 1 - K, D))]))),
+        hidden_engine,
+        "load_output_rows",
+        lambda model, names=(), revision=None: torch.from_numpy(np.concatenate([W, np.zeros((START + D + 1 - K, D))])),
     )  # label token ids are 0..K-1 here
     monkeypatch.setattr("decisio.readout.letters.label_token_ids", lambda tok, labels: list(range(K)))
     monkeypatch.setattr("decisio.readout.letters.letter_labels", lambda tok, k: [])

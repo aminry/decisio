@@ -8,6 +8,22 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## Unreleased: two-engine mode (`--head-engine`) is removed
+
+### What changed
+
+- **`--head-engine` and `--head-gpu-memory-utilization` are removed.** Two-engine mode read the intent head's hidden state from a second copy of the model in vLLM's pooling mode, at twice the weights on the card.
+- The head reads its hidden state from the serving engine on every base: in the question's own request on Gemma 4 12B with the engine in the server's process (below), through reserved logit columns otherwise.
+- **A server started with either flag refuses to start**, with a message that says why; it does not ignore them.
+
+### Who is affected
+
+| | Before | Now | What to do |
+| --- | --- | --- | --- |
+| A server started with `--head-engine` (and `--head-gpu-memory-utilization`) | a second engine read the head's hidden state | refused at start-up | drop the flags; the default head reader needs no second copy, so `--gpu-memory-utilization` can go back to its default |
+| A task whose head was fitted under `--head-engine` | | on Gemma 4 12B with an in-process engine, `head_refit` (below); elsewhere it loads as before | on the 12B, register it again |
+| Any other server | | unchanged | nothing |
+
 ## Unreleased: the 12B's intent head reads its hidden state in the question's own request
 
 ### What changed

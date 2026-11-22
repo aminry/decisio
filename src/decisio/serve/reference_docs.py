@@ -597,7 +597,8 @@ def _flag_row(a: argparse.Action) -> str | None:
 def flags_markdown() -> str:
     from decisio.serve.vllm_engine import build_parser
 
-    rows = [r for r in (_flag_row(a) for a in build_parser()._actions) if r]
+    # a flag kept only to refuse it with the reason (help=SUPPRESS) is not a flag the server takes
+    rows = [r for r in (_flag_row(a) for a in build_parser()._actions if a.help != argparse.SUPPRESS) if r]
     return (
         "<!-- SPDX-"
         "License-Identifier: Apache-2.0 -->\n"

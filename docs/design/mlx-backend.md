@@ -12,7 +12,7 @@ Every route and feature of the text route works unchanged:
 - abstention;
 - the rendering rules and the tie-break.
 
-The image route, packed mode, LoRA adapters and the second-engine head are refused with this backend.
+The image route, packed mode and LoRA adapters are refused with this backend.
 
     uv sync --extra mlx
     uv run python -m decisio.serve.vllm_engine --backend mlx --model mlx-community/Qwen3.6-35B-A3B-6bit

@@ -140,7 +140,7 @@ def run_or_die(main):
     process waiting on vLLM's engine subprocess with the GPU held (seen: a crashed gate hung for
     ten minutes at 88 GB until killed by PID). On a normal return (a server stopped by SIGTERM or SIGINT) the
     processes it started are stopped too: an engine in a process of its own (--engine-process separate, the
-    default with --head-engine, --image-model and --one-engine) otherwise outlives the server, with its share of the
+    default with --image-model and --one-engine) otherwise outlives the server, with its share of the
     card and the --tasks-dir lock (seen: two engine cores holding 89 GB after the server had exited)."""
     import os
     import traceback
@@ -1298,8 +1298,8 @@ class LettersEngine:
         if getattr(self, "hidden_class", False) and getattr(self, "engine_process", "in") != "in":
             return (
                 "think with decisio's hidden-readout class needs the engine in the server's process (--engine-process "
-                "in): the reserved logit columns cannot be switched off in another process; or serve a text-only class "
-                "with a second engine for the head (--model-class text-only --head-engine)"
+                "in): the reserved logit columns cannot be switched off in another process; or serve the text-only "
+                "class without a head (--model-class text-only)"
             )
         return None
 
@@ -2025,33 +2025,22 @@ def resolve_memory_shares(text, image, image_model, one_engine=False, backend="v
     return t, i
 
 
-def resolve_head_mode(model_class, head_engine, one_engine=False):
-    """The text engine's model class and where the intent head reads the hidden state from, from the command line.
+def resolve_head_mode(model_class, one_engine=False):
+    """The text engine's model class and whether the intent head reads its hidden state from it, from the command line.
     Returns (model_class, head_mode), head_mode one of:
 
-      "single-engine"   the default: the text engine runs decisio's hidden-readout class and the head's hidden state
-                        is read from it (three extra engine requests per head question, no second weight copy)
-      "second-engine"   --head-engine: a second copy of the model in vLLM's pooling mode reads it (one pooling request
-                        per head question, a second weight copy, not co-resident with the image engine); the text
-                        engine then runs the text-only class unless --model-class says otherwise
-      None              no head: --model-class view or text-only without --head-engine, or --one-engine; a registered
-                        task then gets calibration only"""
+      "single-engine"   the default: the text engine runs decisio's hidden-readout class and the head's hidden state is
+                        read from it (`single_engine_reader`: in the question's own request on the Gemma 4 12B with an
+                        in-process engine, through reserved logit columns otherwise)
+      None              no head: --model-class view or text-only, or --one-engine; a registered task then gets
+                        calibration only"""
     if one_engine:
-        if head_engine:
-            raise ValueError("--head-engine serves the text route's model; it does not combine with --one-engine")
         return None, None
     if model_class is None:
-        model_class = "text-only" if head_engine else "hidden-readout"
+        model_class = "hidden-readout"
     if model_class not in MODEL_CLASSES:
         raise ValueError(f"--model-class must be one of {MODEL_CLASSES}")
-    if model_class == "hidden-readout":
-        if head_engine:
-            raise ValueError(
-                "--model-class hidden-readout reads the head's hidden state from the text engine; "
-                "--head-engine reads it from a second engine: choose one"
-            )
-        return model_class, "single-engine"
-    return model_class, "second-engine" if head_engine else None
+    return model_class, "single-engine" if model_class == "hidden-readout" else None
 
 
 def resolve_pad_policy(backend, pad_policy=None):
@@ -2897,7 +2886,7 @@ def build_parser():
         help="where vLLM's engine runs: in (the server's process, VLLM_ENABLE_V1_MULTIPROCESSING=0), where a request's "
         "questions always share one engine step, so --multi-question warm repeats exactly; separate (vLLM's own "
         "arrangement, a process of its own). The default resolves to in for a single-engine server and to separate "
-        "with a second engine (--image-model, --head-engine, --one-engine), with which in is refused",
+        "with a second engine (--image-model, --one-engine), with which in is refused",
     )
     # served default: CUDA graphs captured up to 4,096 tokens halve one question's latency at 500-2,000 token
     # states (236 -> 119 ms), answers bit-identical; engine start +105 s (+11 min with an adapter loaded)
@@ -2908,8 +2897,8 @@ def build_parser():
         choices=MODEL_CLASSES,
         help="hidden-readout (the default): --model is the official checkpoint, loaded under decisio's "
         "registered text-only class that also returns the hidden state at the answer position, so "
-        "registered tasks fit and serve an intent head from this one engine; text-only (the default "
-        "with --head-engine): the same class without the hidden state; view: --model is a directory "
+        "registered tasks fit and serve an intent head from this one engine; text-only: the same class "
+        "without the hidden state, and no head; view: --model is a directory "
         "vLLM loads as it is, the text-only view built by decisio.serve.make_text_only (the fallback "
         "that needs no plugin). The decisio classes need the package installed, so vLLM's engine "
         "processes find the plugin through its entry point",
@@ -3425,16 +3414,9 @@ def build_parser():
         help="refuse to start unless at least N tasks (calibration tasks of this server's stack, abstention tasks of "
         "its served model) are loaded: a lost or empty store must not become untaught answers silently",
     )
-    ap.add_argument(
-        "--head-engine",
-        action="store_true",
-        help="read the intent head's hidden state from a second engine "
-        "(decisio.serve.hidden_engine.HiddenEngine), a second copy of --model in vLLM's pooling mode, "
-        "instead of from the text engine: faster head questions (one request, not three) for "
-        "deployments with heavy intent traffic on a dedicated card, at a second weight copy; not "
-        "co-resident with --image-model (docs/tasks.md)",
-    )
-    ap.add_argument("--head-gpu-memory-utilization", type=float, default=0.47, help="the hidden-state engine's share")
+    # two-engine mode is removed: the flags are refused with the reason, not ignored or unknown (docs/upgrading.md)
+    ap.add_argument("--head-engine", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--head-gpu-memory-utilization", type=float, default=None, help=argparse.SUPPRESS)
     ap.add_argument(
         "--debug-readout",
         action="store_true",
@@ -3649,6 +3631,12 @@ def resolve_layout(args, fmt, sources, adapter_layouts):
 def main():
     ap = build_parser()
     args = ap.parse_args()
+    if args.head_engine or args.head_gpu_memory_utilization is not None:
+        ap.error(
+            "--head-engine and --head-gpu-memory-utilization were removed with two-engine mode: the intent head reads "
+            "its hidden state from the serving engine (in the question's own request on Gemma 4 12B); drop the flags "
+            "(docs/upgrading.md)"
+        )
     adapters = dict(a.split("=", 1) for a in args.adapter)
     if "none" in adapters:
         ap.error('an adapter cannot be named "none": a request\'s "adapter": "none" asks for the base')
@@ -3720,7 +3708,6 @@ def main():
             for flag, given in (
                 ("--image-model", args.image_model),
                 ("--one-engine", args.one_engine),
-                ("--head-engine", args.head_engine),
                 ("--adapter", args.adapter),
                 ("--adapter-temperatures", args.adapter_temperatures),
                 ("--mode packed", args.mode == "packed"),
@@ -3772,19 +3759,13 @@ def main():
     except ValueError as e:
         ap.error(str(e))
     try:
-        args.model_class, head_mode = resolve_head_mode(args.model_class, args.head_engine, one)
+        args.model_class, head_mode = resolve_head_mode(args.model_class, one)
     except ValueError as e:
         ap.error(str(e))
-    if head_mode == "second-engine" and args.image_model:
-        ap.error(
-            "--head-engine: the second weight copy leaves no room for --image-model on one card; serve images "
-            "from another server, or use the default single-engine head"
-        )
     second = [
         f
         for f, given in (
             ("--image-model", args.image_model),
-            ("--head-engine", head_mode == "second-engine"),
             ("--one-engine", one),
         )
         if given
@@ -4035,44 +4016,6 @@ def main():
             hidden_engine.fmt = fmt
         else:
             hidden_engine = single_engine_reader(engine, args)
-        print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
-    if head_mode == "second-engine":
-        if args.backend == "vllm" and args.gpu_memory_utilization + args.head_gpu_memory_utilization > 0.95:
-            ap.error(
-                "--head-engine: the text and hidden-state engines share the card; set --gpu-memory-utilization "
-                "and --head-gpu-memory-utilization to at most 0.95 together (e.g. 0.47 and 0.47)"
-            )
-        pad_to = engine.pad_unit  # the text engine's padding unit, whatever the pooling engine's block size
-        if args.backend == "hf":
-            from decisio.serve.hidden_engine import HFHiddenEngine
-
-            hidden_engine = HFHiddenEngine(args.model, pad_to=pad_to, pad_where=args.pad_where, revision=args.revision)
-        else:
-            from decisio.serve.hidden_engine import HiddenEngine
-
-            hidden_engine = HiddenEngine(
-                args.model,
-                pad_to=pad_to,
-                pad_where=args.pad_where,
-                gpu_memory_utilization=args.head_gpu_memory_utilization,
-                max_model_len=args.max_model_len,
-                kv_cache_dtype=args.kv_cache_dtype,
-                engine_kw=engine_kwargs(args),
-                revision=args.revision,
-            )
-        # the second engine builds its rows with the server's prompt format and base, as the single-engine paths do
-        hidden_engine.family = args.family
-        hidden_engine.fmt = fmt
-        # the head is fitted and served on the text route's exact token rows: refuse to start if they differ
-        probe = (
-            "A state to check. " * 30,
-            [
-                {"kind": "choice", "instructions": "Which?", "options": ["alpha", "beta"]},
-                {"kind": "noul", "instructions": "Is it a check?"},
-            ],
-        )
-        if hidden_engine._prepare_separate(*probe) != engine._prepare_separate(*probe):
-            raise SystemExit("--head-engine: the hidden-state engine builds different token rows than the text engine")
         print("HEAD ENGINE", json.dumps(hidden_engine.facts()), flush=True)
     # the calculator's reader, loaded once, after the engine: on CUDA the tagger takes its memory from the headroom vLLM
     # leaves under --gpu-memory-utilization (about 0.5 GB for a base-size encoder), so it never shrinks the KV cache

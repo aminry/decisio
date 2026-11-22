@@ -20,7 +20,7 @@ Every number is on the base's served settings as they were when it was measured 
 | Rendering rules | An option with a description is shown as its description alone, without its key (`--describe-options`; `--no-describe-options` shows `key: description`); enumerated keys (`option_0`, `option_1`, ...) are hidden either way; bare snake_case labels are shown as words; the answer keys are the request's own |
 | Temperature | On the text route's plain readout (`softmax(log p / T)`): T = 1.370 for choice questions, T = 1.506 for yes/no and score questions (1.307 for all under the compact layout); a registered task's correction replaces it; never changes the chosen option |
 | Tie-break | Among exactly tied options, the key that sorts first in Unicode code-point order |
-| Intent head | Single engine: on Gemma 4 12B with an in-process engine, the hidden state is read in the question's own request; on the other bases, and with a separate engine process, through reserved logit columns in extra requests; `--head-engine` reads it from a second engine instead |
+| Intent head | Single engine: on Gemma 4 12B with an in-process engine, the hidden state is read in the question's own request; on the other bases, and with a separate engine process, through reserved logit columns in extra requests |
 | Image route | `--image-model`: the official checkpoint under the multimodal class as a second engine (0.49 of the card beside the text engine at 0.47), for requests that carry images; not tempered |
 | Hardware | One NVIDIA RTX PRO 6000 Blackwell (96 GB) |
 | Wire format | TypeSafe's System One (`POST /v1/systemone`), checked before every measurement by a serving check and the conformance checks |
@@ -118,7 +118,6 @@ Every harness in `runs/` sends one single-question request at a time, a serving 
 - The Decision Index rows of sections 3, 6 and 7 were rebuilt with the kit for four benchmarks; their counts and the rows' sha256 match (`decisio.bench.di_rows`), but a partial rebuild cannot be checked against the whole suite's hash.
   Section 8's runs used the whole suite, rebuilt with the kit and matched against our recorded hashes.
 - The ImajevBench record was made without the rendering rules and the key-order tie-break; 2 of its 254 items ended in exact ties that the harness rejected and are counted wrong.
-- The second-engine head mode with the registered text-only class is unmeasured for latency.
 - Latency is server-side on the card's localhost; cost is the card-hour price divided by measured throughput, with nothing else counted.
 - Latency depends on the host and the card's power limit.
   The latency rows marked 585 W come from one RTX PRO 6000 Blackwell Workstation Edition whose power limit was 585 W (default 600 W), on an AMD Ryzen Threadripper 9960X host (`runs/2026-10-06_latency-585w/`).

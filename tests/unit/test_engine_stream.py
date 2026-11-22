@@ -111,13 +111,12 @@ def test_e3_guarded_binds_before_every_call_and_so_does_the_probe_thread():
 
 
 def test_e4_the_engines_bind_the_stream_they_captured(monkeypatch):
-    from decisio.serve.hidden_engine import HiddenEngine
     from decisio.serve.vllm_engine import LettersEngine
 
     v = FakeVLLM()
     real = engine_stream.bind
     monkeypatch.setattr(engine_stream, "bind", lambda stream: real(stream, set_stream=v.set_stream))
-    for cls in (LettersEngine, HiddenEngine):
+    for cls in (LettersEngine,):
         eng = SimpleNamespace(_stream=v.warm)
         got = on_thread(lambda: (cls.bind_stream(eng), v.marlin_lock_buffer())[1])
         assert got.get("value") == ("marlin_locks", v.warm), cls.__name__

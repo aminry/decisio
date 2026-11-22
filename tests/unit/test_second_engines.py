@@ -3,12 +3,14 @@
 """Every configuration that starts a second engine starts, on the CPU stand-in, with the served prompt.
 
 S1  --image-model: the text engine and the image engine (decisio.serve.hf_letters.HFImageLettersEngine)
-S2  --head-engine: the text engine and a second copy for the intent head (decisio.serve.hidden_engine.HFHiddenEngine),
-    whose token rows must equal the text engine's at start-up; it is given the server's prompt format and base
+S2  the default start's intent head reads the serving engine itself (no second engine since two-engine mode was
+    removed; decisio.serve.hidden_engine.HFReservedHiddenEngine on the CPU stand-in), with the server's prompt format
+    and base; the removed --head-engine flag is refused with the upgrading note
 S3  --one-engine --image-model: the image engine alone, serving both routes
 
 The server's start-up runs for real (both engines load and build their prompts) up to the point where it would listen.
-A change of the served prompt layout broke S2 silently from 0.3.0 to 0.6.0, so each configuration is started here.
+A change of the served prompt layout broke the head's rows silently from 0.3.0 to 0.6.0, so each configuration is
+started here.
 Each engine also answers its probe (decisio.serve.engine_health), which tells a failed request from a dead engine.
 They load stand-in models on the CPU (the `slow` tier, one process per file): an --image-model start peaks at about
 10.5 GB, which beside the fast tier's own process left a 16 GB runner without memory. Each configuration also starts in
@@ -64,16 +66,19 @@ so.image_engine.probe()
     )
 
 
-def test_s2_head_engine_starts_with_the_served_format():
+def test_s2_the_head_reads_the_serving_engine_with_the_served_format():
     start_and_check(
-        ["--head-engine"],
+        [],
         """
 hidden = so.hidden_engine
-assert type(hidden).__name__ == "HFHiddenEngine"
+assert type(hidden).__name__ == "HFReservedHiddenEngine"
 assert hidden.fmt == text.fmt and hidden.family == text.family
 hidden.probe()
 """,
     )
+    code = START % (MODEL, ["--head-engine"])
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, timeout=900)
+    assert r.returncode == 2 and "removed with two-engine mode" in r.stderr, r.stderr[-2000:]
 
 
 def test_s3_one_engine_starts():

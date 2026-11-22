@@ -7,7 +7,7 @@ L1  without --max-model-len: the Gemma bases on the vLLM server ask for the larg
 L2  a longer context is accepted up to the base's ceiling (the 12B 65,536, the 31B 98,304) and refused beyond it, on
     the Qwen base at all, off the vLLM server and with the image engine, each with its reason
 L3  `--kv-cache-dtype fp8` and `--max-model-len` reach the text engine, and a refusal ends start-up with its reason
-L4  the engines (the text engine and `--head-engine`'s second one) put them in vLLM's arguments
+L4  the text engine puts them in vLLM's arguments
 
   uv run pytest -q tests/unit/test_context_flag.py
 """
@@ -157,26 +157,3 @@ def test_l4_the_engine_gives_vllm_the_length_and_the_dtype(monkeypatch):
     with pytest.raises(Stop):
         vllm_engine.LettersEngine("stand-in", family=fam)  # a plain length, as the library's default
     assert captured["max_model_len"] == 32768 and "kv_cache_dtype" not in captured
-
-
-def test_l4_the_second_engine_of_head_engine_takes_them_too(monkeypatch):
-    from decisio.serve.hidden_engine import HiddenEngine
-
-    captured = {}
-
-    class Stop(Exception):
-        pass
-
-    def fake_llm(**kw):
-        captured.update(kw)
-        raise Stop
-
-    mod = types.ModuleType("vllm")
-    mod.LLM = fake_llm
-    cfg = types.ModuleType("vllm.config")
-    cfg.PoolerConfig = lambda **kw: kw
-    monkeypatch.setitem(sys.modules, "vllm", mod)
-    monkeypatch.setitem(sys.modules, "vllm.config", cfg)
-    with pytest.raises(Stop):
-        HiddenEngine("stand-in", max_model_len=65536, kv_cache_dtype="fp8")
-    assert captured["max_model_len"] == 65536 and captured["kv_cache_dtype"] == "fp8"
