@@ -360,7 +360,7 @@ class TapHidden(HiddenReadout):
     # no extra request
     STATE_MEANS_KEPT = 4096
 
-    def __init__(self, engine, layers=None, state_mean_layers=()):
+    def __init__(self, engine, layers=None, state_mean_layers=(), state_mean_cache="isolated"):
         from collections import OrderedDict
 
         from decisio.vllm_plugin import tap
@@ -372,6 +372,9 @@ class TapHidden(HiddenReadout):
         missing = sorted(set(self.state_mean_layers) - set(self.layers))
         if missing:
             raise ValueError(f"state-span means of layers {missing}: the tap reads only {list(self.layers)}")
+        if state_mean_cache not in tap.STATE_MEAN_CACHES:
+            raise ValueError(f"{tap.STATE_MEAN_CACHE_KEY} {state_mean_cache!r}: one of {list(tap.STATE_MEAN_CACHES)}")
+        self.state_mean_cache = state_mean_cache
         self._state_means = OrderedDict()
         self.mode = "hidden (serving engine, tap in the same request)"
         self.reader = "tap"  # stored with every head fitted on this reader's reads (SystemOne.head_stale)
@@ -415,7 +418,10 @@ class TapHidden(HiddenReadout):
             return got
         tap.span_begin(start, end, {layer: self.layers.index(layer) for layer in self.state_mean_layers})
         try:
-            self.engine.score_prompts([(list(ids[:end]), labels)], skip_cache=True)
+            # its own prefix-cache blocks (a salt) unless asked to share them: a served request then never reads a
+            # block this read wrote
+            salt = {"cache_salt": tap.STATE_MEAN_SALT} if self.state_mean_cache == "isolated" else {}
+            self.engine.score_prompts([(list(ids[:end]), labels)], skip_cache=True, **salt)
         finally:
             means = tap.span_end()
         self._state_means[key] = means
@@ -486,6 +492,7 @@ class TapHidden(HiddenReadout):
             "mode": self.mode,
             "layers": list(self.layers),
             "state_mean_layers": list(self.state_mean_layers),
+            **({"state_mean_cache": self.state_mean_cache} if self.state_mean_layers else {}),
             "label_logprobs": "engine",
             "requests_per_question": 1,
             "reader": "tap",

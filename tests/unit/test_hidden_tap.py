@@ -307,18 +307,19 @@ class _SpanEngine(_Engine):
         super().__init__({0: np.array([0.5, 0.5])}, H)
         self.tok, self.ids = tok, tok(prompt, add_special_tokens=False)["input_ids"]
         self.shared = len(tok(shared_text, add_special_tokens=False)["input_ids"])
-        self.span_reads = []
+        self.span_reads, self.salts = [], []
 
     def _prepare_separate(self, state, questions):
         return [(self.ids, [0, 1]) for _ in questions], self.shared
 
-    def score_prompts(self, rows, extra_args=None, skip_cache=False, **kw):
+    def score_prompts(self, rows, extra_args=None, skip_cache=False, cache_salt=None, **kw):
         from decisio.vllm_plugin import tap
 
         if extra_args is None:  # the state-span read
             assert skip_cache and len(rows) == 1
             ids = rows[0][0]
             self.span_reads.append(len(ids))
+            self.salts.append(cache_salt)
             half = len(ids) // 2
             for p in (np.arange(0, half), np.arange(half, len(ids))):
                 tap.span_add(_rows_at(p, 2), torch.as_tensor(p), D)
@@ -355,6 +356,15 @@ def test_h7_the_reader_reads_the_state_span_mean_once_per_state():
     assert len(means) == 2 and np.allclose(means[0][5], want, atol=1e-5)
     reader.readout(state, [{"i": 0}])
     assert eng.span_reads == [end] and np.array_equal(reader.last_state_means()[0][5], means[0][5])  # kept
-    assert reader.facts()["state_mean_layers"] == [5]
+    assert reader.facts()["state_mean_layers"] == [5] and reader.facts()["state_mean_cache"] == "isolated"
+    # the read's blocks are cached apart from every served request's (a salt), unless asked to share them
+    from decisio.vllm_plugin import tap
+
+    assert eng.salts == [tap.STATE_MEAN_SALT]
+    eng2 = _SpanEngine(tok, prompt, shared, np.zeros((1, 3 * D), dtype=np.float32))
+    TapHidden(eng2, layers=LAYERS, state_mean_layers=(5,), state_mean_cache="shared").readout(state, [{"i": 0}])
+    assert eng2.salts == [None]
     with pytest.raises(ValueError, match="the tap reads only"):
         TapHidden(eng, layers=LAYERS, state_mean_layers=(36,))
+    with pytest.raises(ValueError, match="one of"):
+        TapHidden(eng, layers=LAYERS, state_mean_layers=(5,), state_mean_cache="nowhere")

@@ -1136,6 +1136,7 @@ class LettersEngine:
         row_mm=None,
         row_mm_uuids=None,
         extra_args=None,
+        cache_salt=None,
     ):
         """Label distributions for fully-built prompts [(token ids, label ids)], one engine request each.
 
@@ -1153,7 +1154,8 @@ class LettersEngine:
         how a cold batch is made in an engine that has cached blocks: a cache reset is not enough, as
         vLLM runs one request first and the others then hit its freshly cached prefix.
         `extra_args`: per row, a dict for the request's `SamplingParams.extra_args` (the hidden-state tap's key,
-        decisio.vllm_plugin.tap), or None."""
+        decisio.vllm_plugin.tap), or None. `cache_salt`: the rows' prefix-cache salt (vLLM's `cache_salt`): their blocks
+        are cached apart from every other request's, so no other request reads them (None: the shared cache)."""
         from vllm import SamplingParams
         from vllm.inputs import TokensPrompt
 
@@ -1187,6 +1189,7 @@ class LettersEngine:
                 TokensPrompt(
                     prompt_token_ids=ids,
                     **(extra if row_mm is None else extra_of(row_mm[i], row_mm_uuids[i] if row_mm_uuids else None)),
+                    **({"cache_salt": cache_salt} if cache_salt else {}),
                 )
                 for i, (ids, _) in enumerate(rows)
             ],
@@ -2190,6 +2193,7 @@ def single_engine_reader(engine, args):
             engine,
             layers=tuple(sorted({int(x) for x in extra[tap.CONFIG_KEY]})),
             state_mean_layers=tuple(extra.get(tap.STATE_MEAN_KEY, ())),
+            state_mean_cache=extra.get(tap.STATE_MEAN_CACHE_KEY, "isolated"),
         )
     return he.SingleEngineHidden(engine, args.model, revision=args.revision)
 

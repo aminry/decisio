@@ -57,6 +57,11 @@ CONFIG_KEY = "decisio_tap_layers"
 # the tapped layers whose mean over the request's state tokens the head reader also reads (TapHidden.state_means); a
 # subset of CONFIG_KEY's. The model class ignores it (it computes the same graph); the reader reads it
 STATE_MEAN_KEY = "decisio_tap_state_mean_layers"
+# where the state-span read's own prefix-cache blocks go: "isolated" (the default), under a cache salt of their own,
+# so a served request never reads a block the state-span read wrote; "shared", the plain prefix cache (as first built)
+STATE_MEAN_CACHE_KEY = "decisio_tap_state_mean_cache"
+STATE_MEAN_CACHES = ("isolated", "shared")
+STATE_MEAN_SALT = "decisio-tap-state-mean"
 
 
 def engine_config(layers) -> dict:

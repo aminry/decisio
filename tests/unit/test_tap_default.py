@@ -78,7 +78,11 @@ def test_d2_the_reader_follows_the_engine_process(monkeypatch):
     from decisio.serve import vllm_engine as sv
 
     built = []
-    monkeypatch.setattr(he, "TapHidden", lambda engine, layers=None, state_mean_layers=(): built.append("tap") or "tap")
+    monkeypatch.setattr(
+        he,
+        "TapHidden",
+        lambda engine, layers=None, state_mean_layers=(), state_mean_cache=None: built.append("tap") or "tap",
+    )
     monkeypatch.setattr(he, "SingleEngineHidden", lambda engine, model, revision=None: built.append("reserved") or "r")
     args = lambda fam, process, engine="{}": types.SimpleNamespace(  # noqa: E731
         family=fam,
@@ -100,7 +104,7 @@ def test_d2_the_reader_follows_the_engine_process(monkeypatch):
     monkeypatch.setattr(he, "TapHidden", lambda engine, **kw: got.update(kw) or "tap")
     layered = '{"additional_config": {"decisio_tap_layers": [36, 12], "decisio_tap_state_mean_layers": [36]}}'
     assert sv.single_engine_reader(object(), args(GEMMA4, "in", layered)) == "tap"
-    assert got == {"layers": (12, 36), "state_mean_layers": (36,)}
+    assert got == {"layers": (12, 36), "state_mean_layers": (36,), "state_mean_cache": "isolated"}
 
 
 def _so(reader):
