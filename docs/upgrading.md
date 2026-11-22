@@ -8,13 +8,14 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
-## Unreleased: from 50 labelled examples, a task's calibration fits its temperature too
+## Unreleased: on Gemma 4 12B, from 50 labelled examples, a task's calibration fits its temperature too
 
 ### What changed
 
-- **A task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together at four spreads of the bias's prior, weighted by their evidence: served p is the weighted mixture of softmax(log p / T - b), with T kept close to the question's own temperature. It is always applied (no keep-or-drop test).
-- Below 50 examples, and for a task that serves its head, nothing changes.
-- **A stored task of 50 or more examples whose calibration is the older gated bias is not applied:** its questions are answered as without the task, its answers are not certified (`certified_reason: calibration_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.52.0 change.
+- **On Gemma 4 12B (bf16, FP8 and the tuned 12B repositories), a choice or yes/no task registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split) and no head is calibrated by its temperature and a bias per option fitted together at four spreads of the bias's prior, weighted by their evidence: served p is the weighted mixture of softmax(log p / T - b), with T kept close to the question's own temperature. It is always applied (no keep-or-drop test).
+- Below 50 examples, for a task that serves its head, for score questions, and on every other base, nothing changes.
+- The registration's label review calibrates its folds the same way.
+- **On those servers, a stored choice or yes/no task of 50 or more examples whose calibration is the older gated bias is not applied:** its questions are answered as without the task, its answers are not certified (`certified_reason: calibration_refit`), and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.52.0 change.
 
 ## Unreleased: score questions get no intent head
 

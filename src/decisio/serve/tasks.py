@@ -373,6 +373,7 @@ class TaskStore:
         temperature=1.0,
         head_reader=None,
         n_request=None,
+        large_types=(),
     ):
         """examples: [(wire question, state, gold)], all of one task; score_fn([(state, q)]) -> served label
         probabilities per example; hidden_fn([(state, q)]) -> [(lp, h)] from the hidden-state engine, or None when the
@@ -383,8 +384,9 @@ class TaskStore:
         `head_reader`: the hidden-state reader the head is fitted on ("tap" for decisio.vllm_plugin.tap), stored in the
         head record as `reader`; a tap server does not apply a head fitted on another reader's reads.
         `n_request`: how many labelled examples the registration request gave, before a certificate's held-out split
-        (`len(examples)` when absent): from `calibration.TB_MIN_EXAMPLES` the calibration is the temperature and bias
-        fitted together (`calibration.fit_tb_prior`), below it the gated bias."""
+        (`len(examples)` when absent). `large_types`: the question types (the base's `large_calibration_types`) whose
+        calibration, from `calibration.min_examples_for_fit(K)` of them, is the temperature and bias fitted together
+        (`calibration.fit_large_prior`); every other task keeps the gated bias."""
         if not examples:
             raise ValueError("no examples")
         key_fn = key_fn or (lambda q: task_key(q, _render))  # the server passes its rendering's key
@@ -398,7 +400,7 @@ class TaskStore:
         lps = [log_probs(p) for p in score_fn(pairs)]
         n_request = len(examples) if n_request is None else int(n_request)
         args = {"fingerprint": self.fingerprint, "task_id": task_id, "K": len(options), "temperature": temperature}
-        if n_request >= calibration.min_examples_for_fit(len(options)):
+        if q0.type in large_types and n_request >= calibration.min_examples_for_fit(len(options)):
             prior = calibration.fit_large_prior(lps, labels, n_request=n_request, **args)
         else:
             prior = calibration.fit_task_prior(lps, labels, **args)

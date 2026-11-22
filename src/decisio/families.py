@@ -165,6 +165,10 @@ class Family:
     detected: bool = True
     # served on the vLLM server only (no --backend mlx: the 31B's MLX build is a conversion of the default 31B)
     vllm_only: bool = False
+    # the question types whose task calibration, from `calibration.min_examples_for_fit(K)` labelled examples, is the
+    # temperature and bias fitted together (`calibration.fit_large_prior`); every other type, and every task below that,
+    # keeps the gated bias. Measured on the 12B for choice and yes/no; empty for the bases not measured yet
+    large_calibration_types: tuple[str, ...] = ()
 
 
 QWEN = Family(
@@ -240,6 +244,7 @@ GEMMA4 = Family(
     vision_addon_sha256="112725a204111dfdc5d29d2c4456818e4b6de33109991edfaa7120c731fb06a8",
     vision_addon_config_sha256="77f6b61591676bd7440bcd5633a8dbce3e87bd952c348ece524004d8e2a994cb",
     precision="bf16",
+    large_calibration_types=("choice", "noul"),  # the 12B and its FP8 and tuned profiles (replace keeps it)
 )
 
 GEMMA4_FP8 = replace(

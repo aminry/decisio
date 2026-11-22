@@ -12,6 +12,9 @@ E4  a record of the gated bias for a task of 50 or more examples (made before) i
     with the reason and the register command, and not certified again; one of fewer examples is not
 E5  serving a stored fit is apply_c on the plain readout's probabilities, exactly; the fit is deterministic and its
     record is JSON
+E7  label review calibrates its folds by the registration's rule
+E6  the scope: the 12B profiles (bf16, FP8) fit it for choice and yes/no; a score question, and every task on a base
+    without large_calibration_types, keeps the gated bias at any count, and its records are never stale for this rule
 
   uv run pytest -q tests/unit/test_calibration_tb.py
 """
@@ -27,6 +30,7 @@ from decisio.readout.debias import log_probs
 from decisio.serve.temperature import apply_temperature
 
 TQ = 3.592
+TWELVE_B = ("choice", "noul")  # Family.large_calibration_types of the 12B profiles
 
 
 def _readout(n, K=4, seed=0):
@@ -66,6 +70,7 @@ def _store_register(n, **kw):
     ).questions["q"]
     examples = [(q, f"s{i}", keys[y[i]]) for i in range(n)]
     store = TaskStore("fp")
+    kw = {"large_types": TWELVE_B, **kw}
     task, fitted = store.register("t", examples, lambda pairs: list(p), None, temperature=TQ, **kw)
     return task, p, y
 
@@ -97,10 +102,12 @@ def test_e5_serving_a_stored_fit_is_apply_c_exactly():
     json.dumps(cal, allow_nan=False)
 
 
-def _so(hidden=None):
+def _so(hidden=None, family=None):
+    from decisio.families import GEMMA4
     from decisio.serve.systemone import SystemOne
 
     so = SystemOne(None, "m", temperature=TQ)
+    so.engine = types.SimpleNamespace(family=GEMMA4 if family is None else family)
     so.hidden_engine = hidden
     return so
 
@@ -145,3 +152,47 @@ def test_e3_a_task_that_serves_its_head_is_unchanged():
     assert not so.calibration_stale(head_task, "choice", 4)  # the head answers; the calibration is not used
     # without a hidden-state reader the head is not served, and the old record is stale
     assert _so().calibration_stale(head_task, "choice", 4)
+
+
+def test_e6_only_the_12b_choice_and_yes_no_tasks_fit_it():
+    from decisio.families import BASES, GEMMA4, GEMMA4_FP8
+
+    assert GEMMA4.large_calibration_types == TWELVE_B and GEMMA4_FP8.large_calibration_types == TWELVE_B
+    assert all(not f.large_calibration_types for k, f in BASES.items() if k not in ("gemma-4-12b", "gemma-4-12b-fp8"))
+    other, p, y = _store_register(60, large_types=())  # another base: the gated bias at 60
+    assert "method" not in other["calibration"]
+    from decisio.serve.systemone import SystemOneRequest
+    from decisio.serve.tasks import TaskStore
+
+    levels = ["low", "mid", "high", "top"]
+    q = SystemOneRequest.model_validate(
+        {"state": "", "questions": {"q": {"type": "score", "instructions": "How?", "criteria": levels}}}
+    ).questions["q"]
+    score, _ = TaskStore("fp").register(
+        "s", [(q, f"s{i}", int(y[i])) for i in range(60)], lambda pairs: list(p), None, temperature=TQ,
+        large_types=TWELVE_B,
+    )  # fmt: skip
+    assert "method" not in score["calibration"]  # a score question: the gated bias, not tested on an ordinal answer
+    # the stale rule follows the scope: a gated record of 60 examples is current on another base, and for a score task
+    T = _so().temperature_of("choice", None, 4)
+    old = _task({"temperature": T}, 60)
+    assert _so().calibration_stale(old, "choice", 4)
+    assert not _so(family=BASES["gemma-4-31b"]).calibration_stale(old, "choice", 4)
+    assert not _so().calibration_stale({**old, "type": "score"}, "score", 4)
+
+
+def test_e7_label_review_calibrates_its_folds_as_registration_does(monkeypatch):
+    """E7 the label review's folds use the registration's rule: the evidence-averaged fit where the registration fits
+    it, the gated bias otherwise."""
+    from decisio.readout import label_review
+
+    p, y = _readout(60)
+    lps = [log_probs(r) for r in p]
+    seen = []
+    for name in ("fit_large_prior", "fit_task_prior"):
+        real = getattr(C, name)
+        monkeypatch.setattr(C, name, lambda *a, _n=name, _f=real, **k: seen.append(_n) or _f(*a, **k))
+    train, serve = np.arange(40), np.arange(40, 60)
+    label_review.fit_serve(lps, y.tolist(), ["a", "b", "c", "d"], TQ, None, train, serve, 10, large=True)
+    label_review.fit_serve(lps, y.tolist(), ["a", "b", "c", "d"], TQ, None, train, serve, 10)
+    assert seen == ["fit_large_prior", "fit_task_prior"]

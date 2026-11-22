@@ -226,16 +226,19 @@ def request_count(t) -> int:
     return int(t.get("n_examples") or 0) + held
 
 
-def calibration_rule_stale(t) -> bool:
-    """A kept calibration fitted by another rule than this release's (`calibration.CURRENT_METHOD`) for a task whose
-    request had at least `calibration.min_examples_for_fit(K)` labelled examples: not what this release fits for such
-    a task."""
+def calibration_rule_stale(t, large_types=()) -> bool:
+    """A kept calibration fitted by another rule than this release's (`calibration.CURRENT_METHOD`) for a task of a
+    type in `large_types` (the base's `large_calibration_types`) whose request had at least
+    `calibration.min_examples_for_fit(K)` labelled examples: not what this release fits for such a task."""
     from decisio.readout.calibration import CURRENT_METHOD, min_examples_for_fit
 
     cal = (t or {}).get("calibration") or {}
     k = len((t or {}).get("options") or ()) or int(cal.get("K") or 0)
     return (
-        bool(cal.get("applied")) and cal.get("method") != CURRENT_METHOD and request_count(t) >= min_examples_for_fit(k)
+        (t or {}).get("type", "choice") in large_types
+        and bool(cal.get("applied"))
+        and cal.get("method") != CURRENT_METHOD
+        and request_count(t) >= min_examples_for_fit(k)
     )
 
 
@@ -2246,6 +2249,12 @@ class SystemOne:
                     return t
         return self.temperatures.get(qtype, self.temperature)
 
+    @property
+    def large_calibration_types(self) -> tuple[str, ...]:
+        """The question types whose tasks this server calibrates by the temperature and bias fitted together, from
+        `calibration.min_examples_for_fit(K)` examples: its base's (`Family.large_calibration_types`)."""
+        return tuple(getattr(getattr(self.engine, "family", None), "large_calibration_types", ()) or ())
+
     def calibration_stale(self, t, qtype: str, options: int) -> bool:
         """Whether a task's kept calibration is one this server does not apply: fitted at another temperature than the
         question is served at here (every record made before 0.52.0 was fitted at 1), or by the gated bias for a task
@@ -2257,7 +2266,9 @@ class SystemOne:
         cal = (t or {}).get("calibration") or {}
         if not cal.get("applied") or ((t or {}).get("head") or {}).get("applied") and self.hidden_engine is not None:
             return False
-        return not is_current(cal, self.temperature_of(qtype, None, options)) or calibration_rule_stale(t)
+        return not is_current(cal, self.temperature_of(qtype, None, options)) or calibration_rule_stale(
+            t, self.large_calibration_types
+        )
 
     def think_temperature_of(self, qtype: str, adapter: str | None = None, options: int | None = None) -> float:
         """The temperature an answer that thought is served at: the named adapter's think temperature for the type, else
@@ -2561,6 +2572,7 @@ class SystemOne:
             temperature=temperature,
             head_reader=getattr(self.hidden_engine, "reader", None),
             n_request=len(full),  # the request's labelled examples, before the held-out split
+            large_types=self.large_calibration_types,
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
@@ -2636,8 +2648,20 @@ class SystemOne:
             todo = [e for e in everything if have is None or id(e) not in known]
             new = dict(zip(map(id, todo), hidden([(s, q) for q, s, _ in todo]))) if todo else {}
             readout = [have[known[id(e)]] if have is not None and id(e) in known else new[id(e)] for e in everything]
+        from decisio.readout.calibration import min_examples_for_fit
+
+        # the folds are calibrated as the registration is: the request's examples decide the rule (TaskStore.register)
+        large = q0.type in self.large_calibration_types and len(full) >= min_examples_for_fit(len(options))
         return label_review.review(
-            lps, labels, options, temperature, readout, task_id, positions, min_options_for_head=MIN_OPTIONS_FOR_HEAD
+            lps,
+            labels,
+            options,
+            temperature,
+            readout,
+            task_id,
+            positions,
+            min_options_for_head=MIN_OPTIONS_FOR_HEAD,
+            large=large,
         )
 
     def learning_labels(self, fit_ex, cert_ex, reads, prepared) -> dict | None:
@@ -4364,7 +4388,7 @@ class SystemOne:
         if not options or not self.calibration_stale(t, t.get("type", "choice"), options):
             return None
         served = self.temperature_of(t.get("type", "choice"), None, options)
-        if is_current(t["calibration"], served) and calibration_rule_stale(t):
+        if is_current(t["calibration"], served) and calibration_rule_stale(t, self.large_calibration_types):
             why = (
                 f"its calibration was fitted by an earlier rule, and a task of {request_count(t)} labelled examples "
                 f"(at least {min_examples_for_fit(options)}) is now calibrated by its temperature and bias fitted "
