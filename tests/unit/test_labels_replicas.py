@@ -26,6 +26,8 @@ R10 two merges at once lose nothing and count nothing twice; settings changed on
 R12 a merger whose clock is behind the last one's names its files after the merged files it read; a row of an erased
     request written after the purge re-opens it for the next merge; an event written without an id is counted once
     however often it is read
+R13 a replica's task listing shows the settings another replica changed, from the epochs alone, without a first
+    full read of the log
 
   uv run pytest -q tests/unit/test_labels_replicas.py
 """
@@ -430,3 +432,19 @@ def test_r12_merges_after_a_handover_late_erased_rows_and_events_without_ids():
     d = LB.TaskLabels("t", s, secret, place, "host-d-4", clock_a)
     d.sync()
     assert d.counts()["imports"] == 1
+
+
+def test_r13_the_listing_reads_the_epochs_only():
+    store = MemoryStore()
+    ca, sa, _ = _replica(store)
+    cb, sb, bb = _replica(store)
+    r = ca.post("/v1/tasks", json={"id": "angry", "examples": noul_examples(120), "certify": {},
+                                   "labels": {"audit_pi": 1.0}})  # fmt: skip
+    assert r.status_code == 200, r.text
+    ask(ca, "yes:0.93:first")
+    sa.flush_labels(force=True)
+    assert ca.put("/v1/tasks/angry/labels/settings", json={"cert_pi": 0.5}).status_code == 200
+    bb.sync_once()
+    got = cb.get("/v1/tasks/angry").json()["labels"]
+    assert got["settings"]["cert_pi"] == 0.5 and got["epoch"] == 1
+    assert sb.labels_logs["angry"].loaded is False and not sb.labels_logs["angry"].rows  # no rows were read

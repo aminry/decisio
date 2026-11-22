@@ -489,6 +489,13 @@ class TaskLabels:
         if not self.loaded:
             self.sync()
 
+    def read_epochs(self) -> None:
+        """Only the epochs from the place (one small read), for a view that needs the settings in force but not the
+        rows: the task listing."""
+        raw = self.place.get("EPOCHS.json")
+        if raw:
+            self._adopt(json.loads(raw))
+
     def tick(self, force: bool = False, merge: bool = True) -> None:
         """The labels thread's turn: read the place, start an epoch that is due, write a segment that is due, and,
         for the merger (`merge`: one server, or the holder of the labels lease on a shared store), merge the log when

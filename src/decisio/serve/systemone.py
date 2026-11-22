@@ -3186,10 +3186,11 @@ class SystemOne:
         log = self.labels_log(t)
         if log is None:
             return None
-        try:
-            log.ensure_loaded()
-        except Exception:  # the store out of reach: what this replica holds
-            pass
+        if not log.loaded:  # the epochs alone (one small read), never a first full read of the log inside a listing
+            try:
+                log.read_epochs()
+            except Exception:  # the store out of reach: what this replica holds
+                pass
         s = log.settings
         return {"settings": s, "stored_fields": LB.stored_fields(s), "epoch": log.epoch["epoch"],
                 "registered_settings": t["labels"]["settings"]}  # fmt: skip
