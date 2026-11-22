@@ -58,7 +58,7 @@ def test_l1_settings():
     assert LB.parse_settings(True) == LB.DEFAULTS
     assert LB.parse_settings({"cert_pi": 0.3})["cert_pi"] == 0.3
     for bad in ({"nope": 1}, {"cert_pi": 0.01}, {"features": "all"}, {"margin_pi_min": 0.3, "margin_pi_max": 0.2},
-                {"due_days": 0}, {"show_answer": True}, "on"):  # fmt: skip
+                {"due_days": 0}, {"show_answer": True}, {"enabled": 1}, "on"):  # fmt: skip
         with pytest.raises(LB.LabelsError):
             LB.parse_settings(bad)
 

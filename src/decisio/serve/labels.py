@@ -90,6 +90,8 @@ def parse_settings(block) -> dict | None:
         block = {}
     if not isinstance(block, dict):
         raise LabelsError('labels is true or an object of settings, e.g. {"cert_pi": 0.1}')
+    if not isinstance(block.get("enabled", True), bool):
+        raise LabelsError("labels.enabled is true or false")
     if block.get("enabled") is False:
         return None
     unknown = sorted(set(block) - set(DEFAULTS) - {"enabled"})
@@ -125,11 +127,28 @@ STORES = (
 )
 
 
-def registration_block(rec: dict) -> dict:
+ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "script", "keys", "top", "conf",
+              "margin", "served_certified", "via", "version", "stack", "draws", "drawn", "replica")  # fmt: skip
+FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
+
+
+def stored_fields(settings: dict) -> list[str]:
+    """The fields a row of this task's log has, as the mode in force stores them (`h` is null on undrawn rows)."""
+    return list(ROW_FIELDS) + (list(FULL_FIELDS) if settings["features"] == "full" else [])
+
+
+def registration_block(rec: dict, durable: bool) -> dict:
     """What a registration's response says of the task's labels: the settings, the digest key (shown here only), what
-    the log stores, and the queue's first view (empty until the task has answered)."""
+    the log stores and where, and the queue's first view (empty until the task has answered)."""
+    s = rec["settings"]
     return {
-        "settings": rec["settings"],
+        "enabled": True,
+        "text_stored": False,
+        "features": s["features"],
+        "stored_fields": stored_fields(s),
+        "retention": {"max_rows": s["max_rows"], "due_days": s["due_days"], "deleted_with_task": True},
+        "location": "tasks_dir" if durable else "memory",
+        "settings": s,
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
@@ -548,7 +567,7 @@ class TaskLabels:
                 item = {"request_id": key[0], "question": key[1], "asked_at": row["t"],
                         "due_by": row["t"] + self.settings["due_days"] * 86400}  # fmt: skip
                 items.append(item)
-            return {"items": items, "pending": len(pend)}
+            return {"items": items, "pending": len(pend), "epoch": self.epoch["epoch"], "as_of": now}
 
     def counts(self) -> dict:
         now = self.clock()

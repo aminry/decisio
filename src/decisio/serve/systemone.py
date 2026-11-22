@@ -4739,8 +4739,10 @@ def add_routes(app, systemone: SystemOne):
                 )
         debug = debug_of(request)
         lang = request.headers.get(header("lang"))  # the request's language tag, for a task that logs labels
-        if lang and req.model_extra is not None and not (req.model_extra.get("meta") or {}).get("lang"):
+        if lang and req.model_extra is not None:
             meta = req.model_extra.get("meta") if isinstance(req.model_extra.get("meta"), dict) else {}
+            if meta.get("lang") not in (None, lang):  # two tags that disagree: refused, never one picked silently
+                raise HTTPException(422, f"meta.lang {meta['lang']!r} and the x-decisio-lang header {lang!r} differ")
             req.model_extra["meta"] = {**meta, "lang": lang}
         adapter = (req.model_extra or {}).get("adapter")
         if adapter is not None and not isinstance(adapter, str):
@@ -5212,7 +5214,7 @@ def add_routes(app, systemone: SystemOne):
         if fitted.get("label_review") is not None:  # in the response only: a review aid, not part of the task
             out["label_review"] = fitted["label_review"]
         if task.get("labels"):  # the digest key once, and what opting in keeps
-            out["labels"] = LB.registration_block(task["labels"])
+            out["labels"] = LB.registration_block(task["labels"], durable=systemone.labels_root is not None)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:

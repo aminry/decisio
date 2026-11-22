@@ -256,11 +256,17 @@ The registration response's `labels.stores` lists it, and it is this:
 **The registration response.**
 
 ```json
-"labels": {"settings": {"features": "full", "audit_pi": 0.05, "cert_pi": 0.05, "...": "..."},
+"labels": {"enabled": true, "text_stored": false, "features": "full",
+           "stored_fields": ["request_id", "question", "t", "...", "ps", "lp", "h"],
+           "retention": {"max_rows": 50000, "due_days": 7, "deleted_with_task": true}, "location": "tasks_dir",
+           "settings": {"features": "full", "audit_pi": 0.05, "cert_pi": 0.05, "...": "..."},
            "digest_key": "9f2c...", "digest": "hk1: then the hex HMAC-SHA256 ...",
            "stores": ["..."],
            "next_to_label": {"items": [], "pending": 0, "available": false, "reason": "no traffic yet"}}
 ```
+
+`stored_fields` names the fields every logged row has under the mode in force, and `stores` says the same in words.
+`location` is `tasks_dir` with `--tasks-dir`, else `memory`.
 
 `digest_key` is shown only here: keep it if you want to label by digest.
 `GET /v1/tasks/{id}` shows the settings and never the key.
@@ -268,7 +274,7 @@ The registration response's `labels.stores` lists it, and it is this:
 **Answers.**
 Each answered question of the task gets a `request_id` (`<replica>-<ULID>`), and `label_requested: true` when the draw chose it.
 The first question's id is also in the `x-decisio-request-id` response header.
-Give the request's language as `meta.lang` in the body or the `x-decisio-lang` header (a BCP 47 tag such as `de`); an untagged request is counted as `unknown`.
+Give the request's language as `meta.lang` in the body or the `x-decisio-lang` header (a BCP 47 tag such as `de`); an untagged request is counted as `unknown`, and a body and header that disagree are refused (422).
 
 **Posting labels.**
 `POST /v1/tasks/{id}/labels` takes up to 1,000 labels, each with an `answer` (one of the task's options) and exactly one reference:
@@ -286,6 +292,7 @@ Labels are written to disk before the response returns.
 
 **The queue.**
 `GET /v1/tasks/{id}/labels/queue?limit=20` lists the drawn answers still to label, oldest first: `request_id`, `question`, `asked_at` and `due_by`.
+The response also gives `pending` (the whole backlog), the settings' `epoch` and `as_of`, the server time of the view.
 It does not show the served answer, its confidence, or why the item was drawn: a labeller who sees the answer tends to agree with it, and that would make the error estimate look better than it is.
 Look the text up in your own system by request id.
 `POST /v1/tasks/{id}/labels/decline` with `{"request_ids": [...]}` takes items you will not label out of the queue.
