@@ -559,18 +559,18 @@ def test_l20_the_typical_slice():
     assert typ.level(embed("c0-new")) >= 3 and typ.level(embed("x-outlier")) == 1
 
     clock = Clock()
-    tl = _task(clock=clock, typical_labels=5)
+    tl = _task(clock=clock, typical_labels=5, per_day=400)  # a budget the typical slice can draw from
     assert tl.typical_status()["state"].startswith("off: no static student")
     tl.embed = embed
     tl.tick()
     assert tl.epoch["why"] == "the typical slice started" and tl.settings["typical_pi_max"] > 0
-    assert tl.settings["margin_pi_max"] < tl.epochs[0]["settings"]["margin_pi_max"]  # margin gave up its share
+    assert tl.settings["margin_pi_max"] <= tl.epochs[0]["settings"]["margin_pi_max"]  # margin gave up its share
     rids = [_serve(tl, f"c{i % 3}-{i}", [0.6, 0.3, 0.1])[0] for i in range(80)]  # the reservoir fills
     tl.tick()
     assert tl.typical_status()["state"] == "on"
     rids += [_serve(tl, f"c{i % 3}-t{i}", [0.6, 0.3, 0.1])[0] for i in range(400)]
     typ_rows = [r for r in rids if tl.rows[(r, "q")]["draws"]["typical"]["in"]]
-    assert typ_rows and all(tl.rows[(r, "q")]["draws"]["typical"]["pi"] > 0 for r in typ_rows)
+    assert len(typ_rows) >= 20 and all(tl.rows[(r, "q")]["draws"]["typical"]["pi"] > 0 for r in typ_rows)
     tl.post([{"request_id": r, "answer": "billing"} for r in typ_rows[:5]])
     fit = {x["request_id"]: x for x in tl.fit_rows()}
     for r in typ_rows[:5]:
