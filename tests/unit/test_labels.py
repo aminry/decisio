@@ -41,7 +41,8 @@ L19 the per-day budget: the registration's chances assume tau_after answers a da
     the rate has left 0.5x to 2x; per_day and explicit chances switch each other off
 L20 the typical slice: levels from the reservoir rank a typical input above an outlier; with the student present a
     budget task starts the slice (an epoch), draws it at its level, ends it after typical_labels (its share back to
-    margin), and its labels are fit labels weighted by the chance of either fit slice; without the student it is off
+    margin), and its labels are fit labels weighted by the chance of either fit slice; without the student it is off;
+    the student reads a bounded prefix of the input
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -584,3 +585,9 @@ def test_l20_the_typical_slice():
     assert tl.typical_status()["state"] == "ended" and not tl.typical_wanted()
     late, _ = _serve(tl, "c1-late", [0.6, 0.3, 0.1])
     assert tl.rows[(late, "q")]["draws"]["typical"]["pi"] == 0.0
+    seen = []
+    capped = _task(typical_pi_max=0.3)
+    capped.embed = lambda t: (seen.append(len(t)), embed("c0-" + t[:5]))[1]
+    _serve(capped, "c0-" + "x" * 50_000, [0.6, 0.3, 0.1])
+    assert seen == [LB.TYPICAL_TEXT]  # the student reads a bounded prefix whatever the state's length
+    assert LB.script_class("я" * 600 + "a" * 50_000) == "cyrillic"  # the script class too: its first 500 characters

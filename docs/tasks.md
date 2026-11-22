@@ -387,8 +387,11 @@ A task whose options change with every request (`"options": "dynamic"`) can opt 
 Its options and the answers you post are kept only as keyed digests, with one keyed digest of the request's option texts (`options_digest`), so no option text is stored; a label is checked against that request's own options, and the option list is not shown back when it is not one of them.
 
 **What it costs.**
-About 30 microseconds per answered question of an opted-in task, measured at 50,000 rows; the files are written off the request path.
-Nothing for tasks that do not opt in.
+Per answered question of an opted-in task, on the serving threads (never the event loop), measured at the median on a busy laptop: about 40 microseconds for a 250-character state, 140 for 2,500 characters and 320 for 19,000.
+While the typical slice runs (cold start, with the static student on the server), the student's embedding adds to that: about 125, 440 and 760 microseconds in all.
+The cost is bounded whatever the length: the student reads the first 1,000 characters and the script class the first 500; the digests read the whole state.
+The embedding stops when the typical slice ends (`typical_labels`) and costs nothing on a server without the student.
+The files are written off the request path, and nothing is spent for tasks that do not opt in.
 
 ## What you get
 

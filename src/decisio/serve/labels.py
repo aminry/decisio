@@ -55,6 +55,8 @@ TYPICAL_RESERVOIR = 512  # answers' embeddings the typicality of a new one is me
 TYPICAL_K = 10  # nearest neighbours whose mean similarity is an answer's typicality
 TYPICAL_MIN = 64  # embeddings held before typicality levels exist (the typical slice draws nothing before)
 TYPICAL_LEVELS = 4  # typicality is bucketed into this many levels, by the quantiles of the reservoir's own
+TYPICAL_TEXT = 1_000  # characters of an input the student embeds for its typicality: a bounded cost per answer
+SCRIPT_TEXT = 500  # characters read for the script class: enough to tell the script, a bounded cost per answer
 PI_MIN = 0.02  # a slice's pi is 0 or at least this: inverse-probability weights stay at most 50
 DEFAULTS = {
     "features": "full",
@@ -342,10 +344,11 @@ def canonical_text(text: str) -> str:
     return " ".join(unicodedata.normalize("NFC", str(text)).split())
 
 
-def hk1(digest_key: str, text: str) -> str:
-    """The client-computable digest of an input: `hk1:` and HMAC-SHA256 of its canonical text under the task's key."""
-    mac = hmac.new(bytes.fromhex(digest_key), canonical_text(text).encode(), hashlib.sha256).hexdigest()
-    return "hk1:" + mac
+def hk1(digest_key: str, text: str, canonical: str | None = None) -> str:
+    """The client-computable digest of an input: `hk1:` and HMAC-SHA256 of its canonical text under the task's key
+    (`canonical`: that text, when the caller has it already)."""
+    canon = canonical_text(text) if canonical is None else canonical
+    return "hk1:" + hmac.new(bytes.fromhex(digest_key), canon.encode(), hashlib.sha256).hexdigest()
 
 
 def uniform(salt: str, rid: str, question: str, slice_name: str) -> float:
@@ -387,7 +390,7 @@ def draw(
 def script_class(text: str) -> str:
     """The Unicode block of most of the letters: latin, cyrillic, greek, arabic, hebrew, devanagari, cjk or other."""
     counts: dict[str, int] = {}
-    for ch in str(text)[:4000]:
+    for ch in str(text)[:SCRIPT_TEXT]:
         if not ch.isalpha():
             continue
         name = unicodedata.name(ch, "")
@@ -1077,7 +1080,8 @@ class TaskLabels:
         level = None
         if self.embed is not None and self.settings.get("typical_pi_max", 0.0) > 0:
             try:  # cold start only; a failing student never fails an answer
-                v = np.asarray(self.embed(text if embed_text is None else embed_text), dtype=np.float32).reshape(-1)
+                src = text if embed_text is None else embed_text
+                v = np.asarray(self.embed(src[:TYPICAL_TEXT]), dtype=np.float32).reshape(-1)  # a bounded cost
                 level = self.typicality.level(v)
                 self.typicality.add(v)
             except Exception:
@@ -1100,7 +1104,7 @@ class TaskLabels:
                 "t": self.clock(),
                 "epoch": e["epoch"],
                 "digest": hashlib.blake2b(canonical.encode(), key=bytes.fromhex(self.secret["salt"])[:64]).hexdigest(),
-                "hk1": hk1(self.secret["digest_key"], text),
+                "hk1": hk1(self.secret["digest_key"], text, canonical),
                 "lang": lang or "unknown",
                 "script": script_class(text),
                 "keys": [self.option_key(k) for k in keys],
