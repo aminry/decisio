@@ -3,27 +3,23 @@
 """The readout's hidden state at serving time, for the per-task intent head (decisio.readout.intent_head).
 
 The head needs h, the final-norm hidden state at the readout position (the vector the letter logits are read from),
-which vLLM's generate path does not return. Two modes read it (`vllm_engine.resolve_head_mode`; docs/handoffs/tasks.md):
+which vLLM's generate path does not return. The serving engine runs decisio's hidden-readout class, and h is read one
+of two ways (`vllm_engine.single_engine_reader`; docs/handoffs/tasks.md):
 
-  single-engine   the default (`SingleEngineHidden`): the serving engine itself runs decisio's hidden-readout class and
-                  returns h through reserved logit columns (docs/design/hidden-state-readout.md). No second weight copy;
-                  three engine requests per head question.
-  second-engine   --head-engine (`HiddenEngine`): a second copy of the served model in vLLM's pooling mode
-                  (`runner="pooling"`, last-token pooling, no activation) returns h for the exact token rows the served
-                  path builds (front padding included). One pooling request per head question, but a second weight
-                  copy on the card, and vLLM 0.30's pooling runner has no prefix cache on this hybrid model, so every
-                  head question prefills its whole prompt.
+  tap        `TapHidden`, on the Gemma 4 12B with an in-process engine (decisio.vllm_plugin.tap): the class keeps the
+             answer-position rows and a logits processor stores those of the requests that carry a key, so a head
+             question is the plain question's one request.
+  reserved   `SingleEngineHidden`, on the other bases and with a separate engine process: the class writes h into
+             reserved logit columns, read in one request per chunk of them (docs/design/hidden-state-readout.md).
 
-In both, the K letter log-probabilities are computed from h and the output layer's K label rows,
+The K letter log-probabilities are the engine's own readout of the row (Gemma, `Family.head_label_logprobs="engine"`)
+or computed from h and the output layer's K label rows (Qwen),
 
     z  = h @ W_labels^T
     lp = log_softmax(z)
 
 so a head is fitted and served on the same (lp, h), and `intent_head.apply_intent_head(lp, h, rec, options)` is the
-served arithmetic exactly. The two modes differ only in the dtype of z (`label_logits`).
-
-    eng = HiddenEngine(os.environ["DECISIO_MODEL"], pad_to="block", pad_where="front", gpu_memory_utilization=0.47)
-    [(lp, h), ...] = eng.readout(state, questions)
+served arithmetic exactly. `HFHiddenEngine` and `HFReservedHiddenEngine` are the CPU stand-ins (the hf backend).
 """
 
 from __future__ import annotations
@@ -34,7 +30,6 @@ from pathlib import Path
 
 import numpy as np
 
-from decisio.serve import engine_stream
 from decisio.serve.engine_health import guarded
 from decisio.serve.vllm_engine import ContextRegistrations, LettersEngine
 
@@ -78,145 +73,55 @@ class HiddenReadout:
         return out
 
 
-class HiddenEngine(HiddenReadout, LettersEngine):
-    """The served model in vLLM's pooling mode, returning h at the last prompt position; every prompt setting as the
-    served default (the same rows: `_prepare_separate`, front padding to the block)."""
+def load_output_rows(model, names=("lm_head.weight",), revision=None):
+    """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards: the first of `names` the
+    checkpoint has (a base with tied embeddings names its input embedding after lm_head.weight,
+    decisio.families.Family.head_rows); `revision` pins a hub checkpoint. `model` is a local
+    directory or a Hugging Face repo id, as vLLM accepts; for a repo id only the index and the shard holding
+    `lm_head.weight` are fetched (from the local cache when vLLM has already downloaded them). A file missing
+    from the repo is treated as absent (huggingface_hub's EntryNotFoundError); any other hub error (no network,
+    an unknown or gated repo) propagates as raised. A checkpoint without the files, or without a separate
+    `lm_head.weight` (tied embeddings), is refused with an error naming the model and the file."""
+    from safetensors import safe_open
 
-    def __init__(
-        self,
-        model,
-        pad_to="block",
-        pad_where="front",
-        gpu_memory_utilization=0.47,
-        engine_kw=None,
-        max_model_len=32768,
-        max_num_seqs=256,
-        revision=None,
-        kv_cache_dtype=None,
-    ):
-        from vllm import LLM
-        from vllm.config import PoolerConfig
+    def fetch(name):
+        local = Path(model) / name
+        if Path(model).is_dir():
+            return local if local.exists() else None
+        from huggingface_hub import hf_hub_download
+        from huggingface_hub.errors import EntryNotFoundError
 
-        self.mode, self.pad_token, self.pad_where = "hidden", 198, pad_where
-        self.adapters = {}
-        kw = dict(
-            model=model,
-            max_model_len=max_model_len,
-            max_num_seqs=max_num_seqs,
-            gpu_memory_utilization=gpu_memory_utilization,
-            limit_mm_per_prompt={"image": 0, "video": 0},
-            runner="pooling",
-            convert="embed",
-            pooler_config=PoolerConfig(task="embed", seq_pooling_type="LAST", use_activation=False),
-            **({"kv_cache_dtype": kv_cache_dtype} if kv_cache_dtype else {}),
-            **({"revision": revision, "tokenizer_revision": revision} if revision else {}),
-        )
-        kw.update({k: v for k, v in (engine_kw or {}).items() if k != "limit_mm_per_prompt"})
-        self.llm = LLM(**kw)
-        self._stream = (
-            engine_stream.capture()
-        )  # the stream the engine was built and warmed up on (decisio.serve.engine_stream)
-        self.tok = self.llm.get_tokenizer()
-        cfg = self.llm.llm_engine.vllm_config.cache_config
-        self.block_size = cfg.block_size
-        self.match_unit = self.block_size
-        self.pad_unit = None if not pad_to else (self.block_size if pad_to == "block" else int(pad_to))
-        self._W = self._load_lm_head(model, revision=revision)
-        import threading
+        try:
+            return Path(hf_hub_download(model, name, revision=revision))
+        except EntryNotFoundError:
+            return None
 
-        self._lock = threading.Lock()
-        for _ in range(2):  # warm-up, as the generate engine does
-            self.readout("Warm-up. " * 40, [{"kind": "noul", "instructions": "Is this a warm-up request?"}])
-
-    @staticmethod
-    def _load_lm_head(model, names=("lm_head.weight",), revision=None):
-        """The output layer's weight (vocabulary x hidden), from the checkpoint's own shards: the first of `names` the
-        checkpoint has (a base with tied embeddings names its input embedding after lm_head.weight,
-        decisio.families.Family.head_rows); `revision` pins a hub checkpoint. `model` is a local
-        directory or a Hugging Face repo id, as vLLM accepts; for a repo id only the index and the shard holding
-        `lm_head.weight` are fetched (from the local cache when vLLM has already downloaded them). A file missing
-        from the repo is treated as absent (huggingface_hub's EntryNotFoundError); any other hub error (no network,
-        an unknown or gated repo) propagates as raised. A checkpoint without the files, or without a separate
-        `lm_head.weight` (tied embeddings), is refused with an error naming the model and the file."""
-        from safetensors import safe_open
-
-        def fetch(name):
-            local = Path(model) / name
-            if Path(model).is_dir():
-                return local if local.exists() else None
-            from huggingface_hub import hf_hub_download
-            from huggingface_hub.errors import EntryNotFoundError
-
-            try:
-                return Path(hf_hub_download(model, name, revision=revision))
-            except EntryNotFoundError:
-                return None
-
-        wanted = " or ".join(names)
-        index = fetch("model.safetensors.index.json")
-        if index is not None:
-            weight_map = json.loads(index.read_text()).get("weight_map", {})
-            name = next((n for n in names if n in weight_map), None)
-            if name is None:
-                raise ValueError(
-                    f"{model}: model.safetensors.index.json has no {wanted} (tied embeddings?); the intent "
-                    "head needs the output layer's own weight"
-                )
-            shard = weight_map[name]
-        else:
-            shard = "model.safetensors"
-        path = fetch(shard)
-        if path is None:
-            raise FileNotFoundError(
-                f"{model}: neither model.safetensors.index.json nor model.safetensors found"
-                if index is None
-                else f"{model}: {shard}, the shard the index names for {wanted}, is missing"
+    wanted = " or ".join(names)
+    index = fetch("model.safetensors.index.json")
+    if index is not None:
+        weight_map = json.loads(index.read_text()).get("weight_map", {})
+        name = next((n for n in names if n in weight_map), None)
+        if name is None:
+            raise ValueError(
+                f"{model}: model.safetensors.index.json has no {wanted} (tied embeddings?); the intent "
+                "head needs the output layer's own weight"
             )
-        with safe_open(str(path), framework="pt") as f:
-            keys = set(f.keys())
-            name = next((n for n in names if n in keys), None)
-            if name is None:
-                raise ValueError(f"{model}: {shard} has no {wanted} (tied embeddings?)")
-            return f.get_tensor(name)
-
-    def label_rows(self, lab):
-        return self._W[list(lab)].double().numpy()
-
-    def hidden_rows(self, token_lists):
-        from vllm.inputs import TokensPrompt
-
-        outs = guarded(
-            self,
-            self.llm.encode,
-            [TokensPrompt(prompt_token_ids=ids) for ids in token_lists],
-            pooling_task="embed",
-            use_tqdm=False,
+        shard = weight_map[name]
+    else:
+        shard = "model.safetensors"
+    path = fetch(shard)
+    if path is None:
+        raise FileNotFoundError(
+            f"{model}: neither model.safetensors.index.json nor model.safetensors found"
+            if index is None
+            else f"{model}: {shard}, the shard the index names for {wanted}, is missing"
         )
-        return [o.outputs.data.float().cpu().numpy() for o in outs]
-
-    def bind_stream(self):
-        """Put the calling thread on the stream the engine was built on (decisio.serve.engine_stream)."""
-        engine_stream.bind(getattr(self, "_stream", None))
-
-    def probe(self):
-        """A pooling request over a one-token prompt (engine_health), the call this engine serves."""
-        from vllm.inputs import TokensPrompt
-
-        self.bind_stream()
-
-        self.llm.encode([TokensPrompt(prompt_token_ids=self.probe_ids())], pooling_task="embed", use_tqdm=False)
-
-    def facts(self):
-        import vllm
-
-        return {
-            "vllm": vllm.__version__,
-            "mode": "hidden (pooling runner, last token)",
-            "block_size": self.block_size,
-            "pad_unit": self.pad_unit,
-            "pad_where": self.pad_where if self.pad_unit else None,
-            "lm_head": list(self._W.shape),
-        }
+    with safe_open(str(path), framework="pt") as f:
+        keys = set(f.keys())
+        name = next((n for n in names if n in keys), None)
+        if name is None:
+            raise ValueError(f"{model}: {shard} has no {wanted} (tied embeddings?)")
+        return f.get_tensor(name)
 
 
 class HFHiddenEngine(HiddenReadout):
@@ -294,9 +199,7 @@ class SingleEngineHidden(HiddenReadout):
         self.softcap = family.softcap if family is not None else None
         self.label_source = family.head_label_logprobs if family is not None else "recompute"
         rows = family.head_rows if family is not None else ("lm_head.weight",)
-        load = HiddenEngine._load_lm_head
-        # the default call unchanged for the Qwen base (and its stand-ins in tests)
-        self._W = load(model) if rows == ("lm_head.weight",) and revision is None else load(model, rows, revision)
+        self._W = load_output_rows(model, rows, revision)
         # every token any question of this server's prompt format may read (all forms of every label)
         fmt = getattr(engine, "fmt", DEFAULT_FORMAT)
         form = fmt.label_form()

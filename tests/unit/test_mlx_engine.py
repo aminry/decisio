@@ -51,7 +51,7 @@ def _main(monkeypatch, *argv):
 
 @pytest.mark.parametrize(
     "flags",
-    [["--image-model", "x"], ["--head-engine"], ["--adapter", "a=/p"], ["--mode", "packed"], ["--one-engine"]],
+    [["--image-model", "x"], ["--adapter", "a=/p"], ["--mode", "packed"], ["--one-engine"]],
 )
 def test_mlx_backend_refuses_what_it_does_not_serve(monkeypatch, flags, capsys):
     assert _main(monkeypatch, "--backend", "mlx", *flags) == 2

@@ -3,7 +3,6 @@
 """The pinned revision reaches every load of a base's checkpoint, without a model or the network:
 
 R1  --mode packed loads its tokenizer at the revision (and vLLM at `revision` and `tokenizer_revision`)
-R2  the second-engine head (HiddenEngine) starts its vLLM engine and reads the output layer at the revision
 R3  the hf stand-in engines (text, hidden, reserved-column) load the tokenizer and the model at the revision
 R4  from the command line to each engine: resolve_base's revision is what main() hands the engines
 """
@@ -70,38 +69,6 @@ def test_r1_packed_tokenizer_at_the_revision(fam, revision, monkeypatch):
     assert ("revision" in kw) is (revision is not None)
 
 
-@pytest.mark.parametrize("revision", [REV, None])
-def test_r2_second_engine_head_at_the_revision(revision, monkeypatch):
-    llm_kw, head_calls = [], []
-
-    class LLM:
-        def __init__(self, **kw):
-            llm_kw.append(kw)
-            self.llm_engine = types.SimpleNamespace(
-                vllm_config=types.SimpleNamespace(cache_config=types.SimpleNamespace(block_size=16))
-            )
-
-        def get_tokenizer(self):
-            return object()
-
-    _fake_vllm(monkeypatch, LLM)
-    monkeypatch.setattr(
-        he.HiddenEngine,
-        "_load_lm_head",
-        staticmethod(lambda model, names=(), revision=None: head_calls.append((model, revision))),
-    )
-    monkeypatch.setattr(he.HiddenEngine, "readout", lambda self, *a, **k: None)
-    he.HiddenEngine(QWEN.model, revision=revision)
-    kw = llm_kw[0]
-    assert kw["model"] == QWEN.model and kw.get("revision") == revision and kw.get("tokenizer_revision") == revision
-    assert ("revision" in kw) is (revision is not None)
-    assert head_calls == [(QWEN.model, revision)]
-    # --engine's JSON may still add to the engine's arguments but the revision stays
-    llm_kw.clear()
-    he.HiddenEngine(QWEN.model, engine_kw={"enforce_eager": True}, revision=revision)
-    assert llm_kw[0]["enforce_eager"] is True and llm_kw[0].get("revision") == revision
-
-
 def _record_hf_loads(monkeypatch):
     transformers = pytest.importorskip("transformers")
     pytest.importorskip("torch")
@@ -140,8 +107,8 @@ def test_r3_hf_stand_in_engines_load_at_the_revision(revision, monkeypatch):
 
 
 def test_r4_main_hands_the_engines_the_resolved_revision(monkeypatch):
-    """On the hf backend, what --base resolves to (or --revision gives) is what main() builds the text engine and either
-    head engine with: the reserved-column head by default, the second engine with --head-engine."""
+    """On the hf backend, what --base resolves to (or --revision gives) is what main() builds the text engine and the
+    head's reader with (the reserved-column stand-in)."""
     import decisio.serve.hf_letters as hl
 
     seen = {}
@@ -159,13 +126,11 @@ def test_r4_main_hands_the_engines_the_resolved_revision(monkeypatch):
 
     monkeypatch.setattr(hl, "HFLettersEngine", text_engine)
     monkeypatch.setattr(he, "HFReservedHiddenEngine", head("reserved"))
-    monkeypatch.setattr(he, "HFHiddenEngine", head("second"))
     monkeypatch.setattr(sv, "deep_gemm_guard", lambda *a, **k: None)
     for extra, want in (([], QWEN.revision), (["--revision", REV], REV)):
-        for flags, name in (([], "reserved"), (["--head-engine"], "second")):
-            seen.clear()
-            argv = ["vllm_engine", "--backend", "hf", "--base", "qwen3.6-35b-a3b", *extra, *flags]
-            monkeypatch.setattr(sys, "argv", argv)
-            with pytest.raises(_Stop):
-                sv.main()
-            assert seen == {"text": (QWEN.model, want), name: (QWEN.model, want)}, argv
+        seen.clear()
+        argv = ["vllm_engine", "--backend", "hf", "--base", "qwen3.6-35b-a3b", *extra]
+        monkeypatch.setattr(sys, "argv", argv)
+        with pytest.raises(_Stop):
+            sv.main()
+        assert seen == {"text": (QWEN.model, want), "reserved": (QWEN.model, want)}, argv

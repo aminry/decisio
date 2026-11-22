@@ -391,7 +391,7 @@ class TaskStore:
                 "K": len(options),
                 "options": options,
                 "options_sha256": intent_head.options_digest(options),
-                "reason": "this server has no hidden-state engine (--head-engine)",
+                "reason": "this server reads no hidden state (--model-class text-only or view, or --one-engine)",
             }
             readout = None
         elif len(options) < MIN_OPTIONS_FOR_HEAD:

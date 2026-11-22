@@ -15,6 +15,7 @@ D5  release-please is told to rewrite the version in both files at release time
   uv run python -m decisio.serve.reference_docs --write     # after changing a route, a model or a flag
 """
 
+import argparse
 import json
 import re
 import zlib
@@ -142,7 +143,11 @@ def test_d4_the_flags_table_has_a_row_for_every_flag():
 
     text = rd.flags_markdown()
     rows = [line for line in text.splitlines() if line.startswith("| `--")]
-    flags = [a for a in build_parser()._actions if a.option_strings and a.dest != "help"]
+    # every flag the server takes; a flag kept only to refuse it with the reason (help=SUPPRESS) has no row
+    flags = [
+        a for a in build_parser()._actions if a.option_strings and a.dest != "help" and a.help != argparse.SUPPRESS
+    ]
+    assert "--head-engine" not in text
     assert len(rows) == len(flags) > 40
     for a in flags:
         assert any(f"`{a.option_strings[0]}`" in row for row in rows), a.option_strings

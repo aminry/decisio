@@ -4,7 +4,7 @@
 --multi-question's default that follows it (resolve_multi_question).
 
 E1  the default resolves to in for a single-engine server (and sets VLLM_ENABLE_V1_MULTIPROCESSING=0), to separate with
-    a second engine (--image-model, --head-engine, --one-engine) or when the environment already sets the variable to
+    a second engine (--image-model, --one-engine) or when the environment already sets the variable to
     1; an explicit choice is honoured; an explicit separate is refused when the variable already says 0 (the engine
     would run in the server's process while the server says otherwise)
 E2  in is refused with a second engine and off vLLM
@@ -35,7 +35,7 @@ def test_e1_the_default_resolves_by_engine_count():
     env = {}
     assert engine_process_guard("vllm", None, env) == ("in", "the default for a single-engine server")
     assert env == {VAR: "0"}
-    for second in (["--image-model"], ["--head-engine"], ["--image-model", "--one-engine"]):
+    for second in (["--image-model"], ["--image-model", "--one-engine"]):
         env = {}
         arrangement, why = engine_process_guard("vllm", None, env, second)
         assert arrangement == "separate" and all(f in why for f in second) and env == {}
@@ -55,7 +55,7 @@ def test_e1_an_explicit_choice_is_honoured():
     assert engine_process_guard("vllm", "in", env) == ("in", "--engine-process in") and env == {VAR: "0"}
 
 
-@pytest.mark.parametrize("flags", [["--image-model"], ["--head-engine"], ["--image-model", "--one-engine"]])
+@pytest.mark.parametrize("flags", [["--image-model"], ["--image-model", "--one-engine"]])
 def test_e2_in_is_refused_with_a_second_engine(flags):
     env = {}
     with pytest.raises(SystemExit, match="second one") as e:
@@ -99,7 +99,6 @@ def start_up(monkeypatch, argv):
     "argv,reason",
     [
         (["--engine-process", "in", "--image-model", "x"], "second one"),
-        (["--engine-process", "in", "--head-engine"], "second one"),
         (["--engine-process", "in", "--backend", "hf"], "--backend vllm"),
     ],
 )
@@ -139,11 +138,6 @@ def test_e3_start_up_refuses_before_any_engine_is_built(monkeypatch, argv, reaso
             "ENGINE PROCESS separate (--engine-process separate); multi-question sequential",
         ),
         (["--base", "gemma-4-31b", "--multi-question", "sequential"], "0", "multi-question sequential"),
-        (
-            ["--base", "qwen3.6-35b-a3b", "--head-engine"],
-            None,
-            "ENGINE PROCESS separate (the default with a second engine (--head-engine)); multi-question sequential",
-        ),
     ],
 )
 def test_e3_start_up_applies_the_resolved_default(monkeypatch, capsys, argv, var, line):

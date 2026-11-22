@@ -48,7 +48,7 @@ uv run python -m decisio.serve.vllm_engine
   The revision is used for the config, the tokenizer, the processor and the weights.
   Before any engine is built the start reads the image model's `config.json` at that revision and resolves its base; a checkpoint that cannot be read (offline, with that revision not in the cache) or that no base serves stops the start at once, with the message naming it, instead of after the text engine's compile.
   An offline start (`HF_HUB_OFFLINE=1`) needs the pinned revision in the cache, which a download of the pinned revision provides.
-- vLLM's engine runs in the server's process by default; with a second engine (`--image-model`, `--head-engine`, `--one-engine`) it runs in a process of its own (`--engine-process`, `docs/cli.md`).
+- vLLM's engine runs in the server's process by default; with a second engine (`--image-model`, `--one-engine`) it runs in a process of its own (`--engine-process`, `docs/cli.md`).
 - A later, different question about a state read before, sent in its own request, reads the state from the prefix cache; on the Gemma bases that needs the state's boundary registered, and `--register-boundary` sets when (below).
 - vLLM's `prefix_cache_retention_interval` would also keep the boundary, but it keeps every sliding-window block of each state, and with the cache filled to 1.3 times its pool the earliest states lost even their repeated question, where the default (0) kept them at twice the pool; it stays at the default. The Qwen base needs neither: its state is padded to end on its 1,056-token block, the latest checkpoint of a request with one question. `/health` reports `cache_hit_unit`, `hash_unit`, `registers_state_boundary` and `register_boundary`.
 
@@ -613,7 +613,7 @@ uv run python -m decisio.serve.vllm_engine --backend mlx --base gemma-4-31b --mo
 
 - `--backend mlx` serves the text route on Apple silicon from an MLX conversion of a base's checkpoint, with every feature of that route: the letters readout, the shared state prefix, the temperatures, task registration with calibration and the intent head, abstention, the rendering rules and the tie-break.
 - The base comes from `--base`, or from the conversion's model type, and brings its own settings, as on vLLM; `--model` names the conversion.
-- It refuses the Qwen base's second image engine (`--image-model`), packed mode, LoRA adapters and the second-engine head; both Gemma bases read images with `--images on` ([Images on a Mac](#images-on-a-mac)).
+- It refuses the Qwen base's second image engine (`--image-model`), packed mode and LoRA adapters; both Gemma bases read images with `--images on` ([Images on a Mac](#images-on-a-mac)).
 - **A tuned model can be an MLX repository.** `python -m decisio.hub tuned-config --mlx-conversion mlx-lm@0.32.0 --mlx-bits 6 --mlx-group-size 64 ...` writes the `decision_config.json` of a directory that holds an MLX conversion of a tuned model's merged weights (`--merge-report` is the merge report of the bf16 model it was converted from; `--weights-dir` is the conversion, whose own `config.json` must declare the same affine quantization). The file says the weights are `mlx_affine` and records the conversion in `tuned.conversion`; the rest is the tuned repository of [Shipping a tuned model](#shipping-a-tuned-model): the temperatures, the layout and the flavor. `--backend mlx --base owner/name[@revision]` then serves it with those defaults, loading the weights at that revision. A server for vLLM refuses such a repository, and `--backend mlx` refuses a repository whose weights are FP8.
 - It refuses a checkpoint whose `config.json` declares FP8 quantization (the Qwen base's `Qwen/Qwen3.6-35B-A3B-FP8`, the `tachara-ai/decisio-*` repositories of the Qwen base and the 31B), by `--model` or by `--base <repository>`: those weights are vLLM's format, and an MLX conversion is what `--model` takes.
 
@@ -806,7 +806,7 @@ For larger cards the arithmetic (0.90 of the card, less the weights, less about 
 
 The 12B's KV cache is small per token (about 16 KB a token for its 8 full-attention layers, beside about 0.34 GiB a sequence for its sliding-window layers), so beyond the ceiling the extra room buys concurrent sequences and prefix cache, not a longer request: both precisions reach the 12B's ceiling on a 96 GB card.
 
-**Where it does not apply.** With `--max-model-len` the server serves exactly that length (above 32,768 only up to the ceiling; beyond it the server refuses to start, as before), and so with a `max_model_len` in `--engine`. The default stays 32,768 with `--image-model` (the image engine serves 32,768), a second engine (`--head-engine`), `--engine-process separate` (the fit is read from the engine's configuration in the server's own process), `--backend mlx` and `--backend hf`.
+**Where it does not apply.** With `--max-model-len` the server serves exactly that length (above 32,768 only up to the ceiling; beyond it the server refuses to start, as before), and so with a `max_model_len` in `--engine`. The default stays 32,768 with `--image-model` (the image engine serves 32,768), `--engine-process separate` (the fit is read from the engine's configuration in the server's own process), `--backend mlx` and `--backend hf`.
 To keep one length on every card, give `--max-model-len`.
 
 **What it does to certificates, and to short answers.** The context length served is part of the serving-stack fingerprint (the card, the engine, the KV cache dtype and the rest of [Where it stops](tasks.md#where-it-stops)), so a certificate made at one length is suspended at another, whether the length was given or followed the card; a card's fit is the same for the same flags, and the 8,192 step absorbs small differences in the memory vLLM reports. It is in the fingerprint because the length is not inert on every card. What was measured, on the stored FP8 31B with 200 single-question requests answered one at a time:
@@ -1109,7 +1109,7 @@ From the moment the engine is dead:
 - after 2 seconds, once every request in flight has its answer (waiting at most 8 seconds more), the server stops its engine processes and exits with code 70; a request the dead engine never returns has its connection closed by the exit.
 
 The in-process arrangement therefore exits about 7 seconds after the failing request (the probe's 5 seconds, then the grace period's 2).
-In the separate arrangement (`--engine-process separate`, the default with a second engine) vLLM reports the death itself, so the server exits about 2 seconds after it.
+In the separate arrangement (`--engine-process separate`, the default with an image engine) vLLM reports the death itself, so the server exits about 2 seconds after it.
 The server also watches vLLM's flag between requests, so a death between requests turns `/health` to 503 within a second, before any request arrives.
 
 Run the server under a restart policy, so that the exit brings up a new one:

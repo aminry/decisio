@@ -154,7 +154,7 @@ def test_t2_store_fits_with_the_reference():
     )
     assert len(store.by_key) == 1
     t0, _ = store.register("t", ex, lambda pairs: P, None)
-    assert not t0["head"]["applied"] and "--head-engine" in t0["head"]["reason"]
+    assert not t0["head"]["applied"] and "reads no hidden state" in t0["head"]["reason"]
     # fewer than 10 options (a yes/no or multiple-choice question): calibration only, whatever the examples
     ex3, P3, R3 = fake_examples(8, K=3)
     t3, f3 = store.register("t3", ex3, lambda pairs: P3, lambda pairs: R3)

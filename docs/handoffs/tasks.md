@@ -35,27 +35,22 @@ A task registered with a `certify` block also stores a **certificate** (`decisio
 - **The serving-stack fingerprint** (`decisio.serve.stack`): the decisio version, base, repository and revision, the engine and its version, the card or device, quantisation, the attention backend, cache units, a hash of the token rows built for a fixed probe question (tokenizer, chat template, system turn and rendering), the temperatures, the serving flags (orders, multi-question, pad policy, rendering, abstention, `--noul-commit`, head engine) and a digest of the task's own fit. Its sha256 is `certificate.stack_sha256`; a server whose fingerprint differs certifies nothing for the task until `POST /v1/tasks/{id}/certify`.
 - **The answer-mix monitor.** Per certified task the server keeps the index of the option each of the last 500 answers chose (never the question, the state or the option names) and compares the window's mix with the certification examples' every 100 answers once full, by total variation distance, against a line fixed at certification (the 99.9th percentile of the same distance between two independent resamples of the examples, 2,000 draws). The alert (`status.state: traffic_changed`, and `decisio_task_state` in `/metrics`) says the traffic changed; it does not suspend the certificate or change an answer. The counters are in memory and start again with the server.
 
-## The head's two modes
+## The head's hidden state
 
 The head needs the final-norm hidden state at the answer position, which vLLM's generate path does not return.
-Two modes read it; the server's flags choose (`decisio.serve.vllm_engine.resolve_head_mode`).
+The serving engine runs decisio's hidden-readout class, and the server reads the state one of two ways (`decisio.serve.vllm_engine.single_engine_reader`):
 
-| | Single engine (the default) | Second engine (`--head-engine`) |
+| | The tap (Gemma 4 12B, engine in the server's process: the default there) | Reserved columns (the other bases, or a separate engine process) |
 | --- | --- | --- |
-| How | The text engine runs decisio's hidden-readout class, which writes the hidden state into reserved logit columns; the server reads them in three requests, one at a time (docs/design/hidden-state-readout.md) | A second copy of the model in vLLM's pooling mode returns the hidden state for the same token rows |
-| Server time per head question | about 127 ms, against 46 ms for the same question without a task (runs/2026-09-30_plugin-verification) | about 82 ms, the same as a plain question on that run (2026-09-29, another card and code state; not like for like) |
-| Weights on the card | one copy; the text engine at 0.90 of the card's memory | two copies (33 GiB each); the two engines at 0.47 each |
-| Image engine on the same card | yes: the two engines at 0.47 and 0.49 (measured) | no: refused at start-up |
-| Other questions | unchanged, bit for bit (1,400 of 1,400 suite answers) | unchanged (the text engine is not touched) |
-| Label arithmetic | the engine's own: logits rounded to bf16 | float64 from the pooled state |
+| How | The class keeps the answer-position rows; a vLLM logits processor stores those of the head question's own request (decisio.vllm_plugin.tap) | The class writes the hidden state into reserved logit columns, read in one request per chunk of them (docs/design/hidden-state-readout.md) |
+| Requests per head question | one, the plain question's own | the plain readout's and one per chunk (five on the 12B) |
+| Head question, client time (12B, one RTX PRO 6000) | 55.2 ms | 150.9 ms |
+| Other questions | unchanged, bit for bit (300 plain and 8 image questions) | unchanged, bit for bit (1,400 of 1,400 suite answers) |
+| The hidden state | the forward that produced the question's letters | a re-read of the prompt from the prefix cache, 1.5 to 4.5% apart |
 
-Choose the second engine for a deployment with heavy intent traffic on a dedicated card, where 45 ms per head question matters more than the second weight copy and the image route.
-Everything else should use the default.
-
-Both modes give the same declared choice on every evaluation item of the stored intent readouts (BANKING77, 150 items; CLINC150, 100 items; `tests/data/intent_readouts`), each mode fitting its own head from its own reading of the same hidden states, with probabilities within 1e-2 (`tests/unit/test_head_modes.py`, M3).
-Tasks carry no mode, so a task registered in one mode loads in the other.
-The 82 ms was measured with the text-only view as the model directory (`--model-class view --head-engine`).
-The second-engine mode's default pairing, with the registered text-only class (`--head-engine` alone), is unmeasured for latency; it is to be timed in the next session on a card.
+A head records the reader it was fitted on; on a tap server a head fitted on the reserved columns is not applied until the task is registered again (`head_refit`).
+The two readers give the same declared choice on every evaluation item of the stored intent readouts (BANKING77, 150 items; CLINC150, 100 items; `tests/data/intent_readouts`), each fitting its own head from its own reading of the same hidden states, with probabilities within 1e-2 (`tests/unit/test_head_modes.py`, M3).
+Two-engine mode (`--head-engine`, a second copy of the model in vLLM's pooling mode) is removed.
 
 ## The global temperature
 
