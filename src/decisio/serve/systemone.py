@@ -1076,9 +1076,12 @@ class SystemOne:
         self.labels_objects, self.labels_writes = None, True
         self.labels_logs: dict = {}
         self.labels_replica = os.environ.get("DECISIO_REPLICA") or secrets.token_hex(3)
+        self.labels_lease = None
         if shared is not None:
             self.labels_objects, self.labels_writes = shared.objects, shared.writes
             self.labels_replica = shared.replica  # one replica id for its learned rows and its label log
+            if shared.writes:  # the one replica that merges the label logs (decisio.serve.labels.TaskLabels.compact)
+                self.labels_lease = FTR.Lease(shared, path="labels/LEASE.json", what="labels")
         self.learning = FTL.Learning(
             root,
             stack_sha=lambda layout=None: stack_sha256(self.stack_under(layout))[:16],
@@ -3177,6 +3180,20 @@ class SystemOne:
             self._start_labels_flusher()
         return log
 
+    def labels_view(self, t) -> dict | None:
+        """A task's labels as its listing shows them: the settings in force (the current epoch's, which a
+        `PUT .../labels/settings` changes), what they store, and the registration's own settings; never a secret."""
+        log = self.labels_log(t)
+        if log is None:
+            return None
+        try:
+            log.ensure_loaded()
+        except Exception:  # the store out of reach: what this replica holds
+            pass
+        s = log.settings
+        return {"settings": s, "stored_fields": LB.stored_fields(s), "epoch": log.epoch["epoch"],
+                "registered_settings": t["labels"]["settings"]}  # fmt: skip
+
     @property
     def labels_location(self) -> str:
         """Where the label logs are kept: `task_store`, `tasks_dir` or `memory`."""
@@ -3199,14 +3216,28 @@ class SystemOne:
         self._labels_flusher.start()
         atexit.register(self.flush_labels, True)
 
+    def labels_merger(self) -> bool:
+        """Whether this server merges the label logs: one server always; on a shared store the holder of the labels
+        lease (taken or renewed here, on the labels thread)."""
+        if self.labels_objects is None:
+            return True
+        if self.labels_lease is None:
+            return False
+        try:
+            return self.labels_lease.step()
+        except Exception as e:  # the store out of reach: no merge this turn
+            logger.warning("labels: could not take or renew the merger's lease: %s", e)
+            return False
+
     def flush_labels(self, force: bool = False) -> None:
+        merge = self.labels_merger() if self.labels_logs else False
         for task_id, log in list(self.labels_logs.items()):
             t = self.task_store.snapshot(task_id) if self.task_store is not None else None
             if t is None or (t.get("labels") or {}).get("secret") != log.secret:
                 self.labels_logs.pop(task_id, None)  # removed or registered again (on another replica, too)
                 continue
             try:
-                log.tick(force)
+                log.tick(force, merge=merge)
             except (
                 Exception
             ) as e:  # a full disk or a store out of reach must not stop serving; rows wait for the next try
@@ -5324,6 +5355,8 @@ def add_routes(app, systemone: SystemOne):
             )
             if (t.get("certificate") or t.get("learn")) and not full:
                 item["status"] = systemone.full_status(t)
+            if t.get("labels") and not full:
+                item["labels"] = systemone.labels_view(t)
             if not full and (note := systemone.calibration_note(t)):
                 item["calibration_refit"] = note
             if not full and (note := systemone.head_note(t)):
@@ -5349,6 +5382,8 @@ def add_routes(app, systemone: SystemOne):
         out = with_version(TaskStore.public(t), "readout", t["id"])
         if t.get("certificate") or t.get("learn"):
             out["status"] = systemone.full_status(t)
+        if t.get("labels"):
+            out["labels"] = systemone.labels_view(t)
         if note := systemone.calibration_note(t):
             out["calibration_refit"] = note
         if note := systemone.head_note(t):
@@ -5461,7 +5496,8 @@ def add_routes(app, systemone: SystemOne):
         """Counts by state and slice, and the label need per alpha (0.05, 0.10, 0.01, 0.005)."""
         log = labels_log_of(task_id)
         extra = synced(log)
-        return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"], **extra})
+        return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"],
+                            "settings": log.settings, **extra})  # fmt: skip
 
     async def decline_labels(task_id: str, request: Request):
         try:
@@ -5476,6 +5512,38 @@ def add_routes(app, systemone: SystemOne):
 
     decline_labels.__annotations__["request"] = Request
     app.post("/v1/tasks/{task_id}/labels/decline")(decline_labels)
+
+    async def put_label_settings(task_id: str, request: Request):
+        """Change the label settings: a new epoch (the rows drawn before keep theirs)."""
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(422, f"request body is not valid JSON: {e}")
+        log = labels_log_of(task_id)
+
+        def change(b):
+            epoch = log.set_settings(b)  # what the log keeps from now on, said as the registration said it
+            return {"epoch": epoch, "labels": LB.disclosure(epoch["settings"], systemone.labels_location)}
+
+        out = await run_in_threadpool(label_write, log, change, body)
+        return labels_json(out)
+
+    put_label_settings.__annotations__["request"] = Request
+    app.put("/v1/tasks/{task_id}/labels/settings")(put_label_settings)
+
+    @app.delete("/v1/tasks/{task_id}/labels/{request_id}")
+    def erase_label(task_id: str, request_id: str):
+        """Erase one request's logged answers and labels: `erased` at once, `purged` once the bytes are gone."""
+        log = labels_log_of(task_id)
+        return labels_json(label_write(log, lambda rid: log.erase(request_id=rid), request_id))
+
+    @app.delete("/v1/tasks/{task_id}/labels")
+    def erase_labels_before(task_id: str, before: float | None = None):
+        """Erase every answer served, and every label received, before `before` (seconds since the epoch)."""
+        if before is None:
+            raise HTTPException(422, "give ?before=<seconds since the epoch> (or erase one request by its id)")
+        log = labels_log_of(task_id)
+        return labels_json(label_write(log, lambda t: log.erase(before=t), before))
 
     @app.get("/v1/tasks/{task_id}/labels/export")
     def labels_export(task_id: str):

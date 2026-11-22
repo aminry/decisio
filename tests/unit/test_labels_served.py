@@ -11,11 +11,13 @@ S2  answers: a request id per logged question (and the x-decisio-request-id head
 S3  the routes: post labels by request id, by digest and by state, the blind queue, the status with the label need,
     declines, the export; a task without labels is a 409, an unknown task a 404, a bad body a 422
 S4  under --tasks-dir the rows and labels are written and read back by a new server; removing the task removes them
+S5  the settings route starts an epoch; erasing one request and everything before a time; their 422s
 
   uv run pytest -q tests/unit/test_labels_served.py
 """
 
 import json
+import time
 
 import numpy as np
 from test_noul_certified import NoulEngine, make, noul_examples, wire
@@ -52,7 +54,8 @@ def test_s1_opt_in_only_and_the_secrets_stay_out_of_the_listing():
     assert lb["location"] == "memory" and lb["retention"]["deleted_with_task"] is True
     assert lb["next_to_label"] == {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"}
     listed = client.get("/v1/tasks/angry2").json()
-    assert listed["labels"] == {"settings": lb["settings"]} and lb["digest_key"] not in json.dumps(listed)
+    assert listed["labels"]["settings"] == lb["settings"] == listed["labels"]["registered_settings"]
+    assert listed["labels"]["stored_fields"] == lb["stored_fields"] and lb["digest_key"] not in json.dumps(listed)
 
 
 def _labelled(client):
@@ -154,3 +157,52 @@ def test_s4_the_log_is_written_under_the_tasks_dir_and_removed_with_its_task(tmp
     assert st.json()["states"]["labelled"] == 1 and "durable" not in st.json()
     assert client2.delete("/v1/tasks/angry").status_code == 200
     assert not any(root.rglob("*.jsonl"))
+
+
+def test_s5_settings_and_erasure_routes(tmp_path):
+    client, so = _server(tmp_path)
+    _labelled(client)
+    a, _ = ask(client, "yes:0.93:one")
+    b, _ = ask(client, "no:0.9:two")
+    r = client.put("/v1/tasks/angry/labels/settings", json={"cert_pi": 0.5})
+    assert r.status_code == 200, r.text
+    assert r.json()["epoch"]["epoch"] == 1 and r.json()["epoch"]["settings"]["cert_pi"] == 0.5
+    assert client.get("/v1/tasks/angry/labels/status").json()["settings"]["cert_pi"] == 0.5
+    got = client.get("/v1/tasks/angry").json()["labels"]
+    assert (
+        got["settings"]["cert_pi"] == 0.5 and got["registered_settings"]["cert_pi"] == 0.05
+    )  # in force, and registered
+    for bad in ({"cert_pi": 0.01}, {"nope": 1}, {}):
+        assert client.put("/v1/tasks/angry/labels/settings", json=bad).status_code == 422
+    client.post("/v1/tasks/angry/labels", json={"labels": [{"request_id": a["request_id"], "answer": "yes"}]})
+    r = client.delete(f"/v1/tasks/angry/labels/{a['request_id']}")
+    assert r.status_code == 200 and r.json()["state"] == "erased", r.text
+    assert r.json()["matched"] == {"answers": 1, "labels": 1}
+    assert client.delete("/v1/tasks/angry/labels/queue").status_code == 422  # not a request id
+    so.flush_labels()  # the labels thread's turn purges
+    lines = client.get("/v1/tasks/angry/labels/export").text
+    assert a["request_id"] not in lines and b["request_id"] in lines
+    root = tmp_path / "tasks" / "labels"
+    on_disk = "".join(x for f in root.rglob("*.jsonl") for x in f.read_text().splitlines(True) if '"erase"' not in x)
+    assert a["request_id"] not in on_disk
+    assert client.delete("/v1/tasks/angry/labels").status_code == 422  # neither an id nor a time
+    r = client.delete("/v1/tasks/angry/labels", params={"before": time.time() + 60})
+    assert r.status_code == 200 and client.get("/v1/tasks/angry/labels/status").json()["rows"] == 0
+
+
+def test_s7_a_settings_change_discloses_what_is_stored():
+    client, so = make()
+    out = register(client, labels={"audit_pi": 1.0, "features": "minimal"})
+    assert "ps" not in out["labels"]["stored_fields"]
+    for features in ("full", "minimal"):
+        r = client.put("/v1/tasks/angry/labels/settings", json={"features": features})
+        assert r.status_code == 200, r.text
+        lb = r.json()["labels"]
+        assert lb["features"] == features and "digest_key" not in r.text and lb["stores"]
+        a, _ = ask(client, f"yes:0.9:{features}")
+        assert set(lb["stored_fields"]) == set(so.labels_logs["angry"].rows[(a["request_id"], "q1")])
+        got = client.get("/v1/tasks/angry").json()["labels"]
+        assert got["settings"]["features"] == features and got["stored_fields"] == lb["stored_fields"]
+        assert got["registered_settings"]["features"] == "minimal"
+        listed = next(t for t in client.get("/v1/tasks").json()["tasks"] if t["id"] == "angry")["labels"]
+        assert listed["settings"]["features"] == features

@@ -20,10 +20,17 @@ R8  (with DECISIO_TEST_S3_ENDPOINT) two logs on a real S3-compatible service: li
 R11 a read that fails after the listing loses nothing: once the store is back every row is held (the listing moves
     only past files read); a file name with a long sequence parses; a label for an id no replica ever holds is dropped
     after its due window and counted
+R9  erasure on a shared store: gone at once on the replica that erased and on the others when they read it; the
+    merger purges it only PURGE_AFTER later, then no object holds it and every replica says purged
+R10 two merges at once lose nothing and count nothing twice; settings changed on one replica reach the others
+R12 a merger whose clock is behind the last one's names its files after the merged files it read; a row of an erased
+    request written after the purge re-opens it for the next merge; an event written without an id is counted once
+    however often it is read
 
   uv run pytest -q tests/unit/test_labels_replicas.py
 """
 
+import json
 import os
 import time
 import uuid
@@ -240,6 +247,8 @@ def test_r7_two_replicas_a_reader_and_the_store_gc():
     assert q.status_code == 200 and q.json()["states"] == {"labelled": 1}
     w = cr.post("/v1/tasks/angry/labels", json={"labels": [{"request_id": a["request_id"], "answer": "no"}]})
     assert w.status_code == 409 and "readonly" in w.text
+    assert cr.put("/v1/tasks/angry/labels/settings", json={"cert_pi": 0.5}).status_code == 409
+    assert cr.delete(f"/v1/tasks/angry/labels/{a['request_id']}").status_code == 409
     b_ans, h = ask(cr, "no:0.9:on the reader")
     assert "request_id" not in b_ans and "x-decisio-request-id" not in h  # the reader logs nothing
     # the store out of reach: a label write is a 503, a read goes on with what the replica holds
@@ -256,11 +265,12 @@ def test_r7_two_replicas_a_reader_and_the_store_gc():
     # the store's gc keeps a live task's log, and removes a removed task's
     assert not [p for p in ba.gc(older_than_days=-1, dry_run=True) if p.startswith("labels/")]
     assert ca.delete("/v1/tasks/angry").status_code == 200
-    assert not FTR.Objects(store).list("labels/")  # the removing replica deletes the log
+    left = [x for x in FTR.Objects(store).list("labels/") if x != "labels/LEASE.json"]
+    assert not left  # the removing replica deletes the log (the merger's lease stays)
     sb.flush_labels(force=True)  # B sees the task gone and drops its log without writing
     bb.sync_once()
     sb.flush_labels(force=True)
-    assert "angry" not in sb.labels_logs and not FTR.Objects(store).list("labels/")
+    assert "angry" not in sb.labels_logs and FTR.Objects(store).list("labels/") == ["labels/LEASE.json"]
 
 
 @pytest.mark.skipif(not os.environ.get("DECISIO_TEST_S3_ENDPOINT"), reason="no S3-compatible service named")
@@ -329,3 +339,94 @@ def test_r11b_a_label_for_an_id_no_replica_holds_expires():
     clock.t += 15 * 86400
     b.sync()
     assert b.counts()["not_joined"] == 0 and b.counts()["unjoined_expired"] == 1
+
+
+def _store_text(objects) -> str:
+    """Every row and label on the store, as text (an erase event keeps only the opaque id it erased)."""
+    lines = [x for p in objects.list(PREFIX) if not p.endswith("EPOCHS.json")
+             for x in objects.get(p)[0].decode().splitlines()]  # fmt: skip
+    return "\n".join(x for x in lines if '"type": "erase"' not in x)
+
+
+def test_r9_erasure_on_a_shared_store():
+    clock = Clock()
+    a, b, objects = _pair(clock=clock, audit_pi=1.0)
+    gone, _ = _serve(a, "my address is 1 Main St")
+    keep, _ = _serve(a, "keep")
+    a.flush(force=True)
+    b.sync()
+    b.post([{"request_id": gone, "answer": "billing"}, {"request_id": keep, "answer": "tech"}])
+    out = a.erase(request_id=gone)
+    assert out["state"] == "erased" and (gone, "q") not in a.rows  # at once here
+    b.sync()
+    assert (gone, "q") not in b.rows and b.counts()["states"] == {"labelled": 1}
+    a.tick(merge=True)  # too soon to purge: another replica may still write it
+    assert gone in _store_text(objects) and a.unpurged() == [out["erase_id"]]
+    clock.t += LB.PURGE_AFTER + 1
+    a.tick(merge=True)
+    assert gone not in _store_text(objects) and keep in _store_text(objects)
+    b.sync()
+    assert b.counts()["erasures"] == {"erased": 1, "purged": 1}
+    c = LB.TaskLabels("t", a.registered, a.secret, LB.SharedPlace(objects, PREFIX, "host-c-3"), "host-c-3", clock)
+    c.sync()
+    assert {r["request_id"] for r in c.table()} == {keep} and c.table()[0]["answer"] == "tech"
+
+
+def test_r10_two_merges_at_once_and_settings_from_another_replica():
+    a, b, objects = _pair(audit_pi=0.5)
+    rids = [_serve(a, f"a{i}")[0] for i in range(20)] + [_serve(b, f"b{i}")[0] for i in range(20)]
+    a.flush(force=True)
+    b.flush(force=True)
+    a.sync()
+    b.sync()
+    a.post([{"request_id": r, "answer": "tech"} for r in rids[:5]])
+    a.sync()
+    b.sync()
+    want = a.table()
+    a.compact()  # both merge from the same files: the second deletes what the first already did
+    b.compact()
+    c = LB.TaskLabels("t", a.registered, a.secret, LB.SharedPlace(objects, PREFIX, "host-c-3"), "host-c-3", a.clock)
+    c.sync()
+    assert c.table() == want and len({e["id"] for e in c.events}) == len(c.events)
+    e = b.set_settings({"cert_pi": 0.5})
+    a.sync()
+    assert a.epoch == e and a.settings["cert_pi"] == 0.5
+
+
+def test_r12_merges_after_a_handover_late_erased_rows_and_events_without_ids():
+    clock_a, clock_b = Clock(), Clock(1_800_000_000.0 - 3600)  # b's clock is an hour behind
+    objects = Faulty(FTR.Objects(MemoryStore()))
+    s, secret = LB.parse_settings({"audit_pi": 1.0}), LB.new_secrets()
+    a = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-a-1"), "host-a-1", clock_a)
+    b = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-b-2"), "host-b-2", clock_b)
+    reader = LB.TaskLabels("t", s, secret, LB.SharedPlace(objects, PREFIX, "host-c-3"), "host-c-3", clock_a)
+    first = [_serve(a, f"one{i}")[0] for i in range(3)]
+    a.flush(force=True)
+    a.compact()  # a merges first, at its clock
+    reader.sync()
+    b.sync()
+    later = [_serve(b, f"two{i}")[0] for i in range(3)]
+    b.flush(force=True)
+    b.compact()  # then b, an hour behind
+    reader.sync()
+    assert {k[0] for k in reader.rows} == set(first + later)  # nothing behind the reader's cursor
+    # a row of an erased request written after the purge
+    slow, _ = _serve(b, "slow one")  # served on b, not written yet
+    a.erase(request_id=slow)
+    clock_a.t += LB.PURGE_AFTER + 1
+    a.tick(merge=True)
+    assert a.unpurged() == []
+    b.flush(force=True)  # b writes it before reading the erasure
+    a.sync()
+    assert (slow, "q") not in a.rows and a.unpurged()  # dropped, and the purge is open again
+    a.tick(merge=True)
+    assert slow not in _store_text(objects) and a.unpurged() == []
+    # an event without an id, read in two files
+    place = LB.SharedPlace(objects, PREFIX, "host-d-4")
+    line = json.dumps({"type": "label", "request_id": None, "question": None, "digest": "hk1:x", "answer": "tech",
+                       "source": "import", "selection": "import", "received": 1.0, "replica": "old"})  # fmt: skip
+    objects.create(f"{PREFIX}old/events/0000000000001-000000001.jsonl", line.encode())
+    objects.create(f"{PREFIX}{LB.MERGED}/events/0000000000002-000000001.jsonl", line.encode())
+    d = LB.TaskLabels("t", s, secret, place, "host-d-4", clock_a)
+    d.sync()
+    assert d.counts()["imports"] == 1
