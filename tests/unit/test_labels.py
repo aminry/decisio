@@ -52,6 +52,8 @@ L23 a task certified at alpha 0.01 or below, in budget mode with the default sha
 L24 a task certified at alpha 0.01 or below needs labels on at least 10% of its answers: explicit chances that
     cannot reach it are refused with the cert_pi that would, a budget gets a warning at registration, and the
     overview reports the share drawn and warns below it
+L25 status.budget gives the labels a day expected at the measured rate and flags spending above per_day (the 0.02
+    floor on heavy traffic); the rate counts an answer once, also when it is read again after max_rows dropped it
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -687,3 +689,20 @@ def test_l24_a_strict_alpha_needs_a_tenth_of_its_answers_labelled():
         _serve(tl, f"t{i}", [0.7, 0.2, 0.1])
     o = tl.overview()
     assert o["label_share"] < 0.1 and "under the 10%" in o["warnings"][0]
+
+
+def test_l25_the_budget_shows_overspend_and_the_rate_counts_once():
+    clock = Clock()
+    tl = _task(clock=clock, max_rows=500, tau_after=100)  # per_day 20
+    for i in range(1000):  # 1,000 answers in a day: the floors draw more than 20 a day
+        clock.t += 86.4
+        _serve(tl, f"t{i}", [0.7, 0.2, 0.1])
+    tl.tick()
+    b = tl.budget()
+    assert b["expected_per_day"] > 25 and b["over_budget"] is True
+    rate = tl.rate()
+    gone = next(iter(tl._undrawn))
+    row = dict(tl.rows[gone])
+    assert tl._evict()  # dropped past max_rows
+    tl._index(row)  # read again from a merged file
+    assert tl.rate() == rate  # not counted twice

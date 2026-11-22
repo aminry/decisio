@@ -817,13 +817,24 @@ class TaskLabels:
         return {"settings": new, "budget": budget}
 
     def budget(self) -> dict:
-        """The budget in force, for the queue and status: the labels a day asked for and expected at the measured
-        rate (`per_day` None: the chances as given)."""
+        """The budget in force, for the queue and status: the labels a day asked for (`per_day`, None: the chances as
+        given), and the labels a day expected at the measured rate from the chances the last 7 days' answers were
+        drawn at (`expected_per_day`); `over_budget` when that is more than a quarter above per_day, as when the
+        0.02 floor of the audit and cert chances spends more than a small budget on heavy traffic."""
+        now = self.clock()
         with self._lock:
             e = self.epoch
             s = e["settings"]
             rate = self.rate()
-            out = {"per_day": s.get("per_day"), "rate_per_day": round(rate, 3), "since": e.get("start")}
+            week = [r for r in self.rows.values() if now - r["t"] <= 7 * 86400]
+            share = (
+                float(np.mean([1.0 - np.prod([1.0 - d["pi"] for d in r["draws"].values()]) for r in week]))
+                if week else 0.0
+            )  # fmt: skip
+            expected = round(rate * share, 2)
+            out = {"per_day": s.get("per_day"), "rate_per_day": round(rate, 3), "since": e.get("start"),
+                   "expected_per_day": expected,
+                   "over_budget": s.get("per_day") is not None and expected > 1.25 * s["per_day"]}  # fmt: skip
             if e.get("budget"):
                 out["assumed_rate_per_day"] = e["budget"]["rate_per_day"]
             out["chances"] = {k: s[k] for k in PI_KEYS}
@@ -1012,8 +1023,9 @@ class TaskLabels:
             return False
         key = (row["request_id"], row["question"])
         if key not in self.rows:
-            h = int(row["t"] // 3600)
-            self._hours[h] = self._hours.get(h, 0) + 1
+            if row["t"] > self._evicted_upto:  # an answer max_rows dropped and read again (a merged file) is not new
+                h = int(row["t"] // 3600)
+                self._hours[h] = self._hours.get(h, 0) + 1
             self._first_t = row["t"] if self._first_t is None else min(self._first_t, row["t"])
             self.by_rid.setdefault(key[0], []).append(key)
             self.by_digest.setdefault(row["hk1"], []).append(key)
