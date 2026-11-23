@@ -52,7 +52,10 @@ def load_image(data: bytes):
 
     if len(data) > MAX_BYTES:
         raise ValueError("image exceeds 20 MiB")
-    img = Image.open(io.BytesIO(data))
+    try:  # only these formats are even parsed: Pillow never opens, let alone decodes, any other (EPS, for one)
+        img = Image.open(io.BytesIO(data), formats=("PNG", "JPEG", "WEBP"))
+    except Image.UnidentifiedImageError:
+        raise ValueError("unsupported image format: PNG, JPEG or WebP") from None
     if img.format not in ("PNG", "JPEG", "WEBP"):
         raise ValueError(f"unsupported image format {img.format}")
     if getattr(img, "n_frames", 1) > 1:  # an animated PNG or WebP: System One refuses it, and so does this route
