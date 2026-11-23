@@ -104,6 +104,16 @@ MIN_LATENCY_SAMPLES = 20  # a rolling median is judged only from this many table
 SHADOW_EVERY = 10  # while the table is off, every 10th request also times the table (after decisio has answered)
 SHADOW_N = 30  # and the table is put back when 30 such pairs show it pays (`timing_guard`)
 SAMPLE_EVERY = 50  # while on, every 50th table answer is also read by decisio and compared
+# the switchback (`Runtime`): a certified table is judged on whole-request time on this replica's own traffic, the
+# table on against the table off, so what its CPU work costs the other requests on the host counts
+SWITCH_BLOCK = 20  # questions per block
+SWITCH_PERIOD = 10  # while the table answers, one block in this many is answered without it
+SWITCH_PAIRS = 5  # off blocks (each against the on blocks either side) before the switchback judges
+SWITCH_WINDOW = 12  # it judges the most recent this many
+SWITCH_LEVEL = 0.90  # the one-sided level of its bound on the saving
+TRIAL_FIRST = 200  # while the table is off for speed, questions before its first trial (an off, on, off run of blocks)
+TRIAL_MAX = 3_200  # the interval doubles after each failed trial, up to this
+TRIAL_PAIRS = 3  # trials in a row that must each save the task's `min_saving` before the table answers again
 
 
 # the long-state rules: how a text longer than the encoder's window is read. A table records its rule and is served with
@@ -1126,12 +1136,16 @@ class Agreement:
 class Runtime:
     """One replica's use of one task's table: whether it answers, and why not when it does not.
 
-    `active`: the table answers the requests it is sure of. `timing`: the table is not used and is being timed against
-    decisio on this replica's own requests (the timing at registration was made on another stack, or the table stopped
-    beating decisio under this replica's load); it comes back when 30 paired timings show the saving. `suspended`: the
+    `active`: the table answers the requests it is sure of, except in one block of questions in `SWITCH_PERIOD`, which
+    decisio answers alone: each such block, against the blocks either side, measures what the table saves in
+    whole-request time on this replica's traffic, its CPU cost to the other requests included; when the bound on that
+    saving falls under the task's `min_saving` the table goes off (`timing`). `timing`: the table is not used and its
+    features are not computed (the timing at registration was made on another stack, or the table stopped paying under
+    this replica's load); at a growing interval a trial (a block off, a block on, a block off) measures it again, and it
+    answers again after `TRIAL_PAIRS` trials in a row each save `min_saving`. `suspended`: the
     monitor's alarm fired (on this replica or another that shares the task store). `unavailable`: this server cannot run
     the table (it computes another feature function: another student, revision or long-state rule; or the `table` extra
-    is missing). Not thread-safe by itself: the server calls it from the request path, one task at a time."""
+    is missing). Each question takes its mode from `begin` and reports its whole time to `finish`, under a lock."""
 
     def __init__(self, rec: dict, stack: dict, commit_band=None):
         self.rec = rec
@@ -1141,11 +1155,20 @@ class Runtime:
         self.share = rec["thresholds"]["table_share"]
         self.registered_ms = rec["timing"]["guard"]["decisio_ms_mean"]
         self.table_ms: collections.deque = collections.deque(maxlen=WINDOW)
-        self.pairs: list[tuple[float, float]] = []
-        self.requests = 0
         self.table_answers = 0
         self.last_guard = None
         self.retimed = None
+        self._lock = threading.Lock()
+        self.begun = 0  # questions given a mode (`begin`), which numbers the blocks
+        self.blocks: dict[int, list] = {}  # block -> [mode, total ms, questions finished]
+        self.closed: dict[int, tuple[str, float]] = {}  # block -> (mode, mean ms), the recent closed ones
+        self.savings: collections.deque = collections.deque(maxlen=SWITCH_WINDOW)  # active: per off block
+        self.trial_savings: list[float] = []
+        self.trial_at: int | None = None  # the first block of the trial in progress, or None
+        self.next_trial = TRIAL_FIRST
+        self.off_since = 0  # `begun` when the table went off (timing)
+        self.switch_facts: dict | None = None
+        self._paired: set[int] = set()
         self.agreement = Agreement(rec["agreement"]) if rec.get("agreement") else None
         self.state, self.reason = "active", None
         self.features = record_features(rec)
@@ -1159,6 +1182,7 @@ class Runtime:
                 f"the table was timed on another stack ({', '.join(diff)}): serving through decisio while this "
                 "replica times the table on its own requests"
             )
+            self.next_trial = SWITCH_BLOCK  # not yet measured here: try it soon
         sus = rec.get("suspended")
         if sus:
             self.state, self.reason = "suspended", f"suspended by {sus.get('by', 'a replica')}: {sus.get('reason')}"
@@ -1183,7 +1207,7 @@ class Runtime:
         defers) must still be the table's `min_saving` below decisio's registered mean."""
         self.table_answers += 1
         self.table_ms.append(ms)
-        if len(self.table_ms) < MIN_LATENCY_SAMPLES:
+        if self.state != "active" or len(self.table_ms) < MIN_LATENCY_SAMPLES:  # a trial is judged by the switchback
             return
         p50 = float(np.median(self.table_ms))
         expected = p50 + (1.0 - self.share) * self.registered_ms
@@ -1197,29 +1221,136 @@ class Runtime:
                 "table is timed again on this replica's requests"
             )
             self.table_ms.clear()
-            self.pairs.clear()
+            self._went_off()
 
-    # re-timing, while the table is off for speed
+    # the switchback: whole-request time, the table on against off, on this replica's traffic
 
-    def shadow_due(self) -> bool:
-        """Counts a request answered by decisio while the table is being timed; True when this one is to time the table
-        too."""
-        if self.state != "timing":
-            return False
-        self.requests += 1
-        return self.requests % SHADOW_EVERY == 0
+    def begin(self) -> tuple[int, str] | None:
+        """A question's mode: (its block, "on" or "off"), or None when the table's state is not timed (suspended,
+        unavailable). "on": the table is tried on it (it answers if it is sure, else defers); "off": decisio answers it
+        alone and the table's features are not computed."""
+        with self._lock:
+            if self.state not in ("active", "timing"):
+                return None
+            b = self.begun // SWITCH_BLOCK
+            self.begun += 1
+            if self.state == "active":
+                mode = "off" if b % SWITCH_PERIOD == SWITCH_PERIOD - 1 else "on"
+            else:
+                if (
+                    self.trial_at is None
+                    and self.begun - self.off_since >= self.next_trial
+                    and self.begun % SWITCH_BLOCK == 1
+                ):
+                    self.trial_at = b
+                mode = "on" if self.trial_at is not None and b == self.trial_at + 1 else "off"
+            self.blocks.setdefault(b, [mode, 0.0, 0])
+            return (b, mode)
 
-    def shadowed(self, table_ms: float, decisio_ms: float) -> None:
-        """One request timed both ways: the table's time (embedding and classifier) and decisio's for the request."""
-        self.pairs.append((table_ms, decisio_ms))
-        if len(self.pairs) < SHADOW_N:
+    def finish(self, token: tuple[int, str] | None, ms: float) -> None:
+        """A question's whole time, from the start of its row to its answer, for the block `begin` gave it."""
+        if token is None:
             return
-        g = timing_guard([a for a, _ in self.pairs], [b for _, b in self.pairs], self.share, self.min_saving)
-        self.last_guard = g
-        self.pairs.clear()
-        if g["kept"]:
-            self.state, self.reason, self.retimed = "active", None, g
+        with self._lock:
+            acc = self.blocks.get(token[0])
+            if acc is None:
+                return
+            acc[1] += ms
+            acc[2] += 1
+            self._close_blocks()
+
+    def _close_blocks(self) -> None:
+        """Close every block whose questions have all reported, or that two later blocks have begun after (a question
+        that failed never reports), and judge what the closed blocks allow (under the lock)."""
+        current = (self.begun - 1) // SWITCH_BLOCK
+        for b in sorted(self.blocks):
+            mode, total, n = self.blocks[b]
+            full = n >= SWITCH_BLOCK
+            stale = b <= current - 2
+            if not (full or stale):
+                continue
+            del self.blocks[b]
+            if n >= SWITCH_BLOCK // 2:
+                self.closed[b] = (mode, total / n)
+        for b in [b for b in self.closed if b < current - 3 * SWITCH_PERIOD]:
+            del self.closed[b]
+        if self.state == "active":
+            self._judge_active()
+        elif self.state == "timing" and self.trial_at is not None:
+            self._judge_trial()
+
+    def _pair(self, off_b: int) -> float | None:
+        """The saving one off block measures: 1 - (the mean of the on blocks either side) / (its own mean)."""
+        before, off, after = self.closed.get(off_b - 1), self.closed.get(off_b), self.closed.get(off_b + 1)
+        if not (before and off and after) or before[0] != "on" or after[0] != "on" or off[0] != "off" or off[1] <= 0:
+            return None
+        return 1.0 - (before[1] + after[1]) / 2.0 / off[1]
+
+    def _bound(self, xs) -> tuple[float, float]:
+        """(mean, one-sided upper bound at SWITCH_LEVEL) of the savings `xs`."""
+        from scipy.stats import t as student_t
+
+        x = np.asarray(xs, dtype=float)
+        m = float(x.mean())
+        se = float(x.std(ddof=1)) / math.sqrt(len(x)) if len(x) > 1 else float("inf")
+        return m, m + float(student_t.ppf(SWITCH_LEVEL, len(x) - 1)) * se
+
+    def _judge_active(self) -> None:
+        for b in sorted(self.closed):
+            if self.closed[b][0] == "off" and (b + 1) in self.closed and b not in self._paired:
+                s = self._pair(b)
+                self._paired.add(b)
+                if s is not None:
+                    self.savings.append(s)
+        if len(self.savings) < SWITCH_PAIRS:
+            return
+        m, ub = self._bound(self.savings)
+        self.switch_facts = {"pairs": len(self.savings), "saving_mean": round(m, 4), "saving_upper": round(ub, 4),
+                             "required": self.min_saving, "level": SWITCH_LEVEL}  # fmt: skip
+        if ub < self.min_saving:
+            self.state = "timing"
+            self.reason = (
+                f"on this replica's traffic the table saves {m:.0%} of the whole time per question (at most "
+                f"{ub:.0%} at {SWITCH_LEVEL:.0%}), under the {self.min_saving:.0%} required, its CPU cost to the other "
+                "requests counted: serving through decisio, the table's features no longer computed, while trials "
+                "measure it again"
+            )
+            self._went_off()
+
+    def _judge_trial(self) -> None:
+        a = self.trial_at
+        first, on, last = self.closed.get(a), self.closed.get(a + 1), self.closed.get(a + 2)
+        if not (first and on and last):
+            if self.begun // SWITCH_BLOCK > a + 4:  # a block of it never closed: try again later
+                self.trial_at = None
+            return
+        self.trial_at = None
+        self.off_since = self.begun
+        s = 1.0 - on[1] / ((first[1] + last[1]) / 2.0) if first[1] + last[1] > 0 else -1.0
+        self.last_guard = {"trial_saving": round(s, 4), "required": self.min_saving, "on_ms": round(on[1], 2),
+                           "off_ms": round((first[1] + last[1]) / 2.0, 2)}  # fmt: skip
+        if s < self.min_saving:
+            self.trial_savings.clear()
+            self.next_trial = min(TRIAL_MAX, max(TRIAL_FIRST, self.next_trial * 2))
+            return
+        self.trial_savings.append(s)
+        self.next_trial = 2 * SWITCH_BLOCK  # the next trial soon
+        if len(self.trial_savings) >= TRIAL_PAIRS:
+            self.retimed = {"trials": list(map(lambda x: round(x, 4), self.trial_savings)), "required": self.min_saving,
+                            "kept": True}  # fmt: skip
+            self.state, self.reason = "active", None
+            self.trial_savings.clear()
             self.table_ms.clear()
+            self.savings.clear()
+            self._paired = set()
+
+    def _went_off(self) -> None:
+        self.off_since = self.begun
+        self.trial_at = None
+        self.trial_savings.clear()
+        self.next_trial = TRIAL_FIRST
+        self.savings.clear()
+        self._paired = set()
 
     # sampled agreement, while the table answers
 
@@ -1244,8 +1375,14 @@ class Runtime:
             out["retimed"] = self.retimed
         if self.last_guard and not self.retimed:
             out["last_timing"] = self.last_guard
+        if self.switch_facts:
+            out["switchback"] = self.switch_facts
         if self.state == "timing":
-            out["timing_progress"] = f"{len(self.pairs)} of {SHADOW_N} paired timings"
+            nxt = max(0, self.next_trial - (self.begun - self.off_since))
+            out["timing_progress"] = (
+                f"{len(self.trial_savings)} of {TRIAL_PAIRS} trials in a row have saved {self.min_saving:.0%}; "
+                + ("a trial is running" if self.trial_at is not None else f"the next trial in about {nxt} questions")
+            )
         if self.agreement:
             out["agreement"] = self.agreement.facts()
         else:

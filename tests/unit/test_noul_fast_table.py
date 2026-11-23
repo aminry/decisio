@@ -483,7 +483,8 @@ def test_y5_the_runtime_fallback_uses_the_tasks_bar():
     import test_fast_table_kinds as K
 
     K.STATIC[0] = 20.0  # the static student's median rises to a third of decisio's time
-    for i in range(FT.MIN_LATENCY_SAMPLES + 2):
+    # enough questions for MIN_LATENCY_SAMPLES table answers, one block in SWITCH_PERIOD being decisio's alone
+    for i in range(FT.MIN_LATENCY_SAMPLES * FT.SWITCH_PERIOD // (FT.SWITCH_PERIOD - 1) + 2 * FT.SWITCH_BLOCK):
         ask(client, state(False, 0.6, " ".join(YES_WORDS[:4] + FILLER[i : i + 6])))
     st = client.get("/v1/tasks/angry").json()["status"]["fast_table"]
     assert st["state"] == "timing" and "a saving of 70% required" in st["reason"], st

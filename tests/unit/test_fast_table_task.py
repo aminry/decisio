@@ -16,7 +16,10 @@ H4  another stack: a replica whose CPU differs serves through decisio under deci
 H5  suspension: the sampled-agreement alarm (or the confidence alarm) switches the table off here at once and, through a
     shared task store, on every replica that follows it; a task directory keeps it on the replica
 H6  load: the table's rolling median stops beating decisio's by the registered margin and the replica falls back, says
-    why, and takes the table back when it times well again
+    why, and takes the table back when its trials save the margin again
+H8  the switchback: a table whose CPU work slows the host's other requests (its own time still fast) is found by whole
+    request time, the table on against off, and turned off; while off its features are not computed but in trials,
+    which bring it back when the load is gone; a table that pays stays on
 H7  the record: the listing summarises the arrays, the export holds them and an imported task serves the same answers,
     re-certification keeps the table, redoes its thresholds and lifts a suspension
 
@@ -61,6 +64,7 @@ class Clock:
         self.t = 0.0
         self.decisio_ms = 60.0
         self.table_ms = 5.0
+        self.contention_ms = 0.0  # what the table's CPU work costs a question on a busy host, beyond its own timed path
 
     def __call__(self):
         return self.t
@@ -106,9 +110,30 @@ class FakeEngine:
         return out, {}
 
 
+EMBEDS = [0]  # calls of the stand-in encoder
+
+
+def back() -> int:
+    """Questions a replica in `timing` needs to take back a table that pays: its first trial, then TRIAL_PAIRS trials of
+    three blocks with two blocks between them (the switchback's constants as this module sets them)."""
+    return FT.SWITCH_BLOCK * (1 + 5 * FT.TRIAL_PAIRS)
+
+
+def table_answers(n: int) -> int:
+    """Questions that give at least `n` table answers when one block in SWITCH_PERIOD is decisio's alone."""
+    return n * FT.SWITCH_PERIOD // (FT.SWITCH_PERIOD - 1) + 2 * FT.SWITCH_BLOCK
+
+
+def judged() -> int:
+    """Questions for the switchback to judge: SWITCH_PAIRS off blocks, each with the on blocks either side, and one
+    more period."""
+    return FT.SWITCH_BLOCK * FT.SWITCH_PERIOD * (FT.SWITCH_PAIRS + 1)
+
+
 def fake_embed(texts, long_state=FT.TRUNC512):
     """A hashed bag of words over the text after the `|`, L2-normalised; each call takes `CLOCK.table_ms`."""
     CLOCK.spend(CLOCK.table_ms)
+    EMBEDS[0] += 1
     out = np.zeros((len(texts), 256), dtype=np.float32)
     for i, t in enumerate(texts):
         body = str(t).split("|", 1)[-1]
@@ -120,7 +145,24 @@ def fake_embed(texts, long_state=FT.TRUNC512):
 
 @pytest.fixture(autouse=True)
 def virtual_time(monkeypatch):
-    CLOCK.t, CLOCK.decisio_ms, CLOCK.table_ms = 0.0, 60.0, 5.0
+    CLOCK.t, CLOCK.decisio_ms, CLOCK.table_ms, CLOCK.contention_ms = 0.0, 60.0, 5.0, 0.0
+    EMBEDS[0] = 0
+    top_confidence = FT.top_confidence
+
+    def contended(P, band=None):  # read on every table question, after its timed path: the busy host's extra time
+        CLOCK.spend(CLOCK.contention_ms)
+        return top_confidence(P, band)
+
+    monkeypatch.setattr(FT, "top_confidence", contended)
+    # the switchback at a smaller scale, so its tests drive hundreds of requests, not thousands (same rules)
+    for k, v in (
+        ("SWITCH_BLOCK", 5),
+        ("SWITCH_PERIOD", 4),
+        ("SWITCH_PAIRS", 4),
+        ("TRIAL_FIRST", 40),
+        ("TRIAL_MAX", 160),
+    ):
+        monkeypatch.setattr(FT, k, v)
     FakeEngine.calls = 0
     proxy = types.SimpleNamespace(**{k: getattr(real_time, k) for k in dir(real_time) if not k.startswith("_")})
     proxy.perf_counter = CLOCK
@@ -328,10 +370,11 @@ def test_h4_a_replica_on_another_cpu_serves_through_decisio_until_it_has_timed_t
     assert x["certified"] is False and x["certified_reason"] == "below_threshold"  # decisio's own threshold: 0.4 is low
     y = ask(b, "billing", right=True, conf=0.97)
     assert y["answered_by"] == "decisio" and y["certified"] is True and y["certificate"] == cert["id"]
-    for i in range(FT.SHADOW_EVERY * FT.SHADOW_N):  # this replica times the table on its own requests
-        ask(b, "access", right=True, conf=0.95, seed=100 + i, confident_text=False)
+    for i in range(back()):  # this replica times the table on its own requests, in trials
+        ask(b, "billing", right=False, conf=0.4, seed=100 + i)
     st = b.get("/v1/tasks/queue").json()["status"]["fast_table"]
-    assert st["state"] == "active" and st["retimed"]["saving"] >= FT.MIN_SAVING
+    assert st["state"] == "active" and len(st["retimed"]["trials"]) == FT.TRIAL_PAIRS
+    assert min(st["retimed"]["trials"]) >= FT.MIN_SAVING
     assert a.get("/v1/tasks/queue").json()["status"]["fast_table"]["state"] == "active"  # A never stopped
     z = ask(b, "billing", right=False, conf=0.4)
     assert z["answered_by"] == "table"
@@ -344,10 +387,10 @@ def test_h4_a_replica_that_times_the_table_slow_keeps_serving_through_decisio(mo
     monkeypatch.setattr(FT, "cpu_model", lambda: "cpu-B")
     b, so_b, _ = make(store, "b")
     CLOCK.table_ms = 58.0
-    for i in range(FT.SHADOW_EVERY * FT.SHADOW_N):
-        ask(b, "access", right=True, conf=0.95, seed=200 + i, confident_text=False)
+    for i in range(back()):
+        ask(b, "billing", right=False, conf=0.4, seed=200 + i)
     st = b.get("/v1/tasks/queue").json()["status"]["fast_table"]
-    assert st["state"] == "timing" and st["last_timing"]["saving"] < FT.MIN_SAVING
+    assert st["state"] == "timing" and st["last_timing"]["trial_saving"] < FT.MIN_SAVING
 
 
 def test_h4_another_encoder_revision_cannot_use_the_table(monkeypatch):
@@ -437,14 +480,14 @@ def test_h6_the_table_falls_back_when_it_stops_beating_decisio_under_load_and_co
     client, so, _ = make()
     assert register(client).status_code == 200
     CLOCK.table_ms = 50.0  # the host is busy: the encoder takes nearly decisio's time
-    for i in range(FT.MIN_LATENCY_SAMPLES + 2):
+    for i in range(table_answers(FT.MIN_LATENCY_SAMPLES)):
         ask(client, "billing", right=False, conf=0.4, seed=300 + i)
     st = client.get("/v1/tasks/queue").json()["status"]["fast_table"]
     assert st["state"] == "timing" and "under this replica's load" in st["reason"] and not st["uses_table"]
     assert ask(client, "billing", right=False, conf=0.4)["answered_by"] == "decisio"
     CLOCK.table_ms = 5.0  # the load is gone
-    for i in range(FT.SHADOW_EVERY * FT.SHADOW_N):
-        ask(client, "access", right=True, conf=0.95, seed=400 + i, confident_text=False)
+    for i in range(FT.TRIAL_FIRST + back()):
+        ask(client, "billing", right=False, conf=0.4, seed=400 + i)
     st = client.get("/v1/tasks/queue").json()["status"]["fast_table"]
     assert st["state"] == "active" and st["retimed"]["kept"]
 
@@ -516,3 +559,52 @@ def test_h7_a_table_fitted_under_another_encoder_revision_is_not_re_certified(mo
     monkeypatch.setattr(FT, "REVISION", "1" * 40)
     r = client.post("/v1/tasks/queue/certify", json={"examples": examples(300, seed=98)})
     assert r.status_code == 422 and "register the task again" in r.json()["detail"]
+
+
+# ---- H8 ----------------------------------------------------------------------------------------------------------
+
+
+def _drive(client, n, seed):
+    for i in range(n):
+        ask(client, "billing", right=False, conf=0.4, seed=seed + i)
+
+
+def test_h8_a_table_whose_cpu_work_slows_the_other_requests_is_turned_off_and_trials_bring_it_back():
+    client, so, _ = make()
+    assert register(client).status_code == 200
+    CLOCK.contention_ms = 70.0  # each table call costs the host's other work 70 ms; the table itself stays at 5 ms
+    _drive(client, judged(), 600)
+    st = client.get("/v1/tasks/queue").json()["status"]["fast_table"]
+    assert st["state"] == "timing" and "its CPU cost to the other requests counted" in st["reason"]
+    assert "table_ms_p50" not in st or st["table_ms_p50"] < 10  # the table's own median never showed it
+    # off: decisio answers, and the table's features are computed only in a trial's on block; while the contention
+    # stays the trial fails (and the next one waits twice as long, so this stretch holds one trial at most)
+    before = EMBEDS[0]
+    answered = [
+        ask(client, "billing", right=False, conf=0.4, seed=2000 + i)["answered_by"]
+        for i in range(FT.TRIAL_FIRST + 4 * FT.SWITCH_BLOCK)
+    ]
+    assert EMBEDS[0] - before <= FT.SWITCH_BLOCK
+    assert answered.count("decisio") >= len(answered) - FT.SWITCH_BLOCK
+    st = client.get("/v1/tasks/queue").json()["status"]["fast_table"]
+    assert st["state"] == "timing" and st["last_timing"]["trial_saving"] < FT.MIN_SAVING
+    # the load is gone: the next trials save, and the table answers again
+    CLOCK.contention_ms = 0.0
+    _drive(client, 2 * FT.TRIAL_FIRST + back(), 3000)
+    st = client.get("/v1/tasks/queue").json()["status"]["fast_table"]
+    assert st["state"] == "active" and len(st["retimed"]["trials"]) == FT.TRIAL_PAIRS
+    assert ask(client, "billing", right=False, conf=0.4, seed=2)["answered_by"] == "table"
+
+
+def test_h8_a_table_that_pays_stays_on_through_the_switchback_and_its_off_blocks_are_decisio_alone():
+    client, so, _ = make()
+    assert register(client).status_code == 200
+    answered = []
+    for i in range(judged()):
+        answered.append(ask(client, "billing", right=False, conf=0.4, seed=4000 + i)["answered_by"])
+    st = client.get("/v1/tasks/queue").json()["status"]["fast_table"]
+    assert st["state"] == "active" and st["switchback"]["saving_mean"] > 0.5
+    assert st["switchback"]["pairs"] >= FT.SWITCH_PAIRS
+    # one block in SWITCH_PERIOD is decisio alone; the others are the table's (it is sure of these questions)
+    off = answered.count("decisio") / len(answered)
+    assert abs(off - 1 / FT.SWITCH_PERIOD) < 0.02, off
