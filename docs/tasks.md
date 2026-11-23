@@ -338,6 +338,8 @@ They leave every view at once.
 The answer says `erased`, with how many logged answers and labels it `matched`; an id that is not a request id is refused (422).
 The bytes go at the labels thread's next turn (within 10 seconds on one server; on a shared store at the next merge, 30 seconds after the erasure or more), and `status.erasures` counts them as `purged` then; many erasures are purged in one rewrite.
 What is kept of an erasure is the request id it erased, an opaque id, and its time.
+An erasure does not recompute a certificate: a certificate made from labels before they were erased (from the `cohort` export) keeps the labels it was made on; to leave them out, make it again.
+Recomputing certificates after an erasure is not built.
 `ttl_days` (default none) erases, the same way, every answer and label older than that many days, at most once an hour; it is at least `due_days`.
 
 **The draw.**
@@ -379,6 +381,7 @@ Registered without labels, it is registered as before and logs nothing, and the 
 For such a task the registration response and `status` carry `detection`.
 The detection claim was measured on two configurations at alpha 0.01 and 0.005: shares 10/80/10/0 with at least 5% of answers drawn for labels, and shares 15/45/30/10 with at least 10%.
 For a task on one of them whose measured share of answers drawn (`label_share`) reaches that, `detection.claim` is: "In replays of concept-change drift (synthetic streams and recorded model outputs), the median number of wrong certified answers served before the label monitor suspended certification was at most 100 on every stream tested."
+It holds when the drawn labels are returned: while `label_response` is under 1 - alpha it is withdrawn ("The label monitor", below).
 At registration, before any share is measured, `detection.pending` says which share the claim waits for.
 For any other split, or under its share, `detection.warning` is "Drift detection speed has not been validated for this split." (also in `labels.warnings` at registration), and `detection.needed` gives the `cert_pi`, or with a budget the `label_share` (and `per_day` at the measured rate), that would reach the labelling rate of 10/80/10/0 at 5%.
 `detection.q` (the chance that an answer in the certified region is drawn by the audit or cert slice), `q_reference` and `region_share` are for diagnosis; they are not the claim's condition.
@@ -405,8 +408,8 @@ A drawn answer left unlabelled past `due_days`, or declined, does not move it; i
 (A certificate still counts such an answer as an error.)
 The measured statements below were made with the drawn labels returned: while `label_response` is under 1 - alpha, the monitor's status and `detection` say "Drift detection speed is reduced while labels are missing." and the detection statements are withdrawn for the task; nothing is suspended for it, and the monitor keeps running.
 `GET /v1/tasks/{id}/labels/status` and the task's status carry `label_monitor`: `certificate`, `alpha`, `statistic`, `h`, `labels` (how many it has read), `pooling` (`pooled` or `audit`), `alerting`, `last_alert_at`, `label_share`, `missing`, `label_response`, `warning` (when labels are missing), and `claims`, the measured statements that hold for this task, with `claims_scope` ("when the drawn labels are returned"):
-- "In replays without drift, on tasks whose certificate held, the monitors started fewer than one suspension per 5,000 certified answers at every level and budget tested." once at least 3% of answers are drawn for labels;
-- "In the same replays, the label monitor suspended certification after fewer wrong certified answers than the confidence monitor alone, on every concept-change stream tested." at alpha 0.05 and 0.10, with the default shares and at least 10% of answers drawn for labels.
+- "In replays without drift, on tasks whose certificate held, the monitors started fewer than one suspension per 5,000 certified answers at every level and budget tested." once at least 3% of answers are drawn for labels, when the drawn labels are returned;
+- "In the same replays, the label monitor suspended certification after fewer wrong certified answers than the confidence monitor alone, on every concept-change stream tested." at alpha 0.05 and 0.10, with the default shares and at least 10% of answers drawn for labels, when the drawn labels are returned.
 
 The numerical detection statement for alpha 0.01 and 0.005 is `detection.claim` (above).
 
