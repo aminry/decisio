@@ -8,6 +8,24 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.55.0: labels from traffic (opt-in)
+
+### What changed
+
+- **A task can collect labels for some of the answers it served** (`docs/tasks.md`, "Labels from traffic (opt-in)"): register it with `"labels": true` or a labels block.
+  The server draws which answers to ask about, and the routes under `/v1/tasks/{id}/labels` take the labels and give the queue, the status and an export.
+  Opted-in tasks also get erasure, a daily label budget, status per language and a label monitor that can suspend certification.
+- **Nothing is logged for a task that does not opt in**, and its answers carry no request id.
+  The registration response of an opted-in task says exactly what is stored.
+- **Two changes for every deployment, opted in or not:**
+  - a request whose `meta.lang` and `x-decisio-lang` header give different language tags is refused (422);
+  - the registration response of a task certified at alpha 0.01 or below that did not opt in has a `labels` block with `enabled: false` and a warning saying what such a task needs. Nothing is turned on.
+
+### What to do
+
+- Nothing, unless you want labels: then add a labels block to the registration (`docs/tasks.md`).
+- A client that sends both `meta.lang` and `x-decisio-lang`: send the same tag in both, or only one.
+
 ## 0.55.0: on Gemma 4 12B, score tasks of 3 to 4 and of 10 or more levels get the evidence-averaged calibration; two-option choice tasks get no label review
 
 ### What changed
