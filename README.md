@@ -115,7 +115,7 @@ Ollama answers the same `/v1/systemone` route with the model's own temperatures;
 **Docker:**
 
 ```bash
-docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -e DECISIO_BASE=tachara-ai/Decisio-12b-tuned-v3-calibrated -v decisio-data:/data ghcr.io/aminry/decisio@sha256:230f84e6cc343915f58d69355601035d61ee1a4ca4d07a49e8eeaf0360885e72
+docker run -d --gpus all --shm-size 8g -p 127.0.0.1:8000:8000 -e DECISIO_BASE=tachara-ai/Decisio-12b-tuned-v3-calibrated -v decisio-data:/data ghcr.io/aminry/decisio@sha256:e2dcaa82d20855c5d7d2d262d339097df6cc62bbacb3f5803aadd25c24c54297
 ```
 
 **From source** (the measured environment):
