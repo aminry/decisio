@@ -3358,7 +3358,12 @@ class SystemOne:
         text = render_text(state)
         feats, conf = {}, float("nan")
         explored = False
-        if rt.uses_table:
+        # the switchback (FT.Runtime): this question's mode, and its whole time reported when it is answered; a
+        # registration's re-read is not counted
+        token = None if probe else rt.begin()
+        use = rt.uses_table if probe else (token is not None and token[1] == "on")
+        t_row = time.perf_counter()
+        if use:
             try:
                 t0 = time.perf_counter()
                 x = FT.featurize(rt.features, [text])
@@ -3384,8 +3389,9 @@ class SystemOne:
                             self.check_table_alarm(t, None)
                             if L is not None:
                                 L.record(text, feats, pD, top_index(keys, pD), d_ms, FTL.SPOT_CHECK, conf, True)
+                        rt.finish(token, (time.perf_counter() - t_row) * 1000.0)
                     return P, "table", None
-        active = rt.uses_table
+        active = use
         t0 = time.perf_counter()
         p = self.served_rows(t, [(state, q)], commit=False)[0]
         ms = (time.perf_counter() - t0) * 1000.0
@@ -3393,13 +3399,8 @@ class SystemOne:
             sure = active and conf >= ft["thresholds"]["table_threshold"]
             kind = FTL.EXPLORED if explored else FTL.DEFERRED if active else FTL.NO_TABLE
             L.record(text, feats, p, top_index(answer_keys(q), p), ms, kind, conf, sure)
-        if not probe and rt.shadow_due():  # the table is off for speed: time it on this request too
-            try:
-                t1 = time.perf_counter()
-                FT.predict(ft, FT.featurize(rt.features, [text]))
-                rt.shadowed((time.perf_counter() - t1) * 1000.0, ms)
-            except FT.TableUnavailable as e:
-                rt.unavailable(str(e))
+        if not probe:
+            rt.finish(token, (time.perf_counter() - t_row) * 1000.0)
         if explored and active and conf >= ft["thresholds"]["table_threshold"]:
             return p, "explored", None
         return p, ("deferred" if active else "alone"), None

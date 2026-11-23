@@ -544,7 +544,10 @@ def test_l14_a_labelled_task_that_learns_logs_around_its_labelled_table_and_must
     L.explore = 0.05
     sent = traffic(client, 600, seed=20)
     kinds = status(client)["rows"]["by_kind"]
-    assert kinds["no_table"] == 0 and kinds["deferred"] > 0 and kinds["explored"] > 0 and kinds["spot_check"] > 0
+    # the labelled table is live: decisio answers alone only in the switchback's blocks (one in SWITCH_PERIOD, drawn
+    # by count, so independent of the table's confidence), logged as no_table
+    assert abs(kinds["no_table"] - 600 / FT.SWITCH_PERIOD) <= FT.SWITCH_BLOCK, kinds
+    assert kinds["deferred"] > 0 and kinds["explored"] > 0 and kinds["spot_check"] > 0
     assert all(a.get("certificate_kind") == "gold" for a, _ in sent)
     explored = [a for a, _ in sent if a["answered_by"] == "decisio" and a["confidence"] > 0.8]
     assert explored and all("certified" in a for a in explored)  # decisio's answers keep the task's certificate

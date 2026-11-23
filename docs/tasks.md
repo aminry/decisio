@@ -917,15 +917,16 @@ The timing is true for the stack it was made on: the host CPU, the engine and it
 
 | `state` | What it does |
 | --- | --- |
-| `active` | The table answers the requests it is sure of. |
-| `timing` | The table is not used and decisio answers everything, under the `decisio_only` certificate. The replica is on another stack than the one the table was timed on, or the table stopped beating decisio under this replica's load. Every tenth request also times the table, after decisio has answered, and when 30 such pairs show the saving the table is taken up again (`retimed`). |
+| `active` | The table answers the requests it is sure of, except one block of questions in ten, which decisio answers alone to measure what the table saves (below). |
+| `timing` | The table is not used and decisio answers everything, under the `decisio_only` certificate. The replica is on another stack than the one the table was timed on, or the table stopped saving the task's `min_saving` under this replica's load. The table's features are not computed, except in trials: a block of questions without the table, one with it, one without; the first comes soon on a new stack and 200 questions after the table went off for speed, and the interval doubles after each failed trial, up to 3,200. After three trials in a row each save `min_saving`, the table answers again (`retimed`). |
 | `suspended` | The monitor's alarm fired here or on another replica that shares the task store (below). Decisio answers everything, under the `decisio_only` certificate. |
 | `unavailable` | This server cannot compute the table's features exactly: another model, revision, file or long-state rule than the record's `fast_table.features` (register the task again), or the `table` extra is not installed; or a yes/no table's threshold was made under another `--noul-commit` setting than this server's (certify the task again). |
 
 **Load.**
 The table's time at registration cannot see contention on the host.
-While the table answers, the server keeps the median of its last 50 table-path times (judged from 20).
-If the expected time per request, with that median on every request and decisio's registered time on the share the table defers, is no longer at least the task's `min_saving` under decisio's, the replica falls back to decisio (`timing`) and the status says why and gives the numbers; the 30 paired timings that take the table up again are held to the same bar.
+So while the table answers, the replica measures it on its own traffic: one block of 20 questions in every 10 blocks is answered by decisio alone, and each such block is compared with the blocks either side on the whole time of each question, the table's CPU work and what it costs the other requests on the host included.
+After five such blocks, if the saving's 90% upper bound is under the task's `min_saving`, the replica falls back to decisio (`timing`); `status.fast_table.switchback` gives the number of blocks compared, the mean saving and its bound.
+The table's own time is watched too: the median of its last 50 table-path times (judged from 20), with decisio's registered time on the share the table defers, must stay `min_saving` under decisio's, or the replica falls back at once.
 A static student costs a fraction of a millisecond, so it is not what limits a replica's rate.
 The encoder runs as two sessions of four threads each: at 16 requests in flight it sustained about 90 table requests a second on an Apple M5 Pro, against 68 when it ran one encode at a time (0.39.2 and earlier); above its rate, requests queue behind it, its median rises and the replica falls back.
 Size the CPU for the encoder, or choose a static student.
@@ -1026,7 +1027,7 @@ Until a table certifies, decisio answers every request of the task, exactly as w
 **What is logged.**
 Each request decisio reads for the task is logged as one row: the students' features (float16), decisio's distribution (float16) and its confidence, the row's kind, the serving-stack fingerprint and the time.
 No request text is kept.
-The kinds are `no_table` (no table was live, or it was suspended), `deferred` (the live table was not sure), `explored` (see below) and `spot_check` (a table answer decisio also read).
+The kinds are `no_table` (no table was live, it was suspended, or the question fell in one of the blocks a live labelled table leaves to decisio to measure its saving, "Load" above), `deferred` (the live table was not sure), `explored` (see below) and `spot_check` (a table answer decisio also read).
 With `--tasks-dir` the rows are append-only segment files under `<tasks-dir>/learn/`, and they survive a restart.
 Without it they are kept in memory, are lost at restart, and `status.fast_table.rows.stored` says so.
 The oldest rows are dropped past `max_rows`.

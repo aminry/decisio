@@ -505,8 +505,8 @@ def test_k8_a_replica_on_another_cpu_re_times_a_static_table(monkeypatch):
     b, _, _ = make(store, "b")
     st = b.get("/v1/tasks/queue").json()["status"]["fast_table"]
     assert st["state"] == "timing" and "cpu" in st["reason"]
-    for i in range(FT.SHADOW_EVERY * FT.SHADOW_N):
-        ask(b, "access", right=True, conf=0.95, seed=100 + i, confident_text=False)
+    for i in range(FT.SWITCH_BLOCK * (1 + 5 * FT.TRIAL_PAIRS)):  # its trials, on questions the table is sure of
+        ask(b, "billing", right=False, conf=0.4, seed=100 + i)
     assert b.get("/v1/tasks/queue").json()["status"]["fast_table"]["state"] == "active"
 
 
