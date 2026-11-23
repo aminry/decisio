@@ -50,6 +50,10 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - Nothing unless you opt in.
   To receive the marks, register a callback URL, keep the secret the registration returns (it is shown once), and check each request's signature on its raw body.
 
+## 0.56.0: supported image formats
+
+The image route accepts only PNG, JPEG and WebP and returns an `unsupported image format` error for other formats.
+
 ## 0.55.0: certification from traffic labels, for a task that takes labels
 
 ### What changed
