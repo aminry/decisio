@@ -15,7 +15,8 @@ K5  retries: a failed delivery (5xx, a redirect, a refused host) is tried again 
     the last try and recorded; later windows are still delivered
 K6  the routes: PUT sets a URL with a new secret, rotate makes a new secret (deliveries then verify only with it),
     DELETE turns it off; refused URLs are 422s, a task not in the mode or with no callback a 409
-K8  a delivery has one deadline: a receiver that answers a byte at a time is cut there, and so is a slow name lookup
+K8  a delivery has one deadline: a receiver that answers a byte at a time is cut there, during the TLS handshake
+    too, and so is a slow name lookup
 K7  registration refuses a callback outside the average-error mode, an http URL and a private host
 
   uv run pytest -q tests/unit/test_labels_fdr_callback.py
@@ -279,6 +280,39 @@ def test_k8_a_dribbling_receiver_is_cut_at_the_deadline(monkeypatch):
     assert time.monotonic() - t0 < 2.5
     stop.set()
     srv.close()
+    monkeypatch.undo()
+    # the TLS handshake too: a server that answers the ClientHello a byte at a time is cut at the deadline
+    srv2 = socket.socket()
+    srv2.bind(("127.0.0.1", 0))
+    srv2.listen(1)
+    port2 = srv2.getsockname()[1]
+
+    def slow_handshake():
+        c, _ = srv2.accept()
+        try:
+            c.recv(65536)  # the ClientHello
+            c.sendall(b"\x16\x03\x03\x40\x00")  # a handshake record of 16 KB is coming...
+            for _ in range(50):  # ...a byte every 0.1 s (about 5 s, each read well under the socket timeout)
+                c.sendall(b"\x02")
+                time.sleep(0.1)
+        except OSError:
+            pass
+        finally:
+            c.close()
+
+    threading.Thread(target=slow_handshake, daemon=True).start()
+    import ssl
+
+    # a socket timeout longer than the deadline (the handshake's own timeout would not end it): only the watchdog can
+    conn = CB._PinnedHTTPS("slow-tls.example.com", port2, "127.0.0.1", 5.0, ssl.create_default_context())
+    fired = threading.Event()
+    watchdog = threading.Timer(1.0, CB._cut, args=(conn, fired))
+    watchdog.start()
+    t0 = time.monotonic()
+    with pytest.raises((OSError, ValueError)):
+        conn.connect()
+    assert fired.is_set() and time.monotonic() - t0 < 2.5
+    srv2.close()
     monkeypatch.undo()  # the real resolve again, over a name lookup that hangs
     monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: time.sleep(3))
     t0 = time.monotonic()

@@ -156,7 +156,10 @@ class _PinnedHTTPS(http.client.HTTPSConnection):
 
     def connect(self) -> None:
         sock = socket.create_connection((self._address, self.port), self.timeout)
-        self.sock = self._ctx.wrap_socket(sock, server_hostname=self.host)
+        self.sock = sock  # held from the start, so the deadline's watchdog can shut it down at any step
+        # the handshake after the wrapped socket is held (wrapping detaches the raw one): the watchdog can end it too
+        self.sock = self._ctx.wrap_socket(sock, server_hostname=self.host, do_handshake_on_connect=False)
+        self.sock.do_handshake()
 
 
 def _cut(conn: http.client.HTTPConnection, fired: threading.Event) -> None:
