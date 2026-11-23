@@ -180,7 +180,11 @@ KINDS = ("static", "encoder", "auto")
 RESERVED_KINDS = ("hashed",)  # names kept for kinds to come: refused, not available in this version
 DEFAULT_KIND = "static"
 DEFAULT_STATIC_MODEL = "base"
-TIE = 0.01  # auto: two kinds whose expected savings are this close are a tie, and the static one is kept
+# auto: the static student is kept unless another kind's expected saving is more than this far above its own. The
+# saving is timed one request at a time; the encoder's CPU cost grows with requests in flight and with questions per
+# request (on an 8-vCPU host, a task where it saved 18% one at a time was 22% slower with 16 requests in flight, and
+# several questions per request were slower even one at a time), while the static students were never slower there
+STATIC_MARGIN = 0.10
 
 _lock = threading.Lock()
 _encoder = None  # the first of the pool's encoders, once loaded
@@ -605,8 +609,9 @@ def require_fit() -> None:
 def choose(candidates: list[dict], min_saving: float = MIN_SAVING) -> tuple[int | None, str]:
     """auto's rule: (the index of the kind kept, or None, and why). Each candidate has `kind`, `holds` (a table
     threshold holds) and `saving` (the timing guard's expected saving). Eligible: its threshold holds and it saves at
-    least `min_saving`. The eligible one with the largest saving is kept; when a static one is within TIE of the
-    largest, the static one is."""
+    least `min_saving`. The eligible one with the largest saving is kept, unless a static one is within STATIC_MARGIN of
+    it: then the static one is (its saving holds under load and with several questions per request; the encoder's,
+    timed one request at a time, may not)."""
     ok = [i for i, c in enumerate(candidates) if c["holds"] and c["saving"] >= min_saving]
     if not ok:
         return None, (
@@ -616,16 +621,17 @@ def choose(candidates: list[dict], min_saving: float = MIN_SAVING) -> tuple[int 
     top = candidates[best]["saving"]
 
     def near(i):
-        return round(top - candidates[i]["saving"], 6) <= TIE
+        return round(top - candidates[i]["saving"], 6) <= STATIC_MARGIN
 
     statics = [i for i in ok if candidates[i]["kind"] == "static" and near(i)]
     keep = max(statics, key=lambda i: candidates[i]["saving"]) if statics else best
-    tied = [i for i in ok if i != keep and near(i) and candidates[i]["kind"] != "static"]
-    if tied and candidates[keep]["kind"] == "static":
-        others = ", ".join(f"{candidates[i]['kind']} {candidates[i]['saving']:.1%}" for i in tied)
+    above = [i for i in ok if candidates[i]["saving"] > candidates[keep]["saving"]]  # kinds the margin passed over
+    if above:
+        others = ", ".join(f"{candidates[i]['kind']} {candidates[i]['saving']:.1%}" for i in above)
         return keep, (
-            f"static saves {candidates[keep]['saving']:.1%} and {others}, within {TIE * 100:.0f} point: static is kept "
-            "on a tie"
+            f"static saves {candidates[keep]['saving']:.1%} and {others}, within {STATIC_MARGIN * 100:.0f} points: "
+            "static is kept (another student must save more than that much more: its time is measured one request at "
+            "a time and can grow under load)"
         )
     others = [f"{candidates[i]['kind']} {candidates[i]['saving']:.1%}" for i in ok if i != keep]
     return keep, (

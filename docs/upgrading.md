@@ -8,6 +8,19 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.55.0: a fast table under `auto` keeps the static student unless the encoder saves more than 10 points more
+
+### What changed
+
+- **`{"kind": "auto"}` keeps the static student unless the encoder's expected saving is more than 10 points above it** (it was 1 point).
+  The saving is timed at registration one request at a time; the encoder's CPU cost grows with requests in flight and with questions per request, the static student's barely.
+  On an 8-vCPU host, a task where the encoder saved 18% one request at a time was 22% slower than decisio alone with 16 requests in flight; the static students were never slower on any task and load measured there.
+- Tables stored before keep the student they were registered with.
+
+### What to do
+
+- Nothing for most tasks. A task registered under `auto` that kept the encoder within 10 points of the static student gets the static one when it is registered again.
+
 ## 0.55.0: labels from traffic (opt-in)
 
 ### What changed

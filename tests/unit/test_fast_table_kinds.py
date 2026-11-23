@@ -8,7 +8,8 @@ K1  the request: `true` is the static student on potion-base-8M; the object form
     reserved `hashed`, a bad static model, a static model with the encoder, an unknown key)
 K2  the default kind is static: the record carries its feature function, the timing stack its student (no ONNX facts,
     threads or pool), and the table is served with the static student; `static_model: multilingual` is recorded
-K3  auto: the kind with the larger saving is kept, the static one on a tie within a point, none when neither clears
+K3  auto: the kind with the larger saving is kept, the static one when within 10 points of it, none when neither
+    clears
     the guard; the report lists every kind tried with its share, error, bound, saving and time; the rule (`FT.choose`)
 K4  a record is only served with its own feature function: a server with another static revision, or another
     long-state rule, serves through decisio and says why; the encoder kind records HEAD_TAIL and both files' hashes
@@ -217,7 +218,7 @@ def test_k3_auto_keeps_the_kind_that_saves_more_and_lists_both():
         } <= set(k)
     assert en["table_share"] > 0.3 and en["upper_bound_at_threshold"] >= en["error_rate_at_threshold"]
     assert rep["rule"].startswith("auto: each kind (static minishlab/potion-base-8M, encoder BAAI/bge-base-en-v1.5)")
-    assert "static one when the two savings are within 1 point" in rep["rule"]
+    assert "static one when its saving is within 10 points of the other's" in rep["rule"]
     assert t["fast_table"]["timing"]["stack"]["encoders"] == FT.ENCODERS  # the encoder's stack, as today
     calls = len(CALLS["static"])
     assert ask(client, "billing", right=False, conf=0.4)["answered_by"] == "table"
@@ -229,7 +230,7 @@ def test_k3_auto_keeps_the_faster_static_student_when_both_certify_alike():
     client, so, _ = make()
     rep = register(client, {"kind": "auto"}).json()["fast_table_report"]
     st, en = rep["kinds"]
-    assert st["table_share"] == en["table_share"] and st["expected_saving"] > en["expected_saving"] + FT.TIE
+    assert st["table_share"] == en["table_share"] and st["expected_saving"] > en["expected_saving"]
     assert rep["kind"] == "static" and st["chosen"] and "largest expected saving" in rep["why"]
 
 
@@ -240,7 +241,7 @@ def test_k3_auto_prefers_static_on_a_tie():
     rep = t["fast_table_report"]
     st, en = rep["kinds"]
     assert st["expected_saving"] == en["expected_saving"] and en["eligible"]
-    assert rep["kind"] == "static" and "tie" in rep["why"] and t["fast_table"]["features"]["kind"] == "static"
+    assert rep["kind"] == "static" and t["fast_table"]["features"]["kind"] == "static"  # equal savings: static
 
 
 def test_k3_auto_keeps_no_table_when_neither_clears_the_guard():
@@ -258,13 +259,17 @@ def test_k3_the_rule():
     def c(kind, saving, holds=True):
         return {"kind": kind, "saving": saving, "holds": holds}
 
-    assert FT.choose([c("static", 0.50), c("encoder", 0.52)])[0] == 1
-    assert FT.choose([c("static", 0.50), c("encoder", 0.505)])[0] == 0  # within a point: static
-    assert FT.choose([c("static", 0.50), c("encoder", 0.51)])[0] == 0  # exactly a point: still a tie
-    assert FT.choose([c("static", 0.60), c("encoder", 0.30)])[0] == 0
+    assert FT.STATIC_MARGIN == 0.10
+    assert FT.choose([c("static", 0.40), c("encoder", 0.52)])[0] == 1  # more than 10 points more: the encoder
+    keep, why = FT.choose([c("static", 0.62), c("encoder", 0.71)])  # 9 points more: static
+    assert keep == 0 and "within 10 points" in why and "encoder 71.0%" in why
+    assert FT.choose([c("static", 0.50), c("encoder", 0.60)])[0] == 0  # exactly 10 points: still static
+    keep, why = FT.choose([c("static", 0.60), c("encoder", 0.30)])
+    assert keep == 0 and "largest expected saving" in why  # static simply saves more: no margin reason
     assert FT.choose([c("static", 0.60, holds=False), c("encoder", 0.30)])[0] == 1
+    assert FT.choose([c("static", 0.65, holds=False), c("encoder", 0.70)])[0] == 1  # no threshold: not kept for it
     assert FT.choose([c("static", 0.09), c("encoder", 0.08)])[0] is None  # under the default 10%
-    assert FT.choose([c("static", 0.09), c("encoder", 0.095)])[0] is None  # a tie under the guard is no table
+    assert FT.choose([c("static", 0.09), c("encoder", 0.15)])[0] == 1  # a static student under the bar is no choice
     assert FT.choose([c("static", 0.24), c("encoder", 0.20)], min_saving=0.25)[0] is None  # a task's own bar
     assert FT.choose([c("static", 0.24), c("encoder", 0.20)])[0] == 0
     assert FT.choose([c("encoder", 0.40)])[0] == 0

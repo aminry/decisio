@@ -3035,9 +3035,9 @@ class SystemOne:
         held-out examples (the table's, then decisio's on the requests the table defers) and the timing guard gives its
         expected saving; a student is eligible when a table threshold holds and it saves at least the request's
         `min_saving` of the expected time per request. One student: kept when eligible. `auto`: the eligible one with
-        the largest saving, the static one on a tie within `FT.TIE` (`FT.choose`); none eligible, no table. A yes/no
-        table's confidence is its calibrated P(yes)'s top probability, read after --noul-commit when the rule is on, as
-        decisio's certified yes/no answers are."""
+        the largest saving, the static one when it is within `FT.STATIC_MARGIN` of it (`FT.choose`); none eligible, no
+        table. A yes/no table's confidence is its calibrated P(yes)'s top probability, read after --noul-commit when
+        the rule is on, as decisio's certified yes/no answers are."""
         from decisio.serve.tasks import answer_keys, gold_index
 
         q0 = cert_ex[0][0]
@@ -3126,7 +3126,8 @@ class SystemOne:
                 "on the fit examples, its table threshold is made on the held-out examples, and its table path is "
                 "timed on this host, one request at a time, on the held-out examples; the kind kept is the one with "
                 f"the largest expected saving that is at least {need:.0%} and whose threshold holds, and the "
-                f"static one when the two savings are within {FT.TIE * 100:.0f} point; when no kind qualifies there "
+                f"static one when its saving is within {FT.STATIC_MARGIN * 100:.0f} points of the other's; when no "
+                "kind qualifies there "
                 "is no table"
                 if auto
                 else f"kept when a table threshold holds and the expected time per request falls by at least "
