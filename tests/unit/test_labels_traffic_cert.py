@@ -9,13 +9,15 @@ C2  a look: the cohort is the first n answers the cert slice drew above the floo
 C3  looks fixed in advance: with looks 100 and 200, each runs at delta / 2, and nothing is made between them
 C4  the asserts: answers below a raised floor are audit-only, answers served under another stack are left out
 C5  missing labels at alpha 0.01: label response under 1 - alpha gives labels_missing and no certificate
+C8  --noul-commit: an answer the traffic certificate does not certify is served as today, the rule applied; a
+    certified one keeps the label-free readout
 C7  pooling across epochs needs containment: an earlier epoch pools only while its floor is at or below the
     current one (a falling floor leaves it out, a rising one takes it in)
 C6  through the server: a task that opted into labels and asks for a certificate certifies from its traffic labels
     (cert region on the label-free score at c_max, rows keep it); the certificate from examples serves until the first
-    look, which replaces it; certified answers carry the traffic certificate and the label-free readout; a task
-    without labels keeps its certificate from examples, logs nothing and is told what it needs; bad looks and
-    target shares are refused
+    look, which replaces it; certified answers carry the traffic certificate (kind gold) and the label-free readout;
+    a task without labels keeps its certificate from examples, logs nothing and is told what it needs; bad looks
+    and target shares are refused
 
   uv run pytest -q tests/unit/test_labels_traffic_cert.py
 """
@@ -177,10 +179,12 @@ def test_c5_missing_labels_at_a_strict_alpha():
     assert c["certified"] is False and c["reason"] == "labels_missing" and c["counts"]["missing"] == 2
 
 
-def test_c6_through_the_server():
+def _certified_server(noul_commit=False):
+    """A server whose yes/no task certifies from traffic labels, up to its first look's certificate."""
     from test_labels_served import ask, make
 
     client, so = make()
+    so.noul_commit = noul_commit
     body = {"id": "angry", "examples": __import__("test_noul_certified").noul_examples(600),
             "certify": {"looks": [80]},
             "labels": {"audit_pi": 0, "cert_pi": 1.0, "margin_pi_max": 0, "tau_after": 20}}  # fmt: skip
@@ -209,8 +213,16 @@ def test_c6_through_the_server():
     tc = log.traffic_in_force()
     assert tc is not None and tc["look"] == 1 and tc["procedure"] == LB.TRAFFIC_PROCEDURE
     assert tc["certified"] is True and tc["counts"]["requested"] == 80
+    return client, so, tc
+
+
+def test_c6_through_the_server():
+    from test_labels_served import ask, make
+
+    client, so, tc = _certified_server()
     a, _ = ask(client, "yes:0.97:certified")
-    assert a["certificate"] == tc["id"] and a["certificate_kind"] == "traffic" and a["certified"] is True
+    # the same promise as the certificate from examples, so the same kind; the record's procedure names the route
+    assert a["certificate"] == tc["id"] and a["certificate_kind"] == "gold" and a["certified"] is True
     pf = LB.label_free(np.log([0.97, 0.03]), so.temperature_of("noul", None, 2))
     assert a["noul"] == pytest.approx(float(pf[0]), abs=1e-6)  # served with the label-free readout
     st = client.get("/v1/tasks/angry").json()["status"]
@@ -225,6 +237,18 @@ def test_c6_through_the_server():
         r = plain.post("/v1/tasks", json={"id": "x", "examples": __import__("test_noul_certified").noul_examples(120),
                                           "certify": bad})  # fmt: skip
         assert r.status_code == 422, bad
+
+
+def test_c8_noul_commit_still_applies_to_answers_not_certified():
+    from test_labels_served import ask
+
+    client, so, tc = _certified_server(noul_commit=True)
+    a, _ = ask(client, "yes:0.6:unsure")  # under the threshold: served as today, so the commit rule applies
+    assert a["certified"] is False and a["certified_reason"] == "below_threshold" and a["certificate_kind"] == "gold"
+    assert a["noul"] == pytest.approx(0.80)
+    a, _ = ask(client, "yes:0.97:sure")  # certified: the label-free readout, which the rule does not move
+    pf = LB.label_free(np.log([0.97, 0.03]), so.temperature_of("noul", None, 2))
+    assert a["certified"] is True and a["noul"] == pytest.approx(float(pf[0]), abs=1e-6)
 
 
 def test_c7_pooling_needs_containment():

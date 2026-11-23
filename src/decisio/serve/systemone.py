@@ -1903,7 +1903,8 @@ class SystemOne:
         # before[i]: a yes/no answer's distribution before --noul-commit moved it, which the confidence monitor reads
         served, via, learned, before = {}, {}, {}, {}
         plain_of = {}  # per question: (the plain readout's label log-probabilities, h), for a task that logs labels
-        traffic_of = {}  # per question: (the traffic-labels certificate in force, the answer's label-free score)
+        traffic_of = {}  # per question: its certificate fields under the traffic-labels certificate in force
+        label_free_served = set()  # the questions certified under it, served with the label-free readout
         task_ms, task_reads = 0.0, []
         if own:
             self._reads.infos = task_reads
@@ -2090,15 +2091,24 @@ class SystemOne:
             )
             if traffic is not None:
                 pl = plain_of.get(i)
-                s0 = None
+                s0 = pf = None
                 if pl is not None:
                     pf = LB.label_free(pl[0], self.temperature_of(q.type, None, len(keys)))
                     s0 = float(pf.max())
-                    if traffic.get("threshold") is not None and s0 >= traffic["threshold"]:
-                        p = pf
-                traffic_of[i] = (traffic, s0)
-            # --noul-commit, the output transform, last (abstention answers above keep theirs)
-            if self.commits(q) and i not in served and i not in traffic_of:  # served rows are committed already
+                fields = self.traffic_fields(t, t["certificate"], (traffic, s0))
+                # only a certified answer is served with the label-free readout; one that a later branch below marks
+                # not certified (a cut state, a limited header, other orders, a stale fit, a learned table's answer) is
+                # served as today, like every answer the certificate does not certify
+                held = (cut is not None or hl is not None or orders != CERTIFIED_ORDERS
+                        or via.get(i) in ("learn:table", "learn:spot_check") or self.head_stale(t)
+                        or self.calibration_stale(t, q.type, len(keys)))  # fmt: skip
+                if fields["certified"] and not held:
+                    p = pf
+                    label_free_served.add(i)
+                traffic_of[i] = fields
+            # --noul-commit, the output transform, last (abstention answers above keep theirs, and so does an answer
+            # certified from traffic labels, which is served with the label-free readout)
+            if self.commits(q) and i not in served and i not in label_free_served:  # served rows are committed already
                 before[i] = p
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
@@ -4215,12 +4225,12 @@ class SystemOne:
         table was sure of) and a learned table's "learn:deferred" and "learn:explored" are decisio's answers under its
         own certificate, not observed by the answer-mix monitor (the requests a table leaves are not drawn like the
         traffic its baseline was made on); "learn:no_table" is "alone". `before`: a yes/no answer's distribution before
-        --noul-commit moved it, for the confidence monitor. `traffic`: (the traffic-labels certificate in force, the
-        answer's label-free score), which then decides in place of the certificate from examples (it replaced it at
-        its first look)."""
+        --noul-commit moved it, for the confidence monitor. `traffic`: the answer's fields under the traffic-labels
+        certificate in force (`traffic_fields`), which then decides in place of the certificate from examples (it
+        replaced it at its first look)."""
         cert = t["certificate"]
-        if traffic is not None:
-            return self.traffic_fields(t, cert, traffic)
+        if traffic is not None:  # decided in the answer loop, which served the label-free readout when certified
+            return traffic
         observe = via not in ("explored", "learn:deferred", "learn:explored")
         if via in ("explored", "learn:deferred", "learn:explored", "learn:no_table") and "decisio_only" not in cert:
             via = None  # no cascade: decisio's certificate is the task's
@@ -4306,7 +4316,8 @@ class SystemOne:
             reason = "traffic_changed"
         if reason is None and cert.get("suspend_on_alert", SUSPEND_ON_ALERT) and self.label_drift_alerting(t, tc):
             reason = "label_drift"
-        out = {"certified": reason is None, "certificate": tc["id"], "certificate_kind": "traffic"}
+        # the same promise as the certificate from examples, so the same kind; the record's procedure names the route
+        out = {"certified": reason is None, "certificate": tc["id"], "certificate_kind": "gold"}
         if reason is not None:
             out["certified_reason"] = reason
         return out
@@ -5412,9 +5423,10 @@ def add_routes(app, systemone: SystemOne):
             err, _ = LB.strict_check(labels, certify.get("alpha") if certify else None)
             if err:
                 raise HTTPException(422, err)
-        if (
-            labels is not None and certify is not None
-        ):  # certification from traffic labels: the default when labels are on
+        with_table = bool(fast_table) or learn is not None
+        if labels is not None and certify is not None and not with_table:
+            # certification from traffic labels: the default when labels are on. Not for a task with a fast table: its
+            # table's answers have no label-free score, and it keeps its cascade certificate
             labels = LB.with_traffic_certification(labels, certify)
         try:
             task, fitted = await run_in_threadpool(
@@ -5446,7 +5458,9 @@ def add_routes(app, systemone: SystemOne):
         elif off := LB.not_enabled_block((task.get("certificate") or {}).get("alpha")):
             out["labels"] = off  # a strict alpha without labels: told what it needs; nothing is turned on
         if task.get("certificate") and task.get("type") != "score":
-            out["traffic_certification"] = LB.traffic_block((task.get("labels") or {}).get("traffic"))
+            out["traffic_certification"] = LB.traffic_block(
+                (task.get("labels") or {}).get("traffic"), fast_table=with_table and bool(task.get("labels"))
+            )
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:

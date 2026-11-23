@@ -2123,9 +2123,13 @@ def label_record(settings: dict) -> dict:
     return {"settings": s, "secret": new_secrets(), **({"traffic": traffic} if traffic else {})}
 
 
-def traffic_block(traffic: dict | None) -> dict:
-    """What a certified task's registration says of certification from traffic labels: how it will run, or that it
-    needs labels on (nothing is turned on)."""
+def traffic_block(traffic: dict | None, fast_table: bool = False) -> dict:
+    """What a certified task's registration says of certification from traffic labels: how it will run, that it is
+    off for a task with a fast table, or that it needs labels on (nothing is turned on)."""
+    if not traffic and fast_table:
+        return {"enabled": False, "reason": "a task with a fast table keeps its certificate from examples (the table "
+                "and decisio together): the table's answers have no label-free score to certify from traffic "
+                "labels"}  # fmt: skip
     if not traffic:
         return {"enabled": False, "reason": "certification from traffic labels needs labels on: register the task with "
                 "a labels block; until then it keeps its certificate from examples"}  # fmt: skip
