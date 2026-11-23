@@ -225,6 +225,8 @@ def test_c6_through_the_server():
     assert a["certificate"] == tc["id"] and a["certificate_kind"] == "gold" and a["certified"] is True
     pf = LB.label_free(np.log([0.97, 0.03]), so.temperature_of("noul", None, 2))
     assert a["noul"] == pytest.approx(float(pf[0]), abs=1e-6)  # served with the label-free readout
+    a, _ = ask(client, "yes:0.97:two orders", orders=2)  # not certified for the request's reason, under the same id
+    assert a["certified"] is False and a["certified_reason"] == "orders_changed" and a["certificate"] == tc["id"]
     st = client.get("/v1/tasks/angry").json()["status"]
     assert st["traffic_certification"]["in_force"]["id"] == tc["id"]
     # without labels: the certificate from examples, nothing logged, and told what certifying from traffic needs

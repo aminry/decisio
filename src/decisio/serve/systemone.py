@@ -2106,6 +2106,12 @@ class SystemOne:
                     p = pf
                     label_free_served.add(i)
                 traffic_of[i] = fields
+            # the certificate an answer is reported under: the traffic certificate once in force, else the task's
+            in_force_id = (
+                traffic_of[i]["certificate"]
+                if i in traffic_of
+                else (t["certificate"]["id"] if t is not None and t.get("certificate") else None)
+            )
             # --noul-commit, the output transform, last (abstention answers above keep theirs, and so does an answer
             # certified from traffic labels, which is served with the label-free readout)
             if self.commits(q) and i not in served and i not in label_free_served:  # served rows are committed already
@@ -2117,7 +2123,7 @@ class SystemOne:
                 answers[name].update(
                     {
                         "certified": False,
-                        "certificate": t["certificate"]["id"],
+                        "certificate": in_force_id,
                         "certificate_kind": "gold",
                         "certified_reason": "state_truncated",
                     }
@@ -2127,7 +2133,7 @@ class SystemOne:
                 answers[name].update(
                     {
                         "certified": False,
-                        "certificate": t["certificate"]["id"],
+                        "certificate": in_force_id,
                         "certificate_kind": "gold",
                         "certified_reason": "header_limited",
                     }
@@ -2139,7 +2145,7 @@ class SystemOne:
                 answers[name].update(
                     {
                         "certified": False,
-                        "certificate": t["certificate"]["id"],
+                        "certificate": in_force_id,
                         "certificate_kind": "gold",
                         "certified_reason": "orders_changed",
                     }
@@ -2156,7 +2162,7 @@ class SystemOne:
                 answers[name].update(
                     {
                         "certified": False,
-                        "certificate": t["certificate"]["id"],
+                        "certificate": in_force_id,
                         "certificate_kind": "gold",
                         "certified_reason": "head_refit" if self.head_stale(t) else "calibration_refit",
                     }
