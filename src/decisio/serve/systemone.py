@@ -1903,6 +1903,7 @@ class SystemOne:
         # before[i]: a yes/no answer's distribution before --noul-commit moved it, which the confidence monitor reads
         served, via, learned, before = {}, {}, {}, {}
         plain_of = {}  # per question: (the plain readout's label log-probabilities, h), for a task that logs labels
+        traffic_of = {}  # per question: (the traffic-labels certificate in force, the answer's label-free score)
         task_ms, task_reads = 0.0, []
         if own:
             self._reads.infos = task_reads
@@ -2082,8 +2083,22 @@ class SystemOne:
             if abstain:
                 answers[name] = abstain_answer(q, keys, p)
                 continue
+            # certification from traffic labels (decisio.serve.labels): once its certificate is in force, an answer
+            # whose label-free score reaches its threshold is certified under it and served with the label-free readout
+            traffic = (
+                self.traffic_certificate(t) if t is not None and t.get("certificate") and q.type != "score" else None
+            )
+            if traffic is not None:
+                pl = plain_of.get(i)
+                s0 = None
+                if pl is not None:
+                    pf = LB.label_free(pl[0], self.temperature_of(q.type, None, len(keys)))
+                    s0 = float(pf.max())
+                    if traffic.get("threshold") is not None and s0 >= traffic["threshold"]:
+                        p = pf
+                traffic_of[i] = (traffic, s0)
             # --noul-commit, the output transform, last (abstention answers above keep theirs)
-            if self.commits(q) and i not in served:  # served rows are committed already
+            if self.commits(q) and i not in served and i not in traffic_of:  # served rows are committed already
                 before[i] = p
                 p = commit_noul(p)
             answers[name] = to_answer(q, keys, p)
@@ -2143,7 +2158,17 @@ class SystemOne:
                 # certified task's own read, which is serial) is not observed against the certificate's baseline
                 shared = i not in served and bool(info.get("batch"))
                 answers[name].update(
-                    self.certified_fields(t, q, keys, p, top_index(keys, p), shared, via.get(i), before=before.get(i))
+                    self.certified_fields(
+                        t,
+                        q,
+                        keys,
+                        p,
+                        top_index(keys, p),
+                        shared,
+                        via.get(i),
+                        before=before.get(i),
+                        traffic=traffic_of.get(i),
+                    )  # fmt: skip
                 )
             elif t is None and not no_tasks and adapter is None and q.type != "score":
                 stale = self.stale_certified_task(q)
@@ -2606,7 +2631,7 @@ class SystemOne:
             n_request=len(full),  # the request's labelled examples, before the held-out split
             large_types=self.large_calibration_types,
             # opted in (decisio.serve.labels): its settings and two new secrets; a task registered again gets new ones
-            label_settings=None if labels is None else {"settings": labels, "secret": LB.new_secrets()},
+            label_settings=None if labels is None else LB.label_record(labels),
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
@@ -2910,7 +2935,7 @@ class SystemOne:
             "per_option_min": None,
             **({"context": ctx} if ctx else {}),
             # opted in (decisio.serve.labels): its settings and two new secrets; options are kept as digests only
-            **({"labels": {"settings": labels, "secret": LB.new_secrets()}} if labels is not None else {}),
+            **({"labels": LB.label_record(labels)} if labels is not None else {}),
         }
         registered = self.attach_certificate(task, cert_ex, certify, split)  # stored only once it is made
         previous = self.task_store.snapshot(task["id"])
@@ -3191,6 +3216,13 @@ class SystemOne:
                 place = MemoryPlace()
             log = LB.TaskLabels(t["id"], rec["settings"], rec["secret"], place, self.labels_replica,
                                 dynamic=bool(t.get("dynamic")))  # fmt: skip
+            if rec.get("traffic"):  # certification from traffic labels: under this server's stack and temperature
+                qtype = t.get("type") or "choice"
+                stack_now = (
+                    stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None
+                )
+                log.traffic = {**rec["traffic"], "stack": stack_now}
+                log.traffic_temperature = lambda k, qtype=qtype: self.temperature_of(qtype, None, k)
             self.labels_logs[t["id"]] = log
             self._start_labels_flusher()
         return log
@@ -3278,6 +3310,11 @@ class SystemOne:
             )
             log.cert_alpha = cert.get("alpha")
             log.cert_id = cert.get("id")
+            log.cert_label_free = False
+            tc = log.traffic_in_force() if log.traffic else None
+            if tc is not None:  # the traffic-labels certificate replaced it: the label monitor watches that one
+                log.cert_id, log.cert_alpha, log.cert_threshold = tc["id"], tc["alpha"], tc["threshold"]
+                log.cert_label_free = True
             try:
                 log.tick(force, merge=merge)
             except (
@@ -3318,12 +3355,17 @@ class SystemOne:
                 continue
             text = LB.state_text(req.state) if text is None else text
             plain = plain_of.get(i)
+            s0 = s0_top = None
+            if plain is not None:  # the label-free readout (softmax(log p / T), no task fit): its top and probability
+                pf = LB.label_free(plain[0], self.temperature_of(q.type, None, len(keys)))
+                s0, s0_top = float(pf.max()), keys[int(pf.argmax())]
             rid = LB.request_id(self.labels_replica)
             add = log.observe(
                 rid, name, text=text, keys=keys, served=p,
                 lp=None if plain is None else plain[0], h=None if plain is None else plain[1],
                 via="model" if plain is not None else "table",
                 certified=a.get("certified"), version=t.get("store_version"), certificate=a.get("certificate"),
+                s0=s0, s0_top=s0_top,
                 stack=stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None,
                 lang=lang if isinstance(lang, str) else None,
                 option_texts=[str(v) for v in q.criteria.values()] if t.get("dynamic") else None,
@@ -3551,12 +3593,21 @@ class SystemOne:
         from decisio.readout import certify
 
         spec = dict(spec or {})
-        unknown = sorted(set(spec) - {"alpha", "delta", "min_examples", "holdout", "examples", "suspend_on_alert"})
+        known = {"alpha", "delta", "min_examples", "holdout", "examples", "suspend_on_alert", "target_share", "looks"}
+        unknown = sorted(set(spec) - known)
         if unknown:
             raise ValueError(
                 f"certify: unknown settings {unknown}; the settings are alpha, delta, min_examples, holdout, examples, "
-                "suspend_on_alert"
+                "suspend_on_alert, target_share, looks"
             )
+        share = spec.get("target_share")
+        if share is not None and (isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 < share <= 1):
+            raise ValueError("certify: target_share is the certified share aimed at, a fraction above 0 and at most 1")
+        looks = spec.get("looks", list(LB.TRAFFIC_LOOKS))
+        ok = isinstance(looks, list) and bool(looks)
+        ok = ok and all(isinstance(n, int) and not isinstance(n, bool) and n >= 1 for n in looks)
+        if not ok or looks != sorted(set(looks)):
+            raise ValueError("certify: looks is a list of increasing labelled-answer counts, as [300] or [200, 400]")
         suspend = spec.get("suspend_on_alert", SUSPEND_ON_ALERT)
         if not isinstance(suspend, bool):
             raise ValueError("certify: suspend_on_alert is true or false")
@@ -3579,6 +3630,8 @@ class SystemOne:
             "min_examples": max(asked, floor),
             "floor": floor,
             "asked": asked,
+            "target_share": None if share is None else float(share),
+            "looks": list(looks),
         }
 
     def certification_split(self, task_id, examples, settings, certify_examples):
@@ -4153,7 +4206,7 @@ class SystemOne:
         return new
 
     def certified_fields(
-        self, t, q, keys, p, chosen: int, shared: bool = False, via: str | None = None, before=None
+        self, t, q, keys, p, chosen: int, shared: bool = False, via: str | None = None, before=None, traffic=None
     ) -> dict:
         """The fields an answer of a certified task carries: whether it is certified, the certificate (of kind gold:
         made on labelled examples), and why not. `via`, for a task with a fast table: "table" (the table answered),
@@ -4162,8 +4215,12 @@ class SystemOne:
         table was sure of) and a learned table's "learn:deferred" and "learn:explored" are decisio's answers under its
         own certificate, not observed by the answer-mix monitor (the requests a table leaves are not drawn like the
         traffic its baseline was made on); "learn:no_table" is "alone". `before`: a yes/no answer's distribution before
-        --noul-commit moved it, for the confidence monitor."""
+        --noul-commit moved it, for the confidence monitor. `traffic`: (the traffic-labels certificate in force, the
+        answer's label-free score), which then decides in place of the certificate from examples (it replaced it at
+        its first look)."""
         cert = t["certificate"]
+        if traffic is not None:
+            return self.traffic_fields(t, cert, traffic)
         observe = via not in ("explored", "learn:deferred", "learn:explored")
         if via in ("explored", "learn:deferred", "learn:explored", "learn:no_table") and "decisio_only" not in cert:
             via = None  # no cascade: decisio's certificate is the task's
@@ -4214,6 +4271,42 @@ class SystemOne:
             if via in ("table", "deferred"):
                 self.check_table_alarm(t, m)
         out = {"certified": reason is None, "certificate": cert["id"], "certificate_kind": "gold"}
+        if reason is not None:
+            out["certified_reason"] = reason
+        return out
+
+    def traffic_certificate(self, t) -> dict | None:
+        """The traffic-labels certificate in force for task t (decisio.serve.labels, `TaskLabels.traffic_in_force`), or
+        None: before its first look, or for a task that does not certify from traffic labels."""
+        rec = (t or {}).get("labels") or {}
+        if not rec.get("traffic"):
+            return None
+        log = self.labels_log(t)
+        return log.traffic_in_force() if log is not None else None
+
+    def traffic_fields(self, t, cert, traffic) -> dict:
+        """An answer's certificate fields under certification from traffic labels: certified when its label-free
+        score reaches the certificate's threshold, the stack is the certificate's, and no monitor suspends."""
+        tc, s0 = traffic
+        if (
+            tc.get("stack") is not None
+            and tc["stack"] != stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16]
+        ):
+            reason = "serving_stack_changed"
+        elif tc.get("threshold") is None:
+            reason = tc.get("reason") or "nothing_certified"
+        elif s0 is None:
+            reason = "no_label_free_score"  # answered without a plain readout (a fast table's answer)
+        elif s0 >= tc["threshold"]:
+            reason = None
+        else:
+            reason = "below_threshold"
+        m = self.task_store.monitors.get(t["id"])
+        if reason is None and m is not None and m.conf_alerting and cert.get("suspend_on_alert", SUSPEND_ON_ALERT):
+            reason = "traffic_changed"
+        if reason is None and cert.get("suspend_on_alert", SUSPEND_ON_ALERT) and self.label_drift_alerting(t, tc):
+            reason = "label_drift"
+        out = {"certified": reason is None, "certificate": tc["id"], "certificate_kind": "traffic"}
         if reason is not None:
             out["certified_reason"] = reason
         return out
@@ -4290,6 +4383,7 @@ class SystemOne:
             "text": text,
             **({"monitor": f} if f else {}),
             **({"label_monitor": drift} if drift else {}),
+            **({"traffic_certification": tcs} if (tcs := log.traffic_status() if log is not None else None) else {}),
         }
         if rt is not None:
             out["fast_table"] = rt.facts()  # this replica's: each replica says for itself whether it uses the table
@@ -5318,6 +5412,10 @@ def add_routes(app, systemone: SystemOne):
             err, _ = LB.strict_check(labels, certify.get("alpha") if certify else None)
             if err:
                 raise HTTPException(422, err)
+        if (
+            labels is not None and certify is not None
+        ):  # certification from traffic labels: the default when labels are on
+            labels = LB.with_traffic_certification(labels, certify)
         try:
             task, fitted = await run_in_threadpool(
                 functools.partial(systemone.register_readout_task, layout=layout, labels=labels),
@@ -5347,6 +5445,8 @@ def add_routes(app, systemone: SystemOne):
             out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location, alpha=alpha)
         elif off := LB.not_enabled_block((task.get("certificate") or {}).get("alpha")):
             out["labels"] = off  # a strict alpha without labels: told what it needs; nothing is turned on
+        if task.get("certificate") and task.get("type") != "score":
+            out["traffic_certification"] = LB.traffic_block((task.get("labels") or {}).get("traffic"))
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:

@@ -395,6 +395,16 @@ After that it is the top `region` (0.8) share by confidence, reaching at least d
 The answers that were not drawn are therefore the most recent ones, a sliding window, not a sample of all time; the ones that keep their served distribution are a uniform sample of that window.
 The log's files are merged now and then (once there are 64, or an erasure waits), which also drops from disk what `max_rows` dropped from memory.
 
+**Certification from traffic labels.**
+A task that takes labels and asks for a certificate certifies from its own traffic: the labels you post for the answers the cert slice drew make its certificate.
+It is the default for such a task, and only for it: a task without a labels block keeps its certificate from examples, logs nothing, and its registration response says so (`traffic_certification.enabled: false`).
+- **The score.** Each answer's label-free score is the top probability of the label-free readout, softmax(log p / T) at the server's temperature with no task fit; its top option is the answer it would certify. Logged answers keep it (`s0`, `s0_top`).
+- **The floor.** Once `tau_after` answers are known, the cert region is set on that score: the floor `t_min` is the score above which the top `c_max` share of the traffic lies, with `c_max` = min(1, 1.5 x `certify.target_share`), or 0.45 when no target share is named. The cert slice then draws only at or above the floor, by score alone.
+- **The looks.** `certify.looks` (default `[300]`) fixes in advance at how many drawn labels a certificate is made; with k looks each is made at delta / k. A look's certificate is made once, when every one of its first n drawn answers is labelled, expired or declined, and never in between, so labels are not added until something certifies.
+- **The certificate.** decisio's fixed-sequence procedure at the look's delta, on the cohort's label-free scores; an answer is right when its label is the label-free readout's top option, and wrong when it is not or when no label came (the strict rule). Before it is made, each answer is scored again from its logged plain readout; answers below the current floor are audit-only and left out, and answers served under another stack are left out; both are counted (`counts`). At alpha 0.01 or 0.005, a cohort whose labels came for fewer than 1 - alpha of its answers certifies nothing (`reason: labels_missing`).
+- **Serving.** The certificate from examples serves until the first look; the first look's certificate replaces it, whatever its certified share. From then on an answer whose label-free score reaches the threshold is `certified: true` with `certificate_kind: "traffic"` and is served with the label-free readout; other answers are served as before, `certified: false` (`below_threshold`, or `no_label_free_score` for an answer without a plain readout, such as a fast table's). The confidence monitor and the label monitor suspend it as they suspend any certificate, and the label monitor then watches it.
+- **The record.** Each look's certificate carries `procedure: "decisio-certify/traffic-labels-fixed-sequence.v1"`, `look`, `looks`, `alpha`, `delta`, `delta_look`, `target_share`, `c_max`, `t_min`, `threshold`, `certified`, `counts` (`requested`, `received`, `missing`, `audit_only`, `other_stack`), the epochs it pooled and the stack; it is an event of the label log, so every replica serves the same one. `status.traffic_certification` and the labels status show the looks, the next look's progress (`drawn`, `closed`) and the certificate in force.
+
 **The label monitor.**
 A certified task that takes labels is watched by its labels too, beside the confidence monitor, with nothing to turn on.
 It reads the audit and cert labels that came for the answers its current certificate certified (the audit labels alone when those answers were not all drawn at one chance), and runs an e-detector (a Shiryaev-Roberts sum of betting e-values, averaged over six betting fractions) on whether their error rate stays at or under the certificate's alpha.
@@ -619,6 +629,7 @@ The rule without the bound would have certified more and broken its promise on 3
 With 175 examples the task answered 70% right still certified nothing at either `alpha`.
 How many examples your task needs depends on how accurate the model is on it and on how well its confidence tells its right answers from its wrong ones; the stored `certified_share` tells you what yours gave, and more examples certify more.
 Set `certify.min_examples` above the floor if you want the server to refuse a certification that thin.
+For a task that takes labels, two more certify settings shape its certificate from traffic labels (above, "Certification from traffic labels"): `target_share`, the certified share aimed at (it sets the cert region to min(1, 1.5 x it); default region 0.45), and `looks`, the labelled-answer counts at which a certificate is made (default `[300]`).
 
 ### Where it stops
 

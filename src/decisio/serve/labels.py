@@ -39,6 +39,7 @@ import collections
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -68,6 +69,8 @@ DEFAULTS = {
     "typical_labels": 50,  # the typical slice ends once this many of its answers are labelled
     "margin_scale": 0.1,  # the margin (top-two gap) at which the margin pi is halfway between its min and max
     "region": 0.8,  # the share of traffic the cert region covers at least once tau_min is set (lenient alphas)
+    "cert_score": "served",  # what the cert region is set on: the served confidence, or ("label_free") the label-free
+    # readout's top probability, for certification from traffic labels (the server sets it; see TRAFFIC_PROCEDURE)
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
     "ttl_days": None,  # answers and labels older than this are erased (None: kept until erased or dropped by max_rows)
@@ -137,6 +140,8 @@ def parse_settings(block) -> dict | None:
     s["shares"] = {k: float(sh.get(k, 0.0)) for k in DEFAULTS["shares"]}
     if s["per_day"] is not None:  # the registration's epoch: tau_after answers a day assumed, all traffic the region
         s.update(budget_pis(s, rate=float(s["tau_after"]), region_share=1.0, margin_weight=0.5, typical=False))
+    if s["cert_score"] not in ("served", "label_free"):
+        raise LabelsError('labels.cert_score is "served" or "label_free"')
     if s["features"] not in FEATURES:
         raise LabelsError(f"labels.features is one of {list(FEATURES)}")
     for k in ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max"):
@@ -260,7 +265,7 @@ STORES = (
 
 ROW_FIELDS = ("request_id", "question", "t", "epoch", "digest", "hk1", "lang", "script", "keys", "top", "conf",
               "margin", "served_certified", "certificate", "via", "version", "stack", "draws", "drawn", "sample",
-              "options_digest", "replica")  # fmt: skip
+              "options_digest", "s0", "s0_top", "replica")  # fmt: skip
 FULL_FIELDS = ("ps", "lp", "h")  # with features "full": the served distribution, the plain readout, the hidden state
 
 
@@ -517,14 +522,27 @@ def margin_pi(margin: float, settings: dict) -> float:
 
 
 def draw(
-    salt: str, rid: str, question: str, conf: float, margin: float, epoch: dict, typical: int | None = None
+    salt: str,
+    rid: str,
+    question: str,
+    conf: float,
+    margin: float,
+    epoch: dict,
+    typical: int | None = None,
+    region_score: float | None = None,
 ) -> dict:
     """{slice: {"in", "pi", "u"}} for one served question under `epoch` (its settings and `tau_min`); `typical`: its
-    typicality level (None: the typical slice draws nothing, as before the levels exist or without the student)."""
+    typicality level (None: the typical slice draws nothing, as before the levels exist or without the student).
+    `region_score`: the score the cert region is set on when it is not the served confidence (the label-free
+    readout's top probability for certification from traffic labels; None there: not drawn for certification)."""
     s = epoch["settings"]
+    if s.get("cert_score") == "label_free":
+        in_region = region_score is not None and region_score >= epoch["tau_min"]
+    else:
+        in_region = conf >= epoch["tau_min"]
     pis = {
         "audit": floor_pi(s["audit_pi"]),
-        "cert": floor_pi(s["cert_pi"]) if conf >= epoch["tau_min"] else 0.0,
+        "cert": floor_pi(s["cert_pi"]) if in_region else 0.0,
         "margin": margin_pi(margin, s),
         "typical": floor_pi(s.get("typical_pi_max", 0.0) * typical / TYPICAL_LEVELS) if typical else 0.0,
     }
@@ -634,6 +652,12 @@ class TaskLabels:
         self.cert_threshold: float | None = None  # the task's certified threshold, when it has one (the server sets it)
         self.cert_alpha: float | None = None  # the alpha the task is certified at (the server sets it)
         self.cert_id: str | None = None  # the task's certificate (the server sets it): the label monitor's
+        self.cert_label_free = False  # that certificate is a traffic-labels one (scored on s0, right against s0_top)
+        self.traffic: dict | None = (
+            None  # certification from traffic labels: {looks, alpha, delta, target_share, c_max}
+        )
+        self.traffic_temperature = None  # the server's temperature for k options (a function), to re-score at a look
+        self.traffic_certs: list[dict] = []  # the certificates made at the looks (events), in order
         self.drift_state: dict | None = None  # the label monitor's last reading (the labels thread's), for answers
         self.embed = None  # the static student's embedding of a text (the server sets it once the student is here)
         self.embed_off: str | None = "no static student on this server"
@@ -748,6 +772,8 @@ class TaskLabels:
         self._maybe_typical()
         self._maybe_strict()
         self._maybe_expire()
+        if merge:
+            self._maybe_traffic_look()
         self.drift_state = self.drift()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
@@ -1076,10 +1102,20 @@ class TaskLabels:
         return {"state": state, "labelled": self.typical_labelled(), "until": s["typical_labels"],
                 "held": self.typicality.n}  # fmt: skip
 
+    def region_score(self, row: dict) -> float | None:
+        """The score the cert region is set on for this task: the served confidence, or the label-free readout's top
+        probability (`cert_score: "label_free"`; None for an answer without a plain readout, as a table's)."""
+        return row.get("s0") if self.settings.get("cert_score") == "label_free" else row["conf"]
+
     def _tau_now(self, region: float | None = None) -> tuple[float, int]:
-        """The cert region's lowest confidence for the top `region` share (default the settings') of the answers held
-        (a snapshot, scanned outside the lock)."""
+        """The cert region's lowest score for the top `region` share (default the settings') of the answers held
+        (a snapshot, scanned outside the lock). On the label-free score (certification from traffic labels) it is
+        `t_floor`, the floor the traffic-labels certificate is made above; on the served confidence it reaches down
+        to the task's certified threshold at least."""
         region = self.settings["region"] if region is None else region
+        if self.settings.get("cert_score") == "label_free":
+            scores = [r["s0"] for _, r in self._snapshot()[0] if r.get("s0") is not None]
+            return (t_floor(scores, region) if scores else 0.0), len(scores)
         confs = np.sort([r["conf"] for _, r in self._snapshot()[0]])
         tau = float(np.quantile(confs, 1.0 - region)) if len(confs) else 0.0
         if self.cert_threshold is not None:  # the region reaches down to the task's certified threshold at least
@@ -1161,6 +1197,10 @@ class TaskLabels:
         if ev["type"] == "purged":
             self.events.append(ev)
             self._purged.update(ev["of"])
+            return
+        if ev["type"] == "traffic_cert":
+            self.events.append(ev)
+            self.traffic_certs.append(ev)
             return
         if self._is_erased(ev):
             return
@@ -1303,7 +1343,7 @@ class TaskLabels:
 
     def observe(self, rid: str, question: str, *, text: str, keys, served, lp, h, certified, version, stack,
                 lang: str | None, via: str = "model", option_texts=None, certificate: str | None = None,
-                embed_text: str | None = None) -> dict:  # fmt: skip
+                embed_text: str | None = None, s0: float | None = None, s0_top=None) -> dict:  # fmt: skip
         """Log one served question and draw it. Returns the answer's additions: {"request_id"} and, when the row was
         drawn into any slice, "label_requested": True; nothing on a replica that does not write. Cheap: a few hashes
         and an append under the lock, never a call to the place."""
@@ -1325,7 +1365,7 @@ class TaskLabels:
         margin = float(p[top] - p[order[1]]) if len(p) > 1 else 1.0
         with self._lock:
             e = self.epoch
-            d = draw(self.secret["salt"], rid, question, conf, margin, e, typical=level)
+            d = draw(self.secret["salt"], rid, question, conf, margin, e, typical=level, region_score=s0)
             drawn = any(v["in"] for v in d.values())
             sample = self._sample(rid, question)
             full = self.settings["features"] == "full"
@@ -1347,6 +1387,8 @@ class TaskLabels:
                 "conf": conf,
                 "margin": margin,
                 "served_certified": certified,
+                "s0": None if s0 is None else float(s0),  # the label-free readout's top probability and option
+                "s0_top": None if s0_top is None else self.option_key(s0_top),
                 "certificate": certificate,
                 "via": via,
                 "version": version,
@@ -1652,6 +1694,126 @@ class TaskLabels:
             r["strict_error"] = r["state"] != "labelled" or not r["correct"]
         return out
 
+    def traffic_key(self) -> str | None:
+        """What a traffic-labels certificate belongs to: the requested looks, alpha and delta (a new request starts
+        afresh)."""
+        if not self.traffic:
+            return None
+        c = self.traffic
+        return hashlib.blake2b(json.dumps([c["looks"], c["alpha"], c["delta"]]).encode(), digest_size=6).hexdigest()
+
+    def traffic_in_force(self) -> dict | None:
+        """The traffic-labels certificate in force: the one made at the latest look of the current request, whatever
+        its certified share (it replaces the examples certificate at the first look, by schedule), or None before."""
+        key = self.traffic_key()
+        with self._lock:
+            mine = [c for c in self.traffic_certs if c.get("key") == key]
+        return max(mine, key=lambda c: c["look"]) if mine else None
+
+    def traffic_cohort(self, rows=None) -> list[tuple]:
+        """The certification answers in draw order: the rows the cert slice drew with a label-free score once the
+        floor was set (an epoch whose `tau_min` is the floor; before it the region is all traffic, which is not this
+        method's draw), oldest first, as (key, row)."""
+        rows = self._snapshot()[0] if rows is None else rows
+        floored = {e["epoch"] for e in self.epochs if _tau_set(e)}
+        out = [(k, r) for k, r in rows
+               if r["draws"]["cert"]["in"] and r.get("s0") is not None and r["epoch"] in floored]  # fmt: skip
+        return sorted(out, key=lambda kr: (kr[1]["t"], kr[0]))
+
+    def traffic_status(self) -> dict | None:
+        """Where certification from traffic labels stands: the looks, the next one and how far its cohort is (drawn,
+        and closed: labelled, expired or declined), and the certificate in force."""
+        if not self.traffic:
+            return None
+        rows, latest, now, due = self._snapshot()
+        cohort = self.traffic_cohort(rows)
+        done = {c["look"] for c in self.traffic_certs if c.get("key") == self.traffic_key()}
+        nxt = next((j for j in range(len(self.traffic["looks"])) if j + 1 not in done), None)
+        c = self.traffic
+        out = {"procedure": TRAFFIC_PROCEDURE, "looks": list(c["looks"]), "target_share": c.get("target_share"),
+               "c_max": c["c_max"], "t_min": self.epoch["tau_min"] if _tau_set(self.epoch) else None,
+               "in_force": self.traffic_in_force()}  # fmt: skip
+        if nxt is not None:
+            n = self.traffic["looks"][nxt]
+            first = cohort[:n]
+            closed = sum(
+                self._state(r, latest.get(k), now, due) in ("labelled", "expired", "declined") for k, r in first
+            )
+            out["next_look"] = {"look": nxt + 1, "n": n, "drawn": len(first), "closed": closed}
+        return out
+
+    def _maybe_traffic_look(self) -> None:
+        """The merger's turn: make the certificate of the earliest look whose cohort is complete (its first n
+        certification answers all closed), once. Fixed looks, each at delta / k; nothing is made between looks, and
+        a look that certifies nothing is not tried again."""
+        if not self.traffic or not self.writes:
+            return
+        key = self.traffic_key()
+        looks = list(self.traffic["looks"])
+        done = {c["look"] for c in self.traffic_certs if c.get("key") == key}
+        rows, latest, now, due = self._snapshot()
+        cohort = self.traffic_cohort(rows)
+        for j, n in enumerate(looks):
+            if j + 1 in done:
+                continue
+            if len(cohort) < n:
+                return
+            first = cohort[:n]
+            if any(self._state(r, latest.get(k), now, due) == "pending" for k, r in first):
+                return  # the earliest open look waits for its labels; later looks wait for it
+            with self._write:
+                self._write_events([self._traffic_certificate_at(j, looks, first, latest, now)])
+            return
+
+    def _traffic_certificate_at(self, j: int, looks: list, first: list, latest: dict, now: float) -> dict:
+        """The certificate of look j on its cohort: each answer re-scored with the label-free readout at this
+        server's temperature (from its stored plain readout), right when its label is that readout's top option,
+        wrong when it is not or when no label came (expired or declined: the strict rule). Answers below the current
+        floor are audit-only and left out; answers served under another stack are left out; both are counted."""
+        c = self.traffic
+        alpha, delta = float(c["alpha"]), float(c["delta"])
+        dlook = delta / len(looks)
+        t_min = self.epoch["tau_min"] if _tau_set(self.epoch) else 0.0
+        stack_now = c.get("stack")
+        scores, correct, audit_only, other_stack, received, epochs = [], [], 0, 0, 0, set()
+        for key, row in first:
+            if stack_now is not None and row.get("stack") not in (None, stack_now):
+                other_stack += 1
+                continue
+            s0, top = row["s0"], row["s0_top"]
+            lp = unarr(row.get("lp"))
+            if lp is not None and self.traffic_temperature is not None:  # re-scored with the certificate's readout
+                pf = label_free(lp, self.traffic_temperature(len(lp)))
+                s0, top = float(pf.max()), row["keys"][int(pf.argmax())]
+            if s0 < t_min:
+                audit_only += 1
+                continue
+            ev = latest.get(key)
+            labelled = ev is not None and ev["type"] == "label"
+            received += labelled
+            scores.append(s0)
+            correct.append(labelled and ev["answer"] == top)
+            epochs.add(row["epoch"])
+        requested = len(scores)
+        out = {"type": "traffic_cert", "key": self.traffic_key(), "look": j + 1, "looks": looks,
+               "procedure": TRAFFIC_PROCEDURE,
+               "alpha": alpha, "delta": delta, "delta_look": dlook, "target_share": c.get("target_share"),
+               "c_max": c["c_max"], "t_min": t_min, "stack": stack_now, "epochs": sorted(epochs),
+               "counts": {"requested": requested, "received": received, "missing": requested - received,
+                          "audit_only": audit_only, "other_stack": other_stack},
+               "received": now, "replica": self.replica}  # fmt: skip
+        response = received / requested if requested else 0.0
+        if alpha <= STRICT_ALPHA and response < 1.0 - alpha:
+            out.update(threshold=None, certified=False, reason="labels_missing")
+        else:
+            thr = traffic_threshold(scores, correct, alpha, dlook) if requested else math.inf
+            out.update(threshold=float(thr) if math.isfinite(thr) else None, certified=bool(math.isfinite(thr)))
+            if not math.isfinite(thr):
+                out["reason"] = "nothing_certified"
+        digest = hashlib.blake2b(json.dumps(out, sort_keys=True, default=str).encode(), digest_size=6).hexdigest()
+        out["id"] = f"{self.task_id}#traffic-{digest}"
+        return out
+
     def drift(self) -> dict | None:
         """The label monitor of the task's current certificate (the server sets `cert_id`, `cert_alpha` and
         `cert_threshold` from it): the e-detector over the labels of the answers that certificate certified, read
@@ -1671,7 +1833,9 @@ class TaskLabels:
         with self._lock:
             first = dict(self._first_label)
             audit_now = floor_pi(self.settings["audit_pi"])
-        region = [(k, r) for k, r in rows if r.get("certificate") == self.cert_id and r["conf"] >= thr]
+        score, top_of = ("s0", "s0_top") if self.cert_label_free else ("conf", "top")
+        region = [(k, r) for k, r in rows
+                  if r.get("certificate") == self.cert_id and r.get(score) is not None and r[score] >= thr]  # fmt: skip
         pis = {(r["draws"]["audit"]["pi"], r["draws"]["cert"]["pi"]) for _, r in region}
         pooled = len(pis) == 1 and next(iter(pis))[1] > 0
         slices = ("audit", "cert") if pooled else ("audit",)
@@ -1685,7 +1849,7 @@ class TaskLabels:
             if ev is not None and ev["type"] == "label":
                 labelled_n += 1
                 t_first = first.get(key, float(ev["received"]))
-                seq.append((t_first, float(ev["answer"] != row["top"])))
+                seq.append((t_first, float(ev["answer"] != row[top_of])))
                 closed_at.append((t_first, True))
             elif ev is not None or now - row["t"] > due:  # declined or expired: counted as missing, left out
                 missing += 1
@@ -1801,6 +1965,7 @@ class TaskLabels:
             "label_share": None if share is None else round(share, 4),
             **({"detection": det} if (det := self.detection(mon := self.drift())) else {}),
             **({"label_monitor": mon} if mon else {}),
+            **({"traffic_certification": tcs} if (tcs := self.traffic_status()) else {}),
             **({"warnings": warnings} if warnings else {}),
         }
 
@@ -1898,6 +2063,74 @@ def accuracy_interval(right: int, n: int, level: float = 0.9) -> list[float] | N
     lo = 0.0 if right == 0 else float(beta.ppf(a, right, n - right + 1))
     hi = 1.0 if right == n else float(beta.ppf(1 - a, right + 1, n - right))
     return [round(lo, 4), round(hi, 4)]
+
+
+# ---- certification from traffic labels -------------------------------------------------------------------------
+
+TRAFFIC_PROCEDURE = "decisio-certify/traffic-labels-fixed-sequence.v1"
+TRAFFIC_LOOKS = (300,)  # the default: one look, at 300 drawn certification labels
+TRAFFIC_C_MAX = 0.45  # the cert region's coverage when no target share is named
+
+
+def c_max_of(target_share: float | None) -> float:
+    """The cert region's coverage for a target certified share X: min(1, 1.5 X), or 0.45 when none is named."""
+    return TRAFFIC_C_MAX if target_share is None else min(1.0, 1.5 * float(target_share))
+
+
+def t_floor(scores, c: float) -> float:
+    """The floor of certification from traffic labels: the score at coverage c of `scores` (the ceil(c n)-th highest),
+    so that the top c share of the traffic is at or above it."""
+    s = np.sort(np.asarray(scores, float))[::-1]
+    return float(s[min(len(s) - 1, max(0, math.ceil(c * len(s)) - 1))])
+
+
+def label_free(lp, temperature: float) -> np.ndarray:
+    """The label-free readout: softmax(log p / T) of the plain readout at the server's temperature, no task fit. The
+    plain readout is taken as float32, the precision the log keeps it in, so an answer's score at serving and when a
+    certificate re-scores it from the log are the same number."""
+    z = np.asarray(lp, dtype=np.float32).astype(np.float64) / float(temperature)
+    z = z - z.max()
+    e = np.exp(z)
+    return e / e.sum()
+
+
+def traffic_threshold(scores, correct, alpha: float, delta: float) -> float:
+    """The certificate of certification from traffic labels: decisio's fixed-sequence arm at the full `delta` (its own
+    grid and start) on the labelled certification answers' label-free scores; `inf` when nothing is certified."""
+    from decisio.readout import certify
+
+    scores, correct = np.asarray(scores, dtype=float), np.asarray(correct, dtype=bool)
+    order = np.argsort(-scores)
+    return certify._fixed_sequence(scores[order], np.cumsum(~correct[order]), alpha, delta)
+
+
+def with_traffic_certification(settings: dict, certify: dict) -> dict:
+    """A task that opted into labels and asks for a certificate certifies from its traffic labels: its cert region is
+    set on the label-free score at c_max, and the request (looks, alpha, delta, target share) rides with the labels
+    settings into the task record (`label_record`)."""
+    c = c_max_of(certify.get("target_share"))
+    traffic = {"looks": list(certify.get("looks") or TRAFFIC_LOOKS), "alpha": float(certify["alpha"]),
+               "delta": float(certify["delta"]), "target_share": certify.get("target_share"), "c_max": c}  # fmt: skip
+    return {**settings, "cert_score": "label_free", "region": c, "_traffic": traffic}
+
+
+def label_record(settings: dict) -> dict:
+    """The task record's labels block: the settings, two new secrets, and the traffic-labels request if any."""
+    s = dict(settings)
+    traffic = s.pop("_traffic", None)
+    return {"settings": s, "secret": new_secrets(), **({"traffic": traffic} if traffic else {})}
+
+
+def traffic_block(traffic: dict | None) -> dict:
+    """What a certified task's registration says of certification from traffic labels: how it will run, or that it
+    needs labels on (nothing is turned on)."""
+    if not traffic:
+        return {"enabled": False, "reason": "certification from traffic labels needs labels on: register the task with "
+                "a labels block; until then it keeps its certificate from examples"}  # fmt: skip
+    return {"enabled": True, "procedure": TRAFFIC_PROCEDURE, "looks": traffic["looks"],
+            "target_share": traffic["target_share"],
+            "c_max": traffic["c_max"], "until_first_look": "the certificate from examples serves until the first look, "
+            "which replaces it whatever its certified share"}  # fmt: skip
 
 
 # ---- the label monitor (drift of the certified error, from audit and cert labels) ----------------------------------
