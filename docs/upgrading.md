@@ -8,6 +8,19 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.55.0: on Gemma 4 12B, score tasks of 3 to 4 and of 10 or more levels get the evidence-averaged calibration; two-option choice tasks get no label review
+
+### What changed
+
+- **On Gemma 4 12B (bf16, FP8 and the tuned 12B repositories), a score task of 3 to 4 levels or of 10 or more, registered with at least 50 labelled examples** (counted in the request, before a certificate's held-out split), is calibrated as choice and yes/no tasks are since 0.54.0: its temperature and a bias per level fitted together, weighted by their evidence, always applied.
+- Score tasks of 5 to 9 levels, tasks below 50 examples and every other base keep the gated bias.
+- **On those servers, a stored score task in those cells of 50 or more examples whose calibration is the gated bias is not applied:** its questions are answered as without the task, and `GET /v1/tasks`, `GET /v1/tasks/{id}` and `/health` name it with the command to register it again, as for the 0.54.0 change.
+- **The label review no longer reviews a choice task of two options:** there more than 2% of correct labels were flagged. The registration's `label_review` says `reviewed: false` with the reason. Yes/no tasks and choice tasks of 3 or more options are reviewed as before.
+
+### What to do
+
+- Register again the score tasks of 3 to 4 and of 10 or more levels with 50 or more examples, to have them calibrated by the new fit.
+
 ## 0.54.0: two-engine mode (`--head-engine`) is removed
 
 ### What changed

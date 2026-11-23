@@ -165,10 +165,12 @@ class Family:
     detected: bool = True
     # served on the vLLM server only (no --backend mlx: the 31B's MLX build is a conversion of the default 31B)
     vllm_only: bool = False
-    # the question types whose task calibration, from `calibration.min_examples_for_fit(K)` labelled examples, is the
-    # temperature and bias fitted together (`calibration.fit_large_prior`); every other type, and every task below that,
-    # keeps the gated bias. Measured on the 12B for choice and yes/no; empty for the bases not measured yet
-    large_calibration_types: tuple[str, ...] = ()
+    # the questions whose task calibration, from `calibration.min_examples_for_fit(K)` labelled examples, is the
+    # temperature and bias fitted together (`calibration.fit_large_prior`): a question type (every option count), or a
+    # (type, lowest, highest) range of option counts, highest None for no upper end (`calibration.in_large_scope`).
+    # Every other question, and every task below that count, keeps the gated bias. Measured cell by cell on the 12B;
+    # empty for the bases not measured yet
+    large_calibration_types: tuple = ()
 
 
 QWEN = Family(
@@ -244,7 +246,9 @@ GEMMA4 = Family(
     vision_addon_sha256="112725a204111dfdc5d29d2c4456818e4b6de33109991edfaa7120c731fb06a8",
     vision_addon_config_sha256="77f6b61591676bd7440bcd5633a8dbce3e87bd952c348ece524004d8e2a994cb",
     precision="bf16",
-    large_calibration_types=("choice", "noul"),  # the 12B and its FP8 and tuned profiles (replace keeps it)
+    # the 12B and its FP8 and tuned profiles (replace keeps it): choice at every option count and yes/no; score
+    # questions of 3 to 4 levels and of 10 or more (score 5 to 6 failed its check, 7 to 9 was not measured)
+    large_calibration_types=("choice", "noul", ("score", 3, 4), ("score", 10, None)),
 )
 
 GEMMA4_FP8 = replace(
