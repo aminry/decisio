@@ -15,6 +15,7 @@ K5  retries: a failed delivery (5xx, a redirect, a refused host) is tried again 
     the last try and recorded; later windows are still delivered
 K6  the routes: PUT sets a URL with a new secret, rotate makes a new secret (deliveries then verify only with it),
     DELETE turns it off; refused URLs are 422s, a task not in the mode or with no callback a 409
+K8  a delivery has one deadline: a receiver that answers a byte at a time is cut there, and so is a slow name lookup
 K7  registration refuses a callback outside the average-error mode, an http URL and a private host
 
   uv run pytest -q tests/unit/test_labels_fdr_callback.py
@@ -34,7 +35,7 @@ DAY = 86_400
 
 
 def _resolving(monkeypatch, table):
-    monkeypatch.setattr(CB, "resolve", lambda host, port: list(table.get(host, [PUBLIC])))
+    monkeypatch.setattr(CB, "resolve", lambda host, port, timeout=None: list(table.get(host, [PUBLIC])))
 
 
 def test_k1_callback_urls():
@@ -43,6 +44,9 @@ def test_k1_callback_urls():
         with pytest.raises(CB.CallbackError):
             CB.check_url(bad)
     assert CB.check_url("https://example.com:8443/hook?x=1") == "https://example.com:8443/hook?x=1"
+    for port in (22, 25, 80, 8080):  # a public host's other services are no POST target
+        with pytest.raises(CB.CallbackError, match="port 443 or 8443"):
+            CB.check_url(f"https://example.com:{port}/hook")
 
 
 def test_k1_hosts_must_resolve_to_public_addresses_only(monkeypatch):
@@ -51,6 +55,12 @@ def test_k1_hosts_must_resolve_to_public_addresses_only(monkeypatch):
         _resolving(monkeypatch, {"example.com": addrs})
         with pytest.raises(CB.CallbackError, match="not public"):
             CB.public_addresses("https://example.com/h")
+    # an IPv4 address inside an IPv6 one is held to the same rule, whatever the standard library's tables say
+    # NAT64, local NAT64, 6to4, IPv4-mapped, Teredo
+    for inner_private in ("64:ff9b::a00:1", "64:ff9b:1::a00:1", "2002:a00:1::1", "::ffff:127.0.0.1",
+                          "2001:0:4136:e378:8000:63bf:3fff:fdd2"):  # fmt: skip
+        assert not CB._public(inner_private), inner_private
+    assert CB._public("64:ff9b::5db8:d822") and CB._public("2002:5db8:d822::1")  # carrying 93.184.216.34
     _resolving(monkeypatch, {"example.com": [PUBLIC, "2606:2800:220:1::1"]})
     assert CB.public_addresses("https://example.com/h") == [PUBLIC, "2606:2800:220:1::1"]
 
@@ -226,3 +236,52 @@ def test_k7_registration_refusals(monkeypatch):
                          ({"mode": "average_error", "callback": "https://hooks.example.com/h"}, "url")):  # fmt: skip
         r = client.post("/v1/tasks", json={**base, "certify": certify})
         assert r.status_code == 422 and why in r.text, (certify, r.text)
+
+
+def test_k8_a_dribbling_receiver_is_cut_at_the_deadline(monkeypatch):
+    import http.client
+    import threading
+
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(1)
+    port = srv.getsockname()[1]
+    stop = threading.Event()
+
+    def dribble():
+        c, _ = srv.accept()
+        try:
+            c.recv(65536)
+            for ch in b"HTTP/1.1 200 OK\r\nX-Slow: " + b"a" * 1000:  # one byte every 0.1 s: under the socket timeout
+                if stop.is_set():
+                    break
+                c.sendall(bytes([ch]))
+                time.sleep(0.1)
+        except OSError:
+            pass
+        finally:
+            c.close()
+
+    threading.Thread(target=dribble, daemon=True).start()
+
+    class Plain(http.client.HTTPConnection):  # the pinned connection, without TLS, to the local receiver
+        def __init__(self, host, p, address, timeout, context):
+            super().__init__(host, p, timeout=timeout)
+
+        def connect(self):
+            self.sock = socket.create_connection(("127.0.0.1", port), self.timeout)
+
+    monkeypatch.setattr(CB, "_PinnedHTTPS", Plain)
+    _resolving(monkeypatch, {})
+    t0 = time.monotonic()
+    with pytest.raises(CB.CallbackError, match="no answer within 1 s"):
+        CB.post("https://slow.example.com/h", b"{}", {}, timeout=0.5, deadline=1.0)
+    assert time.monotonic() - t0 < 2.5
+    stop.set()
+    srv.close()
+    monkeypatch.undo()  # the real resolve again, over a name lookup that hangs
+    monkeypatch.setattr(socket, "getaddrinfo", lambda *a, **k: time.sleep(3))
+    t0 = time.monotonic()
+    with pytest.raises(CB.CallbackError, match="did not resolve within"):
+        CB.resolve("hang.example.com", 443, timeout=0.3)
+    assert time.monotonic() - t0 < 1.5
