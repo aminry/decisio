@@ -1004,6 +1004,118 @@
         }
       }
     },
+    "/v1/tasks/{task_id}/labels/callback": {
+      "put": {
+        "summary": "Put Callback",
+        "description": "Set or change the marks callback's URL: a new secret, shown once in the answer.",
+        "operationId": "put_callback_v1_tasks__task_id__labels_callback_put",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete Callback",
+        "description": "Turn the marks callback off (the marks stay in the status and the export).",
+        "operationId": "delete_callback_v1_tasks__task_id__labels_callback_delete",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/tasks/{task_id}/labels/callback/rotate": {
+      "post": {
+        "summary": "Rotate Callback",
+        "description": "A new secret for the marks callback, shown once; the old one stops signing at once.",
+        "operationId": "rotate_callback_v1_tasks__task_id__labels_callback_rotate_post",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/tasks/{task_id}/labels/{request_id}": {
       "delete": {
         "summary": "Erase Label",

@@ -431,6 +431,27 @@ Its procedure is `decisio-certify/average-error-conformal-bh.v1`, and its `delta
 - **Where the marks are.** `GET /v1/tasks/{id}/labels/status` and the task's status carry `average_error`: `label` ("Average error (FDR)"), `procedure`, `promise`, `alpha`, `delta` (`null`), `window`, `waiting` (answers not yet in a closed window), `calibration` (`audit_labels`, per bucket as the next window will count them, `floor`, `below_floor`, the buckets of the waiting answers still under it or with no label, `reason`, which says so in words, `left_out`, and `audit_response`, the share of the calibration's audit answers that were labelled) and the last five `windows` (`index`, `size`, `marked`, `below_floor`, `unmarkable`, `closed_at`). `GET /v1/tasks/{id}/labels/export?view=marks` gives one JSON line per answer of the closed windows: `request_id`, `question`, `window`, `marked` and `answer`. An answer no longer held (erased, or past `max_rows` or `ttl_days`) leaves it at once, and a window's record names its answers only by a keyed digest (under the task's draw salt, which is never shown), so no request id of an erased answer is kept there.
 Registered without labels, the mode is refused with a 422: it marks logged answers, and only a task that takes labels logs them.
 
+**The marks callback (opt-in).**
+With `"callback": {"url": "https://..."}` in the certify block, the server also POSTs each closed window's marks to that URL, once the window closes; it is off by default.
+The registration response gives the callback's `secret` once (`average_error.callback`); the listing, the status and every later read never show it again.
+It is kept in the task's record with the label secrets, so a full export of the task (`GET /v1/tasks?full=1`) holds it too.
+- **The URL.** https only, with no user or password in it and no fragment. Its host must resolve only to public addresses: one loopback, private, link-local, unique-local, multicast, reserved or unspecified address refuses it (an address literal too). It is checked at registration and again at every delivery, and the connection goes to the address just checked (the TLS certificate is still checked against the host name), so a name that is made to point inside between the check and the connection is refused. Redirects are not followed: a 3xx is a failed delivery.
+- **The request.** `POST`, `Content-Type: application/json`, the body `{"event": "average_error.window", "task", "window", "label", "procedure", "promise", "alpha", "size", "closed_at", "marked", "unmarkable", "calibration", "marks"}`, `marks` being the window's lines of the marks export (`request_id`, `question`, `window`, `marked`, `answer`; an answer no longer held is left out). Headers: `X-Decisio-Signature`, `X-Decisio-Event: average_error.window`, `Idempotency-Key` (the same for every try of one window) and `User-Agent: decisio/<version>`.
+- **The signature.** `X-Decisio-Signature: t=<seconds>,v1=<hex>`, the hex being HMAC-SHA256 under the secret of `<t>.` followed by the body's bytes. Check it on the raw body before parsing it, refuse a `t` more than 300 seconds old, and treat a repeated `Idempotency-Key` as a delivery you already have:
+
+  ```python
+  import hashlib, hmac, time
+
+  def verified(secret: str, header: str, body: bytes) -> bool:
+      parts = dict(p.split("=", 1) for p in header.split(","))
+      t = int(parts["t"])
+      mac = hmac.new(secret.encode(), f"{t}.".encode() + body, hashlib.sha256).hexdigest()
+      return abs(time.time() - t) <= 300 and hmac.compare_digest(mac, parts["v1"])
+  ```
+- **Delivery.** A 2xx answer is a delivery. Anything else, or no answer within 10 seconds, is tried again after 30 seconds, 2 minutes, 10 minutes, 1 hour and 6 hours; after the sixth try the window is given up. Both outcomes are recorded in the label log, so a window is delivered once whichever replica merges (a retry can repeat a delivery the receiver took but did not answer: the idempotency key says so). On a shared store the replica that merges the log sends the callbacks.
+- **Its state.** The labels status's `average_error.callback` gives the `url`, how many windows were `delivered`, the ones `given_up`, the ones `retrying` (with `attempts`, `next_try` and `last_error`), and how many are `waiting` for their first try.
+- **Changing it.** `PUT /v1/tasks/{id}/labels/callback` with `{"url": ...}` sets or changes the URL and makes a new secret; `POST /v1/tasks/{id}/labels/callback/rotate` makes a new secret for the same URL; both answer it once, and deliveries are signed with it from then on (other replicas read the change from the task store). `DELETE /v1/tasks/{id}/labels/callback` turns it off; the marks stay in the status and the export. A task not in the average-error mode answers these with a 409.
+
 **The label monitor.**
 A certified task that takes labels is watched by its labels too, beside the confidence monitor, with nothing to turn on.
 It reads the audit and cert labels that came for the answers its current certificate certified (the audit labels alone when those answers were not all drawn at one chance), and runs an e-detector (a Shiryaev-Roberts sum of betting e-values, averaged over six betting fractions) on whether their error rate stays at or under the certificate's alpha.
@@ -656,7 +677,7 @@ With 175 examples the task answered 70% right still certified nothing at either 
 How many examples your task needs depends on how accurate the model is on it and on how well its confidence tells its right answers from its wrong ones; the stored `certified_share` tells you what yours gave, and more examples certify more.
 Set `certify.min_examples` above the floor if you want the server to refuse a certification that thin.
 For a task that takes labels, two more certify settings shape its certificate from traffic labels (above, "Certification from traffic labels"): `target_share`, the certified share aimed at (it sets the cert region to min(1, 1.5 x it); default region 0.45), and `looks`, the labelled-answer counts at which a certificate is made (default `[300]`).
-`mode` is `"certificate"` (the default) or `"average_error"`, the opt-in marks with an average-error promise (above, "Average error (FDR), opt-in"), with `window`, the answers per window (default 250).
+`mode` is `"certificate"` (the default) or `"average_error"`, the opt-in marks with an average-error promise (above, "Average error (FDR), opt-in"), with `window`, the answers per window (default 250), and `callback`, the URL each closed window's marks are POSTed to (above, "The marks callback").
 
 ### Where it stops
 
