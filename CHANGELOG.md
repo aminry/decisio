@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.56.0](https://github.com/aminry/decisio/compare/v0.55.0...v0.56.0) (2026-11-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **serve:** Gemma 4 E4B is refused. Use --base qwen3.5-4b for the small model.
+
+### Features
+
+* **bench:** pair_check compares two servers' answers with the prefix cache in the same state per request ([#561](https://github.com/aminry/decisio/issues/561)) ([142d214](https://github.com/aminry/decisio/commit/142d21477879661102d80f70598195e200a387cc))
+* **serve:** remove Gemma 4 E4B as a served base ([#572](https://github.com/aminry/decisio/issues/572)) ([56b94a4](https://github.com/aminry/decisio/commit/56b94a4e5df4d5cf5630e2944830df48043b5be9))
+* **tasks:** erasing an answer of a traffic certificate's cohort recomputes the certificate ([#559](https://github.com/aminry/decisio/issues/559)) ([b4b0be9](https://github.com/aminry/decisio/commit/b4b0be9054e419c1f55ff46e42eb9dd3f38faf41))
+* **tasks:** opt-in signed callback for the average-error marks of each closed window ([#566](https://github.com/aminry/decisio/issues/566)) ([26d81f9](https://github.com/aminry/decisio/commit/26d81f9ae424669dd6c79885fa5d384734fe510c))
+
+
+### Bug Fixes
+
+* **serve:** the image route lets Pillow parse only PNG, JPEG and WebP ([#568](https://github.com/aminry/decisio/issues/568)) ([ccc9991](https://github.com/aminry/decisio/commit/ccc9991f7d340b915350f0ad45a6d1b777b60d7e))
+* **tasks:** an erase event keeps a keyed digest of the request id it erased, never the id ([#562](https://github.com/aminry/decisio/issues/562)) ([996f07f](https://github.com/aminry/decisio/commit/996f07f27a53e0a9b0ab2492761409d012d5e8bf))
+
 ## [0.55.0](https://github.com/aminry/decisio/compare/v0.54.0...v0.55.0) (2026-11-23)
 
 
