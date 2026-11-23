@@ -7,7 +7,8 @@ L1  parity: on the stored BANKING77 readouts with planted wrong labels, the out-
     fitted on top of the temperature where kept, else the question at its temperature), bit for bit
 L2  no flags when every out-of-fold answer is certain and right
 L3  the field: present with an empty list when nothing is flagged; with a reason and no flags below 20 examples, for a
-    score question and on every base but Gemma 4 12B (every format, the base and its tuned repositories)
+    score question, for a choice question of two options (a yes/no one is reviewed) and on every base but Gemma 4 12B
+    (every format, the base and its tuned repositories)
 L4  determinism: the same request gives the same review
 L5  over HTTP, a wrong label is flagged at its place in the request, in the fit half or the held-out half of a
     certified task alike; the labels are never changed
@@ -141,6 +142,17 @@ def test_l3_too_few_a_score_question_and_an_unchecked_base():
     r = _server(score_answer).post("/v1/tasks", json={"id": "s", "examples": ex})
     assert r.status_code == 200, r.text
     assert r.json()["label_review"] == {"reviewed": False, "reason": "score questions are not reviewed"}
+    # a choice question of two options is not reviewed (too many correct labels were flagged there); yes/no is
+    two = [{"request": {"state": f"m {i}", "questions": {"q": {"type": "choice", "instructions": "Which?",
+                                                              "criteria": {"a": None, "b": None}}}},
+            "answer": "ab"[i % 2]} for i in range(24)]  # fmt: skip
+
+    def two_answer(state, questions, adapter=None):
+        return [np.array([0.9, 0.1]) for _ in questions], {}
+
+    r = _server(two_answer).post("/v1/tasks", json={"id": "two", "examples": two})
+    assert r.status_code == 200, r.text
+    assert r.json()["label_review"] == {"reviewed": False, "reason": label_review.TWO_OPTION_REASON}
 
 
 def test_l4_l5_a_wrong_label_is_flagged_at_its_place_and_kept():

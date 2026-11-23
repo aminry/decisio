@@ -23,7 +23,8 @@ A stored prior is valid only for the model and adapter it was fitted under; `fin
 serving side must refuse a prior whose fingerprint differs from the live model's.
 
 From `min_examples_for_fit(K)` (`TB_MIN_EXAMPLES`, 50) labelled examples (counted in the registration request, before a
-certificate's held-out split), on the bases in `Family.large_calibration_types`, the calibration is instead the
+certificate's held-out split), for the questions in their base's `Family.large_calibration_types` (`in_large_scope`),
+the calibration is instead the
 evidence-averaged temperature and bias (`fit_c_prior`, `CURRENT_METHOD`, candidate C): the temperature and a per-option
 bias fitted together by maximum a posteriori at each prior spread in `C_GRID` (`fit_tb_logscores` is one such fit; the
 priors are log T ~ N(log T_q, TB_TAU^2) around the question's own temperature T_q and b_k ~ N(0, s^2)), the fits
@@ -58,6 +59,22 @@ C_METHOD = "evidence_averaged_temperature_bias"
 C_GRID = (0.0, 0.2, 0.4, 0.8496)
 SB_FLOOR = 1e-4  # the smallest prior spread of a bias (the temperature-only fit's)
 CURRENT_METHOD = C_METHOD  # the method this release fits from min_examples_for_fit(K) examples
+
+
+def in_large_scope(scope, qtype: str, k: int) -> bool:
+    """Whether a question of type `qtype` with `k` options (levels, for a score question) is in a base's large
+    calibration scope (`Family.large_calibration_types`): an entry is a question type, every option count of it, or a
+    `(type, lowest, highest)` range of option counts (`highest` None: no upper end), as the score cells were measured
+    one by one."""
+    for entry in scope or ():
+        if isinstance(entry, str):
+            if entry == qtype:
+                return True
+        else:
+            t, lo, hi = entry
+            if t == qtype and k >= lo and (hi is None or k <= hi):
+                return True
+    return False
 
 
 def min_examples_for_fit(K: int) -> int:

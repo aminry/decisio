@@ -28,6 +28,10 @@ P_OTHER_MIN = 0.9
 # profile), the base and the tuned 12B repositories, one served pipeline; a registration on any other base says the
 # review is not available there
 CHECKED_BASES = frozenset({"gemma-4-12b", "gemma-4-12b-fp8"})
+# a choice question with two options is not reviewed: there too many correct labels were flagged (a yes/no question is)
+TWO_OPTION_REASON = (
+    "choice questions with two options are not reviewed: on them more than 2% of correct labels were flagged"
+)
 
 
 def fold_seed(task_id: str) -> int:

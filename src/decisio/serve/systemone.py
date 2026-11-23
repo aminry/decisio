@@ -230,15 +230,15 @@ def request_count(t) -> int:
 
 
 def calibration_rule_stale(t, large_types=()) -> bool:
-    """A kept calibration fitted by another rule than this release's (`calibration.CURRENT_METHOD`) for a task of a
-    type in `large_types` (the base's `large_calibration_types`) whose request had at least
-    `calibration.min_examples_for_fit(K)` labelled examples: not what this release fits for such a task."""
-    from decisio.readout.calibration import CURRENT_METHOD, min_examples_for_fit
+    """A kept calibration fitted by another rule than this release's (`calibration.CURRENT_METHOD`) for a task whose
+    question is in `large_types` (the base's `large_calibration_types`, `calibration.in_large_scope`) and whose request
+    had at least `calibration.min_examples_for_fit(K)` labelled examples: not what this release fits for such a task."""
+    from decisio.readout.calibration import CURRENT_METHOD, in_large_scope, min_examples_for_fit
 
     cal = (t or {}).get("calibration") or {}
     k = len((t or {}).get("options") or ()) or int(cal.get("K") or 0)
     return (
-        (t or {}).get("type", "choice") in large_types
+        in_large_scope(large_types, (t or {}).get("type", "choice"), k)
         and bool(cal.get("applied"))
         and cal.get("method") != CURRENT_METHOD
         and request_count(t) >= min_examples_for_fit(k)
@@ -2276,8 +2276,9 @@ class SystemOne:
         return self.temperatures.get(qtype, self.temperature)
 
     @property
-    def large_calibration_types(self) -> tuple[str, ...]:
-        """The question types whose tasks this server calibrates by the temperature and bias fitted together, from
+    def large_calibration_types(self) -> tuple:
+        """The questions (types, or score level ranges) whose tasks this server calibrates by the temperature and bias
+        fitted together, from
         `calibration.min_examples_for_fit(K)` examples: its base's (`Family.large_calibration_types`)."""
         return tuple(getattr(getattr(self.engine, "family", None), "large_calibration_types", ()) or ())
 
@@ -2655,6 +2656,10 @@ class SystemOne:
         q0 = everything[0][0]
         if q0.type == "score":
             return {"reviewed": False, "reason": "score questions are not reviewed"}
+        if q0.type == "choice" and len(answer_keys(q0)) == 2:
+            # measured: on two-option choice tasks too many correct labels were flagged (2.05% against the 2% bar);
+            # a yes/no question is reviewed
+            return {"reviewed": False, "reason": label_review.TWO_OPTION_REASON}
         base = getattr(getattr(self.engine, "family", None), "key", None)
         if base not in label_review.CHECKED_BASES:
             return {
@@ -2681,10 +2686,12 @@ class SystemOne:
             todo = [e for e in everything if have is None or id(e) not in known]
             new = dict(zip(map(id, todo), hidden([(s, q) for q, s, _ in todo]))) if todo else {}
             readout = [have[known[id(e)]] if have is not None and id(e) in known else new[id(e)] for e in everything]
-        from decisio.readout.calibration import min_examples_for_fit
+        from decisio.readout.calibration import in_large_scope, min_examples_for_fit
 
         # the folds are calibrated as the registration is: the request's examples decide the rule (TaskStore.register)
-        large = q0.type in self.large_calibration_types and len(full) >= min_examples_for_fit(len(options))
+        large = in_large_scope(self.large_calibration_types, q0.type, len(options)) and len(
+            full
+        ) >= min_examples_for_fit(len(options))
         return label_review.review(
             lps,
             labels,
