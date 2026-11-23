@@ -203,13 +203,15 @@ def _fdr_marks(seed, erase_wrong):
             if w:
                 tl.erase(request_id=r)
     _due(tl)
+    if erase_wrong:  # the erased answers' places in the first window: too young to calibrate, so the second window
+        for i in range(sum(wrong)):  # holds the same 60 answers in both runs
+            fdr_serve(tl, 0.5, 500 + i)
     [fdr_serve(tl, float(0.5 + 0.5 * g.random()), 1000 + i) for i in range(60)]
     _settle(tl)
     tl.tick()
     tl.tick()
     w = tl.fdr_windows[1]
-    back = {tl.akey(k): k[0] for k in tl.rows}
-    return {back[a][-6:] for a in w["marked"]}, w, sum(wrong)
+    return {w["answers"].index(a) for a in w["marked"]}, w, sum(wrong)  # by place in the window: the same answers
 
 
 def test_e7_erasing_wrong_audit_labels_never_adds_a_mark():
