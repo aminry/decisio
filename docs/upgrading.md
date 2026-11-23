@@ -8,6 +8,48 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.55.0: certification from traffic labels, for a task that takes labels
+
+### What changed
+
+- **A task registered with a labels block and a certify block now certifies from its traffic labels** (`docs/tasks.md`, "Certification from traffic labels"). Its certification labels are drawn from live traffic above a label-free floor, and decisio certifies on them at fixed looks (`certify.looks`, default `[300]`), each at delta divided by the number of looks.
+- The certificate from examples serves until the first look; the first look's certificate replaces it, whatever its certified share. Its `certificate_kind` is `"gold"`: the promise is the same, and the certificate's `procedure` (`decisio-certify/traffic-labels-fixed-sequence.v1`) names the route.
+- A drawn answer whose label does not come by its due date counts as wrong, and at alpha 0.01 and 0.005 a look whose labels came back for fewer than 1 - alpha of its answers does not certify (`labels_missing`).
+- A task without labels keeps its certificate from examples, and nothing is logged. A task with a fast table, or one that learns, keeps its certificate from examples too.
+- In our tests on classification tasks where 30% of answers could be certified, drawing the certification labels from live traffic needed about a third as many labels as labelling at random at alpha 0.10, and under half as many at alpha 0.05. This is a measured saving, not a promise, and it applies to tasks whose most confident answers are almost always right.
+- On the hard multilingual tasks we tested (60-option intent sets and paraphrase detection), certified coverage stayed small: the largest share at alpha 0.05 was 4%, with up to 2,000 labels.
+- At alpha 0.01 and 0.005, none of those multilingual tasks reached a certificate with up to 2,000 labels, so we make no saving or coverage claim at those levels.
+- Not built in this release: recomputing a certificate after a label it used is erased.
+
+### What to do
+
+- Nothing for a task without labels. To certify from traffic labels, register the task with a labels block and a certify block, and label the answers the queue asks for.
+
+## 0.55.0: Average error (FDR), opt-in marks on windows of answers
+
+### What changed
+
+- **`"certify": {"mode": "average_error", "alpha": 0.05, "window": 250}`** asks a task that takes labels for marks on windows of its logged answers instead of a certificate (`docs/tasks.md`, "Average error (FDR), opt-in"). It is refused without labels.
+- Its promise, at alpha 0.05: "On average over the labelled examples and over windows of answers like this one, at most 5% of the answers marked in a window are wrong. A particular window can have a higher share. Marks are given when the window closes."
+- It is not a certificate: no answer is ever `certified: true` in this mode, and its `delta` is `null`. A marked answer is the label-free readout's top option, which can differ from the answer the task served.
+
+### What to do
+
+- Nothing unless you want the mode: then register with it and read the marks from `GET /v1/tasks/{id}/labels/export?view=marks`.
+
+## 0.55.0: a certified fast table is judged on whole-request time on the replica's own traffic
+
+### What changed
+
+- **While a certified task's fast table answers, one block of 20 questions in every 10 blocks is answered by decisio alone**, to measure what the table saves in whole-request time on the replica's own traffic, its CPU cost to the other requests on the host included. When the saving's 90% upper bound falls under the task's `min_saving`, the replica falls back to decisio (`timing`).
+- While the table is off for speed, or on a new stack, its features are not computed at all: the shadow timing on every tenth request is gone. Short trials at a growing interval (200 questions, doubling to 3,200) take it back after three trials in a row each save `min_saving`.
+- `status.fast_table.switchback` gives the comparisons, the mean saving and its bound; a task that learns logs the blocks decisio answered alone as `no_table` rows.
+- Learned tables timed on shared-store replicas keep the earlier timing in this release.
+
+### What to do
+
+- Nothing. Expect about one question in ten of a task with a live table to be answered by decisio.
+
 ## 0.55.0: a fast table under `auto` keeps the static student unless the encoder saves more than 10 points more
 
 ### What changed
