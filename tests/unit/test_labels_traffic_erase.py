@@ -13,6 +13,8 @@ E4  across replicas: an answer served on one replica and erased on another befor
     of the erased answer is on the store, and a fresh replica counts the tombstone in the cohort
 E5  the label monitor counts an erased drawn answer it read as missing, never as labelled
 E6  through the server: erasing an answer of the certificate's cohort serves the recomputed certificate
+E7  average-error marks: an erased audit answer counts in the calibration as wrong at score 1, so erasing every wrong
+    audit label never adds a mark
 
   uv run pytest -q tests/unit/test_labels_traffic_erase.py
 """
@@ -21,6 +23,7 @@ import json
 import math
 
 import numpy as np
+import pytest
 from test_labels_replicas import PREFIX, _pair, _store_text
 from test_labels_traffic_cert import KEYS, Clock, _log, frozen_c1
 
@@ -182,3 +185,39 @@ def test_e6_through_the_server():
     assert a["certificate"] == new["id"]
     st = client.get("/v1/tasks/angry").json()["status"]
     assert st["traffic_certification"]["in_force"]["recompute_of"] == tc["id"]
+
+
+def _fdr_marks(seed, erase_wrong):
+    from test_labels_fdr import _due, _settle
+    from test_labels_fdr import _log as fdr_log
+    from test_labels_fdr import _serve as fdr_serve
+
+    g = np.random.default_rng(seed)
+    tl = fdr_log(Clock(), window=60)
+    cal_s = [float(0.5 + 0.5 * g.random()) for _ in range(60)]
+    wrong = [bool(g.random() < 0.4 * (1.1 - s)) for s in cal_s]
+    cal = [fdr_serve(tl, s, i) for i, s in enumerate(cal_s)]
+    tl.post([{"request_id": r, "answer": "tech" if w else "billing"} for r, w in zip(cal, wrong)])
+    if erase_wrong:
+        for r, w in zip(cal, wrong):
+            if w:
+                tl.erase(request_id=r)
+    _due(tl)
+    [fdr_serve(tl, float(0.5 + 0.5 * g.random()), 1000 + i) for i in range(60)]
+    _settle(tl)
+    tl.tick()
+    tl.tick()
+    w = tl.fdr_windows[1]
+    back = {tl.akey(k): k[0] for k in tl.rows}
+    return {back[a][-6:] for a in w["marked"]}, w, sum(wrong)
+
+
+def test_e7_erasing_wrong_audit_labels_never_adds_a_mark():
+    some = 0
+    for seed in range(8):
+        kept, _, _ = _fdr_marks(seed, erase_wrong=False)
+        erased, w, n_wrong = _fdr_marks(seed, erase_wrong=True)
+        assert erased <= kept, seed
+        assert w["calibration"]["n"] == 60 and w["calibration"]["audit_response"] == pytest.approx(1 - n_wrong / 60)
+        some += bool(kept)
+    assert some  # the fixtures mark something to take away

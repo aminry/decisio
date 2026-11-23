@@ -1283,6 +1283,7 @@ class TaskLabels:
                      and row[score] >= float(self.cert_threshold))  # fmt: skip
         self._draw_wait[ak] = {"type": "erased_draw", "akey": ak, "t": row["t"], "epoch": row["epoch"],
                                 "stack": row.get("stack"), "label_free": row.get("s0") is not None,
+                                "n_options": len(row.get("keys") or []), "lang": row.get("lang"),
                                 "draws": {k: bool(d["in"]) for k, d in row["draws"].items()},
                                 "certificate": row.get("certificate"), "in_region": bool(in_region),
                                 "erased_at": self.clock()}  # fmt: skip
@@ -1967,8 +1968,9 @@ class TaskLabels:
         """The calibration of a window: the audit answers outside `exclude` drawn more than `due` seconds before `now`
         (so every one of them is closed: none is left out for being slow to label), re-scored. A labelled one is wrong
         when its label is not the top option; one expired or declined counts as wrong at its score, which only raises
-        the p-values. Returns their scores, whether each is wrong, their buckets, how many were left out (served under
-        another stack, or without a plain readout), and per bucket how many were labelled."""
+        the p-values. An erased one (a tombstone) counts as wrong at score 1, above every window answer, so erasing
+        labels never adds a mark. Returns their scores, whether each is wrong, their buckets, how many were left out
+        (served under another stack, or without a plain readout), and per bucket how many were labelled."""
         s_cal, w_cal, b_cal, left, labelled = [], [], [], {"other_stack": 0, "no_lp": 0}, {}
         for k, r in rows:
             if not r["draws"]["audit"]["in"] or r.get("s0") is None or k in exclude or now - r["t"] <= due:
@@ -1984,6 +1986,20 @@ class TaskLabels:
             w_cal.append(not got or ev["answer"] != sc[1])
             b_cal.append(b)
             labelled[b] = labelled.get(b, 0) + got
+        stack = self.fdr.get("stack")
+        for tb in self._tombstones().values():
+            if not tb["draws"].get("audit") or not tb["label_free"] or now - tb["t"] <= due:
+                continue
+            if stack is not None and tb.get("stack") not in (None, stack):
+                left["other_stack"] += 1
+                continue
+            b = self._fdr_bucket(
+                {"keys": [None] * int(tb.get("n_options") or 0), "lang": tb.get("lang") or "unknown"}, by_lang
+            )
+            s_cal.append(1.0)
+            w_cal.append(True)
+            b_cal.append(b)
+            labelled[b] = labelled.get(b, 0)
         return s_cal, w_cal, b_cal, left, labelled
 
     def _maybe_fdr_window(self) -> None:
