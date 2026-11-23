@@ -658,7 +658,10 @@ class TaskLabels:
         )
         self.traffic_temperature = None  # the server's temperature for k options (a function), to re-score at a look
         self.traffic_certs: list[dict] = []  # the certificates made at the looks (events), in order
-        self.fdr: dict | None = None  # the average-error mode: {alpha, window, qtype, calibration} (the server sets it)
+        self.fdr: dict | None = None  # the average-error mode: {alpha, window, qtype, stack} (the server sets it)
+        self.fdr_temperature = (
+            None  # its readout's temperature per option count (the server sets it): re-scores from lp
+        )
         self.fdr_windows: list[dict] = []  # the closed windows and their marks (events), in order
         self.drift_state: dict | None = None  # the label monitor's last reading (the labels thread's), for answers
         self.embed = None  # the static student's embedding of a text (the server sets it once the student is here)
@@ -1833,17 +1836,37 @@ class TaskLabels:
         order = sorted(((r["t"], k), r) for k, r in rows if r.get("s0") is not None)
         return [(tk, r) for tk, r in order if cursor is None or (tk[0], list(tk[1])) > (cursor[0], cursor[1])]
 
-    def _fdr_calibration(self, rows: list, latest: dict, by_lang: bool, exclude: set) -> tuple[list, list, list]:
-        """The labelled audit answers outside `exclude`: their scores, whether each is wrong, and their buckets."""
-        s_cal, w_cal, b_cal = [], [], []
+    def _fdr_score(self, row: dict) -> tuple[float, object] | str:
+        """An answer's label-free score and top option under the current stack and temperature, re-scored from its
+        logged plain readout, or why it has none: "other_stack" (served under another serving stack, so its score is
+        not exchangeable with the current traffic's) or "no_lp" (no plain readout logged)."""
+        stack = self.fdr.get("stack")
+        if stack is not None and row.get("stack") not in (None, stack):
+            return "other_stack"
+        if self.fdr_temperature is None:
+            return (float(row["s0"]), row["s0_top"]) if row.get("s0") is not None else "no_lp"
+        lp = unarr(row.get("lp"))
+        if lp is None:
+            return "no_lp"
+        pf = label_free(lp, self.fdr_temperature(len(lp)))
+        return float(pf.max()), row["keys"][int(pf.argmax())]
+
+    def _fdr_calibration(self, rows: list, latest: dict, by_lang: bool, exclude: set) -> tuple[list, list, list, dict]:
+        """The labelled audit answers outside `exclude`, re-scored: their scores, whether each is wrong, their buckets,
+        and how many were left out (served under another stack, or without a plain readout)."""
+        s_cal, w_cal, b_cal, left = [], [], [], {"other_stack": 0, "no_lp": 0}
         for k, r in rows:
             ev = latest.get(k)
             if (r["draws"]["audit"]["in"] and r.get("s0") is not None and ev is not None and ev["type"] == "label"
                     and k not in exclude):  # fmt: skip
-                s_cal.append(r["s0"])
-                w_cal.append(ev["answer"] != r["s0_top"])
+                sc = self._fdr_score(r)
+                if isinstance(sc, str):
+                    left[sc] += 1
+                    continue
+                s_cal.append(sc[0])
+                w_cal.append(ev["answer"] != sc[1])
                 b_cal.append(self._fdr_bucket(r, by_lang))
-        return s_cal, w_cal, b_cal
+        return s_cal, w_cal, b_cal, left
 
     def _maybe_fdr_window(self) -> None:
         """The merger's turn in the average-error mode: close the next window of `window` answers (in serve order,
@@ -1851,7 +1874,9 @@ class TaskLabels:
         Mondrian conformal p-value against the calibration answers of its bucket, Benjamini-Hochberg at alpha over the
         whole window. The calibration answers are the labelled audit answers outside the window (drawn uniformly over
         the traffic, so exchangeable with the window's); a bucket with fewer than `fdr_floor(alpha)` of them marks
-        nothing."""
+        nothing. Window and calibration answers are re-scored from their logged plain readout at the current
+        temperature; those served under another stack, or without a plain readout, are left out of the calibration and
+        never marked in the window (counted as `unmarkable`)."""
         if not self.fdr or not self.writes:
             return
         rows, latest, now, _ = self._snapshot()
@@ -1862,13 +1887,19 @@ class TaskLabels:
         win = after[:n]
         langs = {r["lang"] for _, r in win if r["lang"] != "unknown"}
         by_lang = len(langs) > 1
-        s_cal, w_cal, b_cal = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in win})
-        s_bat = [r["s0"] for _, r in win]
+        s_cal, w_cal, b_cal, left = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in win})
+        scored = [self._fdr_score(r) for _, r in win]
+        unmarkable = {"other_stack": 0, "no_lp": 0}
+        for sc in scored:
+            if isinstance(sc, str):
+                unmarkable[sc] += 1
+        s_bat = [0.0 if isinstance(sc, str) else sc[0] for sc in scored]
         b_bat = [self._fdr_bucket(r, by_lang) for _, r in win]
         alpha = float(self.fdr["alpha"])
         counts = {b: b_cal.count(b) for b in set(b_cal)}
         p = fdr_pvalues(s_cal, w_cal, b_cal, s_bat, b_bat)
         p = np.where([counts.get(b, 0) >= fdr_floor(alpha) for b in b_bat], p, 1.0)  # under the floor: no mark
+        p = np.where([isinstance(sc, str) for sc in scored], 1.0, p)  # another stack or no plain readout: no mark
         sel = bh(p, alpha)
         last = win[-1][0]
         ev = {"type": "fdr_window", "procedure": FDR_PROCEDURE, "index": len(self.fdr_windows), "alpha": alpha,
@@ -1876,7 +1907,9 @@ class TaskLabels:
               "first": [win[0][0][0], list(win[0][0][1])], "last": [last[0], list(last[1])],
               "answers": [list(tk[1]) for tk, _ in win], "marked": [list(tk[1]) for (tk, _), m in zip(win, sel) if m],
               "calibration": {"n": len(s_cal), "per_bucket": counts, "floor": fdr_floor(alpha),
-                              "below_floor": sorted({b for b in b_bat if counts.get(b, 0) < fdr_floor(alpha)})},
+                              "below_floor": sorted({b for b in b_bat if counts.get(b, 0) < fdr_floor(alpha)}),
+                              "left_out": left},
+              "unmarkable": unmarkable,
               "by_language": by_lang,
               "received": now, "replica": self.replica}  # fmt: skip
         with self._write:
@@ -1892,7 +1925,7 @@ class TaskLabels:
         after = self._fdr_after(rows)
         nxt = after[: int(self.fdr["window"])]  # bucketed as the next window will bucket them
         by_lang = len({r["lang"] for _, r in nxt if r["lang"] != "unknown"}) > 1
-        b_cal = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in nxt})[2]
+        _, _, b_cal, left = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in nxt})
         per_bucket = {b: b_cal.count(b) for b in sorted(set(b_cal))}
         floor = fdr_floor(alpha)
         short = sorted(
@@ -1902,9 +1935,10 @@ class TaskLabels:
         return {"mode": "average_error", "label": FDR_LABEL, "procedure": FDR_PROCEDURE, "promise": fdr_sentence(alpha),
                 "alpha": alpha, "delta": None, "window": int(self.fdr["window"]), "waiting": waiting,
                 "calibration": {"audit_labels": per_bucket, "floor": floor, "below_floor": short,
-                                "reason": fdr_floor_reason(short, floor)},
+                                "reason": fdr_floor_reason(short, floor), "left_out": left},
                 "windows": [{"index": w["index"], "size": w["size"], "marked": len(w["marked"]),
                              "below_floor": w["calibration"].get("below_floor", []),
+                             "unmarkable": w.get("unmarkable", {"other_stack": 0, "no_lp": 0}),
                              "closed_at": w["received"]} for w in self.fdr_windows[-5:]]}  # fmt: skip
 
     def fdr_marks(self) -> list[dict]:

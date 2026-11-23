@@ -3,12 +3,15 @@
 """The average-error (FDR) mode (decisio.serve.labels: `fdr_pvalues`, `bh`, the windows).
 
 F1  parity with the frozen form the mode was validated with: Mondrian conformal p-values and Benjamini-Hochberg, on a
-    fixture with several buckets
+    fixture with several buckets; with one bucket, the frozen one-bucket conformal selection
 F2  marks only when a window closes: a window of N answers in serve order closes once its newest answer has settled;
     it is closed once, its marks recorded; the next window starts after it
 F3  an empty calibration bucket marks nothing in it; Benjamini-Hochberg runs over the whole window, not per bucket
 F4  through the server: the mode needs labels on (refused otherwise); the registration says the reviewed promise; no
     answer is ever certified; the marks come in the status and the export
+
+F5  re-scored from the logged readout under the current stack: calibration answers from another stack or without a
+    readout are left out, and window answers of either kind are never marked (counted as unmarkable)
 
   uv run pytest -q tests/unit/test_labels_fdr.py
 """
@@ -49,6 +52,22 @@ def frozen_pvalues(s_cal, wrong_cal, b_cal, s_bat, b_bat):
     return p
 
 
+def frozen_conformal_select(score_cal, correct_cal, score_batch, alpha):
+    """The frozen one-bucket form (conformal selection, then BH over the batch), verbatim."""
+    n = len(score_cal)
+    w = np.sort(score_cal[~correct_cal])
+    ge = len(w) - np.searchsorted(w, score_batch, side="left")
+    p = (1.0 + ge) / (n + 1.0)
+    m = len(p)
+    order = np.argsort(p)
+    ok = p[order] <= alpha * np.arange(1, m + 1) / m
+    sel = np.zeros(m, bool)
+    if ok.any():
+        kmax = np.nonzero(ok)[0].max()
+        sel[order[: kmax + 1]] = True
+    return sel
+
+
 def test_f1_parity_with_the_frozen_form():
     g = np.random.default_rng(7)
     for trial in range(30):
@@ -61,6 +80,10 @@ def test_f1_parity_with_the_frozen_form():
         assert np.array_equal(ours, ref), trial
         for alpha in (0.10, 0.05, 0.01):
             assert np.array_equal(LB.bh(ours, alpha), frozen_bh(ref, alpha)), (trial, alpha)
+        one = np.zeros(n, int), np.zeros(m, int)  # one bucket: the frozen one-bucket selection
+        for alpha in (0.10, 0.05):
+            ours1 = LB.bh(LB.fdr_pvalues(s_cal, wrong, one[0], s_bat, one[1]), alpha)
+            assert np.array_equal(ours1, frozen_conformal_select(s_cal, ~wrong, s_bat, alpha)), (trial, alpha)
     assert LB.option_cell(2, "noul") == "yes/no" and LB.option_cell(5, "choice") == "4-5"
     assert LB.option_cell(31, "choice") == "30+"
 
@@ -80,11 +103,12 @@ def _log(clock, window=50, alpha=0.1):
     return tl
 
 
-def _serve(tl, s0, i, lang="en"):
+def _serve(tl, s0, i, lang="en", stack="fp", lp=False):
     tl.clock.t += 1
     rid = LB.request_id("r1", tl.clock())
-    tl.observe(rid, "q", text=f"t{i}", keys=KEYS, served=[s0, (1 - s0) / 2, (1 - s0) / 2], lp=None, h=None,
-               certified=None, version="v1", stack="fp", lang=lang, s0=s0, s0_top="billing")  # fmt: skip
+    dist = [s0, (1 - s0) / 2, (1 - s0) / 2]
+    tl.observe(rid, "q", text=f"t{i}", keys=KEYS, served=dist, lp=np.log(dist) if lp else None, h=None,
+               certified=None, version="v1", stack=stack, lang=lang, s0=s0, s0_top="billing")  # fmt: skip
     return rid
 
 
@@ -182,3 +206,37 @@ def test_f4_through_the_server(monkeypatch):
     assert len(lines) == 30
     bad = {"id": "x", "examples": noul_examples(120), "labels": True, "certify": {"mode": "average_error", "window": 5}}
     assert client.post("/v1/tasks", json=bad).status_code == 422
+
+
+def test_f5_other_stacks_and_missing_readouts_are_left_out():
+    clock = Clock()
+    tl = _log(clock, window=45)
+    tl.fdr["stack"] = "fp"
+    tl.fdr_temperature = lambda k: 1.0  # re-scored from the logged readout: softmax(lp / 1) is the logged distribution
+    s_ok = [float(x) for x in np.linspace(0.6, 0.94, 30)]
+    wrong_ok = [x < 0.7 for x in s_ok]  # the wrong calibration answers score low
+    cal = [_serve(tl, s, i, lp=True) for i, s in enumerate(s_ok)]
+    other = [_serve(tl, 0.99, 100 + i, stack="other", lp=True) for i in range(10)]  # another stack: left out
+    bare = [_serve(tl, 0.99, 200 + i) for i in range(5)]  # no plain readout: left out
+    _label(tl, cal, wrong_ok)
+    _label(tl, other + bare, [True] * 15)  # all wrong: would pull every p-value up if they were used
+    win_s = [float(x) for x in np.linspace(0.95, 0.99, 35)]  # above every wrong one: marked, unless the 0.99 wrong
+    # answers of another stack (or without a readout) were let into the calibration
+    win = [_serve(tl, s, 300 + i, lp=True) for i, s in enumerate(win_s)]
+    win_other = [_serve(tl, 0.999, 400 + i, stack="other", lp=True) for i in range(5)]
+    win_bare = [_serve(tl, 0.999, 500 + i) for i in range(5)]
+    clock.t += LB.FDR_SETTLE + 1
+    tl.tick()
+    tl.tick()
+    w = tl.fdr_windows[1]
+    assert [tuple(x)[0] for x in w["answers"]] == win + win_other + win_bare
+    assert w["calibration"]["n"] == 30 and w["calibration"]["left_out"] == {"other_stack": 10, "no_lp": 5}
+    assert w["unmarkable"] == {"other_stack": 5, "no_lp": 5}
+    rescore = lambda s: float(LB.label_free(np.log([s, (1 - s) / 2, (1 - s) / 2]), 1.0).max())  # noqa: E731
+    p = LB.fdr_pvalues([rescore(x) for x in s_ok], wrong_ok, ["3"] * 30, [rescore(x) for x in win_s] + [0.0] * 10,
+                       ["3"] * 45)  # fmt: skip
+    p[35:] = 1.0
+    want = {r for r, m in zip(win + win_other + win_bare, LB.bh(p, 0.1)) if m}
+    assert want and {tuple(x)[0] for x in w["marked"]} == want and not want & set(win_other + win_bare)
+    st = tl.fdr_status()
+    assert st["windows"][-1]["unmarkable"] == {"other_stack": 5, "no_lp": 5}

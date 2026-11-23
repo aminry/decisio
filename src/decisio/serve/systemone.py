@@ -3235,13 +3235,12 @@ class SystemOne:
                 place = MemoryPlace()
             log = LB.TaskLabels(t["id"], rec["settings"], rec["secret"], place, self.labels_replica,
                                 dynamic=bool(t.get("dynamic")))  # fmt: skip
-            if rec.get("fdr"):  # the average-error mode: marks per closed window
-                log.fdr = {**rec["fdr"], "qtype": t.get("type") or "choice"}
+            qtype = t.get("type") or "choice"
+            stack_now = stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None
+            if rec.get("fdr"):  # the average-error mode: marks per closed window, under this server's stack and readout
+                log.fdr = {**rec["fdr"], "qtype": qtype, "stack": stack_now}
+                log.fdr_temperature = lambda k, qtype=qtype: self.temperature_of(qtype, None, k)
             if rec.get("traffic"):  # certification from traffic labels: under this server's stack and temperature
-                qtype = t.get("type") or "choice"
-                stack_now = (
-                    stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None
-                )
                 log.traffic = {**rec["traffic"], "stack": stack_now}
                 log.traffic_temperature = lambda k, qtype=qtype: self.temperature_of(qtype, None, k)
             self.labels_logs[t["id"]] = log
