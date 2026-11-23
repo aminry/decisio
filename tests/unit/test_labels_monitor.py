@@ -9,11 +9,14 @@ M2  under the null (errors at exactly alpha) it alerts at most about once per h 
 M3  a rise from alpha to 0.30 is detected after the change and never before it
 M4  the pooling rule: audit and cert rows are read together only when every certified answer had the same chance
     of being drawn; across a change of chances, the audit rows alone, and the status says which
-M5  the strict rule: a drawn answer that expires unlabelled counts as an error at its due time
+M5  missing labels: a drawn answer that expires or is declined is left out of the statistic (complete case) and
+    counted; label_response is the share of drawn answers labelled among those labelled or past due
 M6  through the server: an alert makes answers certified false with certified_reason label_drift, the task's status
     says label_drift, and a new certificate starts the monitor again
 M7  the monitor's claims are the reviewed sentences, each only in its tested scope (the share of answers drawn, the
     alpha and the split)
+M8  below 1 - alpha of drawn labels returned, the detection claims are withdrawn with a warning, and nothing is
+    suspended for it
 
   uv run pytest -q tests/unit/test_labels_monitor.py
 """
@@ -129,20 +132,44 @@ def test_m4_the_pooling_rule():
     assert tl.drift()["labels"] == audit
 
 
-def test_m5_an_expired_row_counts_as_an_error_at_its_due_time():
+def test_m5_missing_labels_are_left_out_and_counted():
     clock = Clock()
     tl = _log(clock, cert_pi=0, audit_pi=1.0)
     rids = [_serve(tl, i) for i in range(5)]
-    tl.post([{"request_id": r, "answer": "billing"} for r in rids[:4]])  # four right, one pending
-    h = tl.drift()["h"]
-    assert tl.drift()["labels"] == 4
-    assert tl.drift()["statistic"] == pytest.approx(LB.detector_states([0, 0, 0, 0], 0.05, h)[-1][0], abs=1e-4)
-    clock.t += 15 * 86400  # past due: the fifth is an error
+    tl.post([{"request_id": r, "answer": "billing"} for r in rids[:3]] + [{"request_id": rids[3], "answer": "tech"}])
     d = tl.drift()
-    assert d["labels"] == 5
-    s4 = LB.detector_states([0, 0, 0, 0], 0.05, d["h"])[-1][0]
-    s5 = LB.detector_states([0, 0, 0, 0, 1], 0.05, d["h"])[-1][0]
-    assert d["statistic"] == pytest.approx(s5, abs=1e-4) and s5 > s4
+    assert d["labels"] == 4 and d["missing"] == 0 and d["label_response"] == 1.0  # the fifth is pending, not missing
+    clock.t += 15 * 86400  # the fifth expires: left out of the statistic (complete case), counted as missing
+    d = tl.drift()
+    assert d["labels"] == 4 and d["missing"] == 1 and d["label_response"] == pytest.approx(4 / 5)
+    assert d["statistic"] == pytest.approx(LB.detector_states([0, 0, 0, 1], 0.05, d["h"])[-1][0], abs=1e-4)
+    assert d["claims_scope"] == "when the drawn labels are returned"
+
+
+def test_m8_missing_labels_withdraw_the_detection_claims_not_the_certificate():
+    clock = Clock()
+    tl = LB.TaskLabels("t", {**LB.parse_settings({"per_day": 400, "due_days": 1}), "shares": dict(LB.STRICT_SHARES)},
+                       LB.new_secrets(), MemoryPlace(), "r1", clock)  # fmt: skip
+    tl.epochs[-1]["settings"] = {**tl.settings, **LB.budget_pis(tl.settings, 300, 0.8, 0.5)}
+    tl.cert_id, tl.cert_alpha, tl.cert_threshold = "t#1", 0.01, 0.6
+    rids = []
+    for i in range(300):
+        clock.t += 60
+        rids.append(_serve(tl, i))
+    drawn = [r for r in rids if tl.rows[(r, "q")]["drawn"]]
+    tl.post([{"request_id": r, "answer": "billing"} for r in drawn])
+    o = tl.overview()
+    assert "claim" in o["detection"] and "warning" not in o["label_monitor"]
+    more = []
+    for i in range(300):
+        clock.t += 60
+        more.append(_serve(tl, 1000 + i))
+    clock.t += 1.5 * 86400  # none of the later drawn answers is labelled: they expire, within the 7-day window
+    o = tl.overview()
+    assert o["label_monitor"]["label_response"] < 0.99
+    assert o["label_monitor"]["warning"] == LB.REDUCED_DETECTION
+    assert "claim" not in o["detection"] and o["detection"]["warning"] == LB.REDUCED_DETECTION
+    assert o["label_monitor"]["alerting"] is False  # the certificate is not suspended for missing labels
 
 
 def test_m6_through_the_server():

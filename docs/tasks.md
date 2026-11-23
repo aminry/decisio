@@ -394,13 +394,16 @@ The log's files are merged now and then (once there are 64, or an erasure waits)
 
 **The label monitor.**
 A certified task that takes labels is watched by its labels too, beside the confidence monitor, with nothing to turn on.
-It reads the audit and cert labels of the answers its current certificate certified (the audit labels alone when those answers were not all drawn at one chance), counts a drawn answer left unlabelled past `due_days`, or declined, as an error, and runs an e-detector (a Shiryaev-Roberts sum of betting e-values, averaged over six betting fractions) on whether their error rate stays at or under the certificate's alpha.
+It reads the audit and cert labels that came for the answers its current certificate certified (the audit labels alone when those answers were not all drawn at one chance), and runs an e-detector (a Shiryaev-Roberts sum of betting e-values, averaged over six betting fractions) on whether their error rate stays at or under the certificate's alpha.
 When the statistic reaches `h` = 10 x 5,000 x q (q: the share of certified answers that get such a label), certification is suspended: answers carry `certified: false` with `certified_reason: "label_drift"`, and the task's status says `label_drift`.
 It clears when the statistic falls under `h / 2`; a new certificate (a recertification) starts it again.
 Its reason comes last: an answer below the threshold, or one the confidence monitor suspends (`traffic_changed`), keeps that reason.
 With `"suspend_on_alert": false` in the certify block it reports and never suspends.
 It is computed from the label log, so every replica that has read the same files agrees, and it costs the answer path a flag read.
-`GET /v1/tasks/{id}/labels/status` and the task's status carry `label_monitor`: `certificate`, `alpha`, `statistic`, `h`, `labels` (how many it has read), `pooling` (`pooled` or `audit`), `alerting`, `last_alert_at`, `label_share`, and `claims`, the measured statements that hold for this task:
+A drawn answer left unlabelled past `due_days`, or declined, does not move it; it is counted, and `label_response` is the share of drawn answers labelled among those labelled or past due.
+(A certificate still counts such an answer as an error.)
+The measured statements below were made with the drawn labels returned: while `label_response` is under 1 - alpha, the monitor's status and `detection` say "Drift detection speed is reduced while labels are missing." and the detection statements are withdrawn for the task; nothing is suspended for it, and the monitor keeps running.
+`GET /v1/tasks/{id}/labels/status` and the task's status carry `label_monitor`: `certificate`, `alpha`, `statistic`, `h`, `labels` (how many it has read), `pooling` (`pooled` or `audit`), `alerting`, `last_alert_at`, `label_share`, `missing`, `label_response`, `warning` (when labels are missing), and `claims`, the measured statements that hold for this task, with `claims_scope` ("when the drawn labels are returned"):
 - "In replays without drift, on tasks whose certificate held, the monitors started fewer than one suspension per 5,000 certified answers at every level and budget tested." once at least 3% of answers are drawn for labels;
 - "In the same replays, the label monitor suspended certification after fewer wrong certified answers than the confidence monitor alone, on every concept-change stream tested." at alpha 0.05 and 0.10, with the default shares and at least 10% of answers drawn for labels.
 

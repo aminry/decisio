@@ -1671,18 +1671,17 @@ class TaskLabels:
         pis = {(r["draws"]["audit"]["pi"], r["draws"]["cert"]["pi"]) for _, r in region}
         pooled = len(pis) == 1 and next(iter(pis))[1] > 0
         slices = ("audit", "cert") if pooled else ("audit",)
-        seq = []
+        seq, missing, labelled_n = [], 0, 0
         for key, row in region:
             d = row["draws"]
             if not any(d[x]["in"] for x in slices):
                 continue
             ev = latest.get(key)
             if ev is not None and ev["type"] == "label":
+                labelled_n += 1
                 seq.append((first.get(key, float(ev["received"])), float(ev["answer"] != row["top"])))
-            elif ev is not None:  # declined: an error when it was declined
-                seq.append((float(ev["received"]), 1.0))
-            elif now - row["t"] > due:  # expired: an error at its due time
-                seq.append((row["t"] + due, 1.0))
+            elif ev is not None or now - row["t"] > due:  # declined or expired: counted as missing, left out
+                missing += 1
         q = region_q(*next(iter(pis))) if region and pooled else audit_now
         seq.sort(key=lambda x: x[0])
         h = detector_threshold(q)
@@ -1692,29 +1691,40 @@ class TaskLabels:
             if on and not prev:
                 last_alert = t
         stat = min(states[-1][0], 1e300) if states else 0.0  # finite in JSON
+        closed = missing + labelled_n
+        response = round(labelled_n / closed, 4) if closed else None  # drawn answers labelled, of those due
         drawn = self._drawn_share() if self.rate() * 7 >= 100 else None
         claims = []
         if drawn is not None and drawn >= TESTED_SHARES[0]:
             claims.append(FALSE_SUSPENSION_CLAIM)
         lenient = alpha in (0.05, 0.1) and self.settings["shares"] == DEFAULTS["shares"]
-        if drawn is not None and drawn >= TESTED_SHARES[1] and lenient and self.settings.get("per_day") is not None:
+        reduced = response is not None and response < 1.0 - alpha
+        if (drawn is not None and drawn >= TESTED_SHARES[1] and lenient and self.settings.get("per_day") is not None
+                and not reduced):  # fmt: skip
             claims.append(COMPARISON_CLAIM)
         return {"certificate": self.cert_id, "alpha": alpha, "statistic": round(stat, 4),
                 "h": round(h, 3), "labels": len(seq), "pooling": "pooled" if pooled else "audit",
                 "alerting": bool(states and states[-1][1]), "last_alert_at": last_alert,
-                "label_share": None if drawn is None else round(drawn, 4), "claims": claims}  # fmt: skip
+                "label_share": None if drawn is None else round(drawn, 4), "claims": claims,
+                "claims_scope": CLAIMS_SCOPE, "missing": missing, "label_response": response,
+                **({"warning": REDUCED_DETECTION} if reduced else {})}  # fmt: skip
 
-    def detection(self) -> dict | None:
+    def detection(self, monitor: dict | None = None) -> dict | None:
         """`detection` for this task, if it is certified at a strict alpha: the epoch's chances against the reference,
-        over the region's measured share of traffic (the setting's until answers are held)."""
+        over the region's measured share of traffic (the setting's until answers are held). With the label monitor's
+        reading (`monitor`) below 1 - alpha of drawn labels returned, the claim is withdrawn for the task."""
         if self.cert_alpha is None or float(self.cert_alpha) > STRICT_ALPHA:
             return None
         rows = [r for _, r in self._snapshot()[0]]
         e, s = self.epoch, self.settings
         share = (sum(r["conf"] >= e["tau_min"] for r in rows) / len(rows)) if rows and _tau_set(e) else None
         drawn = self._drawn_share() if self.rate() * 7 >= 100 else None  # a share measured on enough answers
-        return detection(s, share if share is not None else s["region"], self.rate() if rows else None,
-                         label_share=drawn)  # fmt: skip
+        out = detection(s, share if share is not None else s["region"], self.rate() if rows else None,
+                        label_share=drawn)  # fmt: skip
+        out["claims_scope"] = CLAIMS_SCOPE
+        if monitor and monitor.get("warning") and out.pop("claim", None):
+            out.update(validated=False, warning=REDUCED_DETECTION)
+        return out
 
     def overview(self, top_langs: int = 20) -> dict:
         """What status adds to the counts: the response rate of drawn answers (labelled among those labelled,
@@ -1779,8 +1789,8 @@ class TaskLabels:
             "since_last_label_s": None if last is None else round(now - last, 1),
             "languages": {k: langs[k] for k in busiest},
             "label_share": None if share is None else round(share, 4),
-            **({"detection": det} if (det := self.detection()) else {}),
-            **({"label_monitor": mon} if (mon := self.drift()) else {}),
+            **({"detection": det} if (det := self.detection(mon := self.drift())) else {}),
+            **({"label_monitor": mon} if mon else {}),
             **({"warnings": warnings} if warnings else {}),
         }
 
@@ -1883,6 +1893,11 @@ def accuracy_interval(right: int, n: int, level: float = 0.9) -> list[float] | N
 # ---- the label monitor (drift of the certified error, from audit and cert labels) ----------------------------------
 
 DETECTOR_FRACTIONS = (0.02, 0.05, 0.1, 0.2, 0.4, 0.8)  # betting fractions, in units of 1 / alpha
+# the label monitor reads the labels that came (a drawn answer expired or declined is left out of it); certificates
+# keep the strict rule (an unlabelled drawn answer is an error). Below 1 - alpha of drawn labels returned, the
+# detection-speed claims are withdrawn: they were measured with the drawn labels returned
+REDUCED_DETECTION = "Drift detection speed is reduced while labels are missing."
+CLAIMS_SCOPE = "when the drawn labels are returned"
 COMPARISON_CLAIM = (
     "In the same replays, the label monitor suspended certification after fewer wrong certified answers than the "
     "confidence monitor alone, on every concept-change stream tested."
