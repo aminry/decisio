@@ -17,6 +17,7 @@ M7  the monitor's claims are the reviewed sentences, each only in its tested sco
     alpha and the split)
 M8  below 1 - alpha of drawn labels returned, the detection claims are withdrawn with a warning, and nothing is
     suspended for it
+M9  label_response reads the recent closed rows, so labelling that stops after a long good period shows
 
   uv run pytest -q tests/unit/test_labels_monitor.py
 """
@@ -214,3 +215,17 @@ def test_m7_claims_in_their_tested_scope():
     assert LB.COMPARISON_CLAIM in lenient.drift()["claims"]
     lenient.cert_alpha = 0.01  # a strict alpha: its numerical claim is detection's, not the comparison
     assert LB.COMPARISON_CLAIM not in lenient.drift()["claims"]
+
+
+def test_m9_label_response_reads_a_recent_window():
+    clock = Clock()
+    tl = _log(clock, cert_pi=0, audit_pi=1.0, due_days=1)
+    good = [_serve(tl, i) for i in range(400)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in good])  # a long good period
+    clock.t += 10 * 86400
+    stopped = [_serve(tl, 1000 + i) for i in range(250)]  # then labelling stops
+    clock.t += 2 * 86400
+    assert all((r, "q") in tl.rows for r in stopped)
+    d = tl.drift()
+    assert d["missing"] == 250 and d["label_response"] < 0.2  # not 400 / 650: the old good labels are out of the window
+    assert d["warning"] == LB.REDUCED_DETECTION

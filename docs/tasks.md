@@ -400,7 +400,7 @@ It clears when the statistic falls under `h / 2`; a new certificate (a recertifi
 Its reason comes last: an answer below the threshold, or one the confidence monitor suspends (`traffic_changed`), keeps that reason.
 With `"suspend_on_alert": false` in the certify block it reports and never suspends.
 It is computed from the label log, so every replica that has read the same files agrees, and it costs the answer path a flag read.
-A drawn answer left unlabelled past `due_days`, or declined, does not move it; it is counted, and `label_response` is the share of drawn answers labelled among those labelled or past due.
+A drawn answer left unlabelled past `due_days`, or declined, does not move it; it is counted, and `label_response` is the share of drawn answers labelled among those labelled or past due, over the recent ones: the last 200, or those closed in the last 4 x `due_days`, whichever are more.
 (A certificate still counts such an answer as an error.)
 The measured statements below were made with the drawn labels returned: while `label_response` is under 1 - alpha, the monitor's status and `detection` say "Drift detection speed is reduced while labels are missing." and the detection statements are withdrawn for the task; nothing is suspended for it, and the monitor keeps running.
 `GET /v1/tasks/{id}/labels/status` and the task's status carry `label_monitor`: `certificate`, `alpha`, `statistic`, `h`, `labels` (how many it has read), `pooling` (`pooled` or `audit`), `alerting`, `last_alert_at`, `label_share`, `missing`, `label_response`, `warning` (when labels are missing), and `claims`, the measured statements that hold for this task, with `claims_scope` ("when the drawn labels are returned"):

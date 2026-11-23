@@ -1658,7 +1658,9 @@ class TaskLabels:
         from the log each time (no separate state, so every replica that has read the same files agrees), and reset by
         a new certificate. It reads the audit and cert rows of the certified region when every one of them had the same
         chance of being drawn (`pooling: "pooled"`), else the audit rows alone (`"audit"`). A label counts once, at the
-        time it first came; a drawn row expired or declined counts as an error at that time (the strict rule). Margin,
+        time it first came; a drawn row expired or declined is left out of the statistic and counted as missing (a
+        certificate still counts it as an error). `label_response` is the share labelled among the drawn rows closed
+        recently: the last `RESPONSE_ROWS` closed, or those closed in the last 4 x due_days, whichever are more. Margin,
         typical, volunteered and imported labels never feed it. None for a task without such a certificate."""
         if self.cert_id is None or self.cert_alpha is None or self.cert_threshold is None:
             return None
@@ -1672,6 +1674,7 @@ class TaskLabels:
         pooled = len(pis) == 1 and next(iter(pis))[1] > 0
         slices = ("audit", "cert") if pooled else ("audit",)
         seq, missing, labelled_n = [], 0, 0
+        closed_at: list[tuple[float, bool]] = []  # (when a drawn row closed, labelled)
         for key, row in region:
             d = row["draws"]
             if not any(d[x]["in"] for x in slices):
@@ -1679,9 +1682,12 @@ class TaskLabels:
             ev = latest.get(key)
             if ev is not None and ev["type"] == "label":
                 labelled_n += 1
-                seq.append((first.get(key, float(ev["received"])), float(ev["answer"] != row["top"])))
+                t_first = first.get(key, float(ev["received"]))
+                seq.append((t_first, float(ev["answer"] != row["top"])))
+                closed_at.append((t_first, True))
             elif ev is not None or now - row["t"] > due:  # declined or expired: counted as missing, left out
                 missing += 1
+                closed_at.append((float(ev["received"]) if ev is not None else row["t"] + due, False))
         q = region_q(*next(iter(pis))) if region and pooled else audit_now
         seq.sort(key=lambda x: x[0])
         h = detector_threshold(q)
@@ -1691,8 +1697,10 @@ class TaskLabels:
             if on and not prev:
                 last_alert = t
         stat = min(states[-1][0], 1e300) if states else 0.0  # finite in JSON
-        closed = missing + labelled_n
-        response = round(labelled_n / closed, 4) if closed else None  # drawn answers labelled, of those due
+        closed_at.sort()
+        recent = [x for x in closed_at if x[0] >= now - 4 * due]
+        window = recent if len(recent) >= RESPONSE_ROWS else closed_at[-RESPONSE_ROWS:]
+        response = round(sum(ok for _, ok in window) / len(window), 4) if window else None  # recent closed rows
         drawn = self._drawn_share() if self.rate() * 7 >= 100 else None
         claims = []
         if drawn is not None and drawn >= TESTED_SHARES[0]:
@@ -1897,6 +1905,7 @@ DETECTOR_FRACTIONS = (0.02, 0.05, 0.1, 0.2, 0.4, 0.8)  # betting fractions, in u
 # keep the strict rule (an unlabelled drawn answer is an error). Below 1 - alpha of drawn labels returned, the
 # detection-speed claims are withdrawn: they were measured with the drawn labels returned
 REDUCED_DETECTION = "Drift detection speed is reduced while labels are missing."
+RESPONSE_ROWS = 200  # label_response reads at least the last this many closed drawn rows
 CLAIMS_SCOPE = "when the drawn labels are returned"
 COMPARISON_CLAIM = (
     "In the same replays, the label monitor suspended certification after fewer wrong certified answers than the "
