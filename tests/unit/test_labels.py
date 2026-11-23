@@ -221,6 +221,11 @@ def test_l7_no_certificate_on_its_own_fit_labels():
         tl.assert_disjoint_from_fits(["v2"], [(rids[1], "q"), (rids[2], "q")])
     rec = next(e for e in tl.events if e["type"] == "fit_use")
     assert not any(r in json.dumps(rec) for r in rids)  # the record holds keyed digests, never a request id
+    with pytest.raises(LB.LabelsError, match="assert_disjoint_from_fits"):  # the old call: refused, never passed
+        LB.assert_disjoint(tl.fit_use(["v2"]), [(rids[1], "q")])
+    with pytest.raises(LB.LabelsError, match="fitted on"):  # digests on both sides
+        LB.assert_disjoint(tl.fit_use(["v2"]), [tl.akey((rids[1], "q"))])
+    LB.assert_disjoint([], [(rids[1], "q")])  # nothing fitted: nothing to mix up
     tl.events.append({"type": "fit_use", "version": "v1", "labels": [[rids[3], "q"]]})  # an earlier version's record
     assert tl.fit_use(["v1"]) == {tl.akey((rids[3], "q"))}
 

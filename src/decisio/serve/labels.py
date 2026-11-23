@@ -2652,7 +2652,13 @@ def assert_disjoint(fit_ids, cert_ids) -> None:
     def ids(xs) -> set:
         return {x if isinstance(x, str) else tuple(x) for x in xs}
 
-    shared = ids(fit_ids) & ids(cert_ids)
+    fit, cert = ids(fit_ids), ids(cert_ids)
+    kinds = {isinstance(x, str) for x in fit} | {isinstance(x, str) for x in cert}
+    if len(kinds) > 1:  # a digest never equals a pair: comparing them would pass whatever was fitted on
+        raise LabelsError("assert_disjoint: one side holds keyed digests and the other (request id, question) pairs; "
+                          "use TaskLabels.assert_disjoint_from_fits, or pass keyed digests (TaskLabels.akey) on both "
+                          "sides")  # fmt: skip
+    shared = fit & cert
     if shared:
         raise LabelsError(f"a certificate would use {len(shared)} label(s) its version was fitted on: refused")
 
