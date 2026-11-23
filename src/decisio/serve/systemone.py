@@ -2566,6 +2566,7 @@ class SystemOne:
         learn: dict | None = None,
         context: str | None = None,
         labels: dict | None = None,
+        average_error: dict | None = None,
     ):
         """Fit and store a task from labelled examples [(state, wire question, gold)] (decisio.serve.tasks).
         With `certify` (`certify_settings`) the task is also certified on examples held out of the fit:
@@ -2647,7 +2648,9 @@ class SystemOne:
             n_request=len(full),  # the request's labelled examples, before the held-out split
             large_types=self.large_calibration_types,
             # opted in (decisio.serve.labels): its settings and two new secrets; a task registered again gets new ones
-            label_settings=None if labels is None else LB.label_record(labels),
+            label_settings=None
+            if labels is None
+            else LB.label_record(labels if average_error is None else {**labels, "_fdr": average_error}),
             **({"commit": False} if certify is not None else {}),
             **({"context": ctx} if ctx else {}),
         )
@@ -3232,6 +3235,8 @@ class SystemOne:
                 place = MemoryPlace()
             log = LB.TaskLabels(t["id"], rec["settings"], rec["secret"], place, self.labels_replica,
                                 dynamic=bool(t.get("dynamic")))  # fmt: skip
+            if rec.get("fdr"):  # the average-error mode: marks per closed window
+                log.fdr = {**rec["fdr"], "qtype": t.get("type") or "choice"}
             if rec.get("traffic"):  # certification from traffic labels: under this server's stack and temperature
                 qtype = t.get("type") or "choice"
                 stack_now = (
@@ -3609,13 +3614,30 @@ class SystemOne:
         from decisio.readout import certify
 
         spec = dict(spec or {})
-        known = {"alpha", "delta", "min_examples", "holdout", "examples", "suspend_on_alert", "target_share", "looks"}
+        known = {
+            "alpha",
+            "delta",
+            "min_examples",
+            "holdout",
+            "examples",
+            "suspend_on_alert",
+            "target_share",
+            "looks",
+            "mode",
+            "window",
+        }
         unknown = sorted(set(spec) - known)
         if unknown:
             raise ValueError(
                 f"certify: unknown settings {unknown}; the settings are alpha, delta, min_examples, holdout, examples, "
-                "suspend_on_alert, target_share, looks"
+                "suspend_on_alert, target_share, looks, mode, window"
             )
+        mode = spec.get("mode", "certificate")
+        if mode not in ("certificate", "average_error"):
+            raise ValueError('certify: mode is "certificate" (the default) or "average_error"')
+        window = spec.get("window", LB.FDR_WINDOW)
+        if isinstance(window, bool) or not isinstance(window, int) or window < 20:
+            raise ValueError("certify: window is a number of answers, at least 20 (default 250)")
         share = spec.get("target_share")
         if share is not None and (isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 < share <= 1):
             raise ValueError("certify: target_share is the certified share aimed at, a fraction above 0 and at most 1")
@@ -3648,6 +3670,8 @@ class SystemOne:
             "asked": asked,
             "target_share": None if share is None else float(share),
             "looks": list(looks),
+            "mode": mode,
+            "window": window,
         }
 
     def certification_split(self, task_id, examples, settings, certify_examples):
@@ -5429,14 +5453,27 @@ def add_routes(app, systemone: SystemOne):
             err, _ = LB.strict_check(labels, certify.get("alpha") if certify else None)
             if err:
                 raise HTTPException(422, err)
+        average_error = None
         with_table = bool(fast_table) or learn is not None
-        if labels is not None and certify is not None and not with_table:
+        if certify is not None and certify["mode"] == "average_error":
+            # marks per closed window of logged answers: answers are logged only for a task that opted into labels
+            if labels is None:
+                raise HTTPException(
+                    422,
+                    'certify: mode "average_error" marks windows of logged answers, and answers are logged only for a '
+                    "task that opted into labels: add a labels block",
+                )
+            average_error = {"alpha": certify["alpha"], "window": certify["window"]}
+            certify = None  # no certificate in this mode
+        elif labels is not None and certify is not None and not with_table:
             # certification from traffic labels: the default when labels are on. Not for a task with a fast table: its
             # table's answers have no label-free score, and it keeps its cascade certificate
             labels = LB.with_traffic_certification(labels, certify)
         try:
             task, fitted = await run_in_threadpool(
-                functools.partial(systemone.register_readout_task, layout=layout, labels=labels),
+                functools.partial(
+                    systemone.register_readout_task, layout=layout, labels=labels, average_error=average_error
+                ),
                 str(body["id"]),
                 examples,
                 certify,
@@ -5467,6 +5504,8 @@ def add_routes(app, systemone: SystemOne):
             out["traffic_certification"] = LB.traffic_block(
                 (task.get("labels") or {}).get("traffic"), fast_table=with_table and bool(task.get("labels"))
             )
+        if (fdr := (task.get("labels") or {}).get("fdr")) is not None:
+            out["average_error"] = LB.fdr_block(fdr)
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
@@ -5756,7 +5795,8 @@ def add_routes(app, systemone: SystemOne):
 
         log = labels_log_of(task_id)
         stale = synced(log)
-        views = {"table": log.table, "eval": log.eval_rows, "fit": log.fit_rows, "cohort": lambda: log.cohort(cutoff)}
+        views = {"table": log.table, "eval": log.eval_rows, "fit": log.fit_rows, "cohort": lambda: log.cohort(cutoff),
+                 "marks": log.fdr_marks}  # fmt: skip
         if view not in views:
             raise HTTPException(422, f"view is one of {sorted(views)}")
         try:
