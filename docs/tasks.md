@@ -406,6 +406,15 @@ A task with a fast table keeps its certificate from examples too (the table and 
 - **Serving.** The certificate from examples serves until the first look; the first look's certificate replaces it, whatever its certified share. From then on an answer whose label-free score reaches the threshold is `certified: true`, under the traffic certificate's id, and is served with the label-free readout; its `certificate_kind` is `"gold"`, as for the certificate from examples (the promise is the same; the certificate's `procedure` names the route). Other answers are served as before, the commit rule (`--noul-commit`) included: `certified: false` (`below_threshold`, or `no_label_free_score` for an answer read without a plain readout). The confidence monitor and the label monitor suspend it as they suspend any certificate, and the label monitor then watches it.
 - **The record.** Each look's certificate carries `procedure: "decisio-certify/traffic-labels-fixed-sequence.v1"`, `look`, `looks`, `alpha`, `delta`, `delta_look`, `target_share`, `c_max`, `t_min`, `threshold`, `certified`, `counts` (`requested`, `received`, `missing`, `audit_only`, `other_stack`), the epochs it pooled and the stack; it is an event of the label log, so every replica serves the same one. `status.traffic_certification` and the labels status show the looks, the next look's progress (`drawn`, `closed`) and the certificate in force.
 
+**What it saves, and where it stops.**
+In our tests on classification tasks where 30% of answers could be certified, drawing the certification labels from live traffic needed about a third as many labels as labelling at random at alpha 0.10, and under half as many at alpha 0.05. This is a measured saving, not a promise, and it applies to tasks whose most confident answers are almost always right.
+That saving was measured on the Gemma 4 12B, against labelling at random under the same fixed-sequence procedure; it is not a forecast of how many labels your task needs.
+On the hard multilingual tasks we tested (60-option intent sets and paraphrase detection), certified coverage stayed small: the largest share at alpha 0.05 was 4%, with up to 2,000 labels.
+That largest share was one language's, at 600 labels, not a guarantee for a task across its languages.
+At alpha 0.01 and 0.005, none of those multilingual tasks reached a certificate with up to 2,000 labels, so we make no saving or coverage claim at those levels.
+The alpha you ask for is the alpha you get: decisio never certifies at a weaker one instead.
+A certificate's figures (its share, counts and threshold) are for the task's traffic as a whole, not for each language in it.
+
 **The label monitor.**
 A certified task that takes labels is watched by its labels too, beside the confidence monitor, with nothing to turn on.
 It reads the audit and cert labels that came for the answers its current certificate certified (the audit labels alone when those answers were not all drawn at one chance), and runs an e-detector (a Shiryaev-Roberts sum of betting e-values, averaged over six betting fractions) on whether their error rate stays at or under the certificate's alpha.
