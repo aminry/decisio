@@ -1851,22 +1851,29 @@ class TaskLabels:
         pf = label_free(lp, self.fdr_temperature(len(lp)))
         return float(pf.max()), row["keys"][int(pf.argmax())]
 
-    def _fdr_calibration(self, rows: list, latest: dict, by_lang: bool, exclude: set) -> tuple[list, list, list, dict]:
-        """The labelled audit answers outside `exclude`, re-scored: their scores, whether each is wrong, their buckets,
-        and how many were left out (served under another stack, or without a plain readout)."""
-        s_cal, w_cal, b_cal, left = [], [], [], {"other_stack": 0, "no_lp": 0}
+    def _fdr_calibration(self, rows: list, latest: dict, by_lang: bool, exclude: set, now: float,
+                         due: float) -> tuple[list, list, list, dict, dict]:  # fmt: skip
+        """The calibration of a window: the audit answers outside `exclude` drawn more than `due` seconds before `now`
+        (so every one of them is closed: none is left out for being slow to label), re-scored. A labelled one is wrong
+        when its label is not the top option; one expired or declined counts as wrong at its score, which only raises
+        the p-values. Returns their scores, whether each is wrong, their buckets, how many were left out (served under
+        another stack, or without a plain readout), and per bucket how many were labelled."""
+        s_cal, w_cal, b_cal, left, labelled = [], [], [], {"other_stack": 0, "no_lp": 0}, {}
         for k, r in rows:
+            if not r["draws"]["audit"]["in"] or r.get("s0") is None or k in exclude or now - r["t"] <= due:
+                continue
+            sc = self._fdr_score(r)
+            if isinstance(sc, str):
+                left[sc] += 1
+                continue
             ev = latest.get(k)
-            if (r["draws"]["audit"]["in"] and r.get("s0") is not None and ev is not None and ev["type"] == "label"
-                    and k not in exclude):  # fmt: skip
-                sc = self._fdr_score(r)
-                if isinstance(sc, str):
-                    left[sc] += 1
-                    continue
-                s_cal.append(sc[0])
-                w_cal.append(ev["answer"] != sc[1])
-                b_cal.append(self._fdr_bucket(r, by_lang))
-        return s_cal, w_cal, b_cal, left
+            b = self._fdr_bucket(r, by_lang)
+            got = ev is not None and ev["type"] == "label"
+            s_cal.append(sc[0])
+            w_cal.append(not got or ev["answer"] != sc[1])
+            b_cal.append(b)
+            labelled[b] = labelled.get(b, 0) + got
+        return s_cal, w_cal, b_cal, left, labelled
 
     def _maybe_fdr_window(self) -> None:
         """The merger's turn in the average-error mode: close the next window of `window` answers (in serve order,
@@ -1879,7 +1886,7 @@ class TaskLabels:
         never marked in the window (counted as `unmarkable`)."""
         if not self.fdr or not self.writes:
             return
-        rows, latest, now, _ = self._snapshot()
+        rows, latest, now, due = self._snapshot()
         after = self._fdr_after(rows)
         n = int(self.fdr["window"])
         if len(after) < n or now - after[n - 1][0][0] < FDR_SETTLE:
@@ -1887,7 +1894,9 @@ class TaskLabels:
         win = after[:n]
         langs = {r["lang"] for _, r in win if r["lang"] != "unknown"}
         by_lang = len(langs) > 1
-        s_cal, w_cal, b_cal, left = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in win})
+        s_cal, w_cal, b_cal, left, got = self._fdr_calibration(
+            rows, latest, by_lang, {tk[1] for tk, _ in win}, now, due
+        )
         scored = [self._fdr_score(r) for _, r in win]
         unmarkable = {"other_stack": 0, "no_lp": 0}
         for sc in scored:
@@ -1899,6 +1908,7 @@ class TaskLabels:
         counts = {b: b_cal.count(b) for b in set(b_cal)}
         p = fdr_pvalues(s_cal, w_cal, b_cal, s_bat, b_bat)
         p = np.where([counts.get(b, 0) >= fdr_floor(alpha) for b in b_bat], p, 1.0)  # under the floor: no mark
+        p = np.where([got.get(b, 0) > 0 for b in b_bat], p, 1.0)  # no label came in the bucket: no mark
         p = np.where([isinstance(sc, str) for sc in scored], 1.0, p)  # another stack or no plain readout: no mark
         sel = bh(p, alpha)
         last = win[-1][0]
@@ -1907,8 +1917,9 @@ class TaskLabels:
               "first": [win[0][0][0], list(win[0][0][1])], "last": [last[0], list(last[1])],
               "answers": [list(tk[1]) for tk, _ in win], "marked": [list(tk[1]) for (tk, _), m in zip(win, sel) if m],
               "calibration": {"n": len(s_cal), "per_bucket": counts, "floor": fdr_floor(alpha),
-                              "below_floor": sorted({b for b in b_bat if counts.get(b, 0) < fdr_floor(alpha)}),
-                              "left_out": left},
+                              "below_floor": sorted({b for b in b_bat
+                                                     if counts.get(b, 0) < fdr_floor(alpha) or not got.get(b, 0)}),
+                              "left_out": left, "audit_response": fdr_response(got, len(s_cal))},
               "unmarkable": unmarkable,
               "by_language": by_lang,
               "received": now, "replica": self.replica}  # fmt: skip
@@ -1920,22 +1931,24 @@ class TaskLabels:
         next window, and the last closed windows (size, marked)."""
         if not self.fdr:
             return None
-        rows, latest, _, _ = self._snapshot()
+        rows, latest, now, due = self._snapshot()
         alpha = float(self.fdr["alpha"])
         after = self._fdr_after(rows)
         nxt = after[: int(self.fdr["window"])]  # bucketed as the next window will bucket them
         by_lang = len({r["lang"] for _, r in nxt if r["lang"] != "unknown"}) > 1
-        _, _, b_cal, left = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in nxt})
+        _, _, b_cal, left, got = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in nxt}, now, due)
         per_bucket = {b: b_cal.count(b) for b in sorted(set(b_cal))}
         floor = fdr_floor(alpha)
         short = sorted(
-            {self._fdr_bucket(r, by_lang) for _, r in nxt} - {b for b, n in per_bucket.items() if n >= floor}
+            {self._fdr_bucket(r, by_lang) for _, r in nxt}
+            - {b for b, n in per_bucket.items() if n >= floor and got.get(b, 0) > 0}
         )
         waiting = len(after)
         return {"mode": "average_error", "label": FDR_LABEL, "procedure": FDR_PROCEDURE, "promise": fdr_sentence(alpha),
                 "alpha": alpha, "delta": None, "window": int(self.fdr["window"]), "waiting": waiting,
                 "calibration": {"audit_labels": per_bucket, "floor": floor, "below_floor": short,
-                                "reason": fdr_floor_reason(short, floor), "left_out": left},
+                                "reason": fdr_floor_reason(short, floor), "left_out": left,
+                                "audit_response": fdr_response(got, len(b_cal))},
                 "windows": [{"index": w["index"], "size": w["size"], "marked": len(w["marked"]),
                              "below_floor": w["calibration"].get("below_floor", []),
                              "unmarkable": w.get("unmarkable", {"other_stack": 0, "no_lp": 0}),
@@ -2303,11 +2316,17 @@ def fdr_floor(alpha: float) -> int:
 
 
 def fdr_floor_reason(short: list, floor: int) -> str | None:
-    """Why answers of some buckets are not marked: their buckets have fewer labelled audit answers than the floor."""
+    """Why answers of some buckets are not marked: their buckets have fewer closed audit answers than the floor, or no
+    labelled one."""
     if not short:
         return None
-    return (f"Answers in these buckets are not marked until each has {floor} labelled audit answers: "
-            f"{', '.join(short)}.")  # fmt: skip
+    return (f"Answers in these buckets are not marked until each has {floor} closed audit answers, at least one of "
+            f"them labelled: {', '.join(short)}.")  # fmt: skip
+
+
+def fdr_response(labelled: dict, n: int) -> float | None:
+    """The share of a calibration's audit answers that were labelled (the rest expired or were declined)."""
+    return None if n == 0 else sum(labelled.values()) / n
 
 
 def option_cell(k: int, qtype: str) -> str:
@@ -2360,8 +2379,9 @@ def fdr_block(fdr: dict) -> dict:
         "alpha": float(fdr["alpha"]),
         "delta": None,
         "window": int(fdr["window"]),
-        "calibration": "the labelled audit answers (drawn uniformly over the traffic); a bucket marks nothing until it "
-        f"has {fdr_floor(float(fdr['alpha']))} of them",
+        "calibration": "the audit answers (drawn uniformly over the traffic) drawn more than due_days before a window "
+        "closes, an expired or declined one counted wrong; a bucket marks nothing until it has "
+        f"{fdr_floor(float(fdr['alpha']))} of them, at least one labelled",
         "marks": "when a window closes: in the labels status and in the labels export (view marks)",
     }
 
