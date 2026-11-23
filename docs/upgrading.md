@@ -20,6 +20,8 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 - **Two changes for every deployment, opted in or not:**
   - a request whose `meta.lang` and `x-decisio-lang` header give different language tags is refused (422);
   - the registration response of a task certified at alpha 0.01 or below that did not opt in has a `labels` block with `enabled: false` and a warning saying what such a task needs. Nothing is turned on.
+- **Certificates keep the strict rule:** a drawn answer whose label is not returned by its due date counts as an error, and the over-budget warning says so.
+- **Not built in this release:** recomputing a certificate after a label is erased (an erasure leaves a certificate made earlier as it was; make it again to leave the erased labels out).
 
 ### What to do
 
