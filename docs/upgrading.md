@@ -8,6 +8,48 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.56.0: an erasure recomputes a certificate from traffic labels; answers that age out are dropped from it
+
+### What changed
+
+- **A certificate from traffic labels is made again when an answer of its cohort is erased** (`docs/tasks.md`, "Erasure").
+  The erased answer counts as wrong at confidence 1, so erasing labels never makes a certificate better; the new certificate names the one it replaces (`recompute_of`), which is withdrawn at once, whether the new one certifies or not.
+- **Answers that age out under `ttl_days` are dropped from the cohort, not counted wrong**, and the certificate is made again on the smaller cohort (`counts.aged`): a certificate weakens as its labels age out, and certifies nothing once too few are left.
+- An erased drawn answer leaves a tombstone with nothing of its content (a keyed digest, times, epoch, stack, language tag, option count, which slices drew it); the registration's `labels.stores` lists it.
+- The label monitor counts an erased drawn answer as missing, and the average-error calibration counts an erased audit answer as wrong.
+- The status shows the certificate in force with `cohort_size` in place of its cohort.
+
+### What to do
+
+- With `ttl_days` set on a task that certifies from traffic labels, set it past the time a certificate should serve, or expect to certify again (the next look, or a new certify request).
+
+## 0.56.0: erase events keep a keyed digest of the request id, never the id
+
+### What changed
+
+- **An erase event keeps a keyed digest of the request id it erased** (HMAC-SHA256 under the task's draw salt), not the request id; the label log names every answer by keyed digest now, so no erased request id is kept anywhere in it.
+- An erase event written by 0.55.0 is honoured as before, and the labels thread's first turn after the upgrade merges each such task's log once to rewrite it as its digest.
+- A fit's record of the labels it used holds keyed digests too; `assert_disjoint` refuses to compare digests with (request id, question) pairs (use `TaskLabels.assert_disjoint_from_fits`).
+
+### What to do
+
+- Nothing.
+  Expect one log merge per task with an erasure on the first labels turn after the upgrade (on a shared store, by the replica that merges).
+
+## 0.56.0: an opt-in signed callback for the Average error (FDR) marks
+
+### What changed
+
+- **A task in the average-error mode can have each closed window's marks POSTed to an https URL** (`docs/tasks.md`, "The marks callback"), with `certify.callback` at registration or `PUT /v1/tasks/{id}/labels/callback`.
+  It is off by default.
+- Each request is signed (`X-Decisio-Signature`) with a per-task secret shown once, carries an `Idempotency-Key` per window, and is retried after 30 seconds, 2 minutes, 10 minutes, 1 hour and 6 hours before it is given up.
+- The URL must be https on port 443 or 8443, and its host must resolve only to public addresses, checked at every delivery.
+
+### What to do
+
+- Nothing unless you opt in.
+  To receive the marks, register a callback URL, keep the secret the registration returns (it is shown once), and check each request's signature on its raw body.
+
 ## 0.55.0: certification from traffic labels, for a task that takes labels
 
 ### What changed
