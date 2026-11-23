@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.55.0](https://github.com/aminry/decisio/compare/v0.54.0...v0.55.0) (2026-11-23)
+
+
+### Features
+
+* **tasks:** a per-day label budget, fit and evaluation roles, the certificate's closed cohort ([#544](https://github.com/aminry/decisio/issues/544)) ([8a4ee05](https://github.com/aminry/decisio/commit/8a4ee0576251ecf2574d0b543f63140be43241a0))
+* **tasks:** certification from traffic labels, the default for tasks that take labels ([#555](https://github.com/aminry/decisio/issues/555)) ([90fbdc1](https://github.com/aminry/decisio/commit/90fbdc19710077951c9b6c5ff07a4b7e0c66048f))
+* **tasks:** label erasure with purge, merged label logs, and label settings after registration ([#543](https://github.com/aminry/decisio/issues/543)) ([5564d7f](https://github.com/aminry/decisio/commit/5564d7fd15520b61d2d0574705ca9185e23fa435))
+* **tasks:** label status per language, response rate and audit accuracy, and days to the label need ([#546](https://github.com/aminry/decisio/issues/546)) ([b5aee15](https://github.com/aminry/decisio/commit/b5aee15f104fb86a10648566a0f387d4bd7bc33e))
+* **tasks:** labels from traffic across the replicas of a shared task store ([#542](https://github.com/aminry/decisio/issues/542)) ([82d7330](https://github.com/aminry/decisio/commit/82d7330eb1a8ea1311f40107e465a551053904fd))
+* **tasks:** labels from traffic, opt-in at registration (one server) ([#541](https://github.com/aminry/decisio/issues/541)) ([bfe7c8e](https://github.com/aminry/decisio/commit/bfe7c8e946d537dcf925940832b3dcd33c869756))
+* **tasks:** on the 12B, score tasks of 3 to 4 and of 10 or more levels get the evidence-averaged calibration; two-option choice tasks get no label review ([#549](https://github.com/aminry/decisio/issues/549)) ([188bd54](https://github.com/aminry/decisio/commit/188bd5409dbc34827efc71948e0f330ec072c0ca))
+* **tasks:** opt-in average-error marks over windows of logged answers ([#556](https://github.com/aminry/decisio/issues/556)) ([67e90da](https://github.com/aminry/decisio/commit/67e90da4d6fbb0229dc74b4fd777c9ca8798f22f))
+* **tasks:** the label monitor suspends certification when labelled certified answers show a rising error ([#548](https://github.com/aminry/decisio/issues/548)) ([d6606ff](https://github.com/aminry/decisio/commit/d6606ffedb40153fd47893302b6dd37c3e193607))
+* **tasks:** the typical label slice at cold start, and labels for tasks with changing options ([#545](https://github.com/aminry/decisio/issues/545)) ([883207f](https://github.com/aminry/decisio/commit/883207fb9e63439021e5d75d05818424ab519f93))
+
+
+### Bug Fixes
+
+* **tasks:** a certified fast table is judged on whole-request time on the replica's own traffic, the table on against off ([#554](https://github.com/aminry/decisio/issues/554)) ([f4283b1](https://github.com/aminry/decisio/commit/f4283b12cbecb4054fa7f432fb8a663dfa10fa5f))
+* **tasks:** a fast table under auto keeps the static student unless the encoder saves more than 10 points more ([#553](https://github.com/aminry/decisio/issues/553)) ([0737030](https://github.com/aminry/decisio/commit/07370309984775f97afc1ae0122866798106095c))
+* **tasks:** an erased answer leaves the average-error marks, and windows keep no request id ([#558](https://github.com/aminry/decisio/issues/558)) ([be896d1](https://github.com/aminry/decisio/commit/be896d17bd05529d2ca124f38744cdf1b78d4a2e))
+
 ## [0.54.0](https://github.com/aminry/decisio/compare/v0.53.0...v0.54.0) (2026-11-22)
 
 
