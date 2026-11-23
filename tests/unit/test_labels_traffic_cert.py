@@ -9,6 +9,8 @@ C2  a look: the cohort is the first n answers the cert slice drew above the floo
 C3  looks fixed in advance: with looks 100 and 200, each runs at delta / 2, and nothing is made between them
 C4  the asserts: answers below a raised floor are audit-only, answers served under another stack are left out
 C5  missing labels at alpha 0.01: label response under 1 - alpha gives labels_missing and no certificate
+C7  pooling across epochs needs containment: an earlier epoch pools only while its floor is at or below the
+    current one (a falling floor leaves it out, a rising one takes it in)
 C6  through the server: a task that opted into labels and asks for a certificate certifies from its traffic labels
     (cert region on the label-free score at c_max, rows keep it); the certificate from examples serves until the first
     look, which replaces it; certified answers carry the traffic certificate and the label-free readout; a task
@@ -223,3 +225,25 @@ def test_c6_through_the_server():
         r = plain.post("/v1/tasks", json={"id": "x", "examples": __import__("test_noul_certified").noul_examples(120),
                                           "certify": bad})  # fmt: skip
         assert r.status_code == 422, bad
+
+
+def test_c7_pooling_needs_containment():
+    clock = Clock()
+    tl = _log(clock, looks=(60,), tau_after=10_000)
+
+    def floor(tau):
+        tl.epochs = [*tl.epochs, {**tl.epochs[-1], "epoch": len(tl.epochs), "tau_min": tau, "tau_set": True}]
+
+    floor(0.6)
+    high = [_serve(tl, 0.8, i) for i in range(30)]  # drawn above a floor of 0.6
+    floor(0.3)  # the floor falls: the 0.6 epoch never drew the band 0.3 to 0.6
+    low = [_serve(tl, 0.5, 100 + i) for i in range(30)]
+    assert [k[0] for k, _ in tl.traffic_cohort()] == low
+    tl.post([{"request_id": r, "answer": "billing"} for r in high + low])
+    tl.tick()
+    assert tl.traffic_in_force() is None and tl.traffic_status()["next_look"]["drawn"] == 30
+    floor(0.7)  # the floor rises above both: both epochs drew all of its band, so both pool
+    assert [k[0] for k, _ in tl.traffic_cohort()] == high + low
+    tl.tick()
+    c = tl.traffic_in_force()
+    assert c["counts"]["audit_only"] == 30 and c["counts"]["requested"] == 30  # answers under the new floor

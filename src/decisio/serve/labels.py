@@ -1713,9 +1713,11 @@ class TaskLabels:
     def traffic_cohort(self, rows=None) -> list[tuple]:
         """The certification answers in draw order: the rows the cert slice drew with a label-free score once the
         floor was set (an epoch whose `tau_min` is the floor; before it the region is all traffic, which is not this
-        method's draw), oldest first, as (key, row)."""
+        method's draw), oldest first, as (key, row). Only epochs whose floor is at or below the current one pool: an
+        epoch with a higher floor never drew the band between the two."""
         rows = self._snapshot()[0] if rows is None else rows
-        floored = {e["epoch"] for e in self.epochs if _tau_set(e)}
+        cur = self.epoch["tau_min"] if _tau_set(self.epoch) else -math.inf
+        floored = {e["epoch"] for e in self.epochs if _tau_set(e) and e["tau_min"] <= cur}
         out = [(k, r) for k, r in rows
                if r["draws"]["cert"]["in"] and r.get("s0") is not None and r["epoch"] in floored]  # fmt: skip
         return sorted(out, key=lambda kr: (kr[1]["t"], kr[0]))
