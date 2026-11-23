@@ -3239,6 +3239,7 @@ class SystemOne:
             stack_now = stack_sha256(self.stack_under(self.task_store.layout_of(t)))[:16] if self.task_store else None
             if rec.get("fdr"):  # the average-error mode: marks per closed window, under this server's stack and readout
                 log.fdr = {**rec["fdr"], "qtype": qtype, "stack": stack_now}
+                log.fdr_callback_url = (rec["fdr"].get("callback") or {}).get("url")
                 log.fdr_temperature = lambda k, qtype=qtype: self.temperature_of(qtype, None, k)
             if rec.get("traffic"):  # certification from traffic labels: under this server's stack and temperature
                 log.traffic = {**rec["traffic"], "stack": stack_now}
@@ -3341,6 +3342,85 @@ class SystemOne:
                 Exception
             ) as e:  # a full disk or a store out of reach must not stop serving; rows wait for the next try
                 logger.warning("labels: could not read or write the log of task %s: %s", log.task_id, e)
+            if merge:  # the merger delivers the marks callback (one sender for every replica's windows)
+                self.deliver_marks(t, log)
+
+    # the marks callback: one signed POST per closed window, retried with backoff up to a cap, on the merger
+    CALLBACK_BACKOFF = (30, 120, 600, 3600, 6 * 3600)  # seconds before tries 2 to 6
+    CALLBACK_PER_TURN = 4  # deliveries started per task per labels turn
+
+    def callback_poster(self):
+        from decisio.serve import callbacks as CB
+
+        return getattr(self, "_callback_post", None) or CB.post
+
+    def deliver_marks(self, t, log) -> None:
+        """Start the marks callback's due deliveries for one task (on the labels thread; the POSTs run on a small pool
+        so a slow receiver never holds the labels thread). A window is tried at once, then after each step of
+        `CALLBACK_BACKOFF`; a 2xx is delivered and recorded, and after the last try it is recorded as given up."""
+        cb = (((t or {}).get("labels") or {}).get("fdr") or {}).get("callback")
+        log.fdr_callback_url = cb["url"] if cb else None
+        if not cb or not log.fdr or not log.writes:
+            return
+        if not hasattr(self, "_callback_state"):
+            from concurrent.futures import ThreadPoolExecutor
+
+            self._callback_state: dict[str, dict] = {}
+            self._callback_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="decisio-callback")
+            self._callback_futures: list = []
+        state = self._callback_state.setdefault(t["id"], {})
+        log.fdr_retry = state
+        now = time.time()
+        started = 0
+        for w in list(log.fdr_windows):
+            i = w["index"]
+            if i in log.fdr_deliveries:
+                state.pop(i, None)
+                continue
+            st = state.setdefault(i, {"attempts": 0, "next_try": 0.0})
+            if st.get("busy") or now < st["next_try"] or started >= self.CALLBACK_PER_TURN:
+                continue
+            st["busy"] = True
+            started += 1
+            self._callback_futures.append(self._callback_pool.submit(self._deliver_window, log, w, dict(cb), st))
+        self._callback_futures = [f for f in self._callback_futures if not f.done()]
+
+    def wait_callbacks(self, timeout: float = 30.0) -> None:
+        """Wait for the marks callback's deliveries in flight (tests)."""
+        from concurrent.futures import wait
+
+        wait(list(getattr(self, "_callback_futures", [])), timeout=timeout)
+
+    def _deliver_window(self, log, w, cb, st) -> None:
+        from decisio import __version__
+        from decisio.serve import callbacks as CB
+
+        try:
+            body = json.dumps(log.fdr_payload(w), sort_keys=True, default=float).encode()
+            ts = int(time.time())
+            headers = {"X-Decisio-Signature": CB.sign(cb["secret"], ts, body),
+                       "X-Decisio-Event": "average_error.window",
+                       "Idempotency-Key": f"{log.task_id}/average_error/{w['id']}",
+                       "User-Agent": f"decisio/{__version__}"}  # fmt: skip
+            status, error = None, None
+            try:
+                status = self.callback_poster()(cb["url"], body, headers)
+                if not 200 <= status < 300:
+                    error = f"HTTP {status}" + (" (redirects are not followed)" if 300 <= status < 400 else "")
+            except CB.CallbackError as e:
+                error = str(e)
+            st["attempts"] += 1
+            if error is None:
+                log.record_fdr_delivery(w["index"], True, st["attempts"], status=status)
+            elif st["attempts"] > len(self.CALLBACK_BACKOFF):
+                log.record_fdr_delivery(w["index"], False, st["attempts"], status=status, error=error)
+            else:
+                st["next_try"] = time.time() + self.CALLBACK_BACKOFF[st["attempts"] - 1]
+                st["error"] = error
+        except Exception as e:  # a log write that failed: the window is tried again at the next turn
+            logger.warning("labels: marks callback of task %s window %s: %s", log.task_id, w.get("index"), e)
+        finally:
+            st["busy"] = False
 
     def drop_labels(self, task_id: str) -> None:
         """A removed task's label log goes with it: its rows, its labels and its files."""
@@ -3624,12 +3704,13 @@ class SystemOne:
             "looks",
             "mode",
             "window",
+            "callback",
         }
         unknown = sorted(set(spec) - known)
         if unknown:
             raise ValueError(
                 f"certify: unknown settings {unknown}; the settings are alpha, delta, min_examples, holdout, examples, "
-                "suspend_on_alert, target_share, looks, mode, window"
+                "suspend_on_alert, target_share, looks, mode, window, callback"
             )
         mode = spec.get("mode", "certificate")
         if mode not in ("certificate", "average_error"):
@@ -3637,6 +3718,18 @@ class SystemOne:
         window = spec.get("window", LB.FDR_WINDOW)
         if isinstance(window, bool) or not isinstance(window, int) or window < 20:
             raise ValueError("certify: window is a number of answers, at least 20 (default 250)")
+        callback = spec.get("callback")
+        if callback is not None:
+            from decisio.serve import callbacks as CB
+
+            if mode != "average_error":
+                raise ValueError('certify: callback is for mode "average_error" (the marks of each closed window)')
+            if not isinstance(callback, dict) or set(callback) != {"url"}:
+                raise ValueError('certify: callback is {"url": "https://..."}')
+            try:
+                CB.check_url(callback["url"])
+            except CB.CallbackError as e:
+                raise ValueError(f"certify: {e}") from None
         share = spec.get("target_share")
         if share is not None and (isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 < share <= 1):
             raise ValueError("certify: target_share is the certified share aimed at, a fraction above 0 and at most 1")
@@ -3671,6 +3764,7 @@ class SystemOne:
             "looks": list(looks),
             "mode": mode,
             "window": window,
+            "callback": None if callback is None else {"url": callback["url"]},
         }
 
     def certification_split(self, task_id, examples, settings, certify_examples):
@@ -5463,6 +5557,14 @@ def add_routes(app, systemone: SystemOne):
                     "task that opted into labels: add a labels block",
                 )
             average_error = {"alpha": certify["alpha"], "window": certify["window"]}
+            if certify.get("callback") is not None:
+                from decisio.serve import callbacks as CB
+
+                try:
+                    CB.public_addresses(certify["callback"]["url"])  # checked again at every delivery
+                except CB.CallbackError as e:
+                    raise HTTPException(422, f"certify: {e}") from None
+                average_error["callback"] = {"url": certify["callback"]["url"], "secret": CB.new_secret()}
             certify = None  # no certificate in this mode
         elif labels is not None and certify is not None and not with_table:
             # certification from traffic labels: the default when labels are on. Not for a task with a fast table: its
@@ -5505,6 +5607,8 @@ def add_routes(app, systemone: SystemOne):
             )
         if (fdr := (task.get("labels") or {}).get("fdr")) is not None:
             out["average_error"] = LB.fdr_block(fdr)
+            if fdr.get("callback"):  # the secret once, here
+                out["average_error"]["callback"] = LB.callback_block(fdr["callback"])
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
@@ -5769,6 +5873,77 @@ def add_routes(app, systemone: SystemOne):
 
     put_label_settings.__annotations__["request"] = Request
     app.put("/v1/tasks/{task_id}/labels/settings")(put_label_settings)
+
+    def set_callback(task_id: str, make) -> dict:
+        """Change a task's marks callback in its record (`make(current) -> new or None`), written to the task store,
+        so every replica reads it there; a task not in the average-error mode is a 409."""
+        from decisio.serve import callbacks as CB
+
+        log = labels_log_of(task_id)
+        if not log.fdr:
+            raise HTTPException(
+                409, f'task {task_id!r} is not in the average-error mode (certify mode "average_error")'
+            )
+        t = systemone.task_store.snapshot(task_id)
+        labels = dict(t["labels"])
+        fdr = dict(labels["fdr"])
+        try:
+            cb = make(fdr.get("callback"))
+        except CB.CallbackError as e:
+            raise HTTPException(422, str(e)) from None
+        if cb is None:
+            fdr.pop("callback", None)
+        else:
+            fdr["callback"] = cb
+        labels["fdr"] = fdr
+        try:
+            systemone.task_store.put({**t, "labels": labels})
+        except (TaskPersistError, OSError) as e:
+            raise not_saved(e)
+        log.fdr = {**log.fdr, **({"callback": cb} if cb else {})}
+        if cb is None:
+            log.fdr.pop("callback", None)
+        log.fdr_callback_url = cb["url"] if cb else None
+        return {"callback": LB.callback_block(cb) if cb else None}
+
+    async def put_callback(task_id: str, request: Request):
+        """Set or change the marks callback's URL: a new secret, shown once in the answer."""
+        from decisio.serve import callbacks as CB
+
+        try:
+            body = await request.json()
+        except (json.JSONDecodeError, UnicodeDecodeError) as e:
+            raise HTTPException(422, f"request body is not valid JSON: {e}")
+        if not isinstance(body, dict) or set(body) != {"url"}:
+            raise HTTPException(422, 'body: {"url": "https://..."}')
+
+        def make(_):
+            CB.public_addresses(body["url"])  # https, a public host (checked again at every delivery)
+            return {"url": body["url"], "secret": CB.new_secret()}
+
+        return await run_in_threadpool(set_callback, task_id, make)
+
+    put_callback.__annotations__["request"] = Request
+    app.put("/v1/tasks/{task_id}/labels/callback")(put_callback)
+
+    @app.post("/v1/tasks/{task_id}/labels/callback/rotate")
+    def rotate_callback(task_id: str):
+        """A new secret for the marks callback, shown once; the old one stops signing at once."""
+        from decisio.serve import callbacks as CB
+
+        def make(cur):
+            if not cur:
+                raise HTTPException(
+                    409, f"task {task_id!r} has no marks callback: set one with PUT .../labels/callback"
+                )
+            return {"url": cur["url"], "secret": CB.new_secret()}
+
+        return set_callback(task_id, make)
+
+    @app.delete("/v1/tasks/{task_id}/labels/callback")
+    def delete_callback(task_id: str):
+        """Turn the marks callback off (the marks stay in the status and the export)."""
+        return set_callback(task_id, lambda cur: None)
 
     @app.delete("/v1/tasks/{task_id}/labels/{request_id}")
     def erase_label(task_id: str, request_id: str):

@@ -673,6 +673,11 @@ class TaskLabels:
         # its readout's temperature per option count (the server sets it): re-scores from lp
         self.fdr_temperature = None
         self.fdr_windows: list[dict] = []  # the closed windows and their marks (events), in order
+        # the marks callback: deliveries recorded (events, by window), and what the server sets each turn: the URL in
+        # force (never the secret) and its retry state of windows not yet delivered
+        self.fdr_deliveries: dict[int, dict] = {}
+        self.fdr_callback_url: str | None = None
+        self.fdr_retry: dict[int, dict] = {}
         # erased drawn answers, kept as tombstones so certificates and the label monitor still count them: what the
         # log has recorded (events), and what this replica saw erased and has not written yet (the merger writes them)
         self.erased_draws: dict[str, dict] = {}  # by the answer's keyed digest (`akey`): no request id is kept
@@ -1239,6 +1244,10 @@ class TaskLabels:
         if ev["type"] == "fdr_window":
             self.events.append(ev)
             self.fdr_windows.append(ev)
+            return
+        if ev["type"] == "fdr_delivery":
+            self.events.append(ev)
+            self.fdr_deliveries[int(ev["window"])] = ev
             return
         if ev["type"] == "erased_draw":
             key = ev["akey"]
@@ -2136,22 +2145,59 @@ class TaskLabels:
                 "windows": [{"index": w["index"], "size": w["size"], "marked": len(w["marked"]),
                              "below_floor": w["calibration"].get("below_floor", []),
                              "unmarkable": w.get("unmarkable", {"other_stack": 0, "no_lp": 0}),
-                             "closed_at": w["received"]} for w in self.fdr_windows[-5:]]}  # fmt: skip
+                             "closed_at": w["received"]} for w in self.fdr_windows[-5:]],
+                **({"callback": self.fdr_callback_status()} if self.fdr_callback_url else {})}  # fmt: skip
+
+    def fdr_callback_status(self) -> dict:
+        """The marks callback's state: its URL, how many windows were delivered, the ones given up, the ones retrying
+        (attempts, next try, last error) and how many wait for their first try. Never the secret."""
+        given_up = sorted(i for i, d in self.fdr_deliveries.items() if not d.get("ok"))
+        delivered = sum(1 for d in self.fdr_deliveries.values() if d.get("ok"))
+        retry = dict(self.fdr_retry)
+        retrying = [{"window": i, "attempts": st["attempts"], "next_try": st["next_try"], "last_error": st.get("error")}
+                    for i, st in sorted(retry.items()) if st.get("attempts")]  # fmt: skip
+        waiting = sum(1 for w in self.fdr_windows if w["index"] not in self.fdr_deliveries
+                      and not retry.get(w["index"], {}).get("attempts"))  # fmt: skip
+        return {"url": self.fdr_callback_url, "delivered": delivered, "given_up": given_up, "retrying": retrying,
+                "waiting": waiting}  # fmt: skip
+
+    def _window_marks(self, w: dict, rows: dict) -> list[dict]:
+        marked = set(w["marked"])
+        out = []
+        for ak in w["answers"]:
+            if ak not in rows:  # erased: it leaves this view too (a window names answers by keyed digest only)
+                continue
+            key, r = rows[ak]
+            out.append({"request_id": key[0], "question": key[1], "window": w["index"], "marked": ak in marked,
+                        "answer": r.get("s0_top")})  # fmt: skip
+        return out
 
     def fdr_marks(self) -> list[dict]:
         """The answers of the closed windows and whether each is marked: request_id, question, window, marked, and the
         marked answer (the label-free readout's top option)."""
         rows = {self.akey(k): (k, r) for k, r in self._snapshot()[0]}
-        out = []
-        for w in self.fdr_windows:
-            marked = set(w["marked"])
-            for ak in w["answers"]:
-                if ak not in rows:  # erased: it leaves this view too (a window names answers by keyed digest only)
-                    continue
-                key, r = rows[ak]
-                out.append({"request_id": key[0], "question": key[1], "window": w["index"], "marked": ak in marked,
-                            "answer": r.get("s0_top")})  # fmt: skip
-        return out
+        return [m for w in self.fdr_windows for m in self._window_marks(w, rows)]
+
+    def fdr_payload(self, w: dict) -> dict:
+        """The body of one closed window's callback: the window, its promise, and its answers' marks (as the export
+        gives them; an answer no longer held is left out)."""
+        rows = {self.akey(k): (k, r) for k, r in self._snapshot()[0]}
+        alpha = float(w.get("alpha", self.fdr["alpha"]))
+        return {"event": "average_error.window", "task": self.task_id, "window": w["index"],
+                "label": FDR_LABEL, "procedure": FDR_PROCEDURE, "promise": fdr_sentence(alpha), "alpha": alpha,
+                "size": w["size"], "closed_at": w["received"], "marked": len(w["marked"]),
+                "unmarkable": w.get("unmarkable", {"other_stack": 0, "no_lp": 0}),
+                "calibration": {k: w["calibration"][k] for k in ("n", "per_bucket", "floor", "below_floor",
+                                                                 "audit_response") if k in w["calibration"]},
+                "marks": self._window_marks(w, rows)}  # fmt: skip
+
+    def record_fdr_delivery(self, window: int, ok: bool, attempts: int, status: int | None = None,
+                            error: str | None = None) -> None:  # fmt: skip
+        """Record a window's callback outcome: delivered (`ok`), or given up after `attempts` tries."""
+        ev = {"type": "fdr_delivery", "window": int(window), "ok": bool(ok), "attempts": int(attempts),
+              "status": status, "error": error, "received": self.clock(), "replica": self.replica}  # fmt: skip
+        with self._write:
+            self._write_events([ev])
 
     def drift(self) -> dict | None:
         """The label monitor of the task's current certificate (the server sets `cert_id`, `cert_alpha` and
@@ -2573,8 +2619,24 @@ def fdr_block(fdr: dict) -> dict:
         "calibration": "the audit answers (drawn uniformly over the traffic) drawn more than due_days before a window "
         "closes, an expired or declined one counted wrong; a bucket marks nothing until it has "
         f"{fdr_floor(float(fdr['alpha']))} of them, at least one labelled",
-        "marks": "when a window closes: in the labels status and in the labels export (view marks)",
+        "marks": "when a window closes: in the labels status and in the labels export (view marks)"
+        + (", and by a signed POST to the callback URL" if fdr.get("callback") else ""),
+        **({"callback": {"url": fdr["callback"]["url"]}} if fdr.get("callback") else {}),  # never the secret here
     }
+
+
+CALLBACK_SIGNATURE = (
+    "X-Decisio-Signature: t=<seconds>,v1=<hex>, the hex being HMAC-SHA256 under the secret of '<t>.' "
+    "followed by the body's bytes; refuse a t more than 300 seconds old"
+)
+CALLBACK_IDEMPOTENCY = "Idempotency-Key: the same for every try of one window (a retry may repeat a delivery)"
+
+
+def callback_block(cb: dict) -> dict:
+    """What opting into the marks callback answers, once: the URL, the secret (shown only here) and how to check the
+    signature. A later read never shows the secret again; rotate it to get a new one."""
+    return {"url": cb["url"], "secret": cb["secret"], "signature": CALLBACK_SIGNATURE,
+            "idempotency": CALLBACK_IDEMPOTENCY, "shown_once": True}  # fmt: skip
 
 
 # ---- the label monitor (drift of the certified error, from audit and cert labels) ----------------------------------
