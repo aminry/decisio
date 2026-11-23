@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The engine's tokenizer, one caller at a time.
 
-vLLM 0.31.0 makes its Hugging Face tokenizer thread-safe with a pool of copies (`vllm/tokenizers/hf.py`,
+vLLM 0.32.0 makes its Hugging Face tokenizer thread-safe with a pool of copies (`vllm/tokenizers/hf.py`,
 `maybe_make_thread_pool`): a call that finds no free copy makes a new one with `copy.deepcopy` of the whole tokenizer,
 which for Gemma 4 (262,144 tokens) is seconds of pure Python holding the interpreter lock, and the copy joins the pool.
 decisio's request threads tokenize (the usage count, the over-limit cut, the question rows), so when many requests are

@@ -2444,7 +2444,7 @@ def resolve_base(args):
     if (getattr(args, "read_twice_max_questions", None) or 0) and not (getattr(args, "read_twice_under", None) or 0):
         raise SystemExit("--read-twice-max-questions limits --read-twice-under, which is off")
     if repo is not None:
-        hub.verify(repo, fam)
+        hub.verify(repo, fam, args.backend)
         fam = hub.serve_family(fam, repo)
         if repo.tuned:
             # a tuned model reads differently from the checkpoint it came from: its tasks are its own, named for the

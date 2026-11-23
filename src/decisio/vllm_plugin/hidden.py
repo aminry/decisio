@@ -36,7 +36,7 @@ def reserved_ids(hidden_size: int, start: int | None = None) -> list[int]:
     return list(range(start, start + hidden_size + 1))
 
 
-MAX_ALLOWED = 1024  # vLLM 0.31.0's sampler (MAX_NUM_ALLOWED_TOKEN_IDS): at most 1,024 allowed token ids per request
+MAX_ALLOWED = 1024  # vLLM 0.32.0's sampler (MAX_NUM_ALLOWED_TOKEN_IDS): at most 1,024 allowed token ids per request
 # (vllm/v1/worker/gpu/sample/logit_bias.py, MAX_NUM_ALLOWED_TOKEN_IDS)
 
 

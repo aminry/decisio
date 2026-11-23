@@ -107,6 +107,13 @@ QWEN = "qwen3.6-35b-a3b"
 # the sections of the file that are the profile; the others describe the repository
 PROFILE_KEYS = ("model_types", "moe", "classes", "prompt", "readout", "temperatures", "serving", "engine")
 
+# the vLLM versions, besides the installed one (decisio.vllm_plugin.SUPPORTED_VLLM, which every new export records),
+# whose exports of a base are served as they are, without a new revision of the repository. An entry is added only
+# with the run record of its passed parity read (the same questions answered on both versions, from the published
+# revision), cited as "runs/<folder> @ <commit>": the record's folder and the decisio commit the read ran, which its
+# manifest names. A base without an entry is served only from repositories exported for the installed version.
+COMPATIBLE_VLLM: dict[str, dict[str, str]] = {}
+
 # the repository of each base. The 31B's weights are modified: its FP8 checkpoint is what the server would otherwise
 # make on load. Its stored format is the one the identity gate keeps (compressed-tensors first, vLLM's own serialized
 # FP8 if that fails; `python -m decisio.hub export --quantization`)
@@ -376,10 +383,28 @@ def differences(a, b, path="") -> list[str]:
     return [] if a == b else [path]
 
 
-def check_profile(config: dict, fam: Family) -> list[str]:
-    """The profile keys at which a repository's file differs from the installed profile (empty: they agree)."""
+def accepted_vllm(fam: Family) -> tuple[str, ...]:
+    """The vLLM versions whose exports of a base this decisio serves: the installed one, then COMPATIBLE_VLLM's."""
+    from decisio.vllm_plugin import SUPPORTED_VLLM
+
+    return (SUPPORTED_VLLM, *sorted(set(COMPATIBLE_VLLM.get(fam.key, {})) - {SUPPORTED_VLLM}))
+
+
+def check_profile(config: dict, fam: Family, backend: str = "vllm") -> list[str]:
+    """The profile keys at which a repository's file differs from the installed profile (empty: they agree). An
+    `engine` section that names an accepted vLLM version (accepted_vllm) agrees; on another backend than vLLM (MLX, the
+    CPU stand-in) the vLLM version is not compared, since that backend does not run it."""
     mine = profile_of(fam)
-    return [d for k in PROFILE_KEYS for d in differences(config.get(k), mine[k], k)]
+    out = []
+    for k in PROFILE_KEYS:
+        theirs = config.get(k)
+        if k == "engine" and backend != "vllm":
+            continue
+        if k == "engine" and isinstance(theirs, dict) and set(theirs) == {"vllm"}:
+            if theirs["vllm"] in accepted_vllm(fam):
+                continue
+        out += differences(theirs, mine[k], k)
+    return out
 
 
 @dataclasses.dataclass(frozen=True)
@@ -1064,16 +1089,22 @@ def serve_family(fam: Family, repo: Repository) -> Family:
     return fam
 
 
-def verify(repo: Repository, fam: Family) -> None:
+def verify(repo: Repository, fam: Family, backend: str = "vllm") -> None:
     """Refuse a repository whose file differs from the installed profile, naming the keys and the release it is for."""
     from importlib.metadata import version
 
-    diff = check_profile(repo.config, fam)
+    diff = check_profile(repo.config, fam, backend)
     if diff:
+        engine = ""
+        if any(d == "engine" or d.startswith("engine.") for d in diff):
+            engine = (
+                f" It was exported with vLLM {(repo.config.get('engine') or {}).get('vllm')}; this decisio serves "
+                f"{fam.key} repositories exported with vLLM {', '.join(accepted_vllm(fam))}."
+            )
         raise ValueError(
             f"{repo.name} was exported for decisio {repo.config.get('decisio')}, and its {FILE} differs from the "
-            f"{fam.key} profile of decisio {version('decisio')} at: {', '.join(diff)}. Serve a revision of the "
-            "repository made for this decisio, or install the decisio it was made for"
+            f"{fam.key} profile of decisio {version('decisio')} at: {', '.join(diff)}.{engine} Serve a revision of "
+            "the repository made for this decisio, or install the decisio it was made for"
         )
 
 
@@ -1233,8 +1264,15 @@ def main(argv=None) -> int:
         except ValueError as e:
             print(f"refused: {e}")
             return 1
-        diff = check_profile(config, BASES[config["base"]])
-        print("agrees with the installed profile" if not diff else "differs at: " + ", ".join(diff))
+        fam = BASES[config["base"]]
+        diff = check_profile(config, fam)
+        if not diff:
+            print("agrees with the installed profile")
+        elif any(d == "engine" or d.startswith("engine.") for d in diff):
+            accepted = ", ".join(accepted_vllm(fam))
+            print(f"differs at: {', '.join(diff)} (accepted vLLM versions for {fam.key}: {accepted})")
+        else:
+            print("differs at: " + ", ".join(diff))
         return 1 if diff else 0
     if a.cmd == "tuned-config":
         if a.noul_commit is None:

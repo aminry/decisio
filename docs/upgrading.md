@@ -8,6 +8,26 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 **After any upgrade, certify certified tasks again.** A certificate covers one task on one serving setup, and the setup it is checked against includes the decisio version, the engine and its version, the card and the checkpoint (`docs/tasks.md`, "Certified answers"): after an upgrade the old certificate is suspended (`serving_stack_changed`) until `POST /v1/tasks/{id}/certify` makes it again.
 
+## 0.56.0: vLLM 0.32.0
+
+### What changed
+
+- **decisio runs on vLLM 0.32.0** (the `serve` extra, the lock file and the image pin it; the image's base is vLLM's 0.32.0 release image, pinned by digest).
+  The decisio plugin registers its model classes on 0.32.0 only.
+- **The published model repositories keep their revisions.**
+  Their `decision_config.json` records vLLM 0.31.0, and a base serves such a file as it is only when 0.31.0 is in its compatible list (`decisio.hub.COMPATIBLE_VLLM`).
+  A version enters a base's list only after a parity read on the published revision, recorded under `runs/` and cited beside the entry.
+  A file on any other version is refused at start, and the message names the versions that base accepts.
+  A server on MLX does not compare the vLLM version.
+- **New exports record vLLM 0.32.0** (`python -m decisio.hub export`, `tuned-config`).
+- **The optional patch series does not apply to 0.32.0.** A build with `APPLY_PATCHES=1` fails; the default image never applied it.
+
+### What to do
+
+- Rebuild the environment (`uv sync --extra serve --frozen`) or pull the new image.
+- Certify certified tasks again: the engine version is part of the serving setup a certificate covers.
+- If you serve a repository you exported yourself with an earlier decisio, export its file again with this release, or keep the release it was made for.
+
 ## 0.55.0: certification from traffic labels, for a task that takes labels
 
 ### What changed

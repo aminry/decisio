@@ -3,7 +3,7 @@
 """vLLM's batch-invariant kernels, switched on by a flag or by a tuned repository's defaults (docs/running.md, "Batch
 invariance").
 
-vLLM 0.31.0 reads `VLLM_BATCH_INVARIANT=1` from its environment when it starts and then computes every row with
+vLLM 0.32.0 reads `VLLM_BATCH_INVARIANT=1` from its environment when it starts and then computes every row with
 kernels whose result does not depend on what else is in the batch.
 A board or a user runs only `--base <repository>`; they do not set an environment variable.
 So the setting can be a tuned repository's `defaults.batch_invariant`, the server's `--batch-invariant on|off`, or the

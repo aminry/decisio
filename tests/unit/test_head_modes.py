@@ -121,7 +121,7 @@ def single_engine_readout(monkeypatch, H, W):
     )
     monkeypatch.setattr("decisio.readout.letters.label_token_ids", lambda tok, labels: list(range(K)))
     monkeypatch.setattr("decisio.readout.letters.letter_labels", lambda tok, k: [])
-    with stub_vllm("0.31.0", vocab=START + D + 1, hidden=D, zero_head=True) as registry:
+    with stub_vllm("0.32.0", vocab=START + D + 1, hidden=D, zero_head=True) as registry:
         import decisio.vllm_plugin as p
 
         p.register()
