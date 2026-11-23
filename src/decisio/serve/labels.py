@@ -1830,11 +1830,18 @@ class TaskLabels:
         cell = option_cell(len(row["keys"]), self.fdr.get("qtype") or "choice")
         return f"{cell}|{row['lang']}" if by_lang else cell
 
+    def akey(self, key: tuple) -> str:
+        """An answer's keyed digest (HMAC-SHA256 of its request id and question under the draw's salt, which is never
+        shown): how the log's own records name an answer, so no request id outlives its erasure."""
+        return "ak:" + hmac.new(bytes.fromhex(self.secret["salt"]), json.dumps(list(key)).encode(),
+                                hashlib.sha256).hexdigest()[:32]  # fmt: skip
+
     def _fdr_after(self, rows: list) -> list:
-        """The logged answers after the last closed window, in serve order."""
+        """The logged answers after the last closed window, in serve order (ties by keyed digest), as
+        ((t, akey, key), row)."""
         cursor = self.fdr_windows[-1]["last"] if self.fdr_windows else None
-        order = sorted(((r["t"], k), r) for k, r in rows if r.get("s0") is not None)
-        return [(tk, r) for tk, r in order if cursor is None or (tk[0], list(tk[1])) > (cursor[0], cursor[1])]
+        order = sorted(((r["t"], self.akey(k), k), r) for k, r in rows if r.get("s0") is not None)
+        return [(tk, r) for tk, r in order if cursor is None or (tk[0], tk[1]) > (cursor[0], cursor[1])]
 
     def _fdr_score(self, row: dict) -> tuple[float, object] | str:
         """An answer's label-free score and top option under the current stack and temperature, re-scored from its
@@ -1895,7 +1902,7 @@ class TaskLabels:
         langs = {r["lang"] for _, r in win if r["lang"] != "unknown"}
         by_lang = len(langs) > 1
         s_cal, w_cal, b_cal, left, got = self._fdr_calibration(
-            rows, latest, by_lang, {tk[1] for tk, _ in win}, now, due
+            rows, latest, by_lang, {tk[2] for tk, _ in win}, now, due
         )
         scored = [self._fdr_score(r) for _, r in win]
         unmarkable = {"other_stack": 0, "no_lp": 0}
@@ -1914,8 +1921,8 @@ class TaskLabels:
         last = win[-1][0]
         ev = {"type": "fdr_window", "procedure": FDR_PROCEDURE, "index": len(self.fdr_windows), "alpha": alpha,
               "size": n,
-              "first": [win[0][0][0], list(win[0][0][1])], "last": [last[0], list(last[1])],
-              "answers": [list(tk[1]) for tk, _ in win], "marked": [list(tk[1]) for (tk, _), m in zip(win, sel) if m],
+              "first": [win[0][0][0], win[0][0][1]], "last": [last[0], last[1]],
+              "answers": [tk[1] for tk, _ in win], "marked": [tk[1] for (tk, _), m in zip(win, sel) if m],
               "calibration": {"n": len(s_cal), "per_bucket": counts, "floor": fdr_floor(alpha),
                               "below_floor": sorted({b for b in b_bat
                                                      if counts.get(b, 0) < fdr_floor(alpha) or not got.get(b, 0)}),
@@ -1936,7 +1943,7 @@ class TaskLabels:
         after = self._fdr_after(rows)
         nxt = after[: int(self.fdr["window"])]  # bucketed as the next window will bucket them
         by_lang = len({r["lang"] for _, r in nxt if r["lang"] != "unknown"}) > 1
-        _, _, b_cal, left, got = self._fdr_calibration(rows, latest, by_lang, {tk[1] for tk, _ in nxt}, now, due)
+        _, _, b_cal, left, got = self._fdr_calibration(rows, latest, by_lang, {tk[2] for tk, _ in nxt}, now, due)
         per_bucket = {b: b_cal.count(b) for b in sorted(set(b_cal))}
         floor = fdr_floor(alpha)
         short = sorted(
@@ -1957,14 +1964,16 @@ class TaskLabels:
     def fdr_marks(self) -> list[dict]:
         """The answers of the closed windows and whether each is marked: request_id, question, window, marked, and the
         marked answer (the label-free readout's top option)."""
-        rows = dict(self._snapshot()[0])
+        rows = {self.akey(k): (k, r) for k, r in self._snapshot()[0]}
         out = []
         for w in self.fdr_windows:
-            marked = {tuple(x) for x in w["marked"]}
-            for key in (tuple(x) for x in w["answers"]):
-                r = rows.get(key)
-                out.append({"request_id": key[0], "question": key[1], "window": w["index"], "marked": key in marked,
-                            "answer": None if r is None else r.get("s0_top")})  # fmt: skip
+            marked = set(w["marked"])
+            for ak in w["answers"]:
+                if ak not in rows:  # erased: it leaves this view too (a window names answers by keyed digest only)
+                    continue
+                key, r = rows[ak]
+                out.append({"request_id": key[0], "question": key[1], "window": w["index"], "marked": ak in marked,
+                            "answer": r.get("s0_top")})  # fmt: skip
         return out
 
     def drift(self) -> dict | None:

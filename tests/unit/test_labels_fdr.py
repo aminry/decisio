@@ -15,6 +15,8 @@ F5  re-scored from the logged readout under the current stack: calibration answe
 F6  missing audit labels: an expired or declined audit answer counts as wrong at its score; a bucket whose audit
     answers were all skipped never marks; counting a skipped answer wrong never adds a mark over its having been
     labelled; calibration.audit_response
+F7  erasure: a window names its answers by keyed digest only, so after the purge no request id of an erased answer is
+    stored; the marks export leaves an erased answer out at once
 
   uv run pytest -q tests/unit/test_labels_fdr.py
 """
@@ -124,6 +126,11 @@ def _label(tl, rids, wrong):
     tl.post([{"request_id": r, "answer": "tech" if w else "billing"} for r, w in zip(rids, wrong)])
 
 
+def _ak(tl, rids):
+    """The keyed digests a window names its answers by."""
+    return [tl.akey((r, "q")) for r in rids]
+
+
 def _due(tl):
     """Move past due_days: every answer served so far is closed, so it can calibrate."""
     tl.clock.t += DAY + 1
@@ -155,11 +162,11 @@ def test_f2_marks_only_when_a_window_closes():
     _settle(tl)
     tl.tick()
     w = tl.fdr_windows[2]
-    assert [tuple(x)[0] for x in w["answers"]] == win and w["calibration"]["n"] == 100
+    assert w["answers"] == _ak(tl, win) and w["calibration"]["n"] == 100
     assert w["calibration"]["audit_response"] == 1.0
     p = LB.fdr_pvalues(s_cal, w_cal, ["3"] * 100, s_win, ["3"] * 50)
     want = {r for r, m in zip(win, LB.bh(p, 0.1)) if m}
-    assert want and {tuple(x)[0] for x in w["marked"]} == want  # BH over the window against the closed audit answers
+    assert want and set(w["marked"]) == set(_ak(tl, want))  # BH over the window against the closed audit answers
     st = tl.fdr_status()
     assert st["label"] == "Average error (FDR)" and "at most 10%" in st["promise"] and st["calibration"]["floor"] == 9
     assert len(tl.fdr_marks()) == 150
@@ -175,7 +182,7 @@ def test_f2b_young_audit_answers_wait_even_when_labelled():
     tl.tick()
     tl.tick()
     assert tl.fdr_windows[1]["calibration"]["n"] == 0 and tl.fdr_windows[1]["marked"] == []
-    assert [tuple(x)[0] for x in tl.fdr_windows[1]["answers"]] == win
+    assert tl.fdr_windows[1]["answers"] == _ak(tl, win)
 
 
 def test_f3_the_floor_and_bh_over_the_window():
@@ -206,7 +213,7 @@ def test_f3_the_floor_and_bh_over_the_window():
     tl2.tick()
     tl2.tick()
     w = tl2.fdr_windows[1]
-    assert [tuple(x)[0] for x in w["answers"]] == win
+    assert w["answers"] == _ak(tl2, win)
     p = LB.fdr_pvalues([0.9] * 30 + [0.4] * 10, [False] * 30 + [True] * 10, ["3"] * 40, [0.95] * 20 + [0.35] * 20,
                        ["3"] * 40)  # fmt: skip
     assert len(w["marked"]) == int(LB.bh(p, 0.1).sum()) and 0 < len(w["marked"]) < 40
@@ -276,7 +283,7 @@ def test_f5_other_stacks_and_missing_readouts_are_left_out():
     tl.tick()
     tl.tick()
     w = tl.fdr_windows[1]
-    assert [tuple(x)[0] for x in w["answers"]] == win + win_other + win_bare
+    assert w["answers"] == _ak(tl, win + win_other + win_bare)
     assert w["calibration"]["n"] == 30 and w["calibration"]["left_out"] == {"other_stack": 10, "no_lp": 5}
     assert w["unmarkable"] == {"other_stack": 5, "no_lp": 5}
     rescore = lambda s: float(LB.label_free(np.log([s, (1 - s) / 2, (1 - s) / 2]), 1.0).max())  # noqa: E731
@@ -284,7 +291,7 @@ def test_f5_other_stacks_and_missing_readouts_are_left_out():
                        ["3"] * 45)  # fmt: skip
     p[35:] = 1.0
     want = {r for r, m in zip(win + win_other + win_bare, LB.bh(p, 0.1)) if m}
-    assert want and {tuple(x)[0] for x in w["marked"]} == want and not want & set(win_other + win_bare)
+    assert want and set(w["marked"]) == set(_ak(tl, want)) and not want & set(win_other + win_bare)
     st = tl.fdr_status()
     assert st["windows"][-1]["unmarkable"] == {"other_stack": 5, "no_lp": 5}
 
@@ -304,7 +311,8 @@ def _window_marks(cal_s, cal_label, win_s, window):
     tl.tick()
     tl.tick()
     w = tl.fdr_windows[1]
-    return {tuple(x)[0][-6:] for x in w["marked"]}, w, tl  # request ids end in the serve time: same across runs
+    back = {tl.akey(k): k[0] for k in tl.rows}
+    return {back[ak][-6:] for ak in w["marked"]}, w, tl  # request ids end in the serve time: same across runs
 
 
 def test_f6_missing_audit_labels_count_wrong():
@@ -326,3 +334,34 @@ def test_f6_missing_audit_labels_count_wrong():
         p = LB.fdr_pvalues(cal_s, [bool(k or t) for k, t in zip(skip, truth)], ["3"] * 60, win_s, ["3"] * 60)
         assert len(imputed) == int(LB.bh(p, 0.1).sum()), trial  # an expired answer counts wrong at its score
         assert wi["calibration"]["audit_response"] == pytest.approx(1 - skip.mean())
+
+
+def test_f7_an_erased_answer_leaves_the_marks():
+    from decisio.serve.fast_table_learn import MemoryPlace as Place
+
+    clock = Clock()
+    place = Place()
+    s = LB.parse_settings({"audit_pi": 1.0, "cert_pi": 0, "margin_pi_max": 0, "tau_after": 10_000, "due_days": 1})
+    tl = LB.TaskLabels("t", s, LB.new_secrets(), place, "r1", clock)
+    tl.fdr = {"alpha": 0.1, "window": 30, "qtype": "choice"}
+    cal = [_serve(tl, 0.7, i) for i in range(30)]
+    _label(tl, cal, [False] * 30)
+    _due(tl)
+    win = [_serve(tl, 0.95, 100 + i) for i in range(30)]
+    _settle(tl)
+    tl.tick()
+    tl.tick()
+    marks = tl.fdr_marks()
+    assert len(marks) == 60 and {m["request_id"] for m in marks} == set(cal + win)
+    gone = win[0]
+    tl.erase(request_id=gone)
+    marks = tl.fdr_marks()
+    assert len(marks) == 59 and gone not in {m["request_id"] for m in marks}  # at once
+    clock.t += 100
+    tl.tick()
+    stored = [
+        x for k in ("rows/", "events/") for n in place.names(k) for x in (place.get(n) or b"").decode().splitlines()
+    ]
+    assert tl.counts()["erasures"]["purged"] == 1
+    assert not any(gone in x for x in stored if '"type": "erase"' not in x)  # only the erase event's opaque id
+    assert all(isinstance(a, str) and a.startswith("ak:") for w in tl.fdr_windows for a in w["answers"])
