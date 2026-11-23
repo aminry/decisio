@@ -28,13 +28,10 @@
                    through a text-only class with the vision tower left out at load; the 12B's prompt (system turn,
                    header layout, the model's own template with thinking off, every single-token label form summed,
                    yes/no as letters). vLLM server only. Its temperatures are not fitted yet (1.0).
-  gemma-4-e4b      google/gemma-4-E4B-it at a pinned revision: the small Gemma 4 with per-layer input embeddings, read
-                   through the 31B's text class (vision and audio towers left out at load) in bf16, with the 12B's
-                   prompt and the model's own template. vLLM server only. Its temperatures are not fitted yet (1.0).
 
 Without `--base`, the base is detected from the checkpoint's config.json (`model_type`, and for `gemma4` checkpoints the
-mixture-of-experts flag and the per-layer input embeddings: only the dense one without them is the 31B base, the one
-with them is the E4B); where two bases share a checkpoint in two precisions (the
+mixture-of-experts flag and the per-layer input embeddings: the 31B is dense and has no per-layer input embeddings).
+Where two bases share a checkpoint in two precisions (the
 12B), the one whose precision the checkpoint declares: FP8 only for a checkpoint whose config.json declares FP8 weights,
 bf16 otherwise. Anything unknown is refused (the CPU stand-in keeps the Qwen base for its small models).
 
@@ -333,9 +330,7 @@ GEMMA4_31B_BF16 = replace(
     vllm_only=True,
 )
 
-# The small bases (served for a fast, cheap tier): each read with the 12B's prompt through its own chat template, in
-# the checkpoint's bf16, on the vLLM server only. Their temperatures are not fitted yet: 1.0 until a fit on their own
-# reads replaces it (another base's temperatures are never reused).
+# The small base takes the 12B's prompt through its own chat template, in bf16 on the vLLM server.
 QWEN35_4B = Family(
     key="qwen3.5-4b",
     model_types=("qwen3_5",),
@@ -361,38 +356,7 @@ QWEN35_4B = Family(
     vllm_only=True,
 )
 
-GEMMA4_E4B = Family(
-    key="gemma-4-e4b",
-    model_types=("gemma4",),
-    model="google/gemma-4-E4B-it",
-    revision="4ecc2ba63bcac23ba4a767fc87025b1450f84c9c",
-    served_name="decisio-gemma-4-e4b-it-letters",
-    pad_to="none",
-    limit_mm={"image": 0, "video": 0, "audio": 0},
-    # vLLM's text class of the Gemma4ForConditionalGeneration checkpoint, as the 31B: it loads the language model
-    # (per-layer embeddings included) and leaves the vision and audio towers out at load
-    classes={"text-only": "DecisioGemma4TextOnly", "hidden-readout": "DecisioGemma4HiddenReadout"},
-    head_rows=GEMMA4.head_rows,
-    softcap=30.0,
-    head_label_logprobs="engine",
-    # 170,000 to 172,560 (hidden size 2,560), as the 12B's range: no label form in it
-    hidden_start=170_000,
-    temperature=1.0,
-    system_prompt=True,
-    prompt_tail="spaced",
-    answer_slot="template",
-    label_variants="summed",
-    noul_rendering="letters",
-    layout="header",
-    moe=False,
-    per_layer_inputs=True,
-    hidden_size=2560,
-    register_state_boundary=True,
-    register_boundary="before",
-    vllm_only=True,
-)
-
-FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B, GEMMA4_31B_BF16, QWEN35_4B, GEMMA4_E4B)
+FAMILIES = (QWEN, GEMMA4, GEMMA4_FP8, GEMMA4_31B, GEMMA4_31B_BF16, QWEN35_4B)
 BASES = {f.key: f for f in FAMILIES}
 # the base a vLLM server serves when neither --base nor --model is given (0.10.0; before, the server refused to start
 # and the container served the Qwen base); a --model alone still brings the base its checkpoint declares
@@ -455,6 +419,23 @@ def matches(fam: Family, config: dict) -> bool:
     )
 
 
+def refuse_e4b(name: str | None, config: dict | None = None) -> None:
+    """Refuse the removed small base by name or from the checkpoint's architecture."""
+    named = isinstance(name, str) and name.lower() in ("gemma-4-e4b", "google/gemma-4-e4b-it")
+    config = config or {}
+    text = config.get("text_config") or config
+    detected = (
+        config.get("model_type") == "gemma4"
+        and text.get("hidden_size") == 2560
+        and text.get("hidden_size_per_layer_input")
+        and not text.get("enable_moe_block")
+    )
+    if named or detected:
+        raise ValueError(
+            "Gemma 4 E4B support was removed in decisio 0.56.0. Use --base qwen3.5-4b for the small model."
+        )
+
+
 def family_of(model: str | None, revision: str | None = None, lenient: bool = False) -> Family:
     """The base a checkpoint (a local directory or a hub id) belongs to. No checkpoint named is the default base
     (Qwen). A checkpoint whose config.json names a model type no base serves, or has no readable config.json, is
@@ -464,13 +445,16 @@ def family_of(model: str | None, revision: str | None = None, lenient: bool = Fa
     and is not a measured system) keeps the old answer for them, the Qwen profile. DECISIO_BASE, when set to a base's
     key, overrides the detection (tokenizer-only tests)."""
     forced = os.environ.get("DECISIO_BASE")
+    refuse_e4b(model)
     if forced:
+        refuse_e4b(forced)
         if forced not in BASES:
             raise ValueError(f"DECISIO_BASE={forced!r} is not one of {sorted(BASES)}")
         return BASES[forced]
     if model is None:
         return QWEN
     cfg = read_config(model, revision)
+    refuse_e4b(model, cfg)
     mt = cfg.get("model_type")
     found = [f for f in FAMILIES if f.detected and matches(f, cfg)]
     if len(found) > 1:  # one checkpoint in two precisions (the 12B): the one the checkpoint declares, bf16 unless FP8

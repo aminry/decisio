@@ -129,7 +129,7 @@ def test_l3_too_few_a_score_question_and_an_unchecked_base():
     client = _server(_sure)
     rev = client.post("/v1/tasks", json={"id": "few", "examples": _examples(19)}).json()["label_review"]
     assert rev["reviewed"] is False and "at least 20" in rev["reason"] and "flags" not in rev
-    for key in ("gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b", "qwen3.5-4b", "gemma-4-e4b"):  # not checked
+    for key in ("gemma-4-31b", "gemma-4-31b-bf16", "qwen3.6-35b-a3b", "qwen3.5-4b"):  # not checked
         other = _server(_sure, family=types.SimpleNamespace(key=key))
         rev = other.post("/v1/tasks", json={"id": "b", "examples": _examples(24)}).json()["label_review"]
         assert rev["reviewed"] is False and f"not available on {key}" in rev["reason"]

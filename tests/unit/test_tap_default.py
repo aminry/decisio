@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 
 from decisio import families
-from decisio.families import GEMMA4, GEMMA4_31B, GEMMA4_E4B, QWEN, QWEN35_4B
+from decisio.families import GEMMA4, GEMMA4_31B, QWEN, QWEN35_4B
 
 # every base decisio serves, by its profile's hidden-readout class (the names the Hub profiles carry)
 BASES = {
@@ -31,7 +31,6 @@ BASES = {
     "GEMMA4_FP8": "DecisioGemma4UnifiedHiddenReadout",
     "GEMMA4_31B": "DecisioGemma4HiddenReadout",
     "GEMMA4_31B_BF16": "DecisioGemma4HiddenReadout",
-    "GEMMA4_E4B": "DecisioGemma4HiddenReadout",
     "QWEN": "DecisioQwen3_5MoeHiddenReadout",
     "QWEN35_4B": "DecisioQwen3_5HiddenReadout",
 }
@@ -88,11 +87,11 @@ def test_d2_the_reader_follows_the_engine_process(monkeypatch):
         backend="vllm",
         engine=engine,
     )
-    for fam in (GEMMA4, GEMMA4_31B, GEMMA4_E4B, QWEN, QWEN35_4B):
+    for fam in (GEMMA4, GEMMA4_31B, QWEN, QWEN35_4B):
         assert sv.single_engine_reader(object(), args(fam, "in")) == "tap"
     assert sv.single_engine_reader(object(), args(GEMMA4, "separate")) == "r"
     assert sv.single_engine_reader(object(), args(QWEN, "in", '{"tensor_parallel_size": 2}')) == "r"
-    assert built == ["tap"] * 5 + ["reserved"] * 2
+    assert built == ["tap"] * 4 + ["reserved"] * 2
 
 
 def _so(reader):

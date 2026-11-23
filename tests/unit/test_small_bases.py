@@ -1,18 +1,14 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The small bases: Qwen/Qwen3.5-4B (`qwen3.5-4b`) and google/gemma-4-E4B-it (`gemma-4-e4b`).
+"""The small base, Qwen/Qwen3.5-4B (`qwen3.5-4b`), and the Gemma 4 E4B migration.
 
-S1  detection: every base served before is detected exactly as before (the 12B in bf16 and FP8, the 31B, the Qwen
-    MoE), from the fields of their real config.json files; the two small bases are detected from theirs
-S2  the E4B is never taken for the 31B (they share the model type `gemma4`): per-layer input embeddings decide, a 0 or
-    an absent field is the 31B; other sizes of the two small bases' model types (Gemma 4 E2B, other Qwen3.5 sizes)
-    are refused, not served under these profiles
+S1  detection: Gemma 4 12B in bf16 and FP8, Gemma 4 31B, Qwen MoE, and Qwen 3.5 4B resolve from their config.json
+S2  Gemma 4 E4B is refused with a migration hint, even if requested under the 31B profile; other sizes of these
+    model types (Gemma 4 E2B, other Qwen3.5 sizes) are also refused
 S3  `--base` with a checkpoint of the other kind is refused both ways; with its own checkpoint it starts
-S4  the profiles: the 12B's prompt (system turn, header layout, the template's answer slot, summed label forms, yes/no
-    as letters), vLLM only, pinned revisions, temperatures not fitted (1.0), their own served names
-S5  with the real tokenizers (skipped where not cached): each model's own template with thinking off (Qwen: an empty
-    think block; E4B: no thought channel) and the label forms read per letter (Qwen 2, E4B 3)
-S6  real cached config.json files (skipped where not cached) are detected as their bases
+S4  Qwen 3.5 4B uses the 12B's prompt, vLLM, a pinned revision, temperature 1.0, and its own served name
+S5  with Qwen's cached tokenizer: the chat template renders an empty think block and two forms per answer letter
+S6  Qwen's real cached config.json resolves to its base
 
   uv run pytest -q tests/unit/test_small_bases.py
 """
@@ -23,7 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from decisio.families import BASES, FAMILIES, GEMMA4_31B, GEMMA4_E4B, QWEN35_4B, family_of
+from decisio.families import BASES, FAMILIES, QWEN35_4B, family_of
 from decisio.serve.vllm_engine import resolve_base
 
 # the fields detection reads, as in the real config.json files (top level and text_config)
@@ -64,7 +60,30 @@ def args_for(**kw):
     return SimpleNamespace(**{**a, **kw})
 
 
-@pytest.mark.parametrize("key", list(REAL))
+@pytest.mark.parametrize(
+    ("base", "with_model", "backend"),
+    [
+        ("gemma-4-e4b", False, "vllm"),
+        (None, True, "vllm"),
+        (None, True, "hf"),
+        ("gemma-4-31b", True, "vllm"),
+    ],
+    ids=["base-key", "inferred", "cpu-stand-in", "explicit-other-profile"],
+)
+def test_removed_e4b_is_refused_with_migration_hint(tmp_path, base, with_model, backend):
+    model = checkpoint(tmp_path, REAL["gemma-4-e4b"], "local-checkpoint") if with_model else None
+    with pytest.raises(ValueError, match=r"Gemma 4 E4B.*qwen3\.5-4b"):
+        resolve_base(args_for(base=base, model=model, backend=backend))
+
+
+def test_removed_e4b_repository_is_refused_with_migration_hint(tmp_path):
+    repository = {"schema": "decisio.decision_config/1", "base": "gemma-4-e4b"}
+    (tmp_path / "decision_config.json").write_text(json.dumps(repository))
+    with pytest.raises(ValueError, match=r"Gemma 4 E4B.*qwen3\.5-4b"):
+        resolve_base(args_for(base=str(tmp_path)))
+
+
+@pytest.mark.parametrize("key", ["gemma-4-12b", "gemma-4-31b", "qwen3.6-35b-a3b", "qwen3.5-4b"])
 def test_s1_every_base_is_detected_from_its_config(tmp_path, key):
     assert family_of(checkpoint(tmp_path, REAL[key], key)).key == key
 
@@ -89,16 +108,6 @@ def test_s2_no_per_layer_inputs_is_the_31b(tmp_path, ple):
     assert family_of(checkpoint(tmp_path, {"model_type": "gemma4", "text_config": text}, "c")).key == "gemma-4-31b"
 
 
-def test_s2_the_e4b_is_never_the_31b(tmp_path):
-    fam = family_of(checkpoint(tmp_path, REAL["gemma-4-e4b"], "e4b"))
-    assert fam is GEMMA4_E4B and fam is not GEMMA4_31B
-    for f in FAMILIES:  # no other base accepts the E4B's config
-        if f is not GEMMA4_E4B:
-            from decisio.families import matches
-
-            assert not matches(f, REAL["gemma-4-e4b"]), f.key
-
-
 @pytest.mark.parametrize(
     "config",
     [
@@ -113,29 +122,23 @@ def test_s2_other_sizes_are_refused(tmp_path, config):
 
 
 def test_s3_base_with_the_other_kind_of_checkpoint_is_refused_both_ways(tmp_path):
-    e4b = checkpoint(tmp_path, REAL["gemma-4-e4b"], "e4b")
-    g31 = checkpoint(tmp_path, REAL["gemma-4-31b"], "g31")
     q4 = checkpoint(tmp_path, REAL["qwen3.5-4b"], "q4")
     q35 = checkpoint(tmp_path, REAL["qwen3.6-35b-a3b"], "q35")
-    with pytest.raises(ValueError, match="is a gemma-4-e4b checkpoint"):
-        resolve_base(args_for(base="gemma-4-31b", model=e4b))
-    with pytest.raises(ValueError, match="is a gemma-4-31b checkpoint"):
-        resolve_base(args_for(base="gemma-4-e4b", model=g31))
     with pytest.raises(ValueError, match="is a qwen3.6-35b-a3b checkpoint"):
         resolve_base(args_for(base="qwen3.5-4b", model=q35))
     with pytest.raises(ValueError, match="is a qwen3.5-4b checkpoint"):
         resolve_base(args_for(base="qwen3.6-35b-a3b", model=q4))
 
 
-@pytest.mark.parametrize(("key", "name"), [("gemma-4-e4b", "e4b"), ("qwen3.5-4b", "q4"), ("gemma-4-31b", "g31")])
-def test_s3_base_with_its_own_checkpoint_starts(tmp_path, key, name):
-    model = checkpoint(tmp_path, REAL[key], name)
+@pytest.mark.parametrize("key", ["qwen3.5-4b", "gemma-4-31b", "gemma-4-12b"])
+def test_s3_base_with_its_own_checkpoint_resolves(tmp_path, key):
+    model = checkpoint(tmp_path, REAL[key], key)
     fam, _ = resolve_base(args_for(base=key, model=model))[:2]
     assert fam.key == key
 
 
-@pytest.mark.parametrize("fam", [QWEN35_4B, GEMMA4_E4B], ids=lambda f: f.key)
-def test_s4_the_small_profiles(fam):
+def test_s4_the_small_profile():
+    fam = QWEN35_4B
     assert (fam.system_prompt, fam.layout, fam.answer_slot, fam.prompt_tail) == (True, "header", "template", "spaced")
     assert (fam.label_variants, fam.noul_rendering) == ("summed", "letters")
     assert fam.vllm_only and fam.quantization is None and fam.pad_to == "none"
@@ -145,10 +148,8 @@ def test_s4_the_small_profiles(fam):
     assert [f.served_name for f in FAMILIES].count(fam.served_name) == 1
 
 
-def test_s4_the_revisions_are_the_measured_ones():
+def test_s4_the_revision_is_the_measured_one():
     assert QWEN35_4B.revision == "851bf6e806efd8d0a36b00ddf55e13ccb7b8cd0a"
-    assert GEMMA4_E4B.revision == "4ecc2ba63bcac23ba4a767fc87025b1450f84c9c"
-    assert GEMMA4_E4B.softcap == 30.0 and GEMMA4_E4B.head_label_logprobs == "engine"
 
 
 def _tokenizer(repo, revision):
@@ -168,27 +169,20 @@ def _fmt(fam):
     )  # fmt: skip
 
 
-@pytest.mark.parametrize(
-    ("fam", "ending", "forms"),
-    [
-        (QWEN35_4B, "<|im_start|>assistant\n<think>\n\n</think>\n\n", 2),
-        (GEMMA4_E4B, "<|turn>model\n", 3),
-    ],
-    ids=["qwen3.5-4b", "gemma-4-e4b"],
-)
-def test_s5_own_template_with_thinking_off_and_the_label_forms(fam, ending, forms):
+def test_s5_own_template_with_thinking_off_and_the_label_forms():
     from decisio.readout.letters import chat_turn, label_groups
 
+    fam = QWEN35_4B
     tok = _tokenizer(fam.model, fam.revision)
     text = chat_turn(tok, "STATE AND QUESTION", _fmt(fam))
-    assert text.endswith(ending) and "<|channel>thought" not in text
+    assert text.endswith("<|im_start|>assistant\n<think>\n\n</think>\n\n") and "<|channel>thought" not in text
     assert "You are a calibration engine." in text  # the system turn
     groups = label_groups(tok, [" A", " B", " C"], _fmt(fam))
-    assert [len(g) for g in groups] == [forms] * 3
+    assert [len(g) for g in groups] == [2, 2, 2]
 
 
-@pytest.mark.parametrize("fam", [QWEN35_4B, GEMMA4_E4B], ids=lambda f: f.key)
-def test_s6_the_real_cached_config_is_detected(fam):
+def test_s6_the_real_cached_config_is_detected():
+    fam = QWEN35_4B
     snap = Path.home() / ".cache/huggingface/hub" / ("models--" + fam.model.replace("/", "--")) / "snapshots"
     cfg = snap / fam.revision / "config.json"
     if not cfg.is_file():
