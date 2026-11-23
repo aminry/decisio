@@ -24,6 +24,8 @@ Y7  monitor gap (b): table, deferred, table-off and learning rows feed the monit
     table answer its calibrated P(yes))
 Y8  export and import, a task directory, and a replica on a shared store read the table, its calibration and its bar
 
+Y9  a task with a fast table and labels does not certify from traffic labels: it keeps its certificate from examples
+    (the table and decisio together) and the registration says why
   uv run pytest -q tests/unit/test_noul_fast_table.py
 """
 
@@ -935,3 +937,17 @@ def test_y14_all_one_answer_fit_examples_get_a_clear_422():
     r = client.post("/v1/tasks", json=req)
     assert r.status_code == 422 and "two fit examples of each answer (200 yes, 0 no)" in r.json()["detail"], r.text
     assert not so.task_store.by_key
+
+
+def test_y9_a_table_task_with_labels_keeps_its_cascade_certificate():
+    client, so, _ = make()
+    req = {"id": "angry", "examples": noul_examples(800, 0), "certify": {"alpha": 0.1, "delta": 0.1},
+           "fast_table": True, "labels": {"audit_pi": 0.2, "tau_after": 20}}  # fmt: skip
+    r = client.post("/v1/tasks", json=req)
+    assert r.status_code == 200, r.text
+    tc = r.json()["traffic_certification"]
+    assert tc["enabled"] is False and "fast table" in tc["reason"]
+    rec = so.task_store.snapshot("angry")
+    assert not (rec.get("labels") or {}).get("traffic") and rec["labels"]["settings"]["cert_score"] == "served"
+    a = ask(client, CLEAR_YES)
+    assert a["certificate"] == rec["certificate"]["id"] and a["certificate_kind"] == "gold"
