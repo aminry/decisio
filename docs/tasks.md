@@ -396,7 +396,8 @@ The log's files are merged now and then (once there are 64, or an erasure waits)
 A certified task that takes labels is watched by its labels too, beside the confidence monitor, with nothing to turn on.
 It reads the audit and cert labels that came for the answers its current certificate certified (the audit labels alone when those answers were not all drawn at one chance), and runs an e-detector (a Shiryaev-Roberts sum of betting e-values, averaged over six betting fractions) on whether their error rate stays at or under the certificate's alpha.
 When the statistic reaches `h` = 10 x 5,000 x q (q: the share of certified answers that get such a label), certification is suspended: answers carry `certified: false` with `certified_reason: "label_drift"`, and the task's status says `label_drift`.
-It clears when the statistic falls under `h / 2`; a new certificate (a recertification) starts it again.
+It clears when the statistic falls under `h / 2`, without recertifying; a new certificate (a recertification) starts it again.
+A task whose error sits exactly at its alpha is suspended now and then by design (about once per 78,000 certified answers at alpha 0.05), and clears the same way; after a long run of errors the statistic can grow past what a number holds, and then only a new certificate clears it.
 Its reason comes last: an answer below the threshold, or one the confidence monitor suspends (`traffic_changed`), keeps that reason.
 With `"suspend_on_alert": false` in the certify block it reports and never suspends.
 It is computed from the label log, so every replica that has read the same files agrees, and it costs the answer path a flag read.

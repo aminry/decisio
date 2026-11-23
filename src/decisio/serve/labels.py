@@ -1661,7 +1661,9 @@ class TaskLabels:
         time it first came; a drawn row expired or declined is left out of the statistic and counted as missing (a
         certificate still counts it as an error). `label_response` is the share labelled among the drawn rows closed
         recently: the last `RESPONSE_ROWS` closed, or those closed in the last 4 x due_days, whichever are more. Margin,
-        typical, volunteered and imported labels never feed it. None for a task without such a certificate."""
+        typical, volunteered and imported labels never feed it. `h` follows the q in force now, so an epoch that changes
+        the chances (strict shares, a new budget) moves the alert line under a running statistic. None for a task
+        without such a certificate."""
         if self.cert_id is None or self.cert_alpha is None or self.cert_threshold is None:
             return None
         alpha, thr = float(self.cert_alpha), float(self.cert_threshold)
