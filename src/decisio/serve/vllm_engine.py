@@ -2337,8 +2337,10 @@ def resolve_base(args):
         matches,
         pinned_revision,
         read_config,
+        refuse_e4b,
     )
 
+    refuse_e4b(args.base)
     repo = None
     if args.base is not None and args.base not in BASES:
         # a decisio repository (decisio.hub): its weights are the checkpoint, its file names the base
@@ -2380,7 +2382,9 @@ def resolve_base(args):
             args.model = fam.model
         args.revision = pinned_revision(args.model, args.revision)
         if given:  # a checkpoint that declares another base's model type is refused; an unknown one is taken as given
+            refuse_e4b(args.model)
             cfg = read_config(args.model, args.revision)
+            refuse_e4b(args.model, cfg)
             fp8_weights = fp8_weights or declares_fp8(cfg)
             mt = cfg.get("model_type")
             # the same checkpoint in another precision (the 12B's two) is not another base's

@@ -99,7 +99,7 @@ def test_h2_the_class_concatenates_and_computes_the_logits_from_the_final_state(
 @pytest.mark.parametrize(
     "module, base_module, base, cls",
     [
-        ("gemma", "gemma4", "Gemma4ForCausalLM", "DecisioGemma4HiddenReadout"),  # 31B (bf16, FP8), E4B
+        ("gemma", "gemma4", "Gemma4ForCausalLM", "DecisioGemma4HiddenReadout"),  # 31B (bf16, FP8)
         ("models", "qwen3_5", "Qwen3_5MoeForCausalLM", "DecisioQwen3_5MoeHiddenReadout"),  # Qwen3.6-35B-A3B
         ("models", "qwen3_5", "Qwen3_5ForCausalLM", "DecisioQwen3_5HiddenReadout"),  # Qwen3.5 4B
     ],

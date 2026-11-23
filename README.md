@@ -91,7 +91,7 @@ The answer, on one RTX PRO 6000, probabilities rounded to three decimals:
 Every repository has a `commit` twin.
 Decisio v3 needs decisio 0.51.1 or later; with decisio 0.50.x, pin the revision tagged `v3-calc-v1`.
 
-The untrained bases are one flag away, with the same routes and features: `--base gemma-4-31b` (the default, FP8, the most accurate base), `--base gemma-4-12b`, `--base qwen3.6-35b-a3b`, and the small `--base gemma-4-e4b` and `--base qwen3.5-4b` ([choosing a base](docs/overview.md#choosing-a-base)).
+The untrained bases are one flag away, with the same routes and features: `--base gemma-4-31b` (the default, FP8, the most accurate base), `--base gemma-4-12b`, `--base qwen3.6-35b-a3b`, and the small `--base qwen3.5-4b` ([choosing a base](docs/overview.md#choosing-a-base)).
 
 ## Run it
 

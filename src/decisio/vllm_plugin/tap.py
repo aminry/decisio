@@ -6,7 +6,7 @@ request as its letter probabilities, with no extra request and no second engine.
 
 How:
   - every base's hidden-readout class (`TapReadout` first in its bases: the Gemma 4 12B's, the Gemma 4 text class of
-    the 31B and E4B, and both Qwen classes) asks vLLM's model for the residual stream after the tapped layers
+    the 31B, and both Qwen classes) asks vLLM's model for the residual stream after the tapped layers
     (`engine_config`, below; vLLM's EAGLE-3 auxiliary-state mechanism:
     layer L is the output of decoder layer L, before the final norm; 0 is the embeddings) and returns
     [final | layer a | layer b | ...] for every token;

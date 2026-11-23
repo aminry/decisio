@@ -39,7 +39,6 @@ def test_l1_the_default_is_the_largest_that_fits_up_to_the_ceiling():
         "gemma-4-31b": 98304,
         "gemma-4-31b-bf16": 65536,
         "qwen3.5-4b": 32768,
-        "gemma-4-e4b": 32768,
     }
 
 

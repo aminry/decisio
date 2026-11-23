@@ -54,6 +54,12 @@ The changelog (`CHANGELOG.md`) lists every change; this page is for the ones tha
 
 The image route accepts only PNG, JPEG and WebP and returns an `unsupported image format` error for other formats.
 
+## 0.56.0: Qwen3.5 4B is the small base
+
+Gemma 4 E4B support is removed.
+Replace `--base gemma-4-e4b` or an E4B `--model` with `--base qwen3.5-4b` and remove any E4B checkpoint or revision flags.
+Register tasks for the new model and certify them again if they need certificates.
+
 ## 0.55.0: certification from traffic labels, for a task that takes labels
 
 ### What changed

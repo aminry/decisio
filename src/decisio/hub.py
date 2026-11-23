@@ -84,7 +84,7 @@ import re
 import sys
 from pathlib import Path
 
-from decisio.families import BASES, Family
+from decisio.families import BASES, Family, refuse_e4b
 from decisio.names import task_fingerprint
 from decisio.readout.letters import PromptFormat
 
@@ -1047,7 +1047,9 @@ def open_repository(spec: str, revision: str | None = None) -> Repository:
     if not isinstance(config, dict) or config.get("schema") not in SCHEMAS:
         got = config.get("schema") if isinstance(config, dict) else None
         raise ValueError(f"{name}: {FILE} is schema {got!r}; this decisio reads {' and '.join(SCHEMAS)}")
-    if config.get("base") not in BASES:
+    base = config.get("base")
+    refuse_e4b(base)
+    if base not in BASES:
         raise ValueError(f"{name}: {FILE} names the base {config.get('base')!r}; this decisio serves {sorted(BASES)}")
     try:
         check_sections(config)

@@ -178,7 +178,6 @@ def test_b4_bases_resolve(tmp_path, monkeypatch):
         "gemma-4-12b-fp8",
         "gemma-4-31b",
         "gemma-4-31b-bf16",
-        "gemma-4-e4b",
         "qwen3.5-4b",
         "qwen3.6-35b-a3b",
     ]
