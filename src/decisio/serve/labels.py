@@ -1808,7 +1808,7 @@ class TaskLabels:
         c = self.traffic
         out = {"procedure": TRAFFIC_PROCEDURE, "looks": list(c["looks"]), "target_share": c.get("target_share"),
                "c_max": c["c_max"], "t_min": self.epoch["tau_min"] if _tau_set(self.epoch) else None,
-               "in_force": self.traffic_in_force()}  # fmt: skip
+               "in_force": _without_cohort(self.traffic_in_force())}  # fmt: skip
         if nxt is not None:
             n = self.traffic["looks"][nxt]
             first = cohort[:n]
@@ -2569,6 +2569,13 @@ def detector_states(errors, alpha: float, h: float) -> list[tuple[float, bool]]:
             on = False
         out.append((m, on))
     return out
+
+
+def _without_cohort(cert: dict | None) -> dict | None:
+    """A traffic certificate for status: its cohort's size instead of its list of digests (kept in the label log)."""
+    if cert is None or "cohort" not in cert:
+        return cert
+    return {**{k: v for k, v in cert.items() if k != "cohort"}, "cohort_size": len(cert["cohort"])}
 
 
 def _erased_row(tomb: dict) -> dict:
