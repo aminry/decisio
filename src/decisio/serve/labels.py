@@ -1652,14 +1652,26 @@ class TaskLabels:
         return {"declined": len(events), **self.counts()}
 
     def record_fit_use(self, version: str, label_ids) -> None:
-        """A fit of `version` is about to use these labels ((request id, question) pairs): recorded first."""
-        ev = {"type": "fit_use", "version": version, "labels": [list(x) for x in label_ids], "received": self.clock()}
+        """A fit of `version` is about to use these labels ((request id, question) pairs): recorded first, as the
+        answers' keyed digests (`akey`), so no request id outlives its erasure in the record."""
+        ev = {"type": "fit_use", "version": version, "labels": [self.akey(tuple(x)) for x in label_ids],
+              "received": self.clock()}  # fmt: skip
         with self._write:
             self._write_events([ev])
 
     def fit_use(self, versions) -> set:
+        """The keyed digests of the labels fits of these versions used."""
         vs = set(versions)
-        return {tuple(x) for ev in self.events if ev["type"] == "fit_use" and ev["version"] in vs for x in ev["labels"]}
+        return {
+            x if isinstance(x, str) else self.akey(tuple(x))  # a raw pair: an earlier version's record
+            for ev in self.events
+            if ev["type"] == "fit_use" and ev["version"] in vs
+            for x in ev["labels"]
+        }
+
+    def assert_disjoint_from_fits(self, versions, cert_ids) -> None:
+        """Refuse certification labels ((request id, question) pairs) that a fit of these versions used."""
+        assert_disjoint(self.fit_use(versions), [self.akey(tuple(x)) for x in cert_ids])
 
     # ---- reads
 
@@ -2634,8 +2646,13 @@ def _tau_set(epoch: dict) -> bool:
 
 
 def assert_disjoint(fit_ids, cert_ids) -> None:
-    """A certificate must use no label its version was fitted on: raise when the two sets share one."""
-    shared = set(map(tuple, fit_ids)) & set(map(tuple, cert_ids))
+    """A certificate must use no label its version was fitted on: raise when the two sets share one (keyed digests, or
+    (request id, question) pairs)."""
+
+    def ids(xs) -> set:
+        return {x if isinstance(x, str) else tuple(x) for x in xs}
+
+    shared = ids(fit_ids) & ids(cert_ids)
     if shared:
         raise LabelsError(f"a certificate would use {len(shared)} label(s) its version was fitted on: refused")
 

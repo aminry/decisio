@@ -14,7 +14,7 @@ L5  the queue: the drawn questions still to label, oldest first, blind (no serve
     probability); declines leave it,
     rows past due expire
 L6  the label need: the cert slice's labelled answers and errors, expired and declined rows counted as errors
-L7  a certificate never uses a label its version was fitted on
+L7  a certificate never uses a label its version was fitted on; the fit record holds keyed digests, never a request id
 L8  the cert slice's region: all traffic until tau_after answers, then a new epoch with tau_min set
 L9  past max_rows the oldest undrawn rows go and every drawn row stays, also when a log is read back
 L10 a label write that fails to reach the place raises and leaves nothing acknowledged; a failed segment write keeps
@@ -215,10 +215,14 @@ def test_l7_no_certificate_on_its_own_fit_labels():
     tl = _task(audit_pi=1.0)
     rids = [_serve(tl, f"t{i}", [0.8, 0.1, 0.1])[0] for i in range(4)]
     tl.record_fit_use("v2", [(rids[0], "q"), (rids[1], "q")])
-    fit = tl.fit_use(["v2"])
-    LB.assert_disjoint(fit, [(rids[2], "q"), (rids[3], "q")])
+    assert tl.fit_use(["v2"]) == {tl.akey((rids[0], "q")), tl.akey((rids[1], "q"))}
+    tl.assert_disjoint_from_fits(["v2"], [(rids[2], "q"), (rids[3], "q")])
     with pytest.raises(LB.LabelsError, match="fitted on"):
-        LB.assert_disjoint(fit, [(rids[1], "q"), (rids[2], "q")])
+        tl.assert_disjoint_from_fits(["v2"], [(rids[1], "q"), (rids[2], "q")])
+    rec = next(e for e in tl.events if e["type"] == "fit_use")
+    assert not any(r in json.dumps(rec) for r in rids)  # the record holds keyed digests, never a request id
+    tl.events.append({"type": "fit_use", "version": "v1", "labels": [[rids[3], "q"]]})  # an earlier version's record
+    assert tl.fit_use(["v1"]) == {tl.akey((rids[3], "q"))}
 
 
 def test_l8_the_region_is_all_traffic_then_the_top_share():
