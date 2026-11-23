@@ -768,9 +768,12 @@ The embedding is the table's student, and since 0.41.0 a task chooses it.
 | --- | --- | --- |
 | `true` or `{"kind": "static"}` (the default) | `minishlab/potion-base-8M`: a static embedding, the mean of the text's token vectors (Model2Vec), computed by decisio itself | most tasks: it costs so little that a table of it was never slower than decisio alone on any task and load measured (one and 16 requests in flight, one and several questions per request, on an 8-vCPU host) |
 | `{"kind": "static", "static_model": "multilingual"}` | `minishlab/potion-multilingual-128M` | traffic that is not English |
-| `{"kind": "encoder"}` | `BAAI/bge-base-en-v1.5` through ONNX Runtime (the only student before 0.41.0) | many-class English tasks where its larger share pays for its time on your host; it runs on the host's CPU, so with many requests in flight, or several questions per request, it can make requests slower than decisio alone (measured on an 8-vCPU host with 16 requests in flight: up to 59% slower), and the registration times it one request at a time |
+| `{"kind": "encoder"}` | `BAAI/bge-base-en-v1.5` through ONNX Runtime (the only student before 0.41.0) | many-class English tasks where its larger share pays for its time on your host (see the note below the table) |
 | `{"kind": "auto"}` | fits the static student (and `static_model`) and the encoder, and keeps the one that saves more on this host | when you do not know |
 | `{"kind": "hashed"}` | reserved; refused | not available in this version |
+
+A table that uses the encoder student can make requests slower than the model alone when many requests run at once or a request carries several questions, on a host with few CPU cores; we observed this with 16 requests in flight on an 8-vCPU host.
+The saving that registration estimates is measured one request at a time, so it may not hold under your traffic.
 
 The static models are MIT licensed, as is bge-base.
 Each student's files are pinned to a revision and checked against pinned sha256 hashes when they are fetched.
