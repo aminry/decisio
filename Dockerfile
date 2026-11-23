@@ -1,12 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-# The decisio server on vLLM 0.31.0: the vLLM release image (pinned by digest) plus the decisio wheel.
+# The decisio server on vLLM 0.32.0: the vLLM release image (pinned by digest) plus the decisio wheel.
 #   uv build --wheel && docker build --platform linux/amd64 -t decisio:local .
 # The wheel comes from the build context (dist/). The checkpoint is never part of the image: the first start fetches it
-# into the volume mounted at /data. The optional latency patch series (patches/README.md) is applied only with
-# --build-arg APPLY_PATCHES=1 and switched on at run time with VLLM_SUFFIX_STAGING=1; the default image is stock vLLM.
+# into the volume mounted at /data. The image is stock vLLM: the optional latency patch series (patches/README.md) is
+# for vLLM 0.31.0, and --build-arg APPLY_PATCHES=1 fails the build.
 # The base is the vLLM tag with its manifest-list digest; Dependabot refreshes the digest (a tag bump is a measured change).
-FROM vllm/vllm-openai:v0.31.0@sha256:c1c9f6fd5c109ba7f0546a59f5b2f15fb87f64c77782e90a27b648b42a8e67c3
+FROM vllm/vllm-openai:v0.32.0@sha256:befccf0e7e4089aa23926bb6f887a85c0d46c2a99e6de5c5ffdf5cb7957c5b34
 
 ARG APPLY_PATCHES=0
 
@@ -27,12 +27,12 @@ RUN python3 /tmp/docker/pin_installed.py > /tmp/pins.txt \
  && python3 -c "import decisio, decisio.vllm_plugin, scipy, obstore, tzdata" \
  && rm -rf /tmp/wheel /tmp/pins.txt /tmp/docker
 
-# The optional patch series, dry-run first; a series that does not apply fails the build.
-COPY patches/ /tmp/patches/
+# The optional patch series is written for vLLM 0.31.0 and does not apply to 0.32.0 (patches/README.md): a build that
+# asks for it fails here rather than shipping an image without it.
 RUN if [ "$APPLY_PATCHES" = "1" ]; then \
-        bash /tmp/patches/apply.sh python3 /tmp/patches/vllm-0.31.0/suffix-staging; \
-    fi \
- && rm -rf /tmp/patches
+        echo "APPLY_PATCHES=1: the suffix-staging series is for vLLM 0.31.0 and does not apply to this image's vLLM 0.32.0 (patches/README.md)" >&2; \
+        exit 1; \
+    fi
 
 # A non-root user whose home, caches and Hugging Face cache live in the volume.
 RUN useradd --system --uid 10001 --user-group --home-dir /data --no-create-home --shell /usr/sbin/nologin decisio \

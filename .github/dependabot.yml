@@ -27,13 +27,13 @@ updates:
     ignore:
       # the plugin targets exactly this vLLM version; bumps are a deliberate, measured change
       - dependency-name: vllm
-      # vllm 0.31.0 requires transformers below 5.18.0, and the lock is the environment the cards and the reference
+      # vllm 0.32.0 requires transformers below 5.20.0, and the lock is the environment the cards and the reference
       # checks run in (token rows, chat templates): a transformers bump comes with the vLLM bump, not alone
       - dependency-name: transformers
-      # vllm 0.31.0 requires setuptools<81 on Linux, so the Linux branch of uv.lock cannot take a newer one; Dependabot's uv
+      # vllm 0.32.0 requires setuptools<81 on Linux, so the Linux branch of uv.lock cannot take a newer one; Dependabot's uv
       # updater then finds no file to change and the job fails on every run (docs/LAUNCH_CHECKLIST.md, flip record)
       - dependency-name: setuptools
-      # the next four move with the vLLM bump: vllm 0.31.0 pins torch==2.13.0 and torchvision==0.28.0, holds fastapi
+      # the next four move with the vLLM bump: vllm 0.32.0 pins torch==2.13.0 and torchvision==0.28.0, holds fastapi
       # below 0.137.0 and caps numpy below 2.4 (through mistral-common[image]>=1.11.6, which needs numpy<2.4), so uv
       # cannot resolve a newer one and the weekly update job failed on them (dependency_file_not_resolvable,
       # 2026-11-04); fastapi and numpy keep their updates inside vLLM's range
@@ -50,7 +50,7 @@ updates:
     commit-message:
       prefix: "chore(docker)"
     ignore:
-      # a vLLM tag bump is a measured change (the plugin targets exactly 0.31.0); only the digest of the pinned tag moves
+      # a vLLM tag bump is a measured change (the plugin targets exactly 0.32.0); only the digest of the pinned tag moves
       - dependency-name: vllm/vllm-openai
         update-types:
           - version-update:semver-major

@@ -8,6 +8,9 @@ F1  the task fingerprint is what the server gave its task store before it was ex
 T1  the checked-in files in hub/ are what the profiles export; a profile change fails here until they are exported
     again (and a new revision of each repository is made for them)
 T2  the profile section is compared: a changed temperature, class or serving default is named by its path
+V1  the engine version: a new export records the installed vLLM; a file exported with another version agrees only if
+    that version is in the base's compatible list, whose every entry cites a run record of its parity read; a refusal
+    names the accepted versions
 R1  what names a repository (owner/name, a directory) and what does not (a base's key, a typo)
 R2  a file is read from a directory or fetched at a revision (the pinned one, the one given, else the current commit);
     a file of another schema, of an unknown base or missing is refused
@@ -33,6 +36,7 @@ from decisio import hub
 from decisio.families import BASES
 from decisio.names import task_fingerprint
 from decisio.serve.vllm_engine import resolve_base
+from decisio.vllm_plugin import SUPPORTED_VLLM
 
 HUB = Path(__file__).resolve().parents[2] / "hub"
 
@@ -125,12 +129,15 @@ def test_f1_the_optional_keys_enter_only_when_not_the_default():
 def test_t1_the_files_in_hub_are_what_the_profiles_export(base):
     golden = json.loads((HUB / f"decision_config.{base}.json").read_text())
     now = hub.export_decision_config(BASES[base], golden["decisio"], golden["weights"]["quantization"])
+    # the engine section records the vLLM the file was exported with; whether it is served is V1's
+    now = {**now, "engine": golden["engine"]}
     assert now == golden, (
         f"the {base} profile no longer exports hub/decision_config.{base}.json: export it again "
         "(python -m decisio.hub export --all --out hub --decisio-version <release>) and make a new revision of the "
         f"repository {hub.REPOSITORIES[base]}; differs at {hub.differences(golden, now)}"
     )
-    assert hub.check_profile(golden, BASES[base]) == []
+    accepted = golden["engine"]["vllm"] in hub.accepted_vllm(BASES[base])
+    assert hub.check_profile(golden, BASES[base]) == ([] if accepted else ["engine.vllm"])
 
 
 def test_t1_the_weights_of_each_repository():
@@ -283,9 +290,10 @@ def test_c1_the_command_line(tmp_path, capsys):
     for base in hub.REPOSITORIES:
         version = json.loads((HUB / f"decision_config.{base}.json").read_text())["decisio"]
         assert hub.main(["export", "--base", base, "--out", str(tmp_path), "--decisio-version", version]) == 0
-        assert (tmp_path / f"decision_config.{base}.json").read_text() == (
-            HUB / f"decision_config.{base}.json"
-        ).read_text()
+        written = json.loads((tmp_path / f"decision_config.{base}.json").read_text())
+        golden = json.loads((HUB / f"decision_config.{base}.json").read_text())
+        assert written["engine"] == {"vllm": SUPPORTED_VLLM}
+        assert {**written, "engine": golden["engine"]} == golden
     good = str(tmp_path / "decision_config.gemma-4-12b.json")
     assert hub.main(["check", good]) == 0 and "agrees" in capsys.readouterr().out
     changed = json.loads(Path(good).read_text())
@@ -334,3 +342,53 @@ def test_e1_main_serves_a_repository(monkeypatch, tmp_path):
     assert json.dumps(served_fp, sort_keys=True) == json.dumps(json.loads(FINGERPRINTS["gemma-4-12b"]), sort_keys=True)
     assert start("--base", "gemma-4-12b")[1] == fingerprint  # as for --base gemma-4-12b: its tasks serve on the copy
     assert start("--base", "gemma-4-12b")[0].repository is None
+
+
+def test_v1_a_new_export_records_the_installed_vllm():
+    for base in hub.REPOSITORIES:
+        assert hub.export_decision_config(BASES[base], "0.56.0")["engine"] == {"vllm": SUPPORTED_VLLM}
+        assert hub.accepted_vllm(BASES[base])[0] == SUPPORTED_VLLM
+
+
+def test_v1_every_compatible_entry_cites_its_parity_record():
+    root = HUB.parent
+    for base, versions in hub.COMPATIBLE_VLLM.items():
+        assert base in BASES, base
+        for v, cite in versions.items():
+            assert v != SUPPORTED_VLLM, f"{base}: the installed vLLM needs no entry"
+            folder, _, commit = cite.partition(" @ ")
+            assert folder.startswith("runs/") and (root / folder / "manifest.json").is_file(), (base, v, cite)
+            assert len(commit) == 40 and all(c in "0123456789abcdef" for c in commit), (base, v, cite)
+            assert commit in (root / folder / "manifest.json").read_text(), f"{cite}: the manifest names another commit"
+
+
+def test_v1_another_engine_agrees_only_when_listed(tmp_path, monkeypatch):
+    fam = BASES["gemma-4-12b"]
+    old = {**hub.export_decision_config(fam, "0.55.0"), "engine": {"vllm": "0.31.0"}}
+    monkeypatch.setattr(hub, "COMPATIBLE_VLLM", {})
+    assert hub.check_profile(old, fam) == ["engine.vllm"]
+    repo = hub.Repository(name="o/m", model="o/m", revision=None, config=old)
+    with pytest.raises(
+        ValueError,
+        match=rf"exported with vLLM 0\.31\.0; this decisio serves gemma-4-12b repositories "
+        rf"exported with vLLM {SUPPORTED_VLLM}\.",
+    ):
+        hub.verify(repo, fam)
+    monkeypatch.setattr(hub, "COMPATIBLE_VLLM", {"gemma-4-12b": {"0.31.0": "runs/x @ " + "0" * 40}})
+    assert hub.check_profile(old, fam) == [] and hub.accepted_vllm(fam) == (SUPPORTED_VLLM, "0.31.0")
+    hub.verify(repo, fam)
+    # the list is per base: the FP8 base is not covered by the bf16 base's entry
+    fp8 = BASES["gemma-4-12b-fp8"]
+    old8 = {**hub.export_decision_config(fp8, "0.55.0"), "engine": {"vllm": "0.31.0"}}
+    assert hub.check_profile(old8, fp8) == ["engine.vllm"]
+    # on MLX (or the CPU stand-in) the vLLM version is not compared: that backend does not run vLLM
+    monkeypatch.setattr(hub, "COMPATIBLE_VLLM", {})
+    assert hub.check_profile(old, fam, backend="mlx") == [] and hub.check_profile(old, fam, backend="hf") == []
+    hub.verify(repo, fam, "mlx")
+    # anything but a lone version in the section is compared as before
+    odd = {**old, "engine": {"vllm": "0.31.0", "extra": 1}}
+    assert hub.check_profile(odd, fam) == ["engine.extra", "engine.vllm"]
+    monkeypatch.setattr(hub, "COMPATIBLE_VLLM", {})
+    path = tmp_path / "f.json"
+    path.write_text(json.dumps(old))
+    assert hub.main(["check", str(path)]) == 1

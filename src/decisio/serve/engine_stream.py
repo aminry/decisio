@@ -2,7 +2,7 @@
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
 """The CUDA stream an in-process vLLM engine does its work on, kept the same in every thread that calls it.
 
-vLLM 0.31.0 tracks "the current stream" per thread (`vllm.utils.torch_utils.current_stream`: a thread-local, made on a
+vLLM 0.32.0 tracks "the current stream" per thread (`vllm.utils.torch_utils.current_stream`: a thread-local, made on a
 thread's first use) and keys some persistent GPU resources by it. The Marlin kernels (the W4A16 compressed-tensors
 checkpoints, GPTQ, AWQ; the linear layers and the Marlin MoE) keep their lock buffer in the workspace manager under
 `("marlin_locks", current_stream())`; once the warm-up has finished the manager is locked, and a key it has not seen

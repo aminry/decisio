@@ -48,7 +48,7 @@ A prefix hit that begins or ends inside an image of a question's own text is lef
 
 Gemma 4's text config says `use_bidirectional_attention = "vision"`: on the sliding-window layers the tokens of one image attend to each other, not only to the tokens before them; the global layers stay causal.
 The model builds the blocks from `mm_token_type_ids`, 1 on image tokens and 0 elsewhere (the begin and end tokens are text), and each image is its own block.
-vLLM 0.31.0 does this for the tokens it expands, through its multimodal prefix ranges, clamped to the sliding window.
+vLLM 0.32.0 does this for the tokens it expands, through its multimodal prefix ranges, clamped to the sliding window.
 The rule on a sliding layer is the window AND (causal OR the same image block), as in the reference implementation: the window is not lifted inside an image, so tokens of a block more than one window apart do not see each other.
 A block longer than the window would therefore leave its later tokens unable to see its top rows, and the readout would lose the top of the picture.
 That matters only where the language model's attention is all that links the parts of a picture: on the 12B, which embeds patches straight into the language model.

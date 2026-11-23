@@ -100,17 +100,17 @@ print(json.dumps({"eps": {e.name: e.value for e in eps}, "registered": fn(), "ag
 
 def test_v1_serve_extra_pins_vllm():
     proj = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]
-    assert [d.split(";")[0].strip() for d in proj["optional-dependencies"]["serve"]] == ["vllm==0.31.0"]
+    assert [d.split(";")[0].strip() for d in proj["optional-dependencies"]["serve"]] == ["vllm==0.32.0"]
     assert not any(d.startswith("vllm") for d in proj["dependencies"])  # vLLM stays optional (Linux, GPU)
     import decisio.vllm_plugin as p
 
-    assert p.SUPPORTED_VLLM == "0.31.0"
+    assert p.SUPPORTED_VLLM == "0.32.0"
 
 
 def test_v2_registration_is_lazy():
     code = """
 import sys, types
-vllm = types.ModuleType("vllm"); vllm.__version__ = "0.31.0"
+vllm = types.ModuleType("vllm"); vllm.__version__ = "0.32.0"
 calls = []
 models = types.ModuleType("vllm.model_executor.models")
 models.ModelRegistry = types.SimpleNamespace(register_model=lambda a, c: calls.append((a, c)))
@@ -156,7 +156,7 @@ def test_v4_engine_arguments(monkeypatch):
     base = {"compilation_config": {"max_cudagraph_capture_size": 4096}}
     assert vllm_engine.engine_kwargs(args("view")) == base  # the fallback: no plugin involved
     monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
-    with stub_vllm("0.31.0"):
+    with stub_vllm("0.32.0"):
         import decisio.vllm_plugin as p
 
         monkeypatch.setattr(p, "installed_entry_point", lambda: False)
@@ -175,7 +175,7 @@ def test_v4_engine_arguments(monkeypatch):
         import decisio.vllm_plugin as p
 
         monkeypatch.setattr(p, "installed_entry_point", lambda: True)
-        with pytest.raises(SystemExit, match="vllm==0.31.0"):
+        with pytest.raises(SystemExit, match="vllm==0.32.0"):
             vllm_engine.engine_kwargs(args("text-only"))
 
 
@@ -197,7 +197,7 @@ def test_v4_a_caller_that_names_only_the_model_gets_that_bases_hidden_readout_cl
     (tmp_path / "config.json").write_text(json.dumps({"model_type": model_type, **extra}))
     monkeypatch.delenv("DECISIO_BASE", raising=False)
     monkeypatch.delenv("DECISIO_HIDDEN_READOUT_START", raising=False)
-    with stub_vllm("0.31.0"):
+    with stub_vllm("0.32.0"):
         import decisio.vllm_plugin as p
 
         monkeypatch.setattr(p, "installed_entry_point", lambda: True)

@@ -32,7 +32,7 @@ uv run python -m decisio.serve.vllm_engine
 - With a `--model` and no `--base`, the base is detected from the checkpoint's `config.json`, so a local copy of any base's checkpoint brings its own settings; a base's pinned revision applies whenever `--model` names the base's own Hugging Face repository and `--revision` is not given.
 - The first start downloads the checkpoint into the Hugging Face cache and warms the engine: about 31 GB for the 31B's FP8 repository (62 GB for Google's bf16 weights) and about 36 GB for the Qwen base (`runs/2026-10-01_docker-first-gpu-start/`); `/health` answers once it is ready.
 - Upgrade notes: `docs/upgrading.md`.
-- The decisio plugin registers its model classes with vLLM through an entry point, so vLLM 0.31.0 loads them without any patch; the package must be installed (as `uv sync` does) for vLLM's engine processes to find it (`docs/design/vllm-plugin.md`).
+- The decisio plugin registers its model classes with vLLM through an entry point, so vLLM 0.32.0 loads them without any patch; the package must be installed (as `uv sync` does) for vLLM's engine processes to find it (`docs/design/vllm-plugin.md`).
 - `patches/` holds an optional latency patch series, off by default and not needed for correct answers (`patches/README.md`).
 - The server refuses to start when `VLLM_USE_DEEP_GEMM` is set to anything other than `0`, unless `--allow-deep-gemm` is given.
 - It listens on `127.0.0.1:8000` (`--host`, `--port`); put a reverse proxy in front of it to expose it.
@@ -131,6 +131,13 @@ uv run python -m decisio.serve.vllm_engine --base tachara-ai/decisio-gemma-4-31b
 - A repository of a tuned model (an adapter merged into the base) has a file of schema `decisio.decision_config/2` that also carries the temperatures and the commit setting the model is served at ([Shipping a tuned model](#shipping-a-tuned-model)).
 - The server compares the file's profile (prompt, readout, temperatures, serving defaults, the classes, the vLLM version the plugin supports) with the installed one, and refuses to start on a difference, naming the keys and the decisio release the file was made for.
   A profile change therefore reaches a repository only as a new revision of it, made for the release that changed it.
+- The vLLM version is the one exception.
+  A new export records the installed vLLM (0.32.0).
+  A file exported with an earlier vLLM is served as it is when that version is in the base's compatible list (`decisio.hub.COMPATIBLE_VLLM`).
+  A version is added to a base's list only after a parity read: the same questions answered from the published revision on both versions, recorded under `runs/` and cited beside the entry.
+  On any other version the server refuses the file and names the versions it accepts for that base.
+  A server on MLX does not compare the vLLM version, since it does not run vLLM.
+  `python -m decisio.hub check <file>` names them too.
 - A stored FP8 checkpoint is not quantized again on load (the Gemma 4 31B profile quantizes Google's bf16 weights to FP8 when it loads them; a repository holds the FP8 tensors).
 - Tasks are named for the checkpoint a repository copies, not for the repository, so a task registered under `google/gemma-4-12B-it` serves from the copy, and the other way round.
 - `/health` reports the repository, its revision, the decisio release its file was made for and what its weights are (`weights.modified` is false for a byte-for-byte copy).
@@ -571,7 +578,8 @@ docker compose up --build          # needs the NVIDIA Container Toolkit and a GP
 curl http://127.0.0.1:8000/health  # answers once the first start has fetched the checkpoint
 ```
 
-- The image is vLLM's 0.31.0 release image, pinned by digest, plus the decisio wheel with its `serve` extra; the build argument `APPLY_PATCHES=1` adds the patch series (off by default).
+- The image is vLLM's 0.32.0 release image, pinned by digest, plus the decisio wheel with its `serve` extra.
+  The optional patch series is written for vLLM 0.31.0, so the build argument `APPLY_PATCHES=1` fails the build (`patches/README.md`).
 - The first start downloads the checkpoint into the `decisio-data` volume, mounted at `/data`; it is never part of the image.
 - The container runs as a non-root user, and compose publishes the port on 127.0.0.1 only.
 - The entrypoint starts the server with `--base "${DECISIO_BASE:-gemma-4-31b}"` and the server's default model class (the head-capable class; with `--images on` on the 31B, the checkpoint's multimodal class), listening on `DECISIO_HOST` and `DECISIO_PORT`; arguments after the image name are passed to the server.
@@ -941,7 +949,7 @@ The record, its checks and `tuned-config`'s options: [calculator.md](calculator.
 
 ## Batch invariance (`--batch-invariant`)
 
-vLLM 0.31.0 has a mode, `VLLM_BATCH_INVARIANT=1`, in which every row is computed with kernels whose result does not depend on what else is in the batch.
+vLLM has a mode, `VLLM_BATCH_INVARIANT=1`, in which every row is computed with kernels whose result does not depend on what else is in the batch.
 Without it a request's probabilities can differ in the last digits, and sometimes in more, with the traffic around it, with whether its state came from the prefix cache, and (for an adapter applied at run time) from one pass to the next.
 A board, or a user, runs only `--base <repository>` and sets no environment variable, so decisio can switch the mode itself:
 

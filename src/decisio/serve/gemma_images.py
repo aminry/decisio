@@ -23,7 +23,7 @@ block past the image, the prefix is extended by newline tokens up to the block b
 
 Bidirectional image blocks. On the sliding-window layers the tokens of one image attend to each other, not only to
 the tokens before them (the model's `use_bidirectional_attention = "vision"`, from the token types the processor
-returns beside the ids). vLLM 0.31.0 does this itself for the image tokens it expands; the CPU stand-in
+returns beside the ids). vLLM 0.32.0 does this itself for the image tokens it expands; the CPU stand-in
 (`decisio.serve.hf_letters.HFGemmaImageLettersEngine`) passes the token types to the model.
 
     eng = GemmaImageLettersEngine(os.environ["DECISIO_MODEL"], image_budget=280, max_images=16)

@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # SPDX-FileCopyrightText: Copyright contributors to the decisio project
-"""The hidden-state tap (vLLM 0.31.0; every base's head reader in an in-process engine): a question's hidden
+"""The hidden-state tap (vLLM 0.32.0; every base's head reader in an in-process engine): a question's hidden
 states at its answer position, the final-norm state and a configured set of middle layers, read in the same engine
 request as its letter probabilities, with no extra request and no second engine.
 

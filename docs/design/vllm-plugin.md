@@ -3,14 +3,15 @@
 
 # Design: how decisio changes vLLM
 
-decisio runs on stock vLLM 0.31.0.
+decisio runs on stock vLLM 0.32.0.
 It changes vLLM in exactly two ways, each the least invasive that works: a plugin that registers model classes, and optional patch series (applied by no default image build).
-Checked against vLLM v0.31.0's source (tag `v0.31.0`, commit `db9527a`); the card verification of 0.31.0 is pending.
+Checked against vLLM v0.32.0's source (tag `v0.32.0`, commit `5df63a7`): every vLLM name decisio imports is there.
+The patch series are written for 0.31.0 and do not apply to 0.32.0.
 The 0.30.0 verification on a card is `runs/2026-09-30_plugin-verification`.
 
 ## Summary
 
-- **Correct answers need no patch.** Every answer comes from stock vLLM 0.31.0 behaviour; the patch series are a latency optimisation that is inert unless an environment flag is set, and an upstream change that is inert unless the engine option is set.
+- **Correct answers need no patch.** Every answer comes from stock vLLM 0.32.0 behaviour; the patch series are a latency optimisation that is inert unless an environment flag is set, and an upstream change that is inert unless the engine option is set.
 - **Our own FastAPI front process** serves the routes (`/v1/systemone`, `/v1/answer`, `/v1/tasks`, `/v1/abstention/tasks`, `/v1/models`, `/health`) and drives vLLM in process through its `LLM` class.
 - **A `vllm.general_plugins` plugin** (`decisio.vllm_plugin`) registers decisio's model classes, two per base family.
 - **Suffix staging** is a patch series applied at image build (`patches/`), and is to be proposed upstream.
@@ -66,16 +67,17 @@ If a deployment needs our routes beside vLLM's OpenAI routes on one port, an end
 
 ## Version policy
 
-- The `serve` extra pins `vllm==0.31.0`; the plugin registers nothing on any other version.
+- The `serve` extra pins `vllm==0.32.0`; the plugin registers nothing on any other version.
+- A model repository exported with an earlier vLLM is served only if that version is in its base's compatible list (`decisio.hub.COMPATIBLE_VLLM`), and a version enters a base's list only with the run record of a passed parity read on the published revision ([running.md](../running.md#model-repositories)).
 - Every run manifest records the vLLM version, whether the patch series was applied and its flag.
 - A version bump is a deliberate change: re-apply or drop the series, run the GPU tier again (`tests/gpu`).
 
 ## Tests without a GPU
 
-vLLM 0.31.0 has no macOS wheels, so the unit tier never imports the real package:
+vLLM 0.32.0 has no macOS wheels, so the unit tier never imports the real package:
 
 - the built wheel, installed alone into a fresh environment, exposes the entry point, and loading it without vLLM does nothing (`test_vllm_stub_suite.py`, V1);
-- `register()` against a stand-in `vllm` (`tests/unit/stub_vllm.py`): the declared classes and their config hooks on 0.31.0, nothing on another version, once per process, lazily (`test_vllm_plugin.py`, V2);
+- `register()` against a stand-in `vllm` (`tests/unit/stub_vllm.py`): the declared classes and their config hooks on 0.32.0, nothing on another version, once per process, lazily (`test_vllm_plugin.py`, V2);
 - the patch series against the tagged source tree (`test_patches.py`, needs `bash scripts/fetch_vllm_source.sh`);
 - the worker extension against a stand-in `vllm.v1.core.kv_cache_utils` (`test_vllm_plugin.py`, W1);
 - the launcher's DeepGEMM guard and engine arguments (V3, V4);

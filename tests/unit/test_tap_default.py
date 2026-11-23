@@ -47,7 +47,7 @@ def test_d1_every_base_serves_its_class_with_the_tap():
 
     every = {n for n, v in vars(families).items() if isinstance(v, families.Family)}
     assert every == set(BASES), "a base was added: give its hidden-readout class the tap and list it here"
-    with stub_vllm("0.31.0") as registry:
+    with stub_vllm("0.32.0") as registry:
         assert plugin.register()
         for arch in set(BASES.values()):
             assert registry.resolve(arch).__mro__[1].__qualname__ == "TapReadout", arch
