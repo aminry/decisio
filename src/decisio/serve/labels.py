@@ -260,6 +260,10 @@ STORES = (
     "keyed digest of the request's option texts",
     "never the request's text or state",
     "the labels you post, with who chose the item (the draw, or you)",
+    "for an erased (or aged-out) drawn answer, a tombstone with nothing of its content: a keyed digest of its request "
+    "id and question, when it was served and erased, its epoch, serving stack, language tag and option count, which "
+    "slices drew it, whether it had a label-free score, the certificate it was answered under, whether the label "
+    "monitor read it, and whether it aged out under ttl_days",
 )
 
 
@@ -646,6 +650,10 @@ class TaskLabels:
         self._ids: set[str] = set()  # event ids seen: a merged file repeats events, each counts once
         self._erased_rids: set[str] = set()
         self._erased_before = float("-inf")  # rows served and events received before this are erased
+        # what users erased (by request id, or before a time), as against what aged out under ttl_days: a tombstone
+        # says which, since an aged answer is dropped from certificates while an erased one counts as wrong
+        self._user_rids: set[str] = set()
+        self._user_before = float("-inf")
         self._tombs: dict[str, dict] = {}  # erase events by id
         self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
         self.merges = 0
@@ -846,12 +854,13 @@ class TaskLabels:
                     self._apply(done)
             return len(files)
 
-    def erase(self, request_id: str | None = None, before: float | None = None) -> dict:
+    def erase(self, request_id: str | None = None, before: float | None = None, aged: bool = False) -> dict:
         """Erase one request's answers and labels (`request_id`), or everything served or labelled before a time
         (`before`, in seconds since the epoch). An erase event is written first and the rows leave memory at once
         (`erased`, with how many logged answers and labels it matched); the bytes leave the place at the merger's next
         turn (`purged`: within `FLUSH_EVERY` seconds on one server, `PURGE_AFTER` and a turn on a shared store), so
-        a thousand erasures are one rewrite, not a thousand."""
+        a thousand erasures are one rewrite, not a thousand. `aged`: the erasure is `ttl_days` expiry (by age alone,
+        never by label), so certificates drop its answers rather than count them wrong."""
         if not self.writes:
             raise LabelsReadOnly(READ_ONLY)
         if (request_id is None) == (before is None):
@@ -871,7 +880,7 @@ class TaskLabels:
             )
             matched = {"answers": len(keys), "labels": n_labels}
         tomb = {"type": "erase", "request_id": request_id, "before": None if before is None else float(before),
-                "received": now, "replica": self.replica}  # fmt: skip
+                "received": now, "replica": self.replica, **({"aged": True} if aged else {})}  # fmt: skip
         with self._write:
             self._write_events([tomb])
         return {"state": "erased", "erase_id": tomb["id"], "matched": matched,
@@ -1061,7 +1070,7 @@ class TaskLabels:
         cutoff = now - float(ttl) * 86400
         old = any(r["t"] < cutoff for _, r in self._snapshot()[0]) and cutoff > self._erased_before
         if old:
-            self.erase(before=cutoff)
+            self.erase(before=cutoff, aged=True)
 
     def typical_labelled(self) -> int:
         rows, latest, _, _ = self._snapshot()
@@ -1180,7 +1189,8 @@ class TaskLabels:
     def _index(self, row: dict) -> bool | None:
         """Add a row; False when it is erased (and so dropped)."""
         if row["request_id"] in self._erased_rids or row["t"] < self._erased_before:
-            self._capture_erased((row["request_id"], row["question"]), row)
+            key = (row["request_id"], row["question"])
+            self._capture_erased(key, row, aged=self._aged_out(key, row))
             return False
         key = (row["request_id"], row["question"])
         if key not in self.rows:
@@ -1246,13 +1256,16 @@ class TaskLabels:
         """Drop what an erase event names, at once: the rows, their labels and declines (under `_lock`)."""
         if tomb.get("request_id") is not None:
             self._erased_rids.add(tomb["request_id"])
+            self._user_rids.add(tomb["request_id"])
         if tomb.get("before") is not None:
             self._erased_before = max(self._erased_before, float(tomb["before"]))
+            if not tomb.get("aged"):
+                self._user_before = max(self._user_before, float(tomb["before"]))
         gone = [k for k, r in self.rows.items() if k[0] in self._erased_rids or r["t"] < self._erased_before]
         self._erased_rids.update(k[0] for k in gone)  # an erased answer's labels go with it, whenever they came
         for key in gone:
             row = self.rows.pop(key)
-            self._capture_erased(key, row)
+            self._capture_erased(key, row, aged=self._aged_out(key, row))
             for index, k in ((self.by_digest, row["hk1"]), (self.by_rid, key[0])):
                 keys = index.get(k, [])
                 if key in keys:
@@ -1269,7 +1282,11 @@ class TaskLabels:
         self._imports = sum(1 for e in self.events if e["type"] == "label" and e.get("source") == "import")
         self._pending_rows = [r for r in self._pending_rows if (r["request_id"], r["question"]) in self.rows]
 
-    def _capture_erased(self, key: tuple, row: dict) -> None:
+    def _aged_out(self, key: tuple, row: dict) -> bool:
+        """Whether a row left by `ttl_days` expiry alone, not by a user's erasure (under `_lock`)."""
+        return not (key[0] in self._user_rids or row["t"] < self._user_before)
+
+    def _capture_erased(self, key: tuple, row: dict, aged: bool = False) -> None:
         """Keep what certificates and the label monitor need of an erased drawn answer (under `_lock`): its key, when
         it was served, its epoch and stack, which slices drew it, whether it had a label-free score, and whether the
         current certificate's monitor read it, under a keyed digest of its key. Nothing of its content (no request
@@ -1286,6 +1303,7 @@ class TaskLabels:
                                 "n_options": len(row.get("keys") or []), "lang": row.get("lang"),
                                 "draws": {k: bool(d["in"]) for k, d in row["draws"].items()},
                                 "certificate": row.get("certificate"), "in_region": bool(in_region),
+                                "aged": bool(aged),
                                 "erased_at": self.clock()}  # fmt: skip
 
     def _write_erased_draws(self, held: bool = False) -> None:
@@ -1792,7 +1810,8 @@ class TaskLabels:
                if r["draws"]["cert"]["in"] and r.get("s0") is not None and r["epoch"] in floored]  # fmt: skip
         held = {self.akey(k) for k, _ in out}
         for ak, tb in self._tombstones().items():  # an erased answer keeps its place: it counts as wrong at 1
-            if tb["draws"].get("cert") and tb["label_free"] and tb["epoch"] in floored and ak not in held:
+            if (tb["draws"].get("cert") and tb["label_free"] and tb["epoch"] in floored and ak not in held
+                    and not tb.get("aged")):  # aged out under ttl_days: dropped, by age alone  # fmt: skip
                 out.append((ak, _erased_row(tb)))
         return sorted(out, key=lambda kr: (kr[1]["t"], kr[0] if isinstance(kr[0], str) else self.akey(kr[0])))
 
@@ -1831,18 +1850,23 @@ class TaskLabels:
         rows, latest, now, _ = self._snapshot()
         held = {self.akey(k): (k, r) for k, r in rows if r["draws"]["cert"]["in"]}
         tombs = self._tombstones()
-        first = []
+        first, aged = [], 0
         for ak in c["cohort"]:
             if ak in held:
                 first.append(held[ak])
-            else:  # erased since (a drawn answer leaves only by erasure; max_rows drops undrawn ones)
-                tb = tombs.get(ak)
-                first.append((ak, _erased_row(tb) if tb is not None else {"erased": True, "t": 0.0, "epoch": None}))
-        if sum(1 for _, r in first if r.get("erased")) <= int(c["counts"].get("erased", 0)):
+                continue
+            tb = tombs.get(ak)  # gone since: a drawn answer leaves only by erasure or ttl_days expiry
+            if tb is not None and tb.get("aged"):
+                aged += 1  # aged out by age alone: dropped, the certificate made on the smaller cohort
+                continue
+            first.append((ak, _erased_row(tb) if tb is not None else {"erased": True, "t": 0.0, "epoch": None}))
+        erased = sum(1 for _, r in first if r.get("erased"))
+        if erased <= int(c["counts"].get("erased", 0)) and not aged:
             return
+        aged += int(c["counts"].get("aged", 0))  # its cohort no longer lists the answers dropped before
         with self._write:
             self._write_events([self._traffic_certificate_at(c["look"] - 1, list(c["looks"]), first, latest, now,
-                                                             recompute_of=c)])  # fmt: skip
+                                                             recompute_of=c, aged=aged)])  # fmt: skip
 
     def _maybe_traffic_look(self) -> None:
         """The merger's turn: make the certificate of the earliest look whose cohort is complete (its first n
@@ -1868,13 +1892,14 @@ class TaskLabels:
             return
 
     def _traffic_certificate_at(self, j: int, looks: list, first: list, latest: dict, now: float,
-                                recompute_of: dict | None = None) -> dict:  # fmt: skip
+                                recompute_of: dict | None = None, aged: int = 0) -> dict:  # fmt: skip
         """The certificate of look j on its cohort: each answer re-scored with the label-free readout at this
         server's temperature (from its stored plain readout), right when its label is that readout's top option,
         wrong when it is not or when no label came (expired or declined: the strict rule). Answers below the current
         floor are audit-only and left out; answers served under another stack are left out; both are counted. An
         erased answer (a tombstone) counts as wrong at confidence 1, against every threshold. `recompute_of`: the
-        certificate this one recomputes after an erasure, whose floor and stack it keeps."""
+        certificate this one recomputes after an erasure, whose floor and stack it keeps; `aged`: how many of that
+        certificate's answers aged out under ttl_days and were dropped."""
         c = self.traffic
         alpha, delta = float(c["alpha"]), float(c["delta"])
         dlook = delta / len(looks)
@@ -1914,7 +1939,7 @@ class TaskLabels:
                "alpha": alpha, "delta": delta, "delta_look": dlook, "target_share": c.get("target_share"),
                "c_max": c["c_max"], "t_min": t_min, "stack": stack_now, "epochs": sorted(epochs),
                "counts": {"requested": requested, "received": received, "missing": requested - received,
-                          "audit_only": audit_only, "other_stack": other_stack, "erased": erased},
+                          "audit_only": audit_only, "other_stack": other_stack, "erased": erased, "aged": aged},
                "cohort": [k if isinstance(k, str) else self.akey(k) for k, _ in first],
                "received": now, "replica": self.replica}  # fmt: skip
         if recompute_of is not None:
@@ -1988,7 +2013,7 @@ class TaskLabels:
             labelled[b] = labelled.get(b, 0) + got
         stack = self.fdr.get("stack")
         for tb in self._tombstones().values():
-            if not tb["draws"].get("audit") or not tb["label_free"] or now - tb["t"] <= due:
+            if not tb["draws"].get("audit") or not tb["label_free"] or now - tb["t"] <= due or tb.get("aged"):
                 continue
             if stack is not None and tb.get("stack") not in (None, stack):
                 left["other_stack"] += 1
@@ -2137,8 +2162,8 @@ class TaskLabels:
                 missing += 1
                 closed_at.append((float(ev["received"]) if ev is not None else row["t"] + due, False))
         for tb in self._tombstones().values():  # erased drawn answers it read: missing, never labelled
-            if tb.get("certificate") == self.cert_id and tb.get("in_region") and any(tb["draws"].get(x)
-                                                                                     for x in slices):  # fmt: skip
+            read = tb.get("certificate") == self.cert_id and tb.get("in_region") and not tb.get("aged")
+            if read and any(tb["draws"].get(x) for x in slices):
                 missing += 1
                 closed_at.append((float(tb["erased_at"]), False))
         q = region_q(*next(iter(pis))) if region and pooled else audit_now
