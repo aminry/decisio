@@ -766,9 +766,9 @@ The embedding is the table's student, and since 0.41.0 a task chooses it.
 
 | `fast_table` | Student | Use it for |
 | --- | --- | --- |
-| `true` or `{"kind": "static"}` (the default) | `minishlab/potion-base-8M`: a static embedding, the mean of the text's token vectors (Model2Vec), computed by decisio itself | most tasks: it costs so little that a table of it never makes a request slower |
+| `true` or `{"kind": "static"}` (the default) | `minishlab/potion-base-8M`: a static embedding, the mean of the text's token vectors (Model2Vec), computed by decisio itself | most tasks: it costs so little that a table of it was never slower than decisio alone on any task and load measured (one and 16 requests in flight, one and several questions per request, on an 8-vCPU host) |
 | `{"kind": "static", "static_model": "multilingual"}` | `minishlab/potion-multilingual-128M` | traffic that is not English |
-| `{"kind": "encoder"}` | `BAAI/bge-base-en-v1.5` through ONNX Runtime (the only student before 0.41.0) | many-class English tasks where its larger share pays for its time on your host |
+| `{"kind": "encoder"}` | `BAAI/bge-base-en-v1.5` through ONNX Runtime (the only student before 0.41.0) | many-class English tasks where its larger share pays for its time on your host; it runs on the host's CPU, so with many requests in flight, or several questions per request, it can make requests slower than decisio alone (measured on an 8-vCPU host with 16 requests in flight: up to 59% slower), and the registration times it one request at a time |
 | `{"kind": "auto"}` | fits the static student (and `static_model`) and the encoder, and keeps the one that saves more on this host | when you do not know |
 | `{"kind": "hashed"}` | reserved; refused | not available in this version |
 
@@ -823,7 +823,7 @@ hf download BAAI/bge-base-en-v1.5 onnx/model.onnx tokenizer.json --revision a5be
 2. It reads the held-out examples through decisio, one at a time, as the certificate does.
 3. It makes the cascade's thresholds (below) for each student.
 4. It times the paths on the held-out examples, on this host, one request at a time, with decisio's reads of texts it has not seen: the expected mean time per request is the table's time on every request plus decisio's time on the share the table defers.
-5. It keeps a table only if the expected time falls by at least the task's `min_saving` (10% by default) and a table threshold holds. Under `auto` it keeps the student with the larger saving; when the two savings are within 1 point it keeps the static one; when neither qualifies there is no table.
+5. It keeps a table only if the expected time falls by at least the task's `min_saving` (10% by default) and a table threshold holds. Under `auto` it keeps the student with the larger saving, but the static one unless the other saves more than 10 points more: the timing is one request at a time, and the encoder's time grows with requests in flight and questions per request while the static student's barely does. When neither qualifies there is no table.
 
 The response says what it did.
 `fast_table_report` has `kept`, the `reason` when it is false (for example "it would save 7% of the time per request, under the 10% required"), `required` (the task's `min_saving`), the `guard` (the table's and decisio's mean milliseconds, the table's share, the saving) and the cascade's thresholds.
