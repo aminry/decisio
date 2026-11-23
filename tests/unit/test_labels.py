@@ -28,7 +28,9 @@ L13 the need pools an earlier epoch's rows only when its region contained the cu
 L14 an undrawn answer keeps its served distribution only in the uniform sample (reservoir / max_rows), the same on
     every replica; a drawn one always does
 L15 erasure on one server: by request id and by time, gone from memory at once and from every file (purged), and
-    still gone when the log is read back
+    still gone when the log is read back; no request id it erased is on the place, erase events included
+L15b an erase event in an earlier version's form (with the request id) is honoured, and a merge rewrites it as its keyed
+     digest
 L16 the merge: many files become a few, nothing kept is lost, an event or row read twice counts once, and a log read
     back from the merged files has the same table
 L17 settings after registration: a new epoch, draws at the new chances, rows keep their epoch; a region change
@@ -397,11 +399,54 @@ def test_l14_the_served_distribution_of_undrawn_answers_is_a_uniform_sample():
 
 
 def _files_text(place) -> str:
-    """Every row and label on the place, as text (an erase event keeps the id it erased, an opaque id, and nothing
-    else of the request)."""
+    """Every row and event on the place, as text, erase events included (they keep a keyed digest of the request id
+    they erased, never the id)."""
     files = [place.get(n) or b"" for k in ("rows/", "events/") for n in place.names(k)]
-    lines = [x for data in files for x in data.decode().splitlines()]
-    return "\n".join(x for x in lines if '"type": "erase"' not in x)
+    return "\n".join(x for data in files for x in data.decode().splitlines())
+
+
+def test_l15b_an_erase_event_from_before_keeps_only_its_digest_after_a_merge(tmp_path):
+    clock = Clock()
+    place = DirPlace(tmp_path / "labels")
+    tl = _task(place=place, clock=clock, audit_pi=1.0)
+    keep, _ = _serve(tl, "keep", [0.7, 0.2, 0.1])
+    gone, _ = _serve(tl, "gone", [0.7, 0.2, 0.1])
+    tl.flush(force=True)
+    tl.post([{"request_id": r, "answer": "billing"} for r in (keep, gone)])
+    old = {
+        "type": "erase",
+        "request_id": gone,
+        "before": None,
+        "received": clock.t,
+        "replica": "r1",
+    }  # as earlier versions wrote it
+    with tl._write:
+        tl._write_events([old])
+    assert '"request_id": "' + gone in _files_text(place)  # written as an older version wrote it
+    back = LB.TaskLabels("t", tl.registered, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    back.sync()
+    assert {r["request_id"] for r in back.table()} == {keep}  # honoured: the answer and its label are erased
+    erase = next(e for e in back.events if e["type"] == "erase")
+    assert erase["rid_key"] == back.rkey(gone) and "request_id" not in erase
+    back.tick()  # the merge rewrites the log: the erase event in its new form, the request id gone
+    assert gone not in _files_text(place) and back.counts()["erasures"] == {"erased": 1, "purged": 1}
+    again = LB.TaskLabels("t", tl.registered, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    again.sync()
+    assert {r["request_id"] for r in again.table()} == {keep}
+    # one purged by the earlier version already (nothing waits for a purge): the next turn merges it away all the same
+    late, _ = _serve(again, "late", [0.7, 0.2, 0.1])
+    again.flush(force=True)
+    with again._write:
+        again._write_events([{"type": "erase", "request_id": late, "before": None, "received": clock.t,
+                              "replica": "r1", "id": "01OLDERASE0000000000000000"}])  # fmt: skip
+        again._write_events([{"type": "purged", "of": ["01OLDERASE0000000000000000"], "received": clock.t,
+                              "replica": "r1"}])  # fmt: skip
+    assert late in _files_text(place)
+    last = LB.TaskLabels("t", tl.registered, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
+    last.sync()
+    assert last.unpurged(ripe=True) == [] and last._legacy_erase
+    last.tick()
+    assert late not in _files_text(place) and not last._legacy_erase
 
 
 def test_l15_erasure_on_one_server(tmp_path):

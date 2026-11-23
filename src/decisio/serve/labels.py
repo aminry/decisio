@@ -260,6 +260,8 @@ STORES = (
     "keyed digest of the request's option texts",
     "never the request's text or state",
     "the labels you post, with who chose the item (the draw, or you)",
+    "for an erasure, a keyed digest of the request id it erased (or the time it erased before) and when, never the "
+    "request id",
     "for an erased (or aged-out) drawn answer, a tombstone with nothing of its content: a keyed digest of its request "
     "id and question, when it was served and erased, its epoch, serving stack, language tag and option count, which "
     "slices drew it, whether it had a label-free score, the certificate it was answered under, whether the label "
@@ -648,11 +650,12 @@ class TaskLabels:
         self.revisions = 0  # labels that replaced a different answer (a sign of label noise)
         self.invalid_on_join = 0  # labels joined to a row whose options do not include their answer: ignored
         self._ids: set[str] = set()  # event ids seen: a merged file repeats events, each counts once
-        self._erased_rids: set[str] = set()
+        self._erased_rk: set[str] = set()  # the erased request ids, as keyed digests (`rkey`)
         self._erased_before = float("-inf")  # rows served and events received before this are erased
         # what users erased (by request id, or before a time), as against what aged out under ttl_days: a tombstone
         # says which, since an aged answer is dropped from certificates while an erased one counts as wrong
-        self._user_rids: set[str] = set()
+        self._user_rk: set[str] = set()
+        self._legacy_erase = False  # an erase event read in an earlier version's form: the next turn merges it away
         self._user_before = float("-inf")
         self._tombs: dict[str, dict] = {}  # erase events by id
         self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
@@ -795,7 +798,8 @@ class TaskLabels:
             self._maybe_fdr_window()
         self.drift_state = self.drift()
         self.flush(force)
-        if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
+        if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)
+                                      or self._legacy_erase):  # fmt: skip
             self.compact()
 
     def unpurged(self, ripe: bool = False) -> list[str]:
@@ -843,6 +847,7 @@ class TaskLabels:
             with self._lock:
                 self._read = (self._read - set(files)) | set(written)
                 self.merges += 1
+                self._legacy_erase = False  # the erase events are written in their digest form now
             if tombs:
                 done = {"type": "purged", "of": tombs, "received": self.clock(), "replica": self.replica,
                         "id": ulid(self.clock())}  # fmt: skip
@@ -879,7 +884,8 @@ class TaskLabels:
                 and (e.get("request_id") in rids or float(e.get("received") or 0) < bound)
             )
             matched = {"answers": len(keys), "labels": n_labels}
-        tomb = {"type": "erase", "request_id": request_id, "before": None if before is None else float(before),
+        tomb = {"type": "erase", "rid_key": None if request_id is None else self.rkey(request_id),
+                "before": None if before is None else float(before),
                 "received": now, "replica": self.replica, **({"aged": True} if aged else {})}  # fmt: skip
         with self._write:
             self._write_events([tomb])
@@ -1188,7 +1194,7 @@ class TaskLabels:
 
     def _index(self, row: dict) -> bool | None:
         """Add a row; False when it is erased (and so dropped)."""
-        if row["request_id"] in self._erased_rids or row["t"] < self._erased_before:
+        if self.rkey(row["request_id"]) in self._erased_rk or row["t"] < self._erased_before:
             key = (row["request_id"], row["question"])
             self._capture_erased(key, row, aged=self._aged_out(key, row))
             return False
@@ -1215,6 +1221,9 @@ class TaskLabels:
                 return
             self._ids.add(eid)
         if ev["type"] == "erase":
+            if ev.get("request_id") is not None:  # written by an earlier version: kept as its digest from now on
+                ev = {**{k: v for k, v in ev.items() if k != "request_id"}, "rid_key": self.rkey(ev["request_id"])}
+                self._legacy_erase = True
             self.events.append(ev)
             self._tombs[eid] = ev
             self._erase_in_memory(ev)
@@ -1250,19 +1259,23 @@ class TaskLabels:
     def _is_erased(self, ev: dict) -> bool:
         if ev["type"] not in ("label", "decline"):
             return False
-        return ev.get("request_id") in self._erased_rids or float(ev.get("received") or 0) < self._erased_before
+        rid = ev.get("request_id")
+        return (rid is not None and self.rkey(rid) in self._erased_rk) or float(ev.get("received") or 0) < (
+            self._erased_before)  # fmt: skip
 
     def _erase_in_memory(self, tomb: dict) -> None:
         """Drop what an erase event names, at once: the rows, their labels and declines (under `_lock`)."""
-        if tomb.get("request_id") is not None:
-            self._erased_rids.add(tomb["request_id"])
-            self._user_rids.add(tomb["request_id"])
+        if tomb.get("rid_key") is not None:
+            self._erased_rk.add(tomb["rid_key"])
+            self._user_rk.add(tomb["rid_key"])
         if tomb.get("before") is not None:
             self._erased_before = max(self._erased_before, float(tomb["before"]))
             if not tomb.get("aged"):
                 self._user_before = max(self._user_before, float(tomb["before"]))
-        gone = [k for k, r in self.rows.items() if k[0] in self._erased_rids or r["t"] < self._erased_before]
-        self._erased_rids.update(k[0] for k in gone)  # an erased answer's labels go with it, whenever they came
+        gone = [k for k, r in self.rows.items() if self.rkey(k[0]) in self._erased_rk or r["t"] < self._erased_before]
+        self._erased_rk.update(
+            self.rkey(k[0]) for k in gone
+        )  # an erased answer's labels go with it, whenever they came
         for key in gone:
             row = self.rows.pop(key)
             self._capture_erased(key, row, aged=self._aged_out(key, row))
@@ -1276,7 +1289,7 @@ class TaskLabels:
             self._first_label.pop(key, None)
             self.latest.pop(key, None)
             self.revisions -= self._changes.pop(key, 0)
-        for rid in [r for r in self._parked if r in self._erased_rids]:
+        for rid in [r for r in self._parked if self.rkey(r) in self._erased_rk]:
             self._parked.pop(rid)
         self.events = [e for e in self.events if not self._is_erased(e)]
         self._imports = sum(1 for e in self.events if e["type"] == "label" and e.get("source") == "import")
@@ -1284,7 +1297,7 @@ class TaskLabels:
 
     def _aged_out(self, key: tuple, row: dict) -> bool:
         """Whether a row left by `ttl_days` expiry alone, not by a user's erasure (under `_lock`)."""
-        return not (key[0] in self._user_rids or row["t"] < self._user_before)
+        return not (self.rkey(key[0]) in self._user_rk or row["t"] < self._user_before)
 
     def _capture_erased(self, key: tuple, row: dict, aged: bool = False) -> None:
         """Keep what certificates and the label monitor need of an erased drawn answer (under `_lock`): its key, when
@@ -1959,6 +1972,13 @@ class TaskLabels:
     def _fdr_bucket(self, row: dict, by_lang: bool) -> str:
         cell = option_cell(len(row["keys"]), self.fdr.get("qtype") or "choice")
         return f"{cell}|{row['lang']}" if by_lang else cell
+
+    def rkey(self, request_id: str) -> str:
+        """A request id's keyed digest (HMAC-SHA256 under the draw's salt, which is never shown): how an erase event
+        names the request it erased, so no erased request id is kept."""
+        return (
+            "rk:" + hmac.new(bytes.fromhex(self.secret["salt"]), request_id.encode(), hashlib.sha256).hexdigest()[:32]
+        )
 
     def akey(self, key: tuple) -> str:
         """An answer's keyed digest (HMAC-SHA256 of its request id and question under the draw's salt, which is never

@@ -344,10 +344,11 @@ def test_r11b_a_label_for_an_id_no_replica_holds_expires():
 
 
 def _store_text(objects) -> str:
-    """Every row and label on the store, as text (an erase event keeps only the opaque id it erased)."""
+    """Every row and event on the store, as text, erase events included (they keep a keyed digest of the request id
+    they erased, never the id)."""
     lines = [x for p in objects.list(PREFIX) if not p.endswith("EPOCHS.json")
              for x in objects.get(p)[0].decode().splitlines()]  # fmt: skip
-    return "\n".join(x for x in lines if '"type": "erase"' not in x)
+    return "\n".join(lines)
 
 
 def test_r9_erasure_on_a_shared_store():
