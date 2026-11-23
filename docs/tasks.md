@@ -287,7 +287,8 @@ Give the request's language as `meta.lang` in the body or the `x-decisio-lang` h
 
 The state as text is the string itself, or for any other state `json.dumps(state, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`; it is then put in Unicode NFC, runs of whitespace become one space, and the ends are stripped.
 A digest or state matching several logged answers labels the newest one not yet labelled.
-Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `not_joined` (on a shared store: kept, for an answer another replica served that this one has not read yet), `unknown_ref`, `invalid_answer` or `invalid`.
+Each label's `status` is `accepted`, `duplicate` (the same answer again), `revised` (a different answer; the latest wins), `not_joined` (on a shared store: kept, for an answer another replica served that this one has not read yet), `expired_ref` (the answer was served and then dropped past `max_rows`), `unknown_ref`, `invalid_answer` or `invalid`.
+The response also gives the counts and, per alpha, the labels the region still needs (`need`).
 A digest or state that matches nothing logged is kept as an `import`: usable for review, never for a certificate.
 Labels are written to disk before the response returns.
 
@@ -305,6 +306,9 @@ An answer drawn under earlier settings counts when its confidence is in the curr
 Drawn answers still waiting for a label are shown as `region_pending` and not counted; the figure is for planning, and a certificate waits until they are due.
 A drawn answer declined, or not labelled within `due_days`, counts as an error there: a missing label is never assumed right.
 When the errors so far are already at or above alpha, that level's entry has a `reason`: it will not certify there unless the error falls.
+Each level also gives `region_labels_per_day` (the region's labels over the last 7 days) and `days_if_no_error`, the time to the labels still needed at that rate.
+`status` also gives the `response_rate` (drawn answers labelled, among those labelled, expired or declined), the audit slice's `accuracy` with a 90% Clopper-Pearson interval, on labelled answers and `strict` (every expired or declined answer counted wrong), the time of the last label (`last_label_at`, `since_last_label_s`), and per language tag the answers, drawn and labelled, and the labels each alpha still needs there (`languages`; untagged requests are `unknown`, never merged into a language).
+These are counts only: no answer, text or chance of any one request.
 `GET /v1/tasks/{id}/labels/export` returns every logged question with all its stored fields, its draw, state and label as JSON lines; `ps`, `lp` and `h` are base64 little-endian float32.
 
 **Which labels may be used for what.**
@@ -334,6 +338,7 @@ They leave every view at once.
 The answer says `erased`, with how many logged answers and labels it `matched`; an id that is not a request id is refused (422).
 The bytes go at the labels thread's next turn (within 10 seconds on one server; on a shared store at the next merge, 30 seconds after the erasure or more), and `status.erasures` counts them as `purged` then; many erasures are purged in one rewrite.
 What is kept of an erasure is the request id it erased, an opaque id, and its time.
+`ttl_days` (default none) erases, the same way, every answer and label older than that many days, at most once an hour; it is at least `due_days`.
 
 **The draw.**
 Each answered question is drawn independently into three slices, by a keyed hash of its request id, so every replica draws the same:
@@ -360,9 +365,25 @@ By default the chances follow a budget: `per_day` (20) labels a day, split by `s
 Before the server has seen any traffic it assumes `tau_after` (200) answers a day, which at the default gives about 20 labels in the first 200 answers.
 When the certificate region is set (after `tau_after` answers), the chances are set again from the measured rate (answers a day over the last 7 days).
 After that a new budget starts at most once a day, and only when the rate has moved below half or above twice the rate the chances assumed.
-Audit and cert chances never go below 0.02, so a small budget on heavy traffic asks for more than `per_day`; a margin chance under 0.02 is off.
-`status.budget` gives the labels a day asked for, the measured rate and the chances in force; the queue gives `per_day` and the rate only.
+Audit and cert chances never go below 0.02, because certificates and drift checks need audit labels, so a small budget on heavy traffic asks for more than `per_day`; a margin chance under 0.02 is off.
+The registration response's `labels.budget_floor` says how much that is: `min_share`, the share of answers the floors label whatever the budget, and `above_answers_per_day`, the traffic above which that is more than `per_day` (556 answers a day at the default 20); it warns when the assumed first day already exceeds it, and `status` warns while `over_budget` is true.
+Those labels matter: a drawn answer not labelled by its due date counts as an error, so a task that leaves its drawn answers unlabelled loses its certificate or never gets one.
+Label them, raise `per_day`, or register the task without a certificate.
+`expected_per_day` and `over_budget` only report; they change no chance.
+`status.budget` gives the labels a day asked for, the measured rate, the chances in force, and `expected_per_day`, the labels a day the last 7 days' answers were drawn for at that rate; `over_budget` is true when that is more than a quarter above `per_day` (the 0.02 floor on heavy traffic). The queue gives `per_day` and the rate only.
 Give the chances yourself (`audit_pi`, `cert_pi`, `margin_pi_min`, `margin_pi_max`) to turn the budget off; `PUT .../labels/settings` with `per_day` turns it on again.
+A task certified at alpha 0.01 or 0.005 needs hundreds of labels in its region, so with the default shares its budget moves to audit 0.10, cert 0.80, margin 0.10 and no typical slice, which reaches those labels about 1.8 times sooner; the audit share still gives 100 labels in every 1,000. Shares you give at registration are kept.
+Such a task also needs labels on at least 5% of its answers, or its drift checks catch a rising error too late.
+With chances you give (`audit_pi`, `cert_pi`, `margin_pi_max`), a registration whose chances cannot reach that share is refused (422), with the `cert_pi` that would.
+Registered without labels, it is registered as before and logs nothing, and the response says what it needs: `"labels": {"enabled": false, "warnings": [...]}`.
+For such a task the registration response and `status` carry `detection`.
+The detection claim was measured on two configurations at alpha 0.01 and 0.005: shares 10/80/10/0 with at least 5% of answers drawn for labels, and shares 15/45/30/10 with at least 10%.
+For a task on one of them whose measured share of answers drawn (`label_share`) reaches that, `detection.claim` is: "In replays of concept-change drift (synthetic streams and recorded model outputs), the median number of wrong certified answers served before the label monitor suspended certification was at most 100 on every stream tested."
+At registration, before any share is measured, `detection.pending` says which share the claim waits for.
+For any other split, or under its share, `detection.warning` is "Drift detection speed has not been validated for this split." (also in `labels.warnings` at registration), and `detection.needed` gives the `cert_pi`, or with a budget the `label_share` (and `per_day` at the measured rate), that would reach the labelling rate of 10/80/10/0 at 5%.
+`detection.q` (the chance that an answer in the certified region is drawn by the audit or cert slice), `q_reference` and `region_share` are for diagnosis; they are not the claim's condition.
+The certificate itself is unaffected: it needs only uniform labels in its region with their recorded chances, which any split gives.
+With a budget, the registration response's `labels.warnings` says how many answers a day `per_day` covers at that share (`per_day` / 0.05), and `status` reports `label_share` (the share of the last 7 days' answers drawn for a label) with a warning while it is under 5%.
 Every drawn answer keeps the chance it was drawn at, so a change of chances never invalidates what was drawn before.
 
 The certificate region covers all traffic for the first `tau_after` (200) answers.

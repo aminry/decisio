@@ -43,6 +43,22 @@ L20 the typical slice: levels from the reservoir rank a typical input above an o
     budget task starts the slice (an epoch), draws it at its level, ends it after typical_labels (its share back to
     margin), and its labels are fit labels weighted by the chance of either fit slice; without the student it is off;
     the student reads a bounded prefix of the input
+L21 the overview: the response rate, the audit accuracy and its strict form with their intervals, the last label,
+    and per language the counts and the labels still needed; days to the need at the region's label rate
+L22 ttl_days: answers and labels older than it are erased by the labels thread, at most once an hour, through the
+    erase path; it is at least due_days
+L23 a task certified at alpha 0.01 or below, in budget mode with the default shares, moves to audit 0.10, cert 0.80,
+    margin 0.10, typical 0 (an epoch); given shares and lenient alphas are kept
+L24 a task certified at alpha 0.01 or below needs labels on at least 5% of its answers: explicit chances that
+    cannot reach it are refused with the cert_pi that would, a budget gets a warning at registration, and the
+    overview reports the share drawn and warns below it
+L25 status.budget gives the labels a day expected at the measured rate and flags spending above per_day (the 0.02
+    floor on heavy traffic); the rate counts an answer once, also when it is read again after max_rows dropped it
+L26 detection at a strict alpha: the claim holds when the split's q (audit or cert, in the region) reaches the
+    validated reference (10/80/10/0 at 5%); otherwise the exact warning and what would reach it; never for a
+    lenient alpha
+L27 status reads never hold up serving: observe() stays fast while another thread polls the queue, the overview,
+    the need and the budget (each scan reads a snapshot outside the log's lock)
 
   uv run pytest -q tests/unit/test_labels.py
 """
@@ -145,6 +161,7 @@ def test_l4_labels_every_reference_and_a_restart(tmp_path):
         {"request_id": "r1-NOPE", "answer": "tech"},
         {"request_id": rid, "answer": "refunds"},
     ])  # fmt: skip
+    assert set(out["need"]) == {0.05, 0.10, 0.01, 0.005}  # the label need comes with every write
     st = [r["status"] for r in out["results"]]
     assert st == ["accepted", "accepted", "accepted", "unknown_ref", "invalid_answer"]
     assert out["results"][1]["request_id"] == rid_b and out["results"][2]["source"] == "import"
@@ -227,6 +244,10 @@ def test_l9_max_rows_drops_the_oldest_undrawn_rows(tmp_path):
     kept_undrawn = [r for r in undrawn if (r, "q") in tl.rows]
     assert all((r, "q") in tl.rows for r in drawn)  # a drawn row's label may still come
     assert kept_undrawn == undrawn[len(undrawn) - len(kept_undrawn) :] and len(kept_undrawn) <= 1  # the newest only
+    gone = undrawn[0]  # dropped past max_rows: the label says so
+    assert tl.post([{"request_id": gone, "answer": "billing"}])["results"][0]["status"] == "expired_ref"
+    assert tl.post([{"request_id": "r1-" + LB.ulid(clock.t + 5), "answer": "billing"}])["results"][0]["status"] == (
+        "unknown_ref")  # fmt: skip
     back = LB.TaskLabels("t", tl.settings, tl.secret, DirPlace(tmp_path / "labels"), "r1", clock)
     back.sync()
     assert {k[0] for k in back.rows} == set(drawn)  # read back: the same rule, every undrawn row over the cap goes
@@ -593,3 +614,158 @@ def test_l20_the_typical_slice():
     _serve(capped, "c0-" + "x" * 50_000, [0.6, 0.3, 0.1])
     assert seen == [LB.TYPICAL_TEXT]  # the student reads a bounded prefix whatever the state's length
     assert LB.script_class("я" * 600 + "a" * 50_000) == "cyrillic"  # the script class too: its first 500 characters
+
+
+def test_l21_the_overview():
+    clock = Clock()
+    tl = _task(clock=clock, audit_pi=1.0, cert_pi=1.0, margin_pi_max=0, tau_after=10_000)
+    de = [_serve(tl, f"de{i}", [0.8, 0.1, 0.1])[0] for i in range(10)]
+    for r in de:
+        tl.rows[(r, "q")]["lang"] = "de"
+    en = [_serve(tl, f"en{i}", [0.8, 0.1, 0.1])[0] for i in range(10)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in de[:8]] + [{"request_id": en[0], "answer": "tech"}])
+    tl.decline([de[8]])
+    o = tl.overview()
+    assert o["response_rate"] == pytest.approx(9 / 10)  # 9 labelled of 10 closed (one declined; the rest pending)
+    assert o["audit"]["labelled"] == 9 and o["audit"]["accuracy"] == pytest.approx(8 / 9, abs=1e-4)
+    assert o["audit"]["strict_accuracy"] == pytest.approx(8 / 10, abs=1e-4)
+    lo, hi = o["audit"]["interval_90"]
+    assert lo < 8 / 9 < hi and o["since_last_label_s"] == 0.0
+    assert o["languages"]["de"] == {"answers": 10, "drawn": 10, "labelled": 8, "need": o["languages"]["de"]["need"]}
+    assert set(o["languages"]) == {"de", "en"} and set(o["languages"]["de"]["need"]) == {0.05, 0.10, 0.01, 0.005}
+    n = {x["alpha"]: x for x in tl.need(lang="de")}[0.05]
+    assert n["region_labels"] == 9 and n["region_errors"] == 1  # 8 right, 1 declined
+    assert n["region_labels_per_day"] == pytest.approx(8 / 7, abs=0.01) and n["days_if_no_error"] == pytest.approx(
+        n["more_if_no_error"] / (8 / 7), abs=0.1)  # fmt: skip
+    assert LB.accuracy_interval(0, 0) is None and LB.accuracy_interval(5, 5)[1] == 1.0
+
+
+def test_l22_ttl_days():
+    with pytest.raises(LB.LabelsError):
+        LB.parse_settings({"ttl_days": 7})  # under due_days (14)
+    clock = Clock()
+    tl = _task(clock=clock, audit_pi=1.0, ttl_days=30)
+    old = [_serve(tl, f"old{i}", [0.7, 0.2, 0.1])[0] for i in range(3)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in old])
+    clock.t += 20 * 86400
+    new = _serve(tl, "new", [0.7, 0.2, 0.1])[0]
+    tl.tick()
+    assert {k[0] for k in tl.rows} == set(old) | {new}  # nothing is 30 days old yet
+    clock.t += 11 * 86400
+    tl.tick()
+    assert {k[0] for k in tl.rows} == {new} and tl.counts()["erasures"]["erased"] == 1
+    tl.tick()
+    assert tl.counts()["erasures"]["erased"] == 1  # once an hour at most, and only when something is old
+
+
+def test_l23_shares_for_a_strict_alpha():
+    tl = _task()
+    tl.cert_alpha = 0.05
+    tl.tick()
+    assert tl.epoch["epoch"] == 0  # a lenient alpha keeps the default shares
+    tl.cert_alpha = 0.005
+    tl.tick()
+    e = tl.epoch
+    assert e["epoch"] == 1 and e["settings"]["shares"] == LB.STRICT_SHARES and "alpha 0.005" in e["why"]
+    assert e["settings"]["cert_pi"] > tl.epochs[0]["settings"]["cert_pi"] and e["settings"]["typical_pi_max"] == 0.0
+    assert e["budget"]["per_day"] == 20
+    tl.tick()
+    assert tl.epoch["epoch"] == 1  # once
+    given = _task(shares={"audit": 0.2, "cert": 0.5, "margin": 0.3, "typical": 0.0})
+    given.cert_alpha = 0.01
+    given.tick()
+    assert given.epoch["epoch"] == 0  # shares given at registration are kept
+
+
+def test_l24_a_strict_alpha_needs_a_tenth_of_its_answers_labelled():
+    low = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.02, "margin_pi_max": 0})  # at most 3.6%
+    err, _ = LB.strict_check(low, 0.01)
+    assert err and "at least 5%" in err and "cert_pi to at least" in err
+    assert LB.strict_check(low, 0.05) == (None, [])  # a lenient alpha: no requirement
+    ok = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.2, "margin_pi_max": 0})
+    assert LB.strict_check(ok, 0.005) == (None, [])
+    err, warn = LB.strict_check(LB.parse_settings(True), 0.01)
+    assert err is None and "400 answers a day" in warn[0]
+    block = LB.registration_block({"settings": LB.parse_settings(True), "secret": LB.new_secrets()}, "memory", 0.01)
+    assert block["warnings"] == warn
+    tl = _task(audit_pi=0.02, cert_pi=0.02, margin_pi_max=0)
+    tl.cert_alpha = 0.01
+    for i in range(150):
+        _serve(tl, f"t{i}", [0.7, 0.2, 0.1])
+    o = tl.overview()
+    assert o["label_share"] < 0.05 and "under the 5%" in o["warnings"][0]
+
+
+def test_l25_the_budget_shows_overspend_and_the_rate_counts_once():
+    clock = Clock()
+    tl = _task(clock=clock, max_rows=500, tau_after=100)  # per_day 20
+    for i in range(1000):  # 1,000 answers in a day: the floors draw more than 20 a day
+        clock.t += 86.4
+        _serve(tl, f"t{i}", [0.7, 0.2, 0.1])
+    tl.tick()
+    b = tl.budget()
+    assert b["expected_per_day"] > 25 and b["over_budget"] is True
+    w = next(w for w in tl.overview()["warnings"] if "above per_day (20)" in w)
+    assert "counts as an error" in w and "register without a certificate" in w
+    assert tl.settings["audit_pi"] == LB.PI_MIN  # display only: no chance moves
+    block = LB.registration_block({"settings": LB.parse_settings(True), "secret": LB.new_secrets()}, "memory")
+    assert block["budget_floor"] == {"min_share": 0.036, "above_answers_per_day": 556} and "warnings" not in block
+    small = LB.registration_block({"settings": LB.parse_settings({"per_day": 2}), "secret": LB.new_secrets()}, "memory")
+    assert "more than per_day (2)" in small["warnings"][0]  # the assumed first day already overspends
+    rate = tl.rate()
+    gone = next(iter(tl._undrawn))
+    row = dict(tl.rows[gone])
+    assert tl._evict()  # dropped past max_rows
+    tl._index(row)  # read again from a merged file
+    assert tl.rate() == rate  # not counted twice
+
+
+def test_l26_the_detection_claim_only_for_a_validated_split():
+    ref = LB.reference_q(0.8)
+    assert ref == pytest.approx(1 - (1 - 0.005) * (1 - 0.05))
+    explicit = LB.parse_settings({"audit_pi": 0.02, "cert_pi": 0.5, "margin_pi_max": 0.2})  # a high q, no named split
+    d = LB.detection(explicit, 0.8, label_share=0.4)
+    assert d["validated"] is False and d["warning"] == "Drift detection speed has not been validated for this split."
+    assert "claim" not in d and d["q"] > d["q_reference"]  # q is a diagnostic, never the claim's condition
+    strict = {**LB.parse_settings(True), "shares": dict(LB.STRICT_SHARES)}
+    assert LB.detection(strict, 0.8, label_share=0.06)["claim"] == LB.DETECTION_CLAIM
+    assert LB.detection(strict, 0.8, label_share=0.04)["warning"] == LB.DETECTION_UNVALIDATED  # under its 5%
+    assert "the claim applies once at least 5%" in LB.detection(strict, 0.8)["pending"]  # not measured yet
+    default = LB.parse_settings(True)  # 15/45/30/10: validated at 10%
+    assert "claim" in LB.detection(default, 0.8, label_share=0.11) and "warning" in LB.detection(
+        default, 0.8, label_share=0.07
+    )
+    custom = LB.parse_settings({"shares": {"audit": 0.5, "cert": 0.2, "margin": 0.3, "typical": 0.0}})
+    custom.update(LB.budget_pis(custom, rate=4_000, region_share=0.8, margin_weight=0.5))
+    d = LB.detection(custom, 0.8, rate=4_000, label_share=0.5)
+    assert d["warning"] == LB.DETECTION_UNVALIDATED and d["needed"]["label_share"] > 0.05
+    block = LB.registration_block({"settings": explicit, "secret": LB.new_secrets()}, "memory", alpha=0.01)
+    assert block["detection"]["validated"] is False and LB.DETECTION_UNVALIDATED in block["warnings"]
+    block = LB.registration_block({"settings": default, "secret": LB.new_secrets()}, "memory", alpha=0.01)
+    assert "pending" in block["detection"] and LB.DETECTION_UNVALIDATED not in block.get("warnings", [])
+    assert "detection" not in LB.registration_block({"settings": explicit, "secret": LB.new_secrets()}, "memory", 0.05)
+    tl = _task(audit_pi=0.02, cert_pi=0.02, margin_pi_max=0)
+    assert tl.detection() is None  # no certificate known yet
+    tl.cert_alpha = 0.01
+    assert tl.overview()["detection"]["warning"] == LB.DETECTION_UNVALIDATED
+
+
+def test_l27_status_reads_never_hold_up_serving(monkeypatch):
+    tl = _task(audit_pi=0.3, cert_pi=0.3)
+    rids = [_serve(tl, f"t{i}", [0.6, 0.3, 0.1])[0] for i in range(300)]
+    tl.post([{"request_id": r, "answer": "billing"} for r in rids[:100]])
+    held = []
+    real = LB.TaskLabels._state
+
+    def state(row, ev, now, due):  # every scan works row by row outside the lock the answer path takes
+        held.append(tl._lock._is_owned())
+        return real(row, ev, now, due)
+
+    monkeypatch.setattr(LB.TaskLabels, "_state", staticmethod(state))
+    for read in (tl.queue, tl.counts, tl.overview, tl.need, tl.table, tl.eval_rows, tl.fit_rows, tl.budget):
+        read()
+    assert held and not any(held)
+    hours = len(tl._hours)
+    assert hours >= 1 and tl._drawn_share() == pytest.approx(
+        np.mean([1 - np.prod([1 - d["pi"] for d in r["draws"].values()]) for r in tl.rows.values()])
+    )  # the budget's drawn share comes from hourly sums, not a scan of the rows

@@ -70,11 +70,19 @@ DEFAULTS = {
     "region": 0.8,  # the share of traffic the cert region covers at least once tau_min is set (lenient alphas)
     "tau_after": 200,  # rows seen before tau_min is set from their confidences (all traffic until then)
     "due_days": 14,
+    "ttl_days": None,  # answers and labels older than this are erased (None: kept until erased or dropped by max_rows)
     "max_rows": 50_000,
     "reservoir": 2_000,  # undrawn answers that keep their served distribution: a uniform sample, about this many
     "per_day": 20,  # labels a day the chances aim at (None: the chances above as given); a place to start
     "shares": {"audit": 0.15, "cert": 0.45, "margin": 0.30, "typical": 0.10},  # of per_day, by slice
 }
+STRICT_ALPHA = 0.01  # a task certified at this alpha or below has its labels drawn mostly where its certificate is
+STRICT_SHARES = {"audit": 0.10, "cert": 0.80, "margin": 0.10, "typical": 0.0}
+UNLABELLED_RULE = (
+    "a drawn answer not labelled by its due date counts as an error, so a task that leaves its drawn answers "
+    "unlabelled loses its certificate or never gets one: label them, raise per_day, or register without a certificate"
+)
+STRICT_MIN_SHARE = 0.05  # such a task needs labels on at least this share of its answers (its drift checks fail below)
 PI_KEYS = ("audit_pi", "cert_pi", "margin_pi_min", "margin_pi_max", "typical_pi_max")
 REBUDGET_SECONDS = 86_400  # a budget epoch lasts at least this long
 REBUDGET_BAND = (0.5, 2.0)  # and ends when the measured rate leaves this band around the rate it assumed
@@ -139,6 +147,9 @@ def parse_settings(block) -> dict | None:
         raise LabelsError("labels.margin_pi_min is at most labels.margin_pi_max")
     if not 0 < float(s["margin_scale"]) <= 1 or not 0 < float(s["region"]) <= 1:
         raise LabelsError("labels.margin_scale and labels.region are fractions above 0 and at most 1")
+    if s["ttl_days"] is not None and (isinstance(s["ttl_days"], bool) or not isinstance(s["ttl_days"], (int, float))
+                                      or s["ttl_days"] < s["due_days"]):  # fmt: skip
+        raise LabelsError("labels.ttl_days is a number of days at least due_days, or null to keep answers")
     for k in ("tau_after", "due_days", "max_rows", "reservoir", "typical_labels"):
         if not isinstance(s[k], int) or s[k] < 1:
             raise LabelsError(f"labels.{k} is a positive whole number")
@@ -277,24 +288,161 @@ def disclosure(settings: dict, location: str) -> dict:
         "text_stored": False,
         "features": s["features"],
         "stored_fields": stored_fields(s),
-        "retention": {"max_rows": s["max_rows"], "due_days": s["due_days"], "deleted_with_task": True},
+        "retention": {
+            "max_rows": s["max_rows"],
+            "due_days": s["due_days"],
+            "ttl_days": s.get("ttl_days"),
+            "deleted_with_task": True,
+        },
         "location": location,
         "settings": s,
         "stores": stores(s),
     }
 
 
-def registration_block(rec: dict, location: str) -> dict:
+def most_labelled(s: dict) -> float:
+    """The largest share of answers explicit chances can draw (each slice at its highest chance, the cert region at
+    `region`): a bound, so a check against it refuses only what cannot reach a share."""
+    return min(1.0, s["audit_pi"] + s["cert_pi"] * s["region"] + s["margin_pi_max"] + s.get("typical_pi_max", 0.0))
+
+
+DETECTION_CLAIM = (
+    "In replays of concept-change drift (synthetic streams and recorded model outputs), the median number of wrong "
+    "certified answers served before the label monitor suspended certification was at most 100 on every stream tested."
+)
+DETECTION_UNVALIDATED = "Drift detection speed has not been validated for this split."
+# the configurations the detection figures were measured on at alpha 0.01 and 0.005: the shares, and the least share
+# of answers drawn for labels
+VALIDATED_SPLITS = (
+    ({"audit": 0.10, "cert": 0.80, "margin": 0.10, "typical": 0.0}, 0.05),
+    ({"audit": 0.15, "cert": 0.45, "margin": 0.30, "typical": 0.10}, 0.10),
+)
+REFERENCE_BUDGET = 0.05  # the validated strict configuration: STRICT_SHARES with labels on 5% of answers
+
+
+def region_q(audit_pi: float, cert_pi: float) -> float:
+    """q: the chance an answer in the certified region is drawn by audit or cert (what the drift check's power rests
+    on)."""
+    return 1.0 - (1.0 - floor_pi(audit_pi)) * (1.0 - floor_pi(cert_pi))
+
+
+def reference_q(region_share: float) -> float:
+    """The q of the validated strict configuration (shares 10/80/10/0, labels on 5% of answers) over a region that
+    covers `region_share` of traffic."""
+    a = STRICT_SHARES["audit"] * REFERENCE_BUDGET
+    c = min(1.0, STRICT_SHARES["cert"] * REFERENCE_BUDGET / max(region_share, 1e-9))
+    return 1.0 - (1.0 - a) * (1.0 - c)
+
+
+def validated_split(s: dict) -> float | None:
+    """The least share of answers drawn for labels at which `s`' split was validated (a budget with one of
+    `VALIDATED_SPLITS`' shares), or None for any other split, explicit chances included."""
+    if s.get("per_day") is None:
+        return None
+    sh = {k: round(float(v), 6) for k, v in s["shares"].items()}
+    return next((need for split, need in VALIDATED_SPLITS if sh == split), None)
+
+
+def detection(s: dict, region_share: float, rate: float | None = None, label_share: float | None = None) -> dict:
+    """For a task certified at `STRICT_ALPHA` or below: the detection claim when its split is one of the validated
+    configurations and at least their share of answers is drawn for labels (`label_share`, measured; None at
+    registration, when the claim waits for it); otherwise the warning. `q` (the chance a certified-region answer is
+    drawn by audit or cert), `q_reference` (that of 10/80/10/0 at 5%) and `needed` are diagnostics, never the claim's
+    condition. A shortfall never touches the certificate: it needs only uniform labels in the region with recorded
+    chances."""
+    q, ref = region_q(s["audit_pi"], s["cert_pi"]), reference_q(region_share)
+    least = validated_split(s)
+    out = {"q": round(q, 4), "q_reference": round(ref, 4), "region_share": round(region_share, 4)}
+    if least is not None and label_share is not None and label_share >= least:
+        out.update(validated=True, claim=DETECTION_CLAIM)
+        return out
+    out["validated"] = False
+    if least is not None and label_share is None:
+        out["pending"] = f"the claim applies once at least {least:.0%} of answers are drawn for labels"
+        return out
+    out["warning"] = DETECTION_UNVALIDATED
+    out["needed"] = {"cert_pi": round(min(1.0, 1.0 - (1.0 - ref) / (1.0 - floor_pi(s["audit_pi"]))), 4)}
+    if s.get("per_day") is not None:  # the share of answers to label with this split's shares that reaches the q
+        lo, hi = 0.0, 1.0
+        for _ in range(40):
+            mid = (lo + hi) / 2
+            pis = budget_pis({**s, "per_day": mid}, rate=1.0, region_share=region_share, margin_weight=0.5)
+            lo, hi = (lo, mid) if region_q(pis["audit_pi"], pis["cert_pi"]) >= ref else (mid, hi)
+        out["needed"]["label_share"] = round(hi, 4)
+        if rate:
+            out["needed"]["per_day"] = round(hi * rate, 1)
+    return out
+
+
+def strict_check(s: dict, alpha: float | None) -> tuple[str | None, list[str]]:
+    """For a task certified at `STRICT_ALPHA` or below, which needs labels on at least `STRICT_MIN_SHARE` of its
+    answers: (an error for explicit chances that cannot reach it, warnings for a budget that must keep up with
+    traffic)."""
+    if alpha is None or float(alpha) > STRICT_ALPHA:
+        return None, []
+    need = f"a task certified at alpha {alpha} needs labels on at least {STRICT_MIN_SHARE:.0%} of its answers"
+    if s.get("per_day") is None:
+        most = most_labelled(s)
+        if most < STRICT_MIN_SHARE:
+            cert = (STRICT_MIN_SHARE - s["audit_pi"] - s["margin_pi_max"] - s.get("typical_pi_max", 0.0)) / s["region"]
+            return (f"labels: {need}; these chances label at most {most:.1%} (raise cert_pi to at least "
+                    f"{min(1.0, cert):.3f}, or give per_day)"), []  # fmt: skip
+        return None, []
+    return None, [f"{need}: per_day ({s['per_day']}) covers up to {s['per_day'] / STRICT_MIN_SHARE:,.0f} answers a "
+                  "day; status reports the share labelled and warns below it"]  # fmt: skip
+
+
+def not_enabled_block(alpha: float | None) -> dict | None:
+    """What a registration says of labels when the task did not opt in: nothing, except for a task certified at
+    `STRICT_ALPHA` or below, which needs labels on a share of its answers; it is told so, and nothing is logged."""
+    if alpha is None or float(alpha) > STRICT_ALPHA:
+        return None
+    return {"enabled": False, "warnings": [
+        f"a task certified at alpha {alpha} needs labels on at least {STRICT_MIN_SHARE:.0%} of its answers for its "
+        "drift checks to catch a rising error in time; this task takes no labels and logs nothing: register it with "
+        'a labels block ("labels": true, or a per_day budget) to opt in'
+    ]}  # fmt: skip
+
+
+def budget_floor(s: dict) -> dict | None:
+    """In budget mode: the share of answers the 0.02 floors of audit and cert label whatever per_day is (certificates
+    and drift checks need audit labels, so the floors are never lowered), and the answers a day above which that is
+    more than per_day."""
+    if s.get("per_day") is None:
+        return None
+    share = PI_MIN + PI_MIN * s["region"]
+    return {"min_share": round(share, 4), "above_answers_per_day": round(s["per_day"] / share)}
+
+
+def registration_block(rec: dict, location: str, alpha: float | None = None) -> dict:
     """What a registration's response says of the task's labels: the disclosure (`disclosure`), the digest key (shown
     here only), and the queue's first view (empty until the task has answered)."""
     s = rec["settings"]
+    warnings = strict_check(s, alpha)[1]
+    det = detection(s, s["region"]) if alpha is not None and float(alpha) <= STRICT_ALPHA else None
+    if det and det.get("warning"):
+        warnings.append(det["warning"])
+    floor = budget_floor(s)
+    if floor and s["tau_after"] > floor["above_answers_per_day"]:  # the assumed first day already overspends
+        warnings.append(f"the audit and cert chances never go below {PI_MIN}: at the assumed {s['tau_after']} answers "
+                        f"a day this task asks for about {s['tau_after'] * floor['min_share']:.0f} labels a day, more "
+                        f"than per_day ({s['per_day']}); {UNLABELLED_RULE}")  # fmt: skip
     return {
         **disclosure(s, location),
+        **({"warnings": warnings} if warnings else {}),
+        **({"budget_floor": floor} if floor else {}),
+        **({"detection": det} if det else {}),
         "digest_key": rec["secret"]["digest_key"],
         "digest": "hk1: then the hex HMAC-SHA256, under digest_key, of the request's state as text (a string as it "
         "is, anything else as JSON with sorted keys, no spaces and unescaped Unicode), in NFC with whitespace runs as "
         "one space and the ends stripped",
-        "next_to_label": {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"},
+        "next_to_label": {
+            "items": [],
+            "pending": 0,
+            "available": False,
+            "reason": "no traffic yet",
+            "budget": {"per_day": s.get("per_day")},
+        },
     }
 
 
@@ -483,13 +631,17 @@ class TaskLabels:
         self._purged: set[str] = set()  # erase ids whose bytes the merger has removed from the place
         self.merges = 0
         self.cert_threshold: float | None = None  # the task's certified threshold, when it has one (the server sets it)
+        self.cert_alpha: float | None = None  # the alpha the task is certified at (the server sets it)
         self.embed = None  # the static student's embedding of a text (the server sets it once the student is here)
         self.embed_off: str | None = "no static student on this server"
         self.typicality = Typicality(int(secret["salt"][:8], 16))
         self._hours: dict[int, int] = {}  # answers known here (every replica's) by the hour they were served
+        self._hours_p: dict[int, float] = {}  # and the sum of their chances of being drawn for a label, by hour
+        self._imports = 0  # labels kept as imports (no logged answer matched)
         self._first_t: float | None = None
         self.unsaved = 0  # rows not written because the place could not be reached for too long (`PENDING_MAX`)
         self.unjoined_expired = 0  # labels for ids no replica's row ever joined, dropped after their due window
+        self._evicted_upto = float("-inf")  # the newest serve time of an answer `max_rows` dropped
         self._pending_rows: list[dict] = []
         self._last_flush = clock()
         self._seq = 0
@@ -591,6 +743,8 @@ class TaskLabels:
         self._maybe_tau()
         self._maybe_rebudget()
         self._maybe_typical()
+        self._maybe_strict()
+        self._maybe_expire()
         self.flush(force)
         if merge and self.writes and (len(self._read) >= COMPACT_FILES or self.unpurged(ripe=True)):
             self.compact()
@@ -700,12 +854,11 @@ class TaskLabels:
         confidences. Every replica may propose it; the first stored wins, and the others adopt it."""
         if not self.writes:
             return
-        with self._lock:
-            if _tau_set(self.epoch) or len(self.rows) < self.settings["tau_after"]:
-                return
-            tau, n = self._tau_now()
-            why = f"tau_min from the first {n} answers"
-            b = self._budget(self.settings, tau) if self.settings.get("per_day") is not None else None
+        if _tau_set(self.epoch) or len(self.rows) < self.settings["tau_after"]:
+            return
+        tau, n = self._tau_now()
+        why = f"tau_min from the first {n} answers"
+        b = self._budget(self.settings, tau) if self.settings.get("per_day") is not None else None
         zero = self._epoch_zero()
 
         def add(cur):
@@ -723,14 +876,38 @@ class TaskLabels:
 
     def rate(self) -> float:
         """Answers a day over the last 7 days (or since the first answer, at least an hour), every replica's that
-        this log has read (under `_lock`)."""
-        now = self.clock()
-        lo = now - 7 * 86400
-        for h in [h for h in self._hours if (h + 1) * 3600 < lo]:
-            del self._hours[h]
-        n = sum(c for h, c in self._hours.items() if (h + 1) * 3600 >= lo)
-        span = max(3600.0, now - max(lo, self._first_t if self._first_t is not None else now))
-        return n * 86400.0 / span
+        this log has read. O(hours)."""
+        with self._lock:
+            now = self.clock()
+            lo = now - 7 * 86400
+            for h in [h for h in self._hours if (h + 1) * 3600 < lo]:
+                del self._hours[h]
+                self._hours_p.pop(h, None)
+            n = sum(c for h, c in self._hours.items() if (h + 1) * 3600 >= lo)
+            span = max(3600.0, now - max(lo, self._first_t if self._first_t is not None else now))
+            return n * 86400.0 / span
+
+    def _drawn_share(self) -> float | None:
+        """The share of the last 7 days' answers drawn for a label (the mean of their chances), from the hourly sums;
+        None before any. O(hours)."""
+        with self._lock:
+            lo = self.clock() - 7 * 86400
+            n = sum(c for h, c in self._hours.items() if (h + 1) * 3600 >= lo)
+            return (sum(v for h, v in self._hours_p.items() if (h + 1) * 3600 >= lo) / n) if n else None
+
+    def _snapshot(self):
+        """What a scan reads, copied under `_lock` (references to rows, which are never changed in place) so that the
+        scan runs outside it: the answer path never waits on a status read."""
+        with self._lock:
+            return list(self.rows.items()), dict(self.latest), self.clock(), self.settings["due_days"] * 86400
+
+    @staticmethod
+    def _state(row: dict, ev: dict | None, now: float, due: float) -> str:
+        if ev is not None:
+            return "labelled" if ev["type"] == "label" else "declined"
+        if not row["drawn"]:
+            return "undrawn"
+        return "expired" if now - row["t"] > due else "pending"
 
     def typical_wanted(self) -> bool:
         """Whether the typical slice should run: the student is here and the slice has not ended."""
@@ -738,8 +915,8 @@ class TaskLabels:
 
     def _budget(self, settings: dict, tau: float, typical: bool | None = None, rate: float | None = None) -> dict:
         """The chances for `settings`' per_day at the measured rate, over the region above `tau` (under `_lock`):
-        {"settings": with the chances, "budget": what they assumed}."""
-        rows = list(self.rows.values())
+        {"settings": with the chances, "budget": what they assumed}. Scans a snapshot, outside the lock."""
+        rows = [r for _, r in self._snapshot()[0]]
         rate = self.rate() if rate is None else float(rate)
         share = (sum(r["conf"] >= tau for r in rows) / len(rows)) if rows else 1.0
         w = float(np.mean([margin_weight(r["margin"], settings["margin_scale"]) for r in rows])) if rows else 0.5
@@ -757,13 +934,19 @@ class TaskLabels:
         return {"settings": new, "budget": budget}
 
     def budget(self) -> dict:
-        """The budget in force, for the queue and status: the labels a day asked for and expected at the measured
-        rate (`per_day` None: the chances as given)."""
-        with self._lock:
+        """The budget in force, for the queue and status: the labels a day asked for (`per_day`, None: the chances as
+        given), and the labels a day expected at the measured rate from the chances the last 7 days' answers were
+        drawn at (`expected_per_day`); `over_budget` when that is more than a quarter above per_day, as when the
+        0.02 floor of the audit and cert chances spends more than a small budget on heavy traffic."""
+        with self._lock:  # O(hours): the drawn share is kept by the hour as answers are indexed
             e = self.epoch
             s = e["settings"]
             rate = self.rate()
-            out = {"per_day": s.get("per_day"), "rate_per_day": round(rate, 3), "since": e.get("start")}
+            share = self._drawn_share() or 0.0
+            expected = round(rate * share, 2)
+            out = {"per_day": s.get("per_day"), "rate_per_day": round(rate, 3), "since": e.get("start"),
+                   "expected_per_day": expected,
+                   "over_budget": s.get("per_day") is not None and expected > 1.25 * s["per_day"]}  # fmt: skip
             if e.get("budget"):
                 out["assumed_rate_per_day"] = e["budget"]["rate_per_day"]
             out["chances"] = {k: s[k] for k in PI_KEYS}
@@ -774,19 +957,18 @@ class TaskLabels:
         `REBUDGET_BAND` around the rate it assumed (the region kept)."""
         if not self.writes:
             return
-        with self._lock:
-            e = self.epoch
-            s = e["settings"]
-            if s.get("per_day") is None or not _tau_set(e) or e.get("start") is None:
-                return
-            if self.clock() - e["start"] < REBUDGET_SECONDS:
-                return
-            assumed = (e.get("budget") or {}).get("rate_per_day") or float(s["tau_after"])
-            ratio = self.rate() / max(assumed, 1e-9)
-            if REBUDGET_BAND[0] <= ratio <= REBUDGET_BAND[1]:
-                return
-            b = self._budget(s, e["tau_min"])
-            n = e["epoch"]
+        e = self.epoch
+        s = e["settings"]
+        if s.get("per_day") is None or not _tau_set(e) or e.get("start") is None:
+            return
+        if self.clock() - e["start"] < REBUDGET_SECONDS:
+            return
+        assumed = (e.get("budget") or {}).get("rate_per_day") or float(s["tau_after"])
+        ratio = self.rate() / max(assumed, 1e-9)
+        if REBUDGET_BAND[0] <= ratio <= REBUDGET_BAND[1]:
+            return
+        b = self._budget(s, e["tau_min"])
+        n = e["epoch"]
 
         def add(cur):
             cur = cur or [self._epoch_zero()]
@@ -798,13 +980,52 @@ class TaskLabels:
 
         self._adopt(self._swap_epochs(add))
 
+    def _maybe_strict(self) -> None:
+        """A task certified at `STRICT_ALPHA` or below, in budget mode with the default shares: the shares move to
+        `STRICT_SHARES` (an epoch), so its labels reach the hundreds a strict certificate needs about 1.8x sooner;
+        the audit share stays above 30 labels in the first 1,000. Shares given at registration are kept."""
+        if not self.writes or self.cert_alpha is None or float(self.cert_alpha) > STRICT_ALPHA:
+            return
+        s, e = self.settings, self.epoch
+        if s.get("per_day") is None or s["shares"] != DEFAULTS["shares"]:
+            return
+        strict = {**s, "shares": dict(STRICT_SHARES)}
+        assumed = None if _tau_set(e) else float(s["tau_after"])
+        b = self._budget(strict, e["tau_min"], typical=False, rate=assumed)
+        n = e["epoch"]
+        why = f"shares for a certificate at alpha {self.cert_alpha}"
+
+        def add(cur):
+            cur = cur or [self._epoch_zero()]
+            if cur[-1]["epoch"] != n:
+                return None
+            return cur + [{**cur[-1], "epoch": len(cur), "start": self.clock(), "settings": b["settings"],
+                           "budget": b["budget"], "why": why, "by": self.replica}]  # fmt: skip
+
+        self._adopt(self._swap_epochs(add))
+
+    def _maybe_expire(self) -> None:
+        """With `ttl_days`: erase what is older, at most once an hour, through the erase path (an erase event, then
+        the purge at the merge), so expiry and erasure leave the same trace."""
+        ttl = self.settings.get("ttl_days")
+        if ttl is None or not self.writes:
+            return
+        now = self.clock()
+        if now - getattr(self, "_last_expiry", float("-inf")) < 3600:
+            return
+        self._last_expiry = now
+        cutoff = now - float(ttl) * 86400
+        old = any(r["t"] < cutoff for _, r in self._snapshot()[0]) and cutoff > self._erased_before
+        if old:
+            self.erase(before=cutoff)
+
     def typical_labelled(self) -> int:
-        with self._lock:
-            return sum(
-                1
-                for k, r in self.rows.items()
-                if r["draws"].get("typical", {}).get("in") and (self.latest.get(k) or {}).get("type") == "label"
-            )
+        rows, latest, _, _ = self._snapshot()
+        return sum(
+            1
+            for k, r in rows
+            if r["draws"].get("typical", {}).get("in") and (latest.get(k) or {}).get("type") == "label"
+        )
 
     def _maybe_typical(self) -> None:
         """The typical slice's turn: refresh its levels; in budget mode, start it (a new epoch) once the student is
@@ -812,9 +1033,8 @@ class TaskLabels:
         self.typicality.refresh()
         if not self.writes:
             return
-        with self._lock:
-            s, e = self.settings, self.epoch
-            on = s.get("typical_pi_max", 0.0) > 0
+        s, e = self.settings, self.epoch
+        on = s.get("typical_pi_max", 0.0) > 0
         if on and self.typical_labelled() >= s["typical_labels"]:
             why, change = "the typical slice ended", {"typical_pi_max": 0.0}
         elif (not on and s.get("per_day") is not None and s["shares"].get("typical", 0) > 0 and self.typical_wanted()
@@ -822,15 +1042,14 @@ class TaskLabels:
             why, change = "the typical slice started", None
         else:
             return
-        with self._lock:
-            ended = why == "the typical slice ended"
-            if s.get("per_day") is not None:  # recomputed: ended, its share goes back to margin
-                assumed = None if _tau_set(e) else float(s["tau_after"])  # before the region: the assumed rate
-                b = self._budget(s, e["tau_min"], typical=not ended, rate=assumed)
-                new_settings, budget = b["settings"], b["budget"]
-            else:
-                new_settings, budget = {**s, **change}, None
-            n = e["epoch"]
+        ended = why == "the typical slice ended"
+        if s.get("per_day") is not None:  # recomputed: ended, its share goes back to margin
+            assumed = None if _tau_set(e) else float(s["tau_after"])  # before the region: the assumed rate
+            b = self._budget(s, e["tau_min"], typical=not ended, rate=assumed)
+            new_settings, budget = b["settings"], b["budget"]
+        else:
+            new_settings, budget = {**s, **change}, None
+        n = e["epoch"]
 
         def add(cur):
             cur = cur or [self._epoch_zero()]
@@ -855,9 +1074,9 @@ class TaskLabels:
 
     def _tau_now(self, region: float | None = None) -> tuple[float, int]:
         """The cert region's lowest confidence for the top `region` share (default the settings') of the answers held
-        (under `_lock`)."""
+        (a snapshot, scanned outside the lock)."""
         region = self.settings["region"] if region is None else region
-        confs = np.sort([r["conf"] for r in self.rows.values()])
+        confs = np.sort([r["conf"] for _, r in self._snapshot()[0]])
         tau = float(np.quantile(confs, 1.0 - region)) if len(confs) else 0.0
         if self.cert_threshold is not None:  # the region reaches down to the task's certified threshold at least
             tau = min(tau, float(self.cert_threshold))
@@ -875,21 +1094,20 @@ class TaskLabels:
             raise LabelsReadOnly(READ_ONLY)
         if not isinstance(block, dict) or not block or "enabled" in block:
             raise LabelsError("labels settings: an object of the settings to change (remove the task to stop)")
-        with self._lock:
-            base = dict(self.settings)
-            if any(k in block for k in PI_KEYS):
-                base["per_day"] = None  # chances given: the budget is off
-            elif {**base, **block}.get("per_day") is not None:
-                for k in PI_KEYS:
-                    base.pop(k, None)  # a budget: the chances follow it
-            new_settings = parse_settings({**base, **block})
-            region_moved = new_settings["region"] != self.settings["region"]
-            tau, n = self._tau_now(new_settings["region"])
-            if new_settings["per_day"] is not None and _tau_set(self.epoch):
-                b = self._budget(new_settings, tau if region_moved else self.epoch["tau_min"])
-                new_settings, budget = b["settings"], b["budget"]
-            else:
-                budget = None
+        base = dict(self.settings)
+        if any(k in block for k in PI_KEYS):
+            base["per_day"] = None  # chances given: the budget is off
+        elif {**base, **block}.get("per_day") is not None:
+            for k in PI_KEYS:
+                base.pop(k, None)  # a budget: the chances follow it
+        new_settings = parse_settings({**base, **block})
+        region_moved = new_settings["region"] != self.settings["region"]
+        tau, n = self._tau_now(new_settings["region"])
+        if new_settings["per_day"] is not None and _tau_set(self.epoch):
+            b = self._budget(new_settings, tau if region_moved else self.epoch["tau_min"])
+            new_settings, budget = b["settings"], b["budget"]
+        else:
+            budget = None
         zero = self._epoch_zero()
 
         def add(cur):
@@ -911,8 +1129,11 @@ class TaskLabels:
             return False
         key = (row["request_id"], row["question"])
         if key not in self.rows:
-            h = int(row["t"] // 3600)
-            self._hours[h] = self._hours.get(h, 0) + 1
+            if row["t"] > self._evicted_upto:  # an answer max_rows dropped and read again (a merged file) is not new
+                h = int(row["t"] // 3600)
+                self._hours[h] = self._hours.get(h, 0) + 1
+                p_any = 1.0 - float(np.prod([1.0 - d["pi"] for d in row["draws"].values()]))
+                self._hours_p[h] = self._hours_p.get(h, 0.0) + p_any
             self._first_t = row["t"] if self._first_t is None else min(self._first_t, row["t"])
             self.by_rid.setdefault(key[0], []).append(key)
             self.by_digest.setdefault(row["hk1"], []).append(key)
@@ -940,6 +1161,8 @@ class TaskLabels:
         if self._is_erased(ev):
             return
         self.events.append(ev)
+        if ev["type"] == "label" and ev.get("source") == "import":
+            self._imports += 1
         if ev["type"] in ("label", "decline") and ev.get("request_id") is not None:
             if not self._attach(ev):
                 self._parked.setdefault(ev["request_id"], []).append(ev)
@@ -971,6 +1194,7 @@ class TaskLabels:
         for rid in [r for r in self._parked if r in self._erased_rids]:
             self._parked.pop(rid)
         self.events = [e for e in self.events if not self._is_erased(e)]
+        self._imports = sum(1 for e in self.events if e["type"] == "label" and e.get("source") == "import")
         self._pending_rows = [r for r in self._pending_rows if (r["request_id"], r["question"]) in self.rows]
 
     @staticmethod
@@ -1157,6 +1381,7 @@ class TaskLabels:
             row = self.rows.pop(key, None)
             if row is None:
                 continue
+            self._evicted_upto = max(self._evicted_upto, float(row["t"]))
             for index, k in ((self.by_digest, row["hk1"]), (self.by_rid, key[0])):
                 keys = index.get(k, [])
                 if key in keys:
@@ -1189,7 +1414,7 @@ class TaskLabels:
                 for it in items:
                     results.append(self._one(it, now, latest, events))
             self._write_events(events)
-        return {"results": results, **self.counts()}
+        return {"results": results, **self.counts(), "need": {n["alpha"]: n["more_if_no_error"] for n in self.need()}}
 
     def _one(self, it, now, latest, events) -> dict:
         if not isinstance(it, dict):
@@ -1219,6 +1444,9 @@ class TaskLabels:
                 events.append(ev)
                 return {"status": "not_joined", "request_id": rid, **({"question": q} if q is not None else {})}
             if key is None:
+                t = rid_time(rid)
+                if t is not None and t <= self._evicted_upto:  # served, then dropped past max_rows
+                    return {"status": "expired_ref", "request_id": rid}
                 return {"status": "unknown_ref", "request_id": rid}
         else:
             if "digest" in refs:
@@ -1299,55 +1527,45 @@ class TaskLabels:
     def table(self) -> list[dict]:
         """The joined label table: one record per logged question with every stored field, its label side and its
         state (the export route's JSON lines)."""
-        now = self.clock()
-        with self._lock:
-            latest = self._latest()
-            out = []
-            for key, row in self.rows.items():
-                ev = latest.get(key)
-                rec = dict(row)  # every stored field (ps, lp and h as base64 little-endian float32; unarr reads them)
-                rec["state"] = self.state_of(key, latest, now)
-                if ev is not None and ev["type"] == "label":
-                    rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], source=ev["source"],
-                               selection="slice" if row["drawn"] else "self", labelled_at=ev["labelled_at"],
-                               replica_labelled=ev.get("replica"))  # fmt: skip
-                out.append(rec)
-            return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
+        items, latest, now, due = self._snapshot()
+        out = []
+        for key, row in items:
+            ev = latest.get(key)
+            rec = dict(row)  # every stored field (ps, lp and h as base64 little-endian float32; unarr reads them)
+            rec["state"] = self._state(row, ev, now, due)
+            if ev is not None and ev["type"] == "label":
+                rec.update(answer=ev["answer"], correct=ev["answer"] == row["top"], source=ev["source"],
+                           selection="slice" if row["drawn"] else "self", labelled_at=ev["labelled_at"],
+                           replica_labelled=ev.get("replica"))  # fmt: skip
+            out.append(rec)
+        return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
 
     def queue(self, limit: int = 20) -> dict:
         """The drawn questions still to label, oldest first: which request, never its text, the served answer, its
         confidence, the slice or the probability (a labeller who sees the answer tends to agree with it, and one who
         knows the slice could label it differently)."""
-        now = self.clock()
-        with self._lock:
-            latest = self._latest()
-            pend = sorted(
-                (k for k in self.rows if self.state_of(k, latest, now) == "pending"), key=lambda k: self.rows[k]["t"]
-            )
-            items = []
-            for key in pend[: max(0, int(limit))]:
-                row = self.rows[key]
-                item = {"request_id": key[0], "question": key[1], "asked_at": row["t"],
-                        "due_by": row["t"] + self.settings["due_days"] * 86400}  # fmt: skip
-                items.append(item)
-            return {"items": items, "pending": len(pend), "epoch": self.epoch["epoch"], "as_of": now,
-                    "budget": {k: v for k, v in self.budget().items() if k in ("per_day", "rate_per_day")}}  # fmt: skip
+        rows, latest, now, due = self._snapshot()
+        pend = sorted(((k, r) for k, r in rows if self._state(r, latest.get(k), now, due) == "pending"),
+                      key=lambda kr: kr[1]["t"])  # fmt: skip
+        items = [{"request_id": k[0], "question": k[1], "asked_at": r["t"], "due_by": r["t"] + due}
+                 for k, r in pend[: max(0, int(limit))]]  # fmt: skip
+        b = self.budget()
+        return {"items": items, "pending": len(pend), "epoch": self.epoch["epoch"], "as_of": now,
+                "budget": {"per_day": b["per_day"], "rate_per_day": b["rate_per_day"]}}  # fmt: skip
 
     def counts(self) -> dict:
-        now = self.clock()
+        rows, latest, now, due = self._snapshot()
+        states: dict[str, int] = {}
+        by_slice = {s: {"drawn": 0, "labelled": 0} for s in SLICES}
+        for key, row in rows:
+            st = self._state(row, latest.get(key), now, due)
+            states[st] = states.get(st, 0) + 1
+            for s in SLICES:
+                if row["draws"].get(s, {}).get("in"):
+                    by_slice[s]["drawn"] += 1
+                    by_slice[s]["labelled"] += st == "labelled"
         with self._lock:
-            latest = self._latest()
-            states: dict[str, int] = {}
-            by_slice = {s: {"drawn": 0, "labelled": 0} for s in SLICES}
-            for key, row in self.rows.items():
-                st = self.state_of(key, latest, now)
-                states[st] = states.get(st, 0) + 1
-                for s in SLICES:
-                    if row["draws"][s]["in"]:
-                        by_slice[s]["drawn"] += 1
-                        by_slice[s]["labelled"] += st == "labelled"
-            imports = sum(1 for ev in self.events if ev["type"] == "label" and ev.get("source") == "import")
-            out = {"rows": len(self.rows), "states": states, "by_slice": by_slice, "imports": imports,
+            out = {"rows": len(rows), "states": states, "by_slice": by_slice, "imports": self._imports,
                    "revisions": self.revisions, "not_joined": sum(len(v) for v in self._parked.values())}  # fmt: skip
             if self.invalid_on_join:
                 out["invalid_on_join"] = self.invalid_on_join
@@ -1370,14 +1588,13 @@ class TaskLabels:
         drift and challenger tests read these, and no fit may (an evaluation draw makes a row evaluation-only).
         Each: request_id, question, slices, pi per slice, p_eval, epoch, lang, conf, top, t, state, answer, correct
         (None while pending; expired and declined rows have no answer)."""
-        now = self.clock()
+        rows, latest, now, due = self._snapshot()
         out = []
-        with self._lock:
-            for key, row in self.rows.items():
-                d = row["draws"]
-                if not (d["audit"]["in"] or d["cert"]["in"]):
-                    continue
-                out.append(self._role_rec(key, row, now, [s for s in EVAL_SLICES if d[s]["in"]]))
+        for key, row in rows:
+            d = row["draws"]
+            if not (d["audit"]["in"] or d["cert"]["in"]):
+                continue
+            out.append(self._role_rec(key, row, latest, now, due, [s for s in EVAL_SLICES if d[s]["in"]]))
         return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
 
     def fit_rows(self) -> list[dict]:
@@ -1386,33 +1603,32 @@ class TaskLabels:
         drawn by a fit slice and not by audit or cert), and the
         labels a client chose itself on rows no slice drew (`selection: "self"`, weight None: not probability-sampled,
         never for calibration). A label on a row an evaluation slice drew is never here."""
-        now = self.clock()
+        rows, latest, now, due = self._snapshot()
         out = []
-        with self._lock:
-            for key, row in self.rows.items():
-                ev = self.latest.get(key)
-                if ev is None or ev["type"] != "label":
-                    continue
-                d = row["draws"]
-                if d["audit"]["in"] or d["cert"]["in"]:
-                    continue
-                rec = self._role_rec(key, row, now, [s for s in FIT_SLICES if d.get(s, {}).get("in")])
-                if rec["slices"]:  # drawn by margin or typical: the chance of either, and of no evaluation draw
-                    p_fit = 1.0 - float(np.prod([1.0 - d[s]["pi"] for s in FIT_SLICES if s in d]))
-                    rec["weight"] = 1.0 / (p_fit * (1.0 - self.p_eval(row)))
-                    rec["selection"] = "slice"
-                else:
-                    rec["weight"], rec["selection"] = None, "self"
-                out.append(rec)
+        for key, row in rows:
+            ev = latest.get(key)
+            if ev is None or ev["type"] != "label":
+                continue
+            d = row["draws"]
+            if d["audit"]["in"] or d["cert"]["in"]:
+                continue
+            rec = self._role_rec(key, row, latest, now, due, [s for s in FIT_SLICES if d.get(s, {}).get("in")])
+            if rec["slices"]:  # drawn by margin or typical: the chance of either, and of no evaluation draw
+                p_fit = 1.0 - float(np.prod([1.0 - d[s]["pi"] for s in FIT_SLICES if s in d]))
+                rec["weight"] = 1.0 / (p_fit * (1.0 - self.p_eval(row)))
+                rec["selection"] = "slice"
+            else:
+                rec["weight"], rec["selection"] = None, "self"
+            out.append(rec)
         return sorted(out, key=lambda r: (r["t"], r["request_id"], r["question"]))
 
-    def _role_rec(self, key, row, now, slices) -> dict:
-        ev = self.latest.get(key)
+    def _role_rec(self, key, row, latest, now, due, slices) -> dict:
+        ev = latest.get(key)
         labelled = ev is not None and ev["type"] == "label"
         return {"request_id": key[0], "question": key[1], "slices": slices, "t": row["t"], "epoch": row["epoch"],
                 "lang": row["lang"], "conf": row["conf"], "top": row["top"], "version": row["version"],
                 "pi": {s: row["draws"][s]["pi"] for s in SLICES if s in row["draws"]}, "p_eval": self.p_eval(row),
-                "state": self.state_of(key, self.latest, now), "answer": ev["answer"] if labelled else None,
+                "state": self._state(row, ev, now, due), "answer": ev["answer"] if labelled else None,
                 "correct": (ev["answer"] == row["top"]) if labelled else None}  # fmt: skip
 
     def cohort(self, cutoff: float | None = None) -> list[dict]:
@@ -1427,7 +1643,112 @@ class TaskLabels:
             r["strict_error"] = r["state"] != "labelled" or not r["correct"]
         return out
 
-    def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
+    def detection(self) -> dict | None:
+        """`detection` for this task, if it is certified at a strict alpha: the epoch's chances against the reference,
+        over the region's measured share of traffic (the setting's until answers are held)."""
+        if self.cert_alpha is None or float(self.cert_alpha) > STRICT_ALPHA:
+            return None
+        rows = [r for _, r in self._snapshot()[0]]
+        e, s = self.epoch, self.settings
+        share = (sum(r["conf"] >= e["tau_min"] for r in rows) / len(rows)) if rows and _tau_set(e) else None
+        drawn = self._drawn_share() if self.rate() * 7 >= 100 else None  # a share measured on enough answers
+        return detection(s, share if share is not None else s["region"], self.rate() if rows else None,
+                         label_share=drawn)  # fmt: skip
+
+    def overview(self, top_langs: int = 20) -> dict:
+        """What status adds to the counts: the response rate of drawn answers (labelled among those labelled,
+        expired or declined), the audit slice's accuracy with a 90% Clopper-Pearson interval (on labelled answers, and
+        strict, with every expired or declined one counted wrong), the time of the last label, and per language tag
+        (at most `top_langs`, the busiest; "unknown" its own) the answers, drawn and labelled, and the labels still
+        needed per alpha. Aggregates only: no row, text or chance per row. One pass over a snapshot, outside the lock,
+        so the answer path never waits on it."""
+        rows, latest, now, due = self._snapshot()
+        tally = self._need_tally(rows, latest, now, due)
+        closed = labelled = 0
+        a_n = a_right = a_closed = a_closed_right = 0
+        langs: dict[str, dict] = {}
+        last = None
+        for key, row in rows:
+            ev = latest.get(key)
+            st = self._state(row, ev, now, due)
+            lg = langs.setdefault(row["lang"], {"answers": 0, "drawn": 0, "labelled": 0})
+            lg["answers"] += 1
+            lg["drawn"] += bool(row["drawn"])
+            lg["labelled"] += st == "labelled"
+            if st == "labelled":
+                last = max(last or 0.0, float(ev["received"]))
+            if row["drawn"] and st in ("labelled", "expired", "declined"):
+                closed += 1
+                labelled += st == "labelled"
+            if row["draws"]["audit"]["in"] and st in ("labelled", "expired", "declined"):
+                right = st == "labelled" and ev["answer"] == row["top"]
+                a_closed += 1
+                a_closed_right += right
+                if st == "labelled":
+                    a_n += 1
+                    a_right += right
+        share = self._drawn_share()
+        week_n = self.rate() * 7  # about the answers of the last 7 days
+        warnings = []
+        if share is not None and week_n >= 100 and self.cert_alpha is not None and self.cert_alpha <= STRICT_ALPHA:
+            if share < STRICT_MIN_SHARE:
+                warnings.append(f"certified at alpha {self.cert_alpha}: {share:.1%} of answers are drawn for labels, "
+                                f"under the {STRICT_MIN_SHARE:.0%} it needs; raise per_day or cert_pi")  # fmt: skip
+        b = self.budget()
+        if b["over_budget"]:
+            warnings.append(
+                f"about {b['expected_per_day']:.0f} labels a day are asked for, above per_day ({b['per_day']}): the "
+                f"audit and cert chances never go below {PI_MIN}, since certificates and drift checks need audit "
+                f"labels; and {UNLABELLED_RULE}"
+            )
+        busiest = sorted(langs, key=lambda k: -langs[k]["answers"])[:top_langs]
+        for k in busiest:
+            n = self._need_report(tally.get(k, [0, 0, 0, 0]))
+            langs[k]["need"] = {x["alpha"]: x["more_if_no_error"] for x in n}
+        return {
+            "response_rate": round(labelled / closed, 4) if closed else None,
+            "audit": {
+                "labelled": a_n,
+                "accuracy": round(a_right / a_n, 4) if a_n else None,
+                "interval_90": accuracy_interval(a_right, a_n),
+                "strict_accuracy": round(a_closed_right / a_closed, 4) if a_closed else None,
+                "strict_interval_90": accuracy_interval(a_closed_right, a_closed),
+            },  # fmt: skip
+            "last_label_at": last,
+            "since_last_label_s": None if last is None else round(now - last, 1),
+            "languages": {k: langs[k] for k in busiest},
+            "label_share": None if share is None else round(share, 4),
+            **({"detection": det} if (det := self.detection()) else {}),
+            **({"warnings": warnings} if warnings else {}),
+        }
+
+    def _need_tally(self, rows, latest, now, due) -> dict:
+        """{language tag, and None for all: [labelled or closed n, errors, pending, labelled in the last 7 days]} for
+        the cert rows of the current region (`need`'s pooling rule), in one pass."""
+        e = self.epoch
+        tau = e["tau_min"]
+        covers = {x["epoch"] for x in self.epochs if x["tau_min"] <= tau}  # epochs whose region held the current
+        out: dict = {}
+        for key, row in rows:
+            if not row["draws"]["cert"]["in"] or row["conf"] < tau or row["epoch"] not in covers:
+                continue
+            ev = latest.get(key)
+            st = self._state(row, ev, now, due)
+            for k in (None, row["lang"]):
+                c = out.setdefault(k, [0, 0, 0, 0])
+                if st == "labelled" and now - float(ev["received"]) <= 7 * 86400:
+                    c[3] += 1
+                if st == "pending":
+                    c[2] += 1
+                elif st == "labelled":
+                    c[0] += 1
+                    c[1] += ev["answer"] != row["top"]
+                elif st in ("expired", "declined"):
+                    c[0] += 1
+                    c[1] += 1
+        return out
+
+    def need(self, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1, lang: str | None = None) -> list[dict]:
         """Per alpha: the cert slice's labelled answers in the current region and the errors among them (expired and
         declined rows counted as errors, the strict rule), the Clopper-Pearson upper bound, and how many more labels
         the region needs if no further error comes and if one more does.
@@ -1441,29 +1762,17 @@ class TaskLabels:
         current region's traffic in that epoch, and `pi` only changes how many there are, so the Clopper-Pearson bound
         is exact (`pooling: "exact"`). An epoch whose `tau_min` was higher drew nothing in the band between the two
         thresholds, and its rows are left out. Pending rows are shown apart (`region_pending`), never counted. Only cert
-        rows are counted, which is conservative: audit rows of the region could be pooled under the same rule."""
+        rows are counted, which is conservative: audit rows of the region could be pooled under the same rule.
+        `lang`: only that language tag's answers ("unknown" for untagged ones). `days_if_no_error` is the time to the
+        labels still needed at the region's label rate over the last 7 days."""
+        rows, latest, now, due = self._snapshot()
+        return self._need_report(self._need_tally(rows, latest, now, due).get(lang, [0, 0, 0, 0]), alphas, delta)
+
+    @staticmethod
+    def _need_report(counts, alphas=(0.05, 0.10, 0.01, 0.005), delta: float = 0.1) -> list[dict]:
         from decisio.readout import certify
 
-        now = self.clock()
-        with self._lock:
-            e = self.epoch
-            tau = e["tau_min"]
-            covers = {x["epoch"] for x in self.epochs if x["tau_min"] <= tau}  # epochs whose region held the current
-            latest = self.latest
-            n = err = pending = 0
-            for key, row in self.rows.items():
-                c = row["draws"]["cert"]
-                if not c["in"] or row["conf"] < tau or row["epoch"] not in covers:
-                    continue
-                st = self.state_of(key, latest, now)
-                if st == "pending":
-                    pending += 1
-                elif st == "labelled":
-                    n += 1
-                    err += latest[key]["answer"] != row["top"]
-                elif st in ("expired", "declined"):
-                    n += 1
-                    err += 1
+        n, err, pending, recent = counts
 
         def more(k: int, a: float) -> int | None:
             """The fewest further labels (all right) after which k errors certify at a, or None past 100,000."""
@@ -1478,12 +1787,16 @@ class TaskLabels:
                     lo = mid + 1
             return lo - n
 
+        per_day = recent / 7.0
         out = []
         for a in alphas:
+            m = more(err, a)
+            days = None if m is None or per_day == 0 else round(m / per_day, 1)
             rec = {"alpha": a, "delta": delta, "region_labels": n, "region_errors": err, "region_pending": pending,
+                   "region_labels_per_day": round(per_day, 2), "days_if_no_error": days,
                    "pooling": "exact",
                    "upper_bound": None if n == 0 else round(float(certify.upper_bound(err, n, delta)), 5),
-                   "more_if_no_error": more(err, a), "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
+                   "more_if_no_error": m, "more_if_one_more_error": more(err + 1, a)}  # fmt: skip
             if n and err / n >= a:
                 rec["reason"] = (
                     "the errors so far are at or above alpha: it certifies only after more right labels bring the "
@@ -1491,6 +1804,18 @@ class TaskLabels:
                 )
             out.append(rec)
         return out
+
+
+def accuracy_interval(right: int, n: int, level: float = 0.9) -> list[float] | None:
+    """The two-sided Clopper-Pearson interval on an accuracy seen as `right` of `n`, at `level`."""
+    if n == 0:
+        return None
+    from scipy.stats import beta
+
+    a = (1 - level) / 2
+    lo = 0.0 if right == 0 else float(beta.ppf(a, right, n - right + 1))
+    hi = 1.0 if right == n else float(beta.ppf(1 - a, right + 1, n - right))
+    return [round(lo, 4), round(hi, 4)]
 
 
 def _tau_set(epoch: dict) -> bool:

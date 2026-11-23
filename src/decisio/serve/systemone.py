@@ -3268,6 +3268,7 @@ class SystemOne:
             log.cert_threshold = (
                 cert.get("threshold") if cert.get("certified", cert.get("threshold") is not None) else None
             )
+            log.cert_alpha = cert.get("alpha")
             try:
                 log.tick(force, merge=merge)
             except (
@@ -5278,6 +5279,10 @@ def add_routes(app, systemone: SystemOne):
             labels = LB.parse_settings(body.get("labels"))
         except LB.LabelsError as e:
             raise HTTPException(422, str(e))
+        if labels is not None:  # a strict alpha needs a share of its answers labelled: chances that cannot are refused
+            err, _ = LB.strict_check(labels, certify.get("alpha") if certify else None)
+            if err:
+                raise HTTPException(422, err)
         try:
             task, fitted = await run_in_threadpool(
                 functools.partial(systemone.register_readout_task, layout=layout, labels=labels),
@@ -5303,7 +5308,10 @@ def add_routes(app, systemone: SystemOne):
         if fitted.get("label_review") is not None:  # in the response only: a review aid, not part of the task
             out["label_review"] = fitted["label_review"]
         if task.get("labels"):  # the digest key once, and what opting in keeps
-            out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location)
+            alpha = (task.get("certificate") or {}).get("alpha")
+            out["labels"] = LB.registration_block(task["labels"], location=systemone.labels_location, alpha=alpha)
+        elif off := LB.not_enabled_block((task.get("certificate") or {}).get("alpha")):
+            out["labels"] = off  # a strict alpha without labels: told what it needs; nothing is turned on
         if debug:
             out[DEBUG_KEY] = {"lps": [np.asarray(x).tolist() for x in fitted["lps"]], "labels": fitted["labels"]}
             if debug == "hidden" and fitted["readout"] is not None:
@@ -5534,6 +5542,7 @@ def add_routes(app, systemone: SystemOne):
         extra = synced(log)
         return labels_json({**log.counts(), "need": log.need(), "epoch": log.epoch["epoch"],
                             "settings": log.settings, "budget": log.budget(), "typical": log.typical_status(),
+                            **log.overview(),
                             **extra})  # fmt: skip
 
     async def decline_labels(task_id: str, request: Request):

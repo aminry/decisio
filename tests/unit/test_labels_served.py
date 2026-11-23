@@ -12,6 +12,8 @@ S3  the routes: post labels by request id, by digest and by state, the blind que
     declines, the export; a task without labels is a 409, an unknown task a 404, a bad body a 422
 S4  under --tasks-dir the rows and labels are written and read back by a new server; removing the task removes them
 S5  the settings route starts an epoch; erasing one request and everything before a time; their 422s
+S8  a task certified at alpha 0.01 whose explicit chances cannot label 5% of its answers is refused (422); one
+    registered without labels is told what it needs (labels.enabled false, warnings) and logs nothing
 S6  a task whose options change with every request opts in: its options and answers are kept as digests only, a label
     is checked against that request's own options, and the plain readout is kept
 
@@ -54,7 +56,13 @@ def test_s1_opt_in_only_and_the_secrets_stay_out_of_the_listing():
     assert lb["settings"]["audit_pi"] == 1.0 and len(lb["digest_key"]) == 64 and lb["stores"]
     assert lb["enabled"] is True and lb["text_stored"] is False and lb["features"] == "full"
     assert lb["location"] == "memory" and lb["retention"]["deleted_with_task"] is True
-    assert lb["next_to_label"] == {"items": [], "pending": 0, "available": False, "reason": "no traffic yet"}
+    assert lb["next_to_label"] == {
+        "items": [],
+        "pending": 0,
+        "available": False,
+        "reason": "no traffic yet",
+        "budget": {"per_day": None},
+    }  # fmt: skip (audit_pi given: no budget)
     listed = client.get("/v1/tasks/angry2").json()
     assert listed["labels"]["settings"] == lb["settings"] == listed["labels"]["registered_settings"]
     assert listed["labels"]["stored_fields"] == lb["stored_fields"] and lb["digest_key"] not in json.dumps(listed)
@@ -182,6 +190,8 @@ def test_s5_settings_and_erasure_routes(tmp_path):
     assert r.json()["epoch"]["epoch"] == 1 and r.json()["epoch"]["settings"]["cert_pi"] == 0.5
     assert client.get("/v1/tasks/angry/labels/status").json()["settings"]["cert_pi"] == 0.5
     assert set(client.get("/v1/tasks/angry/labels/status").json()["typical"]) == {"state", "labelled", "until", "held"}
+    st = client.get("/v1/tasks/angry/labels/status").json()
+    assert {"response_rate", "audit", "last_label_at", "since_last_label_s", "languages"} <= set(st)
     got = client.get("/v1/tasks/angry").json()["labels"]
     assert (
         got["settings"]["cert_pi"] == 0.5 and got["registered_settings"]["cert_pi"] == 0.05
@@ -247,3 +257,19 @@ def test_s6_a_task_whose_options_change_takes_labels_and_keeps_no_option_text():
     rec = next(x for x in log.table() if x["request_id"] == a["request_id"])
     assert rec["correct"] is (a["choice"] == "3") and rec["answer"] == log.option_key("3")
     assert not any(o in json.dumps(log.events) for o in opts)
+
+
+def test_s8_a_strict_alpha_with_too_few_labels_is_refused():
+    client, so = make()
+    r = client.post("/v1/tasks", json={"id": "angry", "examples": noul_examples(120), "certify": {"alpha": 0.01},
+                                       "labels": {"audit_pi": 0.02, "cert_pi": 0.02, "margin_pi_max": 0}})  # fmt: skip
+    assert r.status_code == 422 and "at least 5%" in r.text and so.labels_logs == {}
+    r = client.post("/v1/tasks", json={"id": "angry", "examples": noul_examples(700), "certify": {"alpha": 0.01}})
+    assert r.status_code == 200, r.text  # without labels: registered, and told what it needs; nothing is logged
+    lb = r.json()["labels"]
+    assert lb["enabled"] is False and "at least 5%" in lb["warnings"][0] and "digest_key" not in lb
+    a, _ = ask(client, "yes:0.93:a")
+    assert "request_id" not in a and so.labels_logs == {}
+    r = client.post("/v1/tasks", json={"id": "calm", "examples": noul_examples(120), "certify": {},
+                                       "instructions": "Is the customer calm?"})  # fmt: skip
+    assert "labels" not in r.json()  # a lenient alpha without labels: nothing said, as before
