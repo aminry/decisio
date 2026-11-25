@@ -52,7 +52,7 @@ table = ["onnxruntime>=1.20", "scikit-learn>=1.5"]
 # its own exact unit table and needs nothing beyond the standard library
 calculator = ["pint>=0.24"]
 # httpx2: the client Starlette's TestClient runs on (with httpx alone it warns that httpx is deprecated there)
-dev = ["gguf>=0.19", "httpx>=0.28", "httpx2>=2.13", "obstore>=0.12", "pytest==9.2.0", "ruff==0.17.5", "scikit-learn>=1.5", "onnxruntime>=1.20"]
+dev = ["gguf>=0.19", "httpx>=0.28", "httpx2>=2.13", "obstore>=0.12", "pytest==9.2.0", "ruff==0.17.6", "scikit-learn>=1.5", "onnxruntime>=1.20"]
 # GGUF files for llama.cpp's and Ollama's decision route (`python -m decisio.hub_gguf write`, decisio.hub_gguf):
 # llama.cpp's own reader and writer
 gguf = ["gguf>=0.19"]
@@ -67,7 +67,7 @@ mlx = [
 mlx-images = [
     "mlx==0.32.4; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "mlx-lm==0.32.2; sys_platform == 'darwin' and platform_machine == 'arm64'",
-    "mlx-vlm==0.7.12; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    "mlx-vlm==0.8.0; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 
 [project.urls]
