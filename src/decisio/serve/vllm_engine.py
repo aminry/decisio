@@ -944,6 +944,8 @@ class LettersEngine:
         layout the header lists as many of the questions as fit the context (`header_plan`); a request that fits is
         built exactly as it always was."""
         hp = LettersEngine.header_plan(self, state, questions)
+        if hp and not hp["fits"]:
+            raise over.OverLimit(header_limit.refusal(hp["limit"], hp["pieces"], bool(hp.get("off"))))
         rows, n, plan = LettersEngine._rows(self, state, questions, hp["listed"] if hp and hp["limited"] else None)
         if hp and hp["limited"]:
             plan["header"] = hp["listed"] > 0
@@ -955,7 +957,8 @@ class LettersEngine:
         cut one: the header it declared is read whole or the request is refused (an `OverLimit`, a 422), because every
         request about the state must read the same header for the cache to serve the state."""
         hp = LettersEngine._header_plan(self, state, questions)
-        if hp is not None and hp["limited"] and any(q.get(DECLARED_KEY) is not None for q in questions):
+        # An over-budget plain row has no header-trimming report. The caller handles that context refusal.
+        if hp is not None and hp["fits"] and hp["limited"] and any(q.get(DECLARED_KEY) is not None for q in questions):
             what = f"{hp['of']} lines and {hp['pieces']['header']:,} tokens"
             raise over.OverLimit(
                 f'"header_questions": the declared header ({what}) does not fit the {hp["limit"]:,} tokens the server '
