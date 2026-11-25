@@ -249,6 +249,29 @@ def test_q6_a_declared_header_over_the_context_is_a_422_never_a_cut_one():
     assert client.post("/v1/systemone", json={**ask, hq.FIELD: lines[:2]}).status_code == 200
 
 
+def test_q6_oversized_state_with_declared_header_returns_context_error_before_scoring():
+    client, _, eng = make(limit=300)
+    state = " ".join(f"w{i}" for i in range(500))
+    response = client.post("/v1/systemone", json=body([0], LINES, state=state))
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "longest row" in detail and "the state 500" in detail and "against the 300" in detail
+    assert eng.rows == []
+
+
+def test_q6_truncating_a_state_reserves_room_for_the_entire_declared_header():
+    client, _, eng = make(limit=300)
+    state = " ".join(f"w{i}" for i in range(500))
+    lines = [LINES[0], *long_lines(8)]
+    response = client.post("/v1/systemone", json=body([0], lines, state=state, over_limit="truncate"))
+    assert response.status_code == 200, response.text
+    out = response.json()
+    assert out["state_truncated"]["kept_tokens"] < out["state_truncated"]["of_tokens"]
+    assert "header_limited" not in out
+    ((rows, _),) = eng.rows
+    assert len(rows[0]) <= 300 and layout_header(lines) in eng.tok.decode(rows[0])
+
+
 def test_q6_a_header_cap_refuses_a_declared_header_over_it():
     lines = long_lines(8)
     eng = Recording(limit=100_000, setting=(hl.AUTO, 40))

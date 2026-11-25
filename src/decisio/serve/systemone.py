@@ -1421,9 +1421,11 @@ class SystemOne:
         # a row is the user turn of the header (under the header layout: every question of the request, listed before
         # the state), the state, a blank line and the question; the budget the state may take is what is left of the
         # ceiling beside the longest such row, so the header counts as much as the question
-        # (with the header limit on, the header gives way before the state does: the state is cut for the plain row)
+        # (with the header limit on, an undeclared header gives way before the state does: the state is cut for the
+        # plain row. A declared header is read whole, so the state must leave room for it.)
         limited = hasattr(engine, "header_plan") and getattr(engine, "header_limit_setting", ("auto", None))[0] != "off"
-        keep_header = fmt.layout == "header" and not limited
+        declared = any(q.get(hq.FIELD) is not None for q in qs)
+        keep_header = fmt.layout == "header" and (declared or not limited)
         head = layout_header(header_instructions(qs)) if keep_header else ""
         head += f"{context}{CONTEXT_SEP}" if context else ""
         overhead = max(len(enc(user_turn(tok, f"{head}\n\n{question_text(tok, q, fmt)[0]}", fmt))) for q in qs)
