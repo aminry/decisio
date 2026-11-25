@@ -944,6 +944,8 @@ class LettersEngine:
         layout the header lists as many of the questions as fit the context (`header_plan`); a request that fits is
         built exactly as it always was."""
         hp = LettersEngine.header_plan(self, state, questions)
+        if hp and not hp["fits"]:
+            raise over.OverLimit(header_limit.refusal(hp["limit"], hp["pieces"], bool(hp.get("off"))))
         rows, n, plan = LettersEngine._rows(self, state, questions, hp["listed"] if hp and hp["limited"] else None)
         if hp and hp["limited"]:
             plan["header"] = hp["listed"] > 0

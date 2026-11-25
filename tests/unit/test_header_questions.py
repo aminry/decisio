@@ -340,6 +340,16 @@ def test_q8_the_engines_route_takes_it_too():
     assert n1 == n2 and first[0][:n1] == second[0][:n2] and layout_header(LINES[:2]) in eng.tok.decode(first[0][:n1])
 
 
+def test_q8_the_engine_route_refuses_an_oversized_state_with_a_declared_header():
+    eng = Recording(limit=300)
+    client = TestClient(vllm_engine.make_app(eng))
+    state = " ".join(f"w{i}" for i in range(500))
+    response = client.post("/v1/answer", json={"state": state, "questions": [engine_q(0)], hq.FIELD: LINES})
+    assert response.status_code == 422, response.text
+    assert "the longest row" in response.json()["detail"]
+    assert eng.rows == []
+
+
 def test_q8_a_registration_example_refuses_the_field():
     client, _, _ = make()
     ex = examples(4, 0.9)
