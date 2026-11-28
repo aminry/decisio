@@ -689,7 +689,14 @@ def fit(X: np.ndarray, y, k: int, features: dict | None = None, sample_weight=No
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")  # classes with fewer than 5 members in a fold; convergence notes
-        folds = list(StratifiedKFold(FOLDS, shuffle=True, random_state=0).split(X, y))
+        # fewer than FOLDS rows of every option (many options, few examples): as many folds as the commonest option
+        # has rows, so the fit goes on and the table's own certificate decides whether it holds
+        most = int(np.bincount(y).max())
+        if most < 2:
+            raise ValueError(
+                "fast_table: cross-validation needs at least two examples of one option, and every example has its own"
+            )
+        folds = list(StratifiedKFold(min(FOLDS, most), shuffle=True, random_state=0).split(X, y))
         loss = {}
         for c in CS:
             ll = []
