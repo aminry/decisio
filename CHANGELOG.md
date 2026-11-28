@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.56.1](https://github.com/aminry/decisio/compare/v0.56.0...v0.56.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **serve:** handle oversized states with declared headers ([#577](https://github.com/aminry/decisio/issues/577)) ([8723abe](https://github.com/aminry/decisio/commit/8723abed7ef3830b5689ac4f577f6e449f32497b))
+* **tasks:** a fast table fits when no option has five examples ([#579](https://github.com/aminry/decisio/issues/579)) ([680f8fe](https://github.com/aminry/decisio/commit/680f8fe1970fb146a12d2686148b6c1840a9a6e7))
+* **tasks:** a fast table fits when no option has five examples, with as many folds as the commonest option has ([680f8fe](https://github.com/aminry/decisio/commit/680f8fe1970fb146a12d2686148b6c1840a9a6e7))
+
 ## [0.56.0](https://github.com/aminry/decisio/compare/v0.55.0...v0.56.0) (2026-11-23)
 
 
