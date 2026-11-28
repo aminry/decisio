@@ -73,6 +73,25 @@ def test_f2_c_is_chosen_by_cross_validated_log_loss_and_the_fit_is_deterministic
     assert set(a["cv_logloss"]) == {str(c) for c in FT.CS}
 
 
+def test_f2_many_options_with_few_examples_still_fit_with_fewer_folds():
+    """A 150-option task with 100 to 150 examples has no option with FOLDS rows: the fit uses as many folds as the
+    commonest option has rows instead of failing in scikit-learn."""
+    k = 150
+    for n in (100, 150, 300):
+        y = (np.arange(n) * 7) % 75  # 75 options in use, two to four examples each
+        assert np.bincount(y).max() < FT.FOLDS
+        X, _ = blobs(n, 4, d=16, seed=n)
+        rec = FT.fit(X, y, k)
+        assert rec["C"] in FT.CS and set(rec["cv_logloss"]) == {str(c) for c in FT.CS}
+        assert rec["classes"] == sorted(set(y.tolist()))
+
+
+def test_f2_examples_that_are_all_of_different_options_say_why_no_table_is_fitted():
+    X, _ = blobs(30, 4, d=16)
+    with pytest.raises(ValueError, match="at least two examples of one option"):
+        FT.fit(X, np.arange(30), 30)
+
+
 def reference_cascade(cT, pT, y, cD, pD, alpha, delta):
     """Two stages: the table's threshold at delta/2; decisio's on what the table defers, at delta/2."""
     tau_t = certify.threshold(cT, pT == y, alpha, delta / 2)
